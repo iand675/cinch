@@ -1,0 +1,6 @@
+--- Text.Html.cinch
++++ Text.Html.cinch
+@@ -202,2 +202 @@
+-        let byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get input stop)) in
+-        let span = escape-span byte in
++        let span = escape-span (wrapping-i64-to-u8 (nat-to-i64 (bytes-get input stop))) in

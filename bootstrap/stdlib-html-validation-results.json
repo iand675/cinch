@@ -1,0 +1,308 @@
+{
+  "description": "Standalone HTML text/byte escaping, full HTML5 named references and numeric references, with reproducible packed lookup and exact SIMD/SWAR scans. Full stdlib goal remains open.",
+  "full_stdlib_goal_complete": false,
+  "source_sha256": {
+    "compiler/prelude/Text/Html.cinch": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
+    "compiler/tests/lib_html.rs": "29632f8db6041e501c804557d53f7cbbee8dc443a61d0a8e35e3baf2de509c1f",
+    "compiler/tests/fixtures/html-vectors.json": "cdf6c803d00aa87b7fa2b7139e15cb3036bfc7661a4f7bb70b781611e6e6137d",
+    "compiler/tests/fixtures/html-consumer.cinch.in": "3ebbda2211b9969a2f644048fd5b1f0f85b40dbe41eba22cf8a11edeb31ca7d5",
+    "compiler/tests/fixtures/html-abi-nested.cinch": "dba60d3a9b0e4778b8ddaf36d0e7c71fda0dcb8b8b8d1e10f6b9533314f7c0c2",
+    "compiler/tests/fixtures/html-abi-bound.cinch": "ea5e47f952703a9c3f2a7f7866deb8f18851cc8cc4fd4d7c5231d7ebb2bc89de",
+    "compiler/tests/fixtures/html-abi-wrapped.cinch": "b168319dfeba1ddb18d4f061ef8de68a5ade18284ee3c299812ac55d09109084",
+    "tooling/generate_html_entities.py": "2022d7c8210a835a5e8db45fb332c10b624d36afc6581bd46386f9c0a88dce57",
+    "tooling/go_html_vectors.go": "b8ae802509bceefefc9270f8f745193b344612442afce707388fab63416c9a24",
+    "tooling/validate_html.py": "4e79e666e255cd33856ff1b115b315e0ae5616b97a42a431b9ca26306f4257d5",
+    "tooling/bench_html.py": "a862014fbe647c70d0dbbbbe3261305f9c8a1fc58469c4d862ec51b750593f87",
+    "tooling/compare_html.py": "e1530bd05aa9fd78006c969684c9518f02eeef7a7064990061d15d1883048881",
+    "tooling/bench_html_reference.go": "4c1acd0f8c721b0c2f3123d7cb0d41091472b6f7ee37cc5c6800eee76c33fd35",
+    "tooling/data/html-benchmark.cinch": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5",
+    "tooling/data/html-entities.json": "aaec6b0f1b49fa2c6f57610e37b66e85ea77ed0d6af266160873b87d2f7eb10d",
+    "tooling/data/html-entities-PYTHON-LICENSE.txt": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+  },
+  "compilers": {
+    "rust_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "native_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "compiler_implementation_unchanged": true,
+    "base_commit": "75d6a0cd9b454971c951b4bd4333a89cfc99a079"
+  },
+  "capability_mapping": {
+    "html.EscapeString": "Text.Html.html-escape; byte and exact-capacity APIs additionally preserve arbitrary bytes and avoid mandatory text conversion",
+    "html.UnescapeString": "Text.Html.html-unescape; full 2231-entry HTML5 table, numeric/legacy references, single-pass expansion and unchanged unknown text"
+  },
+  "validation": {
+    "rust": {
+      "frontend": "rust",
+      "cpu_affinity": [
+        2
+      ],
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "compiler_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-html/build/html-validation-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-html/build/html-validation-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 12.311994796997169,
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Html.cinch": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
+        "Main.cinch": "f72eeff68201363fe19735ab384b72342ff685686c3eba5a12645a1b611adab5"
+      },
+      "fixture_sha256": "cdf6c803d00aa87b7fa2b7139e15cb3036bfc7661a4f7bb70b781611e6e6137d",
+      "fixture_rows": 3448,
+      "large_pipeline_rows": 106,
+      "intentional_reference_differences": 6,
+      "executable_sha256": "a06634f89ae80395df7c5a2e52deab4b57612d13734a6d45229037ab5b9a0734",
+      "runs": [
+        {
+          "debug_poisoning": false,
+          "heap_limit": "32M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.039626206998946145,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.04096614199806936,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true
+    },
+    "native": {
+      "frontend": "native",
+      "cpu_affinity": [
+        2
+      ],
+      "compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+      "compiler_command": [
+        "python3",
+        "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-html/build/html-validation-native/bundle.cinch",
+        "/workspace/dasl-stdlib-html/build/html-validation-native/consumer.ll",
+        "/workspace/dasl-stdlib-html/build/html-validation-native/consumer",
+        "/workspace/dasl-stdlib-html/build/html-validation-native/link-report.txt"
+      ],
+      "compile_seconds": 22.718697121999867,
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Html.cinch": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
+        "Main.cinch": "f72eeff68201363fe19735ab384b72342ff685686c3eba5a12645a1b611adab5"
+      },
+      "fixture_sha256": "cdf6c803d00aa87b7fa2b7139e15cb3036bfc7661a4f7bb70b781611e6e6137d",
+      "fixture_rows": 3448,
+      "large_pipeline_rows": 106,
+      "intentional_reference_differences": 6,
+      "executable_sha256": "cc5cc377db9c8dd3b34f7e5482e7e1948ddd76a884cc2646d5f138167fdbc1e3",
+      "runs": [
+        {
+          "debug_poisoning": false,
+          "heap_limit": "32M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.4503217000019504,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "debug_poisoning": true,
+          "heap_limit": "256M",
+          "stack_limit": "8M",
+          "elapsed_seconds": 0.45998793699982343,
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true
+    }
+  },
+  "documentation": {
+    "canonical_declarations": 79,
+    "diagnostics": 0,
+    "orphans": 0,
+    "new_comments_reference_other_languages": false
+  },
+  "generation": {
+    "entities": 2231,
+    "legacy_without_semicolon": 106,
+    "generator_tests_passed": 3,
+    "generator_check_passed": true,
+    "fixture_reproduces_byte_for_byte": true,
+    "python_data_license_retained": true
+  },
+  "foreign_objects": {
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "kernel_source_sha256": "9ad5f6df4d9b6ad2078f669d3ef888a443432118aca3740b030d1587781f521f",
+    "library_source_sha256": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
+    "rows": [
+      {
+        "triple": "wasm32-unknown-unknown",
+        "llvm_sha256": "c411a5918f4eb3ea5158bdd2ac0136bb2ed1a03e4d5d5cc602c3886846f46cc9",
+        "object_sha256": "6221e20a08e05495b135dc82ee0b51a8817dd70353d1352fea0d6fcddf36ff10",
+        "actual_target_profile": true,
+        "executed": false
+      },
+      {
+        "triple": "aarch64-unknown-linux-gnu",
+        "llvm_sha256": "480511804786e9fcee5be862def758f0d97f10e0bda3924edce53aae431e5170",
+        "object_sha256": "f560daccc30f246262f8470a8ec97600c7711fb1fe17c22222026683e5f895d4",
+        "actual_target_profile": true,
+        "executed": false
+      }
+    ]
+  },
+  "rust_regression_target": {
+    "file": "compiler/tests/lib_html.rs",
+    "cargo_executed_in_lane": false,
+    "reason": "Coordinator serializes Cargo/full suites; identical shared template was executed with both frozen CLIs.",
+    "explicit_foreign_case_additionally_covers_big_endian_powerpc": true,
+    "own_cases": 4,
+    "shared_profile_cases": 3,
+    "expected_total_cases": 7
+  },
+  "benchmarks": {
+    "final_measured_candidate": "../benchmarks/stdlib/html-bulk-copy-O2-2026-11-16.json",
+    "rows": 72,
+    "all_reference_observables_match": true,
+    "ordinary_fastpath_paired": "../benchmarks/stdlib/interleaved-html-ordinary-text-O2-2026-11-16.json",
+    "bulk_copy_paired": "../benchmarks/stdlib/interleaved-html-bulk-copy-O2-2026-11-16.json",
+    "space_probes": "../benchmarks/stdlib/html-space-2026-11-16.json",
+    "native_abi_equivalence": "../benchmarks/stdlib/html-native-abi-equivalence-2026-11-16.json",
+    "production_assembly_byte_identical_to_measured_candidate": true,
+    "notes": "../benchmarks/stdlib/html-NOTES.md",
+    "retained_source_patches": [
+      "../benchmarks/stdlib/html-initial-baseline.patch",
+      "../benchmarks/stdlib/html-first-fastpath.patch",
+      "../benchmarks/stdlib/html-fixed-store-intermediate.patch",
+      "../benchmarks/stdlib/html-bulk-prebinding.patch"
+    ],
+    "baseline_patches_reconstruct_measured_hashes": true,
+    "universal_throughput_or_allocation_parity_claimed": false,
+    "copy_control_max_observed_median_difference_percent": 33.3,
+    "small_sparse_escape_regression_percent": 9.3
+  },
+  "codegen_inspection": {
+    "count-extra": {
+      "assembly_sha256": "87091a433665f575c3ded402d190213acd5900795b6b5c1c6c46361a1b536475",
+      "assembly_lines": 213,
+      "calls": [],
+      "packed_compare_instructions": 6,
+      "natural_runtime_calls": false
+    },
+    "find-special": {
+      "assembly_sha256": "2ebc019168b9d95556ef357f229dd275a57f4633f52207e38de779d21ab80b99",
+      "assembly_lines": 349,
+      "calls": [],
+      "packed_compare_instructions": 28,
+      "natural_runtime_calls": false
+    },
+    "find-entry": {
+      "inlined_or_eliminated": true
+    },
+    "scan-name": {
+      "assembly_sha256": "70057d7b0779f13f4c320ac87249d27c295ebf520c1cbb1b390de44e68094ae5",
+      "assembly_lines": 167,
+      "calls": [],
+      "packed_compare_instructions": 0,
+      "natural_runtime_calls": false
+    },
+    "name-fringe": {
+      "assembly_sha256": "024ea175e489ddf6c68d65293f2a1a4610eb54a50f7c970f14af8258fd34663a",
+      "assembly_lines": 98,
+      "calls": [],
+      "packed_compare_instructions": 0,
+      "natural_runtime_calls": false
+    },
+    "store-packed": {
+      "assembly_sha256": "9f6f465ee01aac64e621261ec43b22f4e697696d0a388675e8ca5cb6bfb6316b",
+      "assembly_lines": 17,
+      "calls": [
+        "\"Text.Html.store-packed"
+      ],
+      "packed_compare_instructions": 0,
+      "natural_runtime_calls": false
+    },
+    "escape-span": {
+      "assembly_sha256": "501e4a6718e4df5c8bcdfb5e0bfec570f4a15fcde5098ab87937cd2952e15f8b",
+      "assembly_lines": 23,
+      "calls": [],
+      "packed_compare_instructions": 0,
+      "natural_runtime_calls": false
+    },
+    "escape-from": {
+      "assembly_sha256": "13d385dc5c724c40071386274334405176ed7d5d92aed19ef036d05a1cc1c29d",
+      "assembly_lines": 2005,
+      "calls": [
+        "\"Text.Html.find-fringe\"@PLT",
+        "\"Text.Html.find-special\"@PLT",
+        "cinch_bytes_copy@PLT",
+        "cinch_bytes_data@PLT",
+        "cinch_bytes_get@PLT",
+        "cinch_bytes_len@PLT",
+        "cinch_drop_mt@PLT",
+        "cinch_drop_slow@PLT",
+        "cinch_dup_mt@PLT",
+        "cinch_nat_add@PLT",
+        "cinch_nat_cmp@PLT",
+        "cinch_nat_mul@PLT",
+        "cinch_nat_sub@PLT",
+        "cinch_nat_to_i64@PLT"
+      ],
+      "packed_compare_instructions": 0,
+      "natural_runtime_calls": true
+    },
+    "unescape-from": {
+      "assembly_sha256": "445f86b48ba8f22fa8f453f6de4a9606e6cb14f3303bf778d98e93edcb83dae6",
+      "assembly_lines": 2031,
+      "calls": [
+        "\"Text.Html.find-special\"@PLT",
+        "\"Text.Html.reference-at",
+        "\"Text.Html.store-packed",
+        "cinch_bytes_copy@PLT",
+        "cinch_bytes_data@PLT",
+        "cinch_bytes_len@PLT",
+        "cinch_bytes_set@PLT",
+        "cinch_drop_mt@PLT",
+        "cinch_drop_slow@PLT",
+        "cinch_dup_mt@PLT",
+        "cinch_nat_add@PLT",
+        "cinch_nat_cmp@PLT",
+        "cinch_nat_mul@PLT",
+        "cinch_nat_sub@PLT",
+        "cinch_nat_to_i64@PLT"
+      ],
+      "packed_compare_instructions": 0,
+      "natural_runtime_calls": true
+    }
+  },
+  "intentional_reference_differences": {
+    "names": [
+      "nLt;",
+      "nGt;"
+    ],
+    "fixture_rows": 6,
+    "reason": "Complete HTML5 support includes five-byte references expanding to six UTF-8 bytes; reference SDK intentionally omits them."
+  },
+  "limitations": [
+    "Checked mutation and byte/text copying remain comparatively expensive for dense conversions.",
+    "The spelling buffer has a small fixed allocation cost when escaping is needed.",
+    "The frozen Native compiler needs a let-bound or typed-wrapper U8 argument for the nested checked-byte conversion; exact probes and optimized code equivalence are retained.",
+    "Foreign objects were compiled but not executed.",
+    "The Rust Cargo regression target awaits coordinator integration; the CLI consumer and standalone foreign checks passed."
+  ]
+}

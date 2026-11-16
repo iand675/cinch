@@ -1,0 +1,174 @@
+--- Text.Html.cinch
++++ Text.Html.cinch
+@@ -148,7 +147,0 @@
+-  -- | Return an immediately special byte without repeatedly classifying its following block.
+-  find-entry :: I64 -> U64 -> U8 -> U64
+-  find-entry address remaining mode =
+-    if eq-u64 remaining 0 then 0
+-    else if eq-u64 (find-fringe address 1 mode 0) 0 then 0
+-    else find-special address remaining mode 0
+-
+@@ -159 +152 @@
+-    start + word-natural (hold-source input (find-entry address (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input - start))) mode))
++    start + word-natural (hold-source input (find-special address (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input - start))) mode 0))
+@@ -168,8 +161,3 @@
+-  store-packed out at word count =
+-    if count >= 4 && at + 4 <= bytes-len out then
+-      let written = bytes-write-le32 out at (wrapping-u64-to-u32 word) in
+-      store-packed out (at + 4) (wrapping-shr-u64 word 32) (count - 4)
+-    else if count == 1 && at < bytes-len out then bytes-set out at (u8-to-nat (wrapping-u64-to-u8 word))
+-    else if count > 0 && at < bytes-len out then
+-      let written = bytes-set out at (u8-to-nat (wrapping-u64-to-u8 word)) in
+-      store-packed out (at + 1) (wrapping-shr-u64 word 8) (count - 1)
++  store-packed out at word count = if count > 0 && at < bytes-len out then
++    let written = bytes-set out at (u8-to-nat (wrapping-u64-to-u8 word)) in
++    store-packed out (at + 1) (wrapping-shr-u64 word 8) (count - 1)
+@@ -178,15 +166,9 @@
+-  -- | Pack the offset and byte count of one escape spelling in the private complete table.
+-  prim escape-span :: U8 -> U64 where
+-    llvm {
+-      %amp = icmp eq i8 %0, 38
+-      %single = icmp eq i8 %0, 39
+-      %double = icmp eq i8 %0, 34
+-      %less = icmp eq i8 %0, 60
+-      %greater = icmp eq i8 %0, 62
+-      %a = select i1 %greater, i64 1043, i64 0
+-      %b = select i1 %less, i64 1039, i64 %a
+-      %c = select i1 %double, i64 1290, i64 %b
+-      %d = select i1 %single, i64 1285, i64 %c
+-      %value = select i1 %amp, i64 1280, i64 %d
+-      ret i64 %value
+-    }
++  -- | Packed exact HTML spellings for the five escaped ASCII bytes.
++  escape-replacement :: Nat -> U64
++  escape-replacement byte =
++    if byte == 38 then 360288225478926630
++    else if byte == 39 then 360288224552362790
++    else if byte == 34 then 360288224468476710
++    else if byte == 60 then 288230377149197350
++    else if byte == 62 then 288230377149196070
++    else 0
+@@ -195,2 +177,2 @@
+-  escape-from :: Bytes -> Nat -> Bytes -> Nat -> Bytes -> Unit
+-  escape-from input start out oi table =
++  escape-from :: Bytes -> Nat -> Bytes -> Nat -> Unit
++  escape-from input start out oi =
+@@ -199 +181 @@
+-      let copied = if start < stop then bytes-copy-range out input oi start (stop - start) else () in
++      let copied = bytes-copy-range out input oi start (stop - start) in
+@@ -202,8 +184,2 @@
+-        let byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get input stop)) in
+-        let span = escape-span byte in
+-        let offset = u8-to-nat (wrapping-u64-to-u8 span) in
+-        let n = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 span 8)) in
+-        if offset + n <= bytes-len table && next + n <= bytes-len out then
+-          let written = bytes-copy-range out table next offset n in
+-          escape-from input (stop + 1) out (next + n) table
+-        else ()
++        let word = escape-replacement (bytes-get input stop) in let n = packed-length word in
++        let written = store-packed out next word n in escape-from input (stop + 1) out (next + n)
+@@ -213,7 +188,0 @@
+-  -- | Allocate one exact escaped output after its complete byte count is known.
+-  escape-sized :: Bytes -> Nat -> Bytes
+-  escape-sized input size = let out = bytes-new size in
+-    if size == bytes-len input then let copied = bytes-copy-range out input 0 0 size in out
+-    else let table = string-to-bytes "&amp;&#39;&#34;&lt;&gt;" in
+-      let written = escape-from input 0 out 0 table in out
+-
+@@ -222 +191,2 @@
+-  html-escape-bytes input = escape-sized input (html-escaped-length input)
++  html-escape-bytes input = let out = bytes-new (html-escaped-length input) in
++    let written = escape-from input 0 out 0 in out
+@@ -227,6 +197,3 @@
+-  html-escape input =
+-    let bytes = string-to-bytes input in let size = html-escaped-length bytes in
+-    if size == bytes-len bytes then input
+-    else case string-from-bytes (escape-sized bytes size) of
+-      Some result -> result
+-      None -> empty-string
++  html-escape input = case string-from-bytes (html-escape-bytes (string-to-bytes input)) of
++    Some result -> result
++    None -> empty-string
+@@ -235,10 +202,2 @@
+-  entity-byte :: U8 -> Bool
+-  entity-byte byte = (ge-u8 byte 97 && le-u8 byte 122) || (ge-u8 byte 65 && le-u8 byte 90) || (ge-u8 byte 48 && le-u8 byte 57)
+-
+-  -- | Scan a bounded name with exact byte loads and machine counters, stopping at one semicolon.
+-  scan-name :: I64 -> U64 -> U64 -> U64 -> U64
+-  scan-name address remaining limit count =
+-    if eq-u64 remaining 0 || eq-u64 limit 0 then count
+-    else let byte = load-one address in
+-      if entity-byte byte then scan-name (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (wrapping-sub-u64 limit 1) (wrapping-add-u64 count 1)
+-      else if eq-u8 byte 59 then wrapping-add-u64 count 1 else count
++  entity-byte :: Nat -> Bool
++  entity-byte byte = (byte >= 97 && byte <= 122) || (byte >= 65 && byte <= 90) || (byte >= 48 && byte <= 57)
+@@ -247,5 +206,7 @@
+-  named-end :: Bytes -> Nat -> Nat
+-  named-end input start = if start <= bytes-len input then
+-    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 start) in
+-    start + word-natural (hold-source input (scan-name address (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input - start))) 33 0))
+-    else bytes-len input
++  named-end :: Bytes -> Nat -> Nat -> Nat
++  named-end input start i =
++    if i < bytes-len input && i <= start + 32 then
++      let byte = bytes-get input i in
++      if entity-byte byte then named-end input start (i + 1)
++      else if byte == 59 then i + 1 else i
++    else i
+@@ -254,4 +215,4 @@
+-  name-fringe :: I64 -> U64 -> U64 -> U32 -> U64
+-  name-fringe address n word shift = if ne-u64 n 0 then
+-    let byte = u8-to-u64 (load-one address) in
+-    name-fringe (wrapping-add-i64 address 1) (wrapping-sub-u64 n 1) (bit-or-u64 word (wrapping-shl-u64 byte shift)) (wrapping-add-u32 shift 8)
++  name-fringe :: Bytes -> Nat -> Nat -> U64 -> U32 -> U64
++  name-fringe input at n word shift = if n > 0 && at < bytes-len input then
++    let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get input at)) in
++    name-fringe input (at + 1) (n - 1) (bit-or-u64 word (wrapping-shl-u64 byte shift)) (wrapping-add-u32 shift 8)
+@@ -265,4 +226 @@
+-    else if remaining < 8 && at + remaining <= bytes-len input then
+-      let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
+-      hold-source input (name-fringe address (wrapping-i64-to-u64 (nat-to-i64 remaining)) 0 0)
+-    else 0
++    else name-fringe input at remaining 0 0
+@@ -307 +265 @@
+-    let end = named-end input start in let n = saturating-sub end start in
++    let end = named-end input start start in let n = saturating-sub end start in
+@@ -414 +372 @@
+-      let copied = if start < stop then bytes-copy-range out input oi start (stop - start) else () in
++      let copied = bytes-copy-range out input oi start (stop - start) in
+@@ -427,17 +384,0 @@
+-  -- | Decode from a known first ampersand, copying its ordinary prefix only once.
+-  -- An input with no ampersand needs only the required fresh result allocation.
+-  unescape-since :: Bytes -> Nat -> Bytes
+-  unescape-since input first =
+-    if first == bytes-len input then
+-      let result = bytes-new first in let copied = bytes-copy-range result input 0 0 first in result
+-    else if first < bytes-len input then
+-      let out = bytes-new (bytes-len input * 2) in
+-      if first <= bytes-len out then
+-        let prefix = bytes-copy-range out input 0 0 first in
+-        let n = unescape-from input first out first in
+-        if n <= bytes-len out then
+-          let result = bytes-new n in let copied = bytes-copy-range result out 0 0 n in result
+-        else bytes-new 0
+-      else bytes-new 0
+-    else bytes-new 0
+-
+@@ -447 +388,6 @@
+-  html-unescape-bytes input = unescape-since input (next-special input 0 1)
++  html-unescape-bytes input =
++    let out = bytes-new (bytes-len input * 2) in
++    let n = unescape-from input 0 out 0 in
++    if n <= bytes-len out then
++      let result = bytes-new n in let copied = bytes-copy-range result out 0 0 n in result
++    else bytes-new 0
+@@ -453,6 +399,3 @@
+-  html-unescape input =
+-    let bytes = string-to-bytes input in let first = next-special bytes 0 1 in
+-    if first == bytes-len bytes then input
+-    else case string-from-bytes (unescape-since bytes first) of
+-      Some result -> result
+-      None -> empty-string
++  html-unescape input = case string-from-bytes (html-unescape-bytes (string-to-bytes input)) of
++    Some result -> result
++    None -> empty-string

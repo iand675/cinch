@@ -1,0 +1,1838 @@
+{
+  "description": "One complete public HTML operation with equal-length executable paths and common startup/input setup; ordinary reclamation, no debug quarantine",
+  "cpu_affinity": [
+    2
+  ],
+  "environment": {
+    "CINCH_RC_DEBUG": "0",
+    "CINCH_ALLOC_STATS": "1",
+    "CINCH_LEAK_CHECK": "1",
+    "CINCH_HEAP_LIMIT": "32M",
+    "CINCH_STACK_SIZE": "8M"
+  },
+  "inputs": {
+    "before": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "executable_sha256": "3e6d19b6cf2145617db43487baab2b4feffed485183ff45c33e347aca05a167c",
+      "llvm_sha256": "c34bd52e2f3c914afbc53f92ffb9e5852521b5ca4ac536c2ce6f0d266dd2a177",
+      "assembly_sha256": "4ae084e174f606a8320947f774a9ad9dd1b195c4d92dfac3c3863cba6803191b",
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Html.cinch": "a463d51e08dd682e791db16fee0571c70f453fa9666e05e4cbcc82e8a8ebcb3a",
+        "Main.cinch": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5"
+      },
+      "reference_source_sha256": "4c1acd0f8c721b0c2f3123d7cb0d41091472b6f7ee37cc5c6800eee76c33fd35",
+      "reference_executable_sha256": "6a4880bad579c70ce4537eddbd9765bca13ad041f1f27a1644e961c15f7877dc",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "opt_level": 2,
+      "artifacts": "/workspace/dasl-stdlib-html/build/html-bench-baseline",
+      "runner_sha256": "365eb291bc40ff04a37a6a20d62929643a6abd48c82e1934acf7fe39da943e0d",
+      "driver_sha256": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5",
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+      "cpu": "AMD EPYC 9V74 80-Core Processor"
+    },
+    "first_fastpath": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "executable_sha256": "e398f95ed95bee0ad2ec0e39cfc07c2a1b00b313a00b9c3a74873ff83681804f",
+      "llvm_sha256": "eb3b915888abc51fdee1a5d7c76f5532063f227de3794594a9a24af56e755966",
+      "assembly_sha256": "c901fb4d51288fab64d28a0c8de227979d57f76587e471332105e27ca9dc1389",
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Html.cinch": "623dfd85923ac842775582d536e279f0a3e13d93c42b5536e0751617c8af2811",
+        "Main.cinch": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5"
+      },
+      "reference_source_sha256": "4c1acd0f8c721b0c2f3123d7cb0d41091472b6f7ee37cc5c6800eee76c33fd35",
+      "reference_executable_sha256": "6a4880bad579c70ce4537eddbd9765bca13ad041f1f27a1644e961c15f7877dc",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "opt_level": 2,
+      "artifacts": "/workspace/dasl-stdlib-html/build/html-bench-fastpath",
+      "runner_sha256": "365eb291bc40ff04a37a6a20d62929643a6abd48c82e1934acf7fe39da943e0d",
+      "driver_sha256": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5",
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+      "cpu": "AMD EPYC 9V74 80-Core Processor"
+    },
+    "fixed_stores": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "executable_sha256": "69d7e9df3cb5be3c37b6f39ac66524c5fdabef3f9e303452efb5ac4451d89ae8",
+      "llvm_sha256": "24b069598351f80054b0b0a1fdc3df485c8fbafd583562e9e0af40ca8a66bc19",
+      "assembly_sha256": "52bb78b3d093851803f5e3830f405c0e659d4caf36b076e8695fcba673687dae",
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Html.cinch": "e0ce1688c583bbd2be7383f78657c7c584afb655d68f789e6d35fd03c2129a24",
+        "Main.cinch": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5"
+      },
+      "reference_source_sha256": "4c1acd0f8c721b0c2f3123d7cb0d41091472b6f7ee37cc5c6800eee76c33fd35",
+      "reference_executable_sha256": "6a4880bad579c70ce4537eddbd9765bca13ad041f1f27a1644e961c15f7877dc",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "opt_level": 2,
+      "artifacts": "/workspace/dasl-stdlib-html/build/html-bench-fixed-stores",
+      "runner_sha256": "365eb291bc40ff04a37a6a20d62929643a6abd48c82e1934acf7fe39da943e0d",
+      "driver_sha256": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5",
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+      "cpu": "AMD EPYC 9V74 80-Core Processor"
+    },
+    "final_bulk_copy": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "executable_sha256": "b5c423eb18e73f11a97ac43a3ad12b1a56d0c3cff1faf108075198d28d6a8b0b",
+      "llvm_sha256": "d5315e79a2ee81a2eab35de83b8234c8803f0522803bf17f702d06b6f6809d91",
+      "assembly_sha256": "17eee72e4d011078a1832e7f1ed299636c1699e91328ff0db438abb14a9cff16",
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Html.cinch": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
+        "Main.cinch": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5"
+      },
+      "reference_source_sha256": "4c1acd0f8c721b0c2f3123d7cb0d41091472b6f7ee37cc5c6800eee76c33fd35",
+      "reference_executable_sha256": "6a4880bad579c70ce4537eddbd9765bca13ad041f1f27a1644e961c15f7877dc",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "opt_level": 2,
+      "artifacts": "/workspace/dasl-stdlib-html/build/html-bench-native-abi",
+      "runner_sha256": "a862014fbe647c70d0dbbbbe3261305f9c8a1fc58469c4d862ec51b750593f87",
+      "driver_sha256": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5",
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "source_override": null
+    }
+  },
+  "rows": [
+    {
+      "variant": "before",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 115,
+        "bytes": 3212,
+        "peak": 1355,
+        "header-blocks": 85,
+        "header-bytes": 1728,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 121,
+        "bytes": 3386,
+        "peak": 1357,
+        "header-blocks": 90,
+        "header-bytes": 1832,
+        "immortal": 0,
+        "freed": 90,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 125,
+        "bytes": 3457,
+        "peak": 1354,
+        "header-blocks": 91,
+        "header-bytes": 1848,
+        "immortal": 0,
+        "freed": 91,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 131,
+        "bytes": 3631,
+        "peak": 1356,
+        "header-blocks": 96,
+        "header-bytes": 1952,
+        "immortal": 0,
+        "freed": 96,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 402,
+      "stats": {
+        "blocks": 115,
+        "bytes": 3327,
+        "peak": 1355,
+        "header-blocks": 85,
+        "header-bytes": 1728,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 253,
+      "stats": {
+        "blocks": 121,
+        "bytes": 3390,
+        "peak": 1357,
+        "header-blocks": 90,
+        "header-bytes": 1832,
+        "immortal": 0,
+        "freed": 90,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 402,
+      "stats": {
+        "blocks": 139,
+        "bytes": 4074,
+        "peak": 1354,
+        "header-blocks": 105,
+        "header-bytes": 2128,
+        "immortal": 0,
+        "freed": 105,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 253,
+      "stats": {
+        "blocks": 133,
+        "bytes": 3679,
+        "peak": 1357,
+        "header-blocks": 98,
+        "header-bytes": 1992,
+        "immortal": 0,
+        "freed": 98,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 362,
+      "stats": {
+        "blocks": 115,
+        "bytes": 3253,
+        "peak": 1355,
+        "header-blocks": 85,
+        "header-bytes": 1728,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 358,
+      "stats": {
+        "blocks": 126,
+        "bytes": 3484,
+        "peak": 1357,
+        "header-blocks": 95,
+        "header-bytes": 1912,
+        "immortal": 0,
+        "freed": 95,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 362,
+      "stats": {
+        "blocks": 125,
+        "bytes": 3514,
+        "peak": 1354,
+        "header-blocks": 91,
+        "header-bytes": 1848,
+        "immortal": 0,
+        "freed": 91,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 358,
+      "stats": {
+        "blocks": 161,
+        "bytes": 4187,
+        "peak": 1356,
+        "header-blocks": 126,
+        "header-bytes": 2520,
+        "immortal": 0,
+        "freed": 126,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 141,
+        "bytes": 134769,
+        "peak": 131421,
+        "header-blocks": 111,
+        "header-bytes": 2248,
+        "immortal": 0,
+        "freed": 111,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 145,
+        "bytes": 265907,
+        "peak": 262519,
+        "header-blocks": 114,
+        "header-bytes": 2312,
+        "immortal": 0,
+        "freed": 114,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 151,
+        "bytes": 397030,
+        "peak": 262588,
+        "header-blocks": 117,
+        "header-bytes": 2368,
+        "immortal": 0,
+        "freed": 117,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 157,
+        "bytes": 528212,
+        "peak": 393654,
+        "header-blocks": 122,
+        "header-bytes": 2472,
+        "immortal": 0,
+        "freed": 122,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 301669,
+      "stats": {
+        "blocks": 145,
+        "bytes": 370789,
+        "peak": 367347,
+        "header-blocks": 115,
+        "header-bytes": 2328,
+        "immortal": 0,
+        "freed": 115,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 65727,
+      "stats": {
+        "blocks": 147,
+        "bytes": 265955,
+        "peak": 262519,
+        "header-blocks": 116,
+        "header-bytes": 2352,
+        "immortal": 0,
+        "freed": 116,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 301669,
+      "stats": {
+        "blocks": 167,
+        "bytes": 1105142,
+        "peak": 734440,
+        "header-blocks": 133,
+        "header-bytes": 2688,
+        "immortal": 0,
+        "freed": 133,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 65727,
+      "stats": {
+        "blocks": 159,
+        "bytes": 528260,
+        "peak": 393654,
+        "header-blocks": 124,
+        "header-bytes": 2512,
+        "immortal": 0,
+        "freed": 124,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 96700,
+      "stats": {
+        "blocks": 141,
+        "bytes": 165642,
+        "peak": 162261,
+        "header-blocks": 111,
+        "header-bytes": 2248,
+        "immortal": 0,
+        "freed": 111,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 29241,
+      "stats": {
+        "blocks": 9789,
+        "bytes": 383650,
+        "peak": 225901,
+        "header-blocks": 9758,
+        "header-bytes": 156632,
+        "immortal": 0,
+        "freed": 9758,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 96700,
+      "stats": {
+        "blocks": 151,
+        "bytes": 489583,
+        "peak": 324268,
+        "header-blocks": 117,
+        "header-bytes": 2368,
+        "immortal": 0,
+        "freed": 117,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 29241,
+      "stats": {
+        "blocks": 50287,
+        "bytes": 1359307,
+        "peak": 357036,
+        "header-blocks": 50252,
+        "header-bytes": 943384,
+        "immortal": 0,
+        "freed": 50252,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 115,
+        "bytes": 3212,
+        "peak": 1355,
+        "header-blocks": 85,
+        "header-bytes": 1728,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3298,
+        "peak": 1357,
+        "header-blocks": 89,
+        "header-bytes": 1808,
+        "immortal": 0,
+        "freed": 89,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3313,
+        "peak": 1354,
+        "header-blocks": 87,
+        "header-bytes": 1768,
+        "immortal": 0,
+        "freed": 87,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 123,
+        "bytes": 3399,
+        "peak": 1356,
+        "header-blocks": 91,
+        "header-bytes": 1848,
+        "immortal": 0,
+        "freed": 91,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 402,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3415,
+        "peak": 1357,
+        "header-blocks": 89,
+        "header-bytes": 1808,
+        "immortal": 0,
+        "freed": 89,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 253,
+      "stats": {
+        "blocks": 121,
+        "bytes": 3390,
+        "peak": 1357,
+        "header-blocks": 90,
+        "header-bytes": 1832,
+        "immortal": 0,
+        "freed": 90,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 402,
+      "stats": {
+        "blocks": 139,
+        "bytes": 4074,
+        "peak": 1354,
+        "header-blocks": 105,
+        "header-bytes": 2128,
+        "immortal": 0,
+        "freed": 105,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 253,
+      "stats": {
+        "blocks": 131,
+        "bytes": 3635,
+        "peak": 1356,
+        "header-blocks": 96,
+        "header-bytes": 1952,
+        "immortal": 0,
+        "freed": 96,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 362,
+      "stats": {
+        "blocks": 115,
+        "bytes": 3253,
+        "peak": 1355,
+        "header-blocks": 85,
+        "header-bytes": 1728,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 358,
+      "stats": {
+        "blocks": 128,
+        "bytes": 3528,
+        "peak": 1358,
+        "header-blocks": 97,
+        "header-bytes": 1952,
+        "immortal": 0,
+        "freed": 97,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 362,
+      "stats": {
+        "blocks": 125,
+        "bytes": 3514,
+        "peak": 1354,
+        "header-blocks": 91,
+        "header-bytes": 1848,
+        "immortal": 0,
+        "freed": 91,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 358,
+      "stats": {
+        "blocks": 161,
+        "bytes": 4187,
+        "peak": 1356,
+        "header-blocks": 126,
+        "header-bytes": 2520,
+        "immortal": 0,
+        "freed": 126,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 141,
+        "bytes": 134769,
+        "peak": 131421,
+        "header-blocks": 111,
+        "header-bytes": 2248,
+        "immortal": 0,
+        "freed": 111,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 143,
+        "bytes": 134811,
+        "peak": 131423,
+        "header-blocks": 113,
+        "header-bytes": 2288,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 145,
+        "bytes": 265878,
+        "peak": 196996,
+        "header-blocks": 113,
+        "header-bytes": 2288,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 147,
+        "bytes": 265920,
+        "peak": 196998,
+        "header-blocks": 115,
+        "header-bytes": 2328,
+        "immortal": 0,
+        "freed": 115,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 301669,
+      "stats": {
+        "blocks": 145,
+        "bytes": 370789,
+        "peak": 367347,
+        "header-blocks": 115,
+        "header-bytes": 2328,
+        "immortal": 0,
+        "freed": 115,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 65727,
+      "stats": {
+        "blocks": 149,
+        "bytes": 265999,
+        "peak": 262519,
+        "header-blocks": 118,
+        "header-bytes": 2392,
+        "immortal": 0,
+        "freed": 118,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 301669,
+      "stats": {
+        "blocks": 167,
+        "bytes": 1105142,
+        "peak": 734408,
+        "header-blocks": 133,
+        "header-bytes": 2688,
+        "immortal": 0,
+        "freed": 133,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 65727,
+      "stats": {
+        "blocks": 159,
+        "bytes": 528260,
+        "peak": 393654,
+        "header-blocks": 124,
+        "header-bytes": 2512,
+        "immortal": 0,
+        "freed": 124,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 96700,
+      "stats": {
+        "blocks": 141,
+        "bytes": 165642,
+        "peak": 162261,
+        "header-blocks": 111,
+        "header-bytes": 2248,
+        "immortal": 0,
+        "freed": 111,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 29241,
+      "stats": {
+        "blocks": 9789,
+        "bytes": 383650,
+        "peak": 225901,
+        "header-blocks": 9758,
+        "header-bytes": 156632,
+        "immortal": 0,
+        "freed": 9758,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 96700,
+      "stats": {
+        "blocks": 151,
+        "bytes": 489583,
+        "peak": 324236,
+        "header-blocks": 117,
+        "header-bytes": 2368,
+        "immortal": 0,
+        "freed": 117,
+        "live": 0
+      }
+    },
+    {
+      "variant": "first_fastpath",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 29241,
+      "stats": {
+        "blocks": 50287,
+        "bytes": 1359307,
+        "peak": 357036,
+        "header-blocks": 50252,
+        "header-bytes": 943384,
+        "immortal": 0,
+        "freed": 50252,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 115,
+        "bytes": 3212,
+        "peak": 1355,
+        "header-blocks": 85,
+        "header-bytes": 1728,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3298,
+        "peak": 1357,
+        "header-blocks": 89,
+        "header-bytes": 1808,
+        "immortal": 0,
+        "freed": 89,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3313,
+        "peak": 1354,
+        "header-blocks": 87,
+        "header-bytes": 1768,
+        "immortal": 0,
+        "freed": 87,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 123,
+        "bytes": 3399,
+        "peak": 1356,
+        "header-blocks": 91,
+        "header-bytes": 1848,
+        "immortal": 0,
+        "freed": 91,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 402,
+      "stats": {
+        "blocks": 115,
+        "bytes": 3327,
+        "peak": 1355,
+        "header-blocks": 85,
+        "header-bytes": 1728,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 253,
+      "stats": {
+        "blocks": 121,
+        "bytes": 3390,
+        "peak": 1357,
+        "header-blocks": 90,
+        "header-bytes": 1832,
+        "immortal": 0,
+        "freed": 90,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 402,
+      "stats": {
+        "blocks": 139,
+        "bytes": 4074,
+        "peak": 1354,
+        "header-blocks": 105,
+        "header-bytes": 2128,
+        "immortal": 0,
+        "freed": 105,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 253,
+      "stats": {
+        "blocks": 131,
+        "bytes": 3635,
+        "peak": 1356,
+        "header-blocks": 96,
+        "header-bytes": 1952,
+        "immortal": 0,
+        "freed": 96,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 362,
+      "stats": {
+        "blocks": 115,
+        "bytes": 3253,
+        "peak": 1355,
+        "header-blocks": 85,
+        "header-bytes": 1728,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 358,
+      "stats": {
+        "blocks": 126,
+        "bytes": 3484,
+        "peak": 1357,
+        "header-blocks": 95,
+        "header-bytes": 1912,
+        "immortal": 0,
+        "freed": 95,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 362,
+      "stats": {
+        "blocks": 125,
+        "bytes": 3514,
+        "peak": 1354,
+        "header-blocks": 91,
+        "header-bytes": 1848,
+        "immortal": 0,
+        "freed": 91,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 358,
+      "stats": {
+        "blocks": 163,
+        "bytes": 4231,
+        "peak": 1357,
+        "header-blocks": 128,
+        "header-bytes": 2560,
+        "immortal": 0,
+        "freed": 128,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 141,
+        "bytes": 134769,
+        "peak": 131421,
+        "header-blocks": 111,
+        "header-bytes": 2248,
+        "immortal": 0,
+        "freed": 111,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 143,
+        "bytes": 134811,
+        "peak": 131423,
+        "header-blocks": 113,
+        "header-bytes": 2288,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 145,
+        "bytes": 265878,
+        "peak": 196996,
+        "header-blocks": 113,
+        "header-bytes": 2288,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 149,
+        "bytes": 265964,
+        "peak": 196998,
+        "header-blocks": 117,
+        "header-bytes": 2368,
+        "immortal": 0,
+        "freed": 117,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 301669,
+      "stats": {
+        "blocks": 145,
+        "bytes": 370789,
+        "peak": 367347,
+        "header-blocks": 115,
+        "header-bytes": 2328,
+        "immortal": 0,
+        "freed": 115,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 65727,
+      "stats": {
+        "blocks": 147,
+        "bytes": 265955,
+        "peak": 262519,
+        "header-blocks": 116,
+        "header-bytes": 2352,
+        "immortal": 0,
+        "freed": 116,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 301669,
+      "stats": {
+        "blocks": 167,
+        "bytes": 1105142,
+        "peak": 734408,
+        "header-blocks": 133,
+        "header-bytes": 2688,
+        "immortal": 0,
+        "freed": 133,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 65727,
+      "stats": {
+        "blocks": 159,
+        "bytes": 528260,
+        "peak": 393654,
+        "header-blocks": 124,
+        "header-bytes": 2512,
+        "immortal": 0,
+        "freed": 124,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 96700,
+      "stats": {
+        "blocks": 141,
+        "bytes": 165642,
+        "peak": 162261,
+        "header-blocks": 111,
+        "header-bytes": 2248,
+        "immortal": 0,
+        "freed": 111,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 29241,
+      "stats": {
+        "blocks": 9789,
+        "bytes": 383650,
+        "peak": 225901,
+        "header-blocks": 9758,
+        "header-bytes": 156632,
+        "immortal": 0,
+        "freed": 9758,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 96700,
+      "stats": {
+        "blocks": 151,
+        "bytes": 489583,
+        "peak": 324236,
+        "header-blocks": 117,
+        "header-bytes": 2368,
+        "immortal": 0,
+        "freed": 117,
+        "live": 0
+      }
+    },
+    {
+      "variant": "fixed_stores",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 29241,
+      "stats": {
+        "blocks": 50287,
+        "bytes": 1359307,
+        "peak": 357036,
+        "header-blocks": 50252,
+        "header-bytes": 943384,
+        "immortal": 0,
+        "freed": 50252,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 115,
+        "bytes": 3212,
+        "peak": 1355,
+        "header-blocks": 85,
+        "header-bytes": 1728,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3298,
+        "peak": 1357,
+        "header-blocks": 89,
+        "header-bytes": 1808,
+        "immortal": 0,
+        "freed": 89,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3313,
+        "peak": 1354,
+        "header-blocks": 87,
+        "header-bytes": 1768,
+        "immortal": 0,
+        "freed": 87,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 323,
+      "stats": {
+        "blocks": 123,
+        "bytes": 3399,
+        "peak": 1356,
+        "header-blocks": 91,
+        "header-bytes": 1848,
+        "immortal": 0,
+        "freed": 91,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 402,
+      "stats": {
+        "blocks": 117,
+        "bytes": 3374,
+        "peak": 1355,
+        "header-blocks": 86,
+        "header-bytes": 1752,
+        "immortal": 0,
+        "freed": 86,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 253,
+      "stats": {
+        "blocks": 121,
+        "bytes": 3390,
+        "peak": 1357,
+        "header-blocks": 90,
+        "header-bytes": 1832,
+        "immortal": 0,
+        "freed": 90,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 402,
+      "stats": {
+        "blocks": 141,
+        "bytes": 4121,
+        "peak": 1354,
+        "header-blocks": 106,
+        "header-bytes": 2152,
+        "immortal": 0,
+        "freed": 106,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 253,
+      "stats": {
+        "blocks": 131,
+        "bytes": 3635,
+        "peak": 1356,
+        "header-blocks": 96,
+        "header-bytes": 1952,
+        "immortal": 0,
+        "freed": 96,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 362,
+      "stats": {
+        "blocks": 117,
+        "bytes": 3300,
+        "peak": 1355,
+        "header-blocks": 86,
+        "header-bytes": 1752,
+        "immortal": 0,
+        "freed": 86,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 358,
+      "stats": {
+        "blocks": 128,
+        "bytes": 3528,
+        "peak": 1358,
+        "header-blocks": 97,
+        "header-bytes": 1952,
+        "immortal": 0,
+        "freed": 97,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 362,
+      "stats": {
+        "blocks": 127,
+        "bytes": 3561,
+        "peak": 1354,
+        "header-blocks": 92,
+        "header-bytes": 1872,
+        "immortal": 0,
+        "freed": 92,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 358,
+      "stats": {
+        "blocks": 161,
+        "bytes": 4187,
+        "peak": 1356,
+        "header-blocks": 126,
+        "header-bytes": 2520,
+        "immortal": 0,
+        "freed": 126,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 141,
+        "bytes": 134769,
+        "peak": 131421,
+        "header-blocks": 111,
+        "header-bytes": 2248,
+        "immortal": 0,
+        "freed": 111,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 143,
+        "bytes": 134811,
+        "peak": 131423,
+        "header-blocks": 113,
+        "header-bytes": 2288,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 145,
+        "bytes": 265878,
+        "peak": 196996,
+        "header-blocks": 113,
+        "header-bytes": 2288,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "iterations": 1,
+      "checksum": 65827,
+      "stats": {
+        "blocks": 149,
+        "bytes": 265964,
+        "peak": 196998,
+        "header-blocks": 117,
+        "header-bytes": 2368,
+        "immortal": 0,
+        "freed": 117,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 301669,
+      "stats": {
+        "blocks": 147,
+        "bytes": 370836,
+        "peak": 367394,
+        "header-blocks": 116,
+        "header-bytes": 2352,
+        "immortal": 0,
+        "freed": 116,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 65727,
+      "stats": {
+        "blocks": 149,
+        "bytes": 265999,
+        "peak": 262519,
+        "header-blocks": 118,
+        "header-bytes": 2392,
+        "immortal": 0,
+        "freed": 118,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 301669,
+      "stats": {
+        "blocks": 169,
+        "bytes": 1105189,
+        "peak": 734408,
+        "header-blocks": 134,
+        "header-bytes": 2712,
+        "immortal": 0,
+        "freed": 134,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "iterations": 1,
+      "checksum": 65727,
+      "stats": {
+        "blocks": 159,
+        "bytes": 528260,
+        "peak": 393654,
+        "header-blocks": 124,
+        "header-bytes": 2512,
+        "immortal": 0,
+        "freed": 124,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 96700,
+      "stats": {
+        "blocks": 143,
+        "bytes": 165689,
+        "peak": 162308,
+        "header-blocks": 112,
+        "header-bytes": 2272,
+        "immortal": 0,
+        "freed": 112,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 29241,
+      "stats": {
+        "blocks": 9787,
+        "bytes": 383606,
+        "peak": 225901,
+        "header-blocks": 9756,
+        "header-bytes": 156592,
+        "immortal": 0,
+        "freed": 9756,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 96700,
+      "stats": {
+        "blocks": 153,
+        "bytes": 489630,
+        "peak": 324236,
+        "header-blocks": 118,
+        "header-bytes": 2392,
+        "immortal": 0,
+        "freed": 118,
+        "live": 0
+      }
+    },
+    {
+      "variant": "final_bulk_copy",
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "iterations": 1,
+      "checksum": 29241,
+      "stats": {
+        "blocks": 50287,
+        "bytes": 1359307,
+        "peak": 357036,
+        "header-blocks": 50252,
+        "header-bytes": 943384,
+        "immortal": 0,
+        "freed": 50252,
+        "live": 0
+      }
+    }
+  ]
+}
