@@ -132,6 +132,24 @@ fn json_word_kernels_match_every_lane_byte() {
     run(&consumer);
 }
 
+/// Typed, custom and JSON-valued map keys match independent active-reference updates and failures.
+#[test]
+fn json_map_keys_updates_and_invalid_values_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-map.cinch"));
+}
+
+/// Raw byte-name normalization, lexical ordering and original custom causes match independent outputs.
+#[test]
+fn json_map_raw_names_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-map-encode.cinch"));
+}
+
+/// Persistent maps, source-backed key views, retained callbacks and every large lookup remain bounded.
+#[test]
+fn json_map_owners_callbacks_and_large_values_are_bounded() {
+    run(include_str!("fixtures/json-codec-map-control.cinch"));
+}
+
 /// Every public/private declaration and constructor owns canonical standard-library documentation.
 #[test]
 fn json_codec_declarations_have_canonical_documentation() {
@@ -168,7 +186,15 @@ fn rust_json_field_kernel_compiles_for_wasm_arm_and_big_endian_targets() {
     let end = remaining.find("\n  -- |").unwrap_or(remaining.len());
     let mut kernels = String::from("-- | Isolated JSON vector classification.\nmodule Main where\n  import Data.Machine\n  -- | Actual complete-interval load-only classifier.\n");
     kernels.push_str(&remaining[..end]);
-    kernels.push_str("\n  -- | Retain the source owner through its checked private load.\n  keep :: Bytes -> U8 -> U8\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep the complete classifier reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 16 in let a = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 0) in let b = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 1) in if eq-u8 a b then 0 else 1\n");
+    for name in ["key-ascii16", "key-ascii-byte"] {
+        let start = source.find(&format!("  prim {name} ::")).unwrap();
+        let rest = &source[start..];
+        let end = rest.find("\n  -- |").unwrap_or(rest.len());
+        kernels.push_str("\n  -- | Actual complete-interval key-text classifier.\n");
+        kernels.push_str(&rest[..end]);
+    }
+
+    kernels.push_str("\n  -- | Retain the source owner through its checked private load.\n  keep :: Bytes -> U8 -> U8\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep the complete classifier reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 16 in let a = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 0) in let b = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 1) in let ascii = keep bytes (key-ascii16 (bytes-data bytes)) in let fringe = keep bytes (key-ascii-byte (bytes-data bytes)) in if eq-u8 a b && eq-u8 ascii 1 && eq-u8 fringe 1 then 0 else 1\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),

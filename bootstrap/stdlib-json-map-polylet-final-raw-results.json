@@ -1,0 +1,39 @@
+{
+  "description": "Separate raw-Native diagnostic epoch; original control and library contracts remain preserved",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "source_files": {
+    "Data.Array.cinch": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables.cinch": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Value.cinch": "d83477dbc24e16529d98e0d4d5be896dec8669a8bbad965dc5a4dbaedb3a4de1",
+    "Text.Base64.Encoding.cinch": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec.cinch": "0b6526505f9d2d2416c309e7a22dbb1a3cdde681d116d2a300f00fdcf2425c9b",
+    "Main.cinch": "a810f4dd30739bbcd93be8876f6c0a06dccfa582b6af0c1a6fb4b08a57716928"
+  },
+  "bundle_sha256": "f9b9ea2b1625b2a547a073cc501324fead575185aa0a84942492c8b2806d4ef9",
+  "runner_sha256": "c98a120d0d976c1a9d3368b142404ab4333d7de08e4209e2b124bd71c7f87884",
+  "command": [
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "--emit-ir",
+    "--rc-debug",
+    "--interfaces",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+    "--objects",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+    "/workspace/dasl-stdlib-json/build/json-map-polylet-final-raw/Bundle.cinch",
+    "/workspace/dasl-stdlib-json/build/json-map-polylet-final-raw/consumer.ll"
+  ],
+  "exit_code": 0,
+  "diagnostics": "",
+  "reproduces_polymorphic_let_refusal": false,
+  "emit_succeeded": true,
+  "consumer_executed": false,
+  "compiler_host_stack_kib": 65536,
+  "cpu_affinity": [
+    2
+  ]
+}

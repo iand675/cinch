@@ -1,0 +1,23 @@
+{
+  "description": "Exact original full source refusal, separate from the later standalone candidates which emit successfully under final2f077",
+  "bundle_sha256": "9575d4db34fb10663839d23c654ddb70724eca7c1a83192814e9a0d156bc296d",
+  "bundle_bytes": 817210,
+  "compressed_bundle_sha256": "c50f9461463c2b425b81307509a471903bf9c47a85b90cf93d02251018219eda",
+  "diagnostics_sha256": "10152a9d38754d35bc5323dd923bebfb1e668917c40e62ca145453c0108584f9",
+  "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+  "runtime_archive_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+  "compiler_snapshot": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen",
+  "source_files": {
+    "Text.Json.Codec.cinch": "0b6526505f9d2d2416c309e7a22dbb1a3cdde681d116d2a300f00fdcf2425c9b",
+    "Data.Unicode.Tables.cinch": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Array.cinch": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Main.cinch": "7203dbc27ccf1ea4ee2a9690fa0100450ad2dd08a50b68aef76fdcdcb11af24b",
+    "Text.Base64.Encoding.cinch": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Value.cinch": "d83477dbc24e16529d98e0d4d5be896dec8669a8bbad965dc5a4dbaedb3a4de1",
+    "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+  },
+  "consumer_executed": false,
+  "portable_fixture_change": "let prior = (json-map-null json-string-key :: JsonMap String I64)",
+  "final_full_original_bundle_comparison": "not run; standalone2f077 candidates are not a confirmed reproduction"
+}
