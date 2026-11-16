@@ -1001,6 +1001,8 @@ pub enum PrimOp {
     /// `cinch_stm_cell_new`), specialized by the value's representation
     /// (`crate::stm`).
     Stm { op: crate::stm::StmOp, classes: [Class; 2] },
+    /// Native single-place variables, specialized by stored value class.
+    MVar { op: crate::mvar::MVarOp, classes: [Class; 2] },
     /// Mutable slot arrays (`cinch.runtime.slots*`; runtime ABI,
     /// `cinch_slots_*`), specialized by the element's representation
     /// (`crate::slots`).
@@ -1169,6 +1171,11 @@ impl PrimOp {
             }
         }
         if let Some(name) = sym.strip_prefix("cinch.runtime.") {
+            for op in crate::mvar::MVarOp::ALL {
+                if name == op.name() {
+                    return Some(Self::MVar { op, classes: [Class::Param(0), Class::Param(1)] });
+                }
+            }
             for op in crate::stm::StmOp::ALL {
                 if name == op.name() {
                     return Some(Self::Stm { op, classes: [Class::Param(0), Class::Param(1)] });
@@ -1287,6 +1294,7 @@ impl PrimOp {
         let n = match self {
             Array { op, packed, .. } => return format!("cinch.runtime.{}{}", op.name(), packed.map(|s| s.name()).unwrap_or("")),
             Stm { op, .. } => return format!("cinch.runtime.{}", op.name()),
+            MVar { op, .. } => return format!("cinch.runtime.{}", op.name()),
             Slots { op, .. } => return format!("cinch.runtime.{}", op.name()),
             Nat(op) => return format!("cinch.runtime.nat{}", op.name()),
             Int(op) => return format!("cinch.runtime.int{}", op.name()),
@@ -1369,6 +1377,7 @@ impl PrimOp {
         match self {
             Array { op, packed, .. } => op.sig(packed).0.len(),
             Stm { op, .. } => op.sig().0.len(),
+            MVar { op, .. } => op.sig().0.len(),
             Slots { op, .. } => op.sig().0.len(),
             Bound { .. } => 0,
             Nat(NatOp::FromI64 | NatOp::ToI64 | NatOp::FromU128 | NatOp::ToU128)
@@ -1402,6 +1411,7 @@ impl PrimOp {
         use PrimOp::*;
         match self {
             Array { op, .. } => op.returns_option(),
+            MVar { op, .. } => op.returns_option(),
             CheckedDiv { .. } | CheckedRem { .. } | U32ToChar => true,
             Arith { mode: ArithMode::Checked, .. } => true,
             Neg { mode: ArithMode::Checked, .. } => true,
@@ -1434,6 +1444,7 @@ impl PrimOp {
         match self {
             Array { op, packed, .. } => op.sig(packed),
             Stm { op, .. } => op.sig(),
+            MVar { op, .. } => op.sig(),
             Slots { op, .. } => op.sig(),
             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
                 (vec![Ty::Nat, Ty::Nat], Ty::Nat)
@@ -6314,7 +6325,7 @@ fn prim_is_pure(op: PrimOp) -> bool {
     // A zero-word application runs a closure with its own effect row.
     // The platform ops mutate the filesystem, consume entropy and
     // deliver signals, so they are effects too.
-    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::ApplyErased | PrimOp::Platform(_))
+    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::ApplyErased | PrimOp::Platform(_) | PrimOp::MVar { .. })
 }
 
 /// A term's allocation and demand structure (supercompilation section 3:
@@ -7774,6 +7785,7 @@ impl PrimOp {
     /// Whether the operation's signature mentions a wide scalar anywhere,
     /// including inside an `Option` result (`design/wide-scalars.md`).
     pub fn touches_wide(self) -> bool {
+        if let PrimOp::MVar { classes, .. } = self { return classes[0] == Class::Wide; }
         prim_touches_wide(self)
     }
 }

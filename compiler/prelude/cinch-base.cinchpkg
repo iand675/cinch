@@ -130,6 +130,11 @@
       "embedded": true
     },
     {
+      "name": "Effect.Concurrent.MVar",
+      "path": "Effect/Concurrent/MVar.cinch",
+      "embedded": true
+    },
+    {
       "name": "Effect.Clock",
       "path": "Effect/Clock.cinch",
       "embedded": true
@@ -357,6 +362,7 @@
     "Data.Path",
     "Effect.Sequencing",
     "Effect.Concurrent",
+    "Effect.Concurrent.MVar",
     "Effect.Clock",
     "Prim.Sys.Darwin",
     "Prim.Sys.Linux",

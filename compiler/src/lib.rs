@@ -28,6 +28,7 @@ pub mod lexer;
 pub mod loopmeta;
 pub mod lsp;
 pub mod parser;
+pub mod mvar;
 pub mod pkg;
 pub mod provenance;
 pub mod rc;
