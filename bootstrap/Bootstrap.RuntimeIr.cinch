@@ -1124,6 +1124,10 @@ module Bootstrap.RuntimeIr where
   application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   application definitions locals w sp term f x = case head term of
       CUse at function name role actuals -> direct-call definitions locals w sp name actuals (arguments term Nil)
+      -- Checked evidence is a prefix of the same known call, not an unknown
+      -- closure application. Keep the complete argument spine for saturation.
+      CQualifiedUse at function name role actuals evidence -> case evidences definitions locals w evidence of
+        (ready, values) -> call-name definitions locals ready sp name actuals values (arguments term Nil)
       CMethod at function name owner slot actuals evidence ->
         (case static-instance-method w name owner slot actuals evidence of
           Some (codes, own-codes, d) -> function-call definitions locals (note-version owner slot own-codes w) sp d Nil codes Nil (arguments term Nil)
@@ -4273,34 +4277,43 @@ module Bootstrap.RuntimeIr where
   -- A direct call transfers its new arguments and captures before it
   -- releases this frame's roots. LLVM requires the following ret.
   transfer-tail-call :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List CoreTerm -> Writer
-  transfer-tail-call definitions locals roots saved width w callee args = case expressions definitions locals w args of
+  transfer-tail-call definitions locals roots saved width w callee args = transfer-tail-prefix definitions locals roots saved width w callee Nil args
+
+  -- | Transfer checked evidence before positional arguments, retaining all values
+  -- until this frame's roots have been released. Captures remain the local worker prefix.
+  transfer-tail-prefix :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List String -> List CoreTerm -> Writer
+  transfer-tail-prefix definitions locals roots saved width w callee prefix args = case expressions definitions locals w args of
     (evaluated, values) -> case capture-values saved evaluated of
       (copied, captures) ->
-        let count = list-length values in
+        let count = list-length prefix + list-length values in
         if count <= width then
-          let passed = captures <> values <> padding-words (width - count) in
+          let passed = captures <> prefix <> values <> padding-words (width - count) in
           let (ready, result) = fresh (drop-locals roots copied) "%v" in
           line (line ready (cat ["  ", result, " = musttail call i64 ", symbol callee, "(", join (argument-words passed), ")"])) (cat ["  ret i64 ", result])
         else refuse copied (Span 0 0 1 1) "tail call exceeds its checked worker width"
 
   -- Only source workers in the same direct tail cycle share a prototype.
   -- A call that crosses an object boundary keeps the checked public ABI.
-  global-tail-call :: List CoreDefinition -> Nat -> Writer -> CoreTerm -> Option (String, List Nat, List CoreTerm)
+  global-tail-call :: List CoreDefinition -> Nat -> Writer -> CoreTerm -> Option (String, List Nat, List CoreEvidence, List CoreTerm)
   global-tail-call definitions group w term = case head term of
-    CUse sp ty name role actuals -> case hash-map-lookup name (program-tail-groups (writer-program w)) of
-      Some (callee, width) -> if callee == group then
-        (case definition name definitions of
-          Some d -> let args = arguments term Nil in
-            if list-length args == list-length (definition-parameters d) then
-              (case source-scheme-classes (writer-context w) (scheme-params (core-scheme d)) actuals of
-                -- A Wide specialization has no tail worker (worker below).
-                Some classes -> if wide-code classes then None else Some (name, classes, args)
-                None -> None)
-            else None
-          None -> None)
-        else None
-      None -> None
+    CUse sp ty name role actuals -> global-tail-target definitions group w name actuals Nil (arguments term Nil)
+    CQualifiedUse sp ty name role actuals evidence -> global-tail-target definitions group w name actuals evidence (arguments term Nil)
     other -> None
+
+  -- | Admit a source tail edge only when both its evidence and ordinary arguments
+  -- saturate the same checked worker. Wide specializations retain their ordinary ABI.
+  global-tail-target :: List CoreDefinition -> Nat -> Writer -> String -> List UType -> List CoreEvidence -> List CoreTerm -> Option (String, List Nat, List CoreEvidence, List CoreTerm)
+  global-tail-target definitions group w name actuals evidence args = case hash-map-lookup name (program-tail-groups (writer-program w)) of
+    Some (callee, width) -> if callee == group then
+      (case definition name definitions of
+        Some d -> if list-length args == list-length (definition-parameters d) && list-length evidence == list-length (runtime-givens w d) then
+          (case source-scheme-classes (writer-context w) (scheme-params (core-scheme d)) actuals of
+            Some classes -> if wide-code classes then None else Some (name, classes, evidence, args)
+            None -> None)
+          else None
+        None -> None)
+      else None
+    None -> None
 
   tail-result :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> String -> CoreTerm -> Writer
   tail-result definitions locals roots context w failed term = case term of
@@ -4343,8 +4356,9 @@ module Bootstrap.RuntimeIr where
         Some (callee, args) -> transfer-tail-call definitions locals roots saved width w callee args
         None -> tail-return definitions locals roots w failed term
       GlobalTail group width -> case global-tail-call definitions group w term of
-        Some (name, classes, args) ->
-          transfer-tail-call definitions locals roots Nil width (demand-worker name classes w) (tail-worker-name (specialized-name name classes)) args
+        Some (name, classes, evidence, args) ->
+          (case evidences definitions locals (demand-worker name classes w) evidence of
+            (ready, prefix) -> transfer-tail-prefix definitions locals roots Nil width ready (tail-worker-name (specialized-name name classes)) prefix args)
         None -> tail-return definitions locals roots w failed term
 
   tail-return :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> Writer
@@ -4432,20 +4446,21 @@ module Bootstrap.RuntimeIr where
           line (line wrapped (cat ["define private i64 ", symbol callee, "(", join (argument-words widened), ") {"])) "entry:"
     else refuse w (Span 0 0 1 1) "tail wrapper exceeds its checked worker width"
 
-  global-tail-clauses :: List CoreDefinition -> List Local -> List Local -> TailContext -> List CoreClause -> Writer -> Writer
-  global-tail-clauses definitions prefix roots context clauses w = case clauses of
+  global-tail-clauses :: List CoreDefinition -> List Local -> List Local -> Nat -> TailContext -> List CoreClause -> Writer -> Writer
+  global-tail-clauses definitions prefix roots offset context clauses w = case clauses of
     Nil -> line w "  unreachable"
     Cons (MkCoreClause sp patterns body) rest ->
       let (one, failed) = fresh w "nexttaileq" in
-      case match-parameters patterns 0 failed one of
+      case match-parameters patterns offset failed one of
         (matched, bindings) ->
           let returned = tail-result definitions (bindings <> prefix) roots context matched failed body in
-          global-tail-clauses definitions prefix roots context rest (line returned (cat [failed, ":"]))
+          global-tail-clauses definitions prefix roots offset context rest (line returned (cat [failed, ":"]))
 
   global-tail-worker :: List CoreDefinition -> CoreDefinition -> List Nat -> List Local -> List Local -> Writer -> Nat -> Nat -> Nat -> Writer
   global-tail-worker definitions d classes prefix roots w group width arity =
-    let started = start-tail-worker (specialized-name (core-name d) classes) arity width w in
-    line (global-tail-clauses definitions prefix roots (GlobalTail group width) (core-clauses d) started) "}"
+    let offset = list-length (runtime-givens w d) in
+    let started = start-tail-worker (specialized-name (core-name d) classes) (offset + arity) width w in
+    line (global-tail-clauses definitions prefix roots offset (GlobalTail group width) (core-clauses d) started) "}"
 
   recursive-worker :: List CoreDefinition -> RecursiveWorker -> List RecursiveWorker -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> Writer -> Writer
   recursive-worker definitions member group bounds rigids saved w = case member of
@@ -4635,8 +4650,8 @@ module Bootstrap.RuntimeIr where
       Some found -> request-demand (ConstructorDemand name classes) w
       None -> demand-worker name classes w)
   -- Group only direct, saturated source calls in return position. An
-  -- edge through an erased stage, dictionary, or external ABI has no
-  -- shared internal worker and stays on the ordinary application path.
+  -- edge through an erased stage, projected dictionary method, or external
+  -- ABI has no shared internal worker. Checked source evidence is a word prefix.
   source-tail-arities :: List CoreDefinition -> Writer -> HashMap String Nat
   source-tail-arities definitions w = case definitions of
     Nil -> hash-map-empty
@@ -4645,8 +4660,9 @@ module Bootstrap.RuntimeIr where
       let arity = list-length (definition-parameters d) in
       let arities = source-tail-arities rest w in
       if arity == 0 || arity /= list-length (definition-all-parameters d) || builtin-known name || wide-definition d then arities else
-        (case (runtime-givens w d, opening-value-types (core-openings d), field-owner name (program-instances (writer-program w))) of
-          (Nil, Nil, None) -> hash-map-insert name arity arities
+        (case (opening-value-types (core-openings d), field-owner name (program-instances (writer-program w))) of
+          (Nil, None) -> let context = runtime-givens w d in
+            if wide-givens context then arities else hash-map-insert name (list-length context + arity) arities
           other -> arities)
 
   -- A definition whose own parameters or result are wide scalars: its
@@ -4657,6 +4673,10 @@ module Bootstrap.RuntimeIr where
     Nil -> False
   wide-patterns :: List CorePattern -> Bool
   wide-patterns patterns = case patterns of Nil -> False; Cons first rest -> wide-scalar (pattern-type first) || wide-patterns rest
+
+  -- | A concrete wide evidence value cannot cross the group's one-word argument slots.
+  wide-givens :: List CoreGiven -> Bool
+  wide-givens givens = case givens of Nil -> False; Cons first rest -> wide-scalar (given-type first) || wide-givens rest
 
   source-tail-edges :: HashMap String Nat -> CoreTerm -> List String -> List String
   source-tail-edges arities term next = case term of
@@ -4672,10 +4692,15 @@ module Bootstrap.RuntimeIr where
     CForget sp ty body -> source-tail-edges arities body next
     CDischarge sp ty evidence body -> source-tail-edges arities body next
     other -> case head term of
-      CUse sp ty name role actuals -> (case hash-map-lookup name arities of
-        Some arity -> if arity == list-length (arguments term Nil) && not (exposed-worker name next) then Cons name next else next
-        None -> next)
+      CUse sp ty name role actuals -> source-tail-edge arities name 0 (arguments term Nil) next
+      CQualifiedUse sp ty name role actuals evidence -> source-tail-edge arities name (list-length evidence) (arguments term Nil) next
       other -> next
+
+  -- | Count the evidence prefix in a direct source call's uniform tail prototype.
+  source-tail-edge :: HashMap String Nat -> String -> Nat -> List CoreTerm -> List String -> List String
+  source-tail-edge arities name context args next = case hash-map-lookup name arities of
+    Some arity -> if arity == context + list-length args && not (exposed-worker name next) then Cons name next else next
+    None -> next
 
   source-tail-alternatives :: HashMap String Nat -> CoreTerm -> List String -> List String
   source-tail-alternatives arities alternatives next = case alternatives of

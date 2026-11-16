@@ -20,7 +20,7 @@ module Effect.Stream where
 
   export ByteReader, ByteWriter, StreamError
   export StreamSystemError, StreamUnexpectedEnd, StreamShortWrite, StreamInvalidCount, StreamInvalidChunkSize
-  export StreamEncodingError
+  export StreamEncodingError, StreamClosed
   export stream-reader, stream-writer, stream-read, stream-write
   export reader-from-bytes, reader-from-string, reader-from-fd
   export reader-limit, reader-concat, reader-tee, reader-tee-writer
@@ -69,6 +69,8 @@ module Effect.Stream where
     StreamInvalidChunkSize :: StreamError
     -- | A transforming reader found malformed input: format name, absolute byte offset and diagnostic.
     StreamEncodingError :: String -> Nat -> String -> StreamError
+    -- | A named stream adapter has already been finished or closed.
+    StreamClosed :: String -> StreamError
 
   -- | Wrap a custom effectful reader. stream-read validates its result length.
   stream-reader :: forall r. (Nat ->{IO r} (Result StreamError Bytes, ByteReader r)) -> ByteReader r
