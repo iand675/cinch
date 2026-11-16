@@ -94,9 +94,10 @@ module Bootstrap.Infer where
   context-aliases context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> aliases
   -- | Retain a template while refusing its ability to impersonate a primitive payload header.
   context-add-alias :: Decl -> TypeContext -> TypeContext
-  context-add-alias alias context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads ->
-    let remaining = case payload-declaration-name alias of Some name -> revoke-payload name payloads; None -> payloads in
-    MkTypeContext kinds (Cons alias aliases) active observers effects source-classes remaining
+  context-add-alias alias context = case context of
+    MkTypeContext kinds aliases active observers effects source-classes payloads ->
+      let remaining = case payload-declaration-name alias of Some name -> revoke-payload name payloads; None -> payloads in
+      MkTypeContext kinds (Cons alias aliases) active observers effects source-classes remaining
   -- | Enter a checked alias once while retaining the same sealed primitive authority.
   context-enter-alias :: String -> TypeContext -> Option TypeContext
   context-enter-alias name context = case context of
