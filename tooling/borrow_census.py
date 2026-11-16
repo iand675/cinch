@@ -28,13 +28,13 @@ Measured 2026-11-16 on `main` = 63663f0f, no-PGO stage 3:
 A site is `(dup x`, `(drop x` or `(release x` whose operand is exactly one of
 the enclosing unit's `@params` names.
 
-Do not read `borrowed` as the borrow analysis's answer. `@borrowed` in the
-dump is printed from `Program::lent`, the lending convention a call site
-uses, while `rc::borrow_modes` records its decision in `Program::borrowed`,
-which the dump does not print at all (found 2026-11-16). So this count is
-zero on every corpus regardless of what the analysis decided, and the
-`borrowed` figure here is reported only to keep that mismatch visible. The
-`on_params` share is unaffected: it counts sites, not decisions.
+`@borrowed` is printed from `Program::lent`, the lending convention a call
+site uses; `@borrow-modes(...)` is what `rc::borrow_modes` decided about the
+unit's parameters, and it is the marker this census reads for lends. Both
+appear only when the dump is produced by the pipeline's counting: `rc::insert`
+is the all-owned convention and runs no borrow inference, so a dump taken
+through it reports zero lends on every corpus (fixed in the driver
+2026-11-16).
 """
 
 import argparse
@@ -48,6 +48,7 @@ def units(text):
 
 def census(text):
     total = on_params = 0
+    units_lent = entries_lent = 0
     params = owned = borrowed = 0
     by_module = collections.Counter()
     borrowed_units = []
@@ -68,6 +69,10 @@ def census(text):
                 if "@borrowed" in entry:
                     borrowed += 1
                     borrowed_units.append(name)
+        lends = re.search(r"@borrow-modes\(([0-9,]+)\)", unit)
+        if lends:
+            entries_lent += len(lends.group(1).split(","))
+            units_lent += 1
         sites = re.findall(r"\((?:dup|drop|release)\s+([A-Za-z0-9_]+)", unit)
         # `dup`, `drop` and `release` all name their operand first, so the
         # operand is what the site is about; a site on a parameter is one a
@@ -84,6 +89,8 @@ def census(text):
         "borrowed_units": borrowed_units,
         "sites": total,
         "on_params": on_params,
+        "units_lent": units_lent,
+        "params_lent": entries_lent,
         "by_module": by_module,
     }
 
@@ -98,14 +105,12 @@ def main():
 
     result = census(open(args.core).read())
     share = 100 * result["on_params"] / result["sites"] if result["sites"] else 0.0
-    print(f"units {result['units']}, parameter declarations {result['params']} "
-          f"(owned {result['owned']}, borrowed {result['borrowed']})")
+    print(f"units {result['units']}, parameter declarations {result['params']}")
     print(f"ownership sites {result['sites']}, on parameters {result['on_params']} "
           f"({share:.1f}%)")
-    if result["borrowed"] == 0:
-        print("no unit carries @borrowed: this dump prints Program::lent, not "
-              "Program::borrowed, so the count says nothing about borrow_modes; "
-              "the parameter share above is the part that is measured")
+    lend_share = 100 * result["params_lent"] / result["params"] if result["params"] else 0.0
+    print(f"lends: {result['units_lent']} units, {result['params_lent']} parameter "
+          f"entries of {result['params']} ({lend_share:.1f}%)")
     if args.by_module:
         print()
         for module, count in result["by_module"].most_common(args.top):
