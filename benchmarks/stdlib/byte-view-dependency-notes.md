@@ -12,3 +12,8 @@ single-file dependency copy when landing view/pattern work. Original Unicode
 functional, ownership, portability and factory evidence remains in that lane;
 this dependency copy makes standalone consumers in the strings worktree
 resolve the same tested source without depending on another worktree's files.
+
+The subsequent exact dependency is `899168d5`: bounded `utf8-count-between`
+and `utf8-decode-between` reuse the same private kernels and owner holds.
+They let views preserve truncated/interior malformed-byte behavior without
+copying the view or reading outside its logical endpoints.
