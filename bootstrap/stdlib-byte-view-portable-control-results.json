@@ -1,0 +1,29 @@
+{
+  "change": "test-only direct count-forward reachability with independently checked four-zero-byte result; production7f unchanged",
+  "reason": "the previous entry only rooted multi-byte count, so lane-count was correctly eliminated; keep exact IR assertions and all target coverage",
+  "production_sha256": "7f18724c3a082f1ced03418dea52b85ebe590460f369ff49b61e764d1a60b98c",
+  "kernel_entry_sha256": "36c2d00ed82270d74b6448195bdd8f42893f0a5f08caf7849cd4f0a13af3866c",
+  "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+  "targets": {
+    "wasm32-unknown-unknown": {
+      "both_exact_IR_assertions_present": true,
+      "llvm_sha256": "00b91731fa7cba1263edb2ffcfb23aaf9bfd9441d57e4dd4cb078a5cc4e87e4b",
+      "object_sha256": "f537cd9f18f294d09c51db43faca99a26b8776818c0050c68934fb5531f1b434"
+    },
+    "aarch64-unknown-linux-gnu": {
+      "both_exact_IR_assertions_present": true,
+      "llvm_sha256": "cf5fc7ddc14561d1b2417fa5aa2d706f37c960048e5f7a425b4349b9097a7ef2",
+      "object_sha256": "51e4ef760c58f9f5c794d991eaf8ffdefc77cfc87a0b46a24b55c7db2a941a52"
+    }
+  },
+  "native_control": {
+    "opt_level": 0,
+    "expected_exit": 0,
+    "normal_heap": "32M",
+    "poison_heap": "256M",
+    "program_stack": "8M",
+    "both_zero_leaks": true,
+    "executable_sha256": "30798b61c1d43c7ecf9b159a7a296be337d663b0564c2c730e1a15dfc107353f"
+  },
+  "parent_pending": "rerun exact Cargo portable test including PowerPC64 big-endian profile"
+}
