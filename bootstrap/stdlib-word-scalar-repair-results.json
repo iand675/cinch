@@ -1,0 +1,65 @@
+{
+  "description": "Word scalar folding agrees with emitted and staged arithmetic",
+  "source_checkpoint": "35c44328",
+  "production_commits": [
+    "de213ad7",
+    "77264afb"
+  ],
+  "source_sha256": {
+    "compiler/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c",
+    "compiler/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
+    "compiler/src/check_decls.rs": "e33cd60f09ba1a13c02a015abc2fb394abb20f1b9f499e05f5312a09dabf129c",
+    "compiler/tests/fixtures/word-constant-folding.cinch": "bff96c7ce95be3bd23032fe28ddc604f8d49e81aca1ad988003b211e69c1ca31",
+    "compiler/tests/fixtures/word-negation-staging.cinch": "3faaf79f3d5d80019725f9cb94684c6c1ebc642a681896896730c495e8b1fa88"
+  },
+  "scope": [
+    "Preserve unsigned high bits for shifts/arithmetic/comparison/division/conversion; preserve unsigned multiplication overflow above i128.",
+    "Resolve pointer-sized primitives against the compilation target before folding.",
+    "Retain all64 output bits for reversal operations.",
+    "Apply unsigned negation and cross-signed checked/saturating conversion bounds consistently in runtime emission.",
+    "Stage signed/unsigned saturation without host bound-computation overflow."
+  ],
+  "regression_gates": {
+    "full_library": {
+      "passed": 326,
+      "seconds": 209.15,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    },
+    "folded_owner_regressions": {
+      "passed": 5,
+      "seconds": 5.65,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    },
+    "word_operations": {
+      "passed": 10,
+      "seconds": 43.21,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    },
+    "word_constant_runtime_and_staging": {
+      "passed": 5,
+      "seconds": 8.85,
+      "log_sha256": "6a80be7bd694fc3bab2f0953feb5eec594f8947c19e41cfd83db6211eaefe753"
+    }
+  },
+  "focused_unit_tests": 9,
+  "public_scalar_assertions": 33,
+  "consumer_profiles": {
+    "ordinary": {
+      "heap": "32M",
+      "stack": "8M",
+      "rc_debug": false
+    },
+    "poison": {
+      "heap": "256M",
+      "stack": "8M",
+      "rc_debug": true
+    }
+  },
+  "runtime_and_staged_processes": 6,
+  "live_owners": 0,
+  "leaked_owners": 0,
+  "before_evidence": "bootstrap/repros/word-constant-evaluation/before-results.json",
+  "native_status": "No Native producer/provider repair is claimed by this Rust checkpoint.",
+  "performance_status": "Correctness repair; no performance claim.",
+  "validation_location": "Integrated production delta in /workspace/dasl-stdlib-io at35c44328, published with bfb4cb57; this lane has byte-identical repaired Rust implementation and scalar fixtures."
+}
