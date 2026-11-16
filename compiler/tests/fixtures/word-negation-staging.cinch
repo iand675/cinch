@@ -1,0 +1,21 @@
+-- | Staged scalar negation preserves the mathematical saturation bounds.
+module Main where
+  import Data.Machine
+
+  -- | Clamp the negative of a large unsigned value to its zero lower bound.
+  stage unsigned-result :: U64
+  stage unsigned-result = saturating-neg-u64 18446744073709551615
+
+  -- | Clamp the unrepresentable signed minimum's inverse to the signed maximum.
+  stage signed-result :: I64
+  stage signed-result = saturating-neg-i64 (-9223372036854775808)
+
+  generate do
+    emit (quoteDecls where
+      -- | Observe the staged signed and unsigned boundary checks.
+      answer :: Int
+      answer = $(quoteInt (if eq-u64 unsigned-result 0 && eq-i64 signed-result 9223372036854775807 then 0 else 1)))
+
+  -- | Observe the declaration produced by the staged scalar checks.
+  main :: Int
+  main = answer
