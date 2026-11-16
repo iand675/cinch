@@ -10839,24 +10839,18 @@ impl Checker {
         }
         let total_bodies = self.interface_checked_bodies.clone().unwrap_or_else(|| self.checked_total_bodies());
         let (plans, foreigns) = self.build_abi_maps();
-        let mut program = Program {
-            total_bodies,
-            fns: self.fns,
-            instances: self.instance_defs,
-            main: main_exit,
-            rewrites: self.rewrites,
-            plans,
-            foreigns,
-            prims: self.prims,
-            laws: self.law_rows,
-            lent: Default::default(),
-            frame: Default::default(),
-            stack: Default::default(),
-            borrowed: Default::default(),
-            lent_entries: Default::default(),
-            private_modules: Vec::new(),
-            inline: Default::default(),
-        };
+        let mut program = Program::from_functions(self.fns);
+        program.total_bodies = total_bodies;
+        program.instances = self.instance_defs;
+        program.main = main_exit;
+        program.rewrites = self.rewrites;
+        program.plans = plans;
+        program.foreigns = foreigns;
+        program.prims = self.prims;
+        program.laws = self.law_rows;
+        // This is the original complete checked constructor inventory,
+        // before dictionary lowering, specialization or reachability pruning.
+        program.certify_builtin_constructors()?;
         crate::dictionary_values::lower(&mut program)?;
         Ok(program)
     }

@@ -3334,6 +3334,11 @@ pub struct InstanceDef {
 
 #[derive(Clone, Debug)]
 pub struct Program {
+    /// Original checked built-in constructor identities, nominal types, tags
+    /// and runtime field counts. Only validation of this program's complete
+    /// inventory can create it; independent program assembly cannot transplant
+    /// a certificate from a different checked program.
+    checked_builtin_constructors: Option<BuiltinConstructorInventory>,
     /// Typed, acyclic primitive body descriptions captured from actual checked
     /// definitions. Not admitted by schema-7 interfaces.
     pub total_bodies: crate::total::CheckedGraph,
@@ -3418,11 +3423,51 @@ pub enum LentEntry {
 }
 
 impl Program {
+    /// Assemble untrusted Core function units with empty auxiliary metadata.
+    /// Built-in constructor layouts remain uncertified until the complete
+    /// inventory is validated; emission never infers missing constructors.
+    pub fn from_functions(fns: Vec<FnDef>) -> Program {
+        Program {
+            checked_builtin_constructors: None,
+            total_bodies: crate::total::CheckedGraph::empty(),
+            fns,
+            instances: Vec::new(),
+            main: None,
+            rewrites: Vec::new(),
+            plans: Default::default(),
+            foreigns: Default::default(),
+            prims: Vec::new(),
+            laws: Vec::new(),
+            lent: Default::default(),
+            frame: Default::default(),
+            stack: Default::default(),
+            inline: Default::default(),
+            borrowed: Default::default(),
+            lent_entries: Default::default(),
+            private_modules: Vec::new(),
+        }
+    }
+
+    /// Validate this independently assembled program's complete built-in
+    /// constructor inventory before any specialization or reachability pruning.
+    pub(crate) fn certify_builtin_constructors(&mut self) -> Result<()> {
+        self.checked_builtin_constructors =
+            Some(crate::codegen::check_full_builtin_constructors(&self.fns)?);
+        Ok(())
+    }
+
+    /// Borrow the original validated inventory for surviving-unit consistency
+    /// checks. The certificate stays private to this program and its transforms.
+    pub(crate) fn checked_builtin_constructors(&self) -> Option<&BuiltinConstructorInventory> {
+        self.checked_builtin_constructors.as_ref()
+    }
+
     /// Every non-unit field copied, with no functions and no dictionaries.
     /// A pass that rebuilds both lists from scratch takes this instead of
     /// cloning units it will only discard.
     pub fn skeleton(&self) -> Program {
         Program {
+            checked_builtin_constructors: self.checked_builtin_constructors.clone(),
             total_bodies: self.total_bodies.clone(),
             fns: Vec::new(),
             instances: Vec::new(),
@@ -3442,6 +3487,11 @@ impl Program {
         }
     }
 }
+
+/// Base constructor unit to its original nominal type, tag and runtime field
+/// count. This inventory records checked declarations, never inferred payloads.
+pub(crate) type BuiltinConstructorInventory =
+    std::collections::BTreeMap<String, (String, usize, usize)>;
 
 /// A checked rewrite rule. `pattern` is the elaborated form of the rule's
 /// `match` term, whose occurrences of the pattern variables (the rule's
@@ -8165,6 +8215,9 @@ fn verify_residual(orig: &FnDef, body: &Core) -> Result<(), String> {
 /// sections 2-5 and 8-9). Returns the residual program and the compiler
 /// report; the residual's contract identity is the generic form's.
 pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, OptReport)> {
+    // Public hand-built Core enters without checker provenance. Validate it
+    // before driving can erase a malformed, unreferenced constructor.
+    let checked_builtin_constructors = crate::codegen::check_builtin_constructors(program)?;
     let pure = build_purity(program);
     let mut defs: HashMap<String, FnDef> = HashMap::new();
     let mut def_sizes: HashMap<String, usize> = HashMap::new();
@@ -8190,6 +8243,7 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
         fuel: profile.fuel,
     };
     let mut out = program.skeleton();
+    out.checked_builtin_constructors = Some(checked_builtin_constructors);
     out.instances = program.instances.clone();
     let mut report = OptReport::default();
     let mut new_fns: Vec<FnDef> = Vec::new();
@@ -8889,6 +8943,7 @@ mod tests {
             });
         }
         let mut program = Program {
+            checked_builtin_constructors: None,
             total_bodies: crate::total::CheckedGraph::empty(),
             fns, instances: vec![], main: None, rewrites: vec![],
             plans: Default::default(), foreigns: Default::default(),
@@ -8946,6 +9001,7 @@ mod tests {
             repr: UnitRepr { params: vec![Class::Obj], ..UnitRepr::default() },
         };
         let mut program = Program {
+            checked_builtin_constructors: None,
             total_bodies: crate::total::CheckedGraph::empty(),
             fns: vec![unit], instances: vec![], main: None, rewrites: vec![],
             plans: Default::default(), foreigns: Default::default(),

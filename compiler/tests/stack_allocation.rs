@@ -527,7 +527,7 @@ fn the_lowered_dump_marks_the_frame_decision_and_verifies() {
 // scrutinee read into a `Drop` rather than a `Dup`.
 
 use cinch::core::{
-    CAlt, CBranch, CPat, Core, FnDef, FnHints, FnMeta, GlobalId, InstanceDef, LocalId, Program,
+    CAlt, CBranch, CPat, Core, FnDef, FnHints, FnMeta, GlobalId, LocalId, Program,
     UnitRepr,
 };
 
@@ -556,24 +556,7 @@ fn test_ctor(name: &str, tag: usize, fields: Vec<cinch::repr::Class>) -> FnDef {
 }
 
 fn test_program(fns: Vec<FnDef>) -> Program {
-    Program {
-        total_bodies: cinch::total::CheckedGraph::empty(),
-        fns,
-        instances: Vec::<InstanceDef>::new(),
-        main: None,
-        rewrites: vec![],
-        plans: Default::default(),
-        foreigns: Default::default(),
-        prims: vec![],
-        laws: vec![],
-        lent: Default::default(),
-        frame: Default::default(),
-        stack: Default::default(),
-        borrowed: Default::default(),
-        lent_entries: Default::default(),
-        private_modules: Vec::new(),
-        inline: Default::default(),
-    }
+    Program::from_functions(fns)
 }
 
 /// `let x = Ctor bool in dup x (let a = case x of C y -> 1 in drop x a)`: one
