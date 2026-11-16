@@ -1,0 +1,88 @@
+-- | Bulk construction of owned mutable byte buffers with exact single-allocation results.
+-- Clone, repetition, concatenation and joining never retain caller input aliases.
+-- Complete copies use the runtime's accelerated checked range-copy operation;
+-- list traversal and repeated-prefix expansion use ordinary bounded-stack loops.
+module Data.Bytes.Build where
+
+  import Data.Bytes
+  import Data.Bool
+  import Data.List
+  import Data.Nat
+
+  export bytes-clone, bytes-repeat, bytes-concat, bytes-join
+
+  -- | Copy every source byte into independent mutable storage, including empty input.
+  bytes-clone :: Bytes -> Bytes
+  bytes-clone input = let size = bytes-len input in let out = bytes-new size in
+    let copied = bytes-copy-range out input 0 0 size in out
+
+  -- | Fill the remaining repeated output by copying its complete initialized prefix.
+  -- Each source/destination interval is checked explicitly; the final fringe is exact.
+  repeat-prefix :: Bytes -> Nat -> Unit
+  repeat-prefix out filled = if filled > 0 && filled < bytes-len out then
+    let left = bytes-len out - filled in let count = if filled < left then filled else left in
+    if filled + count <= bytes-len out && count <= bytes-len out then
+      let copied = bytes-copy-range out out filled 0 count in
+      let next = filled + count in repeat-prefix out next
+    else ()
+    else ()
+
+  -- | Repeat raw bytes the requested natural count into one independent buffer.
+  -- Empty inputs and zero counts need no fill traversal; byte values are never decoded.
+  bytes-repeat :: Nat -> Bytes -> Bytes
+  bytes-repeat count input = let size = bytes-len input in let out = bytes-new (count * size) in
+    if size > 0 && size <= bytes-len out then
+      let seeded = bytes-copy-range out input 0 0 size in
+      let completed = repeat-prefix out size in out
+    else out
+
+  -- | Count piece bytes and separators with a bounded-stack accumulator.
+  join-size :: List Bytes -> Nat -> Nat -> Bool -> Nat
+  join-size pieces separator total first = case pieces of
+    Nil -> total
+    Cons part rest -> let width = bytes-len part in let next = total + width + (if first then 0 else separator) in
+      join-size rest separator next False
+
+  -- | Copy every piece and exactly one separator between adjacent list elements.
+  join-copy :: Bytes -> Bytes -> Nat -> List Bytes -> Unit
+  join-copy out separator at pieces = case pieces of
+    Nil -> ()
+    Cons part rest -> let width = bytes-len part in
+      if at + width <= bytes-len out then
+        let copied = bytes-copy-range out part at 0 width in let following = at + width in
+        case rest of
+          Nil -> ()
+          Cons _ _ -> let gap = bytes-len separator in
+            if following + gap <= bytes-len out then
+              let separated = bytes-copy-range out separator following 0 gap in
+              let start = following + gap in join-copy out separator start rest
+            else ()
+      else ()
+
+  -- | Count raw piece lengths without separator state or recursive return frames.
+  concat-size :: List Bytes -> Nat -> Nat
+  concat-size pieces total = case pieces of
+    Nil -> total
+    Cons part rest -> let next = total + bytes-len part in concat-size rest next
+
+  -- | Copy raw pieces once into their checked pre-sized intervals.
+  concat-copy :: Bytes -> Nat -> List Bytes -> Unit
+  concat-copy out at pieces = case pieces of
+    Nil -> ()
+    Cons part rest -> let width = bytes-len part in
+      if at + width <= bytes-len out then
+        let copied = bytes-copy-range out part at 0 width in
+        let next = at + width in concat-copy out next rest
+      else ()
+
+  -- | Concatenate raw byte pieces into one fresh buffer without recursive return frames.
+  bytes-concat :: List Bytes -> Bytes
+  bytes-concat pieces = let size = concat-size pieces 0 in let out = bytes-new size in
+    let copied = concat-copy out 0 pieces in out
+
+  -- | Join raw byte pieces in list order with separators, into one fresh exact-size buffer.
+  -- Empty pieces still contribute their adjacent separators; caller buffers remain unchanged.
+  bytes-join :: List Bytes -> Bytes -> Bytes
+  bytes-join pieces separator = if bytes-len separator == 0 then bytes-concat pieces else
+    let size = join-size pieces (bytes-len separator) 0 True in let out = bytes-new size in
+    let copied = join-copy out separator 0 pieces in out
