@@ -1,0 +1,574 @@
+{
+  "description": "One complete public operation with identical startup, common input and unrelated prepared-table setup; ordinary reclamation, no debug quarantine. Equal-length executable paths avoid argv-size accounting differences.",
+  "cpu_affinity": [
+    0
+  ],
+  "environment": {
+    "CINCH_RC_DEBUG": "0",
+    "CINCH_ALLOC_STATS": "1",
+    "CINCH_LEAK_CHECK": "1",
+    "CINCH_HEAP_LIMIT": "32M",
+    "CINCH_STACK_SIZE": "8M"
+  },
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "inputs": {
+    "before": {
+      "executable_sha256": "6acfbe5ddf5534036e66206fa775bd975034eb32bcd4d807113585370e20552d",
+      "source_sha256": "4f26dcc17ea69f75f7a9a2aa014cbcb2010f0c932e559cd0bacddd3c3e290920",
+      "driver_sha256": "f134591cfcb92ac4d5a8c2301da51e70503a54e786432e26c5652efd17ab7bc3",
+      "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31"
+    },
+    "after": {
+      "executable_sha256": "dec14d5a61b32e7cfa2682ea733fd48e102d36ea7b2cdb689ea0beeb4da2eb0a",
+      "source_sha256": "95e5a6dd624575bf80bf7df22ba632819dd500d4a0c5af4f32d16d4b2befcea8",
+      "driver_sha256": "f134591cfcb92ac4d5a8c2301da51e70503a54e786432e26c5652efd17ab7bc3",
+      "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31"
+    }
+  },
+  "rows": [
+    {
+      "variant": "before",
+      "workload": "sha256",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 115,
+      "stats": {
+        "blocks": 122,
+        "bytes": 19944,
+        "peak": 17037,
+        "header-blocks": 93,
+        "header-bytes": 2016,
+        "immortal": 0,
+        "freed": 93,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha224",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 161,
+      "stats": {
+        "blocks": 118,
+        "bytes": 19852,
+        "peak": 17037,
+        "header-blocks": 89,
+        "header-bytes": 1936,
+        "immortal": 0,
+        "freed": 89,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256-state",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 115,
+      "stats": {
+        "blocks": 114,
+        "bytes": 19794,
+        "peak": 17043,
+        "header-blocks": 85,
+        "header-bytes": 1856,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha224-state",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 161,
+      "stats": {
+        "blocks": 114,
+        "bytes": 19790,
+        "peak": 17043,
+        "header-blocks": 85,
+        "header-bytes": 1856,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256-roundtrip",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 370,
+      "stats": {
+        "blocks": 116,
+        "bytes": 20026,
+        "peak": 17115,
+        "header-blocks": 85,
+        "header-bytes": 1936,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256-stream",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 147,
+      "stats": {
+        "blocks": 135,
+        "bytes": 20353,
+        "peak": 17092,
+        "header-blocks": 104,
+        "header-bytes": 2344,
+        "immortal": 0,
+        "freed": 104,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256-stream4096",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 147,
+      "stats": {
+        "blocks": 125,
+        "bytes": 20161,
+        "peak": 17096,
+        "header-blocks": 94,
+        "header-bytes": 2144,
+        "immortal": 0,
+        "freed": 94,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256-runtime",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 115,
+      "stats": {
+        "blocks": 109,
+        "bytes": 19640,
+        "peak": 16869,
+        "header-blocks": 81,
+        "header-bytes": 1688,
+        "immortal": 0,
+        "freed": 81,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 325,
+      "stats": {
+        "blocks": 139,
+        "bytes": 85785,
+        "peak": 82512,
+        "header-blocks": 111,
+        "header-bytes": 2376,
+        "immortal": 0,
+        "freed": 111,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha224",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 296,
+      "stats": {
+        "blocks": 139,
+        "bytes": 85781,
+        "peak": 82512,
+        "header-blocks": 111,
+        "header-bytes": 2376,
+        "immortal": 0,
+        "freed": 111,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256-state",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 325,
+      "stats": {
+        "blocks": 135,
+        "bytes": 85723,
+        "peak": 82518,
+        "header-blocks": 107,
+        "header-bytes": 2296,
+        "immortal": 0,
+        "freed": 107,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha224-state",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 296,
+      "stats": {
+        "blocks": 135,
+        "bytes": 85719,
+        "peak": 82518,
+        "header-blocks": 107,
+        "header-bytes": 2296,
+        "immortal": 0,
+        "freed": 107,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256-roundtrip",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 548,
+      "stats": {
+        "blocks": 137,
+        "bytes": 85963,
+        "peak": 82630,
+        "header-blocks": 108,
+        "header-bytes": 2416,
+        "immortal": 0,
+        "freed": 108,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256-stream",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65861,
+      "stats": {
+        "blocks": 8342,
+        "bytes": 421938,
+        "peak": 148135,
+        "header-blocks": 7289,
+        "header-bytes": 207424,
+        "immortal": 0,
+        "freed": 7289,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256-stream4096",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65861,
+      "stats": {
+        "blocks": 270,
+        "bytes": 220190,
+        "peak": 152171,
+        "header-blocks": 225,
+        "header-bytes": 5664,
+        "immortal": 0,
+        "freed": 225,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "sha256-runtime",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 325,
+      "stats": {
+        "blocks": 131,
+        "bytes": 151105,
+        "peak": 147880,
+        "header-blocks": 103,
+        "header-bytes": 2128,
+        "immortal": 0,
+        "freed": 103,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 115,
+      "stats": {
+        "blocks": 114,
+        "bytes": 19700,
+        "peak": 16901,
+        "header-blocks": 86,
+        "header-bytes": 1808,
+        "immortal": 0,
+        "freed": 86,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha224",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 161,
+      "stats": {
+        "blocks": 112,
+        "bytes": 19652,
+        "peak": 16901,
+        "header-blocks": 84,
+        "header-bytes": 1768,
+        "immortal": 0,
+        "freed": 84,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256-state",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 115,
+      "stats": {
+        "blocks": 114,
+        "bytes": 19794,
+        "peak": 17043,
+        "header-blocks": 85,
+        "header-bytes": 1856,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha224-state",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 161,
+      "stats": {
+        "blocks": 114,
+        "bytes": 19790,
+        "peak": 17043,
+        "header-blocks": 85,
+        "header-bytes": 1856,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256-roundtrip",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 370,
+      "stats": {
+        "blocks": 118,
+        "bytes": 20070,
+        "peak": 17115,
+        "header-blocks": 87,
+        "header-bytes": 1976,
+        "immortal": 0,
+        "freed": 87,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256-stream",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 147,
+      "stats": {
+        "blocks": 133,
+        "bytes": 20309,
+        "peak": 17092,
+        "header-blocks": 102,
+        "header-bytes": 2304,
+        "immortal": 0,
+        "freed": 102,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256-stream4096",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 147,
+      "stats": {
+        "blocks": 125,
+        "bytes": 20161,
+        "peak": 17096,
+        "header-blocks": 94,
+        "header-bytes": 2144,
+        "immortal": 0,
+        "freed": 94,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256-runtime",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 115,
+      "stats": {
+        "blocks": 109,
+        "bytes": 19640,
+        "peak": 16869,
+        "header-blocks": 81,
+        "header-bytes": 1688,
+        "immortal": 0,
+        "freed": 81,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 325,
+      "stats": {
+        "blocks": 134,
+        "bytes": 85617,
+        "peak": 82408,
+        "header-blocks": 106,
+        "header-bytes": 2208,
+        "immortal": 0,
+        "freed": 106,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha224",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 296,
+      "stats": {
+        "blocks": 134,
+        "bytes": 85613,
+        "peak": 82408,
+        "header-blocks": 106,
+        "header-bytes": 2208,
+        "immortal": 0,
+        "freed": 106,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256-state",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 325,
+      "stats": {
+        "blocks": 135,
+        "bytes": 85723,
+        "peak": 82518,
+        "header-blocks": 107,
+        "header-bytes": 2296,
+        "immortal": 0,
+        "freed": 107,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha224-state",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 296,
+      "stats": {
+        "blocks": 135,
+        "bytes": 85719,
+        "peak": 82518,
+        "header-blocks": 107,
+        "header-bytes": 2296,
+        "immortal": 0,
+        "freed": 107,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256-roundtrip",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 548,
+      "stats": {
+        "blocks": 137,
+        "bytes": 85963,
+        "peak": 82630,
+        "header-blocks": 108,
+        "header-bytes": 2416,
+        "immortal": 0,
+        "freed": 108,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256-stream",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65861,
+      "stats": {
+        "blocks": 8342,
+        "bytes": 421938,
+        "peak": 148135,
+        "header-blocks": 7289,
+        "header-bytes": 207424,
+        "immortal": 0,
+        "freed": 7289,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256-stream4096",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65861,
+      "stats": {
+        "blocks": 270,
+        "bytes": 220190,
+        "peak": 152171,
+        "header-blocks": 225,
+        "header-bytes": 5664,
+        "immortal": 0,
+        "freed": 225,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "sha256-runtime",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 325,
+      "stats": {
+        "blocks": 131,
+        "bytes": 151105,
+        "peak": 147880,
+        "header-blocks": 103,
+        "header-bytes": 2128,
+        "immortal": 0,
+        "freed": 103,
+        "live": 0
+      }
+    }
+  ]
+}

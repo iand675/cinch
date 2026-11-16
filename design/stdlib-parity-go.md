@@ -22,6 +22,7 @@ is not an available API.
 | `encoding/hex` | [Text.Hex](../library/Text.Hex.md), [Effect.Hex](../library/Effect.Hex.md) | Text/byte codecs, prefix and append APIs, checked caller buffers, formatted dumps, encoding writers, decoding readers and explicitly finished dump sinks | All 15 declarations mapped; immutable continuation, partial-row latency and allocation differences are documented |
 | `encoding/ascii85` | [Text.Ascii85](../library/Text.Ascii85.md), [Effect.Ascii85](../library/Effect.Ascii85.md) | Text/byte codecs, checked caller buffers and source offsets, retained prefix/progress, incremental states, stream adapters, shorthand, control runs and wrapped arithmetic | All seven declarations mapped; immutable continuation, buffered-read copying and allocation costs are documented |
 | `encoding/base32` | [Text.Base32](../library/Text.Base32.md) | RFC 4648 standard and extended-hex alphabets, padded and raw forms, CR/LF tolerance, final-quantum validation | Custom alphabets/padding, stream adapters |
+| `crypto/sha256` | [Text.Sha256](../library/Text.Sha256.md), [Effect.Sha256](../library/Effect.Sha256.md) | SHA-224/SHA-256 whole-buffer digests, persistent states, reset, prefix-preserving append, checked binary checkpoints and stream sinks/copies | All ten recorded declarations and returned hash/clone/state capabilities mapped; portable SIMD schedule, copied buffers and hardware-acceleration limits are documented |
 | `hash/adler32` | [Text.Adler32](../library/Text.Adler32.md), [Effect.Adler32](../library/Effect.Adler32.md), [Text.Checksum](../library/Text.Checksum.md) | SIMD bounded-segment checksums, persistent states, numeric/byte digests, reset, copied-prefix append, checked checkpoints and stream sinks/copies | All four recorded declarations and returned hash/clone/state capabilities mapped; ownership and streaming costs are documented |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
 | `hash/crc64` | [Text.Crc64](../library/Text.Crc64.md), [Effect.Crc64](../library/Effect.Crc64.md), [Text.Checksum](../library/Text.Checksum.md) | Immutable SIMD-built tables, packed slicing-by-eight updates, persistent states, numeric/byte digests, reset, prefix-preserving append, table-checked checkpoints and stream sinks/copies | All eleven recorded declarations and returned hash/clone/state capabilities mapped; prepared-table setup and stream-copy costs are documented |
@@ -60,8 +61,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records seven functionally complete, 61 partial
-and 112 unreviewed packages. ASCII85, hexadecimal, UTF-16, FNV, Adler-32, CRC-64 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records eight functionally complete, 60 partial
+and 112 unreviewed packages. ASCII85, hexadecimal, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
@@ -263,3 +264,27 @@ modules' actual exports and limits.
 Each increment should ship working source, checked reference pages, consumer
 tests, independent compatibility vectors where applicable, and explicit
 format/API limits. A package-name placeholder does not count as coverage.
+
+SHA-224 and SHA-256 have a standalone source implementation in `Text.Sha256`.
+Both variants share a four-word SIMD schedule and exactly sixty-four ordered
+rounds per block. Private remaining-length machine counters consume exact
+64-byte blocks while retaining their backing owners. Finalization copies fewer
+than sixty-four pending bytes and appends the wrapping 64-bit bit count. The
+108-byte checkpoint checks the variant identifier before its exact size,
+accepts arbitrary chaining words and wrapping counts, and canonicalizes unused
+tail storage. Caller-owned input, digest and checkpoint buffers never alias a
+retained state. `Effect.Sha256` uses the immutable state as an inspectable sink
+and preserves advanced readers and the last valid digest after source failures.
+The existing `Text.Digest` runtime facade remains available.
+
+Independent SHA fixtures cover 132 ordinary digest/checkpoint cases, 160
+arbitrary restored states and 912 identifier/size cases. Every split through
+129 bytes and selected larger padding/block boundaries is exercised. Both
+compilers check normal and poisoned-free execution with zero leaks; Rust also
+checks optimized temporary-buffer ownership and compiles the actual kernels
+for WebAssembly, AArch64 and big-endian PowerPC. Foreign execution is not
+claimed. Generated constants are derived exactly from prime roots, and the
+private generated suffix has a reproducibility check. See the benchmark notes
+for measured small-input allocation/rendering improvements and the remaining
+gap against hardware SHA instructions; functional completion does not assert
+hardware throughput parity.
