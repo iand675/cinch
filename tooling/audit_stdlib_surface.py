@@ -56,7 +56,7 @@ EVIDENCE = {
     "encoding/ascii85": (["lib_ascii85::ascii85_matches_independent_vectors_and_all_chunk_splits", "lib_ascii85::ascii85_stream_adapters_preserve_chunk_and_failure_contracts"], ["ascii85-encode", "ascii85-decode", "ascii85-stream-encode", "ascii85-stream-decode"]),
     "encoding/base32": (["lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms", "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes"], ["base32-encode", "base32-decode"]),
     "encoding/binary": (["lib_go_stdlib::fixed_width_binary_matches_go_and_validates_writes", "lib_go_stdlib::varints_match_go_including_signed_extrema_and_malformed_input"], ["binary", "varint"]),
-    "encoding/hex": (["lib_go_stdlib::hexadecimal_matches_go_and_names_invalid_bytes"], ["hex-encode", "hex-decode"]),
+    "encoding/hex": (["lib_go_stdlib::hexadecimal_matches_go_and_names_invalid_bytes", "lib_hex::hexadecimal_prefix_and_append_match_reference_progress", "lib_hex::hexadecimal_caller_buffers_preserve_bounds_progress_and_overlap", "lib_hex::hexadecimal_all_byte_values_preserve_first_error_and_prefix"], ["hex-encode", "hex-decode"]),
     "hash/adler32": (["lib_go_stdlib::checksums_match_go_and_update_over_every_split"], ["adler32"]),
     "hash/crc32": (["lib_go_stdlib::checksums_match_go_and_update_over_every_split"], ["crc32", "crc32c"]),
     "hash/crc64": (["lib_go_stdlib::checksums_match_go_and_update_over_every_split"], ["crc64"]),

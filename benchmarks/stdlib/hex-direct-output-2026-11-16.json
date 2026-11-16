@@ -1,0 +1,139 @@
+{
+  "format": 1,
+  "opt_level": 2,
+  "label": "Hex SIMD decoder writes directly to a bounded output buffer; matching frozen compiler and public driver",
+  "commit": "b49c07b446bafe5265bc06a1dcff8c781ae69918",
+  "compiler_sha256": "eb917700e6f878b619cacf1d4e1857d19a39e3611027a18b65333692590cfb42",
+  "compiler_source_sha256": "cf16561e53da4059b3b3c560c4e082bf344cf3f24aa91dad035e6dd8d7654a43",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "runner_sha256": "15c803793ed4b3fef2774f026d379587294f34f75c9e02ee043543532efe686e",
+  "working_tree_dirty": true,
+  "driver_sha256": "d79b16af70e3b25f9ebb64374cbb7e8dc8608dcb8fb1e007903a9937698cd9b2",
+  "sources": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+    "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+    "Effect.Stream": "6079746ad326c94b72c6c3b41f3cb5d652d67a0f7ced213031747e6e342bd7c1",
+    "Text.Ascii85": "3247c75afe5b1c77bbc62ddcf5340cdc063df2ed6af5d724489a84b45a7ef0d4",
+    "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+    "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+    "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+    "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+    "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+    "Text.Hex": "2753b6e34d7e386ddd0328079925f036e66b362da0f24407ce95cdb19e90ecfb",
+    "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+  },
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "machine": "x86_64",
+  "cpu_affinity": [
+    0
+  ],
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+  "timing": "runtime monotonic clock around operation loop; preparation, startup and output excluded",
+  "measurement": "public API pipeline; encoding includes conversion to observable bytes; text decoders include bytes-to-text conversion; stream operations include adapter construction",
+  "iterations": 64,
+  "warmup_processes": 1,
+  "results": [
+    {
+      "workload": "hex-encode",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        31066,
+        31597,
+        31678,
+        31688,
+        31858,
+        31888,
+        31357
+      ],
+      "checksum": 10720,
+      "median_ns_per_operation": 494.96875,
+      "raw_mib_per_second": 61.655565376602055
+    },
+    {
+      "workload": "hex-encode",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        462456,
+        456378,
+        440823,
+        462116,
+        458871,
+        440944,
+        461444
+      ],
+      "checksum": 137696,
+      "median_ns_per_operation": 7169.859375,
+      "raw_mib_per_second": 136.20385685737386
+    },
+    {
+      "workload": "hex-encode",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        6937366,
+        7079641,
+        6980050,
+        6899499,
+        6901061,
+        6975153,
+        6988023
+      ],
+      "checksum": 2103776,
+      "median_ns_per_operation": 108986.765625,
+      "raw_mib_per_second": 143.36603082398335
+    },
+    {
+      "workload": "hex-decode",
+      "raw_input_bytes": 32,
+      "samples_ns": [
+        29765,
+        31398,
+        30245,
+        30315,
+        54983,
+        30476,
+        29965
+      ],
+      "checksum": 15744,
+      "median_ns_per_operation": 473.671875,
+      "raw_mib_per_second": 64.42767606795316
+    },
+    {
+      "workload": "hex-decode",
+      "raw_input_bytes": 1024,
+      "samples_ns": [
+        319401,
+        338910,
+        318590,
+        346421,
+        318760,
+        320182,
+        318820
+      ],
+      "checksum": 85376,
+      "median_ns_per_operation": 4990.640625,
+      "raw_mib_per_second": 195.67878622797048
+    },
+    {
+      "workload": "hex-decode",
+      "raw_input_bytes": 16384,
+      "samples_ns": [
+        4867399,
+        4930704,
+        5005378,
+        4929502,
+        4899397,
+        4804184,
+        4855230
+      ],
+      "checksum": 1068416,
+      "median_ns_per_operation": 76553.078125,
+      "raw_mib_per_second": 204.10675027967727
+    }
+  ],
+  "compiler_path": "/workspace/dasl-stdlib-io/build/benchmarks/hex-before-direct-output/compiler",
+  "executable_sha256": "65a9269dfad20faceb6e6a4be7b262ffb11aac84302cffd32bf03c5bfe6e13b3",
+  "llvm_sha256": "bdf3e524d8648dd81eae2b480c5e10970fc5c6dcdcbcf17da87daf1ca84ca236",
+  "artifacts": "/workspace/dasl-stdlib-io/build/benchmarks/hex-direct-output"
+}

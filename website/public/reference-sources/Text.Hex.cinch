@@ -1,29 +1,33 @@
 -- | Hexadecimal conversion between byte buffers and text.
 -- Encoding emits two lowercase ASCII characters per byte. Decoding accepts either
 -- case, without whitespace or prefixes. Invalid-byte offsets count UTF-8 bytes;
--- an invalid final byte takes precedence over an odd-length error. No partial
--- buffer is returned on error. Complete blocks use inline LLVM SIMD nibble lanes;
+-- an invalid final byte takes precedence over an odd-length error. Whole-text
+-- decoding rejects the input on error; prefix and append APIs retain completed
+-- bytes alongside the error. Complete blocks use inline LLVM SIMD nibble lanes;
 -- short tails and precise error reporting use the scalar path.
 module Text.Hex where
 
   import Data.Bytes
   import Data.Bytes.Word
   import Data.Machine
-  import Data.List
   import Data.Nat
   import Data.Option
   import Data.Result
   import Data.String
 
-  export HexError, OddHexLength, InvalidHexByte
+  export HexError, OddHexLength, InvalidHexByte, HexShortDestination
   export hex-encode, hex-decode, hex-encoded-length, hex-decoded-length
+  export hex-encode-bytes, hex-decode-prefix, hex-encode-append, hex-decode-append
+  export hex-encode-into, hex-decode-into
 
-  -- | The entire hexadecimal input could not be decoded; no partial buffer accompanies an error.
+  -- | A hexadecimal input or destination is invalid. Prefix APIs return completed output alongside this error.
   data HexError where
     -- | The final valid hexadecimal digit has no matching low digit.
     OddHexLength :: HexError
     -- | An invalid UTF-8 byte, represented by its zero-based byte offset followed by its value.
     InvalidHexByte :: Nat -> Nat -> HexError
+    -- | Required output bytes and available destination bytes. No destination bytes were changed.
+    HexShortDestination :: Nat -> Nat -> HexError
 
   -- | The exact encoded character and byte count for a buffer of the given length: twice its length.
   hex-encoded-length :: Nat -> Nat
@@ -40,11 +44,35 @@ module Text.Hex where
   -- | Encode all bytes as lowercase hexadecimal ASCII. Empty input produces empty text; complete blocks use SIMD and the tail is exact.
   hex-encode :: Bytes -> String
   hex-encode b =
-    let out = bytes-new (bytes-len b * 2) in
-    let filled = encode-into b 0 out 0 in
+    let out = bytes-new (hex-encoded-length (bytes-len b)) in
+    let filled = encode-buffer-from b 0 out 0 in
     case string-from-bytes out of
       Some s -> s
       None -> empty-string
+
+  -- | Encode directly to a fresh lowercase ASCII buffer, without a text conversion.
+  hex-encode-bytes :: Bytes -> Bytes
+  hex-encode-bytes input =
+    let out = bytes-new (hex-encoded-length (bytes-len input)) in
+    let filled = encode-buffer-from input 0 out 0 in out
+
+  -- | Append encoded bytes to a copied prefix. Neither input buffer is mutated or retained by alias.
+  hex-encode-append :: Bytes -> Bytes -> Bytes
+  hex-encode-append prefix input =
+    let start = bytes-len prefix in
+    let out = bytes-new (start + hex-encoded-length (bytes-len input)) in
+    let copied = bytes-copy-range out prefix 0 0 start in
+    let filled = encode-buffer-from input 0 out start in out
+
+  -- | Encode into a destination starting at an offset and return the written byte count.
+  -- The entire destination range is checked before writing. Source/destination overlap is safe.
+  hex-encode-into :: Bytes -> Nat -> Bytes -> Result HexError Nat
+  hex-encode-into destination start input =
+    let required = hex-encoded-length (bytes-len input) in
+    if start <= bytes-len destination && required <= bytes-len destination - start then
+      let source = copy-prefix input (bytes-len input) in
+      let filled = encode-buffer-from source 0 destination start in Ok required
+    else Err (HexShortDestination required (saturating-sub (bytes-len destination) start))
 
   -- | Recognize an ASCII hexadecimal byte of either case, retaining its four-bit range.
   hex-value :: Nat -> Option (InRange 0 15 Nat)
@@ -54,25 +82,47 @@ module Text.Hex where
     else if n >= 97 && n <= 102 then Some (n - 87)
     else None
 
-  -- | Decode one pair or report its exact invalid-byte offset. A final invalid byte is checked before reporting odd length.
-  decode-step :: Bytes -> Nat -> List (InRange 0 255 Nat) -> Result HexError Bytes
-  decode-step b i acc =
-    if i < bytes-len b then
-      let a = bytes-get b i in
-      case hex-value a of
-        None -> Err (InvalidHexByte i a)
-        Some hi ->
-          if i + 1 < bytes-len b then
-            let c = bytes-get b (i + 1) in
-            case hex-value c of
-              None -> Err (InvalidHexByte (i + 1) c)
-              Some lo -> decode-from b (i + 2) (Cons (hi * 16 + lo) acc)
-          else Err OddHexLength
-    else Ok (bytes-from-list (reverse acc))
-
-  -- | Decode either-case hexadecimal text. Whitespace and prefixes are invalid; errors identify the first invalid byte or an unmatched final digit.
+  -- | Decode text atomically: malformed input returns only an error, without a partial buffer.
   hex-decode :: String -> Result HexError Bytes
-  hex-decode s = decode-from (string-to-bytes s) 0 Nil
+  hex-decode text = case hex-decode-prefix (string-to-bytes text) of
+    (out, None) -> Ok out
+    (out, Some error) -> Err error
+
+  -- | Decode all complete valid pairs from arbitrary encoded bytes, preserving a prefix on error.
+  -- Invalid byte offsets refer to the original input, including invalid non-UTF-8 bytes.
+  hex-decode-prefix :: Bytes -> (Bytes, Option HexError)
+  hex-decode-prefix input = hex-decode-append (bytes-new 0) input
+
+  -- | Append decoded bytes to a copied prefix, retaining completed pairs even if later input is invalid.
+  -- Error offsets refer to the encoded input, independently of the prefix length.
+  hex-decode-append :: Bytes -> Bytes -> (Bytes, Option HexError)
+  hex-decode-append prefix input =
+    let start = bytes-len prefix in
+    let out = bytes-new (start + hex-decoded-length (bytes-len input)) in
+    if start <= bytes-len out then
+      let copied = bytes-copy-range out prefix 0 0 start in
+      case decode-buffer-from input 0 out start of
+        (end, error) -> (if end == bytes-len out then out else copy-prefix out end, error)
+    else (copy-prefix prefix start, Some (HexShortDestination start (bytes-len out)))
+
+  -- | Decode into a destination and return completed bytes plus any decoding error.
+  -- A short range returns zero and HexShortDestination before mutation; malformed input
+  -- retains its valid decoded prefix. The source is snapshotted so overlap is safe.
+  hex-decode-into :: Bytes -> Nat -> Bytes -> (Nat, Option HexError)
+  hex-decode-into destination start input =
+    let required = hex-decoded-length (bytes-len input) in
+    if start <= bytes-len destination && required <= bytes-len destination - start then
+      let source = copy-prefix input (bytes-len input) in
+      case decode-buffer-from source 0 destination start of
+        (end, error) -> (saturating-sub end start, error)
+    else (0, Some (HexShortDestination required (saturating-sub (bytes-len destination) start)))
+
+  -- | Snapshot an initialized prefix, including the empty prefix, without retaining an alias.
+  copy-prefix :: Bytes -> Nat -> Bytes
+  copy-prefix input n = if n <= bytes-len input then
+    let out = bytes-new n in
+    let copied = bytes-copy-range out input 0 0 n in out
+    else bytes-new 0
 
   -- | Encode four packed bytes as eight lowercase ASCII hex bytes using SIMD nibble lanes.
   prim encode4 :: U32 -> U64 where
@@ -161,28 +211,44 @@ module Text.Hex where
     } when endian big
 
   -- | Fill complete four-byte SIMD blocks, then the exact scalar tail.
-  encode-into :: Bytes -> Nat -> Bytes -> Nat -> Unit
-  encode-into b i out oi =
+  encode-buffer-from :: Bytes -> Nat -> Bytes -> Nat -> Unit
+  encode-buffer-from b i out oi =
     if i + 4 <= bytes-len b && oi + 8 <= bytes-len out then
       let stored = bytes-write-le64 out oi (encode4 (bytes-read-le32 b i)) in
-      encode-into b (i + 4) out (oi + 8)
+      encode-buffer-from b (i + 4) out (oi + 8)
     else if i < bytes-len b && oi + 2 <= bytes-len out then
       let v = bytes-get b i in
       let hi = bytes-set out oi (hex-digit (nat-div v 16)) in
       let lo = bytes-set out (oi + 1) (hex-digit (nat-rem v 16)) in
-      encode-into b (i + 1) out (oi + 2)
+      encode-buffer-from b (i + 1) out (oi + 2)
     else ()
 
-  -- | Decode scalar quanta from the carried bit state. Validate padding and final length before returning the collected bytes.
-  decode-from :: Bytes -> Nat -> List (InRange 0 255 Nat) -> Result HexError Bytes
-  decode-from b i acc =
-    if i + 8 <= bytes-len b then
-      let w = decode8 (bytes-read-le64 b i) in
-      if eq-u64 (wrapping-shr-u64 w 32) 0 then
-        let b0 = u8-to-nat (wrapping-u64-to-u8 w) in
-        let b1 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 w 8)) in
-        let b2 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 w 16)) in
-        let b3 = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 w 24)) in
-        decode-from b (i + 8) (Cons b3 (Cons b2 (Cons b1 (Cons b0 acc))))
-      else decode-step b i acc
-    else decode-step b i acc
+  -- | Decode SIMD blocks directly into the output, then identify a scalar error or exact tail.
+  -- Each decoded block is stored once; no per-byte list nodes are allocated.
+  decode-buffer-from :: Bytes -> Nat -> Bytes -> Nat -> (Nat, Option HexError)
+  decode-buffer-from input i out oi =
+    if i + 8 <= bytes-len input && oi + 4 <= bytes-len out then
+      let word = decode8 (bytes-read-le64 input i) in
+      if eq-u64 (wrapping-shr-u64 word 32) 0 then
+        let stored = bytes-write-le32 out oi (wrapping-u64-to-u32 word) in
+        decode-buffer-from input (i + 8) out (oi + 4)
+      else decode-scalar input i out oi
+    else decode-scalar input i out oi
+
+  -- | Store a valid pair or stop at the first invalid byte, preferring an invalid tail to odd length.
+  decode-scalar :: Bytes -> Nat -> Bytes -> Nat -> (Nat, Option HexError)
+  decode-scalar input i out oi =
+    if i < bytes-len input then
+      let first = bytes-get input i in
+      case hex-value first of
+        None -> (oi, Some (InvalidHexByte i first))
+        Some high -> if i + 1 < bytes-len input then
+          let second = bytes-get input (i + 1) in
+          case hex-value second of
+            None -> (oi, Some (InvalidHexByte (i + 1) second))
+            Some low -> if oi < bytes-len out then
+              let stored = bytes-set out oi (high * 16 + low) in
+              decode-buffer-from input (i + 2) out (oi + 1)
+              else (oi, Some (HexShortDestination 1 0))
+          else (oi, Some OddHexLength)
+    else (oi, None)
