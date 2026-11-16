@@ -61,9 +61,9 @@ def checks(group: str, rows: list[dict]) -> list[str]:
     return out
 
 
-def consumer(expressions: list[str]) -> str:
+def consumer(expressions: list[str], extra: str = "") -> str:
     """Keep source batches bounded and every large construction count opaque at runtime."""
-    source = (ROOT/'compiler/tests/fixtures/string-construction-consumer.cinchpart').read_text()
+    source = (ROOT/'compiler/tests/fixtures/string-construction-consumer.cinchpart').read_text()+'\n'+extra
     names = []
     for first in range(0,len(expressions),64):
         name = f'checks{first//64}'; names.append(name+' ()')
@@ -78,12 +78,12 @@ def run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
     return result
 
 
-def verify_receipt(project: Path, module: Path) -> dict:
+def verify_receipt(project: Path, module: Path, name: str = "Data.String") -> dict:
     """Require the exact selected String source identity in the emitted consumer interface."""
     expected = source_hash(module.read_bytes())
-    path = project/'build/Data.String.cinchif'
+    path = project/'build'/(name+'.cinchif')
     interface = json.loads(path.read_text())
-    assert interface['module']=='Data.String', interface.get('module')
+    assert interface['module']==name, interface.get('module')
     assert interface['source_hash']==expected, (interface['source_hash'],expected)
     return {'interface_sha256':digest(path),'source_hash':expected,'module_source_sha256':digest(module)}
 
