@@ -1,0 +1,129 @@
+-- | Independent bounded-slice fingerprints for every subspan of malformed and aligned owner buffers.
+module Main where
+  import Data.Bytes.Utf8
+  import Data.Bytes
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String hiding (utf8-encode-into)
+  import Effect.Process
+
+  -- | Advance a bounded fixture counter without allocating an unrelated optional remainder.
+  prim next :: U32 -> U32 where
+    llvm {
+      %next = add i32 %0, 1
+      ret i32 %next
+    }
+
+  -- | Hash one complete U32 observation in little-endian wire order.
+  prim hash-word :: U32 -> U64 -> U64 where
+    llvm {
+      %wide = zext i32 %0 to i64
+      %a = and i64 %wide, 255
+      %b = xor i64 %1, %a
+      %c = mul i64 %b, 1099511628211
+      %d = lshr i64 %wide, 8
+      %e = and i64 %d, 255
+      %f = xor i64 %c, %e
+      %g = mul i64 %f, 1099511628211
+      %h = lshr i64 %wide, 16
+      %i = and i64 %h, 255
+      %j = xor i64 %g, %i
+      %k = mul i64 %j, 1099511628211
+      %l = lshr i64 %wide, 24
+      %m = xor i64 %k, %l
+      %n = mul i64 %m, 1099511628211
+      ret i64 %n
+    }
+
+  -- | Observe exact status independently of replacement scalar and consumed width.
+  decode :: Bytes -> U32 -> U32 -> U32 -> U64 -> U64
+  decode source start end at hash =
+    let a = u32-to-nat start in let b = u32-to-nat end in let c = u32-to-nat at in
+    let step = utf8-decode-between source a b c in
+    let h = hash-word at hash in let scalar = char-to-u32 (utf8-step-char step) in
+    let i = hash-word scalar h in let width = utf8-step-width step in
+    let raw = if width <= 4 then wrapping-i64-to-u32 (nat-to-i64 width) else 4294967295 in
+    let j = hash-word raw i in
+    let status = case utf8-step-status step of Utf8End -> 0; Utf8Valid -> 1; Utf8Invalid -> 2; Utf8OutOfBounds -> 3 in
+    hash-word status j
+
+  -- | Probe absolute owner positions before, inside, at and beyond each independent span.
+  positions :: Bytes -> U32 -> U32 -> U32 -> U64 -> U64
+  positions source size start end hash =
+    let a = decode source start end 0 hash in let b = decode source start end start a in
+    let c = decode source start end (next start) b in let d = decode source start end end c in
+    let e = decode source start end (next end) d in let f = decode source start end (next size) e in
+    if gt-u32 end 0 then decode source start end (wrapping-sub-u32 end 1) f else f
+
+  -- | Enumerate every legal half-open span, including empty and truncated scalar fringes.
+  spans :: Bytes -> U32 -> U32 -> U32 -> U64 -> U64
+  spans source size start end hash = if le-u32 start size then
+    if le-u32 end size then
+      let a = hash-word start hash in let b = hash-word end a in
+      let lo = u32-to-nat start in let hi = u32-to-nat end in
+      let count = case utf8-count-between source lo hi of None -> 4294967295; Some value -> if value <= 4294967295 then wrapping-i64-to-u32 (nat-to-i64 value) else 4294967295 in
+      let c = hash-word count b in let d = positions source size start end c in
+      spans source size start (next end) d
+    else let following = next start in spans source size following following hash
+    else hash
+
+  -- | Locate the next bounded fixture delimiter, independent of UTF-8 semantics.
+  field-end :: Bytes -> Nat -> Nat
+  field-end source at = if at < bytes-len source then if bytes-get source at == 0 then at else field-end source (at + 1) else at
+
+  -- | Decode one lowercase hexadecimal fixture digit.
+  nibble :: Nat -> Nat
+  nibble byte = if byte >= 97 then byte - 87 else if byte >= 48 then byte - 48 else 0
+
+  -- | Fill only a checked fixture buffer through ordinary byte writes.
+  fill-field :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Unit
+  fill-field source at end out cursor = if at + 1 < bytes-len source && at + 1 < end && cursor < bytes-len out then
+    let value = nibble (bytes-get source at) * 16 + nibble (bytes-get source (at + 1)) in
+    if value <= 255 then let written = bytes-set out cursor value in fill-field source (at + 2) end out (cursor + 1) else ()
+    else ()
+
+  -- | Check one small group so poisoned frees stay inside a fixed quarantine budget.
+  rows :: Bytes -> Nat -> U32 -> U32 -> Bool
+  rows fixture offset index remaining = if gt-u32 remaining 0 && lt-u32 index __ROWS_COUNT__ then
+    let end = field-end fixture offset in
+    if offset <= end then let width = nat-div (end - offset) 2 in
+      let source = bytes-new width in let filled = fill-field fixture offset end source 0 in
+      if width <= 4294967295 then let size = wrapping-i64-to-u32 (nat-to-i64 width) in
+        eq-u64 (spans source size 0 0 14695981039346656037) (unicode-data-span-hashes index)
+          && rows fixture (end + 1) (next index) (wrapping-sub-u32 remaining 1)
+      else False
+    else False
+    else True
+
+  -- | Run one bounded group from its exact source offset.
+  run-group :: U32 -> Bool
+  run-group index = if lt-u32 index __GROUPS__ then
+    let fixture = string-to-bytes __INPUTS__ in
+    let offset = u32-to-nat (unicode-data-span-offsets index) in
+    let row = wrapping-mul-u32 index 8 in rows fixture offset row 8
+    else False
+
+  -- | Traverse every independent owner buffer under the ordinary live-memory budget.
+  all-groups :: U32 -> Bool
+  all-groups index = if lt-u32 index __GROUPS__ then run-group index && all-groups (next index) else True
+
+  -- | Parse only decimal group metadata through existing ASCII digit observations.
+  decimal :: List Char -> Nat -> Nat
+  decimal input value = case input of Nil -> value; Cons cp rest -> case digit-value cp of None -> 0; Some digit -> decimal rest (value * 10 + digit)
+
+__WORDS__
+
+  -- | Select complete normal coverage or one bounded poisoned-memory fixture group.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Err error -> 2
+    Ok args -> case args of
+      Nil -> if all-groups 0 then 0 else 1
+      Cons name Nil -> let index = decimal (unpack name) 0 in
+        if index < __GROUPS__ then let raw = wrapping-i64-to-u32 (nat-to-i64 index) in if run-group raw then 0 else 1 else 2
+      other -> 2
