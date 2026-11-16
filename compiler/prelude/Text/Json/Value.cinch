@@ -22,6 +22,10 @@ module Text.Json.Value where
 
   export JsonError, JsonSyntaxError, JsonTypeError, JsonValueError, JsonTargetError
   export JsonInvalidValueError, json-error-invalid-value
+  export JsonNumericErrorKind, JsonNumericSyntax, JsonNumericRange, JsonNumericError, json-numeric-error-function, json-numeric-error-input, json-numeric-error-bytes, json-numeric-error-kind, json-numeric-error-message, json-numeric-is-range
+  export json-numeric-error-info
+  export JsonNumericResult, json-numeric-value, json-numeric-error, json-numeric-result, JsonNumberError, json-error-numeric
+  export json-number-from-text, json-number-from-bytes, json-number-bytes, json-number-check, json-number-int64-result, json-number-float64-result
   export JsonUnknownField, JsonCustomError, JsonPathError, JsonEncodingError, JsonTypeCause, JsonUnsupportedType
   export json-error-message, json-error-offset, json-error-path, json-error-type, json-error-value, json-error-cause
   export JsonNumber, json-zero-number, json-empty-number, json-number, json-number-text, json-number-int64, json-number-float64, json-number-float32
@@ -40,6 +44,23 @@ module Text.Json.Value where
   export JsonLexTag, JsonLexNull, JsonLexTrue, JsonLexFalse, JsonLexNumber, JsonLexString
   export JsonLexArrayStart, JsonLexArrayEnd, JsonLexObjectStart, JsonLexObjectEnd, JsonLexColon, JsonLexComma
   export json-lex-read
+
+  -- | The independent syntax or representability reason for a numeric conversion refusal.
+  data JsonNumericErrorKind where
+    -- | The original bytes are outside the requested numeric grammar.
+    JsonNumericSyntax :: JsonNumericErrorKind
+    -- | A valid numeric prefix or value exceeds the representable magnitude.
+    JsonNumericRange :: JsonNumericErrorKind
+
+  -- | Immutable original function, input bytes and numeric refusal reason.
+  data JsonNumericError where
+    -- | Private function label, owned exact spelling and syntax/range reason.
+    NumericError :: String -> Bytes -> JsonNumericErrorKind -> JsonNumericError
+
+  -- | A numeric value and its optional refusal, preserving saturated and infinite outcomes.
+  data JsonNumericResult a where
+    -- | Private completed numeric value and original conversion error.
+    NumericResult :: a -> Option JsonNumericError -> JsonNumericResult a
 
   -- | Structured JSON syntax, type, configuration and custom conversion diagnostics.
   data JsonError where
@@ -65,6 +86,8 @@ module Text.Json.Value where
     JsonEncodingError :: Nat -> String -> JsonError
     -- | An unrepresentable encoding state without a valid application value or type label.
     JsonInvalidValueError :: String -> JsonError
+    -- | Structured numeric conversion metadata retained through JSON error adapters.
+    JsonNumberError :: JsonNumericError -> JsonError
 
   -- | Render a diagnostic using JSON and application type names.
   json-error-message :: JsonError -> String
@@ -80,6 +103,7 @@ module Text.Json.Value where
     JsonPathError path cause -> string-concat-all [json-error-message cause, " at ", path]
     JsonEncodingError offset message -> message
     JsonInvalidValueError message -> string-concat "unsupported JSON value: " message
+    JsonNumberError numeric -> json-numeric-error-message numeric
 
   -- | Original byte offset when one exists, otherwise zero.
   json-error-offset :: JsonError -> Nat
@@ -95,6 +119,7 @@ module Text.Json.Value where
     JsonPathError path cause -> json-error-offset cause
     JsonEncodingError offset message -> offset
     JsonInvalidValueError message -> 0
+    JsonNumberError numeric -> 0
 
   -- | Application member/index path carried by a diagnostic.
   json-error-path :: JsonError -> String
@@ -144,14 +169,91 @@ module Text.Json.Value where
     JsonCustomError label cause -> json-error-invalid-value cause
     other -> False
 
-  -- | An exact grammar-validated JSON number spelling, or an explicit absent-spelling default.
+  -- | Recover numeric metadata through custom, path and typed-cause wrappers.
+  json-error-numeric :: JsonError -> Option JsonNumericError
+  json-error-numeric error = case error of
+    JsonNumberError numeric -> Some numeric
+    JsonCustomError label cause -> json-error-numeric cause
+    JsonPathError path cause -> json-error-numeric cause
+    JsonTypeCause expected actual at path cause -> json-error-numeric cause
+    other -> None
+
+  -- | Inspect the original operation label associated with a numeric refusal.
+  json-numeric-error-function :: JsonNumericError -> String
+  json-numeric-error-function error = case error of NumericError function input kind -> function
+
+  -- | Export an independent copy of the original input, including malformed UTF-8.
+  json-numeric-error-bytes :: JsonNumericError -> Bytes
+  json-numeric-error-bytes error = case error of NumericError function input kind -> snapshot input 0 (bytes-len input)
+
+  -- | Project the original input to scalar text, replacing malformed UTF-8 while its byte view stays exact.
+  json-numeric-error-input :: JsonNumericError -> String
+  json-numeric-error-input error = case error of NumericError function input kind -> number-byte-text input
+
+  -- | Inspect the exact syntax or range classification independently of its message.
+  json-numeric-error-kind :: JsonNumericError -> JsonNumericErrorKind
+  json-numeric-error-kind error = case error of NumericError function input kind -> kind
+
+  -- | Whether a numeric refusal reports representability rather than syntax.
+  json-numeric-is-range :: JsonNumericError -> Bool
+  json-numeric-is-range error = case json-numeric-error-kind error of JsonNumericRange -> True; JsonNumericSyntax -> False
+
+  -- | Render numeric metadata using the original operation and a scalar-safe quoted input.
+  json-numeric-error-message :: JsonNumericError -> String
+  json-numeric-error-message error = case error of
+    NumericError function input kind ->
+      let quoted = case string-from-bytes (json-quote-bytes input False) of Some text -> text; None -> "\"\"" in
+      string-concat-all [function, ": parsing ", quoted, if json-numeric-is-range error then ": value out of range" else ": invalid syntax"]
+
+  -- | Inspect the completed value even when conversion also reports an error.
+  json-numeric-value :: forall a. JsonNumericResult a -> a
+  json-numeric-value result = case result of NumericResult value error -> value
+
+  -- | Inspect an optional original numeric refusal without discarding its completed value.
+  json-numeric-error :: forall a. JsonNumericResult a -> Option JsonNumericError
+  json-numeric-error result = case result of NumericResult value error -> error
+
+  -- | Select an ordinary success or refusal when the caller does not need a partial numeric value.
+  json-numeric-result :: forall a. JsonNumericResult a -> Result JsonNumericError a
+  json-numeric-result result = case result of NumericResult value error -> case error of None -> Ok value; Some cause -> Err cause
+
+  -- | An exact number spelling with checked, raw-scalar and owned-byte construction.
   data JsonNumber where
     -- | Private immutable ASCII spelling, including sign/fraction/exponent or the absent empty default.
     Number :: String -> JsonNumber
+    -- | Private unchecked scalar spelling, validated only by the selected operation.
+    RawNumber :: String -> JsonNumber
+    -- | Private owned byte spelling for input outside the scalar-string domain.
+    ByteNumber :: Bytes -> JsonNumber
 
-  -- | Observe the original number spelling without conversion or rounding.
+  -- | Project the original spelling to scalar text; the byte view retains malformed UTF-8 exactly.
   json-number-text :: JsonNumber -> String
-  json-number-text number = case number of Number text -> text
+  json-number-text number = case number of Number text -> text; RawNumber text -> text; ByteNumber input -> number-byte-text input
+
+  -- | Preserve an arbitrary scalar spelling without treating its construction as numeric validation.
+  json-number-from-text :: String -> JsonNumber
+  json-number-from-text text = RawNumber text
+
+  -- | Snapshot an arbitrary byte spelling, preserving malformed UTF-8 for conversion diagnostics.
+  json-number-from-bytes :: Bytes -> JsonNumber
+  json-number-from-bytes input = case string-from-bytes input of Some text -> RawNumber text; None -> ByteNumber (snapshot input 0 (bytes-len input))
+
+  -- | Export a fresh exact spelling independently of scalar text projection.
+  json-number-bytes :: JsonNumber -> Bytes
+  json-number-bytes number = case number of Number text -> string-to-bytes text; RawNumber text -> string-to-bytes text; ByteNumber input -> snapshot input 0 (bytes-len input)
+
+  -- | Project arbitrary bytes to scalar text while retaining valid scalars and one replacement per malformed byte.
+  number-byte-text :: Bytes -> String
+  number-byte-text input = case string-from-bytes input of Some text -> text; None -> number-byte-text-from input 0 Nil
+
+  -- | Decode an arbitrary spelling through the shared UTF-8 classifier without interpreting JSON escapes.
+  number-byte-text-from :: Bytes -> Nat -> List Char -> String
+  number-byte-text-from input at reversed = if at < bytes-len input then
+    case raw-rune input at of
+      Rune scalar width ->
+        let character = case char-from-code scalar of Some value -> value; None -> unicode-replacement in
+        number-byte-text-from input (at + (if width > 0 then width else 1)) (Cons character reversed)
+    else pack (reverse reversed)
 
   -- | An immutable raw JSON message; null and a non-null empty buffer are distinct.
   data JsonRawMessage where
@@ -1045,34 +1147,272 @@ module Text.Json.Value where
       JsonLexFailure error next -> Err error
       other -> Err (JsonValueError "number" "empty number spelling")
 
+  -- | Snapshot explicit operation, original bytes and refusal reason for an application error adapter.
+  json-numeric-error-info :: String -> Bytes -> JsonNumericErrorKind -> JsonNumericError
+  json-numeric-error-info function input kind = NumericError function (snapshot input 0 (bytes-len input)) kind
+
+  -- | Preserve zero for syntax failures and the signed endpoint for range failures.
+  numeric-int-refused :: Bytes -> Bool -> Bool -> JsonNumericResult I64
+  numeric-int-refused input negative range = NumericResult (if range then (if negative then (-9223372036854775808 :: I64) else 9223372036854775807) else 0) (Some (NumericError "ParseInt" input (if range then JsonNumericRange else JsonNumericSyntax)))
+
+  -- | Accumulate unsigned decimal64 first so prefix overflow keeps its original error precedence.
+  numeric-int-from :: Bytes -> Nat -> Bool -> U64 -> JsonNumericResult I64
+  numeric-int-from input at negative total = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte >= 48 && byte <= 57 then
+      let digit = wrapping-i64-to-u64 (nat-to-i64 (byte - 48)) in
+      if gt-u64 total 1844674407370955161 || (eq-u64 total 1844674407370955161 && gt-u64 digit 5) then numeric-int-refused input negative True
+      else numeric-int-from input (at + 1) negative (wrapping-add-u64 (wrapping-mul-u64 total 10) digit)
+    else numeric-int-refused input negative False
+    else if gt-u64 total (if negative then 9223372036854775808 else 9223372036854775807) then numeric-int-refused input negative True
+      else let value = wrapping-u64-to-i64 total in NumericResult (if negative then wrapping-neg-i64 value else value) None
+
+  -- | Convert arbitrary signed decimal spellings, returning saturated range outcomes and original metadata.
+  json-number-int64-result :: JsonNumber -> JsonNumericResult I64
+  json-number-int64-result number =
+    let input = json-number-bytes number in
+    let negative = bytes-len input > 0 && bytes-get input 0 == 45 in
+    let begin = if bytes-len input > 0 && (bytes-get input 0 == 45 || bytes-get input 0 == 43) then (1 :: Nat) else 0 in
+    if begin < bytes-len input then numeric-int-from input begin negative 0 else numeric-int-refused input negative False
+
+  -- | Reconstruct an IEEE binary64 payload without numeric approximation.
+  prim numeric-float-from-bits :: U64 -> F64 where
+    llvm {
+      %value = bitcast i64 %0 to double
+      ret double %value
+    }
+
+  -- | Round a retained hexadecimal prefix plus sticky suffix with defined zero, wide and midpoint cases.
+  prim numeric-hex-round :: U64 -> U32 -> U8 -> U64 where
+    llvm {
+      %nonzero = icmp ne i32 %1, 0
+      %below64 = icmp ult i32 %1, 64
+      %narrow = and i1 %nonzero, %below64
+      %safecount = select i1 %narrow, i32 %1, i32 1
+      %shift = zext i32 %safecount to i64
+      %quotient = lshr i64 %0, %shift
+      %unit = shl i64 1, %shift
+      %mask = sub i64 %unit, 1
+      %remainder = and i64 %0, %mask
+      %half = lshr i64 %unit, 1
+      %above = icmp ugt i64 %remainder, %half
+      %tie = icmp eq i64 %remainder, %half
+      %low = and i64 %quotient, 1
+      %odd = icmp ne i64 %low, 0
+      %sticky = icmp ne i8 %2, 0
+      %preferup = or i1 %odd, %sticky
+      %tieup = and i1 %tie, %preferup
+      %up = or i1 %above, %tieup
+      %increment = zext i1 %up to i64
+      %rounded = add i64 %quotient, %increment
+      %above64 = icmp ugt i64 %0, -9223372036854775808
+      %tie64 = icmp eq i64 %0, -9223372036854775808
+      %tieup64 = and i1 %tie64, %sticky
+      %up64 = or i1 %above64, %tieup64
+      %result64 = zext i1 %up64 to i64
+      %exact64 = icmp eq i32 %1, 64
+      %widevalue = select i1 %exact64, i64 %result64, i64 0
+      %shifted = select i1 %below64, i64 %rounded, i64 %widevalue
+      %result = select i1 %nonzero, i64 %shifted, i64 %0
+      ret i64 %result
+    }
+
+  -- | Compare one complete ASCII special spelling without Unicode case expansion.
+  numeric-ascii-equal :: Bytes -> Nat -> String -> Bool
+  numeric-ascii-equal input begin expected =
+    let wanted = string-to-bytes expected in
+    begin <= bytes-len input && bytes-len wanted == bytes-len input - begin && numeric-ascii-from input begin wanted 0
+
+  -- | Compare a bounded ASCII suffix after folding only uppercase Latin letters.
+  numeric-ascii-from :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  numeric-ascii-from input begin wanted at = if at < bytes-len wanted then
+    if begin + at < bytes-len input then
+      let byte = bytes-get input (begin + at) in
+      let lower = if byte >= 65 && byte <= 90 then (byte + 32 :: Nat) else byte in
+      lower == bytes-get wanted at && numeric-ascii-from input begin wanted (at + 1)
+    else False
+    else True
+
+  -- | Whether a checked next source position contains a decimal digit.
+  numeric-next-digit :: Bytes -> Nat -> Bool
+  numeric-next-digit input at = at < bytes-len input && bytes-get input at >= 48 && bytes-get input at <= 57
+
+  -- | Finish a decimal mantissa, adding a zero after a permitted trailing decimal point.
+  numeric-decimal-finish :: List (InRange 0 255 Nat) -> Bool -> Bytes
+  numeric-decimal-finish reversed prior = bytes-from-list (reverse (if prior then reversed else Cons 48 reversed))
+
+  -- | Validate decimal exponent digits and separators while collecting an exact runtime spelling.
+  numeric-decimal-exponent :: Bytes -> Nat -> Bool -> List (InRange 0 255 Nat) -> Option Bytes
+  numeric-decimal-exponent input at prior reversed = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte >= 48 && byte <= 57 then numeric-decimal-exponent input (at + 1) True (Cons byte reversed)
+    else if byte == 95 && prior && numeric-next-digit input (at + 1) then numeric-decimal-exponent input (at + 1) False reversed
+    else None
+    else if prior then Some (bytes-from-list (reverse reversed)) else None
+
+  -- | Normalize raw decimal mantissas without admitting repeated punctuation or misplaced separators.
+  numeric-decimal :: Bytes -> Nat -> Bool -> Bool -> Bool -> List (InRange 0 255 Nat) -> Option Bytes
+  numeric-decimal input at point seen prior reversed = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte >= 48 && byte <= 57 then numeric-decimal input (at + 1) point True True (Cons byte reversed)
+    else if byte == 95 && prior && numeric-next-digit input (at + 1) then numeric-decimal input (at + 1) point seen False reversed
+    else if byte == 46 && not point then numeric-decimal input (at + 1) True seen False (Cons 46 (if seen then reversed else Cons 48 reversed))
+    else if (byte == 101 || byte == 69) && seen then
+      let mantissa = if prior then reversed else Cons 48 reversed in
+      let begin = at + 1 in
+      if begin < bytes-len input && (bytes-get input begin == 43 || bytes-get input begin == 45) then
+        numeric-decimal-exponent input (begin + 1) False (Cons (bytes-get input begin) (Cons 101 mantissa))
+      else numeric-decimal-exponent input begin False (Cons 101 mantissa)
+    else None
+    else if seen then Some (numeric-decimal-finish reversed prior) else None
+
+  -- | Parse one ASCII hexadecimal digit without accepting a decimal exponent marker as punctuation.
+  numeric-hex-digit :: Nat -> Option U64
+  numeric-hex-digit byte = if byte >= 48 && byte <= 57 then Some (wrapping-i64-to-u64 (nat-to-i64 (byte - 48)))
+    else if byte >= 65 && byte <= 70 then Some (wrapping-i64-to-u64 (nat-to-i64 (byte - 55)))
+    else if byte >= 97 && byte <= 102 then Some (wrapping-i64-to-u64 (nat-to-i64 (byte - 87)))
+    else None
+
+  -- | Whether a bounded next source byte is a hexadecimal mantissa digit.
+  numeric-next-hex :: Bytes -> Nat -> Bool
+  numeric-next-hex input at = at < bytes-len input && (case numeric-hex-digit (bytes-get input at) of Some digit -> True; None -> False)
+
+  -- | Retain a bounded signed exponent while validating every original decimal digit and separator.
+  numeric-exponent-from :: Bytes -> Nat -> Bool -> Bool -> Nat -> Nat -> Option Int
+  numeric-exponent-from input at negative prior cap total = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte >= 48 && byte <= 57 then
+      let next = total * 10 + (byte - 48) in
+      numeric-exponent-from input (at + 1) negative True cap (if next < cap then next else cap)
+    else if byte == 95 && prior && numeric-next-digit input (at + 1) then numeric-exponent-from input (at + 1) negative False cap total
+    else None
+    else if prior then Some (if negative then 0 - nat-to-int total else nat-to-int total) else None
+
+  -- | Parse a required optionally signed hexadecimal binary exponent with a safe input-size bound.
+  numeric-exponent :: Bytes -> Nat -> Option Int
+  numeric-exponent input at =
+    let negative = at < bytes-len input && bytes-get input at == 45 in
+    let begin = if at < bytes-len input && (bytes-get input at == 43 || bytes-get input at == 45) then at + 1 else at in
+    numeric-exponent-from input begin negative False (bytes-len input * 4 + 2048) 0
+
+  -- | A bounded hexadecimal prefix, exact digit counts, sticky suffix and binary exponent.
+  data NumericHex where
+    -- | First sixteen significant nibbles, significant/fractional nibble counts, omitted nonzero flag and exponent.
+    HexNumber :: U64 -> Nat -> Nat -> Bool -> Int -> NumericHex
+
+  -- | Validate a complete hexadecimal mantissa while retaining bounded significant bits and exact scale.
+  numeric-hex-mantissa :: Bytes -> Nat -> Bool -> Bool -> Bool -> U64 -> Nat -> Nat -> Bool -> Option NumericHex
+  numeric-hex-mantissa input at point seen prior prefix significant places sticky = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte == 112 || byte == 80 then
+      if seen then case numeric-exponent input (at + 1) of
+        Some exponent -> Some (HexNumber prefix significant places sticky exponent)
+        None -> None
+      else None
+    else if byte == 46 && not point then numeric-hex-mantissa input (at + 1) True seen False prefix significant places sticky
+    else if byte == 95 && prior && numeric-next-hex input (at + 1) then numeric-hex-mantissa input (at + 1) point seen False prefix significant places sticky
+    else case numeric-hex-digit byte of
+      None -> None
+      Some digit ->
+        let started = significant > 0 || ne-u64 digit 0 in
+        let count = if started then significant + 1 else 0 in
+        let next = if started && significant < 16 then bit-or-u64 (wrapping-shl-u64 prefix 4) digit else prefix in
+        numeric-hex-mantissa input (at + 1) point True True next count (if point then places + 1 else places) (sticky || (significant >= 16 && ne-u64 digit 0))
+    else None
+
+  -- | Quantize a bounded hexadecimal prefix to its target binary unit, preserving discarded midpoint information.
+  numeric-hex-quantize :: U64 -> Int -> Bool -> U64
+  numeric-hex-quantize prefix shift sticky = if shift > 0 then
+    let count = if shift > 64 then (65 :: U32) else wrapping-i64-to-u32 (nat-to-i64 (nat-from-int shift)) in
+    numeric-hex-round prefix count (if sticky then 1 else 0)
+    else let distance = 0 - shift in
+      if distance >= 0 && distance <= 63 then wrapping-shl-u64 prefix (wrapping-i64-to-u32 (nat-to-i64 (nat-from-int distance))) else 0
+
+  -- | Round an exact hexadecimal magnitude directly into normal, subnormal, zero or overflow IEEE bits.
+  numeric-hex-bits :: NumericHex -> U64
+  numeric-hex-bits number = case number of
+    HexNumber prefix significant places sticky exponent ->
+      if eq-u64 prefix 0 then 0 else
+        let width = nat-to-int (saturating-sub 64 (u32-to-nat (leading-zeros-u64 prefix))) in
+        let power = exponent - nat-to-int (places * 4) + nat-to-int (saturating-sub significant 16 * 4) in
+        let highest = power + width - 1 in
+        if highest > 1023 then 9218868437227405312
+        else if highest < -1075 then 0
+        else let unit = if highest < -1022 then (0 - 1074) else highest - 52 in
+          let rounded = numeric-hex-quantize prefix (unit - power) sticky in
+          if highest < -1022 then rounded
+          else let carry = ge-u64 rounded 9007199254740992 in
+            let adjusted = highest + (if carry then 1 else 0) in
+            if adjusted > 1023 then 9218868437227405312
+            else let biased = case checked-int-to-i64 (adjusted + 1023) of Some value -> wrapping-i64-to-u64 value; None -> 2047 in
+              let coefficient = if carry then wrapping-shr-u64 rounded 1 else rounded in
+              bit-or-u64 (wrapping-shl-u64 biased 52) (bit-and-u64 coefficient 4503599627370495)
+
+  -- | Keep syntax failure at positive zero with original function and input metadata.
+  numeric-float-refused :: Bytes -> JsonNumericResult F64
+  numeric-float-refused input = NumericResult (i64-to-f64 0) (Some (NumericError "ParseFloat" input JsonNumericSyntax))
+
+  -- | Keep overflow infinity together with its range error while finite underflow remains successful.
+  numeric-float-complete :: Bytes -> F64 -> JsonNumericResult F64
+  numeric-float-complete input value = NumericResult value (if is-finite-f64 value then None else Some (NumericError "ParseFloat" input JsonNumericRange))
+
+  -- | Convert arbitrary decimal, hexadecimal, separator and special spellings with exact original outcomes.
+  json-number-float64-result :: JsonNumber -> JsonNumericResult F64
+  json-number-float64-result number =
+    let input = json-number-bytes number in
+    let negative = bytes-len input > 0 && bytes-get input 0 == 45 in
+    let begin = if bytes-len input > 0 && (bytes-get input 0 == 43 || bytes-get input 0 == 45) then (1 :: Nat) else 0 in
+    if begin == 0 && numeric-ascii-equal input 0 "nan" then NumericResult (numeric-float-from-bits 9221120237041090560) None
+    else if numeric-ascii-equal input begin "inf" || numeric-ascii-equal input begin "infinity" then NumericResult (numeric-float-from-bits (if negative then 18442240474082181120 else 9218868437227405312)) None
+    else if begin + 2 <= bytes-len input && bytes-get input begin == 48 && (bytes-get input (begin + 1) == 120 || bytes-get input (begin + 1) == 88) then
+      case numeric-hex-mantissa input (begin + 2) False False True 0 0 0 False of
+        None -> numeric-float-refused input
+        Some parsed ->
+          let bits = numeric-hex-bits parsed in
+          numeric-float-complete input (numeric-float-from-bits (if negative then bit-or-u64 bits 9223372036854775808 else bits))
+    else case numeric-decimal input begin False False False (if negative then Cons 45 Nil else Nil) of
+      None -> numeric-float-refused input
+      Some normalized -> numeric-float-complete input (f64-from-decimal normalized)
+
+  -- | Validate the exact spelling of a raw number without accepting repaired or surrounding text.
+  json-number-check :: JsonNumber -> Result JsonError JsonNumber
+  json-number-check number = case number of
+    Number text -> if text == "" then Err (JsonValueError "number" "empty number spelling") else Ok number
+    RawNumber text -> json-number text
+    ByteNumber input -> Err (JsonValueError "number" "number spelling contains malformed UTF-8")
+
   -- | Convert an exact number to a finite binary float, naming overflow instead of returning infinity.
   json-number-float64 :: JsonNumber -> Result JsonError F64
-  json-number-float64 number =
-    if json-number-text number == "" then Err (JsonValueError "F64" "empty number spelling")
-    else let value = f64-from-decimal (string-to-bytes (json-number-text number)) in
-      if is-finite-f64 value then Ok value else Err (JsonValueError "F64" "number is outside the finite binary64 range")
+  json-number-float64 number = if json-number-text number == "" then Err (JsonValueError "F64" "empty number spelling") else case json-number-check number of
+    Err error -> Err error
+    Ok checked ->
+      let value = f64-from-decimal (string-to-bytes (json-number-text number)) in
+        if is-finite-f64 value then Ok value else Err (JsonValueError "F64" "number is outside the finite binary64 range")
 
   -- | Round an exact number directly to finite binary32, rejecting empty spellings and overflow.
   json-number-float32 :: JsonNumber -> Result JsonError F32
-  json-number-float32 number =
-    if json-number-text number == "" then Err (JsonValueError "F32" "empty number spelling")
-    else let value = binary32-from-decimal (string-to-bytes (json-number-text number)) in
-      if is-finite-f32 value then Ok value else Err (JsonValueError "F32" "number is outside the finite binary32 range")
+  json-number-float32 number = if json-number-text number == "" then Err (JsonValueError "F32" "empty number spelling") else case json-number-check number of
+    Err error -> Err error
+    Ok checked ->
+      let value = binary32-from-decimal (string-to-bytes (json-number-text number)) in
+        if is-finite-f32 value then Ok value else Err (JsonValueError "F32" "number is outside the finite binary32 range")
 
   -- | Convert an integer-only exact spelling to a signed machine integer with explicit range checks.
   json-number-int64 :: JsonNumber -> Result JsonError I64
-  json-number-int64 number =
-    let input = string-to-bytes (json-number-text number) in
-    let negative = 0 < bytes-len input && bytes-get input 0 == 45 in
-    let start = if negative then (1 :: Nat) else 0 in
-    let end = run-end input start 1 in
-    if start >= bytes-len input || end /= bytes-len input then Err (JsonValueError "I64" "number is not an integer spelling")
-    else let limit = if negative then (9223372036854775808 :: Nat) else 9223372036854775807 in
-      case integer-digits input start limit 0 of
-        Err error -> Err error
-        Ok magnitude ->
-          let signed = if negative then int-neg (nat-to-int magnitude) else nat-to-int magnitude in
-          case checked-int-to-i64 signed of Some result -> Ok result; None -> Err (JsonValueError "I64" "integer is outside the signed64 range")
+  json-number-int64 number = if json-number-text number == "" then Err (JsonValueError "I64" "number is not an integer spelling") else case json-number-check number of
+    Err error -> Err error
+    Ok checked ->
+      let input = string-to-bytes (json-number-text number) in
+      let negative = 0 < bytes-len input && bytes-get input 0 == 45 in
+      let start = if negative then (1 :: Nat) else 0 in
+      let end = run-end input start 1 in
+      if start >= bytes-len input || end /= bytes-len input then Err (JsonValueError "I64" "number is not an integer spelling")
+      else let limit = if negative then (9223372036854775808 :: Nat) else 9223372036854775807 in
+        case integer-digits input start limit 0 of
+          Err error -> Err error
+          Ok magnitude ->
+            let signed = if negative then int-neg (nat-to-int magnitude) else nat-to-int magnitude in
+            case checked-int-to-i64 signed of Some result -> Ok result; None -> Err (JsonValueError "I64" "integer is outside the signed64 range")
 
   -- | Accumulate a bounded integer without growing a bignum past the requested limit.
   integer-digits :: Bytes -> Nat -> Nat -> Nat -> Result JsonError Nat

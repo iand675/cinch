@@ -1,0 +1,37 @@
+{
+  "description": "Verified lossless cold generated Map/F32 outputs; tracked sources/receipts, active RawNumber outputs/docs and small default probes remain in place",
+  "checkpoint_commits": [
+    "34417727",
+    "f685872f"
+  ],
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-map34417727-f32f685872f-20261116.tar.gz",
+  "roots": [
+    "build/json-binary32-affected-rust-v1",
+    "build/json-binary32-control-native-raw-v1",
+    "build/json-binary32-control-rust-v1",
+    "build/json-binary32-native-raw-v1",
+    "build/json-binary32-rust-v4",
+    "build/json-map-final-native-raw",
+    "build/json-map-final-rust",
+    "build/json-codec-map-control-native-v2",
+    "build/json-codec-map-control-rust-v1",
+    "build/json-codec-map-native-v1",
+    "build/json-codec-map-normalized-native-v3",
+    "build/json-codec-map-normalized-rust-v2",
+    "build/json-codec-map-normalized-rust-v3",
+    "build/json-codec-map-raw-controls-rust-v1",
+    "build/json-codec-map-rust-v1"
+  ],
+  "original_file_bytes": 492189149,
+  "archive_sha256": "6f4225cdbc2c3d2012a6bb940a801e62223d64323bdf0fa0652cba9cb929aa54",
+  "archive_bytes": 110519121,
+  "decompressed_tar_sha256": "5293665d76a09539801abfa80c72ec394767b3305c45928baeebbc51e7393563",
+  "decompressed_tar_bytes": 495728640,
+  "verified": true,
+  "originals_removed": true,
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-map34417727-f32f685872f-20261116.tar.gz -C /workspace/dasl-stdlib-json",
+  "index": "bootstrap/stdlib-json-cold-map-f32-archive-index.json",
+  "index_sha256": "ece10fa90e6e6de7088250686bad9b8deb1be7051720f5275651461e0f1cbbe9",
+  "entries": 1975,
+  "scope": "Only closed generated Map/F32 outputs were removed after complete byte/mode/hash verification. Tracked library/test/reference sources and receipts, active RawNumber outputs/docs, failed F32 attempts and small original/default Map probes remain in place."
+}

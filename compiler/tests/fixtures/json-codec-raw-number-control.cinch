@@ -1,0 +1,125 @@
+-- | Raw numeric ownership, checked capabilities and immutable error composition.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Data.Machine
+
+  -- | Observe every binary64 representation bit without decimal rendering.
+  prim float-bits :: F64 -> U64 where
+    llvm {
+      %bits = bitcast double %0 to i64
+      ret i64 %bits
+    }
+
+  -- | Compare complete owned byte snapshots.
+  same :: Bytes -> Bytes -> Bool
+  same left right = eq-i64 (bytes-compare left right) 0
+
+  -- | Compare a present scalar diagnostic label.
+  optional-is :: Option String -> String -> Bool
+  optional-is value expected = case value of None -> False; Some text -> text == expected
+
+  -- | Compare original numeric operation, exact input and syntax/range classification.
+  metadata :: JsonNumericError -> String -> Bytes -> Bool -> Bool
+  metadata error function input range = json-numeric-error-function error == function && same (json-numeric-error-bytes error) input && json-numeric-is-range error == range
+
+  -- | Scalar byte factories snapshot mutable inputs and exported buffers independently.
+  scalar-owners :: Unit -> Bool
+  scalar-owners unit =
+    let input = string-to-bytes "+001" in
+    let number = json-number-from-bytes input in
+    let exported = json-number-bytes number in
+    let changed-input = if bytes-len input > 0 then bytes-set input 0 57 else () in
+    let changed-export = if bytes-len exported > 0 then bytes-set exported 0 56 else () in
+    let result = json-number-int64-result number in
+    same (json-number-bytes number) (string-to-bytes "+001") && json-number-text number == "+001"
+      && eq-i64 (json-numeric-value result) 1 && (case json-numeric-error result of None -> True; Some error -> False)
+      && json-number-text (json-number-from-text "+001") == "+001"
+
+  -- | Malformed byte numbers and their error snapshots remain exact after all exported copies change.
+  byte-owners :: Unit -> Bool
+  byte-owners unit =
+    let input = bytes-from-list [49,255] in
+    let number = json-number-from-bytes input in
+    let result = json-number-int64-result number in
+    let exported-number = json-number-bytes number in
+    case json-numeric-error result of
+      None -> False
+      Some error ->
+        let exported-error = json-numeric-error-bytes error in
+        let changed-input = if bytes-len input > 0 then bytes-set input 0 57 else () in
+        let changed-number = if bytes-len exported-number > 0 then bytes-set exported-number 0 56 else () in
+        let changed-error = if bytes-len exported-error > 0 then bytes-set exported-error 0 48 else () in
+        same (json-number-bytes number) (bytes-from-list [49,255]) && json-number-text number == "1�"
+          && eq-i64 (json-numeric-value result) 0 && metadata error "ParseInt" (bytes-from-list [49,255]) False
+          && json-numeric-error-input error == "1�"
+
+  -- | Outcome adapters preserve ordinary successes, original errors and explicit nonfinite values.
+  outcome-adapters :: Unit -> Bool
+  outcome-adapters unit =
+    let success = json-numeric-result (json-number-int64-result (json-number-from-text "+01")) in
+    let failure = json-numeric-result (json-number-int64-result (json-number-from-text "+")) in
+    let infinity = json-numeric-result (json-number-float64-result (json-number-from-text "Inf")) in
+    (case success of Ok value -> eq-i64 value 1; Err error -> False)
+      && (case failure of Err error -> metadata error "ParseInt" (string-to-bytes "+") False; Ok value -> False)
+      && (case infinity of
+        Err error -> False
+        Ok value -> eq-u64 (float-bits value) 9218868437227405312 && (case json-marshal json-float64-type value of Err error -> optional-is (json-error-value error) "+Inf"; Ok bytes -> False))
+
+  -- | Checked numeric capabilities refuse invalid raw spellings before reaching decimal runtime parsing.
+  all-refused :: List JsonNumber -> Bool
+  all-refused numbers = case numbers of
+    Nil -> True
+    Cons number rest -> (case json-number-check number of Err error -> True; Ok value -> False)
+      && (case json-number-int64 number of Err error -> True; Ok value -> False)
+      && (case json-number-float64 number of Err error -> True; Ok value -> False)
+      && (case json-number-float32 number of Err error -> True; Ok value -> False)
+      && all-refused rest
+
+  -- | Empty defaults still encode zero while every checked conversion and malformed raw input is refused.
+  checked-refusals :: Unit -> Bool
+  checked-refusals unit = all-refused [json-empty-number, json-number-from-text "", json-number-from-text "+1", json-number-from-text "01", json-number-from-text "0x1p0", json-number-from-text "NaN", json-number-from-text "Inf", json-number-from-bytes (bytes-from-list [255])]
+    && (case json-marshal json-number-type (json-number-from-text "") of Ok bytes -> same bytes (string-to-bytes "0"); Err error -> False)
+    && (case json-number-float32 json-empty-number of Err error -> optional-is (json-error-type error) "F32"; Ok value -> False)
+
+  -- | Field paths and custom wrappers retain the original numeric syntax cause and byte spelling.
+  composed-error :: Unit -> Bool
+  composed-error unit =
+    let descriptor = json-record-type "NumericRecord" (\unit -> json-empty-number) (\number -> json-number-text number == "") [json-field "n" json-number-type (\number -> number) (\number prior -> number)] in
+    case json-marshal descriptor (json-number-from-text "+1") of
+      Ok bytes -> False
+      Err error -> json-error-path error == "n" && optional-is (json-error-type error) "JsonNumber" && (case json-error-numeric error of None -> False; Some numeric -> metadata numeric "MarshalJSONTo" (string-to-bytes "+1") False)
+
+  -- | Retain exact error bytes through repeated fresh midpoint conversions and subsequent source mutations.
+  repeated :: Nat -> JsonNumericError -> Bool
+  repeated remaining retained = if remaining == 0 then metadata retained "Retained" (bytes-from-list [255,49]) False && json-numeric-error-input retained == "�1" else
+    let input = string-to-bytes "0x1.0000000000000800000000000p0" in
+    let up = remaining % 2 == 1 in
+    let prepared = if bytes-len input >= 3 then bytes-set input (bytes-len input - 3) (if up then 49 else 48) else () in
+    let number = json-number-from-bytes input in
+    let changed = if bytes-len input > 0 then bytes-set input 0 57 else () in
+    let result = json-number-float64-result number in
+    eq-u64 (float-bits (json-numeric-value result)) (if up then 4607182418800017409 else 4607182418800017408)
+      && (case json-numeric-error result of None -> True; Some error -> False) && repeated (remaining - 1) retained
+
+  -- | Error factories snapshot their original mutable input and preserve a stable scalar-safe message.
+  retained-error :: Unit -> Bool
+  retained-error unit =
+    let input = bytes-from-list [255,49] in
+    let error = json-numeric-error-info "Retained" input JsonNumericSyntax in
+    let changed = if bytes-len input > 0 then bytes-set input 0 57 else () in
+    let wrapped = JsonPathError "outer" (JsonCustomError "Adapter" (JsonNumberError error)) in
+    json-numeric-error-message error == "Retained: parsing \"�1\": invalid syntax" && json-error-message (JsonNumberError error) == json-numeric-error-message error
+      && (case json-error-numeric wrapped of Some numeric -> metadata numeric "Retained" (bytes-from-list [255,49]) False; None -> False)
+      && repeated 512 error
+
+  -- | Preserve the first semantic ownership or capability failure index.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks at = case checks of Nil -> 0; Cons first rest -> if first then first-failure rest (at + 1) else at
+
+  -- | Print the original failing ownership group and return its status.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = first-failure [scalar-owners (), byte-owners (), outcome-adapters (), checked-refusals (), composed-error (), retained-error ()] 1 in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in
+    if failed == 0 then 0 else 1

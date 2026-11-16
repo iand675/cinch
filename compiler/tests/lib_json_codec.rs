@@ -99,6 +99,25 @@ fn json_float32_owners_and_composed_updates_are_bounded() {
     run(include_str!("fixtures/json-codec-float32-control.cinch"));
 }
 
+/// Raw scalar/byte spellings preserve saturated and infinite outcomes, numeric metadata and strict encoding.
+#[test]
+fn json_raw_number_outcomes_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-raw-number.cinch"));
+}
+
+/// Long-significand cancellation and the actual safe-shift rounding primitive match independent integer models.
+#[test]
+fn json_raw_number_cancellation_and_rounding_kernel_are_exact() {
+    run(include_str!("fixtures/json-codec-raw-number-edge.cinch"));
+    run(include_str!("fixtures/json-codec-raw-number-kernel.cinch"));
+}
+
+/// Original raw/error bytes, checked numeric policies and composed field causes retain independent owners.
+#[test]
+fn json_raw_number_owners_and_error_capabilities_are_bounded() {
+    run(include_str!("fixtures/json-codec-raw-number-control.cinch"));
+}
+
 /// Every vector mismatch lane and Unicode boundary follows independent exact-first name matching.
 #[test]
 fn json_record_name_matching_matches_independent_observations() {
