@@ -45,15 +45,20 @@ def consumer(expressions:list[str])->str:
 
 def main()->None:
     """Keep compiler stack, compiled-program limits and source epochs independently receipted."""
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--compiler',type=Path,required=True);p.add_argument('--module-source',type=Path,default=ROOT/'compiler/prelude/Data/String.cinch');p.add_argument('--artifacts',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--opt-level',type=int,choices=[0,2],default=0);p.add_argument('--groups',nargs='+',choices=['texts','edges','aggregates','raw','owners'],default=['texts','edges','aggregates','raw','owners']);p.add_argument('--first',type=int,default=0);p.add_argument('--limit',type=int);args=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--compiler',type=Path,required=True);p.add_argument('--module-source',type=Path,default=ROOT/'compiler/prelude/Data/String.cinch');p.add_argument('--artifacts',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--opt-level',type=int,choices=[0,2],default=0);p.add_argument('--groups',nargs='+',choices=['texts','edges','aggregates','raw','owners'],default=['texts','edges','aggregates','raw','owners']);p.add_argument('--first',type=int,default=0);p.add_argument('--limit',type=int);p.add_argument('--epoch',choices=['source-override','fresh-embedded'],default='source-override');args=p.parse_args()
     fixture_path=ROOT/'compiler/tests/fixtures/string-scalar-vectors.json';fixture=json.loads(fixture_path.read_text());report={'compiler_sha256':digest(args.compiler),'source_sha256':digest(args.module_source),'fixture_sha256':digest(fixture_path),'opt_level':args.opt_level,'epoch':'explicit sealed String source override','fresh_embedded_validation_claimed':False,'fresh_native_provider_validation_claimed':False,'results':[]}
+    report.update(epoch=args.epoch,fresh_embedded_validation_claimed=args.epoch=='fresh-embedded',source_shadow_used=args.epoch=='source-override',compile_rc_debug_flag=False)
     for group in args.groups:
         rows=fixture.get(group,[None])[args.first:]
         if args.limit is not None:rows=rows[:args.limit]
         expressions=checks(group,rows) if group!='owners' else ['scalar-owners-case ()']
         project=args.artifacts/group;project.mkdir(parents=True,exist_ok=True);text=consumer(expressions);entry=project/'Main.cinch';entry.write_text(text)
         for name,path in source_closure(text).items():shutil.copyfile(path,project/(name+'.cinch'))
-        selected=project/'Data.String.cinch';selected.write_text('-- Explicit sealed String scalar source-override receipt v1.\n'+args.module_source.read_text());exe=(project/'consumer').resolve();run([str(args.compiler.resolve()),'build',str(entry.resolve()),'-o',str(exe),'--opt-level',str(args.opt_level),'--rc-debug']);receipt=verify_receipt(project,selected);ownership=[]
+        selected=args.module_source.resolve();shadow=project/'Data.String.cinch'
+        if args.epoch=='source-override':
+            shadow.write_text('-- Explicit sealed String scalar source-override receipt v1.\n'+args.module_source.read_text());selected=shadow
+        else:assert not shadow.exists(),'fresh embedded consumer must not shadow String'
+        exe=(project/'consumer').resolve();run([str(args.compiler.resolve()),'build',str(entry.resolve()),'-o',str(exe),'--opt-level',str(args.opt_level)]);receipt=verify_receipt(project,selected);ownership=[]
         for debug in [False,True]:
           cases=range(len(expressions)) if debug else [-1]
           for case in cases:
