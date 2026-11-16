@@ -106,3 +106,11 @@ frozen Native frontend. The coordinated parent compiler unit gate passes
 302/302, including all five application-boundary checks. The final JSON
 retains full compiler provenance, source hashes, runtime identity, and every
 run's exit code and leak line.
+
+The final integrated Rust gate passes all 489 checks: 302 compiler unit
+checks, 45 simplifier checks, 11 tail-call checks, 29 primitive checks, 10
+wide-primitive checks, 18 wide-scalar checks, and the Base32 (14), Base64
+(12), binary (13), CSV (11), HTML (7), path (9), and URL (8) consumers.
+This includes the saved-prefix regression, all four new simplifier
+controls, and the preserved deep constant-stack tests. Raw gate logs are
+frozen and hashed in the JSON receipt.

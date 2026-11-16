@@ -395,5 +395,35 @@
     "failed": 0,
     "seconds": 224.01,
     "reported_by": "parent integrated batch at b233"
+  },
+  "coordinated_final_gate": {
+    "passed": 489,
+    "failed": 0,
+    "targets": {
+      "unit": 302,
+      "base32": 14,
+      "base64": 12,
+      "binary": 13,
+      "csv": 11,
+      "html": 7,
+      "path": 9,
+      "url": 8,
+      "prim": 29,
+      "prim_wide": 10,
+      "simplify": 45,
+      "tail_calls": 11,
+      "wide": 18
+    },
+    "reported_by": "parent b233 integrated epoch",
+    "logs": {
+      "cinch-stdlib-integrated-rust-gate.log": {
+        "sha256": "b87cb6f555bdf3ae1d1c6582e7da55d33647674f332af8db0934d1ec7c57edda",
+        "retained_path": "/workspace/dasl-stdlib-rust-order/build/rust-order-final/cinch-stdlib-integrated-rust-gate.log"
+      },
+      "cinch-stdlib-integrated-rust-gate-remaining.log": {
+        "sha256": "2368546735304c00c92d5b7796ad7c4447b921d05808b06e43a7d427f3c5772a",
+        "retained_path": "/workspace/dasl-stdlib-rust-order/build/rust-order-final/cinch-stdlib-integrated-rust-gate-remaining.log"
+      }
+    }
   }
 }
