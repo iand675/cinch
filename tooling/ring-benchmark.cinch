@@ -1,0 +1,179 @@
+-- | Measure complete circular-sequence pipelines, including growing joins and retained aliases.
+module Main where
+  import Data.Mutable.Ring as R
+  import Data.Mutable.Vec
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.List (reverse, list-length)
+  import Effect.Clock
+  import Effect.Process
+
+  -- | Decode validated nonnegative decimal host arguments before timing.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Accumulate only valid decimal digits for bounded benchmark configuration.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons first rest -> case digit-value first of None -> 0; Some digit -> decimal-from rest (value * 10 + digit)
+
+  -- | Convert only bounded benchmark sizes and iteration values to machine words.
+  word :: Nat -> U64
+  word value = if value <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 value) else 0
+
+  -- | Preserve a masked word's exact natural value for printing.
+  natural :: U64 -> Nat
+  natural value = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 value) 9223372036854775807)
+
+  -- | Consume every observed value in order with an exact wrapping checksum.
+  mix :: U64 -> U64 -> U64
+  mix hash value = bit-and-u64 (wrapping-add-u64 (wrapping-mul-u64 hash 1099511628211) value) 9223372036854775807
+
+  -- | Prepare immutable machine-word inputs outside the measured interval.
+  input-from :: Nat -> Nat -> List U64 -> List U64
+  input-from size index reversed = if index == size then reverse reversed else
+    input-from size (index + 1) (Cons (word (nat-rem (index * 37 + 11) 65536)) reversed)
+
+  -- | Change the first construction value without copying the rest of the input.
+  varied :: List U64 -> Nat -> List U64
+  varied values iteration = case values of Nil -> Nil; Cons first rest -> Cons (word (nat-rem iteration 257)) rest
+
+  -- | Observe a complete cycle through public navigation without materializing its values.
+  cycle-from :: forall r. R.Ring r U64 -> Nat -> U64 ->{Mut r} U64
+  cycle-from cursor remaining hash = if remaining == 0 then hash else
+    cycle-from (R.ring-next cursor) (remaining - 1) (mix hash (R.ring-value cursor))
+
+  -- | Consume every value, treating an empty cycle as the checksum's initial state.
+  cycle-hash :: forall r. Option (R.Ring r U64) ->{Mut r} U64
+  cycle-hash cursor = case cursor of None -> 1; Some present -> cycle-from present (R.ring-length cursor) 1
+
+  -- | Retain each original cursor outside the measured interval.
+  keep-handles :: forall r. Vec r (R.Ring r U64) -> R.Ring r U64 -> Nat ->{Mut r} Unit
+  keep-handles references cursor remaining = if remaining == 0 then () else
+    let kept = vec-push references cursor in keep-handles references (R.ring-next cursor) (remaining - 1)
+
+  -- | Include dense construction and complete traversal in one changing operation.
+  construction :: forall r. List U64 ->{Mut r} U64
+  construction values = case R.ring-from-list values of Err error -> 0; Ok cursor -> cycle-hash cursor
+
+  -- | Append fresh singleton arenas while preserving the first node's original cursor identity.
+  growing-from :: forall r. R.Ring r U64 -> R.Ring r U64 -> List U64 ->{Mut r} U64
+  growing-from first last values = case values of
+    Nil -> cycle-hash (Some first)
+    Cons value rest -> let node = R.ring-singleton value in
+      case R.ring-link last (Some node) of Err error -> 0; Ok previous -> growing-from first node rest
+
+  -- | Include singleton construction, geometric backing growth, joins and complete traversal.
+  growing :: forall r. List U64 ->{Mut r} U64
+  growing values = case values of
+    Nil -> 1
+    Cons first rest -> let cursor = R.ring-singleton first in growing-from cursor cursor rest
+
+  -- | Construct independently owned singleton arenas and retain every original alias.
+  singletons :: forall r. Vec r (R.Ring r U64) -> List U64 ->{Mut r} Unit
+  singletons references values = case values of
+    Nil -> ()
+    Cons first rest -> let kept = vec-push references (R.ring-singleton first) in singletons references rest
+
+  -- | Concatenate each pair of neighboring equal-width groups without changing their first-node aliases.
+  join-pass :: forall r. Vec r (R.Ring r U64) -> Nat -> Nat -> Nat ->{Mut r} Bool
+  join-pass references count stride index = if index + stride >= count then True else
+    case (vec-get references index, vec-get references (index + stride)) of
+      (Some first, Some second) -> case R.ring-link (R.ring-prev first) (Some second) of
+        Err error -> False
+        Ok previous -> join-pass references count stride (index + stride * 2)
+      other -> False
+
+  -- | Build a balanced arena-forwarding forest while joins double their logical group width.
+  join-levels :: forall r. Vec r (R.Ring r U64) -> Nat -> Nat ->{Mut r} Bool
+  join-levels references count stride = if stride >= count then True else
+    join-pass references count stride 0 && join-levels references count (stride * 2)
+
+  -- | Consume original aliases and require their next cursors to match the next original handle.
+  aliases-hash :: forall r. Vec r (R.Ring r U64) -> Nat -> Nat -> U64 ->{Mut r} U64
+  aliases-hash references count index hash = if index == count then hash else
+    case (vec-get references index, vec-get references (if index + 1 == count then 0 else index + 1)) of
+      (Some cursor, Some following) ->
+        let value = mix hash (R.ring-value cursor) in
+        let same = R.ring-same (R.ring-next cursor) following in
+        aliases-hash references count (index + 1) (mix value (if same then (1 :: U64) else (0 :: U64)))
+      other -> 0
+
+  -- | Include balanced joins, the full final cycle and every retained alias relation.
+  balanced :: forall r. List U64 ->{Mut r} U64
+  balanced values =
+    let references = vec-new () in
+    let built = singletons references values in
+    let count = vec-length references in
+    if join-levels references count 1 then
+      let root = vec-get references 0 in aliases-hash references count 0 (cycle-hash root)
+    else 0
+
+  -- | Repeat short split/rejoin mutations with changing detached values and complete result observations.
+  short-splices :: forall r. R.Ring r U64 -> Nat -> Nat -> U64 ->{Mut r} U64
+  short-splices first iteration round hash = if round == 64 then mix hash (cycle-hash (Some first)) else
+    case R.ring-unlink first 1 of
+      None -> 0
+      Some removed ->
+        let previous = R.ring-value removed in
+        let changed = R.ring-set-value removed (word (nat-rem (iteration + round) 257)) in
+        case R.ring-link first (Some removed) of
+          Err error -> 0
+          Ok original -> short-splices first iteration (round + 1) (mix hash previous)
+
+  -- | Copy only a detached component, restore the source cycle and observe both complete output and retention counts.
+  detached-copy :: forall r. R.Ring r U64 -> Nat ->{Mut r} U64
+  detached-copy first iteration =
+    let count = R.ring-length (Some first) in
+    if count == 1 then
+      let copied = R.ring-copy first in mix (mix (cycle-hash (Some copied)) 1) (word (R.ring-retained-length first))
+    else case R.ring-unlink first (nat-to-int (nat-div count 2)) of
+      None -> 0
+      Some removed ->
+        let changed = R.ring-set-value removed (word (nat-rem iteration 257)) in
+        let copied = R.ring-copy removed in
+        let result = mix (cycle-hash (Some copied)) (word (R.ring-retained-length copied)) in
+        case R.ring-link first (Some removed) of Err error -> 0; Ok original -> mix result (word (R.ring-retained-length first))
+
+  -- | Select a complete changing public operation over the prepared inputs and owners.
+  operation :: forall r. Nat -> List U64 -> Option (R.Ring r U64) -> Nat ->{Mut r} U64
+  operation mode input prepared iteration =
+    if mode == 0 then construction (varied input iteration) else
+    if mode == 1 then growing (varied input iteration) else
+    if mode == 2 then balanced (varied input iteration) else
+    case prepared of
+      None -> 1
+      Some first -> let changed = R.ring-set-value first (word (nat-rem iteration 257)) in
+        if mode == 3 then short-splices first iteration 0 1 else detached-copy first iteration
+
+  -- | Repeat observable operations while keeping prepared owners live beyond the final clock.
+  repeat :: forall r. Nat -> List U64 -> Option (R.Ring r U64) -> Nat -> Nat -> U64 ->{Mut r} U64
+  repeat mode input prepared iterations iteration hash = if iteration == iterations then hash else
+    let result = operation mode input prepared iteration in
+    repeat mode input prepared iterations (iteration + 1) (bit-and-u64 (wrapping-add-u64 hash result) 9223372036854775807)
+
+  -- | Exclude configuration, prepared input construction and prepared-owner teardown from the interval.
+  measure :: forall r. using (io :: Io r) => Nat -> Nat -> Nat ->{IO r, Mut r} Int
+  measure mode size iterations =
+    let input = input-from size 0 Nil in
+    case R.ring-from-list input of
+      Err error -> 3
+      Ok prepared ->
+        let references = vec-new () in
+        let kept = case prepared of None -> (); Some first -> keep-handles references first size in
+        let start = clock-monotonic-ns () in
+        let hash = repeat mode input prepared iterations 0 0 in
+        let end = clock-monotonic-ns () in
+        let retained = R.ring-length prepared + vec-length references + list-length input in
+        let observed = bit-and-u64 (wrapping-add-u64 hash (word retained)) 9223372036854775807 in
+        let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string (natural observed)) "\n")))) in 0
+
+  -- | Read bounded host configuration before preparing or timing any workload.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons mode (Cons size (Cons iterations Nil))) -> measure (decimal mode) (decimal size) (decimal iterations)
+    other -> 2

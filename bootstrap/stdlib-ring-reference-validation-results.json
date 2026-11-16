@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "reference_sdk_binary_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "generator_sha256": "6fc291f0623ee4ec17f11be7811f4393b3fe3fcce6c9bc47d9d6098e7a2fa940",
+  "fixture_sha256": "ecbfa0b86bfe0367168fb9f28a59095aa4c6d2bdd1e3ff17a801f4ea0be45e56",
+  "regenerated_sha256": "ecbfa0b86bfe0367168fb9f28a59095aa4c6d2bdd1e3ff17a801f4ea0be45e56",
+  "cases": 8,
+  "actions_per_case": 96,
+  "cpu_affinity": [
+    4
+  ]
+}
