@@ -144,7 +144,7 @@ DESCRIPTIONS = {
 'Effect.Ascii85':'ASCII85 encoding writers and decoding byte readers with explicit finalization, bounded read-ahead and sticky stream errors.',
 'Text.Base32':'RFC 4648 standard and extended-hex Base32, with padded and raw forms and named decoding errors.',
 'Text.Binary':'Little- and big-endian integer encoding, checked buffer access, and signed/unsigned varints.',
-'Text.Hex':'Lowercase hexadecimal encoding and case-insensitive decoding with named errors and byte offsets.',
+'Text.Hex':'SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append operations and checked destination buffers.',
 'Text.Checksum':'Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials.',
 'Data.Bytes.Word':'Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing.',
 'Data.Word':'Bit lengths, byte reversal, signed rotations and checked carry/borrow, wide multiply, divide and remainder operations over fixed and native-width words.',

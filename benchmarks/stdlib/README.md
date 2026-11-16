@@ -269,3 +269,26 @@ i128 return temporaries while releasing arguments, and that extracted shared
 helpers retain i128 returns. A 200,000-step loop runs without intermediate
 wide boxes or stack growth; this is tested independently of the pair-based
 FNV API.
+
+## Hexadecimal direct output and prefix APIs
+
+`hex-direct-output-2026-11-16.json` measures the unchanged public workload
+driver with direct decoded output. The decoder stores each SIMD block in a
+single bounded buffer, replacing the per-byte list and its final traversal.
+Prefix and append APIs preserve completed pairs and original byte error offsets;
+caller-buffer operations validate capacity before mutation and snapshot overlap.
+The text convenience retains its all-or-error result.
+
+`interleaved-hex-direct-output-2026-11-16.json` alternates retained executables
+built with the same frozen compiler, driver, runtime and `-O2`; only Text.Hex
+source differs. It includes one warmup and nine measured samples at each size,
+matching output checksums and an encoder control. A short encoder wrapper was
+removed after the control exposed added call overhead. Raw samples and both
+library identities remain available instead of treating timing as a CI gate.
+
+In this paired run, decoding medians fell from 1.48 to 0.492 µs for 32 bytes,
+46.3 to 6.30 µs for 1 KiB, and 691 to 83.7 µs for 16 KiB (about 8.3× at the
+largest size). The encoder control has a 16% slower 1 KiB median, while its
+32-byte and 16 KiB medians are within 4%. Its loop instruction sequence is
+identical after symbol/label normalization, whose hashes are recorded in the
+report. These pipeline measurements do not establish an encoder speedup.

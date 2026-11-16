@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"hash/adler32"
 	"hash/crc32"
 	"hash/crc64"
@@ -15,6 +16,7 @@ import (
 	"math/bits"
 	"os"
 	"strconv"
+	"strings"
 	"unicode/utf16"
 )
 
@@ -162,6 +164,30 @@ func utf16Vectors() map[string]interface{} {
 	return map[string]interface{}{"scalars": scalars, "sequences": sequences, "pairs": pairs}
 }
 
+// hexDecodeVectors records completed prefixes and the exact reference error category.
+func hexDecodeVectors() []map[string]interface{} {
+	inputs := []string{"", "0", "g", "0g", "g0", "00g", "00f", "0000g0", "0123456789aBcDeF", "ff00aa\n", "\xff", "00\xff", "0\xff", "01234567\xc3\xa9", "0123456789abcdef0", strings.Repeat("01", 40) + "g0", strings.Repeat("01", 40) + "0g"}
+	out := []map[string]interface{}{}
+	for _, input := range inputs {
+		decoded := make([]byte, hex.DecodedLen(len(input)))
+		n, err := hex.Decode(decoded, []byte(input))
+		kind := ""
+		offset, invalid := -1, -1
+		if errors.Is(err, hex.ErrLength) {
+			kind = "length"
+		} else if err != nil {
+			kind = "byte"
+			invalid = int(err.(hex.InvalidByteError))
+			offset = 2 * n
+			if input[offset] != byte(invalid) {
+				offset++
+			}
+		}
+		out = append(out, map[string]interface{}{"encoded_hex": hex.EncodeToString([]byte(input)), "decoded_hex": hex.EncodeToString(decoded[:n]), "kind": kind, "offset": offset, "invalid": invalid})
+	}
+	return out
+}
+
 func main() {
 	inputs := [][]byte{[]byte(""), []byte("f"), []byte("fo"), []byte("foo"), []byte("foob"), []byte("fooba"), []byte("foobar"), []byte("123456789"), []byte("abc")}
 	all := make([]byte, 256)
@@ -195,6 +221,7 @@ func main() {
 		checks = append(checks, map[string]string{
 			"ascii85":          string(ascii),
 			"hex":              hex.EncodeToString(b),
+			"hex_dump":         hex.Dump(b),
 			"base32":           base32.StdEncoding.EncodeToString(b),
 			"base32_hex":       base32.HexEncoding.EncodeToString(b),
 			"adler32":          strconv.FormatUint(uint64(adler32.Checksum(b)), 10),
@@ -242,7 +269,7 @@ func main() {
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(map[string]interface{}{"buffers": checks, "words": words, "signed": signed, "ascii85_decodes": asciiDecodes, "utf16": utf16Vectors(), "word_ops": wordVectors()}); err != nil {
+	if err := encoder.Encode(map[string]interface{}{"buffers": checks, "words": words, "signed": signed, "ascii85_decodes": asciiDecodes, "utf16": utf16Vectors(), "word_ops": wordVectors(), "hex_decodes": hexDecodeVectors()}); err != nil {
 		panic(err)
 	}
 }
