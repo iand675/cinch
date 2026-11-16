@@ -37,6 +37,9 @@ WORKLOADS = (
     "hex-bytes-encode", "hex-prefix-decode",
     "ascii85-bytes-encode", "ascii85-into-encode", "ascii85-into-decode", "ascii85-prefix-decode",
     "ascii85-controls-decode", "ascii85-controls-prefix-decode", "ascii85-offset-decode",
+    "fnv-state32", "fnv-state32a", "fnv-state64", "fnv-state64a", "fnv-state128", "fnv-state128a",
+    "fnv-roundtrip32", "fnv-roundtrip32a", "fnv-roundtrip64", "fnv-roundtrip64a", "fnv-roundtrip128", "fnv-roundtrip128a",
+    "fnv-stream32", "fnv-stream32a", "fnv-stream64", "fnv-stream64a", "fnv-stream128", "fnv-stream128a",
 )
 
 SOURCE = r'''-- | Executable workload driver; output is elapsed_ns and an observable checksum.
@@ -47,6 +50,8 @@ module Main where
   import Text.Binary
   import Text.Checksum
   import Text.Fnv
+  import Text.Fnv.State
+  import Effect.Fnv
   import Text.Ascii85
   import Effect.Ascii85
   import Effect.Hex
@@ -252,7 +257,28 @@ module Main where
       Err error -> 1000000000
       Ok out -> fingerprint out
     else if eq-u32 mode __CODE_ascii85-offset-decode__ then ascii85-offset-fingerprint b (bytes-new 4) 0 0
+    else if ge-u32 mode __CODE_fnv-state32__ && le-u32 mode __CODE_fnv-stream128a__ then
+      let initial = fnv-mode-state mode in
+      if le-u32 mode __CODE_fnv-state128a__ then fingerprint (fnv-state-sum (fnv-state-update initial b))
+      else if le-u32 mode __CODE_fnv-roundtrip128a__ then
+        let saved = fnv-state-save (fnv-state-update initial b) in
+        case fnv-state-load initial saved of
+          Err error -> 1000000000
+          Ok loaded -> fingerprint saved + fingerprint (fnv-state-sum loaded)
+      else case fnv-copy 64 (reader-from-bytes b) (fnv-writer initial) of
+        (Ok count, (source, sink)) -> count + fingerprint (fnv-state-sum (fnv-writer-state sink))
+        other -> 1000000000
     else 1000000000
+
+  -- | Select the same width and recurrence order for state, checkpoint and stream pipelines.
+  fnv-mode-state :: U32 -> FnvState
+  fnv-mode-state mode =
+    if eq-u32 mode __CODE_fnv-state32__ || eq-u32 mode __CODE_fnv-roundtrip32__ || eq-u32 mode __CODE_fnv-stream32__ then fnv32-state
+    else if eq-u32 mode __CODE_fnv-state32a__ || eq-u32 mode __CODE_fnv-roundtrip32a__ || eq-u32 mode __CODE_fnv-stream32a__ then fnv32a-state
+    else if eq-u32 mode __CODE_fnv-state64__ || eq-u32 mode __CODE_fnv-roundtrip64__ || eq-u32 mode __CODE_fnv-stream64__ then fnv64-state
+    else if eq-u32 mode __CODE_fnv-state64a__ || eq-u32 mode __CODE_fnv-roundtrip64a__ || eq-u32 mode __CODE_fnv-stream64a__ then fnv64a-state
+    else if eq-u32 mode __CODE_fnv-state128__ || eq-u32 mode __CODE_fnv-roundtrip128__ || eq-u32 mode __CODE_fnv-stream128__ then fnv128-state
+    else fnv128a-state
 
   -- | Observe each small returned interval and advance through the same source owner by offset.
   ascii85-offset-fingerprint :: Bytes -> Bytes -> Nat -> Nat -> Nat
@@ -492,7 +518,7 @@ def main() -> None:
             run([str(args.reference_go.resolve()), "build", "-o", str(reference), str(reference_source)], cwd=ROOT, env=reference_env)
             report["reference"] = {"sdk": run([str(args.reference_go.resolve()), "version"], env=reference_env).stdout.strip(),
                                    "source_sha256": digest(reference_source), "executable_sha256": digest(reference),
-                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128"))],
+                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-"))],
                                    "scope": "Equivalent public API results and observable checksums; allocation and immutable string semantics differ"}
         if args.artifacts:
             artifacts = args.artifacts.resolve()
@@ -526,7 +552,7 @@ def main() -> None:
                         "checksum": checksums[0], "median_ns_per_operation": median / args.iterations,
                         "raw_mib_per_second": (size * args.iterations * 1e9 / median / 1048576) if median and size and workload not in ("binary", "varint") and not workload.startswith("word-") else None}
                 report["results"].append(item)
-                if reference and workload.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128")):
+                if reference and workload.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-")):
                     reference_samples = []
                     for index in range(args.warmup + args.samples):
                         elapsed, checksum = map(int, run([str(reference), workload, str(size), str(args.iterations)], env=reference_env).stdout.split())

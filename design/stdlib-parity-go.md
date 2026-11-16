@@ -25,7 +25,7 @@ is not an available API.
 | `hash/adler32` | [Text.Checksum](../library/Text.Checksum.md) | Whole-buffer checksum and incremental update | Stream adapters, serialized state |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
 | `hash/crc64` | [Text.Checksum](../library/Text.Checksum.md) | ISO, ECMA and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
-| `hash/fnv` | [Text.Fnv](../library/Text.Fnv.md) | FNV-1 and FNV-1a, 32, 64 and 128 bits, high/low-word 128-bit states, incremental update | Stream adapters, serialized state |
+| `hash/fnv` | [Text.Fnv](../library/Text.Fnv.md), [Text.Fnv.State](../library/Text.Fnv.State.md), [Effect.Fnv](../library/Effect.Fnv.md) | All six variants, numeric and byte digests, persistent states, reset, copied-prefix append, checked checkpoints and inspectable stream sinks/copies | All six constructors and returned hash/clone/state capabilities mapped; allocation and stream-copy costs are documented |
 | `io` | [Effect.Stream](../library/Effect.Stream.md) | Explicit reader/writer continuations, memory and borrowed-descriptor adapters, limited/concatenated/mirrored sources, broadcast sinks, exact/minimum/all reads, full writes, bulk and limited copies | Random access, seek/close/flush capabilities, pipes and cancellation, section/offset adapters |
 
 The format/hash modules and their shared `Data.Bytes.Word` layer are
@@ -60,8 +60,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records four functionally complete, 64 partial
-and 112 unreviewed packages. ASCII85, hexadecimal, UTF-16 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records five functionally complete, 63 partial
+and 112 unreviewed packages. ASCII85, hexadecimal, UTF-16, FNV and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
@@ -98,6 +98,19 @@ read-only, wrong-kind and null faults through the original runtime fallback.
 Both heap and static empty buffers preserve their data-pointer contract.
 Natural-index conversions and ownership work still dominate much of the loop;
 current measurements do not establish performance parity.
+
+FNV now has explicit persistent hash states in `Text.Fnv.State`. All six
+variants expose digest size, block size, reset, matching-width numeric values,
+network-order digest bytes, and prefix-preserving append. Keeping a state value
+branches the hash without a mutable clone operation. Binary checkpoints contain
+`fnv`, a variant tag from 1 through 6, and every hash bit. Loading checks the
+variant before exact length and leaves the template unchanged on errors.
+`Effect.Fnv` provides inspectable sinks, a generic `ByteWriter` adapter, and
+bounded reader-to-hash copying. Source errors and invalid read counts return
+advanced sources and the last valid hash. Scalar sinks have no runtime resource;
+the generic writer carries its own runtime identity. Independent state fixtures
+and all 54 public benchmark rows cover every variant. Small-read copying,
+per-chunk continuations and fresh serialization buffers remain performance costs.
 
 ### Using the additions
 
