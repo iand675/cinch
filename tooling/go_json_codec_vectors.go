@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"os"
 	"reflect"
 	"strconv"
@@ -285,6 +286,58 @@ func floatCodecCases() map[string]any {
 	return map[string]any{"float_encoding": encoding, "typed": updates}
 }
 
+// float32CodecCases pins direct binary32 rounding at exact decimal midpoints and independent shortest output.
+func float32CodecCases() map[string]any {
+	encoding := []map[string]any{}
+	patterns := []uint32{0, 0x80000000, 1, 2, 0x007fffff, 0x00800000, 0x3f7fffff, 0x3f800000, 0x3f800001, 0x358637bc, 0x358637bd, 0x358637be, 0x3490a9c0, 0x60ad78ec, 0x6258d727, 0x7f7fffff, 0xff7fffff, 0x7f800000, 0xff800000, 0x7fc00000}
+	for exponent := uint32(1); exponent < 255; exponent++ {
+		patterns = append(patterns, exponent<<23)
+	}
+	for fraction := uint32(0); fraction < 23; fraction++ {
+		patterns = append(patterns, uint32(1)<<fraction)
+	}
+
+	state := uint32(0x819c9e37)
+	for index := 0; index < 128; index++ {
+		state ^= state << 13
+		state ^= state >> 17
+		state ^= state << 5
+		patterns = append(patterns, state)
+	}
+	for _, bits := range patterns {
+		encoded, err := json.Marshal(math.Float32frombits(bits))
+		encoding = append(encoding, map[string]any{"bits": fmt.Sprintf("%08x", bits), "output_hex": wireHex(encoded), "error": errorInfo(err)})
+	}
+	texts := []string{"null", "0", "-0", "1", "1.0", "1e-6", "1e-7", "1e20", "1e21", "16777217", "3.4028234663852886e38", "3.4028235677973366e38", "1e-9999", "-1e-9999", "1e9999", "-1e9999", "\"1\"", "true", "[]", "{}"}
+	unit := new(big.Rat).SetFrac(big.NewInt(1), new(big.Int).Exp(big.NewInt(10), big.NewInt(200), nil))
+	for _, lower := range []uint32{0, 1, 2, 0x007ffffe, 0x007fffff, 0x00800000, 0x3f7fffff, 0x3f800000, 0x3f800001, 0x7f7ffffe, 0x7f7fffff} {
+		a := new(big.Rat).SetFloat64(float64(math.Float32frombits(lower)))
+		var b *big.Rat
+		if lower == 0x7f7fffff {
+			b = new(big.Rat).SetInt(new(big.Int).Lsh(big.NewInt(1), 128))
+		} else {
+			b = new(big.Rat).SetFloat64(float64(math.Float32frombits(lower + 1)))
+		}
+		midpoint := new(big.Rat).Quo(new(big.Rat).Add(a, b), big.NewRat(2, 1))
+		for _, delta := range []*big.Rat{new(big.Rat).Neg(unit), new(big.Rat), unit} {
+			exact := new(big.Rat).Add(midpoint, delta).FloatString(200)
+			texts = append(texts, exact, "-"+exact)
+		}
+	}
+	texts = append(texts, "1."+strings.Repeat("0", 2048)+"1", "0."+strings.Repeat("0", 2048)+"1e2049", "0e"+strings.Repeat("9", 2048), "1e-"+strings.Repeat("9", 2048))
+	updates := []map[string]any{}
+	conversions := []map[string]any{}
+	for _, text := range texts {
+		value := float32(7)
+		updates = append(updates, typedCase("F32", []byte(text), &value))
+		if json.Valid([]byte(text)) && text != "null" && text != "true" && text != "[]" && text != "{}" && text != "\"1\"" {
+			parsed, err := strconv.ParseFloat(text, 32)
+			conversions = append(conversions, map[string]any{"text": text, "bits": fmt.Sprintf("%08x", math.Float32bits(float32(parsed))), "error": errorInfo(err)})
+		}
+	}
+	return map[string]any{"float32_encoding": encoding, "float32_conversion": conversions, "typed": updates}
+}
+
 // fieldCodecCases independently observes name matching across complete SIMD and Unicode boundaries.
 func fieldCodecCases() map[string]any {
 	rows := []map[string]any{}
@@ -480,6 +533,14 @@ func main() {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(fieldCodecCases()); err != nil {
+			panic(err)
+		}
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "--float32-codecs" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(float32CodecCases()); err != nil {
 			panic(err)
 		}
 		return

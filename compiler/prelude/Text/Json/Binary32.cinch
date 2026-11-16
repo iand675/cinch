@@ -1,0 +1,193 @@
+-- | Exact decimal rounding and shortest JSON coefficients for finite binary32 values.
+-- Parsing consumes an already validated decimal spelling. Decimal midpoint
+-- comparisons repair binary64 double rounding without accumulating input bignums.
+module Text.Json.Binary32 where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.String
+
+  export binary32-from-decimal, binary32-to-decimal
+
+  -- | Observe the complete binary32 representation, preserving signed zero.
+  prim binary32-bits :: F32 -> U32 where
+    llvm {
+      %bits = bitcast float %0 to i32
+      ret i32 %bits
+    }
+
+  -- | Reconstruct one binary32 representation without numeric conversion.
+  prim binary32-value :: U32 -> F32 where
+    llvm {
+      %value = bitcast i32 %0 to float
+      ret float %value
+    }
+
+  -- | A nonnegative decimal coefficient and the power of ten multiplying it.
+  data ExactDecimal where
+    -- | Owned ASCII digits with leading zeros removed, and a signed decimal scale.
+    Exact :: Bytes -> Int -> ExactDecimal
+
+  -- | Multiply an exact bounded coefficient by a small power without approximation.
+  decimal-power :: Nat -> Nat -> Nat -> Nat
+  decimal-power coefficient base count = if count == 0 then coefficient else decimal-power (coefficient * base) base (count - 1)
+
+  -- | Express a small binary rational exactly as a decimal coefficient and scale.
+  binary-decimal :: Nat -> Int -> ExactDecimal
+  binary-decimal coefficient exponent = if exponent >= 0 then Exact (string-to-bytes (nat-to-string (decimal-power coefficient 2 (nat-from-int exponent)))) 0
+    else let places = nat-from-int (0 - exponent) in Exact (string-to-bytes (nat-to-string (decimal-power coefficient 5 places))) exponent
+
+  -- | Exact midpoint above a finite positive binary32 bit pattern, including the overflow threshold.
+  binary32-midpoint :: U32 -> ExactDecimal
+  binary32-midpoint lower =
+    let exponent = u32-to-nat (wrapping-shr-u32 lower 23) in
+    let fraction = u32-to-nat (bit-and-u32 lower 8388607) in
+    let coefficient = if exponent == 0 then (fraction :: Nat) else fraction + 8388608 in
+    binary-decimal (coefficient * 2 + 1) (if exponent == 0 then (0 - 150) else nat-to-int exponent - 151)
+
+  -- | Find the first nonzero digit after an optional decimal sign has been removed.
+  decimal-leading :: Bytes -> Nat -> Nat
+  decimal-leading digits at = if at < bytes-len digits && bytes-get digits at == 48 then decimal-leading digits (at + 1) else at
+
+  -- | Copy a checked decimal digit interval into independently owned storage.
+  decimal-copy :: Bytes -> Nat -> Nat -> Bytes
+  decimal-copy input at count = if at + count <= bytes-len input then let out = bytes-new count in let copied = bytes-copy-range out input 0 at count in out else bytes-new 0
+
+  -- | Accumulate a validated exponent only up to an input-size-dependent comparison bound.
+  decimal-bounded-exponent :: Bytes -> Nat -> Nat -> Nat -> Nat
+  decimal-bounded-exponent input at cap value = if at < bytes-len input then
+    let digit = bytes-get input at in
+    let next = if digit >= 48 && digit <= 57 then value * 10 + (digit - 48) else cap in
+    decimal-bounded-exponent input (at + 1) cap (if next < cap then next else cap)
+    else value
+
+  -- | Collect mantissa digits and count fractional positions without constructing a large integer.
+  decimal-input-from :: Bytes -> Nat -> Bool -> Nat -> List (InRange 0 255 Nat) -> ExactDecimal
+  decimal-input-from input at fraction places reversed = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte == 101 || byte == 69 then
+      let begin = at + 1 in
+      let negative = begin < bytes-len input && bytes-get input begin == 45 in
+      let digits = if begin < bytes-len input && (bytes-get input begin == 45 || bytes-get input begin == 43) then begin + 1 else begin in
+      let exponent = nat-to-int (decimal-bounded-exponent input digits (bytes-len input + 1000) 0) in
+      decimal-input-finish reversed ((if negative then 0 - exponent else exponent) - nat-to-int places)
+    else if byte == 46 then decimal-input-from input (at + 1) True places reversed
+    else decimal-input-from input (at + 1) fraction (if fraction then places + 1 else places) (Cons byte reversed)
+    else decimal-input-finish reversed (0 - nat-to-int places)
+
+  -- | Remove leading zeros while preserving the exact scale, including arbitrarily long input tails.
+  decimal-input-finish :: List (InRange 0 255 Nat) -> Int -> ExactDecimal
+  decimal-input-finish reversed scale =
+    let digits = bytes-from-list (reverse reversed) in let begin = decimal-leading digits 0 in
+    Exact (if begin <= bytes-len digits then decimal-copy digits begin (bytes-len digits - begin) else bytes-new 0) scale
+
+  -- | Compare decimal coefficients after padding the shorter coefficient with implicit zeros.
+  decimal-digit-compare :: Bytes -> Bytes -> Nat -> I64
+  decimal-digit-compare left right at = if at < bytes-len left || at < bytes-len right then
+    let a = if at < bytes-len left then bytes-get left at else (48 :: Nat) in
+    let b = if at < bytes-len right then bytes-get right at else (48 :: Nat) in
+    if a < b then -1 else if a > b then 1 else decimal-digit-compare left right (at + 1)
+    else 0
+
+  -- | Compare exact nonnegative decimals using bounded exponents and lexicographic digits.
+  decimal-compare :: ExactDecimal -> ExactDecimal -> I64
+  decimal-compare left right = case left of
+    Exact a ap -> case right of
+      Exact b bp ->
+        if bytes-len a == 0 then (if bytes-len b == 0 then 0 else -1)
+        else if bytes-len b == 0 then 1
+        else let ae = nat-to-int (bytes-len a) + ap in let be = nat-to-int (bytes-len b) + bp in
+          if ae < be then -1 else if ae > be then 1 else decimal-digit-compare a b 0
+
+  -- | Repair a rounded approximation by comparing the exact input with its adjacent midpoint intervals.
+  binary32-correct :: ExactDecimal -> U32 -> U32
+  binary32-correct exact guess =
+    if eq-u32 guess 2139095040 then
+      let comparison = decimal-compare exact (binary32-midpoint 2139095039) in
+      if lt-i64 comparison 0 then 2139095039 else guess
+    else if ne-u32 guess 0 && (let comparison = decimal-compare exact (binary32-midpoint (wrapping-sub-u32 guess 1)) in lt-i64 comparison 0 || (eq-i64 comparison 0 && ne-u32 (bit-and-u32 guess 1) 0)) then wrapping-sub-u32 guess 1
+    else let comparison = decimal-compare exact (binary32-midpoint guess) in
+      if gt-i64 comparison 0 || (eq-i64 comparison 0 && ne-u32 (bit-and-u32 guess 1) 0) then wrapping-add-u32 guess 1 else guess
+
+  -- | Round a validated nonempty JSON decimal exactly to binary32, including signed underflow and overflow.
+  binary32-from-decimal :: Bytes -> F32
+  binary32-from-decimal input =
+    let negative = bytes-len input > 0 && bytes-get input 0 == 45 in
+    let exact = decimal-input-from input (if negative then 1 else 0) False 0 Nil in
+    let approximate = bit-and-u32 (binary32-bits (f64-to-f32 (f64-from-decimal input))) 2147483647 in
+    let bits = binary32-correct exact approximate in
+    binary32-value (if negative then bit-or-u32 bits 2147483648 else bits)
+
+  -- | Exact decimal coefficient for a finite positive binary32 value.
+  binary32-exact :: U32 -> ExactDecimal
+  binary32-exact bits =
+    let exponent = u32-to-nat (wrapping-shr-u32 bits 23) in
+    let fraction = u32-to-nat (bit-and-u32 bits 8388607) in
+    binary-decimal (if exponent == 0 then (fraction :: Nat) else fraction + 8388608) (if exponent == 0 then (0 - 149) else nat-to-int exponent - 150)
+
+  -- | Read at most nine leading decimal digits into a bounded exact coefficient.
+  decimal-prefix :: Bytes -> Nat -> Nat -> Nat -> Nat
+  decimal-prefix digits at end value = if at < end && end <= bytes-len digits then decimal-prefix digits (at + 1) end (value * 10 + (let digit = bytes-get digits at in if digit >= 48 then digit - 48 else 0)) else value
+
+  -- | Whether any discarded digit after a rounding digit is nonzero.
+  decimal-tail-nonzero :: Bytes -> Nat -> Bool
+  decimal-tail-nonzero digits at = at < bytes-len digits && (bytes-get digits at /= 48 || decimal-tail-nonzero digits (at + 1))
+
+  -- | Round an exact decimal coefficient to a requested count of significant digits, ties to even.
+  decimal-round :: Bytes -> Nat -> Bytes
+  decimal-round digits count = if count >= bytes-len digits then digits else
+    let prefix = decimal-prefix digits 0 count 0 in
+    let next = bytes-get digits count in
+    let up = next > 53 || (next == 53 && (decimal-tail-nonzero digits (count + 1) || prefix % 2 /= 0)) in
+    string-to-bytes (nat-to-string (if up then prefix + 1 else prefix))
+
+  -- | Select the neighboring coefficient when an asymmetric binary interval excludes the closest one.
+  decimal-alternate :: Bytes -> Nat -> Bytes -> Bytes
+  decimal-alternate digits count nearest = if count >= bytes-len digits then nearest else
+    let floor = decimal-prefix digits 0 count 0 in
+    let selected = decimal-prefix nearest 0 (bytes-len nearest) 0 in
+    string-to-bytes (nat-to-string (if selected == floor then floor + 1 else floor))
+
+  -- | Find a coefficient's last significant digit without changing its decimal exponent.
+  decimal-trailing :: Bytes -> Nat -> Nat
+  decimal-trailing digits end = if end > 1 && end <= bytes-len digits && bytes-get digits (end - 1) == 48 then decimal-trailing digits (end - 1) else end
+
+  -- | Render a bounded normalized coefficient using the JSON fixed/scientific thresholds.
+  decimal-render :: Bytes -> Int -> String
+  decimal-render raw exponent =
+    let end = decimal-trailing raw (bytes-len raw) in
+    let digits = if end > 0 then decimal-copy raw 0 end else string-to-bytes "0" in
+    let body = case string-from-bytes digits of Some text -> text; None -> "0" in
+    if exponent < -6 || exponent >= 21 then
+      let first = case string-from-bytes (decimal-copy digits 0 1) of Some text -> text; None -> "0" in
+      let rest = case string-from-bytes (decimal-copy digits 1 (saturating-sub (bytes-len digits) 1)) of Some text -> text; None -> "" in
+      string-concat-all [first, if bytes-len digits > 1 then string-concat "." rest else "", if exponent < 0 then "e-" else "e+", nat-to-string (if exponent < 0 then nat-from-int (0 - exponent) else nat-from-int exponent)]
+    else if exponent < 0 then string-concat-all ["0.", string-repeat (nat-from-int (0 - exponent - 1)) "0", body]
+    else let point = nat-from-int exponent + 1 in
+      if point >= bytes-len digits then string-concat body (string-repeat (point - bytes-len digits) "0")
+      else let left = case string-from-bytes (decimal-copy digits 0 point) of Some text -> text; None -> "" in
+        let right = case string-from-bytes (decimal-copy digits point (bytes-len digits - point)) of Some text -> text; None -> "" in string-concat-all [left, ".", right]
+
+  -- | Select the shortest closest decimal inside the original binary32 rounding interval.
+  binary32-shortest :: U32 -> Bytes -> Int -> Nat -> Bytes
+  binary32-shortest bits digits exponent count =
+    let rounded = decimal-round digits count in
+    let adjusted = exponent + (if bytes-len rounded > count && count < bytes-len digits then 1 else 0) in
+    let text = string-to-bytes (decimal-render rounded adjusted) in
+    if count >= 9 || eq-u32 (binary32-bits (binary32-from-decimal text)) bits then text
+    else let alternate = decimal-alternate digits count rounded in
+      let alternate-exponent = exponent + (if bytes-len alternate > count && count < bytes-len digits then 1 else 0) in
+      let alternate-text = string-to-bytes (decimal-render alternate alternate-exponent) in
+      if eq-u32 (binary32-bits (binary32-from-decimal alternate-text)) bits then alternate-text else binary32-shortest bits digits exponent (count + 1)
+
+  -- | Format a finite binary32 as its shortest exact JSON decimal, preserving negative zero.
+  binary32-to-decimal :: F32 -> Bytes
+  binary32-to-decimal value =
+    let representation = binary32-bits value in let bits = bit-and-u32 representation 2147483647 in
+    let body = if eq-u32 bits 0 then string-to-bytes "0" else case binary32-exact bits of Exact digits scale -> binary32-shortest bits digits (nat-to-int (bytes-len digits) + scale - 1) 1 in
+    if ne-u32 representation bits then string-to-bytes (string-concat "-" (case string-from-bytes body of Some text -> text; None -> "0")) else body

@@ -179,6 +179,34 @@ FLOAT_HELPERS = r'''
 '''
 
 
+FLOAT32_HELPERS = r'''
+  -- | Reconstruct an independent binary32 payload without decimal evaluation.
+  prim float32-from-bits :: U32 -> F32 where
+    llvm {
+      %value = bitcast i32 %0 to float
+      ret float %value
+    }
+  -- | Observe every binary32 bit, including signed zero.
+  prim float32-bits :: F32 -> U32 where
+    llvm {
+      %value = bitcast float %0 to i32
+      ret i32 %value
+    }
+  -- | Compare the shortest encoding or original nonfinite-value description.
+  float32-encode-case :: U32 -> Bytes -> String -> String -> Bool
+  float32-encode-case bits expected family description = case json-marshal json-float32-type (float32-from-bits bits) of
+    Ok output -> family == "" && same-bytes output expected
+    Err error -> error-family error == family && optional-text (json-error-value error) == description
+  -- | Compare the direct exact-number conversion without using formatted text as the bit oracle.
+  float32-number-case :: String -> Bool -> U32 -> Bool
+  float32-number-case text success bits = case json-number text of
+    Err error -> False
+    Ok number -> case json-number-float32 number of
+      Ok value -> success && eq-u32 (float32-bits value) bits
+      Err error -> not success
+'''
+
+
 FIELD_HELPERS = r'''
   -- | Resolve a runtime-constructed field descriptor and compare the complete independent result.
   field-case :: String -> Bytes -> I64 -> Bytes -> Bool
@@ -301,8 +329,9 @@ def program(suite: str, fixture: dict) -> str:
         for row in fixture["field_matching"]:
             assert not row["error"]["kind"] and not row["output_error"]["kind"]
             checks.append(f"field-case {text(row['name'])} {wire(row['input_hex'])} ({row['value']} :: I64) {wire(row['output_hex'])}")
-    elif suite in {"typed", "float", "integer", "binary", "map"}:
+    elif suite in {"typed", "float", "float32", "integer", "binary", "map"}:
         descriptors = {
+            "F32": ("json-float32-type", "(i64-to-f32 7)"),
             "F64": ("json-float64-type", "(i64-to-f64 7)"),
             **({
                 "Map String I64": ("(json-map-type json-string-key json-int64-type)", '(json-map-from-list json-string-key [("a",7),("old",8)])'),
@@ -322,7 +351,7 @@ def program(suite: str, fixture: dict) -> str:
             "JsonRawMessage": ("json-raw-type", '(json-raw-from-bytes (string-to-bytes "{\\\"before\\\":true}"))'),
             "ApplicationRecord": ("(app-type ())", '(App 7 "before" False 9 0)'),
         }
-        labels = {"map[string]int64":"JsonMap String I64","map[int64]string":"JsonMap I64 String","map[uint64]string":"JsonMap U64 String","map[bool]int64":"JsonMap Bool I64","map[main.foldKey]int64":"JsonMap TextKey I64","main.foldKey":"TextKey","int8":"I8","int16":"I16","int32":"I32","int":"Isize","uint8":"U8","uint16":"U16","uint32":"U32","uint64":"U64","uint":"Usize","float64":"F64", "bool":"Bool", "string":"String", "int64":"I64", "json.Number":"JsonNumber", "[]uint8":"Bytes","[3]uint8":"Array","[]int64":"List I64", "[3]int64":"Array", "main.applicationRecord":"ApplicationRecord"}
+        labels = {"map[string]int64":"JsonMap String I64","map[int64]string":"JsonMap I64 String","map[uint64]string":"JsonMap U64 String","map[bool]int64":"JsonMap Bool I64","map[main.foldKey]int64":"JsonMap TextKey I64","main.foldKey":"TextKey","int8":"I8","int16":"I16","int32":"I32","int":"Isize","uint8":"U8","uint16":"U16","uint32":"U32","uint64":"U64","uint":"Usize","float32":"F32","float64":"F64", "bool":"Bool", "string":"String", "int64":"I64", "json.Number":"JsonNumber", "[]uint8":"Bytes","[3]uint8":"Array","[]int64":"List I64", "[3]int64":"Array", "main.applicationRecord":"ApplicationRecord"}
         for row in fixture["typed"]:
             if row["type"] not in descriptors:
                 continue
@@ -343,6 +372,12 @@ def program(suite: str, fixture: dict) -> str:
                 checks.append(f"map-case {descriptor} {wire(row['input_hex'])} {initial} {wire(row['output_hex'])} {text(family)} {err['offset']} {text(actual)} {text(label)} {text(field)} {text(encoded['kind'])} {text(labels.get(encoded.get('type',''),encoded.get('type','')))} {boolean(encoded.get('invalid_value',False))}")
             else:
                 checks.append(f"typed-case {descriptor} {wire(row['input_hex'])} {initial} {wire(row['output_hex'])} {text(err['kind'])} {err['offset']} {text(actual)} {text(labels.get(err.get('type',''),err.get('type','')))} {text(field)}")
+        if suite == "float32":
+            for row in fixture["float32_encoding"]:
+                err = row["error"]
+                checks.append(f"float32-encode-case ({int(row['bits'],16)} :: U32) {wire(row['output_hex'])} {text(err['kind'])} {text(err.get('value',''))}")
+            for row in fixture["float32_conversion"]:
+                checks.append(f"float32-number-case {text(row['text'])} {boolean(not row['error']['kind'])} ({int(row['bits'],16)} :: U32)")
         if suite == "float":
             for row in fixture["float_encoding"]:
                 err = row["error"]
@@ -371,8 +406,8 @@ def program(suite: str, fixture: dict) -> str:
         body = ",\n      ".join("(" + check + ")" for check in checks[start:start + 6])
         batches.append(f"\n  -- | Evaluate bounded independent {suite} checks with global failure indexes.\n  {name} :: Unit -> Nat\n  {name} unit = first-failure [\n      {body}] {start + 1}\n")
     helpers = HELPERS
-    if suite in {"typed", "float", "field", "integer", "binary", "map", "map-encode"}:
-        helpers = helpers.replace("  import Text.Json.Value\n", "  import Text.Json.Value\n  import Text.Json.Codec\n  import Data.Array\n" + ("  import Data.Unicode.Kernel\n" if suite in {"map", "map-encode"} else "")) + TYPED_HELPERS + (FLOAT_HELPERS if suite == "float" else FIELD_HELPERS if suite == "field" else MAP_HELPERS if suite == "map" else MAP_HELPERS + MAP_ENCODE_HELPERS if suite == "map-encode" else "")
+    if suite in {"typed", "float", "float32", "field", "integer", "binary", "map", "map-encode"}:
+        helpers = helpers.replace("  import Text.Json.Value\n", "  import Text.Json.Value\n  import Text.Json.Codec\n  import Data.Array\n" + ("  import Data.Unicode.Kernel\n" if suite in {"map", "map-encode"} else "")) + TYPED_HELPERS + (FLOAT_HELPERS if suite == "float" else FLOAT32_HELPERS if suite == "float32" else FIELD_HELPERS if suite == "field" else MAP_HELPERS if suite == "map" else MAP_HELPERS + MAP_ENCODE_HELPERS if suite == "map-encode" else "")
     return helpers + "".join(batches) + f'''
   -- | Print the original failing observation and return a nonzero status on failure.
   main :: Unit ->{{IO r}} Int
@@ -391,7 +426,7 @@ def main() -> None:
     args = parser.parse_args()
     fixture = json.loads((FIXTURES / "json-codec-vectors.json").read_text())
     for suite in args.suites:
-        selected = json.loads((FIXTURES / f"json-codec-{suite}-vectors.json").read_text()) if suite in {"float", "field", "integer", "binary", "map", "map-encode"} else fixture
+        selected = json.loads((FIXTURES / f"json-codec-{suite}-vectors.json").read_text()) if suite in {"float", "float32", "field", "integer", "binary", "map", "map-encode"} else fixture
         path = FIXTURES / f"json-codec-{suite}.cinch"
         contents = program(suite, selected)
         if args.check:
