@@ -63,7 +63,7 @@ def main() -> None:
         compiler=rust/'cinch';runtime=rust/'libcinchruntime.a';provenance_path=rust/'provenance.json'
         provenance=json.loads(provenance_path.read_text())
         if digest(compiler)!=provenance['compiler_sha256'] or digest(runtime)!=provenance['runtime_sha256']:raise ValueError('Rust snapshot/runtime mismatch')
-        string_epoch=provenance['string_epoch']
+        string_epoch=provenance.get('string_epoch', {'description':provenance.get('description'), 'embedded_sources':provenance.get('embedded_sources'), 'source_checkpoint':provenance.get('source_checkpoint')})
     else:
         compiler=native/'cinch';runtime=native/'libcinchruntime.a';provenance_path=native/'snapshot.json'
         provenance=json.loads(provenance_path.read_text())
@@ -87,7 +87,7 @@ def main() -> None:
     linked=subprocess.run(link,capture_output=True,text=True)
     (artifacts/'link.stdout').write_text(linked.stdout);(artifacts/'link.stderr').write_text(linked.stderr)
     if linked.returncode:raise RuntimeError(linked.stderr)
-    identity={'frontend':args.frontend,'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime':str(runtime),'runtime_sha256':digest(runtime),'snapshot_sha256':digest(provenance_path),'snapshot':provenance,'string_epoch':string_epoch,'sources':{path.name:digest(path) for path in paths},'source_sha256':digest(args.source),'source_shadow_used':False,'source_closure_module_names_from':{'interfaces':str(interfaces),'sha256':digest(interfaces),'policy':'same base module names; Rust uses its own embedded phase1 definitions and matched runtime, not the Native provider object'},'compile_command':command,'link_command':link,'llvm_sha256':digest(ir),'executable_sha256':digest(exe),'opt_level':args.opt_level,'compiler_host_stack_mib':64,'compile_seconds':time.monotonic()-started,'cpu':args.cpu,'runs':[]}
+    identity={'frontend':args.frontend,'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime':str(runtime),'runtime_sha256':digest(runtime),'snapshot_sha256':digest(provenance_path),'snapshot':provenance,'string_epoch':string_epoch,'sources':{path.name:digest(path) for path in paths},'source_sha256':digest(args.source),'source_shadow_used':False,'source_closure_module_names_from':{'interfaces':str(interfaces),'sha256':digest(interfaces),'policy':'same base module names; Rust uses the explicitly recorded snapshot embedded definitions and matched runtime, not the Native provider object'},'compile_command':command,'link_command':link,'llvm_sha256':digest(ir),'executable_sha256':digest(exe),'opt_level':args.opt_level,'compiler_host_stack_mib':64,'compile_seconds':time.monotonic()-started,'cpu':args.cpu,'runs':[]}
     if args.frontend=='native':identity['provider']={'manifest_sha256':digest(provider_path),'interfaces_sha256':digest(interfaces),'objects_sha256':digest(objects_path),'object_sha256':objects['object_sha256'],'metadata_sha256':objects['metadata_sha256']}
     (artifacts/'build-identity.json').write_text(json.dumps(identity,indent=2)+'\n')
     if args.compile_only:print('Buffered '+args.frontend+' consumer compiled',flush=True);return
