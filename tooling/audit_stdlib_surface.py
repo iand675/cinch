@@ -23,7 +23,7 @@ HOMES = {
     "cmp": ["Relation.Ord"], "compress/flate": ["Text.Zlib"], "compress/zlib": ["Text.Zlib"],
     "container/heap": ["Data.Mutable.Heap"], "container/list": ["Data.List"], "container/ring": ["Data.Mutable.Deque"], "context": ["Effect.Concurrent", "Effect.Clock"],
     "crypto/hmac": ["Text.Digest"], "crypto/md5": ["Text.Digest"], "crypto/rand": ["Effect.Random"],
-    "crypto/sha1": ["Text.Digest"], "crypto/sha256": ["Text.Digest"], "crypto/sha512": ["Text.Digest"],
+    "crypto/sha1": ["Text.Digest"], "crypto/sha256": ["Text.Digest", "Text.Sha256", "Effect.Sha256"], "crypto/sha512": ["Text.Digest"],
     "encoding/ascii85": ["Text.Ascii85", "Effect.Ascii85"],
     "encoding/base32": ["Text.Base32"], "encoding/base64": ["Text.Base64"],
     "encoding/binary": ["Text.Binary"], "encoding/csv": ["Text.Csv"], "encoding/hex": ["Text.Hex", "Effect.Hex"],
@@ -51,6 +51,7 @@ HOMES = {
 }
 
 EVIDENCE = {
+    "crypto/sha256": (["lib_sha256"], ["sha256", "sha224", "sha256-state", "sha224-state", "sha256-roundtrip", "sha224-roundtrip", "sha256-stream", "sha224-stream", "sha256-stream4096", "sha224-stream4096", "sha256-runtime"]),
     "math/bits": (["lib_word_ops::word_bit_operations_match_reference_widths_and_rotations", "lib_word_ops::word_wide_arithmetic_matches_reference_carry_borrow_and_products", "lib_word_ops::word_division_matches_reference_and_names_invalid_inputs"], ["word-add64", "word-mul64", "word-div64", "word-bits64", "word-load"]),
     "unicode/utf16": (["lib_utf16::utf16_matches_scalar_and_surrogate_reference_vectors", "lib_utf16::utf16_byte_codecs_match_text_and_reject_odd_lengths"], ["utf16le-encode", "utf16le-decode", "utf16be-encode", "utf16be-decode"]),
     "encoding/ascii85": (["lib_ascii85", "lib_ascii85_buffers"], ["ascii85-encode", "ascii85-decode", "ascii85-stream-encode", "ascii85-stream-decode", "ascii85-bytes-encode", "ascii85-into-encode", "ascii85-into-decode", "ascii85-prefix-decode", "ascii85-controls-decode", "ascii85-controls-prefix-decode", "ascii85-offset-decode"]),

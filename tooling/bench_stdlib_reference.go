@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding"
 	"encoding/ascii85"
 	"encoding/binary"
@@ -103,6 +104,65 @@ var crc64Prepared = crc64.MakeTable(crc64.ECMA)
 
 // operation exercises a public buffer or stream pipeline and consumes its output.
 func operation(mode int, input []byte) uint64 {
+	if mode >= 78 && mode <= 88 {
+		if mode == 78 || mode == 88 {
+			value := sha256.Sum256(input)
+			return fingerprint(value[:])
+		}
+		if mode == 79 {
+			value := sha256.Sum224(input)
+			return fingerprint(value[:])
+		}
+		short := mode == 81 || mode == 83 || mode == 85 || mode == 87
+		var h hash.Hash
+		if short {
+			h = sha256.New224()
+		} else {
+			h = sha256.New()
+		}
+		if mode == 80 || mode == 81 {
+			h.Write(input)
+			return fingerprint(h.Sum(nil))
+		}
+		if mode == 82 || mode == 83 {
+			h.Write(input)
+			saved, err := h.(encoding.BinaryMarshaler).MarshalBinary()
+			if err != nil {
+				return 1000000000
+			}
+			var loaded hash.Hash
+			if short {
+				loaded = sha256.New224()
+			} else {
+				loaded = sha256.New()
+			}
+			if err := loaded.(encoding.BinaryUnmarshaler).UnmarshalBinary(saved); err != nil {
+				return 1000000000
+			}
+			return fingerprint(saved) + fingerprint(loaded.Sum(nil))
+		}
+		chunkSize := 64
+		if mode == 86 || mode == 87 {
+			chunkSize = 4096
+		}
+		source := bytes.NewReader(bytes.Clone(input))
+		chunk := make([]byte, chunkSize)
+		var count uint64
+		for {
+			n, err := source.Read(chunk)
+			if n > 0 {
+				h.Write(chunk[:n])
+				count += uint64(n)
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return 1000000000
+			}
+		}
+		return count + fingerprint(h.Sum(nil))
+	}
 	if mode == 9 || mode == 72 {
 		return crc64.Checksum(input, crc64Prepared)
 	}
@@ -396,6 +456,28 @@ func operation(mode int, input []byte) uint64 {
 // workloadCode resolves command-line text outside the measured interval.
 func workloadCode(name string) int {
 	switch name {
+	case "sha256":
+		return 78
+	case "sha224":
+		return 79
+	case "sha256-state":
+		return 80
+	case "sha224-state":
+		return 81
+	case "sha256-roundtrip":
+		return 82
+	case "sha224-roundtrip":
+		return 83
+	case "sha256-stream":
+		return 84
+	case "sha224-stream":
+		return 85
+	case "sha256-stream4096":
+		return 86
+	case "sha224-stream4096":
+		return 87
+	case "sha256-runtime":
+		return 88
 	case "crc64":
 		return 9
 	case "crc64-table":

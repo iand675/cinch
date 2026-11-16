@@ -291,12 +291,42 @@
     },
     {
       "reference_package": "crypto/sha256",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Text.Digest"
+        "Effect.Sha256",
+        "Text.Digest",
+        "Text.Sha256"
       ],
       "remaining": [],
-      "reference_declarations": 10
+      "reference_declarations": 10,
+      "tests": [
+        "lib_sha256"
+      ],
+      "benchmarks": [
+        "sha256",
+        "sha224",
+        "sha256-state",
+        "sha224-state",
+        "sha256-roundtrip",
+        "sha224-roundtrip",
+        "sha256-stream",
+        "sha224-stream",
+        "sha256-stream4096",
+        "sha224-stream4096",
+        "sha256-runtime"
+      ],
+      "capability_mapping": {
+        "BlockSize/Size/Size224 (value and ideal-integer declarations)": "sha256-block-size, sha256-size and sha224-size expose exact Nat constants 64, 32 and 28 without processing input",
+        "Sum256/Sum224": "sha256-sum and sha224-sum return fresh network-order digest bytes for a complete input",
+        "New/New224": "sha256-state and sha224-state initialize immutable states with distinct standard chaining words",
+        "hash.Hash.Write": "sha256-state-update consumes every byte; Effect.Sha256.sha256-write returns the accepted count and advanced state; sha256-hashing-writer adapts either variant to ByteWriter",
+        "hash.Hash.Sum": "sha256-state-sum finalizes a retained state without modifying it; sha256-state-append copies a caller prefix before the digest",
+        "hash.Hash.Reset/Size/BlockSize": "sha256-state-reset preserves the variant; state-size is 28 or 32 with an InRange bound; state-block-size is 64",
+        "hash.Cloner.Clone": "Retaining a Sha256State branches computation; pending bytes and chaining words never alias mutable caller storage",
+        "encoding.BinaryMarshaler/BinaryAppender": "sha256-state-save and sha256-state-append-save encode the 108-byte identifier/chaining/tail/count checkpoint with network-order numeric fields and zero unused tail bytes",
+        "encoding.BinaryUnmarshaler": "sha256-state-load uses its template only to select the variant; identifier checks precede exact size, arbitrary chaining/count bits are accepted, and only live count-modulo-64 tail bytes are copied"
+      },
+      "review": "All ten recorded declarations, including duplicate value/ideal-integer constant records, and returned hash/clone/binary-state capabilities have functional mappings. SHA-224 and SHA-256 share a generated four-word SIMD schedule and exactly sixty-four ordered rounds per block, with exact private word loads and remaining-length machine counters. Independent fixtures cover 132 digest/checkpoint cases, every requested two-chunk split through 129 bytes and selected larger padding/block boundaries, 160 arbitrary restored-state updates including wrapped counts and noncanonical unused tails, and 912 identifier/size cases. Rust passes twelve target tests including three shared profile checks, an explicit O2/RC-debug temporary-owner stress case, and actual kernel compilation for WebAssembly, AArch64 and big-endian PowerPC. The self-built compiler passes ten selected target checks, excluding the two explicit Rust cases. Both execution modes validate ordinary 32 MiB heap/8 MiB stack bounds and a separate 256 MiB poisoned-free quarantine with zero leaks, including retained branches, mutable-buffer isolation, precise error precedence, source continuations and a 64 KiB one-byte stream. Foreign execution is not claimed. Three constant/generation tests and three inventory tool tests pass; fixture bytes and the generated private suffix reproduce exactly. The existing digest regression target passes four Rust checks. Forty-eight public pipeline/control rows match independent SDK checksums; paired executables record a modest 32-byte whole-buffer improvement while retaining unsuccessful intermediate measurements. Exact source patches reproduce all measured intermediates. Whole-buffer hashing avoids the intermediate state and tail buffer; state rendering retains the original specialization shape. Constants and all public/private declarations have canonical module-owned documentation. Portable SIMD/scalar compression remains slower than optional hardware SHA instructions; small-input and immutable buffer allocation costs differ from the reference implementation. Functional completion does not assert hardware or allocation parity. The full stdlib goal remains open."
     },
     {
       "reference_package": "crypto/sha3",

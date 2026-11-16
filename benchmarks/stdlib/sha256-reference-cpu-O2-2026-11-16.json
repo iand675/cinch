@@ -1,0 +1,134 @@
+{
+  "purpose": "Separate detected SDK instruction acceleration from its portable fallback using the same retained executable and observable pipeline",
+  "reference_executable_sha256": "b1976c1708805797005a15949711471b7ae32c2d9bec8a6cade2e4ae798bf830",
+  "cpu_affinity": [
+    0
+  ],
+  "rows": [
+    {
+      "variant": "detected",
+      "GODEBUG": "",
+      "input_bytes": 32,
+      "iterations": 128,
+      "samples_ns": [
+        12028,
+        11908,
+        11848,
+        11738,
+        11678,
+        11887,
+        11778
+      ],
+      "median_ns_per_operation": 92.5625,
+      "checksum": 36977
+    },
+    {
+      "variant": "detected",
+      "GODEBUG": "",
+      "input_bytes": 16384,
+      "iterations": 128,
+      "samples_ns": [
+        1768411,
+        1581378,
+        1732336,
+        1575549,
+        1555338,
+        1897405,
+        1631523
+      ],
+      "median_ns_per_operation": 12746.2734375,
+      "checksum": 37347
+    },
+    {
+      "variant": "detected",
+      "GODEBUG": "",
+      "input_bytes": 65536,
+      "iterations": 128,
+      "samples_ns": [
+        5876544,
+        5283559,
+        5791545,
+        5759708,
+        5645645,
+        5785136,
+        5757033
+      ],
+      "median_ns_per_operation": 44997.71875,
+      "checksum": 37692
+    },
+    {
+      "variant": "portable",
+      "GODEBUG": "cpu.all=off",
+      "input_bytes": 32,
+      "iterations": 128,
+      "samples_ns": [
+        38449,
+        38578,
+        38659,
+        38317,
+        38398,
+        38298,
+        38338
+      ],
+      "median_ns_per_operation": 299.984375,
+      "checksum": 36977
+    },
+    {
+      "variant": "portable",
+      "GODEBUG": "cpu.all=off",
+      "input_bytes": 16384,
+      "iterations": 128,
+      "samples_ns": [
+        10785958,
+        11238260,
+        10446575,
+        10358973,
+        11165532,
+        11305703,
+        10928893
+      ],
+      "median_ns_per_operation": 85381.9765625,
+      "checksum": 37347
+    },
+    {
+      "variant": "portable",
+      "GODEBUG": "cpu.all=off",
+      "input_bytes": 65536,
+      "iterations": 128,
+      "samples_ns": [
+        40929918,
+        36313828,
+        34526809,
+        33874724,
+        41867154,
+        38857980,
+        40486008
+      ],
+      "median_ns_per_operation": 303577.96875,
+      "checksum": 37692
+    }
+  ],
+  "sdk": "go version go1.27.4 linux/amd64",
+  "reference_source_sha256": "2d4e732bd400fe7a7e65c7c2dfb413c596cb407c8d8e1ef0a254cd9ffc20d598",
+  "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+  "iterations_per_sample": 128,
+  "GOMAXPROCS": "1",
+  "advertised_relevant_host_features": [
+    "sha_ni",
+    "avx",
+    "ssse3",
+    "sse4_1",
+    "avx2",
+    "bmi2"
+  ],
+  "sdk_dispatch_source": {
+    "path": "crypto/internal/fips140/sha256/sha256block_amd64.go",
+    "sha256": "8d760c095cfed0ad72ac5db3273403c0b5cea612747778affd2171545279a510",
+    "sha_ni_required_features": [
+      "AVX",
+      "SHA",
+      "SSE41",
+      "SSSE3"
+    ]
+  }
+}

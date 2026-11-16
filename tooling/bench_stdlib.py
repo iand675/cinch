@@ -42,6 +42,8 @@ WORKLOADS = (
     "fnv-stream32", "fnv-stream32a", "fnv-stream64", "fnv-stream64a", "fnv-stream128", "fnv-stream128a",
     "adler32-state", "adler32-roundtrip", "adler32-stream", "adler32-stream4096",
     "crc64-table", "crc64-state", "crc64-roundtrip", "crc64-stream", "crc64-stream4096", "crc64-table-build",
+    "sha256", "sha224", "sha256-state", "sha224-state", "sha256-roundtrip", "sha224-roundtrip",
+    "sha256-stream", "sha224-stream", "sha256-stream4096", "sha224-stream4096", "sha256-runtime",
 )
 
 SOURCE = r'''-- | Executable workload driver; output is elapsed_ns and an observable checksum.
@@ -55,6 +57,8 @@ module Main where
   import Effect.Adler32
   import Text.Crc64 as Crc
   import Effect.Crc64
+  import Text.Sha256 as Sha
+  import Effect.Sha256
   import Text.Fnv
   import Text.Fnv.State
   import Effect.Fnv
@@ -408,6 +412,35 @@ module Main where
       crc64-repeat table mode b iterations (i + 1) (nat-rem (checksum + crc64-operation table mode b) 1000000007)
     else checksum
 
+  -- | Observe digest, checkpoint and stream APIs for both SHA-2 variants.
+  sha256-operation :: forall r. using (io :: Io r) => U32 -> Bytes ->{IO r} Nat
+  sha256-operation mode b =
+    if eq-u32 mode __CODE_sha256-runtime__ then fingerprint (sha256-bytes b)
+    else if eq-u32 mode __CODE_sha256__ then fingerprint (Sha.sha256-sum b)
+    else if eq-u32 mode __CODE_sha224__ then fingerprint (Sha.sha224-sum b)
+    else
+      let short = eq-u32 mode __CODE_sha224-state__ || eq-u32 mode __CODE_sha224-roundtrip__ || eq-u32 mode __CODE_sha224-stream__ || eq-u32 mode __CODE_sha224-stream4096__ in
+      let initial = if short then Sha.sha224-state else Sha.sha256-state in
+      if eq-u32 mode __CODE_sha256-state__ || eq-u32 mode __CODE_sha224-state__ then fingerprint (Sha.sha256-state-sum (Sha.sha256-state-update initial b))
+      else if eq-u32 mode __CODE_sha256-roundtrip__ || eq-u32 mode __CODE_sha224-roundtrip__ then
+        let state = Sha.sha256-state-update initial b in
+        let saved = Sha.sha256-state-save state in case Sha.sha256-state-load initial saved of
+          Err error -> 1000000000
+          Ok restored -> fingerprint saved + fingerprint (Sha.sha256-state-sum restored)
+      else
+        let chunk = if eq-u32 mode __CODE_sha256-stream4096__ || eq-u32 mode __CODE_sha224-stream4096__ then (4096 :: Nat) else 64 in
+        case sha256-copy chunk (reader-from-bytes b) initial of
+          (Err error, handles) -> 1000000000
+          (Ok count, (source, state)) -> count + fingerprint (Sha.sha256-state-sum state)
+
+  -- | Repeat digest samples without adding new arguments to existing measured loops.
+  sha256-repeat :: forall r. using (io :: Io r) => U32 -> Bytes -> Nat -> Nat -> Nat ->{IO r} Nat
+  sha256-repeat mode b iterations i checksum =
+    if i < iterations then
+      let changed = change mode b i in
+      sha256-repeat mode b iterations (i + 1) (nat-rem (checksum + sha256-operation mode b) 1000000007)
+    else checksum
+
   -- | Time only the repeated workload, then print raw nanoseconds and checksum.
   measure :: forall r. using (io :: Io r) => String -> Nat -> Nat ->{IO r} Int
   measure mode size iterations =
@@ -417,7 +450,7 @@ module Main where
     let code = workload-code mode in
     let table = Crc.crc64-table Crc.crc64-ecma in
     let start = clock-monotonic-ns () in
-    let checksum = if ge-u32 code __CODE_crc64-table__ then crc64-repeat table code input iterations 0 0 else repeat code input iterations 0 0 in
+    let checksum = if ge-u32 code __CODE_sha256__ then sha256-repeat code input iterations 0 0 else if ge-u32 code __CODE_crc64-table__ then crc64-repeat table code input iterations 0 0 else repeat code input iterations 0 0 in
     let end = clock-monotonic-ns () in
     let elapsed = saturating-sub end start in
     let printed = ioWrite (string-to-bytes (string-concat (nat-to-string elapsed) (string-concat " " (string-concat (nat-to-string checksum) "\n")))) in
@@ -566,7 +599,7 @@ def main() -> None:
             run([str(args.reference_go.resolve()), "build", "-o", str(reference), str(reference_source)], cwd=ROOT, env=reference_env)
             report["reference"] = {"sdk": run([str(args.reference_go.resolve()), "version"], env=reference_env).stdout.strip(),
                                    "source_sha256": digest(reference_source), "executable_sha256": digest(reference),
-                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-", "adler32"))],
+                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-", "adler32", "crc64", "sha256", "sha224"))],
                                    "scope": "Equivalent public API results and observable checksums; allocation and immutable string semantics differ"}
         if args.artifacts:
             artifacts = args.artifacts.resolve()
@@ -600,7 +633,7 @@ def main() -> None:
                         "checksum": checksums[0], "median_ns_per_operation": median / args.iterations,
                         "raw_mib_per_second": (size * args.iterations * 1e9 / median / 1048576) if median and size and workload not in ("binary", "varint") and not workload.startswith("word-") else None}
                 report["results"].append(item)
-                if reference and workload.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-", "adler32", "crc64")):
+                if reference and workload.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-", "adler32", "crc64", "sha256", "sha224")):
                     reference_samples = []
                     for index in range(args.warmup + args.samples):
                         elapsed, checksum = map(int, run([str(reference), workload, str(size), str(args.iterations)], env=reference_env).stdout.split())

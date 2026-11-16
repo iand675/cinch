@@ -1,0 +1,23 @@
+--- Text.Sha256.cinch
++++ Text.Sha256.cinch
+@@ -182,9 +182 @@
+-  finish-words count pending words =
+-    let n = bytes-len pending in
+-    if n < 64 then
+-      let size = padding-size n in let padding = bytes-new size in
+-      let copied = bytes-copy-range padding pending 0 0 n in
+-      let mark = bytes-set padding n 128 in
+-      let length = binary-put-u64 BigEndian padding (size - 8) (wrapping-shl-u64 count 3) in
+-      hold-input padding (blocks words (bytes-data padding) (wrapping-i64-to-u64 (nat-to-i64 size)))
+-    else words
++  finish-words count pending words = finish-interval count pending 0 (bytes-len pending) words
+@@ -228,8 +220 @@
+-    State256 short count pending words ->
+-      let final = finish-words count pending words in
+-      let size = sha256-state-size state in let out = bytes-new size in
+-      case final of
+-        ShaWords ab cd ef gh ->
+-          let a = put-pair out 0 ab in let b = put-pair out 8 cd in
+-          let c = put-pair out 16 ef in
+-          let d = if size == 32 then put-pair out 24 gh else bytes-write-le32 out 24 (wrapping-u64-to-u32 (wire-pair gh)) in out
++    State256 short count pending words -> render-words short (finish-words count pending words)
