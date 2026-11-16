@@ -1,0 +1,607 @@
+{
+  "description": "separate validation epochs for the proof-only Char contract correction",
+  "implementation_commit": "12295841",
+  "full_standard_library_goal_complete": false,
+  "full_compiler_source_sha256": "0b11df4d99214db032d633e91d084af0afb52117ba9cffa5ebc8b4669695d579",
+  "isolated_probe_receipt_sha256": "cd46df064bd971faab675b8779416e3a52c9952397c258745914969c91b40603",
+  "parent_rust_interface_epoch": {
+    "description": "Parent Rust exporter and compiled Native consumer test target for proof-only character readings",
+    "source_revision_at_compilation": "57af3367",
+    "command": "source /workspace/.tools/cinch-env.sh; CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=67108864 taskset -c 3 cargo test --test interface_machine_contracts",
+    "passed": 6,
+    "semantic_tests": 3,
+    "shared_profile_tests": 3,
+    "seconds": 400.93,
+    "log_path": "/tmp/cinch-character-contracts-parent-rust.log",
+    "log_sha256": "8529a8ed5b932b84fbbdab587c6a825d29908f1bc3993a571bfba8e31f339371",
+    "test_binary_path": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/9e3a8c13671dafaa/out/interface_machine_contracts-9e3a8c13671dafaa",
+    "test_binary_sha256": "7636b3e08272e0441ee9810779e2c1c7dcf3c93a84bf5ebc6240e535bbbd9336",
+    "subsequent_rust_saved_partial_normalization_not_in_this_test_binary": true,
+    "command_spelling_correction": "CPU affinity spacing confirmed by parent from the actual tool call; original copied receipt used the shorthand -c3"
+  },
+  "parent_receipt_copy": {
+    "parent_receipt_sha256": "7525966ae56106d7de1ccdd0924188c734488bb2b55d757e7a4be0e797fe464f",
+    "verified_log_sha256": "8529a8ed5b932b84fbbdab587c6a825d29908f1bc3993a571bfba8e31f339371",
+    "verified_test_binary_sha256": "7636b3e08272e0441ee9810779e2c1c7dcf3c93a84bf5ebc6240e535bbbd9336",
+    "binary_bytes": 189521112,
+    "scope": "parent revision57af3367; subsequent saved-partial Rust normalization is outside this epoch"
+  },
+  "native_full_epoch": {
+    "status": "passed",
+    "full_bootstrap_fixed_point_checked": true,
+    "command": "source /workspace/.tools/cinch-env.sh; CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=67108864 CINCH_HEAP_LIMIT=2G taskset -c 1 python3 tooling/bootstrap.py check --no-pgo -j1",
+    "environment": {
+      "CARGO_BUILD_JOBS": "1",
+      "RUST_TEST_THREADS": "1",
+      "RUST_MIN_STACK": "67108864",
+      "CINCH_HEAP_LIMIT": "2G",
+      "cpu_affinity": [
+        1
+      ]
+    },
+    "start_inputs": {
+      "seed": {
+        "description": "ABI 10 Native seed: self-describing block headers, merged with main (through the no-reclaim switch), narrow C arguments extended; empty patch.",
+        "patch": "bootstrap/seed/stage0.patch",
+        "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "revision": "ab294c68b24fa093a84813e09e0b9f5f33667e7f",
+        "runtime_abi": 10,
+        "schema": 1,
+        "source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd"
+      },
+      "provider": {
+        "description": "ABI 10 library producer: self-describing block headers, merged with main (through the no-reclaim switch), narrow C arguments extended.",
+        "revision": "ab294c68b24fa093a84813e09e0b9f5f33667e7f",
+        "runtime_abi": 10,
+        "schema": 1,
+        "source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd"
+      },
+      "source_snapshot": "fc9fa8f2bb83081f1e4be5e4d6873a7dba6f855c12b9905e3244d1c8e0e7b01a",
+      "copied_from": "/workspace/dasl-stdlib-codegen/build/bootstrap",
+      "force_owned_seed_package_rebuild": true,
+      "candidate_commit": "12295841e381f1fdd5c8940ea9628bbcc9946086",
+      "source_sha256": "0b11df4d99214db032d633e91d084af0afb52117ba9cffa5ebc8b4669695d579",
+      "cpu_affinity": [
+        1
+      ]
+    },
+    "stage2_stage3_executable_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+    "stage2_stage3_llvm_sha256": "d470b0819814caadd1034c670ae9711df42b3488f2330cb371b2724330904073",
+    "canonical_interface_count": 51,
+    "canonical_interface_set_sha256": "28bebbf3ef12f4cce7cf271f1bb10de5b5d07c46552862b210c8cc48796595c1",
+    "interface_consumer": {
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "manifest_sha256": "bcc184973a3c6b03ac360447297d35ed6bf38605122ab4f9f0d4f43b45a36f9e",
+      "source_sha256": "af5113475ded965ccd87d34f50c24125e6d2f902ca907734b78dc59a873055cc",
+      "status": "passed"
+    },
+    "changed_source": {
+      "compiler_sha256": "89873af87dd7b49a15551a2ceb631fecff304378aee4a1f77bc3f8598a511b93",
+      "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+      "source_sha256": "5772ec034574fc33b52acad040f4fe9fd25c55ba690d8d1089c271d0db918de3"
+    },
+    "changed_diagnostic": "bootstrap.check.changed-source:3:10: type mismatch: expected Int, found Bool\n",
+    "stage3_inputs": {
+      "source_sha256": "0b11df4d99214db032d633e91d084af0afb52117ba9cffa5ebc8b4669695d579",
+      "runtime_archive_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "interface_set_sha256": "8e30fcd74596338abc64fd11a6bf2acbfcd3b214fe5ba92ad33d60e0c594a06e",
+      "object_configuration_sha256": "6eaa35d09c173e235905e74effe85854e5c66529b0a8697435822d12280f5616"
+    },
+    "log_sha256": "f0ae1f1d45bdcd45cbc31cc4326bead193273ad4c08e64489d98471dc193c62b",
+    "log": "stage0: built /workspace/dasl-stdlib-char-contract/build/bootstrap/stage0/cinch\nstage0: fib smoke passed\nstage0: precedence smoke passed\nstage0: refusal smoke passed\nstage0: verified cached seed\nstage1: built /workspace/dasl-stdlib-char-contract/build/bootstrap/stage1/cinch\nstage1: fib smoke passed\nstage1: precedence smoke passed\nstage1: refusal smoke passed\nstage0: verified cached seed\nstage1: verified cached compiler\nstage2: built /workspace/dasl-stdlib-char-contract/build/bootstrap/stage2/cinch\nstage2: fib smoke passed\nstage2: precedence smoke passed\nstage2: refusal smoke passed\nstage0: verified cached seed\nstage1: verified cached compiler\nstage2: verified cached compiler\nstage3: built /workspace/dasl-stdlib-char-contract/build/bootstrap/stage3/cinch\nstage3: fib smoke passed\nstage3: precedence smoke passed\nstage3: refusal smoke passed\nbootstrap: self-built compiler checks its entry using emitted compiler interfaces\nstage2: built /workspace/dasl-stdlib-char-contract/build/bootstrap/changed-source/stage2/cinch\nbootstrap: changed compiler source rebuilt and changed executable behavior\nbootstrap: stages 2 and 3 reached a fixed point\n"
+  },
+  "source_files": {
+    "bootstrap/Bootstrap.Type.cinch": "8b822b5a9107da67ffc6aae68aa0cea76466d294df9959d2a3487ec746200e79",
+    "bootstrap/Bootstrap.Infer.cinch": "e5f4446ad91021071d5e1a33628b29001f84a9fbd9fc1b52fb1f216d10ec98eb",
+    "bootstrap/Bootstrap.Core.cinch": "e143fd0443e0c895150ae270a373062ee0b7e292e22ca18b68400ca9cca66d28",
+    "bootstrap/Bootstrap.RuntimeIr.cinch": "6253b546d3fb635d19872b938b5fa5c7565572a73503817d2405ef4fbaa430a1",
+    "compiler/src/check_interface.rs": "7014ea0911c699d644133afacb12939e5f3e28bdbff9332fa8484353173da59d",
+    "compiler/tests/interface_machine_contracts.rs": "be1d77600a12abd61f014fa06be205d0ed5ac3185cee0c9b9c86a27df193fbd2"
+  },
+  "stage3_character_probe": {
+    "status": "passed",
+    "raw_receipt_path": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-validation/results.json",
+    "raw_receipt_sha256": "1e483f25084fa5123068868e641557cfad7d049bd40a6a16ed80283b03a0ba38",
+    "compilers": {
+      "before": "4a14ad5dd79cff86a14deb513b1bb5f5e6e8e12a8866fd342b7d37d8915f526a",
+      "after": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90"
+    },
+    "provider_receipt_sha256": "ad19883db161db122404324ca68695c5b1a6ab99e6cb0de00991e9af50dc519a",
+    "sources": {
+      "case-0.cinch": "27d703a5d81cee8384c58fb0abbde80b393a5b76800b2f32b5861b1118e467fe",
+      "case-1.cinch": "3f0d79c4fa1c2ad656046f5f78968850c9841f88a4a4ce96c1b1b40c52c96fe3",
+      "case-2.cinch": "29ec7de429dd3871faf3ef786f7458fd9805097c3b16095aa5218ce392dc663b",
+      "case-3.cinch": "2985594b47ecb64e1603d154149b7d12f5f28271cd75556aa2325a0b6b9bd3e3",
+      "case-4.cinch": "1c9775f1b2cf5cac76a8709c8e8ffa60f247fef9468d87abec52a0a88345d146",
+      "case-5.cinch": "9b0657a4feab7a797e2b2b1975875e37a89f62759f207ef50b62831bf81b95de",
+      "case-6.cinch": "16023da24b613d12ce69121b71beda48168fde61bed571d89982f826ceba264b",
+      "case-7.cinch": "7b0c380796a34cd5c8a50cde764c056da777de4aeee31060f3623ba7c47a23dd",
+      "case-8.cinch": "e1f5e4ab818f57b7a1832f753988c5195b4e2eea2474b2b28fd5b55be39a63ca",
+      "bootstrap/programs/Run.CharConversion.cinch": "95b8d296d54fb1471b03737a50f0ce9b6c7212dd50e4fafe90db56685e8adc15",
+      "resolved-contracts/case-0.cinch": "1d1c18ea41e786c99c01871a84bc676c1f5ca567277e1d966a3685a34d421761",
+      "resolved-contracts/case-1.cinch": "aece826ebdd2240e1d0b36ae25dfcf33eaa7647dbb53d38bda891d3b8bdcdebe",
+      "resolved-contracts/case-2.cinch": "e994c8c6b9dbde7083e41b4c8aa34019c6ed980fdf8b07bf8f8104c3a26fbb46",
+      "resolved-contracts/case-3.cinch": "3dbe25da0afae25748dee9a179cec9fc79694ebcaa1cdd6b72cc8c73e7db1c73",
+      "resolved-contracts/case-4.cinch": "c07ef0b3094532a135620982a47bd0fb126396ded383ac77fdee38b88350ffd0",
+      "resolved-contracts/case-5.cinch": "7d13553e43f512e1c5212a5d39db2d09cdd28e64865b956806c037fd6caa270f",
+      "resolved-contracts/case-6.cinch": "39f2792f8a03a4e8024d26a18feebd1a6efb820b10cd9937d586f90d403cbc67",
+      "resolved-contracts/case-7.cinch": "3fc55dbea1cfb6fc1a292dc9d87afd9cd0a35d48c1b61f875c326d7d66ca31de",
+      "resolved-contracts/case-8.cinch": "b861b8a07477567aa3da9fc93f96ded03488e0168a34ac6cdc3e8714f2c2f2c5",
+      "display-contracts/case-0.cinch": "1d1c18ea41e786c99c01871a84bc676c1f5ca567277e1d966a3685a34d421761",
+      "display-contracts/case-1.cinch": "aece826ebdd2240e1d0b36ae25dfcf33eaa7647dbb53d38bda891d3b8bdcdebe",
+      "display-contracts/case-2.cinch": "e994c8c6b9dbde7083e41b4c8aa34019c6ed980fdf8b07bf8f8104c3a26fbb46",
+      "display-contracts/case-3.cinch": "3dbe25da0afae25748dee9a179cec9fc79694ebcaa1cdd6b72cc8c73e7db1c73",
+      "display-contracts/case-4.cinch": "c07ef0b3094532a135620982a47bd0fb126396ded383ac77fdee38b88350ffd0",
+      "display-contracts/case-5.cinch": "7d13553e43f512e1c5212a5d39db2d09cdd28e64865b956806c037fd6caa270f",
+      "display-contracts/case-6.cinch": "39f2792f8a03a4e8024d26a18feebd1a6efb820b10cd9937d586f90d403cbc67",
+      "display-contracts/case-7.cinch": "3fc55dbea1cfb6fc1a292dc9d87afd9cd0a35d48c1b61f875c326d7d66ca31de",
+      "display-contracts/case-8.cinch": "b861b8a07477567aa3da9fc93f96ded03488e0168a34ac6cdc3e8714f2c2f2c5"
+    },
+    "checks": [
+      {
+        "case": "character conversion keeps actual identity",
+        "expected_exit": 0,
+        "exit": 0,
+        "diagnostics": ""
+      },
+      {
+        "case": "character type supplies scalar bounds",
+        "expected_exit": 0,
+        "exit": 0,
+        "diagnostics": ""
+      },
+      {
+        "case": "character identity belongs to the actual input",
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:13:13: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `#refinement-result == c` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (#refinement-result == c) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `#refinement-result == c` is in scope here\n"
+      },
+      {
+        "case": "scalar bounds cannot strengthen",
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:16:16: function precondition is not established at this call because the obligation `c < 1114111` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (c < 1114111) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `c < 1114111` is in scope here\n"
+      },
+      {
+        "case": "converted scalar cannot exceed its bound",
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:13:11: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `#refinement-result > 1114111` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (#refinement-result > 1114111) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `#refinement-result > 1114111` is in scope here\n"
+      },
+      {
+        "case": "character remains a distinct runtime carrier",
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:13:11: type mismatch: expected U32, found Char\n"
+      },
+      {
+        "case": "character has no numeric literal constructor",
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:13:9: type mismatch: integer literal cannot have type Char\n"
+      },
+      {
+        "case": "character arithmetic is not a runtime integer operation",
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:13:11: dictionary instance resolution failed: no instance for Add Char\n"
+      },
+      {
+        "case": "floating proofs remain opaque",
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:12:33: proof predicate needs checked mathematical carriers\nbootstrap.check:12:24: ill-formed source refinement\nbootstrap.check:12:10: ill-formed source dependent function\n"
+      },
+      {
+        "case": "Native defining interface",
+        "expected_exit": 0,
+        "exit": 0,
+        "diagnostics": ""
+      },
+      {
+        "case": "Native facade interface",
+        "expected_exit": 0,
+        "exit": 0,
+        "diagnostics": ""
+      },
+      {
+        "case": "before runtime compile against original display-only provider",
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:1:56: proof predicate needs checked mathematical carriers\nbootstrap.check:1:18: ill-formed source refinement\nbootstrap.check:1:2: ill-formed source dependent function\n"
+      },
+      {
+        "case": "after runtime compile against original display-only provider",
+        "expected_exit": 0,
+        "exit": 0,
+        "diagnostics": ""
+      },
+      {
+        "case": "character conversion keeps actual identity",
+        "display_only": false,
+        "expected_exit": 0,
+        "exit": 0,
+        "diagnostics": ""
+      },
+      {
+        "case": "character type supplies scalar bounds",
+        "display_only": false,
+        "expected_exit": 0,
+        "exit": 0,
+        "diagnostics": ""
+      },
+      {
+        "case": "character identity belongs to the actual input",
+        "display_only": false,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:6:13: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `#refinement-result == c` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (#refinement-result == c) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `#refinement-result == c` is in scope here\n"
+      },
+      {
+        "case": "scalar bounds cannot strengthen",
+        "display_only": false,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:9:16: function precondition is not established at this call because the obligation `c < 1114111` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (c < 1114111) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `c < 1114111` is in scope here\n"
+      },
+      {
+        "case": "converted scalar cannot exceed its bound",
+        "display_only": false,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:6:11: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `#refinement-result > 1114111` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (#refinement-result > 1114111) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `#refinement-result > 1114111` is in scope here\n"
+      },
+      {
+        "case": "character remains a distinct runtime carrier",
+        "display_only": false,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:6:11: type mismatch: expected U32, found Char\n"
+      },
+      {
+        "case": "character has no numeric literal constructor",
+        "display_only": false,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:6:9: type mismatch: expected Char, found Int\n"
+      },
+      {
+        "case": "character arithmetic is not a runtime integer operation",
+        "display_only": false,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:6:11: dictionary instance resolution failed: no instance for Add Char\n"
+      },
+      {
+        "case": "floating proofs remain opaque",
+        "display_only": false,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:5:33: proof predicate needs checked mathematical carriers\nbootstrap.check:5:24: ill-formed source refinement\nbootstrap.check:5:10: ill-formed source dependent function\n"
+      },
+      {
+        "case": "character conversion keeps actual identity",
+        "display_only": true,
+        "expected_exit": 0,
+        "exit": 0,
+        "diagnostics": ""
+      },
+      {
+        "case": "character type supplies scalar bounds",
+        "display_only": true,
+        "expected_exit": 0,
+        "exit": 0,
+        "diagnostics": ""
+      },
+      {
+        "case": "character identity belongs to the actual input",
+        "display_only": true,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:6:13: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `#refinement-result == c` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (#refinement-result == c) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `#refinement-result == c` is in scope here\n"
+      },
+      {
+        "case": "scalar bounds cannot strengthen",
+        "display_only": true,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:9:16: function precondition is not established at this call because the obligation `c < 1114111` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (c < 1114111) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `c < 1114111` is in scope here\n"
+      },
+      {
+        "case": "converted scalar cannot exceed its bound",
+        "display_only": true,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:6:11: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `#refinement-result > 1114111` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (#refinement-result > 1114111) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `#refinement-result > 1114111` is in scope here\n"
+      },
+      {
+        "case": "character remains a distinct runtime carrier",
+        "display_only": true,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:6:11: type mismatch: expected U32, found Char\n"
+      },
+      {
+        "case": "character has no numeric literal constructor",
+        "display_only": true,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:6:9: type mismatch: expected Char, found Int\n"
+      },
+      {
+        "case": "character arithmetic is not a runtime integer operation",
+        "display_only": true,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:6:11: dictionary instance resolution failed: no instance for Add Char\n"
+      },
+      {
+        "case": "floating proofs remain opaque",
+        "display_only": true,
+        "expected_exit": 4,
+        "exit": 4,
+        "diagnostics": "bootstrap.check:5:33: proof predicate needs checked mathematical carriers\nbootstrap.check:5:24: ill-formed source refinement\nbootstrap.check:5:10: ill-formed source dependent function\n"
+      }
+    ],
+    "runs": [
+      {
+        "debug": false,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "debug": true,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    "native_export_contracts": {
+      "codepoint": {
+        "measures": [],
+        "nominals": [],
+        "scheme": "((c :: Char) -> (refined ((((0 <= cinch-result) && (cinch-result <= 1114111)) && (cinch-result == c))) U32))"
+      },
+      "opaque-character-arithmetic": null,
+      "scalar-bound": {
+        "measures": [],
+        "nominals": [],
+        "scheme": "using ((0 <= c), (c <= 1114111)) => ((c :: Char) -> Char)"
+      }
+    }
+  },
+  "stage3_scoped_tail_probe": {
+    "status": "passed",
+    "raw_receipt_path": "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-tail-validation/results.json",
+    "raw_receipt_sha256": "8957b43e636c62982dd8bbb2896631f6673e3b5bda0f805b93c12690d3dcf0d9",
+    "compilers": {
+      "before": {
+        "path": "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/cinch",
+        "sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f"
+      },
+      "after": {
+        "path": "/workspace/dasl-stdlib-char-contract/build/bootstrap/stage3/cinch",
+        "sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90"
+      }
+    },
+    "sources": {
+      "nested": {
+        "path": "bootstrap/programs/Run.NestedArgumentTail.cinch",
+        "sha256": "ba4a0d6d02496c1bb68dc8a555cbfdacc6e4976c9fb8003f704f91baa3b03d48"
+      },
+      "short": {
+        "path": "bootstrap/programs/Run.NestedArgumentTailSmall.cinch",
+        "sha256": "b15d8172f3e74517b35517af375505ede72c426e965450fcb1a42ab3b6c8932e"
+      },
+      "order": {
+        "path": "bootstrap/programs/Run.ScopedArgumentOrder.cinch",
+        "sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91"
+      }
+    },
+    "executions": [
+      {
+        "variant": "before",
+        "probe": "nested",
+        "debug": false,
+        "expected_exit": 73,
+        "actual_exit": 73,
+        "stderr": "cinch: exhausted: stack\n",
+        "stdout": ""
+      },
+      {
+        "variant": "before",
+        "probe": "short",
+        "debug": false,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=200 bytes=8516 peak=3156 header-blocks=193 header-bytes=8216 immortal=0 freed=193 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 200,
+          "bytes": 8516,
+          "peak": 3156,
+          "header-blocks": 193,
+          "header-bytes": 8216,
+          "immortal": 0,
+          "freed": 193,
+          "live": 0
+        }
+      },
+      {
+        "variant": "before",
+        "probe": "short",
+        "debug": true,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=200 bytes=8516 peak=8492 header-blocks=193 header-bytes=8216 immortal=0 freed=193 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 200,
+          "bytes": 8516,
+          "peak": 8492,
+          "header-blocks": 193,
+          "header-bytes": 8216,
+          "immortal": 0,
+          "freed": 193,
+          "live": 0
+        }
+      },
+      {
+        "variant": "before",
+        "probe": "order",
+        "debug": false,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=15 bytes=463 peak=309 header-blocks=6 header-bytes=192 immortal=0 freed=6 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 15,
+          "bytes": 463,
+          "peak": 309,
+          "header-blocks": 6,
+          "header-bytes": 192,
+          "immortal": 0,
+          "freed": 6,
+          "live": 0
+        }
+      },
+      {
+        "variant": "before",
+        "probe": "order",
+        "debug": true,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=15 bytes=463 peak=437 header-blocks=6 header-bytes=192 immortal=0 freed=6 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 15,
+          "bytes": 463,
+          "peak": 437,
+          "header-blocks": 6,
+          "header-bytes": 192,
+          "immortal": 0,
+          "freed": 6,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "nested",
+        "debug": false,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=327688 bytes=13697316 peak=65892 header-blocks=327681 header-bytes=13631512 immortal=0 freed=327681 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 327688,
+          "bytes": 13697316,
+          "peak": 65892,
+          "header-blocks": 327681,
+          "header-bytes": 13631512,
+          "immortal": 0,
+          "freed": 327681,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "nested",
+        "debug": true,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=327688 bytes=13697316 peak=13697292 header-blocks=327681 header-bytes=13631512 immortal=0 freed=327681 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 327688,
+          "bytes": 13697316,
+          "peak": 13697292,
+          "header-blocks": 327681,
+          "header-bytes": 13631512,
+          "immortal": 0,
+          "freed": 327681,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "short",
+        "debug": false,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=168 bytes=6980 peak=388 header-blocks=161 header-bytes=6680 immortal=0 freed=161 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 168,
+          "bytes": 6980,
+          "peak": 388,
+          "header-blocks": 161,
+          "header-bytes": 6680,
+          "immortal": 0,
+          "freed": 161,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "short",
+        "debug": true,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=168 bytes=6980 peak=6956 header-blocks=161 header-bytes=6680 immortal=0 freed=161 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 168,
+          "bytes": 6980,
+          "peak": 6956,
+          "header-blocks": 161,
+          "header-bytes": 6680,
+          "immortal": 0,
+          "freed": 161,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "order",
+        "debug": false,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=14 bytes=423 peak=309 header-blocks=5 header-bytes=152 immortal=0 freed=5 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 14,
+          "bytes": 423,
+          "peak": 309,
+          "header-blocks": 5,
+          "header-bytes": 152,
+          "immortal": 0,
+          "freed": 5,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "order",
+        "debug": true,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=14 bytes=423 peak=397 header-blocks=5 header-bytes=152 immortal=0 freed=5 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 14,
+          "bytes": 423,
+          "peak": 397,
+          "header-blocks": 5,
+          "header-bytes": 152,
+          "immortal": 0,
+          "freed": 5,
+          "live": 0
+        }
+      }
+    ],
+    "interpretation": "unchanged 64KiB nested recurrence exhausts the 8MiB stack before the scoped-call fix and completes with exact results after it; all successful executions have zero leaks"
+  },
+  "validation_scope": "Char proof reading correction; parent Rust revision57af3367 and this independent Native source epoch are recorded separately",
+  "later_parent_changes": "Mut/phantom/value-restriction and String constructor changes are outside this Native source snapshot"
+}
