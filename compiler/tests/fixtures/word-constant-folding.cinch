@@ -16,17 +16,17 @@ module Main where
     Some actual -> eq-u64 actual expected
     None -> False
 
-  -- | Observe a checked signed refusal without assuming any particular constructor encoding.
-  no-signed :: Option I64 -> Bool
-  no-signed result = case result of
+  -- | Observe a checked refusal without assuming a scalar representation or constructor encoding.
+  no-result :: forall a. Option a -> Bool
+  no-result result = case result of
     Some actual -> False
     None -> True
 
-  -- | Observe every independent numerical assertion in order.
-  every :: List Bool -> Bool
-  every values = case values of
-    Nil -> True
-    Cons value rest -> if value then every rest else False
+  -- | Return the first failing assertion's one-based position, or zero after every assertion succeeds.
+  inspect :: List Bool -> Int -> Int
+  inspect values position = case values of
+    Nil -> 0
+    Cons value rest -> if value then inspect rest (position + 1) else position
 
   -- | Exercise high-bit constants, overflow policies, full-width reversals and emitted controls.
   checks :: List Bool
@@ -39,10 +39,22 @@ module Main where
     eq-u64 (saturating-mul-u64 18446744073709551615 18446744073709551615) 18446744073709551615,
     eq-u64 (wrapping-mul-u64 18446744073709551615 18446744073709551615) 1,
     eq-u64 (saturating-neg-u64 18446744073709551615) 0,
+    eq-u64 (saturating-neg-u64 0) 0,
+    eq-u8 (saturating-neg-u8 1) 0,
+    eq-u16 (saturating-neg-u16 65535) 0,
+    eq-u32 (saturating-neg-u32 4294967295) 0,
+    eq-usize (saturating-neg-usize 1) 0,
+    some-word 0 (checked-neg-u64 0),
+    no-result (checked-neg-u64 1),
+    no-result (checked-neg-u64 18446744073709551615),
+    no-result (checked-neg-u8 255),
+    no-result (checked-neg-u16 65535),
+    no-result (checked-neg-u32 4294967295),
+    no-result (checked-neg-usize 1),
     some-word 9223372036854775807 (checked-div-u64 18446744073709551615 2),
     some-word 1 (checked-rem-u64 18446744073709551615 2),
-    no-signed (checked-rem-i64 (-9223372036854775808) (-1)),
-    no-signed (checked-u64-to-i64 18446744073709551615),
+    no-result (checked-rem-i64 (-9223372036854775808) (-1)),
+    no-result (checked-u64-to-i64 18446744073709551615),
     eq-i64 (saturating-u64-to-i64 18446744073709551615) 9223372036854775807,
     eq-u32 (wrapping-u64-to-u32 18446744073709551615) 4294967295,
     gt-u64 18446744073709551615 9223372036854775807,
@@ -56,4 +68,4 @@ module Main where
 
   -- | Refuse any discrepancy between constant evaluation, emitted operations and exact expectations.
   main :: Int
-  main = if every checks then 0 else 1
+  main = inspect checks 1

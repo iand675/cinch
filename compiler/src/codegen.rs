@@ -7906,13 +7906,20 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             }
             ArithMode::Checked => {
                 let bad = b.reg();
-                b.line(&format!("{bad} = icmp eq i64 %p0, {}", min_word(ty)));
+                if ty.is_signed() {
+                    b.line(&format!("{bad} = icmp eq i64 %p0, {}", min_word(ty)));
+                } else {
+                    // Only zero has a representable unsigned additive inverse.
+                    b.line(&format!("{bad} = icmp ne i64 %p0, 0"));
+                }
                 ret_option(b, reg, op, name, &bad, |b| {
                     let r = b.reg();
                     b.line(&format!("{r} = sub i64 0, %p0"));
                     canon(b, ty, &r)
                 });
             }
+            // Every unsigned mathematical negation clamps to zero.
+            ArithMode::Saturating if !ty.is_signed() => ret(b, "0"),
             ArithMode::Saturating => {
                 let is_min = b.reg();
                 b.line(&format!("{is_min} = icmp eq i64 %p0, {}", min_word(ty)));
@@ -8331,6 +8338,23 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
     }
 }
 
+/// Test value preservation across an integer conversion, including signedness.
+/// A canonical-word round trip alone cannot distinguish a negative signed
+/// value from the same high-bit unsigned encoding at a 64-bit boundary.
+fn integer_conversion_fits(b: &mut Builder, from: Scalar, to: Scalar, canonical: &str) -> String {
+    let same = b.reg();
+    b.line(&format!("{same} = icmp eq i64 {canonical}, %p0"));
+    if from.is_signed() == to.is_signed() {
+        same
+    } else {
+        let nonnegative = b.reg();
+        b.line(&format!("{nonnegative} = icmp sge i64 %p0, 0"));
+        let fits = b.reg();
+        b.line(&format!("{fits} = and i1 {same}, {nonnegative}"));
+        fits
+    }
+}
+
 /// Conversions (primitive types specification, section 7): every result is
 /// canonicalized to the target's word form.
 fn conv_body(
@@ -8354,14 +8378,14 @@ fn conv_body(
             }
             ConvMode::Checked => {
                 let c = canon(b, to, "%p0");
+                let fits = integer_conversion_fits(b, from, to, &c);
                 let bad = b.reg();
-                b.line(&format!("{bad} = icmp ne i64 {c}, %p0"));
+                b.line(&format!("{bad} = xor i1 {fits}, true"));
                 ret_option(b, reg, op, name, &bad, |_| c.clone());
             }
             ConvMode::Saturating => {
                 let c = canon(b, to, "%p0");
-                let fits = b.reg();
-                b.line(&format!("{fits} = icmp eq i64 {c}, %p0"));
+                let fits = integer_conversion_fits(b, from, to, &c);
                 // Not fitting means below the target's minimum (a negative
                 // value into an unsigned target) or above its maximum.
                 let low = if from.is_signed() {
