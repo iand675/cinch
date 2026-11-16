@@ -2,7 +2,15 @@
   "pinned_sdk": "go1.27.4",
   "package": "encoding/pem",
   "declaration_count": 7,
-  "package_status": "in-progress; functional/portable/performance review required",
+  "package_status": "implemented; standalone full-package review passed; parent integration gates pending",
+  "validation_receipt": "pem-selected-evidence.json",
+  "performance_review": "pem-review.md",
+  "reference_provenance": {
+    "sdk_executable_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+    "package_source_sha256": "0964273ff5f31f5b91b6ab6ac7d089252f4465918656a2caeb7d832c39439639",
+    "oracle_source_sha256": "97050d93f81e79ea3d44451e1ecc2cccc1016dcbafec58968d8c4afe037f0d66",
+    "fixture_sha256": "ed88e0e274310bb49f22592b761b628c8aff6e52acd49aa0fc81bdaa96ff50cc"
+  },
   "rows": [
     {
       "declaration": "func Decode([]uint8) (*Block, []uint8)",
@@ -11,7 +19,7 @@
         "Option PemBlock + fresh remainder Bytes",
         "exact malformed candidate recovery and untouched original remainder on absence"
       ],
-      "status": "implemented; final validation pending"
+      "status": "implemented"
     },
     {
       "declaration": "func Encode(io.Writer, *Block) error",
@@ -20,7 +28,7 @@
         "Result PemError Unit + advanced ByteWriter",
         "validate all keys before output; bounded payload chunks; positive short writes drained; failures retain continuation"
       ],
-      "status": "implemented; final validation pending"
+      "status": "implemented"
     },
     {
       "declaration": "func EncodeToMemory(*Block) []uint8",
@@ -29,7 +37,7 @@
         "Result PemError Bytes",
         "fresh full encoding; colon-bearing key refusal returns no partial bytes"
       ],
-      "status": "implemented; final validation pending"
+      "status": "implemented"
     },
     {
       "declaration": "type Block struct",
@@ -37,7 +45,7 @@
         "PemBlock / pem-block",
         "opaque immutable owned byte metadata/payload; persistent updates preserve previous values"
       ],
-      "status": "implemented; final validation pending"
+      "status": "implemented"
     },
     {
       "declaration": "type Block struct, Bytes []uint8",
@@ -46,7 +54,7 @@
         "pem-with-bytes",
         "fresh mutable observations and replacement snapshots; arbitrary payload bytes"
       ],
-      "status": "implemented; final validation pending"
+      "status": "implemented"
     },
     {
       "declaration": "type Block struct, Headers map[string]string",
@@ -56,7 +64,7 @@
         "pem-with-header / pem-without-header / pem-with-headers",
         "exact byte-key lookup, sorted unique observations, last-key-wins construction and persistent edits"
       ],
-      "status": "implemented; final validation pending"
+      "status": "implemented"
     },
     {
       "declaration": "type Block struct, Type string",
@@ -65,7 +73,7 @@
         "pem-with-type",
         "owned arbitrary Bytes label; invalid UTF8 is preserved rather than silently discarded"
       ],
-      "status": "implemented; final validation pending"
+      "status": "implemented"
     }
   ],
   "policies": [

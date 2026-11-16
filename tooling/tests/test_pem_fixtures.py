@@ -35,8 +35,8 @@ class PemFixtureTests(unittest.TestCase):
         """Host mutations and foreign objects compile the maintained primitive bodies, not test substitutes."""
         for foreign,name in [(False,'pem-kernels.cinch'),(True,'pem-kernels-foreign.cinch')]:
             self.assertEqual(kernels(foreign),(ROOT/'compiler/tests/fixtures'/name).read_text())
-        self.assertEqual(kernels(True).count('  prim '),10)
-        self.assertEqual(kernels(True).count('    unsafe llvm {'),6)
+        self.assertEqual(kernels(True).count('  prim '),11)
+        self.assertEqual(kernels(True).count('    unsafe llvm {'),7)
 
     def test_actual_writer_budget_prefixes(self):
         """Every independently observed stream failure retains exactly its accepted byte prefix."""

@@ -2,11 +2,17 @@
 """Map every actual pinned PEM declaration to concrete byte-preserving public capabilities."""
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from audit_stdlib_surface import declarations
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def digest(path: Path) -> str:
+    """Identify independently generated observations and the exact reference implementation epoch."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def main() -> None:
@@ -27,7 +33,7 @@ def main() -> None:
     }
     actual = declarations(args.sdk)['encoding/pem']
     if set(actual) != set(mapping): raise ValueError('pinned PEM declarations changed: '+repr(set(actual)^set(mapping)))
-    result = {'pinned_sdk':'go1.27.4','package':'encoding/pem','declaration_count':len(actual),'package_status':'in-progress; functional/portable/performance review required','rows':[{'declaration':row,'capabilities':mapping[row],'status':'implemented; final validation pending'} for row in actual],'policies':[
+    result = {'pinned_sdk':'go1.27.4','package':'encoding/pem','declaration_count':len(actual),'package_status':'implemented; standalone full-package review passed; parent integration gates pending','validation_receipt':'pem-selected-evidence.json','performance_review':'pem-review.md','reference_provenance':{'sdk_executable_sha256':digest(args.sdk/'bin/go'),'package_source_sha256':digest(args.sdk/'src/encoding/pem/pem.go'),'oracle_source_sha256':digest(ROOT/'tooling/go_pem_vectors.go'),'fixture_sha256':digest(ROOT/'compiler/tests/fixtures/pem-vectors.json')},'rows':[{'declaration':row,'capabilities':mapping[row],'status':'implemented'} for row in actual],'policies':[
         'Labels, header keys/values and payloads preserve arbitrary bytes; valid String conversion is optional outside this package.',
         'Block/header storage is immutable and private. Mutable byte observations and decoded remainders are fresh. Persistent updates share only private immutable fields.',
         'Headers use exact byte equality and lexical order, with the final duplicate value retained. Encoding writes exact Proc-Type first, then other keys in byte order.',
