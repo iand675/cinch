@@ -1,11 +1,11 @@
 {
   "description": "Concrete typed fixed binary codecs, offsets, append and explicit streams; existing Text.Binary preserved.",
   "full_stdlib_goal_complete": false,
-  "status": "Frozen Rust O2 and Native Stage3 CLI corpus and ownership checks passed; supplied Cargo target awaits coordinated parent integration.",
+  "status": "Both frozen frontend corpora passed; integrated Rust target passed 13 tests after temporary-project dependency correction",
   "sources_sha256": {
     "compiler/prelude/Text/Binary/Layout.cinch": "2bf98a83aaed9aeb72ac3e69d285d15aa28ff65b6543236b659bb775beb8f1d2",
     "compiler/prelude/Effect/Binary.cinch": "ccc9fe29127f391045105575e80fb446b3452798f2e3166f939521c51b10470c",
-    "compiler/tests/lib_binary_layout.rs": "332155412bcfbe56572b9ab2207bb6c1003a0de10fc2c37f8c7b7b78cf11ae25",
+    "compiler/tests/lib_binary_layout.rs": "4ac9008c6c286de0edaba98e35ed2e595b7465531affd1d58ed9c6c4bcd46d35",
     "compiler/tests/fixtures/binary-layout-vectors.json": "3b1a14e41378ad8f6ef011a8c711f3bb6e5cde8e427b75528039557a48d51d36",
     "compiler/tests/fixtures/binary-layout-consumers.cinchpart": "61160a15357c9b15cc460ae8387dbe5d9e64b79977e36fbbcdf79efe6ed38a90",
     "compiler/tests/fixtures/binary-layout-contracts.cinchpart": "b45675d70ca7ef234a8171f0bde931f42abf1bbe66f4136413ef5ada717ed8e9",
@@ -475,7 +475,18 @@
     "target": "lib_binary_layout",
     "tests_supplied": 10,
     "run_in_lane": false,
-    "parent_owned": true
+    "parent_owned": true,
+    "parent_passed": 13,
+    "semantic_tests": 10,
+    "shared_profile_tests": 3,
+    "seconds": 57.8,
+    "foreign_object_targets": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "powerpc64-unknown-linux-gnu big endian"
+    ],
+    "harness_correction": "Copy the complete source-distributed dependency closure beside Main; library implementations unchanged",
+    "harness_sha256_before": "332155412bcfbe56572b9ab2207bb6c1003a0de10fc2c37f8c7b7b78cf11ae25"
   },
   "benchmarks": "benchmarks/stdlib/binary-packed-O2-2026-11-16.json",
   "limitations": [
@@ -485,5 +496,6 @@
     "Generic descriptor callbacks, tagged counters and checked-store machinery remain in optimized code; all stores stay within checked Cinch boundaries.",
     "Foreign objects compile; foreign execution and the supplied big-endian Rust test are not claimed run in this lane.",
     "Full standard-library initiative remains open."
-  ]
+  ],
+  "package_review_status": "complete"
 }

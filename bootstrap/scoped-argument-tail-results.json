@@ -336,8 +336,65 @@
     "Poisoned-free allocation totals are not ordinary live-space measurements."
   ],
   "remaining_validation": {
-    "rust_unit_tests": "pending parent integration gate",
-    "preserved_targets": "pending parent integration gate",
-    "tail_calls_target_including_new_cases": "pending parent coordination"
+    "rust_unit_tests": {
+      "passed": 302,
+      "seconds": 224.01
+    },
+    "preserved_targets": {
+      "prim": {
+        "passed": 29,
+        "seconds": 217.08
+      },
+      "prim_wide": {
+        "passed": 10,
+        "seconds": 62.41
+      },
+      "wide": {
+        "passed": 18,
+        "seconds": 69.59
+      }
+    },
+    "strict_application_followup": {
+      "simplify": {
+        "passed": 45,
+        "seconds": 0.01
+      },
+      "tail_calls": {
+        "passed": 11,
+        "seconds": 33.22
+      }
+    },
+    "integrated_library_targets": {
+      "lib_base32_encoding": {
+        "passed": 14,
+        "seconds": 168.21
+      },
+      "lib_base64_encoding": {
+        "passed": 12,
+        "seconds": 146.76
+      },
+      "lib_binary_layout": {
+        "passed": 13,
+        "seconds": 57.8
+      },
+      "lib_csv_record": {
+        "passed": 11,
+        "seconds": 54.49
+      },
+      "lib_html": {
+        "passed": 7,
+        "seconds": 31.08
+      },
+      "lib_path": {
+        "passed": 9,
+        "seconds": 36.97
+      },
+      "lib_url": {
+        "passed": 8,
+        "seconds": 29.88
+      }
+    },
+    "original_rust_returned_function_order_failure": "resolved by separate strict-application and saved-argument repairs; O0/O2 controls and Native controls pass",
+    "whole_stdlib_goal_complete": false
   }
 }

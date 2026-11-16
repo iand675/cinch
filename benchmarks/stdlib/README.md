@@ -664,3 +664,8 @@ probes. Its full timing sweep predates the separately measured padding change.
 [Base64 notes](base64-encoding-notes.md), [HTML notes](html-NOTES.md) and
 [path notes](path-notes.md) retain each package’s exact compiler/source identities,
 public-pipeline checksums, paired comparisons and remaining codegen costs.
+
+[Typed binary layouts](binary-layout-notes.md), [CSV records](csv-record-notes.md)
+and [URLs](url-notes.md) add independent public pipeline measurements, retained
+source variants and ordinary allocation/codegen evidence. CSV keeps its validated
+writer implementation after faster inlining variants failed ownership checks.

@@ -1,0 +1,37 @@
+-- | Immutable byte-preserving URL user information with explicit password presence.
+module Text.Url.Userinfo where
+  import Text.Url.Codec
+  import Text.Url.Scan
+  import Data.Bytes
+  import Data.List
+  import Data.Option
+  import Data.String
+  export UrlUserinfo, url-user, url-user-password, url-username, url-password, url-userinfo-bytes
+
+  -- | Private copied username and optional copied password; an empty password remains present.
+  data UrlUserinfo where
+    -- | Immutable owned user-information payload.
+    Userinfo :: Bytes -> Option Bytes -> UrlUserinfo
+
+  -- | Construct user information without a password, copying arbitrary username bytes.
+  url-user :: Bytes -> UrlUserinfo
+  url-user username = Userinfo (url-copy username) None
+
+  -- | Construct user information with a present password, copying both byte buffers.
+  url-user-password :: Bytes -> Bytes -> UrlUserinfo
+  url-user-password username password = Userinfo (url-copy username) (Some (url-copy password))
+
+  -- | Return fresh username bytes without decoding them as text.
+  url-username :: UrlUserinfo -> Bytes
+  url-username user = case user of Userinfo username password -> url-copy username
+
+  -- | Return a copied optional password, distinguishing absence from an empty password.
+  url-password :: UrlUserinfo -> Option Bytes
+  url-password user = case user of Userinfo username password -> case password of None -> None; Some bytes -> Some (url-copy bytes)
+
+  -- | Escape the username and optional colon-separated password to fresh ASCII bytes.
+  url-userinfo-bytes :: UrlUserinfo -> Bytes
+  url-userinfo-bytes user = case user of
+    Userinfo username password -> let first = url-escape UrlUserPassword username in case password of
+      None -> first
+      Some bytes -> url-concat [first, string-to-bytes ":", url-escape UrlUserPassword bytes]

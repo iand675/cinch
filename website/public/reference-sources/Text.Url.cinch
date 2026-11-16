@@ -1,0 +1,36 @@
+-- | Byte-preserving URLs, percent escaping, query multimaps and reference resolution.
+-- Parsed decoded fields retain arbitrary bytes. Immutable URLs and query values
+-- snapshot caller buffers; observations return copied byte storage. Text views
+-- are explicit optional UTF-8 conversions. Existing URI APIs remain independent.
+module Text.Url where
+  import Text.Url.Codec
+  import Text.Url.Error
+  import Text.Url.Query
+  import Text.Url.Userinfo
+  import Text.Url.Model
+  import Text.Url.Parser
+  import Text.Url.Resolve
+
+  export UrlEncoding, UrlPath, UrlPathSegment, UrlHost, UrlZone, UrlUserPassword, UrlQueryComponent, UrlFragment
+  export url-escape, url-unescape, url-escaped-length, url-unescape-path-hint, url-unescape-fragment-hint
+  export url-path-escape, url-path-unescape, url-query-escape, url-query-unescape
+  export url-path-escape-text, url-query-escape-text
+  export UrlFailureKind, UrlInvalidEscape, UrlInvalidHost, UrlControlByte, UrlMissingScheme
+  export UrlInvalidRequest, UrlEmptyRequest, UrlPathColon, UrlInvalidPort, UrlMissingBracket
+  export UrlInvalidIpLiteral, UrlInvalidUserinfo, UrlQuerySemicolon, UrlTooManyParameters
+  export UrlFailure, url-failure, url-failure-kind, url-failure-offset, url-failure-detail
+  export url-failure-shift, url-failure-message, url-quote-bytes
+  export UrlError, url-error, url-error-operation, url-error-input, url-error-cause
+  export url-error-temporary, url-error-timeout, url-error-render, url-error-message
+  export UrlValues, url-values-empty, url-values-size, url-values-clone
+  export url-values-add, url-values-set, url-values-set-all, url-values-delete
+  export url-values-has, url-values-get, url-values-get-all, url-values-pairs, url-values-from-pairs
+  export url-values-encode, url-parse-query, url-parse-query-limit
+  export UrlUserinfo, url-user, url-user-password, url-username, url-password, url-userinfo-bytes
+  export Url, UrlComponents, UrlParts, url-from-components, url-components, url-empty, url-clone
+  export url-scheme, url-opaque, url-userinfo, url-host, url-path, url-fragment, url-raw-query
+  export url-raw-path, url-raw-fragment, url-force-query, url-omit-host, url-escaped-path, url-escaped-fragment, url-to-bytes
+  export url-to-text, url-is-absolute, url-hostname, url-port, url-query, url-redacted, url-request-uri
+  export url-marshal-binary, url-append-binary, url-with-path, url-with-fragment
+  export url-parse, url-parse-text, url-parse-request-uri, url-unmarshal-binary
+  export url-resolve-reference, url-parse-reference, url-join-path, url-join-path-checked, url-join
