@@ -181,7 +181,7 @@
     {
       "module": "Data.Bytes",
       "path": "compiler/prelude/Data/Bytes.cinch",
-      "sha256": "b0ca021a04d0e01bb1028a934a79f9982f1fcb80110d7c4bf8085bf36607ec5c",
+      "sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
       "embedded": true,
       "values": 10,
       "public_methods": 0
@@ -581,9 +581,9 @@
     {
       "module": "Data.String",
       "path": "compiler/prelude/Data/String.cinch",
-      "sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+      "sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
       "embedded": true,
-      "values": 27,
+      "values": 31,
       "public_methods": 0
     },
     {
@@ -885,7 +885,7 @@
     {
       "module": "Effect.Resolv",
       "path": "compiler/prelude/Effect/Resolv.cinch",
-      "sha256": "7430e1f878fff227f9adfa2717c511959737072897e99c5df85e16294a6d4fa0",
+      "sha256": "65ca0fab55b2fa3af62a70907a148bc365d53b0282538b8ecb3719310a08d1cf",
       "embedded": false,
       "values": 5,
       "public_methods": 0
@@ -991,7 +991,7 @@
       "path": "compiler/prelude/Prelude.cinch",
       "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7",
       "embedded": true,
-      "values": 1039,
+      "values": 1043,
       "public_methods": 41
     },
     {
@@ -1237,7 +1237,7 @@
     {
       "module": "Text.OptionParser",
       "path": "compiler/prelude/Text/OptionParser.cinch",
-      "sha256": "f6f1d8610648fed5f3355567cdd52a381f80322f8996ce29482931ef0977cc48",
+      "sha256": "a98ed14dc7c9027ecc53724e553eaf38be5066a392559916d31036bf5f557eee",
       "embedded": false,
       "values": 18,
       "public_methods": 0
@@ -1253,7 +1253,7 @@
     {
       "module": "Text.Parse",
       "path": "compiler/prelude/Text/Parse.cinch",
-      "sha256": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+      "sha256": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b",
       "embedded": false,
       "values": 45,
       "public_methods": 0
@@ -1309,7 +1309,7 @@
     {
       "module": "Text.Shellwords",
       "path": "compiler/prelude/Text/Shellwords.cinch",
-      "sha256": "7b371e38d5fdfeb48bcd293783859f56e645870a217f605036f5e0d5aaa486a9",
+      "sha256": "a37ca53b9d6ab728f032df39413d1584cbcbdeea29fd40103c0219cc99e643c9",
       "embedded": false,
       "values": 4,
       "public_methods": 0
@@ -1325,7 +1325,7 @@
     {
       "module": "Text.Toml",
       "path": "compiler/prelude/Text/Toml.cinch",
-      "sha256": "6b8e9b23caad2de0fe0d06a6f8f975dcdfe435216a22e52a77fbc0aa77899b2e",
+      "sha256": "a5cd93530d3844f3c904ae55cb8b59a8c4611ba114d319daa937eabad137f7ce",
       "embedded": false,
       "values": 2,
       "public_methods": 0
@@ -1424,6 +1424,14 @@
       "sha256": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8",
       "embedded": false,
       "values": 9,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Utf8",
+      "path": "compiler/prelude/Text/Utf8.cinch",
+      "sha256": "1cbea5905f313433efbc56e2b91f60ce86cd82c499b342e17601766ab41d4159",
+      "embedded": false,
+      "values": 33,
       "public_methods": 0
     },
     {

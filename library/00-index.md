@@ -134,7 +134,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Result](Data.Result.md) | Embedded | Success and named failure values, error-aware transformations, partitioning, and sequencing instances. |
 | [Data.Set](Data.Set.md) | Embedded | Ordered sets and their membership, combination, difference, and conversion operations. |
 | [Data.Sorted](Data.Sorted.md) | Embedded | Lists refined by sortedness, with construction and combination that preserve ordering. |
-| [Data.String](Data.String.md) | Embedded | Immutable UTF-8 text, encoding/decoding, character access, slicing, comparison, and concatenation. Byte conversions copy to preserve immutability. |
+| [Data.String](Data.String.md) | Embedded | Immutable UTF-8 text with bounded-stack construction and joining, scalar/span decoding, SIMD scalar counting, slicing and comparison. Byte conversions preserve immutability. |
 | [Data.StringIo](Data.StringIo.md) | Ship source | In-memory string-oriented I/O utilities with explicit state and error results. |
 | [Data.Sym](Data.Sym.md) | Embedded | Interned symbols with identity equality, deterministic spelling order, and String conversions. |
 | [Data.Target](Data.Target.md) | Embedded | Target/platform and worker vocabulary used by the compiler-supported runtime and target examples. |
@@ -200,6 +200,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Url.Userinfo](Text.Url.Userinfo.md) | Ship source | Immutable copied URL user information with explicit password presence and checked percent encoding. |
 | [Text.Url](Text.Url.md) | Ship source | Immutable byte-preserving URLs, percent escaping, query multimaps, parsing and reference resolution. |
 | [Text.Utf16](Text.Utf16.md) | Ship source | UTF-16 scalar and surrogate operations, code-unit sequences and explicit-order byte codecs with SWAR ASCII blocks. |
+| [Text.Utf8](Text.Utf8.md) | Ship source | Raw UTF-8 and immutable-text decoding, validation, scalar counts, replacement encoding and checked atomic buffer writes. |
 | [Text.Yaml](Text.Yaml.md) | Ship source | The module's supported YAML subset, structured values, and named parse errors; not an assertion of every YAML feature. |
 | [Text.Zlib](Text.Zlib.md) | Ship source | Compression/decompression operations and named malformed/unsupported-stream results. |
 
@@ -247,7 +248,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **180 source modules**: **65 embedded** and **115 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **181 source modules**: **65 embedded** and **116 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

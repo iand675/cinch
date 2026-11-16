@@ -87,11 +87,10 @@ longer, the bytes copied in, the last byte zeroed).
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-from-list</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>)) -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
-The list's bytes, in order. A byte is an `InRange 0 255 Nat`, so a
-list of numerals decides each element at compile time and a
-computed list carries its elements' ranges.
+Copy typed byte values in list order into one fresh mutable buffer.
+A tail count pass and checked tail stores keep construction stack bounded.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 73
+[Source](/reference-sources/Data.Bytes.cinch) · line 72
 
 <a id="value-62797465732d66726f6d2d753873"></a>
 
@@ -99,9 +98,9 @@ computed list carries its elements' ranges.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-from-u8s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U8</span>) -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
-The `FromList` buffer: `bytes-from-list`'s shape over `U8`.
+Copy machine byte values into one fresh buffer without recursive unwinding.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 98
+[Source](/reference-sources/Data.Bytes.cinch) · line 104
 
 <a id="value-62797465732d676574"></a>
 
@@ -180,4 +179,4 @@ copies of one algorithm.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes.cinch`. Source SHA-256: `b0ca021a04d0e01bb1028a934a79f9982f1fcb80110d7c4bf8085bf36607ec5c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes.cinch`. Source SHA-256: `1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

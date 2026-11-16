@@ -339,4 +339,4 @@ printer uses).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/OptionParser.cinch`. Source SHA-256: `f6f1d8610648fed5f3355567cdd52a381f80322f8996ce29482931ef0977cc48`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/OptionParser.cinch`. Source SHA-256: `a98ed14dc7c9027ecc53724e553eaf38be5066a392559916d31036bf5f557eee`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

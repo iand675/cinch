@@ -61,7 +61,7 @@ module Text.Parse where
   import Data.Nat
   import Data.Option
   import Data.String
-  import Text.Scan
+  import Text.Scan (string-join as scan-string-join)
   import Text.Show
 
   export ErrorItem, ITok, ILabel, IEnd
@@ -156,8 +156,9 @@ module Text.Parse where
     TTickName s -> s
     TTickType s -> s
 
+  -- | Separate rendered expectations with commas using the scanning module's join policy.
   join-items :: List ErrorItem -> String
-  join-items xs = string-join ", " (map render-item xs)
+  join-items xs = scan-string-join ", " (map render-item xs)
 
   -- The source line containing a byte offset: its start offset and
   -- its text (without the line ending). The offset is inside the

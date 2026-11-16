@@ -2082,23 +2082,30 @@
     },
     {
       "reference_package": "unicode/utf8",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
         "Data.Bytes.Utf8",
         "Data.Char",
-        "Data.String"
+        "Data.String",
+        "Text.Utf8"
       ],
-      "remaining": [
-        "Five String adapters require private backing wrappers and an explicitly validated base-provider dependency epoch: DecodeLastRuneInString, DecodeRuneInString, FullRuneInString, RuneCountInString, ValidString"
-      ],
+      "remaining": [],
       "reference_declarations": 23,
       "tests": [
         "lib_word_utf8",
-        "lib_utf8"
+        "lib_utf8",
+        "lib_utf8_text",
+        "lib_string_scalars"
       ],
-      "benchmarks": [],
-      "capability_mapping": "tooling/data/unicode-capabilities.json: implemented raw byte operations and five explicitly pending String adapters",
-      "review": "Raw byte decoding, reverse decoding, counting, validation, repair and encoding cover all numeric code points, byte pairs and malformed/aligned inputs on both frozen frontends. Parent lib_utf8 passes six checks, including actual WebAssembly, AArch64 and big-endian PowerPC kernel objects. Foreign execution is not claimed. Five String adapters and final benchmark review remain open. Selected SIMD16/fused width-validity loops pass both1001-process corpora and parent6-test expanded22-kernel/factory gate. Independent public timings and remaining small-input regression are retained in stdlib-utf8-optimization-evidence.md; text facade adapters remain pending."
+      "benchmarks": [
+        "utf8-valid",
+        "utf8-count",
+        "utf8-repair",
+        "string-length"
+      ],
+      "capability_mapping": "tooling/data/unicode-capabilities.json",
+      "review": "All23 cumulative records have concrete raw-byte/numeric or immutable-text mappings. Arbitrary malformed input remains representable through byte APIs; text adapters preserve the valid String invariant without exposing backing. The unchanged raw kernels retain their full-domain/malformed/ownership qualification. Final2f077 self-built String/Bytes distribution and actual804-case text/owner checks pass with matching provider/runtime and zero leaks; parent text6 and scalar5 tests pass, including real portable objects. Full parent library326 and affected text consumers pass. Exact source/compiler epochs and benchmark/codegen limits are retained; no newer scalar-family adoption is inferred.",
+      "native_family_evidence": "bootstrap/stdlib-string-combined-native-family-results.json"
     },
     {
       "reference_package": "unique",

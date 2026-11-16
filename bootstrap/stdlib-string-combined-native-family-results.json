@@ -1,0 +1,129 @@
+{
+  "description": "Full self-built Native family for combined String and Bytes source with explicit fresh base artifact",
+  "status": "full compiler family passed; final library clients tracked separately",
+  "compiler_source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+  "source_modules": 51,
+  "original_provider_sha256": "0f34c2be54689879c73f5da9556e15932a0daf71018cef41e433ae2142456dae",
+  "base_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "string_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+  "bytes_source_sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+  "reuse_scope": "Only exact certified Stage0 and seed runtime; Stage1 rebuilt from new namespace-fixed source. Earlier unchanged-Stage1 attempt is preserved with its named import collision.",
+  "stages": {
+    "stage0": {
+      "record_sha256": "5763deb497b205352bda86e34defd33a4fe4f54ecc69ae1a1c0ecac4d564d223",
+      "executable_sha256": "ce4a68ee6a283199ce8ff6b1f53bb21f34e8c0ea6816d7de9fff295c98127a3a",
+      "source_sha256": null,
+      "reused": true
+    },
+    "stage1": {
+      "record_sha256": "9e5c6fb5a8bbcdf92e5b8cff04aa2d31ac0ff79b3c9a2e44256f32d1bc62531f",
+      "executable_sha256": "82ff10023ffddb3ab8987bde9141e7401ee4fa9cd977e04b8cfff6996c873559",
+      "source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+      "reused": false
+    },
+    "stage2": {
+      "record_sha256": "88b309441557641029c0abcb9cb32e42123c811cb19b634fe472de6f40e083da",
+      "executable_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+      "reused": false
+    },
+    "stage3": {
+      "record_sha256": "305a1d5523d8644623c78f132c0f6d15d7848e0cd1e231ca3851f03bc153d295",
+      "executable_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+      "reused": false
+    }
+  },
+  "fixed_point": {
+    "executable_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+    "llvm_sha256": "93f3299363b8fdfde473102da84f183fde3eaa78b76b31e01b46e72f355076f0",
+    "canonical_interfaces": {
+      "compiler.ll.Bootstrap.Ast.cinchif": "66310f4a05204ad616036eb692befb70fc18fd18606dd94768dce7c177f1bc4e",
+      "compiler.ll.Bootstrap.BodyContract.cinchif": "146a80d565d1739d8c3577ac6be9afeac4d6c1675ddd773626b8faecb1a886cd",
+      "compiler.ll.Bootstrap.Builtin.cinchif": "9b9d4c845512dcaeaea8a9319eeb4d98c4218e29cc284c59a6d034876f167da9",
+      "compiler.ll.Bootstrap.Check.cinchif": "c3fa22c7581d1e74cbdcdf5133aae1a26a832dfcfa69fe311fc8e8b2af7536fd",
+      "compiler.ll.Bootstrap.Contracts.cinchif": "5a5908a100a5a941958e0ba752efd95b1b79a0c887e46c774f4de303fe54f4e8",
+      "compiler.ll.Bootstrap.Core.cinchif": "c3274cedb41eb1a3e9282717402235d7a950fdd99a0bc538a44ea5ed5bd53a5e",
+      "compiler.ll.Bootstrap.CoreBody.cinchif": "c7163991e868723b4ca76b5134a9c71ff1fdcf932b7e55b60e2387c14e8cd5b2",
+      "compiler.ll.Bootstrap.Dictionary.cinchif": "29092f13227a113ae410d16a1042bbd12d1bbe319572529d73ef41d6351a85a1",
+      "compiler.ll.Bootstrap.Driver.cinchif": "1c036884078543becc4950e692df80feb8b204168b40fcbb1589cc7a8b4c1751",
+      "compiler.ll.Bootstrap.Eval.cinchif": "bb2bbbdce98b7ecf8017c1808e398adf31489a8ca3cc8310c896f305a2dbfbed",
+      "compiler.ll.Bootstrap.Expand.cinchif": "d1d8b7ce84437f55b964a67a01e2d3fb1e50919268d7422fdc2cb3630a959bb0",
+      "compiler.ll.Bootstrap.Export.cinchif": "ef45cf2a75285d35f7e58a34c6d10905a42cb42665211a7a696657af036475cd",
+      "compiler.ll.Bootstrap.ExportNominal.cinchif": "6504d33078d6388fc3c30d1ae6e60a2b664a5e709f2f693de3460aacc9b45d70",
+      "compiler.ll.Bootstrap.ExportType.cinchif": "097c3b9f7e368b14f31afe5fe578a442adfc1c9f8c14b9491feaaa30ae944d5a",
+      "compiler.ll.Bootstrap.Foreign.cinchif": "0417650c29a538b2a3d75a49207fd8b412e63362ccde5cab5710f7add684dabe",
+      "compiler.ll.Bootstrap.Global.cinchif": "ade8abc83a4678fffc125677abf069b9f21da4f39d7b0ab0c72e7da6e42e448c",
+      "compiler.ll.Bootstrap.Guarded.cinchif": "4aff49ccb4e1dbd6c268ad7198b4f38047f889580e0b0089de559c689f9a8751",
+      "compiler.ll.Bootstrap.Index.cinchif": "1f10ff10a0b8a8a86f2f9f1e5c8225d7b007ca7018fcd87799667661a6c462e0",
+      "compiler.ll.Bootstrap.Infer.cinchif": "629222293e121e4e3b431418d23b5e7c1bad6a17e616bf597983645eaefce59d",
+      "compiler.ll.Bootstrap.Inputs.cinchif": "a9bf6c338051ffb78102ce0faacff2d14401dcb36d329462f099362e7b5b84dd",
+      "compiler.ll.Bootstrap.Instance.cinchif": "0d6c269a86aa1e016b130b0a0f7daada76c2ad247713480495b3f5ed902b76df",
+      "compiler.ll.Bootstrap.Interface.cinchif": "8f9047e93e2ca523d836870f84864dc69c0c7fe862a557049cbd72564cf5e4e4",
+      "compiler.ll.Bootstrap.Ir.cinchif": "2a1c16a4d9c6772975874fbd7373f6ce7dc870f326a6adbf3dd358e9af6a0173",
+      "compiler.ll.Bootstrap.Kinds.cinchif": "28c49df68cd17e71762a61a7aa6fc07301abb7a6a7af28c61a1af0f4bc3ae4d8",
+      "compiler.ll.Bootstrap.Load.cinchif": "985c73e3d4629a3aaaf8da3548281aa05ec16a0767016d437c647e37cb883cd4",
+      "compiler.ll.Bootstrap.Manifest.cinchif": "4fb5719ca6120a44c6110bd4e108fe53d5b44e2b63e6f4f35e34a260b575c1f7",
+      "compiler.ll.Bootstrap.Nominal.cinchif": "464d10972fb2496796c743983ceeab88b702d485ec6ec5b3b2c5f779a85a231f",
+      "compiler.ll.Bootstrap.Object.cinchif": "5a534eef4d47037dd4a533c8dd4332901d6f7df3ee6effd7a2d30db2f1dc69d1",
+      "compiler.ll.Bootstrap.Parse.cinchif": "dc6c2928348b74c8f401a1dd0fe354f7c60941f036c168bbaad4902ed31d85a2",
+      "compiler.ll.Bootstrap.Pipeline.cinchif": "9c7f0937d6befc945b141f8df8e6e7bfa5c31e43b8ffe9da10c8f75b86d8a516",
+      "compiler.ll.Bootstrap.Proof.cinchif": "99070d78e1ffea510fae022248b1926585d4c902b041b4e8a6c5f2385d013487",
+      "compiler.ll.Bootstrap.Report.cinchif": "5e98e378d5a490da57978045ef667b077d3cd6f25ca9dd83edb2188b293c97fe",
+      "compiler.ll.Bootstrap.Resolve.cinchif": "a1b264fe4f4b93105658ce6e701465c549e5f0542e9f2936feb89743ebb16782",
+      "compiler.ll.Bootstrap.RuntimeAbi.cinchif": "6d1d03eb1ef02c5c3b4c39c077fc3183320f236f5f16efd655dd538d2cf990ad",
+      "compiler.ll.Bootstrap.RuntimeIr.cinchif": "ec0c5192a2227f9ada3b58133ffe4f7b5c7d6f69808e01754114f23875bf3ae5",
+      "compiler.ll.Bootstrap.Stage.cinchif": "a5b774d2ba6404d66db0b306bb8f0ad7eaa592922cb9c715138c55d942425ca7",
+      "compiler.ll.Bootstrap.StageEval.cinchif": "5a808eb20db4b1395b52fadabd5546317f327677cbef4f97ed55cab4bb32c078",
+      "compiler.ll.Bootstrap.Temporal.cinchif": "216535412eccc5d464d68b8845b88cbb8d71eb8bab5234c5a9776655b801d879",
+      "compiler.ll.Bootstrap.TemporalCheck.cinchif": "98d86ca471e7183ceaed5a89b968d00acbee104cdddc207c671e5375dd15cfa1",
+      "compiler.ll.Bootstrap.Test.cinchif": "654072879a7d576c66a3a9ed6d7be00198f2388a9a276283de61f1fc67bf6fd7",
+      "compiler.ll.Bootstrap.Total.cinchif": "641186cac5c0d72b843cef61b227d5fdcca61df2521f79c97cfa0686b27f7ff5",
+      "compiler.ll.Bootstrap.TotalSemantics.cinchif": "cdece6a9246fad9f56ae00f2ba78b56ebbd76aed58b3a27627421199f99a7048",
+      "compiler.ll.Bootstrap.Type.cinchif": "c0c4cf9695c9f181af8c528dcea0bf7660263d8183c617a2c81c568f2dea891c",
+      "compiler.ll.Bootstrap.Typing.cinchif": "5506ec07f3df6b64e2b92a1afcb3947418ca2c2fe6db86575cdf565dc10a179c",
+      "compiler.ll.Data.Array.cinchif": "42fa7103de99fc03db460fd607f4bb0b56673270fa7e1b5881b3080abf9c70ca",
+      "compiler.ll.Main.cinchif": "fd07c995842db3bf4c3f9e4157c8c1bedb598753dff948ac351c0203b5874e1d",
+      "compiler.ll.Text.Builder.cinchif": "2694e0aa2b5fb85c659c53b65c35af0b9ae20611ab348ba2bffe245b482c2393",
+      "compiler.ll.Text.Json.cinchif": "689b0f8222c245d8c7f497034e2ee416644dff44ad55dc693d5a02928765f9d9",
+      "compiler.ll.Text.Lex.cinchif": "0cec66d71fa01e5b5e5596d4a41395b79b31493fe28ecf8ee0de91d8df768b1e",
+      "compiler.ll.Text.Parse.cinchif": "dc832dc678dad41c5ee17274688d63874d2fd83180025847cf5b054ad7df1839",
+      "compiler.ll.Text.Scan.cinchif": "23808987d49319e60333924f8eb85b699de60ba9027376d2740454e071bbcc5e"
+    },
+    "all_stage_smokes": "passed",
+    "source_absent_entry": {
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "manifest_sha256": "1d16dcee3041c2f56377e6e793ab078787aec2e5a59caf34cdd7d5aa76cb1050",
+      "source_sha256": "af5113475ded965ccd87d34f50c24125e6d2f902ca907734b78dc59a873055cc",
+      "status": "passed"
+    },
+    "changed_source": {
+      "compiler_sha256": "aecd1852905e7d4c33be8262f7a4eba92bf721245f9f2d46105de8aafde44f9e",
+      "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+      "source_sha256": "5cb5445437b9efe411f7503b0b4fef490fc25119e249d6c6eee612219ad96bc5"
+    }
+  },
+  "snapshot": {
+    "path": "build/combined-stage3-frozen",
+    "record_sha256": "879f629db2de1b84919dfe0bf571c705ebcef2abb857fda836ec4bd5d27e2502",
+    "relocated_provider_sha256": "0e3c00e99c0596fccc11231bffdc0468d87e848f72246114dbe4004f4b67e408",
+    "probe": {
+      "normal_and_poison": "passed zero leaks",
+      "source_sha256": "d380d9c1e1fa4217e1d87aa28ae549045602d2c268b829cdf4c6d00f7217d27b",
+      "llvm_sha256": "f03eab13e2917e6f663ef5f3b10fd2bf45a016d02bd1cf54b2b9c733936b935a",
+      "executable_sha256": "7690ef0b55a5cc5c22c9343a975c226aebf701816618495e5f9ed9a208bb4a70",
+      "initial_fixture_failures": [
+        "Invalid source Unicode escape rejected before IR",
+        "Separator-first call rejected: embedded String join accepts the list first; legacy Text.Scan uses separator first"
+      ],
+      "retained_failures": "Exact initial source/diagnostic files beside corrected consumer"
+    }
+  },
+  "log_sha256": "0ffd086108e77d110f0163f7c9fe9f57ec256a9f4afa908274ceae3d21f44692",
+  "limitations": [
+    "Array positive-payload compiler certificate, Rust frame-capture repair and new Native scalar/foreign-alias lowering are separate compiler epochs.",
+    "Final Text.Utf8 Stage3 clients are receipted separately; parent SDK-free Cargo gate remains separate.",
+    "Performance is established by individually identified paired benchmarks, not by the fixed point."
+  ]
+}

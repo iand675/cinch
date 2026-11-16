@@ -67,23 +67,29 @@ module Data.Bytes where
   -- digest as a fresh 32-byte buffer.
   foreign import ccall "cinch.runtime.textSha256" sha256-bytes :: Bytes -> Bytes
 
-  -- The list's bytes, in order. A byte is an `InRange 0 255 Nat`, so a
-  -- list of numerals decides each element at compile time and a
-  -- computed list carries its elements' ranges.
+  -- | Copy typed byte values in list order into one fresh mutable buffer.
+  -- A tail count pass and checked tail stores keep construction stack bounded.
   bytes-from-list :: List (InRange 0 255 Nat) -> Bytes
-  bytes-from-list xs = bytes-fill-from 0 xs
+  bytes-from-list xs =
+    let size = byte-list-size xs 0 in
+    let out = bytes-new size in
+    let filled = bytes-fill-into out 0 xs in
+    out
 
-  -- The elements from index `i` on: the buffer is made once, at the end
-  -- of the list, sized to `i` plus nothing more, and each element is
-  -- written on the way back. The result's refinement (`i <= bytes-len
-  -- out`) is the bound every write proves, so no index is guessed.
-  bytes-fill-from :: (i :: Nat) -> List (InRange 0 255 Nat) -> refined (i <= bytes-len out) Bytes
-  bytes-fill-from i xs = case xs of
-    Nil -> bytes-new i
-    Cons y ys ->
-      let out = bytes-fill-from (i + 1) ys in
-      let u = bytes-set out i y in
-      out
+  -- | Count any typed element list without retaining recursive return frames.
+  byte-list-size :: forall a. List a -> Nat -> Nat
+  byte-list-size xs total = case xs of
+    Nil -> total
+    Cons _ rest -> let next = total + 1 in byte-list-size rest next
+
+  -- | Store already range-checked byte values into the pre-sized private result.
+  bytes-fill-into :: Bytes -> Nat -> List (InRange 0 255 Nat) -> Unit
+  bytes-fill-into out i xs = case xs of
+    Nil -> ()
+    Cons value rest -> if i < bytes-len out then
+      let written = bytes-set out i value in
+      let next = i + 1 in bytes-fill-into out next rest
+      else ()
 
   -- A `U8` as the byte it is (`Data.Machine`'s `u8-to-i64` intrinsic,
   -- declared here because `Data.Machine` imports this module): its
@@ -94,17 +100,23 @@ module Data.Bytes where
   byte-of-u8 :: U8 -> InRange 0 255 Nat
   byte-of-u8 x = let w = byte-word x in nat-from-i64 w
 
-  -- The `FromList` buffer: `bytes-from-list`'s shape over `U8`.
+  -- | Copy machine byte values into one fresh buffer without recursive unwinding.
   bytes-from-u8s :: List U8 -> Bytes
-  bytes-from-u8s xs = u8s-fill-from 0 xs
+  bytes-from-u8s xs =
+    let size = byte-list-size xs 0 in
+    let out = bytes-new size in
+    let filled = u8s-fill-into out 0 xs in
+    out
 
-  u8s-fill-from :: (i :: Nat) -> List U8 -> refined (i <= bytes-len out) Bytes
-  u8s-fill-from i xs = case xs of
-    Nil -> bytes-new i
-    Cons y ys ->
-      let out = u8s-fill-from (i + 1) ys in
-      let u = bytes-set out i (byte-of-u8 y) in
-      out
+  -- | Convert and store each machine byte through an explicit checked destination index.
+  u8s-fill-into :: Bytes -> Nat -> List U8 -> Unit
+  u8s-fill-into out i xs = case xs of
+    Nil -> ()
+    Cons value rest -> if i < bytes-len out then
+      let byte = byte-of-u8 value in
+      let written = bytes-set out i byte in
+      let next = i + 1 in u8s-fill-into out next rest
+      else ()
 
   implicit instance FromList_Bytes :: FromList Bytes U8 where
     from-list xs = bytes-from-u8s xs
