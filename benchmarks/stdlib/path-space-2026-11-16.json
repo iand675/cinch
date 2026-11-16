@@ -1,0 +1,582 @@
+{
+  "description": "One complete public operation with equal-length executable paths; startup and input/pattern preparation included, ordinary reclamation without poisoned-free quarantine.",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "driver_sha256": "d818f7f1c7b671a6eac4adab0ee908442a6f93f2f1681210954fc31a2271c4ba",
+  "cpu_affinity": [
+    1
+  ],
+  "environment": {
+    "CINCH_RC_DEBUG": "0",
+    "CINCH_ALLOC_STATS": "1",
+    "CINCH_LEAK_CHECK": "1",
+    "CINCH_HEAP_LIMIT": "32M",
+    "CINCH_STACK_SIZE": "8M"
+  },
+  "inputs": {
+    "before": {
+      "executable": "/workspace/dasl-stdlib-path/build/path-benchmark/before/bench",
+      "executable_sha256": "5bd2ee8a2faf81963a8b12e2c4b0c871fed6e5f83142621fc2b9c48c0a72d25f",
+      "llvm_sha256": "daf79694045c59e56fc383403a1d76f1993c7392c8af400cbb4064983036be92",
+      "assembly_sha256": "435b09056f07f657f5b360d148bb7ba9e5ca9e9cb1a28059a51aa50fb680e8fc",
+      "sources": {
+        "Text.Path": "de883617761b9a02d3103cd8d16b7863817a507e4ff3053c8bff308175f09047",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      }
+    },
+    "after": {
+      "executable": "/workspace/dasl-stdlib-path/build/path-benchmark/after/bench",
+      "executable_sha256": "2288299c70f6547d54f860717d2b814e270a5722c64bef3088938adb8d492429",
+      "llvm_sha256": "196f6bf4ae1db91c3c3dd279ea176de96ba7b64b45eb0f3f5c08cd9b32684482",
+      "assembly_sha256": "29118f5b1db671f8aa66ad109a9f65802650451c1e0e628ae174a868f644965b",
+      "sources": {
+        "Text.Path": "8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad"
+      }
+    }
+  },
+  "rows": [
+    {
+      "variant": "before",
+      "workload": "clean-component",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 245,
+      "stats": {
+        "blocks": 142,
+        "bytes": 3872,
+        "peak": 1334,
+        "header-blocks": 106,
+        "header-bytes": 2184,
+        "immortal": 0,
+        "freed": 106,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "clean-segments",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 226,
+      "stats": {
+        "blocks": 137,
+        "bytes": 3766,
+        "peak": 1333,
+        "header-blocks": 102,
+        "header-bytes": 2104,
+        "immortal": 0,
+        "freed": 102,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "base",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 272,
+      "stats": {
+        "blocks": 130,
+        "bytes": 3667,
+        "peak": 1322,
+        "header-blocks": 95,
+        "header-bytes": 1960,
+        "immortal": 0,
+        "freed": 95,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "ext",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 0,
+      "stats": {
+        "blocks": 116,
+        "bytes": 3274,
+        "peak": 1319,
+        "header-blocks": 85,
+        "header-bytes": 1720,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "compiled-match",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 1,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3363,
+        "peak": 1330,
+        "header-blocks": 88,
+        "header-bytes": 1776,
+        "immortal": 0,
+        "freed": 88,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "match",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 1,
+      "stats": {
+        "blocks": 125,
+        "bytes": 3480,
+        "peak": 1321,
+        "header-blocks": 92,
+        "header-bytes": 1856,
+        "immortal": 0,
+        "freed": 92,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "join",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 245,
+      "stats": {
+        "blocks": 139,
+        "bytes": 3753,
+        "peak": 1322,
+        "header-blocks": 101,
+        "header-bytes": 2104,
+        "immortal": 0,
+        "freed": 101,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "absolute-control",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 0,
+      "stats": {
+        "blocks": 106,
+        "bytes": 3089,
+        "peak": 1332,
+        "header-blocks": 76,
+        "header-bytes": 1528,
+        "immortal": 0,
+        "freed": 76,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "clean-component",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 245,
+      "stats": {
+        "blocks": 162,
+        "bytes": 528317,
+        "peak": 393742,
+        "header-blocks": 126,
+        "header-bytes": 2584,
+        "immortal": 0,
+        "freed": 126,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "clean-segments",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 14784,
+      "stats": {
+        "blocks": 175,
+        "bytes": 506757,
+        "peak": 393726,
+        "header-blocks": 140,
+        "header-bytes": 2864,
+        "immortal": 0,
+        "freed": 140,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "base",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65776,
+      "stats": {
+        "blocks": 156,
+        "bytes": 659256,
+        "peak": 393726,
+        "header-blocks": 121,
+        "header-bytes": 2480,
+        "immortal": 0,
+        "freed": 121,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "ext",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 0,
+      "stats": {
+        "blocks": 138,
+        "bytes": 396755,
+        "peak": 328179,
+        "header-blocks": 107,
+        "header-bytes": 2160,
+        "immortal": 0,
+        "freed": 107,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "compiled-match",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 1,
+      "stats": {
+        "blocks": 141,
+        "bytes": 396844,
+        "peak": 328206,
+        "header-blocks": 110,
+        "header-bytes": 2216,
+        "immortal": 0,
+        "freed": 110,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "match",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 1,
+      "stats": {
+        "blocks": 147,
+        "bytes": 527969,
+        "peak": 393797,
+        "header-blocks": 114,
+        "header-bytes": 2296,
+        "immortal": 0,
+        "freed": 114,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "join",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 245,
+      "stats": {
+        "blocks": 161,
+        "bytes": 528242,
+        "peak": 393774,
+        "header-blocks": 123,
+        "header-bytes": 2544,
+        "immortal": 0,
+        "freed": 123,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "absolute-control",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 0,
+      "stats": {
+        "blocks": 126,
+        "bytes": 331022,
+        "peak": 262648,
+        "header-blocks": 96,
+        "header-bytes": 1928,
+        "immortal": 0,
+        "freed": 96,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "clean-component",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 245,
+      "stats": {
+        "blocks": 142,
+        "bytes": 3872,
+        "peak": 1334,
+        "header-blocks": 106,
+        "header-bytes": 2184,
+        "immortal": 0,
+        "freed": 106,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "clean-segments",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 226,
+      "stats": {
+        "blocks": 135,
+        "bytes": 3722,
+        "peak": 1332,
+        "header-blocks": 100,
+        "header-bytes": 2064,
+        "immortal": 0,
+        "freed": 100,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "base",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 272,
+      "stats": {
+        "blocks": 130,
+        "bytes": 3667,
+        "peak": 1322,
+        "header-blocks": 95,
+        "header-bytes": 1960,
+        "immortal": 0,
+        "freed": 95,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "ext",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 0,
+      "stats": {
+        "blocks": 116,
+        "bytes": 3274,
+        "peak": 1319,
+        "header-blocks": 85,
+        "header-bytes": 1720,
+        "immortal": 0,
+        "freed": 85,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "compiled-match",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 1,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3363,
+        "peak": 1330,
+        "header-blocks": 88,
+        "header-bytes": 1776,
+        "immortal": 0,
+        "freed": 88,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "match",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 1,
+      "stats": {
+        "blocks": 125,
+        "bytes": 3480,
+        "peak": 1321,
+        "header-blocks": 92,
+        "header-bytes": 1856,
+        "immortal": 0,
+        "freed": 92,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "join",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 245,
+      "stats": {
+        "blocks": 139,
+        "bytes": 3753,
+        "peak": 1322,
+        "header-blocks": 101,
+        "header-bytes": 2104,
+        "immortal": 0,
+        "freed": 101,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "absolute-control",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 0,
+      "stats": {
+        "blocks": 106,
+        "bytes": 3089,
+        "peak": 1332,
+        "header-blocks": 76,
+        "header-bytes": 1528,
+        "immortal": 0,
+        "freed": 76,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "clean-component",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 245,
+      "stats": {
+        "blocks": 162,
+        "bytes": 528317,
+        "peak": 393742,
+        "header-blocks": 126,
+        "header-bytes": 2584,
+        "immortal": 0,
+        "freed": 126,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "clean-segments",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 14784,
+      "stats": {
+        "blocks": 175,
+        "bytes": 506757,
+        "peak": 393726,
+        "header-blocks": 140,
+        "header-bytes": 2864,
+        "immortal": 0,
+        "freed": 140,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "base",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65776,
+      "stats": {
+        "blocks": 156,
+        "bytes": 659256,
+        "peak": 393726,
+        "header-blocks": 121,
+        "header-bytes": 2480,
+        "immortal": 0,
+        "freed": 121,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "ext",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 0,
+      "stats": {
+        "blocks": 136,
+        "bytes": 396711,
+        "peak": 328179,
+        "header-blocks": 105,
+        "header-bytes": 2120,
+        "immortal": 0,
+        "freed": 105,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "compiled-match",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 1,
+      "stats": {
+        "blocks": 139,
+        "bytes": 396800,
+        "peak": 328206,
+        "header-blocks": 108,
+        "header-bytes": 2176,
+        "immortal": 0,
+        "freed": 108,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "match",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 1,
+      "stats": {
+        "blocks": 147,
+        "bytes": 527969,
+        "peak": 393797,
+        "header-blocks": 114,
+        "header-bytes": 2296,
+        "immortal": 0,
+        "freed": 114,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "join",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 245,
+      "stats": {
+        "blocks": 161,
+        "bytes": 528242,
+        "peak": 393774,
+        "header-blocks": 123,
+        "header-bytes": 2544,
+        "immortal": 0,
+        "freed": 123,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "absolute-control",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 0,
+      "stats": {
+        "blocks": 126,
+        "bytes": 331022,
+        "peak": 262648,
+        "header-blocks": 96,
+        "header-bytes": 1928,
+        "immortal": 0,
+        "freed": 96,
+        "live": 0
+      }
+    }
+  ]
+}

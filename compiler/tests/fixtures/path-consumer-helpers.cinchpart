@@ -1,0 +1,52 @@
+-- | Independent lexical and shell-pattern observations.
+module Main where
+  import Text.Path
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  -- | Keep fixture text construction in the executable, outside constant evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Reconstruct exactly the fixture bytes without a mutable alias or compile-time shortcut.
+  runtime-text :: String -> String
+  runtime-text text =
+    let original = string-to-bytes text in
+    let n = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len original)))) in
+    let out = bytes-new n in
+    if n == bytes-len original then
+      let copied = bytes-copy-range out original 0 0 n in
+      case string-from-bytes out of Some result -> result; None -> empty-string
+    else empty-string
+  -- | Preserve every fixture result rather than exiting at the first compile-time constant.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+  -- | Compare all lexical observations, including exact uncleaned split intervals.
+  lexical-case :: String -> String -> String -> String -> String -> Bool -> String -> String -> Bool
+  lexical-case raw clean base dir ext absolute split-dir split-base =
+    let text = runtime-text raw in
+    path-clean text == clean && path-base text == base && path-dir text == dir
+      && path-ext text == ext && path-is-absolute text == absolute
+      && (case path-split text of (a, b) -> a == split-dir && b == split-base)
+      && path-clean (path-clean text) == clean
+  -- | Make every join input a runtime-owned value before public concatenation.
+  runtime-elements :: List String -> List String
+  runtime-elements values = case values of Nil -> Nil; Cons first rest -> Cons (runtime-text first) (runtime-elements rest)
+  -- | Compare one independent join result, including all-empty and later-rooted inputs.
+  join-case :: List String -> String -> Bool
+  join-case elements expected = path-join (runtime-elements elements) == expected
+  -- | Check both convenience and reusable-pattern entry points, including full syntax validation.
+  glob-case :: String -> String -> Bool -> Bool -> Bool
+  glob-case raw-pattern raw-name expected invalid =
+    let pattern = runtime-text raw-pattern in let name = runtime-text raw-name in
+    (case path-match pattern name of
+      Err InvalidPathPattern -> invalid
+      Ok actual -> not invalid && actual == expected)
+      && (case path-pattern pattern of
+        Err error -> invalid && path-pattern-error-message error == "syntax error in pattern"
+        Ok compiled -> not invalid && path-pattern-match compiled name == expected && path-pattern-match compiled name == expected)
