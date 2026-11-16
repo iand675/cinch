@@ -66,8 +66,12 @@ def main() -> None:
     if args.frontend == "rust" and args.opt_level is None:
         args.opt_level = 2
     compiler = args.compiler.resolve()
-    frozen_modules = {name: path.read_bytes() for name, path in MODULES.items()}
+    modules = dict(MODULES)
+    if any(suite in {"typed", "codec-control", "float", "field", "map", "dynamic"} for suite in args.suites):
+        modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
+    frozen_modules = {name: path.read_bytes() for name, path in modules.items()}
     frozen_consumers = {suite: (ROOT / f"compiler/tests/fixtures/json-codec-{suite}.cinch").read_bytes() for suite in args.suites}
+    reference_paths = {suite: ROOT / (f"compiler/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "field"} else "compiler/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
     report = {
         "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
         "frontend": args.frontend, "opt_level": args.opt_level if args.frontend == "rust" else 0,
@@ -75,6 +79,7 @@ def main() -> None:
         "compiler_sha256": digest(compiler),
         "sources": {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen_modules.items()},
         "fixture_sha256": digest(ROOT / "compiler/tests/fixtures/json-codec-vectors.json"),
+        "reference_fixtures": {suite: digest(path) for suite, path in reference_paths.items()},
         "cpu_affinity": [args.cpu], "compiler_host_stack_kib": args.compiler_host_stack_kib, "consumer_stack_limit": "8M", "suites": [],
     }
     if args.runtime_receipt:
@@ -92,6 +97,7 @@ def main() -> None:
         for name, contents in frozen_modules.items():
             (directory / f"{name}.cinch").write_bytes(contents)
         (directory / "Main.cinch").write_bytes(frozen_consumers[suite])
+        (directory / "reference-vectors.json").write_bytes(reference_paths[suite].read_bytes())
         output = directory / "consumer"
         if args.frontend == "rust":
             command = [str(compiler), "build", str(directory / "Main.cinch"), "-o", str(output), "--opt-level", str(args.opt_level), "--rc-debug"]

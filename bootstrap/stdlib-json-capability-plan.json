@@ -2,7 +2,7 @@
   "reference_package": "encoding/json",
   "reference_sdk": "go1.27.4 linux/amd64",
   "reference_declarations": 92,
-  "status": "partial-core-tested; typed codecs and effects remain in progress",
+  "status": "partial-core-and-typed-records; numeric/map/binary catalogue and effects remain in progress",
   "source_base_commit": "689eb0c0",
   "existing_modules_preserved": [
     "Text.Json",
@@ -21,11 +21,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-addressable-methods-only"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func Compact(*bytes.Buffer, []uint8) error",
@@ -44,11 +44,10 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
         "json-default-policies"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func FormatByteArrayAsArray(bool) jsonopts.Options",
@@ -56,11 +55,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-byte-array-numbers"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func FormatBytesWithLegacySemantics(bool) jsonopts.Options",
@@ -68,11 +67,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-named-bytes-as-binary"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func FormatDurationAsNano(bool) jsonopts.Options",
@@ -80,11 +79,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-duration-nanoseconds"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func HTMLEscape(*bytes.Buffer, []uint8)",
@@ -115,8 +114,8 @@
       "planned_cinch_capabilities": [
         "json-marshal"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-generic-typed-capability; built-in catalogue partial",
+      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional field replacement substitute for reflection and mutation. JsonDecoded preserves the partial value, first error and fatal/continuation distinction. Map/binary/unsigned/dynamic convenience descriptors and complete error metadata remain open."
     },
     {
       "reference_declaration": "func MarshalIndent(interface{}, string, string) ([]uint8, error)",
@@ -125,8 +124,8 @@
       "planned_cinch_capabilities": [
         "json-marshal-indent"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-generic-typed-capability; built-in catalogue partial",
+      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional field replacement substitute for reflection and mutation. JsonDecoded preserves the partial value, first error and fatal/continuation distinction. Map/binary/unsigned/dynamic convenience descriptors and complete error metadata remain open."
     },
     {
       "reference_declaration": "func MatchCaseSensitiveDelimiter(bool) jsonopts.Options",
@@ -134,11 +133,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-preserve-name-delimiters"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func MergeWithLegacySemantics(bool) jsonopts.Options",
@@ -146,11 +145,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-preserve-scalar-null"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func NewDecoder(io.Reader) *Decoder",
@@ -178,11 +177,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-omit-empty-application-values"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func ParseBytesWithLooseRFC4648(bool) jsonopts.Options",
@@ -190,11 +189,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-loose-base64-padding"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func ParseTimeWithLooseRFC3339(bool) jsonopts.Options",
@@ -202,11 +201,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-loose-timestamps"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func ReportErrorsWithLegacySemantics(bool) jsonopts.Options",
@@ -214,11 +213,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-continue-after-type-errors"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func StringifyWithLegacySemantics(bool) jsonopts.Options",
@@ -226,11 +225,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-quote-scalar-fields"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func Unmarshal([]uint8, interface{}) error",
@@ -240,8 +239,8 @@
         "json-unmarshal",
         "json-update"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-generic-typed-capability; built-in catalogue partial",
+      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional field replacement substitute for reflection and mutation. JsonDecoded preserves the partial value, first error and fatal/continuation distinction. Map/binary/unsigned/dynamic convenience descriptors and complete error metadata remain open."
     },
     {
       "reference_declaration": "func UnmarshalArrayFromAnyLength(bool) jsonopts.Options",
@@ -249,11 +248,11 @@
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
         "JsonPolicies",
-        "json-policies",
-        "json-default-policies"
+        "json-configure-policies",
+        "json-allow-array-length-mismatch"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "func Valid([]uint8) bool",
@@ -460,32 +459,26 @@
       "surface": "historical-v1-form-or-shared",
       "group": "structured-errors",
       "planned_cinch_capabilities": [
-        "JsonError",
+        "JsonCustomError",
         "json-error-message",
-        "json-error-offset",
-        "json-error-path",
         "json-error-type",
-        "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-typed-custom-error",
+      "review_note": "Explicit application labels replace reflection metadata. Both callback failure and malformed returned fragments are wrapped with the original structured cause."
     },
     {
       "reference_declaration": "method (*MarshalerError) Unwrap() error",
       "surface": "historical-v1-form-or-shared",
       "group": "structured-errors",
       "planned_cinch_capabilities": [
-        "JsonError",
+        "JsonCustomError",
         "json-error-message",
-        "json-error-offset",
-        "json-error-path",
         "json-error-type",
-        "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-typed-custom-error",
+      "review_note": "Explicit application labels replace reflection metadata. Both callback failure and malformed returned fragments are wrapped with the original structured cause."
     },
     {
       "reference_declaration": "method (*Number) UnmarshalJSONFrom(*jsontext.Decoder) error",
@@ -516,8 +509,8 @@
         "json-raw-replace",
         "json-raw-type"
       ],
-      "status": "partial-core",
-      "review_note": "Null/empty distinction and copying construction, assignment and getters are implemented. Typed/custom marshal methods and stream methods remain in the Codec/Effect increment."
+      "status": "partial-core-and-typed",
+      "review_note": "Copying construction/assignment/export, null-versus-empty state, exact source assignment and validated typed marshal pipeline are implemented. Explicit direct raw marshal entry point and final alias/method adaptation review remain open."
     },
     {
       "reference_declaration": "method (*RawMessage) UnmarshalJSON([]uint8) error",
@@ -531,8 +524,8 @@
         "json-raw-replace",
         "json-raw-type"
       ],
-      "status": "partial-core",
-      "review_note": "Null/empty distinction and copying construction, assignment and getters are implemented. Typed/custom marshal methods and stream methods remain in the Codec/Effect increment."
+      "status": "partial-core-and-typed",
+      "review_note": "Copying construction/assignment/export, null-versus-empty state, exact source assignment and validated typed marshal pipeline are implemented. Explicit direct raw marshal entry point and final alias/method adaptation review remain open."
     },
     {
       "reference_declaration": "method (*SyntaxError) Error() string",
@@ -579,8 +572,8 @@
         "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "partial-typed-error-metadata",
+      "review_note": "Original offsets, declared native type family, value description, nested field/index path and optional cause are preserved and independently tested. Separate containing-record metadata remains open; no full field-record equivalence is claimed yet."
     },
     {
       "reference_declaration": "method (*UnmarshalTypeError) Unwrap() error",
@@ -595,8 +588,8 @@
         "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "partial-typed-error-metadata",
+      "review_note": "Original offsets, declared native type family, value description, nested field/index path and optional cause are preserved and independently tested. Separate containing-record metadata remains open; no full field-record equivalence is claimed yet."
     },
     {
       "reference_declaration": "method (*UnsupportedTypeError) Error() string",
@@ -718,8 +711,8 @@
         "json-raw-replace",
         "json-raw-type"
       ],
-      "status": "partial-core",
-      "review_note": "Null/empty distinction and copying construction, assignment and getters are implemented. Typed/custom marshal methods and stream methods remain in the Codec/Effect increment."
+      "status": "partial-core-and-typed",
+      "review_note": "Copying construction/assignment/export, null-versus-empty state, exact source assignment and validated typed marshal pipeline are implemented. Explicit direct raw marshal entry point and final alias/method adaptation review remain open."
     },
     {
       "reference_declaration": "type Decoder struct",
@@ -853,11 +846,12 @@
       "planned_cinch_capabilities": [
         "JsonType",
         "json-custom-type",
-        "json-text-type",
-        "json-key-type"
+        "json-marshal-value",
+        "json-update-value",
+        "JsonDecoded"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
+      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
     },
     {
       "reference_declaration": "type Marshaler interface { MarshalJSON }",
@@ -866,11 +860,12 @@
       "planned_cinch_capabilities": [
         "JsonType",
         "json-custom-type",
-        "json-text-type",
-        "json-key-type"
+        "json-marshal-value",
+        "json-update-value",
+        "JsonDecoded"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
+      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
     },
     {
       "reference_declaration": "type Marshaler interface, MarshalJSON() ([]uint8, error)",
@@ -879,59 +874,51 @@
       "planned_cinch_capabilities": [
         "JsonType",
         "json-custom-type",
-        "json-text-type",
-        "json-key-type"
+        "json-marshal-value",
+        "json-update-value",
+        "JsonDecoded"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
+      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
     },
     {
       "reference_declaration": "type MarshalerError struct",
       "surface": "historical-v1-form-or-shared",
       "group": "structured-errors",
       "planned_cinch_capabilities": [
-        "JsonError",
+        "JsonCustomError",
         "json-error-message",
-        "json-error-offset",
-        "json-error-path",
         "json-error-type",
-        "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-typed-custom-error",
+      "review_note": "Explicit application labels replace reflection metadata. Both callback failure and malformed returned fragments are wrapped with the original structured cause."
     },
     {
       "reference_declaration": "type MarshalerError struct, Err error",
       "surface": "historical-v1-form-or-shared",
       "group": "structured-errors",
       "planned_cinch_capabilities": [
-        "JsonError",
+        "JsonCustomError",
         "json-error-message",
-        "json-error-offset",
-        "json-error-path",
         "json-error-type",
-        "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-typed-custom-error",
+      "review_note": "Explicit application labels replace reflection metadata. Both callback failure and malformed returned fragments are wrapped with the original structured cause."
     },
     {
       "reference_declaration": "type MarshalerError struct, Type reflect.Type",
       "surface": "historical-v1-form-or-shared",
       "group": "structured-errors",
       "planned_cinch_capabilities": [
-        "JsonError",
+        "JsonCustomError",
         "json-error-message",
-        "json-error-offset",
-        "json-error-path",
         "json-error-type",
-        "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": "Typed labels and field descriptors replace runtime reflection metadata."
+      "status": "implemented-typed-custom-error",
+      "review_note": "Explicit application labels replace reflection metadata. Both callback failure and malformed returned fragments are wrapped with the original structured cause."
     },
     {
       "reference_declaration": "type Number string",
@@ -954,10 +941,11 @@
       "surface": "active-jsonv2-facade",
       "group": "active-policy-values",
       "planned_cinch_capabilities": [
-        "JsonPolicies"
+        "JsonPolicies",
+        "json-default-policies"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
+      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
     },
     {
       "reference_declaration": "type RawMessage = jsontext.Value",
@@ -971,8 +959,8 @@
         "json-raw-replace",
         "json-raw-type"
       ],
-      "status": "partial-core",
-      "review_note": "Null/empty distinction and copying construction, assignment and getters are implemented. Typed/custom marshal methods and stream methods remain in the Codec/Effect increment."
+      "status": "partial-core-and-typed",
+      "review_note": "Copying construction/assignment/export, null-versus-empty state, exact source assignment and validated typed marshal pipeline are implemented. Explicit direct raw marshal entry point and final alias/method adaptation review remain open."
     },
     {
       "reference_declaration": "type RawMessage []uint8",
@@ -986,8 +974,8 @@
         "json-raw-replace",
         "json-raw-type"
       ],
-      "status": "partial-core",
-      "review_note": "Null/empty distinction and copying construction, assignment and getters are implemented. Typed/custom marshal methods and stream methods remain in the Codec/Effect increment."
+      "status": "partial-core-and-typed",
+      "review_note": "Copying construction/assignment/export, null-versus-empty state, exact source assignment and validated typed marshal pipeline are implemented. Explicit direct raw marshal entry point and final alias/method adaptation review remain open."
     },
     {
       "reference_declaration": "type SyntaxError struct",
@@ -1124,8 +1112,8 @@
         "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "partial-typed-error-metadata",
+      "review_note": "Original offsets, declared native type family, value description, nested field/index path and optional cause are preserved and independently tested. Separate containing-record metadata remains open; no full field-record equivalence is claimed yet."
     },
     {
       "reference_declaration": "type UnmarshalTypeError struct, Err error",
@@ -1140,8 +1128,8 @@
         "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "partial-typed-error-metadata",
+      "review_note": "Original offsets, declared native type family, value description, nested field/index path and optional cause are preserved and independently tested. Separate containing-record metadata remains open; no full field-record equivalence is claimed yet."
     },
     {
       "reference_declaration": "type UnmarshalTypeError struct, Field string",
@@ -1156,8 +1144,8 @@
         "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "partial-typed-error-metadata",
+      "review_note": "Original offsets, declared native type family, value description, nested field/index path and optional cause are preserved and independently tested. Separate containing-record metadata remains open; no full field-record equivalence is claimed yet."
     },
     {
       "reference_declaration": "type UnmarshalTypeError struct, Offset int64",
@@ -1172,8 +1160,8 @@
         "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "partial-typed-error-metadata",
+      "review_note": "Original offsets, declared native type family, value description, nested field/index path and optional cause are preserved and independently tested. Separate containing-record metadata remains open; no full field-record equivalence is claimed yet."
     },
     {
       "reference_declaration": "type UnmarshalTypeError struct, Struct string",
@@ -1188,8 +1176,8 @@
         "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "partial-typed-error-metadata",
+      "review_note": "Original offsets, declared native type family, value description, nested field/index path and optional cause are preserved and independently tested. Separate containing-record metadata remains open; no full field-record equivalence is claimed yet."
     },
     {
       "reference_declaration": "type UnmarshalTypeError struct, Type reflect.Type",
@@ -1204,8 +1192,8 @@
         "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": "Typed labels and field descriptors replace runtime reflection metadata."
+      "status": "partial-typed-error-metadata",
+      "review_note": "Original offsets, declared native type family, value description, nested field/index path and optional cause are preserved and independently tested. Separate containing-record metadata remains open; no full field-record equivalence is claimed yet."
     },
     {
       "reference_declaration": "type UnmarshalTypeError struct, Value string",
@@ -1220,8 +1208,8 @@
         "json-error-value",
         "json-error-cause"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "partial-typed-error-metadata",
+      "review_note": "Original offsets, declared native type family, value description, nested field/index path and optional cause are preserved and independently tested. Separate containing-record metadata remains open; no full field-record equivalence is claimed yet."
     },
     {
       "reference_declaration": "type Unmarshaler = json.Unmarshaler",
@@ -1230,11 +1218,12 @@
       "planned_cinch_capabilities": [
         "JsonType",
         "json-custom-type",
-        "json-text-type",
-        "json-key-type"
+        "json-marshal-value",
+        "json-update-value",
+        "JsonDecoded"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
+      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
     },
     {
       "reference_declaration": "type Unmarshaler interface { UnmarshalJSON }",
@@ -1243,11 +1232,12 @@
       "planned_cinch_capabilities": [
         "JsonType",
         "json-custom-type",
-        "json-text-type",
-        "json-key-type"
+        "json-marshal-value",
+        "json-update-value",
+        "JsonDecoded"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
+      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
     },
     {
       "reference_declaration": "type Unmarshaler interface, UnmarshalJSON([]uint8) error",
@@ -1256,11 +1246,12 @@
       "planned_cinch_capabilities": [
         "JsonType",
         "json-custom-type",
-        "json-text-type",
-        "json-key-type"
+        "json-marshal-value",
+        "json-update-value",
+        "JsonDecoded"
       ],
-      "status": "planned",
-      "review_note": ""
+      "status": "implemented-explicit-callback-capability; method-addressability adaptation pending final review",
+      "review_note": "Custom fragment callbacks and source-backed update callbacks are explicit typed capabilities. Marshal fragments are syntax-checked/compacted and custom failures retain their type label and cause. No runtime method set or reflection is claimed."
     },
     {
       "reference_declaration": "type UnsupportedTypeError struct",
@@ -1387,5 +1378,18 @@
   "remaining_modules": [
     "Text.Json.Codec",
     "Effect.Json"
+  ],
+  "checkpoints": [
+    {
+      "module": "Text.Json.Value",
+      "source_sha256": "f52e7fe9d0ea33f455b7876484a8fa028f6fb32695c2a1d232b65a0625dc5793",
+      "evidence": "stdlib-json-core-evidence.json"
+    },
+    {
+      "module": "Text.Json.Codec",
+      "source_sha256": "ae4470f5497bb4558ed11df1bb534d7777b041e02ab0898015172971813eb138",
+      "evidence": "stdlib-json-typed-evidence.json",
+      "scope": "Generic typed capability callbacks, records, nullable values, lists/fixed arrays, Bool/String/I64/F64/validated numbers/raw fragments. Built-in map/binary/unsigned catalogue and effect adapters remain open."
+    }
   ]
 }
