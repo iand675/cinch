@@ -1,0 +1,1284 @@
+{
+  "actual_demanded_units": [
+    "Data.Producer.prod-fold@OOO",
+    "Data.Producer.prod-fold@OOR"
+  ],
+  "adoption_approved": false,
+  "compatible_driver_Rust_preflight": {
+    "path": "/workspace/dasl-stdlib-byte-split/build/byte-split-native-compat-rust-preflight.json",
+    "sha256": "6810c0203ad6e04cd562d31b8c7c30dab907a4e1d249d0e62546a4f24cc3a07a"
+  },
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "compiler_host_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "compiler_snapshot": {
+    "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/snapshot.json",
+    "sha256": "879f629db2de1b84919dfe0bf571c705ebcef2abb857fda836ec4bd5d27e2502"
+  },
+  "compiler_source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+  "consumer_runtime": {
+    "runtime_abi": 10,
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "expected_initial_sources": {
+    "Data.Bytes.Split": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+    "Data.Bytes.View": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+    "compatible_driver_Main": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573",
+    "owner_Main": "48f79ed534c601823b338171915f3b8a98de3a723a78a9c4d7ecd7aecad4639f"
+  },
+  "frozen_initial_input_receipts": [
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/provider-v3-actual-demands/report.json",
+      "sha256": "b64649fa420dea4164d44edad9ebdf3dc6425df95c1f3a7bc7889e939a05760c"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/provider-v3-compat-driver-demand/report.json",
+      "sha256": "4f27f5a4ca78fa4ea9d1994bfd2c42c617c12462e2147992b8fb5bf95226165a"
+    }
+  ],
+  "full_family_admission": false,
+  "interfaces": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/base-interfaces.json",
+    "sha256": "8ddc73a5a8b04bcd0fcc21c9966cda9d21b3250f5d0e5a8f8993148168261d25"
+  },
+  "kind": "legacy-native-current-base-pair",
+  "metadata": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library.abi.json",
+    "sha256": "5ede65227bbc3958a507b2983bc4279753ef012ec1890e0566271dac1afcdd1a"
+  },
+  "object": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library.o",
+    "sha256": "9222e46f30c27471cf0096c911b23bfa5cb5128d9e493587ba537716b13de4ed"
+  },
+  "objects": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/objects.json",
+    "sha256": "5b9e7cc6520fc5c8de33f2289acdf538b069933f7d1c00202d35b4de7f233b60"
+  },
+  "performance_claim": false,
+  "producer_snapshot_reused": {
+    "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+    "embedded_sources": {
+      "Algebra.Arithmetic": {
+        "path": "Algebra/Arithmetic.cinch",
+        "sha256": "2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0"
+      },
+      "Algebra.Bits": {
+        "path": "Algebra/Bits.cinch",
+        "sha256": "8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712"
+      },
+      "Algebra.Group": {
+        "path": "Algebra/Group.cinch",
+        "sha256": "e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c"
+      },
+      "Algebra.Monoid": {
+        "path": "Algebra/Monoid.cinch",
+        "sha256": "8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591"
+      },
+      "Algebra.Semigroup": {
+        "path": "Algebra/Semigroup.cinch",
+        "sha256": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e"
+      },
+      "Algebra.Semiring": {
+        "path": "Algebra/Semiring.cinch",
+        "sha256": "9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03"
+      },
+      "Category.Alternative": {
+        "path": "Category/Alternative.cinch",
+        "sha256": "4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc"
+      },
+      "Category.Applicative": {
+        "path": "Category/Applicative.cinch",
+        "sha256": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a"
+      },
+      "Category.Foldable": {
+        "path": "Category/Foldable.cinch",
+        "sha256": "f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab"
+      },
+      "Category.Functor": {
+        "path": "Category/Functor.cinch",
+        "sha256": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1"
+      },
+      "Category.Monad": {
+        "path": "Category/Monad.cinch",
+        "sha256": "6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f"
+      },
+      "Category.Traversable": {
+        "path": "Category/Traversable.cinch",
+        "sha256": "f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad"
+      },
+      "Data.Ascii": {
+        "path": "Data/Ascii.cinch",
+        "sha256": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2"
+      },
+      "Data.Bool": {
+        "path": "Data/Bool.cinch",
+        "sha256": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5"
+      },
+      "Data.Bytes": {
+        "path": "Data/Bytes.cinch",
+        "sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+      },
+      "Data.Char": {
+        "path": "Data/Char.cinch",
+        "sha256": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb"
+      },
+      "Data.Compose": {
+        "path": "Data/Compose.cinch",
+        "sha256": "e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80"
+      },
+      "Data.Const": {
+        "path": "Data/Const.cinch",
+        "sha256": "6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c"
+      },
+      "Data.Core": {
+        "path": "Data/Core.cinch",
+        "sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106"
+      },
+      "Data.Enum": {
+        "path": "Data/Enum.cinch",
+        "sha256": "ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8"
+      },
+      "Data.FromList": {
+        "path": "Data/FromList.cinch",
+        "sha256": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8"
+      },
+      "Data.FromMap": {
+        "path": "Data/FromMap.cinch",
+        "sha256": "af8cdaf5ec98b0c87e4c9b2c85fabfa72cb0602ea5f14ba50da7ee9e99311fcf"
+      },
+      "Data.Hash": {
+        "path": "Data/Hash.cinch",
+        "sha256": "3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00"
+      },
+      "Data.HashMap": {
+        "path": "Data/HashMap.cinch",
+        "sha256": "bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565"
+      },
+      "Data.Identity": {
+        "path": "Data/Identity.cinch",
+        "sha256": "2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9"
+      },
+      "Data.Int": {
+        "path": "Data/Int.cinch",
+        "sha256": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea"
+      },
+      "Data.Json": {
+        "path": "Data/Json.cinch",
+        "sha256": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b"
+      },
+      "Data.List": {
+        "path": "Data/List.cinch",
+        "sha256": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d"
+      },
+      "Data.Machine": {
+        "path": "Data/Machine.cinch",
+        "sha256": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032"
+      },
+      "Data.Map": {
+        "path": "Data/Map.cinch",
+        "sha256": "0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32"
+      },
+      "Data.Nat": {
+        "path": "Data/Nat.cinch",
+        "sha256": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b"
+      },
+      "Data.NonEmpty": {
+        "path": "Data/NonEmpty.cinch",
+        "sha256": "62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900"
+      },
+      "Data.NonZero": {
+        "path": "Data/NonZero.cinch",
+        "sha256": "dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b"
+      },
+      "Data.Option": {
+        "path": "Data/Option.cinch",
+        "sha256": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01"
+      },
+      "Data.Ordering": {
+        "path": "Data/Ordering.cinch",
+        "sha256": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537"
+      },
+      "Data.Path": {
+        "path": "Data/Path.cinch",
+        "sha256": "1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772"
+      },
+      "Data.Producer": {
+        "path": "Data/Producer.cinch",
+        "sha256": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f"
+      },
+      "Data.Result": {
+        "path": "Data/Result.cinch",
+        "sha256": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d"
+      },
+      "Data.Set": {
+        "path": "Data/Set.cinch",
+        "sha256": "da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64"
+      },
+      "Data.Sorted": {
+        "path": "Data/Sorted.cinch",
+        "sha256": "860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611"
+      },
+      "Data.String": {
+        "path": "Data/String.cinch",
+        "sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+      },
+      "Data.Sym": {
+        "path": "Data/Sym.cinch",
+        "sha256": "60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73"
+      },
+      "Data.Target": {
+        "path": "Data/Target.cinch",
+        "sha256": "a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e"
+      },
+      "Data.Wide": {
+        "path": "Data/Wide.cinch",
+        "sha256": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133"
+      },
+      "Effect.Clock": {
+        "path": "Effect/Clock.cinch",
+        "sha256": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62"
+      },
+      "Effect.Concurrent": {
+        "path": "Effect/Concurrent.cinch",
+        "sha256": "07b1741a8b937105d3fefff700f6cf6ba415e1f8781e2924c396532bccf5d62a"
+      },
+      "Effect.Fs": {
+        "path": "Effect/Fs.cinch",
+        "sha256": "ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f"
+      },
+      "Effect.Io": {
+        "path": "Effect/Io.cinch",
+        "sha256": "82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804"
+      },
+      "Effect.Process": {
+        "path": "Effect/Process.cinch",
+        "sha256": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60"
+      },
+      "Effect.Sequencing": {
+        "path": "Effect/Sequencing.cinch",
+        "sha256": "1d94fcf10e01ff6bdacecc5db92317769f719cdabf7f30cf03ef5665e2f1f255"
+      },
+      "Effect.Stm": {
+        "path": "Effect/Stm.cinch",
+        "sha256": "2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810"
+      },
+      "Effect.Stm.TBQueue": {
+        "path": "Effect/Stm/TBQueue.cinch",
+        "sha256": "07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe"
+      },
+      "Effect.Stm.TMVar": {
+        "path": "Effect/Stm/TMVar.cinch",
+        "sha256": "6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4"
+      },
+      "Effect.Stm.TQueue": {
+        "path": "Effect/Stm/TQueue.cinch",
+        "sha256": "706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2"
+      },
+      "Effect.Stm.TSem": {
+        "path": "Effect/Stm/TSem.cinch",
+        "sha256": "a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d"
+      },
+      "Function.Combinators": {
+        "path": "Function/Combinators.cinch",
+        "sha256": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef"
+      },
+      "Prelude": {
+        "path": "Prelude.cinch",
+        "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7"
+      },
+      "Prim.Sys": {
+        "path": "Prim/Sys.cinch",
+        "sha256": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d"
+      },
+      "Prim.Sys.Darwin": {
+        "path": "Prim/Sys/Darwin.cinch",
+        "sha256": "79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e"
+      },
+      "Prim.Sys.Linux": {
+        "path": "Prim/Sys/Linux.cinch",
+        "sha256": "9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd"
+      },
+      "Prim.Sys.Portable": {
+        "path": "Prim/Sys/Portable.cinch",
+        "sha256": "2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c"
+      },
+      "Relation.Eq": {
+        "path": "Relation/Eq.cinch",
+        "sha256": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c"
+      },
+      "Relation.Ord": {
+        "path": "Relation/Ord.cinch",
+        "sha256": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd"
+      },
+      "Text.Codec": {
+        "path": "Text/Codec.cinch",
+        "sha256": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29"
+      },
+      "Text.Show": {
+        "path": "Text/Show.cinch",
+        "sha256": "0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7"
+      }
+    },
+    "kind": "qualified-producer-snapshot-reuse",
+    "native_family_admission": false,
+    "new_compiler_build_performed": false,
+    "provenance": {
+      "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+      "gates": "bootstrap/stdlib-staged-word-parent-results.json",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "rust_profile": {
+        "codegen_units": 1,
+        "debug_assertions": true,
+        "debug_symbols": false
+      },
+      "scope": "Rust frontend after staged scalar repair; no Native-family adoption",
+      "source_checkpoint": "b03018f7",
+      "source_sha256": {
+        "compiler/src/check_decls.rs": "d27d3ba9fd17b8f2183fbb3c9508625a12f45b1c2af42cb51dc90d0876b316a4",
+        "compiler/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
+        "compiler/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c"
+      }
+    },
+    "provenance_sha256": "6be2b350cc87d8c3298ee7e3da5a418643a18d487c08eece45100b0bb0ad9cdf",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "runtime_source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8",
+    "source_checkpoint": "b03018f7f210a38a0b99fa07b7cb773ae417455f",
+    "source_files": {
+      "compiler/.cargo/config.toml": "991dc76b411c76dd6b69171b87de2943158f630a471713a8fff10898eb8b91b3",
+      "compiler/Cargo.lock": "2d52d5a1e37279e8fd1dc752bc6c0804ed9f6f31111c5a9761a513ee1ffdc332",
+      "compiler/Cargo.toml": "a5020363e894700b099f09687ef446be5b8d4fe20a3127835237bfafea9ed8b9",
+      "compiler/build.rs": "97a32be81334c21729ab7b79814196635678cd941559a5b8c991af4410ef559f",
+      "compiler/prelude/Algebra/Arithmetic.cinch": "2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0",
+      "compiler/prelude/Algebra/Bits.cinch": "8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712",
+      "compiler/prelude/Algebra/Group.cinch": "e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c",
+      "compiler/prelude/Algebra/Monoid.cinch": "8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591",
+      "compiler/prelude/Algebra/Semigroup.cinch": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e",
+      "compiler/prelude/Algebra/Semiring.cinch": "9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03",
+      "compiler/prelude/Category/Alternative.cinch": "4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc",
+      "compiler/prelude/Category/Applicative.cinch": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a",
+      "compiler/prelude/Category/Foldable.cinch": "f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab",
+      "compiler/prelude/Category/Functor.cinch": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1",
+      "compiler/prelude/Category/Monad.cinch": "6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f",
+      "compiler/prelude/Category/Traversable.cinch": "f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad",
+      "compiler/prelude/Data/Array.cinch": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "compiler/prelude/Data/Array/Packed.cinch": "799f936d2712685f6ade99dd777c79c7c039c1e7ca28b8988700fde0f104b364",
+      "compiler/prelude/Data/Ascii.cinch": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2",
+      "compiler/prelude/Data/BigDecimal.cinch": "0c7f5ae4c2f2c74b137f0f968f43abd45da709a984d7f635f028315dfa17023c",
+      "compiler/prelude/Data/Bool.cinch": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5",
+      "compiler/prelude/Data/Bytes.cinch": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+      "compiler/prelude/Data/Bytes/Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+      "compiler/prelude/Data/Bytes/Search.cinch": "65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256",
+      "compiler/prelude/Data/Bytes/Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+      "compiler/prelude/Data/Bytes/View.cinch": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+      "compiler/prelude/Data/Bytes/Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "compiler/prelude/Data/Char.cinch": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb",
+      "compiler/prelude/Data/Columnar.cinch": "20bf82a9abeddc35eb4abd3c3c6a91d9ee66b40d18848eb40ab674552bbc6506",
+      "compiler/prelude/Data/Compare.cinch": "2c8339cfe0420a3ad27bed174308286e4c7e377318adf18dd8dcd5ce172686cb",
+      "compiler/prelude/Data/Complex.cinch": "16b1436d6025030f3ab3dbfd6955fb926883ead5dc83af6a373ac42919918a51",
+      "compiler/prelude/Data/Compose.cinch": "e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80",
+      "compiler/prelude/Data/Const.cinch": "6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c",
+      "compiler/prelude/Data/Core.cinch": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+      "compiler/prelude/Data/Date.cinch": "010d01be4d6ef58d6642ba06d09cac5782186ed9f20e2e627864672b9eaa6233",
+      "compiler/prelude/Data/Enum.cinch": "ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8",
+      "compiler/prelude/Data/FromList.cinch": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8",
+      "compiler/prelude/Data/FromMap.cinch": "af8cdaf5ec98b0c87e4c9b2c85fabfa72cb0602ea5f14ba50da7ee9e99311fcf",
+      "compiler/prelude/Data/Hash.cinch": "3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00",
+      "compiler/prelude/Data/HashMap.cinch": "bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565",
+      "compiler/prelude/Data/Identity.cinch": "2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9",
+      "compiler/prelude/Data/Int.cinch": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea",
+      "compiler/prelude/Data/IpAddr.cinch": "1315365aa804385982fcb718a6772635be4b70cec5b62aeb30e3478ffa8b39ae",
+      "compiler/prelude/Data/Json.cinch": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b",
+      "compiler/prelude/Data/List.cinch": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d",
+      "compiler/prelude/Data/Machine.cinch": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032",
+      "compiler/prelude/Data/Map.cinch": "0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32",
+      "compiler/prelude/Data/Matrix.cinch": "415f1178cef0922afe6e0d13bad42bd3a495f5236c0e197ee471ba4543968510",
+      "compiler/prelude/Data/Mutable.cinch": "6e6c039972d5efd23e30bdf1ca35c5bdf9967065ed8765a0384ec688f0c09206",
+      "compiler/prelude/Data/Mutable/Array.cinch": "94e1495897c24970b02075aeb56bb1181bf54735059dd1828679581c3772490e",
+      "compiler/prelude/Data/Mutable/BTree.cinch": "9741c4de3eb73bcf097d0dc27f48d9ace038c8a9ca7e4a8062e6e6f41cc19c54",
+      "compiler/prelude/Data/Mutable/BTreeSet.cinch": "95b4465c365cead885ece4adbe28d10605df080e6a4903123093775f696b0d04",
+      "compiler/prelude/Data/Mutable/BitSet.cinch": "1ce604a52fb81e9b084c070dcd4370a4eb9b161b70cb723a38b45be31264b5cc",
+      "compiler/prelude/Data/Mutable/Deque.cinch": "3761e4888415de3d3fa427aefef583cfcb7cfb4f481759ed906b7c3a841eaada",
+      "compiler/prelude/Data/Mutable/HashSet.cinch": "dd418d95ba3d0f8453ee803fdd25bbd0ed2fbb4dcdca5669b37fd5acfe477977",
+      "compiler/prelude/Data/Mutable/HashTable.cinch": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+      "compiler/prelude/Data/Mutable/Heap.cinch": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
+      "compiler/prelude/Data/Mutable/HeapView.cinch": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c",
+      "compiler/prelude/Data/Mutable/IndexMap.cinch": "119e94ae13c00611a834c4947d4db4c9bfed98b86da803c8ce707c16fe0cf501",
+      "compiler/prelude/Data/Mutable/LinkedList.cinch": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
+      "compiler/prelude/Data/Mutable/LruCache.cinch": "4ade3198bc4fd7a8686d5c6ffa38a61a80dfaa62153c15bd9543a4d10e5116de",
+      "compiler/prelude/Data/Mutable/Ring.cinch": "9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25",
+      "compiler/prelude/Data/Mutable/UnionFind.cinch": "727e954bd65cccc23e096583f2e09110a598ca323a6a4170d7d3270a230afe1b",
+      "compiler/prelude/Data/Mutable/Var.cinch": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+      "compiler/prelude/Data/Mutable/Vec.cinch": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7",
+      "compiler/prelude/Data/Nat.cinch": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b",
+      "compiler/prelude/Data/NonEmpty.cinch": "62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900",
+      "compiler/prelude/Data/NonZero.cinch": "dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b",
+      "compiler/prelude/Data/Option.cinch": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01",
+      "compiler/prelude/Data/Ordering.cinch": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537",
+      "compiler/prelude/Data/Path.cinch": "1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772",
+      "compiler/prelude/Data/Producer.cinch": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f",
+      "compiler/prelude/Data/Rational.cinch": "87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac",
+      "compiler/prelude/Data/Result.cinch": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d",
+      "compiler/prelude/Data/Set.cinch": "da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64",
+      "compiler/prelude/Data/Sorted.cinch": "860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611",
+      "compiler/prelude/Data/String.cinch": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+      "compiler/prelude/Data/StringIo.cinch": "9eaf153aa82781838f853ea18293df64e0bda38a2055952c74da9dd84e94c4e1",
+      "compiler/prelude/Data/Sym.cinch": "60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73",
+      "compiler/prelude/Data/Target.cinch": "a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e",
+      "compiler/prelude/Data/Tensor.cinch": "caeef1f823e842a73b16519af6e7baa9de0ac0ddb00d31472ed9461116836eb7",
+      "compiler/prelude/Data/Time.cinch": "6847730c2f3ac9f9200a4eef90a5ab7797facdc3555fb3e2f337f8b07569bc3a",
+      "compiler/prelude/Data/Unicode.cinch": "fba58333635e0995c1ae77eb1947275c7198a557147a95333f8ef52d981da2c0",
+      "compiler/prelude/Data/Unicode/Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "compiler/prelude/Data/Unicode/Names.cinch": "443c125bc39c88c95a71b8d63b99fc470062d4c0a49d3aa9160bbce171b5fe50",
+      "compiler/prelude/Data/Unicode/Range.cinch": "36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8",
+      "compiler/prelude/Data/Unicode/Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+      "compiler/prelude/Data/Wide.cinch": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133",
+      "compiler/prelude/Data/Word.cinch": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+      "compiler/prelude/Effect/Adler32.cinch": "561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566",
+      "compiler/prelude/Effect/Ascii85.cinch": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+      "compiler/prelude/Effect/Base32.cinch": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
+      "compiler/prelude/Effect/Base64.cinch": "4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231",
+      "compiler/prelude/Effect/Benchmark.cinch": "59fcce379631b8530523a7370db82c170c0e5d6e0a7b5961e80fd270883e8ba3",
+      "compiler/prelude/Effect/Binary.cinch": "ccc9fe29127f391045105575e80fb446b3452798f2e3166f939521c51b10470c",
+      "compiler/prelude/Effect/Clock.cinch": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
+      "compiler/prelude/Effect/Concurrent.cinch": "07b1741a8b937105d3fefff700f6cf6ba415e1f8781e2924c396532bccf5d62a",
+      "compiler/prelude/Effect/Coverage.cinch": "62f842a0e3043f00dbfbbbfa26b4c53df3392bd32a44681ad953a1344c21efef",
+      "compiler/prelude/Effect/Crc64.cinch": "d9692eee84798f6237c7ae8a23ed91e66906cff5f137a800acc413e8b5ddcabc",
+      "compiler/prelude/Effect/Csv.cinch": "115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605",
+      "compiler/prelude/Effect/FileUtils.cinch": "17e8649cadb5ba3ee76cccdc2f18b9306f7749857f55addaa9f517ffc4e71777",
+      "compiler/prelude/Effect/Find.cinch": "8897fed1fe39856ce9857902d0a5f5fe258a1064bf3be7cf1ba35c033af98080",
+      "compiler/prelude/Effect/Fnv.cinch": "7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464",
+      "compiler/prelude/Effect/Fs.cinch": "ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f",
+      "compiler/prelude/Effect/Hex.cinch": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+      "compiler/prelude/Effect/Http.cinch": "28ce800080f068afac0b699ae592bf9630a2d20f5ea2246d171a0cdea87e774c",
+      "compiler/prelude/Effect/Io.cinch": "82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804",
+      "compiler/prelude/Effect/Log.cinch": "c32dae495122e7b3963d8fa2fd19fab81031f29093493080206d0191e7db09ed",
+      "compiler/prelude/Effect/Mime.cinch": "1211c316b96474b7ed1d997092520055aca5cabba4b3c262d1a6f9d490fca215",
+      "compiler/prelude/Effect/Net.cinch": "a2cb8234289a30c321ff66c01032badecda44207e910c715466821db78321a46",
+      "compiler/prelude/Effect/Pem.cinch": "47dfe3101d486d89c2b6e2b78700b36c4c4c3ed80cf467de347ef7ba6ffc2bb4",
+      "compiler/prelude/Effect/Process.cinch": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60",
+      "compiler/prelude/Effect/Pty.cinch": "04dfbae47c6b1b0db95b5393eabbe0a509d14e3962e2597f2e24e205f5a9c1be",
+      "compiler/prelude/Effect/QuotedPrintable.cinch": "10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97",
+      "compiler/prelude/Effect/Random.cinch": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+      "compiler/prelude/Effect/Resolv.cinch": "65ca0fab55b2fa3af62a70907a148bc365d53b0282538b8ecb3719310a08d1cf",
+      "compiler/prelude/Effect/Sequencing.cinch": "1d94fcf10e01ff6bdacecc5db92317769f719cdabf7f30cf03ef5665e2f1f255",
+      "compiler/prelude/Effect/Sha256.cinch": "531b0b74ab549b22d7ee6837eb4090db8b31800860afa8bec249f2f4fd64048f",
+      "compiler/prelude/Effect/Signal.cinch": "93778e910173dd3b7d4cf143c34a1611734bb03524199b2bd125d79ac854a598",
+      "compiler/prelude/Effect/Stm.cinch": "2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810",
+      "compiler/prelude/Effect/Stm/TBQueue.cinch": "07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe",
+      "compiler/prelude/Effect/Stm/TMVar.cinch": "6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4",
+      "compiler/prelude/Effect/Stm/TQueue.cinch": "706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2",
+      "compiler/prelude/Effect/Stm/TSem.cinch": "a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d",
+      "compiler/prelude/Effect/Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+      "compiler/prelude/Effect/Test.cinch": "25f23bc38d56b5f178e7c80980cf4f29a8e84544dee3c883d8c857cb462478e0",
+      "compiler/prelude/Effect/Trace.cinch": "fe464ff8726132226cb84a56a1cd6f985553d0b4ab0118ca68922d98f8923366",
+      "compiler/prelude/Function/Combinators.cinch": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef",
+      "compiler/prelude/Prelude.cinch": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7",
+      "compiler/prelude/Prim/Sys.cinch": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d",
+      "compiler/prelude/Prim/Sys/Darwin.cinch": "79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e",
+      "compiler/prelude/Prim/Sys/Linux.cinch": "9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd",
+      "compiler/prelude/Prim/Sys/Portable.cinch": "2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c",
+      "compiler/prelude/Relation/Eq.cinch": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c",
+      "compiler/prelude/Relation/Ord.cinch": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd",
+      "compiler/prelude/Text/Adler32.cinch": "30204346a6b8a6d8b0ebe898740eeedcf97c6951ce74ef2b1a52a6bc36f4023c",
+      "compiler/prelude/Text/Args.cinch": "d32463cc68034db08180c0417761348dd772852b1d99a3d24db7d6e3492a91ec",
+      "compiler/prelude/Text/Ascii85.cinch": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+      "compiler/prelude/Text/Base32.cinch": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
+      "compiler/prelude/Text/Base64.cinch": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+      "compiler/prelude/Text/Base64/Encoding.cinch": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "compiler/prelude/Text/Binary.cinch": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+      "compiler/prelude/Text/Binary/Layout.cinch": "2bf98a83aaed9aeb72ac3e69d285d15aa28ff65b6543236b659bb775beb8f1d2",
+      "compiler/prelude/Text/Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+      "compiler/prelude/Text/Checksum.cinch": "6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684",
+      "compiler/prelude/Text/Codec.cinch": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29",
+      "compiler/prelude/Text/Crc64.cinch": "a16838b8ee60a69ce5c9dd5cbae6862262184690ba8fdec3868a016631093aa2",
+      "compiler/prelude/Text/Csv.cinch": "d21273e9e6f5a4ff4f641e9766e2567e232cd80b36eeaec4626a50914c2f4455",
+      "compiler/prelude/Text/Csv/Record.cinch": "a9f4220c17a27ef09808c2835109cf7b5e9e83fddae72d23bc649e0923c11806",
+      "compiler/prelude/Text/Digest.cinch": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2",
+      "compiler/prelude/Text/Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+      "compiler/prelude/Text/Fnv/State.cinch": "32143ed6a2a86719094a7ff3dffcd7811a51d0b7c8aae7630fe1fe0487ecd673",
+      "compiler/prelude/Text/Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+      "compiler/prelude/Text/Html.cinch": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
+      "compiler/prelude/Text/Json.cinch": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
+      "compiler/prelude/Text/Json/Binary32.cinch": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "compiler/prelude/Text/Json/Codec.cinch": "cd4a4f621e748b5d8bcf686062429919abbb2c4e9c98d2fa43c8af63fff5bc13",
+      "compiler/prelude/Text/Json/Value.cinch": "57f516647f493fa1433c066649f00c406a8eb1040b9ed5c50f096086e2c40b54",
+      "compiler/prelude/Text/Lex.cinch": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+      "compiler/prelude/Text/Mime.cinch": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+      "compiler/prelude/Text/OptionParser.cinch": "a98ed14dc7c9027ecc53724e553eaf38be5066a392559916d31036bf5f557eee",
+      "compiler/prelude/Text/Otlp.cinch": "650ee7a5b2e4c12c7c01d4218d520cc4dbd97432fedd85291c8831abdf543b9d",
+      "compiler/prelude/Text/Parse.cinch": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b",
+      "compiler/prelude/Text/Path.cinch": "8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad",
+      "compiler/prelude/Text/Pem.cinch": "9478c3c41a71436180df02c7ac175c309f790f39d131440895f0a81c7f733efd",
+      "compiler/prelude/Text/QuotedPrintable.cinch": "cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb",
+      "compiler/prelude/Text/Regex.cinch": "ed3a6d5ed60e34766ff22fc61ce1590e0bca20b3e37e3bd3c12a147ece928391",
+      "compiler/prelude/Text/Scan.cinch": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208",
+      "compiler/prelude/Text/Sha256.cinch": "95e5a6dd624575bf80bf7df22ba632819dd500d4a0c5af4f32d16d4b2befcea8",
+      "compiler/prelude/Text/Shellwords.cinch": "a37ca53b9d6ab728f032df39413d1584cbcbdeea29fd40103c0219cc99e643c9",
+      "compiler/prelude/Text/Show.cinch": "0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7",
+      "compiler/prelude/Text/Toml.cinch": "a5cd93530d3844f3c904ae55cb8b59a8c4611ba114d319daa937eabad137f7ce",
+      "compiler/prelude/Text/Uri.cinch": "b1b0e152c068b9b4ef4d47b03b84502cd0fc2b506608bdd006b87405934c50f4",
+      "compiler/prelude/Text/Url.cinch": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+      "compiler/prelude/Text/Url/Codec.cinch": "17b17b7cd4e76ee256793a6167a3148d3a9aa9528164ade05aab8fee53f7b539",
+      "compiler/prelude/Text/Url/Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+      "compiler/prelude/Text/Url/Ip.cinch": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+      "compiler/prelude/Text/Url/Model.cinch": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+      "compiler/prelude/Text/Url/Parser.cinch": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
+      "compiler/prelude/Text/Url/Query.cinch": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+      "compiler/prelude/Text/Url/Resolve.cinch": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+      "compiler/prelude/Text/Url/Scan.cinch": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
+      "compiler/prelude/Text/Url/Userinfo.cinch": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+      "compiler/prelude/Text/Utf16.cinch": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8",
+      "compiler/prelude/Text/Utf8.cinch": "1cbea5905f313433efbc56e2b91f60ce86cd82c499b342e17601766ab41d4159",
+      "compiler/prelude/Text/Yaml.cinch": "2b4ec0c04c4395f8f1b42dd0b2e564ed2453dbc570d827a84fd693f7f1b06589",
+      "compiler/prelude/Text/Zlib.cinch": "106c7d309df7a045f78b61737fc4a0a0ff14c821b1fe9f1777284549f042c55d",
+      "compiler/prelude/cinch-base.cinchpkg": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
+      "compiler/runtime/Cargo.lock": "4b4bd5c93cd8310a83e385a9f72e8ddab0328ff48ae1286f29d3eeb5d20ff0d1",
+      "compiler/runtime/Cargo.toml": "2c98c293d2f26f59f422818de2a4bdaa13be24d7d342f83bfeeae3cf592bfcac",
+      "compiler/runtime/src/abi.rs": "9fdb24e58efcb94207edf1e317ac5a51c4982001d370612dc9475dc07c4addee",
+      "compiler/runtime/src/alloc_kinds.rs": "112773d3c11f0b9313d983608fb937a900bfd04d44934263b0270368e28ba575",
+      "compiler/runtime/src/arena.rs": "88da7e5de38b7f80b7cfbabf755fc30a40797f3fd989f8b06a3851dc60458c52",
+      "compiler/runtime/src/arrays.rs": "eb3349adc0b15a950b376e0441bbe1501e05525914224c16362cb8c8818d5e96",
+      "compiler/runtime/src/block.rs": "d8eda2f09ad37eb293634bd104f9425aa650c3ce440958037bc2536d4fc2843b",
+      "compiler/runtime/src/block_kinds.rs": "de93ef0116b639f09a98e004e65ee56d21b6994f9be97ba93b37511426ab9f01",
+      "compiler/runtime/src/bytes.rs": "65f3930d3a0cd82ba7febe1b17a25510ad3e44cad55ac56055e6bd714de91068",
+      "compiler/runtime/src/coop.rs": "29e4ee7cabc12b84fd937626a7d204603b995a447fa4314bac7e736e69fa82e1",
+      "compiler/runtime/src/error.rs": "838a8cbecb43bdbf928afa9e40ad7caef8052f1ee4227fc736e8b67740929bd1",
+      "compiler/runtime/src/eval.rs": "3014624f1dae85148d652af2bb1b1b6f8c6b7dc21ffd43ec2d2977076eaefae2",
+      "compiler/runtime/src/evolution.rs": "81ccb246b73ac600d1bc42c574352202555119b439a943c51673807410adf90f",
+      "compiler/runtime/src/heap.rs": "1b3d8964924b7fe7e206de6afa1d78bbdcbbfc037b9d423a734f8b477d3baec0",
+      "compiler/runtime/src/int.rs": "64cfce6801bf232e142da19ea3cf6218eb7fb48cfe796f85317bae22f7165d4d",
+      "compiler/runtime/src/lib.rs": "f5dc60787215e78883f044ab71424e8cf34e86779da968202a9e52b8a9e5b610",
+      "compiler/runtime/src/limbs.rs": "87777a31bccd9685a5ec869382f47f89d0b3258fa809cbb15141c7536d709888",
+      "compiler/runtime/src/nat.rs": "e4e6be9acade04c385e9a925748b329bfa7a96e7a16c43f1cbeb34df0b5bd4a6",
+      "compiler/runtime/src/net.rs": "0941c7804798000af984054fdba6dff9cc83d5b03a0439efcd5d352ff602a188",
+      "compiler/runtime/src/par.rs": "3aa54b0f98de3143e5a67c26465e72291290b3863c5f518a44a9fb6f80891825",
+      "compiler/runtime/src/park.rs": "3dc49cb8155e1ab5cc3aefacc88465d3650a9eaa7c5f62f7d72a9718486e9ca3",
+      "compiler/runtime/src/platform.rs": "f4f0e6519e526590ae2f779b9ba5b81b3c5cd685f14abf901eeeed7e9f60477b",
+      "compiler/runtime/src/pty.rs": "1a92bd4cdebe50964aff75d798fa21b409b5ff1345851f69ed595f3674ed66da",
+      "compiler/runtime/src/rc.rs": "b7aaf03ecafa8896f2d13018639c77b22bfcccc2326d4bc5ca26c9ad9a2cec8a",
+      "compiler/runtime/src/sched.rs": "b823eef6f83b5fa9cdc6b184c77c1b63fa8ccf7ff2868ffac5b8e7e8f73e742e",
+      "compiler/runtime/src/sched/fiber.rs": "c338237021c0c6710b0c17e58e28d3c95f9f950713d9f1b93fd6d741a000035b",
+      "compiler/runtime/src/sched/switch.rs": "0ca5cfcb407e3792c942fb0fef455e2fec08774c7e85522cc997ebd635ec2356",
+      "compiler/runtime/src/sched/thread.rs": "d864b03a8adf4bd53cf062c84a088328da808a3c565c1c8eac10ee59c46b5171",
+      "compiler/runtime/src/slots.rs": "ab5fa3c40ec4bb43b0ade9ecc187152ba0a91d1352f844f24f6e780b70060d88",
+      "compiler/runtime/src/small.rs": "2a0cfc2c2c5dcc0a18058412668800699598a8369522c04ff3aa043f17a748b2",
+      "compiler/runtime/src/stack.rs": "5a0525e3186ff03bcc1efb63223bedc8476f2cf651c6c0057ae6007a2be5f282",
+      "compiler/runtime/src/stm.rs": "0951fa89eb2be8dede88d028a578a41ce55d11923d107d557a9a823fac72ce23",
+      "compiler/runtime/src/string.rs": "fc587ffe528e0ec31adde240f99cc46c67a511e92f8856213e7995d7784d8e73",
+      "compiler/runtime/src/sym.rs": "3c7b12c9720ed27e3b0df48f0cb931e189d974d0277167e905e54a40073a1606",
+      "compiler/runtime/src/sys/darwin.rs": "10e33344ce8d0be97f20f702163793e0e364ac819426b7ce5e5660d439a668ed",
+      "compiler/runtime/src/sys/linux.rs": "89b92bcb5afcee978bb3eb91112485d0213b4063f02a283c38c9b51519cc23c7",
+      "compiler/runtime/src/sys/mod.rs": "e5a4e316a3af549f9b273df17479d03eb5eb14059bff1dd7b76b6323bc136154",
+      "compiler/runtime/src/sys/tests.rs": "a64bd353addc0e4aeee3402297ab73dc4f4348aea209c2b2f996a723ffc504ee",
+      "compiler/runtime/src/sys/wasm.rs": "a2bdbe9ecbfca9640b079d7aaeaae5f12bf0d9f086456b041eaf63d1dc420168",
+      "compiler/runtime/src/task.rs": "f10b885069e9e7a16289cc3cbb88e0771b2e81f75d431a3dcb24335e24088c47",
+      "compiler/runtime/src/test_artifacts.rs": "4ed928c1f0e92390daa93dd903da0307d4e45f99db927f39b27a1a09665c05a1",
+      "compiler/runtime/src/text.rs": "d15576b5ea28533f9f39af9f5a849c0aebe33917b4e13c79b53530038abe7c01",
+      "compiler/runtime/src/trace.rs": "98d23eb0efe8c0d3f650cd0af29c19fb951a772072ea295f5c1c4f3b2f2a223a",
+      "compiler/src/analysis.rs": "8b1fc7348493dbbea1759643c35d17ddccaabf44b2dd190b95909d6fd39b6743",
+      "compiler/src/applications.rs": "79533ff28891729f30a0262f567be89208790d2d6eca8d1a181fee4b1264056f",
+      "compiler/src/arrays.rs": "221ae25d1a6702880cafac3c63c3333318b248050e99d3731f845e6e4d3e619f",
+      "compiler/src/arrays_codegen.rs": "68b884bcc7c57721dbaae7bbc270e37dbe395c1972985c04847361a44fc6bfd0",
+      "compiler/src/ast.rs": "f85d1694a6c3d2531b5dc3f7d0cf2ed4f28497d6a598417fd665da33fd361a31",
+      "compiler/src/cabi.rs": "69a0a2b8fc6277d6d2ae8a6e7b65bfa19abd206e7cd680dc822b007f754ed0ba",
+      "compiler/src/check.rs": "b12969e5dc098ed0e05ccbfc6862b45e0d10167245822aaceac48c676e67de42",
+      "compiler/src/check_code.rs": "3a3695e211e8ccad06a202a9dd186d0df3ab0c53cc94b114ffa2a1ac5c254b07",
+      "compiler/src/check_decls.rs": "d27d3ba9fd17b8f2183fbb3c9508625a12f45b1c2af42cb51dc90d0876b316a4",
+      "compiler/src/check_default_wire.rs": "cc273f0b169059849c38d0fa677e38e4af520d15b530c0ae8e452f9015440a14",
+      "compiler/src/check_dictionary.rs": "68694cb1426b85628e8acfeb1aadb0c2ab0920ad3e751d71ecdb6062ea89a320",
+      "compiler/src/check_erasure.rs": "309ebe479920696c396442006c6141836e29c0aceda318838149cbb507eddf8a",
+      "compiler/src/check_interface.rs": "7014ea0911c699d644133afacb12939e5f3e28bdbff9332fa8484353173da59d",
+      "compiler/src/check_terms.rs": "93c0e708b8dc6e4da1e5c12d0690c4b7fbcdcbaa05c71a5b61fa9944bb134785",
+      "compiler/src/check_total.rs": "8b5159cec22f272b0141c1e18ded71a743550af565c4bf3a6ef8bc04ae9e247a",
+      "compiler/src/cinchdoc.rs": "cf8a535b759e37de627f3743d473edafef013082bd897b41d94e06372f909d28",
+      "compiler/src/coalesce.rs": "2c70abd35cddc242234d1bb557c8a6130282dcc28d815e359fcf45514e24cd55",
+      "compiler/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
+      "compiler/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c",
+      "compiler/src/coretext.rs": "a29f77301b8db0e141a38a30022b9c35a34fe324fc2f7dd97f517e0e2c0b9565",
+      "compiler/src/cxx.rs": "95c666d957f5dcf5dad22de872c66ae448dc68c8f6a8c0339b5982ec5a0a41fa",
+      "compiler/src/cxx/build.rs": "da3065f81a07fc0185efe9d789fcfb4e04c7967d5e17916648b46cc9618a041b",
+      "compiler/src/cxx/exports.rs": "2eb1d8ea2eb791d8c1a455418942d80c2179ebc488fb9bb91b27ab07cbd7693f",
+      "compiler/src/cxx/godot.rs": "c134bef1dd0408d4652479286fbbe18c7b8b71f6044d317f13dd86cdd6a860ce",
+      "compiler/src/cxx/script.rs": "8b036ce16e3e84a638512c95b882ac97a251974a2e2c10b1dc8fff11a285110e",
+      "compiler/src/cxx/script_highlighter.hpp": "f4c22b1f7082fb212a58ed9460b8a58c8030bc3eaf374192aa81163db739966d",
+      "compiler/src/cxx/script_runtime.hpp": "4104cddde8cf3e43dd70b6ae70ba7d8ca9639cd6dc65fa8881c4ac94882e63f6",
+      "compiler/src/dictionary_values.rs": "426ebfa8e93676f5a5e8afc92c66400c4389c331a2fd2c8a442ba8a83423e507",
+      "compiler/src/driver.rs": "1f50ffceef72320edcda5560c693f76ac0c0ba0632253122eb36ded0ef61e32a",
+      "compiler/src/highlight.rs": "dfb270cbb15de664f45fdb6feca36cffb5aff0c32fc50cf292742fc023e407d8",
+      "compiler/src/ifaceopt.rs": "09f5b8b72467d5a425125c3701bad23ea8a6fe427c4061d03960e32a58216644",
+      "compiler/src/incremental.rs": "8beba9591895905538b1224400610d0d5142f390fd96cc5d91c68c15da89e87c",
+      "compiler/src/interface.rs": "4c9158a507200c937751927537f22a3025f95bdb35efbbb3040e786a379ea95a",
+      "compiler/src/intern.rs": "01eb94810788c7cf6c171181404eac5306ba490ec58b1e4210d2610216e5ef18",
+      "compiler/src/jit.rs": "803cd81582ee7a316491fcbc33130a84f891cd1591f32e9d60e98809fd9e84fa",
+      "compiler/src/known.rs": "93e9f5f584289ad7731727264fc8473a68068be572e7c8fca425d298723187fe",
+      "compiler/src/layout.rs": "50b34ad0fb60721b1af792f9691e39ce85b986146b42a9805eab06df8cb9fe68",
+      "compiler/src/lexer.rs": "b07a458a661368850cbba800bb4921c9cac5ebb9463035cee374dca2d89bfd63",
+      "compiler/src/lib.rs": "9bb86850b8b58005552e886ccfb0b15e313206f740b6b2a2aff9aee4407d25ca",
+      "compiler/src/loopmeta.rs": "d06530ce8b5d54a6fb84431452adf00c59ed10a3b6804b221ad25265926fd1cd",
+      "compiler/src/lsp.rs": "3dcb76551cca0cb13231303d375932fd596f32efc2d34ed7b63d7c83aa58c286",
+      "compiler/src/main.rs": "fc8c85f2d18494bbd401cf2596b6d08f7daf4eaccb7cdf3a5ef2760b0437fa18",
+      "compiler/src/parser.rs": "6b868585f65b5657568488cc305f800b76fd9a8fb4c54971fbc7a98049e20a30",
+      "compiler/src/pkg.rs": "c955c76b1a0989fa113e73634795f839b1d0bc45ffc3f58ce0882d5eca75defd",
+      "compiler/src/provenance.rs": "4295f269baae0aa8123e629e2c5d28e747cfc128b4b63b3ca249145bbd4ddb36",
+      "compiler/src/query.rs": "6de028a07727d694dbcd1748c9a30f79abb79c330aeff92a9c44c267b9fe2969",
+      "compiler/src/rc.rs": "07a47fd8e1a6a0966e18a848b967c8becd3ce899ff7732db148a76d473a36a53",
+      "compiler/src/repl.rs": "9d4863b287b89ed752d74829695611ee4e925a4729f17520d18c927f2ee6d999",
+      "compiler/src/repl_tui.rs": "e2ccc2c885688c2c10010b00e20c2aad62b9ee01df437d9c3f033445d1789248",
+      "compiler/src/repr.rs": "e647049f74dffbe43acb8f2cc930c72d5fdeac261088648335d46aa029de693c",
+      "compiler/src/simplify.rs": "7ed4d352bb6798b371cafb90e7177a6d3580564ad38c8aa5faac4422a0a1492b",
+      "compiler/src/slots.rs": "6836905a6892273daae07e6ca95ff00ed223a3d418743f18fb9ba8104ecb8e5a",
+      "compiler/src/slots_codegen.rs": "ca5a75ee2c45d26dce41e6cc8d4ea4952e288a9fd41f75fae7c92548739cc74b",
+      "compiler/src/specialize.rs": "e3f624c7431bc5b3af310bcf52e84cd8792f12ca465f13ecbf18bd71075c1b7e",
+      "compiler/src/spelling.rs": "216effda0d54792859cac9fa2e297f62b930ce4d2231a11e149f1cc3cadd0bab",
+      "compiler/src/stack.rs": "ca0c5f6c87f30549f5c3446b8aa8565a2f2ae326d3a0411ee1c883ddc0dd2da8",
+      "compiler/src/stm.rs": "9a54fe4625d1554de76c085f7bf43b02ecdc18d43909e10e910e09e6b2594cec",
+      "compiler/src/store.rs": "523d6c53b6ff35ba5aa447b0570f39bdf01787b22c61803ad896603d2626137a",
+      "compiler/src/syntax.rs": "f69171c167aaf52d21339a878f9fb4697cf6d36a882f75fd621c73eafcbe3d91",
+      "compiler/src/syntax/declarations.rs": "da3fa5a0be0aa941a4d4147e404f833612ea454380af13268e5255a828eb5eee",
+      "compiler/src/syntax/tokens.rs": "c09f511339bd8da52986a189af77421f947b13af0ec512aa6b8069bc991dce64",
+      "compiler/src/total.rs": "d4ea5240aa32ce1624fcbe18bd3c154cb11bf85f8cdc8e3b8ed1c3e245c6b43d",
+      "compiler/src/total_codec.rs": "87747792438244ddcddac1af1f6f59a37abd6c5d3033dd7301b28129463af1ec",
+      "compiler/src/types.rs": "e7a61912d84b364829f6815c725e1c5922794e1991413d0ea8683d01cc7418aa",
+      "compiler/src/wide.rs": "3c0c4b1140f924b299641945e36d9a4002ae270d110145dc4a8d70429818f87a",
+      "tooling/tree-sitter-cinch/grammar.js": "00a04abf307ce145ee6a05b2f3825623f478fb3e257f23a47e1cd34c5b502187",
+      "tooling/tree-sitter-cinch/src/scanner.c": "bd1cdbd75a014c62caf57c1fe47bc330b1cbb2e2659139761687839941e43ee5",
+      "tooling/tree-sitter-cinch/tree-sitter.json": "715bd4eb56e73f9b99b6b211cdf9a511ec238e739955d63b3e918f7a13a519ad"
+    },
+    "source_sha256": "2b2a62e5c8a49ad81b236352dde82e1fdf601d29b3f8df423fd44eb0d4181ac7"
+  },
+  "provider_receipt": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/provider.json",
+    "sha256": "1b0e7780e0b1b5dc3e3884aab7e2fb59ee149895745fe6be89e5d746c41e419e"
+  },
+  "roots": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/roots.json",
+    "sha256": "e568c90d5c5be199536b808a1952bc3ef5848b2f3cda8a33ee10883ccd19b069"
+  },
+  "runtime_archive": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/libcinchruntime.a",
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+  },
+  "schema": 1,
+  "scope": [
+    "Original2f077 compiler/sourcee494 and host80bd are unchanged; only external admitted provider input is V3 with consumerc4.",
+    "All65 embedded base sources match the old admitted family; runtime sourcea24a and ABI10 are identical despite archive build-profile hashes.",
+    "No repaired self-built Native distribution is claimed; new scalar import lowering and Array certificate are absent from the legacy compiler.",
+    "Initial Split2b534/View2b7 and observed OOO/OOR demands remain separate from later source candidates."
+  ],
+  "source_modules_equal_legacy_family": 65,
+  "source_shadow_of_base": false,
+  "status": "artifact-and-focused-boundary-gates-passed-initial-Producer-probe-pending",
+  "verified_files": [
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Algebra/Arithmetic.cinch",
+      "sha256": "2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Algebra/Bits.cinch",
+      "sha256": "8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Algebra/Group.cinch",
+      "sha256": "e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Algebra/Monoid.cinch",
+      "sha256": "8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Algebra/Semigroup.cinch",
+      "sha256": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Algebra/Semiring.cinch",
+      "sha256": "9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Category/Alternative.cinch",
+      "sha256": "4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Category/Applicative.cinch",
+      "sha256": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Category/Foldable.cinch",
+      "sha256": "f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Category/Functor.cinch",
+      "sha256": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Category/Monad.cinch",
+      "sha256": "6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Category/Traversable.cinch",
+      "sha256": "f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Ascii.cinch",
+      "sha256": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Bool.cinch",
+      "sha256": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Bytes.cinch",
+      "sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Char.cinch",
+      "sha256": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Compose.cinch",
+      "sha256": "e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Const.cinch",
+      "sha256": "6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Core.cinch",
+      "sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Enum.cinch",
+      "sha256": "ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/FromList.cinch",
+      "sha256": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/FromMap.cinch",
+      "sha256": "af8cdaf5ec98b0c87e4c9b2c85fabfa72cb0602ea5f14ba50da7ee9e99311fcf"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Hash.cinch",
+      "sha256": "3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/HashMap.cinch",
+      "sha256": "bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Identity.cinch",
+      "sha256": "2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Int.cinch",
+      "sha256": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Json.cinch",
+      "sha256": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/List.cinch",
+      "sha256": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Machine.cinch",
+      "sha256": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Map.cinch",
+      "sha256": "0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Nat.cinch",
+      "sha256": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/NonEmpty.cinch",
+      "sha256": "62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/NonZero.cinch",
+      "sha256": "dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Option.cinch",
+      "sha256": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Ordering.cinch",
+      "sha256": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Path.cinch",
+      "sha256": "1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Producer.cinch",
+      "sha256": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Result.cinch",
+      "sha256": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Set.cinch",
+      "sha256": "da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Sorted.cinch",
+      "sha256": "860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/String.cinch",
+      "sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Sym.cinch",
+      "sha256": "60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Target.cinch",
+      "sha256": "a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Data/Wide.cinch",
+      "sha256": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Clock.cinch",
+      "sha256": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Concurrent.cinch",
+      "sha256": "07b1741a8b937105d3fefff700f6cf6ba415e1f8781e2924c396532bccf5d62a"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Fs.cinch",
+      "sha256": "ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Io.cinch",
+      "sha256": "82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Process.cinch",
+      "sha256": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Sequencing.cinch",
+      "sha256": "1d94fcf10e01ff6bdacecc5db92317769f719cdabf7f30cf03ef5665e2f1f255"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Stm.cinch",
+      "sha256": "2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Stm/TBQueue.cinch",
+      "sha256": "07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Stm/TMVar.cinch",
+      "sha256": "6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Stm/TQueue.cinch",
+      "sha256": "706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Effect/Stm/TSem.cinch",
+      "sha256": "a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Function/Combinators.cinch",
+      "sha256": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Prelude.cinch",
+      "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Prim/Sys.cinch",
+      "sha256": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Prim/Sys/Darwin.cinch",
+      "sha256": "79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Prim/Sys/Linux.cinch",
+      "sha256": "9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Prim/Sys/Portable.cinch",
+      "sha256": "2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Relation/Eq.cinch",
+      "sha256": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Relation/Ord.cinch",
+      "sha256": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Text/Codec.cinch",
+      "sha256": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/Text/Show.cinch",
+      "sha256": "0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/base/cinch-base.cinchpkg",
+      "sha256": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/cinch",
+      "sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/interfaces.json",
+      "sha256": "8ddc73a5a8b04bcd0fcc21c9966cda9d21b3250f5d0e5a8f8993148168261d25"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/libcinchruntime.a",
+      "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library.abi.json",
+      "sha256": "5ede65227bbc3958a507b2983bc4279753ef012ec1890e0566271dac1afcdd1a"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library.ll",
+      "sha256": "4d6c1210432e2202e30f310f4bc5c6c309f2cfaa01656f0fbfad5990470037b0"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library.o",
+      "sha256": "9222e46f30c27471cf0096c911b23bfa5cb5128d9e493587ba537716b13de4ed"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/CinchBaseObject.cinch",
+      "sha256": "23215412e39760ba86797417470208af9ce3be32c3ba7741d0afc36b09279868"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Algebra.Arithmetic.cinchif",
+      "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Algebra.Bits.cinchif",
+      "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Algebra.Group.cinchif",
+      "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Algebra.Monoid.cinchif",
+      "sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Algebra.Semigroup.cinchif",
+      "sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Algebra.Semiring.cinchif",
+      "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Category.Alternative.cinchif",
+      "sha256": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Category.Applicative.cinchif",
+      "sha256": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Category.Foldable.cinchif",
+      "sha256": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Category.Functor.cinchif",
+      "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Category.Monad.cinchif",
+      "sha256": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Category.Traversable.cinchif",
+      "sha256": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/CinchBaseObject.cinchif",
+      "sha256": "d853ad8a43555506765689a200fdc5a430b8523ab60ff911e119da0acf651527"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Ascii.cinchif",
+      "sha256": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Bool.cinchif",
+      "sha256": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Bytes.cinchif",
+      "sha256": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Char.cinchif",
+      "sha256": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Compose.cinchif",
+      "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Const.cinchif",
+      "sha256": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Core.cinchif",
+      "sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Enum.cinchif",
+      "sha256": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.FromList.cinchif",
+      "sha256": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.FromMap.cinchif",
+      "sha256": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Hash.cinchif",
+      "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.HashMap.cinchif",
+      "sha256": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Identity.cinchif",
+      "sha256": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Int.cinchif",
+      "sha256": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Json.cinchif",
+      "sha256": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.List.cinchif",
+      "sha256": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Machine.cinchif",
+      "sha256": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Map.cinchif",
+      "sha256": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Nat.cinchif",
+      "sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.NonEmpty.cinchif",
+      "sha256": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.NonZero.cinchif",
+      "sha256": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Option.cinchif",
+      "sha256": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Ordering.cinchif",
+      "sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Path.cinchif",
+      "sha256": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Producer.cinchif",
+      "sha256": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Result.cinchif",
+      "sha256": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Set.cinchif",
+      "sha256": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Sorted.cinchif",
+      "sha256": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.String.cinchif",
+      "sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Sym.cinchif",
+      "sha256": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Target.cinchif",
+      "sha256": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Data.Wide.cinchif",
+      "sha256": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Clock.cinchif",
+      "sha256": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Concurrent.cinchif",
+      "sha256": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Fs.cinchif",
+      "sha256": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Io.cinchif",
+      "sha256": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Process.cinchif",
+      "sha256": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Sequencing.cinchif",
+      "sha256": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Stm.TBQueue.cinchif",
+      "sha256": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Stm.TMVar.cinchif",
+      "sha256": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Stm.TQueue.cinchif",
+      "sha256": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Stm.TSem.cinchif",
+      "sha256": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Effect.Stm.cinchif",
+      "sha256": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Function.Combinators.cinchif",
+      "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Prelude.cinchif",
+      "sha256": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Prim.Sys.Darwin.cinchif",
+      "sha256": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Prim.Sys.Linux.cinchif",
+      "sha256": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Prim.Sys.Portable.cinchif",
+      "sha256": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Prim.Sys.cinchif",
+      "sha256": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Relation.Eq.cinchif",
+      "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Relation.Ord.cinchif",
+      "sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Text.Codec.cinchif",
+      "sha256": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library/build/Text.Show.cinchif",
+      "sha256": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/object-build.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/producer-provenance.json",
+      "sha256": "6be2b350cc87d8c3298ee7e3da5a418643a18d487c08eece45100b0bb0ad9cdf"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/producer-snapshot-verification.json",
+      "sha256": "dfa8ab69c87130ea31baa8c16c537a4a9d4a69105b4c31ee25dce88bd2a33360"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/provider.json",
+      "sha256": "1b0e7780e0b1b5dc3e3884aab7e2fb59ee149895745fe6be89e5d746c41e419e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/roots.json",
+      "sha256": "e568c90d5c5be199536b808a1952bc3ef5848b2f3cda8a33ee10883ccd19b069"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/base-interfaces.json",
+      "sha256": "8ddc73a5a8b04bcd0fcc21c9966cda9d21b3250f5d0e5a8f8993148168261d25"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/legacy_provider_adapter.py",
+      "sha256": "aa5510d76d5c2512988c6ce7184b6969db3f63f11488ac3abb9884e543a79934"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/objects.json",
+      "sha256": "5b9e7cc6520fc5c8de33f2289acdf538b069933f7d1c00202d35b4de7f233b60"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+      "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/libcinchruntime.a",
+      "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/provider/provider.json",
+      "sha256": "0e3c00e99c0596fccc11231bffdc0468d87e848f72246114dbe4004f4b67e408"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/snapshot.json",
+      "sha256": "879f629db2de1b84919dfe0bf571c705ebcef2abb857fda836ec4bd5d27e2502"
+    }
+  ]
+}

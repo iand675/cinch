@@ -1,0 +1,88 @@
+{
+  "status": "strict-pair-and-dispatch-controls-passed-initial-consumer-pending",
+  "full_family_admission": false,
+  "adoption_approved": false,
+  "performance_claim": false,
+  "pair_directory": "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair",
+  "pair_sha256": "c76f641e16ab57e6009debefaec958a72e49fbed970942f5dc529a42cf60096e",
+  "frontend_sha256": "1e25b16adc3bf82f9507c34312f8d189b1e4551119a7e6502f28e2a85d859758",
+  "helper_sha256": "aa5510d76d5c2512988c6ce7184b6969db3f63f11488ac3abb9884e543a79934",
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "compiler_source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+  "compiler_host_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "consumer_runtime": {
+    "runtime_abi": 10,
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "interfaces": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/base-interfaces.json",
+    "sha256": "8ddc73a5a8b04bcd0fcc21c9966cda9d21b3250f5d0e5a8f8993148168261d25"
+  },
+  "objects": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v3-legacy-2f077-pair/objects.json",
+    "sha256": "5b9e7cc6520fc5c8de33f2289acdf538b069933f7d1c00202d35b4de7f233b60"
+  },
+  "runtime_archive": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/libcinchruntime.a",
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+  },
+  "provider_receipt": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/provider.json",
+    "sha256": "1b0e7780e0b1b5dc3e3884aab7e2fb59ee149895745fe6be89e5d746c41e419e"
+  },
+  "object": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library.o",
+    "sha256": "9222e46f30c27471cf0096c911b23bfa5cb5128d9e493587ba537716b13de4ed"
+  },
+  "metadata": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v3/library.abi.json",
+    "sha256": "5ede65227bbc3958a507b2983bc4279753ef012ec1890e0566271dac1afcdd1a"
+  },
+  "actual_demanded_units": [
+    "Data.Producer.prod-fold@OOO",
+    "Data.Producer.prod-fold@OOR"
+  ],
+  "source_modules_equal_legacy_family": 65,
+  "expected_initial_sources": {
+    "Data.Bytes.Split": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+    "Data.Bytes.View": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+    "compatible_driver_Main": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573",
+    "owner_Main": "48f79ed534c601823b338171915f3b8a98de3a723a78a9c4d7ecd7aecad4639f"
+  },
+  "compatible_driver_Rust_preflight": {
+    "path": "/workspace/dasl-stdlib-byte-split/build/byte-split-native-compat-rust-preflight.json",
+    "sha256": "6810c0203ad6e04cd562d31b8c7c30dab907a4e1d249d0e62546a4f24cc3a07a"
+  },
+  "scope": [
+    "Legacy2f/sourcee494 is unchanged; host80bd and consumerc4 remain distinct roles with sourcea24a/ABI10 compatibility.",
+    "The sealed adapter accepts only explicit IR emission with exact admitted interfaces/objects, no alternative flags or fallback artifacts.",
+    "One exact positive dispatch and three contradictory manifest/object/profile controls passed without executing a compiler.",
+    "Public Split initial probe is parent-authorized and peer-owned; no actual legacy2f/V3 consumer success is claimed yet."
+  ],
+  "evidence": [
+    {
+      "path": "bootstrap/stdlib-v3-legacy-pair-evidence/adapter-controls.json",
+      "sha256": "2b9f55f3032a88efe5254a86983fa4fcabe031ed897d4cd5862eb96a964d0d87"
+    },
+    {
+      "path": "bootstrap/stdlib-v3-legacy-pair-evidence/adapter.json",
+      "sha256": "e5ceeb371e8f1ed57933d8b81165bfb594138e9352b956fdb800ab66fbc50dd5"
+    },
+    {
+      "path": "bootstrap/stdlib-v3-legacy-pair-evidence/frontend.py.txt",
+      "sha256": "1e25b16adc3bf82f9507c34312f8d189b1e4551119a7e6502f28e2a85d859758"
+    },
+    {
+      "path": "bootstrap/stdlib-v3-legacy-pair-evidence/pair.json",
+      "sha256": "c76f641e16ab57e6009debefaec958a72e49fbed970942f5dc529a42cf60096e"
+    }
+  ]
+}
