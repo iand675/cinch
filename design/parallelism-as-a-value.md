@@ -131,6 +131,28 @@ A container-generic surface sits above the primitive:
 > members from `parallel-callback-literal` is the third option and the worst
 > of the three: it weakens a safety rule to admit compiler-internal code
 > that never needed checking.
+>
+> **And the reason the instance may be the wrong shape entirely.** The four
+> lowering operations are not ordinary functions: `PrimOp::Par { op, classes }`
+> carries **the element classes recorded at the call site**, and the vector is
+> part of the emitted name (`cinch.runtime.parBoth@RO`). `sweep.rs` regs them
+> with placeholder `Class::Raw` precisely because "the elaboration records the
+> exact ones at each call site, because the pair's components and the result
+> array's element class decide the block's pointer map".
+>
+> A dictionary field body exists **once**, at the instance, so a call to
+> `parBoth` inside it records the classes of the *method's* type parameters,
+> not of the caller's arguments. A user calling `both` on `String` values
+> would reach a `Raw`-class entry and get a block whose pointer map is wrong;
+> the failure mode is a leak or a collected-live-pointer, not a type error.
+>
+> So `Parallelism`'s methods cannot be dictionary-carried while their lowering
+> depends on per-call-site classes. The sound shapes are: resolve `b.both`
+> **at the call site** to the operation, exactly as `parBoth` resolves today,
+> with `Parallelism` a naming surface rather than a dictionary; or
+> monomorphise the dictionary per class vector, which is a larger change.
+> This note should decide that before anyone writes the instance, and the
+> two acceptance programs above are unaffected by the choice.
 
 ```text
 parTraverse :: forall t a b e. using (trav :: Traversable t, par :: Parallelism)
