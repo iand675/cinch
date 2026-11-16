@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "compiler_path": "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "compile_flags": [
+    "--opt-level",
+    "0",
+    "--rc-debug"
+  ],
+  "run_environment": {
+    "CINCH_HEAP_LIMIT": "32M",
+    "CINCH_STACK_SIZE": "8M",
+    "CINCH_LEAK_CHECK": "1",
+    "CINCH_RC_DEBUG": "1"
+  },
+  "baseline": [
+    {
+      "case": "direct",
+      "exit_code": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "1486302d0741cb8b63f600080e66d0e342b47c5f6dd0ec875083ec0080b3c3c9"
+    },
+    {
+      "case": "returned",
+      "exit_code": 1,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "5cff5f2490407f5f57230f1187d666488a8836977036c485f941bf521941981b"
+    },
+    {
+      "case": "shared",
+      "exit_code": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "1fe5d654aff7dbb337e79d3abdd49913d8d0d499e27f285ddbe833119577fe59"
+    },
+    {
+      "case": "all",
+      "exit_code": 1,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91"
+    },
+    {
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "case": "returned-observed775-cell4",
+      "source_sha256": "adddb99dd772cb019130aee27323b87471ad0b0e911cf19393b8bc619ecc2dda"
+    },
+    {
+      "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+      "exit": 13,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "case": "dynamic-boundaries"
+    }
+  ]
+}

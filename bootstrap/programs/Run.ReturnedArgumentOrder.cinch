@@ -1,0 +1,97 @@
+-- | Observe strict application boundaries through runtime-selected functions and shared byte aliases.
+module Main where
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+
+  -- | Increment the shared byte once and return its previous value.
+  advance :: Bytes -> Nat
+  advance cell = if 0 < bytes-len cell then
+    let before = bytes-get cell 0 in
+    let written = bytes-set cell 0 (if before < 255 then before + 1 else before) in before
+    else 0
+
+  -- | Widen a checked byte reading without changing its evaluation position.
+  read-word :: Bytes -> U64
+  read-word cell = if 0 < bytes-len cell then
+    wrapping-i64-to-u64 (nat-to-i64 (bytes-get cell 0)) else 0
+
+  -- | Preserve both observations in a single independently predictable word.
+  combine :: Nat -> U64 -> U64
+  combine before after = if before <= 255 then
+    wrapping-add-u64 (wrapping-shl-u64 after 8) (wrapping-i64-to-u64 (nat-to-i64 before)) else 0
+
+  -- | Execute the mutation after two arguments and then return a function.
+  returned :: Bytes -> Nat -> U64 -> U64
+  returned cell before = let changed = advance cell in \after -> combine before after
+
+  -- | Execute the same mutation only after all three arguments arrive.
+  saturated :: Bytes -> Nat -> U64 -> U64
+  saturated cell before after = let changed = advance cell in combine before after
+
+  -- | Select functions with the same type but different runtime arities.
+  choose :: Bool -> (Bytes -> Nat -> U64 -> U64)
+  choose early = if early then returned else saturated
+
+  -- | Apply an unknown function while a later argument reads its shared storage.
+  invoke :: (Bytes -> Nat -> U64 -> U64) -> Bytes -> U64
+  invoke consumer cell = consumer cell 7 (read-word cell)
+
+  -- | Verify that runtime arity, rather than the arrow count, determines when a body executes.
+  selected-order :: Bool -> Bool
+  selected-order early =
+    let cell = bytes-new 1 in
+    if 0 < bytes-len cell then
+      let initialized = bytes-set cell 0 (if early then 3 else 2) in
+      let selected = choose (bytes-get cell 0 == 3) in
+      let result = invoke selected cell in
+      eq-u64 result (if early then 1031 else 519) && bytes-get cell 0 == (if early then 4 else 3)
+    else False
+
+  -- | Return two functions separated by two visible mutations.
+  stepwise :: Bytes -> U64 -> U64 -> U64
+  stepwise cell = let first = advance cell in \middle ->
+    let second = advance cell in \after -> wrapping-add-u64 middle after
+
+  -- | Each completed application must execute before the next argument's byte read.
+  multiple-boundaries :: Unit -> Bool
+  multiple-boundaries unit =
+    let cell = bytes-new 1 in
+    if 0 < bytes-len cell then
+      let initialized = bytes-set cell 0 3 in
+      let result = stepwise cell (read-word cell) (read-word cell) in
+      eq-u64 result 9 && bytes-get cell 0 == 5
+    else False
+
+  -- | Preserve a computed prefix argument before the producer and its excess argument.
+  prefix-order :: Unit -> Bool
+  prefix-order unit =
+    let cell = bytes-new 1 in
+    if 0 < bytes-len cell then
+      let initialized = bytes-set cell 0 3 in
+      let result = returned cell (advance cell) (read-word cell) in
+      eq-u64 result 1283 && bytes-get cell 0 == 5
+    else False
+
+  -- | An effectful producer retains the same strict boundary as a pure producer.
+  effectful :: forall r. Bytes -> Nat ->{IO r} (U64 -> U64)
+  effectful cell before = let changed = advance cell in \after -> combine before after
+
+  -- | Keep the checker's explicit effectful-arrow staging alongside ordinary call staging.
+  effectful-order :: forall r. Unit ->{IO r} Bool
+  effectful-order unit =
+    let cell = bytes-new 1 in
+    if 0 < bytes-len cell then
+      let initialized = bytes-set cell 0 3 in
+      let result = effectful cell 7 (read-word cell) in
+      eq-u64 result 1031 && bytes-get cell 0 == 4
+    else False
+
+  -- | Return a distinct failing bit for every boundary contract.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    (if selected-order True then 0 else 1)
+    + (if selected-order False then 0 else 2)
+    + (if multiple-boundaries () then 0 else 4)
+    + (if prefix-order () then 0 else 8)
+    + (if effectful-order () then 0 else 16)

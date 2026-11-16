@@ -295,6 +295,9 @@ fn emit_module(
     prune: bool,
     shared: bool,
 ) -> Result<EmittedObject> {
+    // Inspection emission can receive checked Core without ownership
+    // planning. Keep the same strict stages before its wide edges too.
+    let program: &Program = &crate::applications::with_boundaries(program);
     // The wide edges (`crate::wide`): already inserted when reference
     // counting ran, inserted here when it did not.
     let program: &Program = &crate::wide::with_edges(program);
