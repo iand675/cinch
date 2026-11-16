@@ -8,6 +8,7 @@ against the retained source, rather than silently relabeling an earlier run.
 """
 from __future__ import annotations
 import argparse
+import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -19,6 +20,17 @@ from check_mime import ROOT, generated_cases
 def digest(path: Path) -> str:
     """Identify retained bytes before accepting an observation as evidence."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def artifact_digest(path: Path) -> str:
+    """Verify executed bytes directly or through their verified lossless cold-client archive."""
+    if path.is_file():
+        return digest(path)
+    value = hashlib.sha256()
+    with gzip.open(Path(str(path) + '.gz'), 'rb') as source:
+        while piece := source.read(1048576):
+            value.update(piece)
+    return value.hexdigest()
 
 
 def code_lines(path: Path) -> list[str]:
@@ -81,7 +93,7 @@ def main() -> None:
                 raise RuntimeError('retained consumer does not match executed bytes: ' + str(source))
             for suffix, field in [('.ll', 'ir_sha256'), ('', 'executable_sha256')]:
                 artifact = path.parent / (label + '-' + row['case'] + suffix)
-                if digest(artifact) != row[field]:
+                if artifact_digest(artifact) != row[field]:
                     raise RuntimeError('executed artifact changed: ' + str(artifact))
             qualified = {'case': row['case'], 'count': row['count'], 'report': str(path.resolve()), 'consumer_sha256': row['source_sha256'], 'ir_sha256': row['ir_sha256'], 'executable_sha256': row['executable_sha256']}
             summary['frontends'][label]['qualified_runs'].append(qualified)
