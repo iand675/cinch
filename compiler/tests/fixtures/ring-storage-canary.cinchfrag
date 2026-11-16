@@ -1,0 +1,45 @@
+  -- | Allocate a private test node with extra value and link slots as overwrite canaries.
+  storage-canary-node :: U64 -> U64 -> U64 -> RingNode U64
+  storage-canary-node value previous following =
+    let values = (slots-new 3 :: Array U64) in
+    let payload = slots-write values 0 value in
+    let value-left = slots-write values 1 81985529216486895 in
+    let value-right = slots-write values 2 18446744073709551615 in
+    let links = (slots-new 4 :: Array U64) in
+    let first = slots-write links 0 previous in
+    let second = slots-write links 1 following in
+    let link-left = slots-write links 2 11936128518282651045 in
+    let link-right = slots-write links 3 6510615555426900570 in Node values links
+
+  -- | Check both active lanes, both neighboring link canaries and every independent value slot.
+  storage-canary-matches :: RingNode U64 -> U64 -> U64 -> U64 -> Bool
+  storage-canary-matches node previous following value = case node of
+    Node values links ->
+      eq-u64 (slots-read links 0) previous && eq-u64 (slots-read links 1) following
+        && eq-u64 (slots-read links 2) 11936128518282651045 && eq-u64 (slots-read links 3) 6510615555426900570
+        && eq-u64 (slots-read values 0) value && eq-u64 (slots-read values 1) 81985529216486895
+        && eq-u64 (slots-read values 2) 18446744073709551615
+
+  -- | Require every node, including the initialized suffix outside the transferred prefix, to retain its expected state.
+  storage-canary-state :: Array (RingNode U64) -> U64 -> U64 -> U64 -> U64 -> Bool
+  storage-canary-state dense first-previous first-following second-previous second-following =
+    storage-canary-matches (slots-read dense 0) first-previous first-following 18446744073709551615
+      && storage-canary-matches (slots-read dense 1) second-previous second-following 9223372036854775808
+      && storage-canary-matches (slots-read dense 2) 2 3 12297829382473034410
+      && storage-canary-matches (slots-read dense 3) 3 2 6148914691236517205
+
+  -- | Exercise zero, singleton and two-node prefixes without touching neighboring payload or suffix owners.
+  ring-transfer-canary :: forall r. Unit ->{Mut r} Bool
+  ring-transfer-canary unit =
+    let arena = (fresh-arena 4 :: RingArena U64) in
+    let dense = storage-of arena in
+    let first = slots-write dense 0 (storage-canary-node 18446744073709551615 0 1) in
+    let second = slots-write dense 1 (storage-canary-node 9223372036854775808 1 0) in
+    let third = slots-write dense 2 (storage-canary-node 12297829382473034410 2 3) in
+    let fourth = slots-write dense 3 (storage-canary-node 6148914691236517205 3 2) in
+    let zero = offset-links CANARY-CONTAINER 17 0 0 in
+    let unchanged = storage-canary-state dense 0 1 1 0 in
+    let one = offset-links CANARY-CONTAINER 3 0 1 in
+    let singleton = storage-canary-state dense 3 4 1 0 in
+    let pair = offset-links CANARY-CONTAINER 5 0 2 in
+    unchanged && singleton && storage-canary-state dense 8 9 6 5
