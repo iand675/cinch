@@ -89,7 +89,7 @@ module Bootstrap.Infer where
     let remaining = case payload-declaration-name declaration of Some name -> revoke-payload name payloads; None -> payloads in
     case declaration of
       DExternal sp name category syntax metadata -> if same category "type" then
-        (case field "identity" metadata of JStr identity -> revoke-payload (interface-global identity) remaining; other -> remaining)
+        (case field "identity" metadata of JStr identity -> revoke-payload identity (revoke-payload (interface-global identity) remaining); other -> remaining)
         else remaining
       other -> remaining
 

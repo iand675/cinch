@@ -36,6 +36,45 @@ fn source_array_payload_admission_preserves_strict_positivity_boundaries() {
     }
 }
 
+/// Explain a stable diagnostic exit without collapsing private context failures into source cases.
+fn failure_description(code: Option<i32>) -> String {
+    /// Stable labels match the one-based private fixture order.
+    const CONTEXT_CASES: [&str; 14] = [
+        "actual sealed primitive payload",
+        "missing compiler-owned certificate",
+        "competing local type header",
+        "competing imported defining identity",
+        "competing local alias name",
+        "ordinary imported flag preserves real builtin authority",
+        "value binding does not replace a type identity",
+        "unrelated qualified constructor",
+        "shadowed higher-kinded binder",
+        "forged primitive constructor kind",
+        "oversaturated primitive application",
+        "recursive quantified value domain",
+        "array-wrapped quantified value domain",
+        "uncertified structural refinement wrapper",
+    ];
+    match code {
+        Some(value) if (101..=114).contains(&value) => format!(
+            "private context condition {}: {}",
+            value - 100,
+            CONTEXT_CASES[(value - 101) as usize]
+        ),
+        Some(value) if value > 0 => {
+            let cases: Vec<Case> = serde_json::from_str(include_str!(
+                "fixtures/nested-array-positivity-vectors.json"
+            ))
+            .unwrap();
+            match cases.get((value - 1) as usize) {
+                Some(case) => format!("source case {value}: {}", case.name),
+                None => format!("unexpected process exit {value}"),
+            }
+        }
+        other => format!("process status {other:?}"),
+    }
+}
+
 /// Execute the actual Native source elaborator in normal reclamation and poisoned-free profiles.
 #[test]
 fn cinch_source_array_payload_evidence_matches_the_independent_verdicts() {
@@ -49,9 +88,9 @@ fn cinch_source_array_payload_evidence_matches_the_independent_verdicts() {
     assert_eq!(source.matches(marker).count(), 1);
     let checked_source = source.replace(
         marker,
-        "main = if payload-context-tests () then first-failure ",
+        "main = let context-failure = payload-context-first-failure () in if context-failure == 0 then first-failure ",
     );
-    let checked_source = format!("{} else 255\n", checked_source.trim_end());
+    let checked_source = format!("{} else 100 + context-failure\n", checked_source.trim_end());
     let directory = common::project(
         "nested_array_positivity",
         &[
@@ -97,7 +136,8 @@ fn cinch_source_array_payload_evidence_matches_the_independent_verdicts() {
         assert_eq!(
             output.status.code(),
             Some(0),
-            "poisoned={poisoned}: {}",
+            "poisoned={poisoned}, {}: {}",
+            failure_description(output.status.code()),
             String::from_utf8_lossy(&output.stderr)
         );
         assert!(String::from_utf8_lossy(&output.stderr).contains("leaked=0"));

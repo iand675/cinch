@@ -1,5 +1,5 @@
   -- Test-only private context access; appended solely to the explicit integration-test source override.
-  export payload-context-tests
+  export payload-context-first-failure
 
   -- | Remove primitive evidence while keeping identical nominal kind headers.
   context-without-payloads :: TypeContext -> TypeContext
@@ -7,9 +7,9 @@
     MkTypeContext kinds aliases active observers effects source-classes payloads ->
       MkTypeContext kinds aliases active observers effects source-classes Nil
 
-  -- | Inspect private authority with forged imported identities and otherwise identical context headers.
-  payload-context-tests :: Unit -> Bool
-  payload-context-tests unit =
+  -- | Return the stable one-based index of the first failed private authority condition.
+  payload-context-first-failure :: Unit -> Int
+  payload-context-first-failure unit =
     let owner = "m.PayloadContext.Arena" in
     let recursive = UCon owner KType in
     let constructor-kind = KFun KType KType in
@@ -22,17 +22,10 @@
           (JObj "identity" (JStr "Other.Array") (JObj "strict_positive_payload" (JBool True) JObjEnd)) in
     let value = DExternal zero "LocalValue" "value" None (JObj "identity" (JStr "Array") JObjEnd) in
     let quantified = UForall (QCons (MkQuant 1 "x" (KValue recursive) False) QEnd) (UCon "Unit" KType) in
-    positive primitive-kinds group candidate
-      && not (positive (context-without-payloads primitive-kinds) group candidate)
-      && not (positive (context-add-kind "Array" constructor-kind primitive-kinds) group candidate)
-      && not (positive (context-add-alias fake-identity primitive-kinds) group candidate)
-      && not (positive (context-add-alias fake-name primitive-kinds) group candidate)
-      && positive (context-add-alias ordinary primitive-kinds) group candidate
-      && positive (context-add-alias value primitive-kinds) group candidate
-      && not (positive primitive-kinds group (UApp (UCon "Other.Array" constructor-kind) recursive))
-      && not (positive primitive-kinds group (UApp (UBound 2 "Array" constructor-kind) recursive))
-      && not (positive primitive-kinds group (UApp (UCon "Array" (KFun KRegion KType)) recursive))
-      && not (positive primitive-kinds group (UApp candidate (UCon "Unit" KType)))
-      && not (positive primitive-kinds group quantified)
-      && not (positive primitive-kinds group (UApp array quantified))
-      && not (positive primitive-kinds group (UApp array (URefine 3 "x" recursive (UPropLit True))))
+    context-first-failure (Cons (positive primitive-kinds group candidate) (Cons (not (positive (context-without-payloads primitive-kinds) group candidate)) (Cons (not (positive (context-add-kind "Array" constructor-kind primitive-kinds) group candidate)) (Cons (not (positive (context-add-alias fake-identity primitive-kinds) group candidate)) (Cons (not (positive (context-add-alias fake-name primitive-kinds) group candidate)) (Cons (positive (context-add-alias ordinary primitive-kinds) group candidate) (Cons (positive (context-add-alias value primitive-kinds) group candidate) (Cons (not (positive primitive-kinds group (UApp (UCon "Other.Array" constructor-kind) recursive))) (Cons (not (positive primitive-kinds group (UApp (UBound 2 "Array" constructor-kind) recursive))) (Cons (not (positive primitive-kinds group (UApp (UCon "Array" (KFun KRegion KType)) recursive))) (Cons (not (positive primitive-kinds group (UApp candidate (UCon "Unit" KType)))) (Cons (not (positive primitive-kinds group quantified)) (Cons (not (positive primitive-kinds group (UApp array quantified))) (Cons (not (positive primitive-kinds group (UApp array (URefine 3 "x" recursive (UPropLit True))))) Nil)))))))))))))) 1
+
+  -- | Preserve individual context condition numbers instead of collapsing all refusals into one verdict.
+  context-first-failure :: List Bool -> Int -> Int
+  context-first-failure conditions index = case conditions of
+    Nil -> 0
+    Cons first rest -> if first then context-first-failure rest (index + 1) else index
