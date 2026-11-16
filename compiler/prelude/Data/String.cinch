@@ -334,23 +334,36 @@ module Data.String where
     let u = copy-bytes-into out b 0 i0 (i1 - i0) in
     StrBuf out
 
-  -- Haskell's `Data.String` pair: `pack` is the `List Char` view of a
-  -- string, `unpack` its inverse (new conversions: no `String`/`List
-  -- Char` pair existed before). `pack` constructs a fresh string (the
-  -- wrap/copy discipline: the buffer is fresh and never aliased).
+  -- | Encode a list of Unicode scalar values into one fresh immutable UTF-8 backing.
+  -- A tail size pass and a checked tail encoding pass keep traversal stack bounded.
   pack :: List Char -> String
-  pack cs = StrBuf (pack-from 0 cs)
+  pack cs =
+    let size = pack-size cs 0 in
+    let out = bytes-new size in
+    let encoded = pack-copy out 0 cs in
+    StrBuf out
 
-  -- The characters' encodings from offset `pos`, in the shape of
-  -- `concat-from`.
-  pack-from :: (pos :: Nat) -> List Char -> refined (pos <= bytes-len out) Bytes
-  pack-from pos cs = case cs of
-    Nil -> bytes-new pos
+  -- | Count exact scalar encoding widths before allocating the complete result.
+  pack-size :: List Char -> Nat -> Nat
+  pack-size cs total = case cs of
+    Nil -> total
+    Cons c rest ->
+      let width = utf8-encode-width (char-code c) in
+      let next = total + width in
+      pack-size rest next
+
+  -- | Encode each scalar directly into its checked interval in the private output.
+  pack-copy :: Bytes -> Nat -> List Char -> Unit
+  pack-copy out pos cs = case cs of
+    Nil -> ()
     Cons c rest ->
       let cp = char-code c in
-      let out = pack-from (pos + utf8-encode-width cp) rest in
-      let u = utf8-encode-into out pos cp in
-      out
+      let width = utf8-encode-width cp in
+      if pos + utf8-encode-width cp <= bytes-len out then
+        let encoded = utf8-encode-into out pos cp in
+        let next = pos + width in
+        pack-copy out next rest
+      else ()
 
   unpack :: String -> List Char
   unpack s = unpack-from (string-bytes-raw s) 0 Nil
