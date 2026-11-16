@@ -72,6 +72,8 @@ Each page records a decision, its evidence, or the work remaining for one part o
 - [Stack allocation of non-escaping blocks](design/stack-allocation.md)
 - [Core output: the annotated codegen input](design/core-output.md)
 - [Dependent core kernel design](design/dependent-core-kernel.md)
+- [Formal verification specification and implementation roadmap](design/formal-verification-roadmap.md)
+- [Formal verification delivery checklist](design/formal-verification-checklist.md)
 - [Effect boundaries and interposition (draft)](design/effect-boundaries-and-interposition.md)
 - [Effects, capabilities and sequencing design](design/effects-capabilities-sequencing.md)
 - [Float refinements: NaN, infinities and the other IEEE hazards in the types](design/float-refinements.md)
