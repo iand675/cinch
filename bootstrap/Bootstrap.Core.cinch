@@ -2115,12 +2115,12 @@ module Bootstrap.Core where
   machine-ids :: List (Nat, UType) -> List Nat
   machine-ids gamma = case gamma of
     Nil -> Nil
-    Cons (id, ty) rest -> case integer-bounds (numeric-carrier-view ty) of Some bounds -> ordered-id id (machine-ids rest); None -> machine-ids rest
+    Cons (id, ty) rest -> case index-value-bounds (numeric-carrier-view ty) of Some bounds -> ordered-id id (machine-ids rest); None -> machine-ids rest
   machine-facts :: List Nat -> List (Nat, UType) -> List Proposition
   machine-facts ids gamma = case ids of
     Nil -> Nil
     Cons id rest -> case scope-entry id gamma of
-      Some ty -> case integer-bounds (numeric-carrier-view ty) of
+      Some ty -> case index-value-bounds (numeric-carrier-view ty) of
         Some (low, high) -> Cons (PCompare AtLeast (proof-variable id) (AInteger low))
           (Cons (PCompare AtMost (proof-variable id) (AInteger high)) (machine-facts rest gamma))
         None -> machine-facts rest gamma

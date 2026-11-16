@@ -7201,9 +7201,10 @@ module Bootstrap.Infer where
     other -> None
   predicate-base-carrier :: UType -> UType
   predicate-base-carrier carrier = case refinement-view carrier of URefine id name base predicate -> predicate-base-carrier base; other -> carrier
+  -- | Read checked scalar values mathematically inside predicates without changing their runtime carrier.
   predicate-math-carrier :: UType -> Bool
   predicate-math-carrier carrier = case predicate-base-carrier carrier of
-    UCon name KType -> has name ["Nat", "Int", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
+    UCon name KType -> has name ["Nat", "Int", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Char"]
     other -> False
   merge-predicate-carriers :: Option UType -> Option UType -> Option UType
   merge-predicate-carriers first second = case (first, second) of
