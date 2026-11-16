@@ -1,0 +1,263 @@
+{
+  "format": 1,
+  "description": "Alternating retained executables with matched compiler, driver, optimization and runtime sources",
+  "compiler_sha256": "2953cb0246737ee110c139fbff4a8968c2da7de271da4b55aff7d94f63c94e84",
+  "compiler_source_sha256": "61ab9b3cc29cc9ee7831b2e1001d0bba63ae5a1a23df42c8d431469230380961",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "driver_sha256": "707f30de7830f5ab1ca6050f71f6d3811440ecf9003e94673e7c863c81eb1e64",
+  "opt_level": 2,
+  "iterations": 512,
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpu_affinity": [
+    0
+  ],
+  "warmup_processes_per_case": 1,
+  "inputs": {
+    "before": {
+      "report": "/workspace/dasl-stdlib-io/benchmarks/stdlib/ascii85-forced-snapshot-ablation-O2-2026-11-16.json",
+      "sources": {
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+        "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+        "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "Text.Ascii85": "dece1c718f2d510f7eca6c90d0e0148dead60be427f3bbdf351bb6ec20fe6a8a",
+        "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+        "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+        "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+        "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+        "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+      },
+      "executable_sha256": "29d12203e0e815c65bc2a85abade3bcb0e12b6883a7a9a26690bb5d2abdd17a8",
+      "llvm_sha256": "06683444acf2018b1efe325aee6042330d93933da85d5cb52bb4af4dbc58ca74"
+    },
+    "after": {
+      "report": "/workspace/dasl-stdlib-io/benchmarks/stdlib/ascii85-complete-O2-2026-11-16.json",
+      "sources": {
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+        "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+        "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "Text.Ascii85": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+        "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+        "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+        "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+        "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+        "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+      },
+      "executable_sha256": "4c14c75300840934b6bfa7420740ae67010d3a34de9a6eb731390ecc46a777bd",
+      "llvm_sha256": "c7dd64adda3863e377619df9c16282c64dc9a77d4bbc2dc590dfcc03aee8a309"
+    }
+  },
+  "results": [
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 32,
+      "checksum": 105236,
+      "samples_ns": {
+        "before": [
+          158009,
+          155635,
+          154353,
+          174163,
+          167943,
+          257579,
+          155545,
+          155875,
+          154233
+        ],
+        "after": [
+          167673,
+          154183,
+          152800,
+          153011,
+          152169,
+          151919,
+          153511,
+          152851,
+          152150
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 304.443359375,
+        "after": 298.537109375
+      },
+      "before_over_after": 1.0197839726269373
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 1024,
+      "checksum": 719124,
+      "samples_ns": {
+        "before": [
+          2496394,
+          2379818,
+          2491076,
+          2416574,
+          2400780,
+          2472427,
+          2602905,
+          2660280,
+          2505848
+        ],
+        "after": [
+          2409693,
+          2454390,
+          2699560,
+          2637727,
+          2963728,
+          2603055,
+          2386879,
+          2605929,
+          2590986
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 4865.3828125,
+        "after": 5084.091796875
+      },
+      "before_over_after": 0.9569817003482447
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 16384,
+      "checksum": 10549524,
+      "samples_ns": {
+        "before": [
+          38112752,
+          38152852,
+          39753075,
+          38122376,
+          38392233,
+          38363039,
+          38025681,
+          38641078,
+          38519508
+        ],
+        "after": [
+          38067523,
+          37932140,
+          38245161,
+          38479334,
+          38007263,
+          38849492,
+          38560066,
+          42376881,
+          37288013
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 74927.810546875,
+        "after": 74697.580078125
+      },
+      "before_over_after": 1.0030821677022095
+    },
+    {
+      "workload": "ascii85-into-encode",
+      "raw_input_bytes": 32,
+      "checksum": 118036,
+      "samples_ns": {
+        "before": [
+          180272,
+          181714,
+          213162,
+          181234,
+          186912,
+          179301,
+          201864,
+          198889,
+          178489
+        ],
+        "after": [
+          165981,
+          163176,
+          164839,
+          163186,
+          258650,
+          162665,
+          163848,
+          161774,
+          180612
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 354.91015625,
+        "after": 320.015625
+      },
+      "before_over_after": 1.109040085933304
+    },
+    {
+      "workload": "ascii85-into-encode",
+      "raw_input_bytes": 1024,
+      "checksum": 1387796,
+      "samples_ns": {
+        "before": [
+          2636956,
+          2510626,
+          2481472,
+          2405357,
+          2466789,
+          2465367,
+          2645539,
+          2618769,
+          2466970
+        ],
+        "after": [
+          2530165,
+          2720612,
+          2661222,
+          2859903,
+          2358707,
+          2463905,
+          2543906,
+          2518127,
+          2497966
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 4846.625,
+        "after": 4941.728515625
+      },
+      "before_over_after": 0.9807550100487518
+    },
+    {
+      "workload": "ascii85-into-encode",
+      "raw_input_bytes": 16384,
+      "checksum": 21048596,
+      "samples_ns": {
+        "before": [
+          41435566,
+          36922591,
+          37363686,
+          37279129,
+          37539592,
+          37590418,
+          37528495,
+          38337865,
+          37955528
+        ],
+        "after": [
+          37110294,
+          37586282,
+          37904041,
+          37028612,
+          37446411,
+          37783690,
+          38084113,
+          37101180,
+          37532381
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 73319.515625,
+        "after": 73305.431640625
+      },
+      "before_over_after": 1.0001921274325762
+    }
+  ]
+}

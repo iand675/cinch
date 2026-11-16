@@ -251,13 +251,13 @@ fn ascii85_declarations_have_canonical_documentation() {
 fn ascii85_simd_kernels_compile_for_arm_and_big_endian() {
     let source = include_str!("../prelude/Text/Ascii85.cinch");
     let mut consumer = String::from("module Main where\n  import Data.Machine\n");
-    for name in ["encode-word", "decode-word", "reverse-word"] {
+    for name in ["encode-word", "decode-word", "reverse-word", "control-word", "address-overlap"] {
         let start = source.find(&format!("  prim {name} ::")).unwrap();
         let tail = &source[start..];
         let end = tail.find("\n    }\n").unwrap() + 7;
         consumer.push_str(&tail[..end]);
     }
-    consumer.push_str("  main :: Int\n  main = if eq-u64 (encode-word 0) 0x2121212121 && eq-u64 (decode-word 0x2121212121) 0 && eq-u32 (reverse-word 0x01020304) 0x04030201 then 0 else 1\n");
+    consumer.push_str("  main :: Int\n  main = if eq-u64 (encode-word 0) 0x2121212121 && eq-u64 (decode-word 0x2121212121) 0 && eq-u32 (reverse-word 0x01020304) 0x04030201 && control-word 0x201f000a0d090120 && address-overlap 100 5 104 1 then 0 else 1\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
