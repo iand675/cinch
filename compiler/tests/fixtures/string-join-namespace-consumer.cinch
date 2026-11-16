@@ -1,0 +1,12 @@
+-- | Keep scanning joins and embedded string joins distinct across text consumers.
+module Main where
+  import Text.Scan as Scan
+  import Text.Parse as Parse
+  import Text.Shellwords as Shellwords
+  import Text.Toml as Toml
+  import Text.OptionParser as Options
+  import Effect.Resolv as Resolv
+
+  -- | Check existing join output after every affected importer has been resolved.
+  main :: Int
+  main = if Scan.string-join "|" ["alpha", "beta"] == "alpha|beta" && Shellwords.shellwords-join ["alpha", "two words"] == "alpha 'two words'" then 0 else 1

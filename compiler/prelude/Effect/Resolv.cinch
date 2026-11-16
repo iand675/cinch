@@ -65,7 +65,7 @@ module Effect.Resolv where
   import Data.Result
   import Data.String
   import Effect.Net
-  import Text.Scan
+  import Text.Scan (string-index-of, string-starts-with, string-split-on, string-lines)
 
   export ResolvError, ResolvNotFound, ResolvPermissionDenied, ResolvInvalidArgument, ResolvIoError, ResolvMalformedAnswer
   export resolve, resolve-addresses
