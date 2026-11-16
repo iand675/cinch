@@ -157,9 +157,9 @@
     {
       "module": "Data.Bytes.Utf8",
       "path": "compiler/prelude/Data/Bytes/Utf8.cinch",
-      "sha256": "a5f6a39e59b512862fe88e984a8fb5bef0cc6fc47516f59cc488d4493a523b9a",
+      "sha256": "6c73d599aef05a9854c78a02b6dcd26e6f40dda24ac95dba6dc07d13d7c1cdb6",
       "embedded": false,
-      "values": 24,
+      "values": 26,
       "public_methods": 0
     },
     {
@@ -557,7 +557,7 @@
     {
       "module": "Data.String",
       "path": "compiler/prelude/Data/String.cinch",
-      "sha256": "3d35e3bb0d10e90d9f591765fc79f06c3a52c3a1d207fb0a42ad57c67b838a79",
+      "sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
       "embedded": true,
       "values": 27,
       "public_methods": 0
@@ -613,7 +613,7 @@
     {
       "module": "Data.Unicode.Names",
       "path": "compiler/prelude/Data/Unicode/Names.cinch",
-      "sha256": "2b950ee2a81d1f13aa59b64f0cb7f2ae7ddab7fb4c67a71e7631321dbe250bdc",
+      "sha256": "443c125bc39c88c95a71b8d63b99fc470062d4c0a49d3aa9160bbce171b5fe50",
       "embedded": false,
       "values": 29,
       "public_methods": 0
@@ -1152,6 +1152,14 @@
       "sha256": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
       "embedded": false,
       "values": 5,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Json.Value",
+      "path": "compiler/prelude/Text/Json/Value.cinch",
+      "sha256": "f52e7fe9d0ea33f455b7876484a8fa028f6fb32695c2a1d232b65a0625dc5793",
+      "embedded": false,
+      "values": 49,
       "public_methods": 0
     },
     {

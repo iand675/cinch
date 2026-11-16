@@ -1,0 +1,237 @@
+{
+  "description": "Reviewed constructor inventory, bounded-stack String base, accelerated UTF8 and source-backed JSON core integration",
+  "full_stdlib_goal_complete": false,
+  "source_revision": "24f642a25941742889bd94f72cab9825e5907b4c",
+  "compiler_sha256": "da9f01b6d7a94d856ed317185f8917598dc62bf37513ddbe30e3fad359eab5c9",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "source_sha256": {
+    "compiler/src/core.rs": "c42e3464b2b1cdeae92973c0fdcbefec769bd61bd03b40854d92691a135981db",
+    "compiler/src/codegen.rs": "42a055434bf4f61956d3de5054e09b5051ea21ad03d64a9fd438dab1c800d664",
+    "compiler/src/check_decls.rs": "5db1d5d0808d9b530c999ae9c0454abe3dd18be273f97bfd5a88f8604ef7539b",
+    "compiler/src/incremental.rs": "8beba9591895905538b1224400610d0d5142f390fd96cc5d91c68c15da89e87c",
+    "compiler/prelude/Data/String.cinch": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+    "compiler/prelude/Data/Bytes/Utf8.cinch": "6c73d599aef05a9854c78a02b6dcd26e6f40dda24ac95dba6dc07d13d7c1cdb6",
+    "compiler/prelude/Text/Json/Value.cinch": "f52e7fe9d0ea33f455b7876484a8fa028f6fb32695c2a1d232b65a0625dc5793",
+    "compiler/tests/lib_string_construction.rs": "ac68396a73d90e95039c37c96566af7ebb9822f3232b4000923bdfc70c6e5afe",
+    "compiler/tests/core_output.rs": "d41431180f5d4b0e79566ef6d7d57bb104c9cffce1d3464d9ae9f2ecc0097036"
+  },
+  "targets": {
+    "lib": {
+      "passed": 306,
+      "seconds": 206.21,
+      "binary_sha256": "093f3d5e014045e55cc16d0ea3b903f9fad4840bd6aab6d17c89042b93d11043"
+    },
+    "constructor_inventory": {
+      "passed": 4,
+      "seconds": 3.58,
+      "binary_sha256": "1fe2aa2b346b862e664d2b6c53551738517e3ebdbd02bdc5671033ae22015ce3"
+    },
+    "core_output": {
+      "passed": 24,
+      "seconds": 104.56,
+      "binary_sha256": "4254dd11e8b051d80370800a3af5de5e50410680f55bbad9ed9255c777a623c9"
+    },
+    "inline_copy": {
+      "passed": 4,
+      "seconds": 0.0,
+      "binary_sha256": "d6e0bf962cb00af5be005487d3e766a295ada13289f097b005f4ebf27245dc12"
+    },
+    "lib_string_construction": {
+      "passed": 4,
+      "seconds": 25.72,
+      "binary_sha256": "5c3716e811879dec88e535b9545383f96474ce5f2b6841b744974389094161ad"
+    },
+    "lib_utf8": {
+      "passed": 6,
+      "seconds": 19.82,
+      "binary_sha256": "cfb9202bcad3c65cf38e31210617f761b91b5903b741f5ad6a4faf0bb6c5ba25"
+    },
+    "simplify": {
+      "passed": 45,
+      "seconds": 0.01,
+      "binary_sha256": "9beaf931df37fde6c836874462b54d496319b0b25e2dd8d657359df435a259b6"
+    },
+    "stack_allocation": {
+      "passed": 22,
+      "seconds": 99.03,
+      "binary_sha256": "211eac8166f05a0671cdcdbae98c2c02f975033073479999298d639117261af2"
+    },
+    "lib_json_value": {
+      "passed": 10,
+      "seconds": 74.12,
+      "binary_sha256": "5197455ece22801a77b01be2439166a3b0acef8e3f0c5eaefdad34ec8763b295"
+    }
+  },
+  "total_targeted_checks": 425,
+  "logs": [
+    {
+      "path": "/tmp/cinch-constructor-string-parent-gate.log",
+      "sha256": "cc77778b2f1a879b6029ed62657d7bc6c45825c4a160e20591032aaeaee6e594",
+      "used_targets": [
+        "constructor_inventory",
+        "lib"
+      ]
+    },
+    {
+      "path": "/tmp/cinch-constructor-string-preserved-gate.log",
+      "sha256": "36e4583a6350ee28f072ffc72141d4ee4c0d72791812e59057d6a09d1cc3a15f",
+      "used_targets": [
+        "core_output",
+        "inline_copy"
+      ]
+    },
+    {
+      "path": "/tmp/cinch-string-independent-poison-gate.log",
+      "sha256": "8d2e36c5685cbf1203ad0c26a0880132eb570999367c301e93fdf73625501feb",
+      "used_targets": [
+        "lib_string_construction"
+      ]
+    },
+    {
+      "path": "/tmp/cinch-final-frame-utf8-preserved-gate.log",
+      "sha256": "3ff42ecefbff14e1d9f0ecf5b9a1e7e4183196e541a3b25e6f8d2673ab73b46d",
+      "used_targets": [
+        "lib_utf8",
+        "simplify",
+        "stack_allocation"
+      ]
+    },
+    {
+      "path": "/tmp/cinch-json-core-parent-gate.log",
+      "sha256": "bfbdae3bf8515950d8196ef339c1c49e9dd2a799385792202ab35dafe0826384",
+      "used_targets": [
+        "lib_json_value"
+      ]
+    }
+  ],
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "1",
+    "RUST_MIN_STACK": "67108864",
+    "compiler_main_stack_bytes": 67108864
+  },
+  "string_api_profiles": {
+    "checked_rc_compilation": true,
+    "total_executions": 433,
+    "full_assertions": 399,
+    "optimized_assertions": 29,
+    "fresh_embedded_assertions": 2,
+    "ordinary": "all assertions in one32M-heap/8M-stack process per consumer",
+    "poisoned": "one independent assertion per256M-heap/8M-stack process, including the100-iteration owner case",
+    "unchanged_library_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+    "failed_harness_scopes": [
+      {
+        "log": "/tmp/cinch-constructor-string-preserved-gate.log",
+        "reason": "all fixture functions in one poisoned process exhaust cumulative quarantine despite ordinary32M zero-leak success"
+      },
+      {
+        "log": "/tmp/cinch-final-string-frame-utf8-gate.log",
+        "reason": "one eight-observation optimized batch combined large cases and owner stress, exhausting cumulative quarantine"
+      }
+    ]
+  },
+  "core_snapshot_repair": {
+    "initial_target_result": "22 passed,2 failed",
+    "cause": "stale lowering snapshots and unpinned host target",
+    "pinned_target": "aarch64-apple-darwin",
+    "changed_goldens": 7,
+    "previous_compiler_matches_every_refreshed_golden": true,
+    "comparison": [
+      {
+        "fixture": "ownership",
+        "epoch": "baseline",
+        "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+        "core_sha256": "09300cc16581d4730755a7a9065cd611eab7302689ff44d0ddc027f6aa9f8d2f",
+        "matches_recorded": false,
+        "matches_refreshed": true
+      },
+      {
+        "fixture": "ownership",
+        "epoch": "current",
+        "compiler_sha256": "9050032982e36ae549689f0b35c448b8b91a05333c80eda09c16ce1c0b8deda7",
+        "core_sha256": "09300cc16581d4730755a7a9065cd611eab7302689ff44d0ddc027f6aa9f8d2f",
+        "matches_recorded": false,
+        "matches_refreshed": true
+      },
+      {
+        "fixture": "joins",
+        "epoch": "baseline",
+        "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+        "core_sha256": "85cb29560254ed0af9a28de74141cc4eb33db3d3903870ef3bc75d556859f3f3",
+        "matches_recorded": false,
+        "matches_refreshed": true
+      },
+      {
+        "fixture": "joins",
+        "epoch": "current",
+        "compiler_sha256": "9050032982e36ae549689f0b35c448b8b91a05333c80eda09c16ce1c0b8deda7",
+        "core_sha256": "85cb29560254ed0af9a28de74141cc4eb33db3d3903870ef3bc75d556859f3f3",
+        "matches_recorded": false,
+        "matches_refreshed": true
+      },
+      {
+        "fixture": "prims",
+        "epoch": "baseline",
+        "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+        "core_sha256": "49ea898ad6f1afb0d50c64a9f5f290063194d4facfe90bf1006cafcba837a5da",
+        "matches_refreshed": true
+      },
+      {
+        "fixture": "quotes",
+        "epoch": "baseline",
+        "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+        "core_sha256": "e059f195289a08dba9e39d60efc4d54a7c1d454b77717ae732d050d1eb2ddbef",
+        "matches_refreshed": true
+      },
+      {
+        "fixture": "rewrites",
+        "epoch": "baseline",
+        "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+        "core_sha256": "d95e62f1f5ed169cfb72c6aa05cd59330b2c49ec1b786d54c1b0fb90ed03c81e",
+        "matches_refreshed": true
+      },
+      {
+        "fixture": "shadowing",
+        "epoch": "baseline",
+        "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+        "core_sha256": "0e819ba9c0d37a86caaa9e798f498b020f944ebb4922c6df1f8a37279faa195e",
+        "matches_refreshed": true
+      },
+      {
+        "fixture": "simplify",
+        "epoch": "baseline",
+        "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+        "core_sha256": "a49a8d2904e5938621eede3981ae39f9a6ff48bbed4c785c2b1379d0ed910e47",
+        "matches_refreshed": true
+      }
+    ],
+    "fresh_snapshot_generation": "each fixture emitted twice identically and verified; subsequent full24-test target passed"
+  },
+  "tooling_checks": {
+    "artifact_and_bootstrap": 46,
+    "bootstrap_interfaces": 7,
+    "bootstrap_verification": 13,
+    "unicode_generators_and_catalogs": 10,
+    "surface_inventory": 3
+  },
+  "documentation": {
+    "modules": 171,
+    "diagnostics": 0,
+    "orphans": 0,
+    "source_drift_check": "passed",
+    "host_noise": "Only unchanged Prim.Sys host-dependent value rendering retained from the previous reviewed manifest"
+  },
+  "fresh_string_native_family_receipt": "stdlib-string-construction-current-base-results.json",
+  "remaining": [
+    "Mutable inference full self-built Native family remains in progress in its isolated lane",
+    "Unicode classification/catalog public benchmark review remains in progress",
+    "Five UTF8 String adapters require a combined fresh String helper/provider epoch",
+    "JSON typed codecs, complete numeric-cast policies and Effect stream APIs remain in progress; core alone does not complete the92-record package"
+  ],
+  "compiler_identity_epochs": {
+    "early_cli_sha256": "9050032982e36ae549689f0b35c448b8b91a05333c80eda09c16ce1c0b8deda7",
+    "final_cli_sha256": "da9f01b6d7a94d856ed317185f8917598dc62bf37513ddbe30e3fad359eab5c9",
+    "explanation": "build.rs fingerprints every prelude source, including source-distributed modules. Adding JSON and updating raw UTF8 changes CINCH_BUILD_ID and binary bytes; Rust production sources and all64 embedded base modules remain unchanged across these target runs. Per-target executable hashes and separate logs identify each actual run."
+  }
+}

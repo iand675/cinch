@@ -357,7 +357,7 @@ Observe every unicode-category key without exposing or copying range-table stora
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-category-of-code</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
-Observe the primary category of any numeric Unicode code point; invalid or unassigned scripts return None.
+Observe the primary category, including Cs and Cn; values outside the Unicode code-point domain return None.
 
 [Source](/reference-sources/Data.Unicode.Names.cinch) · line 3506
 
@@ -1147,7 +1147,7 @@ Observe every unicode-script key without exposing or copying range-table storage
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-script-of-code</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
-Observe the primary script of any numeric Unicode code point; invalid or unassigned scripts return None.
+Observe the primary script; values outside the code-point domain or without a named script return None.
 
 [Source](/reference-sources/Data.Unicode.Names.cinch) · line 3555
 

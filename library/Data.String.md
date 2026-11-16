@@ -71,7 +71,7 @@ never one a caller retains.
 Byte-wise comparison; UTF-8 preserves scalar value order under
 byte-wise lexicographic order, so this is also code point order.
 
-[Source](/reference-sources/Data.String.cinch) · line 344
+[Source](/reference-sources/Data.String.cinch) · line 370
 
 <a id="value-636f70792d62797465732d696e746f"></a>
 
@@ -104,7 +104,7 @@ string, `unpack` its inverse (new conversions: no `String`/`List
 Char` pair existed before). `pack` constructs a fresh string (the
 wrap/copy discipline: the buffer is fresh and never aliased).
 
-[Source](/reference-sources/Data.String.cinch) · line 315
+[Source](/reference-sources/Data.String.cinch) · line 341
 
 <a id="value-737472696e672d627974652d696e6465782d66726f6d"></a>
 
@@ -118,7 +118,7 @@ passes the end, and the result says so. A sequence whose width runs
 past the end is malformed, as `utf8-at` decides; the step restates
 that end test, so it answers `i` as a malformed sequence does.
 
-[Source](/reference-sources/Data.String.cinch) · line 289
+[Source](/reference-sources/Data.String.cinch) · line 315
 
 <a id="value-737472696e672d627974652d6c656e677468"></a>
 
@@ -156,7 +156,7 @@ Compares the two backings in place: `string-to-bytes` would copy
 both operands first, and the lexer's keyword table compares every
 identifier against dozens of literals.
 
-[Source](/reference-sources/Data.String.cinch) · line 356
+[Source](/reference-sources/Data.String.cinch) · line 382
 
 <a id="value-737472696e672d636f6e636174"></a>
 
@@ -172,15 +172,11 @@ identifier against dozens of literals.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-concat-all</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
-Every string in the list, in order, in one pass: the buffer is made
-once, at the end of the list, sized to the pieces' total, and each
-piece is copied once on the way back. A right fold of
-`string-concat` would re-copy the whole built suffix at every step,
-quadratic in the result's length. The concatenation of valid UTF-8
-is valid UTF-8, so the buffer wraps without a decode. This is the
-`Monoid String` instance's `mconcat`.
+Concatenate every string in list order into one fresh immutable backing.
+A tail-recursive size pass and a checked bulk-copy pass use bounded traversal
+stack, including lists of empty strings. Concatenation preserves valid UTF-8.
 
-[Source](/reference-sources/Data.String.cinch) · line 255
+[Source](/reference-sources/Data.String.cinch) · line 251
 
 <a id="value-737472696e672d66726f6d2d6279746573"></a>
 
@@ -214,11 +210,11 @@ Length in Unicode scalar values (O(n) scan).
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-repeat</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
-`s` repeated `n` times (the run-building helper the padding and
-numeric-format sites spelled out as fixed byte runs): one buffer of
-`n` copies, made once and filled in place.
+Repeat a string the requested natural count into one fresh immutable backing.
+A complete first copy seeds checked prefix doubling, giving logarithmically
+many bulk-copy steps and linear copied bytes. Empty results need no fill loop.
 
-[Source](/reference-sources/Data.String.cinch) · line 272
+[Source](/reference-sources/Data.String.cinch) · line 284
 
 <a id="value-737472696e672d736c696365"></a>
 
@@ -230,7 +226,7 @@ The code point range [start, end); indices past the end clamp and a
 reversed range yields the empty string (the span's subtraction
 takes its `start < end` evidence from the test).
 
-[Source](/reference-sources/Data.String.cinch) · line 301
+[Source](/reference-sources/Data.String.cinch) · line 327
 
 <a id="value-737472696e672d746f2d6279746573"></a>
 
@@ -375,4 +371,4 @@ with its type).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/String.cinch`. Source SHA-256: `3d35e3bb0d10e90d9f591765fc79f06c3a52c3a1d207fb0a42ad57c67b838a79`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/String.cinch`. Source SHA-256: `54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

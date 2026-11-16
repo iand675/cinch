@@ -16,6 +16,10 @@ use cinch::driver::{check_sources_ifaces, check_sources_profile_ifaces};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+/// Keep serialized fixture bytes independent of the machine running the tests.
+/// Core emission checks this target without linking or executing foreign code.
+const GOLDEN_TARGET: &str = "aarch64-apple-darwin";
+
 fn core_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/core")
 }
@@ -108,8 +112,8 @@ fn dump_via_command(scratch: &Path, name: &str, src: &Path, stage: Stage) -> Str
     std::fs::copy(src, &entry).expect("copy corpus source");
     let out = work.join(format!("{name}.core"));
     let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_cinch"));
-    command.arg("core").arg("emit").arg(&entry).arg("-o").arg(&out)
-        .args(["--target", "aarch64-apple-darwin"]);
+    command.arg("core").arg("emit").arg(&entry).arg("-o").arg(&out);
+    command.args(["--target", GOLDEN_TARGET]);
     match stage {
         Stage::Checked => {
             command.arg("--stage=checked");
@@ -701,9 +705,9 @@ fn core_emit_writes_the_golden_file() {
         .arg("core")
         .arg("emit")
         .arg(&src)
-        .args(["--target", "aarch64-apple-darwin"])
         .arg("-o")
         .arg(&out)
+        .args(["--target", GOLDEN_TARGET])
         .output()
         .expect("run cinch core emit");
     assert!(
