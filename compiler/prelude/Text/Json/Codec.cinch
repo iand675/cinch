@@ -2,6 +2,7 @@
 -- Descriptors make type metadata and custom conversion callbacks explicit. Decoding
 -- can retain a partially updated value together with its first structured error.
 module Text.Json.Codec where
+  import Text.Json.Binary32
   import Text.Json.Value
   import Text.Base64.Encoding
   import Data.Array
@@ -35,7 +36,7 @@ module Text.Json.Codec where
   export JsonFieldMatch, JsonFieldDefaultMatch, JsonFieldExactMatch, JsonFieldFoldMatch
   export JsonFieldOptions, json-field-options, json-default-field-options, JsonField, json-field, json-field-with, json-field-name, json-record-type
   export json-list-type, json-slice-type, json-fixed-array-type
-  export json-float64-type, json-bool-type, json-string-type, json-int64-type, json-number-type, json-raw-type, json-nullable-type
+  export json-float32-type, json-float64-type, json-bool-type, json-string-type, json-int64-type, json-number-type, json-raw-type, json-nullable-type
 
   -- | Independently selectable typed conversion semantics.
   data JsonPolicy where
@@ -745,6 +746,30 @@ module Text.Json.Codec where
   -- | The finite binary64 descriptor with shortest JSON decimal formatting.
   json-float64-type :: JsonType F64
   json-float64-type = Type "F64" JsonNumberKind (\unit -> (i64-to-f64 0)) (\value -> feq-f64 value (i64-to-f64 0)) (\value -> feq-f64 value (i64-to-f64 0)) float64-encode float64-update
+
+  -- | Encode finite binary32 values with shortest exact decimal coefficients.
+  float32-encode :: JsonWriteOptions -> F32 -> Result JsonError Bytes
+  float32-encode options value = if is-finite-f32 value then
+    case string-from-bytes (binary32-to-decimal value) of
+      Some text -> Ok (numeric-encoded options text)
+      None -> Err (JsonValueError "F32" "decimal formatter returned invalid text")
+    else Err (JsonValueError "F32" (nonfinite-float64-text (f32-to-f64 value)))
+
+  -- | Decode binary32 with exact midpoint rounding while preserving the prior value after range errors.
+  float32-update :: JsonReadOptions -> JsonValue -> F32 -> JsonDecoded F32
+  float32-update options source prior = case json-value-kind source of
+    JsonNullKind -> null-scalar options prior (i64-to-f32 0)
+    other -> case numeric-source options source of
+      Err error -> json-decoded-with-error prior (JsonTypeError "F32" (case json-value-string source of Some text -> string-concat "number " text; None -> source-description source) (source-error-offset source) "")
+      Ok token -> case json-value-number token of
+        None -> type-mismatch "F32" source prior
+        Some number -> case json-number-float32 number of
+          Ok value -> json-decoded-ok value
+          Err error -> json-decoded-with-error prior (JsonTypeError "F32" (string-concat "number " (json-number-text number)) (json-value-end source) "")
+
+  -- | The finite binary32 descriptor with exact rounding and shortest JSON decimal formatting.
+  json-float32-type :: JsonType F32
+  json-float32-type = Type "F32" JsonNumberKind (\unit -> (i64-to-f32 0)) (\value -> feq-f32 value (i64-to-f32 0)) (\value -> feq-f32 value (i64-to-f32 0)) float32-encode float32-update
 
   -- | Private persistent AVL nodes support bounded lookup and update paths for typed object keys.
   data JsonTree k v where

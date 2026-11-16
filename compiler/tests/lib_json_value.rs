@@ -8,6 +8,10 @@ fn run(source: &str) {
     let directory = tempfile::tempdir().unwrap();
     for (name, contents) in [
         (
+            "Text.Json.Binary32",
+            include_str!("../prelude/Text/Json/Binary32.cinch"),
+        ),
+        (
             "Text.Json.Value",
             include_str!("../prelude/Text/Json/Value.cinch"),
         ),

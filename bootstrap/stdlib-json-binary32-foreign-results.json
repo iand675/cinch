@@ -1,0 +1,25 @@
+{
+  "production_source_sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+  "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+  "runner_sha256": "7619b0372d011787b069b90e25a0ed8b8f65641011411c1603fd5fe8ecb78988",
+  "consumer_sha256": "4341db5b768922819a9cfa3b5f1f925da23fb14971bef91c1dada9804ae9b221",
+  "cpu_affinity": [
+    2
+  ],
+  "compiler_host_stack_kib": 65536,
+  "foreign_execution_claimed": false,
+  "targets": [
+    {
+      "triple": "wasm32-unknown-unknown",
+      "llvm_sha256": "074c7a7c52882adb5fbceb8cf25f4adb1d606973cae7e08a067c54a79c8819d1",
+      "object_sha256": "d19687b7e3348928f49c8128b23755ce412cc611139e07f49e4450f9e2c34f02",
+      "object_bytes": 1631
+    },
+    {
+      "triple": "aarch64-unknown-linux-gnu",
+      "llvm_sha256": "540281a66e5deec4edb4dfff0014dd6932218c1ca93fb7a329c4cb70127f0f0f",
+      "object_sha256": "0e65da9500dbc49d52449b5d4a7795ce72b1769cf2bc6d5b85a82bdd470c9450",
+      "object_bytes": 3632
+    }
+  ]
+}

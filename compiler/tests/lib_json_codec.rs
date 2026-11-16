@@ -8,6 +8,10 @@ fn run(source: &str) {
     let directory = tempfile::tempdir().unwrap();
     for (name, contents) in [
         (
+            "Text.Json.Binary32",
+            include_str!("../prelude/Text/Json/Binary32.cinch"),
+        ),
+        (
             "Text.Base64.Encoding",
             include_str!("../prelude/Text/Base64/Encoding.cinch"),
         ),
@@ -83,6 +87,18 @@ fn json_float64_formatting_and_updates_match_independent_observations() {
     run(include_str!("fixtures/json-codec-float.cinch"));
 }
 
+/// Exact midpoint rounding, finite range errors and shortest formatting match independent binary32 observations.
+#[test]
+fn json_float32_rounding_and_formatting_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-float32.cinch"));
+}
+
+/// Mutable source and output aliases, quoted fields and retained range errors survive repeated conversions.
+#[test]
+fn json_float32_owners_and_composed_updates_are_bounded() {
+    run(include_str!("fixtures/json-codec-float32-control.cinch"));
+}
+
 /// Every vector mismatch lane and Unicode boundary follows independent exact-first name matching.
 #[test]
 fn json_record_name_matching_matches_independent_observations() {
@@ -153,27 +169,30 @@ fn json_map_owners_callbacks_and_large_values_are_bounded() {
 /// Every public/private declaration and constructor owns canonical standard-library documentation.
 #[test]
 fn json_codec_declarations_have_canonical_documentation() {
-    let source = include_str!("../prelude/Text/Json/Codec.cinch");
-    let parsed = cinch::cinchdoc::parse_source(
-        source,
-        Some("Text.Json.Codec"),
-        "Text.Json.Codec",
-        None,
-        false,
-    )
-    .unwrap();
-    assert!(parsed.doc.is_some());
-    assert!(parsed.diagnostics.is_empty() && parsed.orphans.is_empty());
-    let mut declarations = Vec::new();
-    cinch::cinchdoc::flatten(&parsed.declarations, &mut declarations);
-    for declaration in declarations {
-        let doc = declaration
-            .doc
-            .as_ref()
-            .unwrap_or_else(|| panic!("{}: missing documentation", declaration.id));
-        assert!(!doc.legacy);
-        let text = doc.markdown.to_lowercase();
-        assert!(!text.contains("golang") && !text.contains("go's") && !text.contains("go "));
+    for (name, source) in [
+        (
+            "Text.Json.Codec",
+            include_str!("../prelude/Text/Json/Codec.cinch"),
+        ),
+        (
+            "Text.Json.Binary32",
+            include_str!("../prelude/Text/Json/Binary32.cinch"),
+        ),
+    ] {
+        let parsed = cinch::cinchdoc::parse_source(source, Some(name), name, None, false).unwrap();
+        assert!(parsed.doc.is_some());
+        assert!(parsed.diagnostics.is_empty() && parsed.orphans.is_empty());
+        let mut declarations = Vec::new();
+        cinch::cinchdoc::flatten(&parsed.declarations, &mut declarations);
+        for declaration in declarations {
+            let doc = declaration
+                .doc
+                .as_ref()
+                .unwrap_or_else(|| panic!("{}: missing documentation", declaration.id));
+            assert!(!doc.legacy);
+            let text = doc.markdown.to_lowercase();
+            assert!(!text.contains("golang") && !text.contains("go's") && !text.contains("go "));
+        }
     }
 }
 
@@ -194,7 +213,16 @@ fn rust_json_field_kernel_compiles_for_wasm_arm_and_big_endian_targets() {
         kernels.push_str(&rest[..end]);
     }
 
-    kernels.push_str("\n  -- | Retain the source owner through its checked private load.\n  keep :: Bytes -> U8 -> U8\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep the complete classifier reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 16 in let a = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 0) in let b = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 1) in let ascii = keep bytes (key-ascii16 (bytes-data bytes)) in let fringe = keep bytes (key-ascii-byte (bytes-data bytes)) in if eq-u8 a b && eq-u8 ascii 1 && eq-u8 fringe 1 then 0 else 1\n");
+    let binary32 = include_str!("../prelude/Text/Json/Binary32.cinch");
+    for name in ["binary32-bits", "binary32-value"] {
+        let start = binary32.find(&format!("  prim {name} ::")).unwrap();
+        let rest = &binary32[start..];
+        let end = rest.find("\n  -- |").unwrap_or(rest.len());
+        kernels.push_str("\n  -- | Actual binary32 representation primitive.\n");
+        kernels.push_str(&rest[..end]);
+    }
+
+    kernels.push_str("\n  -- | Retain the source owner through its checked private load.\n  keep :: Bytes -> U8 -> U8\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep the complete classifier reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 16 in let a = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 0) in let b = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 1) in let ascii = keep bytes (key-ascii16 (bytes-data bytes)) in let fringe = keep bytes (key-ascii-byte (bytes-data bytes)) in let bits = wrapping-i64-to-u32 (bytes-data bytes) in if eq-u8 a b && eq-u8 ascii 1 && eq-u8 fringe 1 && eq-u32 (binary32-bits (binary32-value bits)) bits then 0 else 1\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
@@ -226,6 +254,7 @@ fn rust_json_field_kernel_compiles_for_wasm_arm_and_big_endian_targets() {
             .unwrap()
             .unwrap();
         assert!(ir.contains("<16 x i8>") && ir.contains("load <16 x i8>"));
+        assert!(ir.contains("bitcast i32") && ir.contains("bitcast float"));
         let path = directory.path().join(format!("{arch}.ll"));
         std::fs::write(&path, &ir).unwrap();
         let output = std::process::Command::new(
