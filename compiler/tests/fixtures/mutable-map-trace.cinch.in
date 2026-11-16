@@ -1,0 +1,104 @@
+-- | Execute one independent operation trace and check every complete post-state.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Mutable.Map
+  import Data.Mutable.Var
+
+  -- | One operation, its source inputs, independent post-state and observation.
+  data TraceStep where
+    -- | Preserve duplicate source pairs and heterogeneous comparison values separately.
+    TraceStep :: Nat -> Nat -> Nat -> List (Nat, Nat) -> List (Nat, Nat) -> List (Nat, Nat) -> List (Nat, Bool) -> Nat -> TraceStep
+
+  -- | Count expected entries without consulting the implementation's container.
+  pair-count :: forall a b. List (a, b) -> Nat
+  pair-count pairs = case pairs of Nil -> 0; Cons pair rest -> 1 + pair-count rest
+
+  -- | Check every independently expected key/value binding.
+  expected-pairs :: forall r. MutableMap r Nat Nat -> List (Nat, Nat) ->{Mut r} Bool
+  expected-pairs map pairs = case pairs of
+    Nil -> True
+    Cons pair rest -> case pair of
+      (key, value) -> case mutable-map-lookup map key of
+        None -> False
+        Some actual -> actual == value && expected-pairs map rest
+
+  -- | Verify absence of extra entries as well as every expected binding.
+  same-map :: forall r. MutableMap r Nat Nat -> List (Nat, Nat) ->{Mut r} Bool
+  same-map map pairs = mutable-map-size map == pair-count pairs && expected-pairs map pairs
+
+  -- | Observe one checked bulk mutation without discarding its result.
+  succeeded :: Result MapError Unit -> Bool
+  succeeded result = case result of Ok unit -> True; Err error -> False
+
+  -- | Accumulate an order-independent pair/key/value observation.
+  observe-entry :: forall r. Var r Nat -> Nat -> Nat -> Nat ->{Mut r} Bool
+  observe-entry total mode key value =
+    let old = var-read total in
+    let next = if mode == 7 then 17 * key + value else if mode == 8 then key else value in
+    let saved = var-write total (old + next) in True
+
+  -- | Execute all three traversal surfaces independently of their unspecified order.
+  observation :: forall r. MutableMap r Nat Nat -> Nat -> Nat ->{Mut r} Bool
+  observation map mode wanted =
+    let total = var-new (0 :: Nat) in
+    let done = if mode == 7 then mutable-map-all map (observe-entry total mode)
+               else if mode == 8 then mutable-map-keys map (\key -> observe-entry total mode key 0)
+               else mutable-map-values map (\value -> observe-entry total mode 0 value) in
+    done && var-read total == wanted
+
+  -- | Convert a comparison observation to the independently recorded zero/one value.
+  same-verdict :: Bool -> Nat -> Bool
+  same-verdict actual wanted = if actual then wanted == 1 else wanted == 0
+
+  -- | Execute one package operation; models arrive as data from the independent SDK.
+  apply-step :: forall r. Var r (MutableMap r Nat Nat) -> TraceStep ->{Mut r} Bool
+  apply-step root step = case step of
+    TraceStep operation key value pairs expected auxiliary other wanted ->
+      let map = var-read root in
+      let applied =
+        if operation == 0 then
+          case mutable-map-collect (map-source-from-list pairs) of
+            Err error -> False
+            Ok fresh -> let saved = var-write root fresh in True
+        else if operation == 1 then succeeded (mutable-map-insert map (map-source-from-list pairs))
+        else if operation == 2 then
+          case mutable-map-collect (map-source-from-list pairs) of
+            Err error -> False
+            Ok source -> succeeded (mutable-map-copy map source)
+        else if operation == 3 then succeeded (mutable-map-delete-if map (\stored item -> nat-rem stored 4 == nat-rem key 4))
+        else if operation == 4 then
+          case mutable-map-clone map of
+            Err error -> False
+            Ok copy ->
+              let original = same-map copy expected in
+              let changed = succeeded (mutable-map-set copy key value) in
+              let missing = case mutable-map-lookup map key of None -> True; Some item -> False in
+              original && changed && same-map copy auxiliary && same-verdict missing wanted
+        else if operation == 5 then
+          case mutable-map-collect (map-source-from-list auxiliary) of
+            Err error -> False
+            Ok compared -> same-verdict (mutable-map-equal map compared) wanted
+        else if operation == 6 then
+          case mutable-map-collect (map-source-from-list other) of
+            Err error -> False
+            Ok compared -> same-verdict (mutable-map-equal-by (\number flag -> (nat-rem number 2 == 0) == flag) map compared) wanted
+        else observation map operation wanted in
+      applied && same-map (var-read root) expected
+
+  -- | Return the one-based first mismatching operation, preserving deterministic diagnostics.
+  run-steps :: forall r. Var r (MutableMap r Nat Nat) -> List TraceStep -> Int ->{Mut r} Int
+  run-steps root steps index = case steps of
+    Nil -> 0
+    Cons step rest -> if apply-step root step then run-steps root rest (index + 1) else index
+
+  -- | Independent reference steps are supplied by the fixture generator.
+  steps :: List TraceStep
+  steps = @STEPS@
+
+  -- | Own one current map while replacing it only for explicit collection operations.
+  main :: forall r. Unit ->{Mut r} Int
+  main unit =
+    let map = mutable-map-new () in
+    let root = var-new map in
+    run-steps root steps 1

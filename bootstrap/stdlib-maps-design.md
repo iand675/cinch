@@ -137,7 +137,7 @@ mutable-map-equal-by :: forall r s k a b ef.
 map-source-from-list :: forall k v ef. List (k, v)
   -> (k -> v ->{ef} Bool) ->{ef} Unit
 mutable-map-source :: forall r k v ef. MutableMap r k v
-  -> (k -> v ->{ef} Bool) ->{Mut r | ef} Unit
+  -> (k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit
 ```
 
 All/Keys/Values return True on exhaustion and False on action stop. They
@@ -150,6 +150,13 @@ have stable live identity. Row-polymorphic callbacks can perform IO or
 mutate other regions; a Mut-only callback restriction is not acceptable.
 Higher-order row/source use and storing/reusing a partial application
 need positive and negative frontend gates before publication.
+
+The pair-source form explicitly includes its own `Mut r` label in the
+yield callback's row as well as its result row. This permits two partially
+applied map sources/consumers in different regions to unify their open
+tails without the self-tail equation exposed by the first frozen check.
+The direct All/Keys/Values forms retain their more general callback row;
+the source adaptation does not remove IO or other-region effects.
 
 `MapError` distinguishes capacity refusal, an internal identity invariant
 failure and an absent optional destination. A list membership error at an

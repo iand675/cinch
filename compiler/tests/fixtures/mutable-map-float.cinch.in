@@ -1,0 +1,100 @@
+-- | Observe complete floating key representations and non-reflexive binding multiplicity.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Machine
+  import Data.Mutable.Map
+  import Data.Mutable.Map.Float
+  import Data.Mutable.Var
+
+  -- | One independent full multiset and an operation-specific equality result.
+  data FloatStep where
+    -- | Keep raw key bits separate from ordinary natural values.
+    FloatStep :: Nat -> List (U64, Nat) -> Nat -> FloatStep
+
+  -- | Construct the test key without arithmetic conversion or NaN canonicalization.
+  prim input-key :: U64 -> @FLOAT@ where
+    llvm {
+@FROM_BITS@
+    }
+
+  -- | Observe every stored key bit, including signaling payloads and signed zeros.
+  prim key-bits :: @FLOAT@ -> U64 where
+    llvm {
+@TO_BITS@
+    }
+
+  -- | Check a mutation's explicit result.
+  succeeded :: Result MapError Unit -> Bool
+  succeeded result = case result of Ok unit -> True; Err error -> False
+
+  -- | Count expected entries without using lookup on non-reflexive keys.
+  expected-length :: List (U64, Nat) -> Nat
+  expected-length rows = case rows of Nil -> 0; Cons row rest -> 1 + expected-length rest
+
+  -- | Count one complete bit/value pair in the independent expected multiset.
+  expected-count :: U64 -> Nat -> List (U64, Nat) -> Nat
+  expected-count bits value rows = case rows of
+    Nil -> 0
+    Cons pair rest -> case pair of
+      (other, stored) -> (if eq-u64 bits other && value == stored then 1 else 0) + expected-count bits value rest
+
+  -- | Count an exact stored bit/value pair by identity-aware enumeration.
+  actual-count :: forall r. MutableMap r @FLOAT@ Nat -> U64 -> Nat ->{Mut r} Nat
+  actual-count map bits value =
+    let count = var-new (0 :: Nat) in
+    let done = mutable-map-all map (\key stored ->
+      let old = var-read count in
+      let saved = if eq-u64 (key-bits key) bits && value == stored then var-write count (old + 1) else () in True) in
+    var-read count
+
+  -- | Match every expected multiplicity rather than treating NaN keys as a set.
+  match-rows :: forall r. MutableMap r @FLOAT@ Nat -> List (U64, Nat) -> List (U64, Nat) ->{Mut r} Bool
+  match-rows map all rows = case rows of
+    Nil -> True
+    Cons pair rest -> case pair of
+      (bits, value) -> actual-count map bits value == expected-count bits value all && match-rows map all rest
+
+  -- | Check the entire raw-key/value multiset, independent of iteration order.
+  same-state :: forall r. MutableMap r @FLOAT@ Nat -> List (U64, Nat) ->{Mut r} Bool
+  same-state map rows = mutable-map-size map == expected-length rows && match-rows map rows rows
+
+  -- | Apply the specified floating-key operation and its independent observation.
+  apply-step :: forall r. MutableMap r @FLOAT@ Nat -> FloatStep ->{Mut r} Bool
+  apply-step map step = case step of
+    FloatStep operation expected observed ->
+      if operation == 0 then
+        let first = succeeded (mutable-map-set map (input-key @NAN@) 1) in
+        let second = succeeded (mutable-map-set map (input-key @NAN@) 2) in
+        first && second && same-state map expected
+      else if operation == 1 then
+        let first = succeeded (mutable-map-set map (input-key @OTHER_NAN@) 3) in
+        let second = succeeded (mutable-map-set map (input-key @NEGATIVE_NAN@) 4) in
+        first && second && same-state map expected
+      else if operation == 2 then
+        let first = succeeded (mutable-map-set map (input-key 0) 5) in
+        let second = succeeded (mutable-map-set map (input-key @NEGATIVE_ZERO@) 6) in
+        first && second && same-state map expected
+      else if operation == 3 then
+        let equal = mutable-map-equal map map in
+        (if equal then observed == 1 else observed == 0) && same-state map expected
+      else if operation == 4 then
+        case mutable-map-clone map of Err error -> False; Ok copy -> same-state copy expected && same-state map expected
+      else if operation == 5 then
+        let copy = mutable-map-new-with @POLICY@ () in
+        succeeded (mutable-map-copy copy map) && same-state copy expected && same-state map expected
+      else succeeded (mutable-map-delete-if map (\key value -> True)) && same-state map expected
+
+  -- | Report the first failing floating observation without summing diagnostics.
+  run-steps :: forall r. MutableMap r @FLOAT@ Nat -> List FloatStep -> Int ->{Mut r} Int
+  run-steps map steps index = case steps of
+    Nil -> 0
+    Cons step rest -> if apply-step map step then run-steps map rest (index + 1) else index
+
+  -- | Independent full-bit observations supplied by the fixture generator.
+  steps :: List FloatStep
+  steps = @STEPS@
+
+  -- | Keep both map ownership and all captured traversal identities inside one runtime scope.
+  main :: forall r. Unit ->{Mut r} Int
+  main unit = let map = mutable-map-new-with @POLICY@ () in run-steps map steps 1

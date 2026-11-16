@@ -1,0 +1,86 @@
+-- | Explicit absent-map adapters without hidden null handles.
+-- Empty and absent inputs compare equally and yield no entries. Cloning
+-- preserves absence; assigning an actual binding to an absent destination
+-- returns MapMissingDestination instead of allocating it implicitly.
+module Data.Mutable.Map.Optional where
+  import Data.Core
+  import Data.Hash (Hash)
+  import Relation.Eq (Eq)
+  import Data.Mutable.Map
+  import Data.Mutable.Var (Var, var-new, var-read, var-write)
+
+  export optional-map-all, optional-map-keys, optional-map-values, optional-map-source
+  export optional-map-insert, optional-map-copy, optional-map-clone
+  export optional-map-collect, optional-map-collect-with, optional-map-delete-if
+  export optional-map-equal, optional-map-equal-by
+
+  -- | Visit no entries for an absent input, or apply ordinary live pair traversal.
+  optional-map-all :: forall r k v ef. Option (MutableMap r k v) -> (k -> v ->{ef} Bool) ->{Mut r | ef} Bool
+  optional-map-all input action = case input of None -> True; Some map -> mutable-map-all map action
+
+  -- | Visit current keys, with an absent input exhausting without any callback.
+  optional-map-keys :: forall r k v ef. Option (MutableMap r k v) -> (k ->{ef} Bool) ->{Mut r | ef} Bool
+  optional-map-keys input action = case input of None -> True; Some map -> mutable-map-keys map action
+
+  -- | Visit current values, preserving duplicates and treating absence as empty.
+  optional-map-values :: forall r k v ef. Option (MutableMap r k v) -> (v ->{ef} Bool) ->{Mut r | ef} Bool
+  optional-map-values input action = case input of None -> True; Some map -> mutable-map-values map action
+
+  -- | Supply live pairs to a stop-obeying consumer; absence supplies none.
+  optional-map-source :: forall r k v ef. Option (MutableMap r k v) -> (k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit
+  optional-map-source input yield = let exhausted = optional-map-all input yield in ()
+
+  -- | Record that an absent destination received a binding, then refuse further yields.
+  missing-yield :: forall r k v ef. Var r (Result MapError Unit) -> k -> v ->{Mut r | ef} Bool
+  missing-yield status key value = case var-read status of
+    Err error -> False
+    Ok unit -> let saved = var-write status (Err MapMissingDestination) in False
+
+  -- | Consume an empty source successfully for an absent destination; refuse its first actual binding.
+  optional-map-insert :: forall r k v ef. Option (MutableMap r k v) -> ((k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Result MapError Unit
+  optional-map-insert destination source = case destination of
+    Some map -> mutable-map-insert map source
+    None ->
+      let status = var-new (Ok () :: Result MapError Unit) in
+      let consumed = source (missing-yield status) in
+      var-read status
+
+  -- | Copy into the supplied destination; absence is unchanged for an empty source.
+  optional-map-copy :: forall r s k v. Option (MutableMap r k v) -> Option (MutableMap s k v) ->{Mut r, Mut s} Result MapError Unit
+  optional-map-copy destination source = case source of
+    None -> Ok ()
+    Some map -> case destination of
+      Some destination-map -> mutable-map-copy destination-map map
+      None -> if mutable-map-is-empty map then Ok () else Err MapMissingDestination
+
+  -- | Preserve absence, or shallowly clone into independent present container cells.
+  optional-map-clone :: forall r k v. Option (MutableMap r k v) ->{Mut r} Result MapError (Option (MutableMap r k v))
+  optional-map-clone source = case source of
+    None -> Ok None
+    Some map -> case mutable-map-clone map of Err error -> Err error; Ok copy -> Ok (Some copy)
+
+  -- | Collect with an explicit policy, returning a present map even for an empty source.
+  optional-map-collect-with :: forall r k v ef. MapKeyPolicy k -> ((k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Result MapError (Option (MutableMap r k v))
+  optional-map-collect-with policy source = case mutable-map-collect-with policy source of
+    Err error -> Err error
+    Ok map -> Ok (Some map)
+
+  -- | Collect with captured default key methods, returning an allocated present empty map when needed.
+  optional-map-collect :: forall r k v ef. using (h :: Hash k, eq :: Eq k) => ((k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Result MapError (Option (MutableMap r k v))
+  optional-map-collect source = case mutable-map-collect source of Err error -> Err error; Ok map -> Ok (Some map)
+
+  -- | Apply the deletion predicate only to present live entries; absence is successful and inert.
+  optional-map-delete-if :: forall r k v ef. Option (MutableMap r k v) -> (k -> v ->{ef} Bool) ->{Mut r | ef} Result MapError Unit
+  optional-map-delete-if input predicate = case input of None -> Ok (); Some map -> mutable-map-delete-if map predicate
+
+  -- | Compare absence as empty and use an explicit predicate for corresponding present values.
+  optional-map-equal-by :: forall r s k a b ef. (a -> b ->{ef} Bool) -> Option (MutableMap r k a) -> Option (MutableMap s k b) ->{Mut r, Mut s | ef} Bool
+  optional-map-equal-by equal first second = case first of
+    None -> case second of None -> True; Some map -> mutable-map-is-empty map
+    Some map -> case second of None -> mutable-map-is-empty map; Some other -> mutable-map-equal-by equal map other
+
+  -- | Compare bindings with value equality, identifying absence with a present empty map.
+  optional-map-equal :: forall r s k v. using (values :: Eq v) => Option (MutableMap r k v) -> Option (MutableMap s k v) ->{Mut r, Mut s} Bool
+  optional-map-equal first second = case first of
+    None -> case second of None -> True; Some map -> mutable-map-is-empty map
+    Some map -> case second of None -> mutable-map-is-empty map; Some other -> mutable-map-equal map other

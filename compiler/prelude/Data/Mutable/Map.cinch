@@ -1,0 +1,302 @@
+-- | A mutable map with captured key policies and deletion-aware live traversal.
+-- Each traversal captures entry identities when invoked, then reads current
+-- memberships and values before callbacks. New entries are skipped; removed
+-- entries are never yielded. Traversal setup scans the digest index and retains
+-- the original entry handles until it returns, including removed payloads.
+module Data.Mutable.Map where
+  import Data.Core
+  import Data.Hash (Hash, hash)
+  import Data.Nat
+  import Data.Machine
+  import Relation.Eq (Eq, (==))
+  import Relation.Ord ((<))
+  import Data.Mutable.HashTable (HashTable, hash-table-new, hash-table-lookup, hash-table-insert, hash-table-delete, hash-table-clear, hash-table-fold)
+  import Data.Mutable.LinkedList (LinkedList, ListElement, LinkedListError, ListCapacityExceeded, ForeignListElement, RemovedListElement, list-new, list-length, list-push-back, list-is-member, list-element-value, list-element-set, list-same-element, list-remove, list-clear)
+  import Data.Mutable.Var (Var, var-new, var-read, var-write)
+
+  export MutableMap, MapKeyPolicy, MapError
+  export MapCapacityExceeded, MapIdentityViolation, MapMissingDestination
+  export map-key-policy, mutable-map-new, mutable-map-new-with
+  export mutable-map-size, mutable-map-is-empty, mutable-map-lookup, mutable-map-set, mutable-map-delete, mutable-map-clear
+  export mutable-map-all, mutable-map-keys, mutable-map-values, mutable-map-source, map-source-from-list
+  export mutable-map-insert, mutable-map-collect, mutable-map-collect-with, mutable-map-clone, mutable-map-copy
+  export mutable-map-delete-if, mutable-map-equal, mutable-map-equal-by
+
+  -- | Pure key hashing and comparison captured together for the map's lifetime.
+  -- Equal keys must have equal hashes, and both functions must remain stable
+  -- while a key is stored. Comparison may be non-reflexive.
+  data MapKeyPolicy k where
+    -- | Retain the selected hash and key comparison without global instances.
+    KeyPolicy :: (k -> Nat) -> (k -> k -> Bool) -> MapKeyPolicy k
+
+  -- | A checked refusal; completed prefixes of bulk updates remain applied.
+  data MapError where
+    -- | A new entry would exceed the target's conservative storage bound.
+    MapCapacityExceeded :: MapError
+    -- | A private index entry failed its required stable-membership invariant.
+    MapIdentityViolation :: MapError
+    -- | An optional destination was absent when its first binding was supplied.
+    MapMissingDestination :: MapError
+
+  -- | A private stable-entry store indexed by captured key digests.
+  data MutableMap r k v where
+    -- | Own one policy, a digest-to-identities index and the live entry list.
+    MapState :: MapKeyPolicy k -> HashTable r Nat (List (ListElement r (k, v))) -> LinkedList r (k, v) -> MutableMap r k v
+
+  -- | Select pure key functions explicitly, including non-reflexive comparisons.
+  map-key-policy :: forall k. (k -> Nat) -> (k -> k -> Bool) -> MapKeyPolicy k
+  map-key-policy digest equal = KeyPolicy digest equal
+
+  -- | Read the immutable key policy shared by shallow clones.
+  policy-of :: forall r k v. MutableMap r k v -> MapKeyPolicy k
+  policy-of map = case map of MapState policy index entries -> policy
+
+  -- | Read the private digest index without exporting its mutable handle.
+  index-of :: forall r k v. MutableMap r k v -> HashTable r Nat (List (ListElement r (k, v)))
+  index-of map = case map of MapState policy index entries -> index
+
+  -- | Read the private stable-entry owner without exposing its membership API.
+  entries-of :: forall r k v. MutableMap r k v -> LinkedList r (k, v)
+  entries-of map = case map of MapState policy index entries -> entries
+
+  -- | Hash with the policy captured when this map was constructed.
+  key-digest :: forall r k v. MutableMap r k v -> k -> Nat
+  key-digest map key = case policy-of map of KeyPolicy digest equal -> digest key
+
+  -- | Compare keys with this map's captured comparison function.
+  key-equal :: forall r k v. MutableMap r k v -> k -> k -> Bool
+  key-equal map first second = case policy-of map of KeyPolicy digest equal -> equal first second
+
+  -- | Allocate fresh container cells with an explicit immutable key policy.
+  mutable-map-new-with :: forall r k v. MapKeyPolicy k -> Unit ->{Mut r} MutableMap r k v
+  mutable-map-new-with policy unit =
+    let index = hash-table-new () in
+    let entries = list-new () in
+    MapState policy index entries
+
+  -- | Capture the current hashing and equality methods once in a fresh map.
+  mutable-map-new :: forall r k v. using (h :: Hash k, eq :: Eq k) => Unit ->{Mut r} MutableMap r k v
+  mutable-map-new unit = mutable-map-new-with (map-key-policy hash (==)) ()
+
+  -- | Observe the number of live bindings, including distinct non-reflexive keys.
+  mutable-map-size :: forall r k v. MutableMap r k v ->{Mut r} Nat
+  mutable-map-size map = list-length (entries-of map)
+
+  -- | Test whether the map has no live bindings.
+  mutable-map-is-empty :: forall r k v. MutableMap r k v ->{Mut r} Bool
+  mutable-map-is-empty map = mutable-map-size map == 0
+
+  -- | Read the current immutable collision bucket, or its empty identity list.
+  bucket-at :: forall r k v. MutableMap r k v -> Nat ->{Mut r} List (ListElement r (k, v))
+  bucket-at map digest = case hash-table-lookup (index-of map) digest of None -> Nil; Some bucket -> bucket
+
+  -- | Find one key by captured equality; no reflexivity shortcut is used.
+  find-entry :: forall r k v. MutableMap r k v -> k -> List (ListElement r (k, v)) ->{Mut r} Option (ListElement r (k, v))
+  find-entry map key bucket = case bucket of
+    Nil -> None
+    Cons entry rest -> case list-element-value entry of
+      (stored, value) -> if key-equal map stored key then Some entry else find-entry map key rest
+
+  -- | Find a value under the captured key policy; a non-reflexive key may miss itself.
+  mutable-map-lookup :: forall r k v. MutableMap r k v -> k ->{Mut r} Option v
+  mutable-map-lookup map key =
+    let bucket = bucket-at map (key-digest map key) in
+    case find-entry map key bucket of
+      None -> None
+      Some entry -> case list-element-value entry of (stored, value) -> Some value
+
+  -- | Bound physical slot arrays by the target signed range and allocation headers.
+  physical-slots :: U64
+  physical-slots = wrapping-shr-u64 (wrapping-sub-u64 (wrapping-shr-u64 (wrapping-usize-to-u64 max-bound-usize) 1) 32) 3
+
+  -- | Find the greatest power of two not exceeding a positive limit without overflow.
+  largest-power :: U64 -> U64 -> U64
+  largest-power limit current =
+    if le-u64 current (wrapping-shr-u64 limit 1) then largest-power limit (wrapping-shl-u64 current 1) else current
+
+  -- | Limit live entries so the digest index's eight-slot power-of-two chunks fit.
+  maximum-entries :: Nat
+  maximum-entries = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 (wrapping-mul-u64 (largest-power (wrapping-shr-u64 physical-slots 3) 1) 7)) 9223372036854775807)
+
+  -- | Translate private list refusals without hiding an invalid membership.
+  entry-error :: LinkedListError -> MapError
+  entry-error error = case error of
+    ListCapacityExceeded -> MapCapacityExceeded
+    ForeignListElement -> MapIdentityViolation
+    RemovedListElement -> MapIdentityViolation
+
+  -- | Set one binding, retaining its identity on overwrite and storing the new key representative.
+  mutable-map-set :: forall r k v. MutableMap r k v -> k -> v ->{Mut r} Result MapError Unit
+  mutable-map-set map key value =
+    let digest = key-digest map key in
+    let bucket = bucket-at map digest in
+    case find-entry map key bucket of
+      Some entry -> let written = list-element-set entry (key, value) in Ok ()
+      None ->
+        if mutable-map-size map < maximum-entries then
+          case list-push-back (entries-of map) (key, value) of
+            Err error -> Err (entry-error error)
+            Ok entry -> let indexed = hash-table-insert (index-of map) digest (Cons entry bucket) in Ok ()
+        else Err MapCapacityExceeded
+
+  -- | Remove exactly one stable identity from a known collision bucket.
+  without-entry :: forall r k v. ListElement r (k, v) -> List (ListElement r (k, v)) -> List (ListElement r (k, v))
+  without-entry removed bucket = case bucket of
+    Nil -> Nil
+    Cons entry rest -> if list-same-element removed entry then rest else Cons entry (without-entry removed rest)
+
+  -- | Install a nonempty collision bucket or remove its now-unused digest index.
+  install-bucket :: forall r k v. MutableMap r k v -> Nat -> List (ListElement r (k, v)) ->{Mut r} Unit
+  install-bucket map digest bucket = case bucket of
+    Nil -> let deleted = hash-table-delete (index-of map) digest in ()
+    Cons entry rest -> hash-table-insert (index-of map) digest bucket
+
+  -- | Delete a key under ordinary key comparison; non-reflexive keys remain unfindable.
+  mutable-map-delete :: forall r k v. MutableMap r k v -> k ->{Mut r} Result MapError (Option v)
+  mutable-map-delete map key =
+    let digest = key-digest map key in
+    let bucket = bucket-at map digest in
+    case find-entry map key bucket of
+      None -> Ok None
+      Some entry -> case list-remove (entries-of map) entry of
+        Err error -> Err (entry-error error)
+        Ok pair -> case pair of
+          (stored, value) -> let indexed = install-bucket map digest (without-entry entry bucket) in Ok (Some value)
+
+  -- | Clear both stores and invalidate every entry membership captured by older traversals.
+  mutable-map-clear :: forall r k v. MutableMap r k v ->{Mut r} Unit
+  mutable-map-clear map =
+    let index-cleared = hash-table-clear (index-of map) in
+    list-clear (entries-of map)
+
+  -- | Capture immutable bucket lists of identities, not keys, values or raw storage slots.
+  capture-entries :: forall r k v. MutableMap r k v ->{Mut r} List (List (ListElement r (k, v)))
+  capture-entries map = hash-table-fold (\acc digest bucket -> Cons bucket acc) Nil (index-of map)
+
+  -- | Visit current memberships of one captured bucket and stop immediately on False.
+  visit-bucket :: forall r k v ef. MutableMap r k v -> (k -> v ->{ef} Bool) -> List (ListElement r (k, v)) ->{Mut r | ef} Bool
+  visit-bucket map action bucket = case bucket of
+    Nil -> True
+    Cons entry rest ->
+      if list-is-member (entries-of map) entry then
+        case list-element-value entry of
+          (key, value) -> if action key value then visit-bucket map action rest else False
+      else visit-bucket map action rest
+
+  -- | Walk captured identities while reacquiring membership and value after each callback.
+  visit-buckets :: forall r k v ef. MutableMap r k v -> (k -> v ->{ef} Bool) -> List (List (ListElement r (k, v))) ->{Mut r | ef} Bool
+  visit-buckets map action buckets = case buckets of
+    Nil -> True
+    Cons bucket rest -> if visit-bucket map action bucket then visit-buckets map action rest else False
+
+  -- | Visit live original entries in unspecified order; True means exhaustion, False means stop.
+  -- Capture occurs on each invocation. Deleted entries skip, overwritten entries
+  -- expose current values, and entries inserted during the invocation are excluded.
+  mutable-map-all :: forall r k v ef. MutableMap r k v -> (k -> v ->{ef} Bool) ->{Mut r | ef} Bool
+  mutable-map-all map action = let captured = capture-entries map in visit-buckets map action captured
+
+  -- | Visit current keys with the same identity, mutation and stop contract as pair traversal.
+  mutable-map-keys :: forall r k v ef. MutableMap r k v -> (k ->{ef} Bool) ->{Mut r | ef} Bool
+  mutable-map-keys map action = mutable-map-all map (\key value -> action key)
+
+  -- | Visit current values, preserving duplicates and stopping immediately on False.
+  mutable-map-values :: forall r k v ef. MutableMap r k v -> (v ->{ef} Bool) ->{Mut r | ef} Bool
+  mutable-map-values map action = mutable-map-all map (\key value -> action value)
+
+  -- | Supply the current map to a pair consumer, obeying its stop result.
+  mutable-map-source :: forall r k v ef. MutableMap r k v -> (k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit
+  mutable-map-source map yield = let exhausted = mutable-map-all map yield in ()
+
+  -- | Supply pairs in list order, ending immediately when the consumer returns False.
+  map-source-from-list :: forall k v ef. List (k, v) -> (k -> v ->{ef} Bool) ->{ef} Unit
+  map-source-from-list pairs yield = case pairs of
+    Nil -> ()
+    Cons pair rest -> case pair of (key, value) -> if yield key value then map-source-from-list rest yield else ()
+
+  -- | Apply one producer binding while suppressing further updates after a checked refusal.
+  insert-yield :: forall r k v ef. MutableMap r k v -> Var r (Result MapError Unit) -> k -> v ->{Mut r | ef} Bool
+  insert-yield map status key value = case var-read status of
+    Err error -> False
+    Ok unit -> case mutable-map-set map key value of
+      Err error -> let saved = var-write status (Err error) in False
+      Ok unit -> True
+
+  -- | Consume a stop-obeying pair source; later equivalent keys win and errors preserve the applied prefix.
+  mutable-map-insert :: forall r k v ef. MutableMap r k v -> ((k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Result MapError Unit
+  mutable-map-insert map source =
+    let status = var-new (Ok () :: Result MapError Unit) in
+    let consumed = source (insert-yield map status) in
+    var-read status
+
+  -- | Collect a pair source into fresh storage under an explicit captured policy, with last binding wins.
+  mutable-map-collect-with :: forall r k v ef. MapKeyPolicy k -> ((k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Result MapError (MutableMap r k v)
+  mutable-map-collect-with policy source =
+    let map = mutable-map-new-with policy () in
+    case mutable-map-insert map source of Err error -> Err error; Ok unit -> Ok map
+
+  -- | Collect a pair source while capturing the current hashing and equality methods once.
+  mutable-map-collect :: forall r k v ef. using (h :: Hash k, eq :: Eq k) => ((k -> v ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Result MapError (MutableMap r k v)
+  mutable-map-collect source = mutable-map-collect-with (map-key-policy hash (==)) source
+
+  -- | Copy current members of one captured source bucket without allocating an update-status cell.
+  copy-bucket :: forall r s k v. MutableMap r k v -> MutableMap s k v -> List (ListElement s (k, v)) ->{Mut r, Mut s} Result MapError Unit
+  copy-bucket destination source bucket = case bucket of
+    Nil -> Ok ()
+    Cons entry rest ->
+      if list-is-member (entries-of source) entry then
+        case list-element-value entry of
+          (key, value) -> case mutable-map-set destination key value of
+            Err error -> Err error
+            Ok unit -> copy-bucket destination source rest
+      else copy-bucket destination source rest
+
+  -- | Copy the captured source identities, stopping at the first checked insertion refusal.
+  copy-buckets :: forall r s k v. MutableMap r k v -> MutableMap s k v -> List (List (ListElement s (k, v))) ->{Mut r, Mut s} Result MapError Unit
+  copy-buckets destination source buckets = case buckets of
+    Nil -> Ok ()
+    Cons bucket rest -> case copy-bucket destination source bucket of
+      Err error -> Err error
+      Ok unit -> copy-buckets destination source rest
+
+  -- | Copy source bindings into the destination, overwriting under its policy; self-copy visits original identities once.
+  mutable-map-copy :: forall r s k v. MutableMap r k v -> MutableMap s k v ->{Mut r, Mut s} Result MapError Unit
+  mutable-map-copy destination source =
+    let captured = capture-entries source in
+    copy-buckets destination source captured
+
+  -- | Shallowly clone every entry into independent container cells, preserving non-reflexive key multiplicity.
+  mutable-map-clone :: forall r k v. MutableMap r k v ->{Mut r} Result MapError (MutableMap r k v)
+  mutable-map-clone source =
+    let copy = mutable-map-new-with (policy-of source) () in
+    case mutable-map-copy copy source of Err error -> Err error; Ok unit -> Ok copy
+
+  -- | Run a predicate, then delete its key from the current map when selected.
+  delete-selected :: forall r k v ef. MutableMap r k v -> Var r (Result MapError Unit) -> (k -> v ->{ef} Bool) -> k -> v ->{Mut r | ef} Bool
+  delete-selected map status predicate key value =
+    if predicate key value then
+      case mutable-map-delete map key of
+        Err error -> let saved = var-write status (Err error) in False
+        Ok removed -> True
+    else True
+
+  -- | Delete selected keys after each predicate call; non-reflexive keys remain, and callback replacements are deleted by key.
+  mutable-map-delete-if :: forall r k v ef. MutableMap r k v -> (k -> v ->{ef} Bool) ->{Mut r | ef} Result MapError Unit
+  mutable-map-delete-if map predicate =
+    let status = var-new (Ok () :: Result MapError Unit) in
+    let exhausted = mutable-map-all map (delete-selected map status predicate) in
+    var-read status
+
+  -- | Compare sizes and corresponding bindings under compatible key equivalences and an explicit value predicate.
+  -- Values may have different types. Missing keys and False predicates stop
+  -- immediately; map identity never shortcuts non-reflexive key or value tests.
+  mutable-map-equal-by :: forall r s k a b ef. (a -> b ->{ef} Bool) -> MutableMap r k a -> MutableMap s k b ->{Mut r, Mut s | ef} Bool
+  mutable-map-equal-by equal first second =
+    let first-size = mutable-map-size first in
+    let second-size = mutable-map-size second in
+    if first-size == second-size then
+      mutable-map-all first (\key value -> case mutable-map-lookup second key of None -> False; Some other -> equal value other)
+    else False
+
+  -- | Compare bindings using value equality and compatible captured key equivalences.
+  mutable-map-equal :: forall r s k v. using (values :: Eq v) => MutableMap r k v -> MutableMap s k v ->{Mut r, Mut s} Bool
+  mutable-map-equal first second = mutable-map-equal-by (==) first second
