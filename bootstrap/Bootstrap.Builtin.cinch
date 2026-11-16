@@ -146,8 +146,8 @@ module Bootstrap.Builtin where
     -- `MkMethodBinding` from the class contract, which is what the safety
     -- rules key on.
     , ("Parallelism", "b.Parallelism")
-    , ("both", "b.both"), ("tabulate", "b.tabulate")
-    , ("mapArray", "b.mapArray"), ("workers", "b.workers")
+    , ("both", "b.parBoth"), ("tabulate", "b.parTabulate")
+    , ("mapArray", "b.parMap"), ("workers", "b.parWorkers")
     , ("Scope", "b.Scope"), ("Task", "b.Task")
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
@@ -212,8 +212,10 @@ module Bootstrap.Builtin where
   -- methods, and the only declarations that name a `cinch_par_*` entry.
   -- The interface a program calls is `parallelism-declarations` below.
   par-rule :: String -> String -> String -> Decl
-  par-rule name operation scheme = DExternal (Span 0 0 1 1) (string-concat "b." name) "builtin-syntax" None
-    (JObj "name" (JStr name) (JObj "operation" (JStr operation) (JObj "arity" (JNum 2)
+  par-rule name operation scheme = par-rule-arity name operation 2 scheme
+  par-rule-arity :: String -> String -> Int -> String -> Decl
+  par-rule-arity name operation arity scheme = DExternal (Span 0 0 1 1) (string-concat "b." name) "builtin-syntax" None
+    (JObj "name" (JStr name) (JObj "operation" (JStr operation) (JObj "arity" (JNum arity)
       (JObj "runtime_abi" (JNum runtime-abi-int) (JObj "first_class" (JBool False)
         (JObj "scheme" (JStr scheme) JObjEnd))))))
 
@@ -315,8 +317,18 @@ module Bootstrap.Builtin where
     Cons (DClass sp name ps members) rest ->
       Cons (DClass sp parallelism-name ps (decl-spine sp (resolved-members (decls-of members)))) (resolved-class rest)
     Cons other rest -> Cons other (resolved-class rest)
+  -- A method's symbol is the operation that lowers it, the same table
+  -- `par-lowering-name` orders by slot. The methods are call-site
+  -- elaborated values, exactly as `parBoth` was before the class existed: a
+  -- dictionary field body would exist once and record the classes of the
+  -- method's own type parameters, while `PrimOp::Par` needs the caller's
+  -- (design/parallelism-as-a-value.md).
   parallelism-method-symbol :: String -> String
-  parallelism-method-symbol name = string-concat "b." name
+  parallelism-method-symbol name =
+    if string-compare name "both" == 0 then "b.parBoth"
+    else if string-compare name "tabulate" == 0 then "b.parTabulate"
+    else if string-compare name "mapArray" == 0 then "b.parMap"
+    else "b.parWorkers"
 
   resolved-members :: List Decl -> List Decl
   resolved-members ds = case ds of
@@ -357,6 +369,7 @@ module Bootstrap.Builtin where
     , par-rule "parBoth" "ParBoth" "forall (a :: Type) (b :: Type) (e1 :: Row) (e2 :: Row). (Unit ->{|e1} a) ->{|e2} (Unit ->{|e2} b) ->{|e1} (a, b)"
     , par-rule "parTabulate" "ParTabulate" "forall (a :: Type) (e :: Row). Nat -> (Nat ->{|e} a) ->{|e} Array a"
     , par-rule "parMap" "ParMap" "forall (a :: Type) (b :: Type) (e :: Row). (a ->{|e} b) -> Array a ->{|e} Array b"
+    , par-rule-arity "parWorkers" "ParWorkers" 1 "Nat -> Unit"
     , task-rule "unrefine" "Unrefine" 1 False
     , task-rule "copyOut" "CopyOut" 1 False
     , task-rule "borrow" "Borrow" 1 False

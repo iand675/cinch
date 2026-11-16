@@ -2603,7 +2603,7 @@ module Bootstrap.Infer where
   -- values: their callbacks are read literally at the call site, so a
   -- function-typed parameter or a first-class alias cannot be checked.
   par-syntax-name :: String -> Bool
-  par-syntax-name name = has name ["b.parBoth", "b.parTabulate", "b.parMap"]
+  par-syntax-name name = has name ["b.parBoth", "b.parTabulate", "b.parMap", "b.parWorkers"]
   par-operation :: String -> String
   par-operation name = if same name "b.parBoth" then "ParBoth"
     else if same name "b.parTabulate" then "ParTabulate"
@@ -4956,6 +4956,13 @@ module Bootstrap.Infer where
                         (CPrimitive sp result (par-operation-name name) (CArgument sp checked-f (CArgument sp checked-g (CArgumentsEnd sp))),
                           case wanted of None -> six; Some expected -> unify sp result expected six)))
         other -> term-error sp "parBoth takes exactly two callbacks" st)
+      else if same name "b.parWorkers" then (case args of
+        Cons count Nil -> (case check classes kinds families env locals count (primitive-type "Nat") st of
+          (checked-count, one) ->
+            let result = primitive-type "Unit" in
+            (CPrimitive sp result "par-workers" (CArgument sp checked-count (CArgumentsEnd sp)),
+              case wanted of None -> one; Some expected -> unify sp result expected one))
+        other -> term-error sp "workers takes exactly one participant count" st)
       else if same name "b.parTabulate" then (case args of
         Cons count (Cons f Nil) -> (case check classes kinds families env locals count (primitive-type "Nat") st of
           (checked-count, one) -> case fresh-meta KType one of
