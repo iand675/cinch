@@ -1,0 +1,217 @@
+--- a/compiler/prelude/Text/Csv/Record.cinch
++++ b/compiler/prelude/Text/Csv/Record.cinch
+@@ -32 +31,0 @@
+-  export csv-reader-configure, csv-byte-reader-configure
+@@ -299,9 +297,0 @@
+-
+-  -- | Select validated policies for the next record while preserving the input cursor and original positions.
+-  -- Retaining the previous reader preserves its previous policies and continuation.
+-  csv-reader-configure :: CsvReader -> CsvOptions -> CsvReader
+-  csv-reader-configure reader selected = case reader of Reader options input cursor line origin closed -> Reader selected input cursor line origin closed
+-
+-  -- | Reconfigure the next lossless byte record without discarding unread bytes or changing an earlier reader.
+-  csv-byte-reader-configure :: CsvByteReader -> CsvOptions -> CsvByteReader
+-  csv-byte-reader-configure reader selected = case reader of RawReader state -> RawReader (csv-reader-configure state selected)
+@@ -385,7 +374,0 @@
+-  -- | Convert a machine distance exactly through unsigned halves without a signed refinement contract.
+-  scan-distance :: U64 -> Nat
+-  scan-distance value =
+-    let low = u32-to-nat (wrapping-u64-to-u32 value) in
+-    let high = wrapping-u64-to-u32 (wrapping-shr-u64 value 32) in
+-    if eq-u32 high 0 then low else u32-to-nat high * 4294967296 + low
+-
+@@ -398 +381,2 @@
+-    let n = scan-distance skipped in if n <= remaining then n else 0
++    let signed = wrapping-u64-to-i64 skipped in
++    if 0 <= signed then let n = nat-from-i64 signed in if n <= remaining then n else 0 else 0
+@@ -407 +391,2 @@
+-    let n = scan-distance skipped in if n <= remaining then n else 0
++    let signed = wrapping-u64-to-i64 skipped in
++    if 0 <= signed then let n = nat-from-i64 signed in if n <= remaining then n else 0 else 0
+@@ -413,7 +398,2 @@
+-    if bytes-len input < 128 then seek-byte-small input at wanted else seek-byte-large input at wanted
+-
+-  -- | Preserve the original short-buffer loop without allocating or entering bulk traversal setup.
+-  seek-byte-small :: Bytes -> (at :: Nat) -> InRange 0 255 Nat -> refined (at <= out) Nat
+-  seek-byte-small input at wanted =
+-    if at + 8 <= bytes-len input && eq-u8 (contains-byte8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 wanted))) 0 then seek-byte-small input (at + 8) wanted
+-    else if at < bytes-len input then if bytes-get input at == wanted then at else seek-byte-small input (at + 1) wanted
++    if at + 8 <= bytes-len input && eq-u8 (contains-byte8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 wanted))) 0 then seek-byte input (at + 8) wanted
++    else if at < bytes-len input then if bytes-get input at == wanted then at else seek-byte input (at + 1) wanted
+@@ -421,11 +400,0 @@
+-
+-
+-  -- | Traverse large buffers using retained owners and machine-counter SIMD spans.
+-  seek-byte-large :: Bytes -> (at :: Nat) -> InRange 0 255 Nat -> refined (at <= out) Nat
+-  seek-byte-large input at wanted =
+-    if at + 8 <= bytes-len input && eq-u8 (contains-byte8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 wanted))) 0 then
+-      let next = at + 8 in
+-      let skipped = bulk-match input next (wrapping-i64-to-u8 (nat-to-i64 wanted)) in
+-      let begin = next + skipped in
+-      seek-byte-fringe input begin wanted
+-    else seek-byte-fringe input at wanted
+@@ -480,3 +449 @@
+-  delimiter-first delimiter =
+-    let code = char-code delimiter in
+-    u8-to-nat (scalar-first (wrapping-i64-to-u32 (nat-to-i64 code)))
++  delimiter-first delimiter = u8-to-nat (scalar-first (char-to-u32 delimiter))
+@@ -530,6 +497 @@
+-    if bytes-len input < 128 then plain-end-small input at delimiter first lazy else plain-end-large input at delimiter first lazy
+-
+-  -- | Preserve the original short-buffer loop without allocating or entering bulk traversal setup.
+-  plain-end-small :: Bytes -> Nat -> Char -> InRange 0 255 Nat -> Bool -> FieldEnd
+-  plain-end-small input at delimiter first lazy =
+-    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 then plain-end-small input (at + 8) delimiter first lazy
++    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 then plain-end input (at + 8) delimiter first lazy
+@@ -541,10 +503 @@
+-      else plain-end-small input (at + 1) delimiter first lazy
+-
+-
+-  -- | Traverse large buffers using retained owners and machine-counter SIMD spans.
+-  plain-end-large :: Bytes -> Nat -> Char -> InRange 0 255 Nat -> Bool -> FieldEnd
+-  plain-end-large input at delimiter first lazy =
+-    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 then
+-      let next = at + 8 in
+-      plain-fringe input (next + bulk-special input next (wrapping-i64-to-u8 (nat-to-i64 first)) 34) 16 delimiter first lazy
+-    else plain-fringe input at 8 delimiter first lazy
++      else plain-end input (at + 1) delimiter first lazy
+@@ -710,6 +663 @@
+-    if bytes-len input < 128 then field-special-small input at delimiter first else field-special-large input at delimiter first
+-
+-  -- | Preserve the original short-buffer loop without allocating or entering bulk traversal setup.
+-  field-special-small :: Bytes -> Nat -> Char -> InRange 0 255 Nat -> Bool
+-  field-special-small input at delimiter first =
+-    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 && eq-u8 (contains-byte8 (bytes-read-le64 input at) 13) 0 then field-special-small input (at + 8) delimiter first
++    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 && eq-u8 (contains-byte8 (bytes-read-le64 input at) 13) 0 then field-special input (at + 8) delimiter first
+@@ -718 +666 @@
+-      byte == 34 || byte == 13 || byte == 10 || (byte == first && at-delimiter input at delimiter) || field-special-small input (at + 1) delimiter first
++      byte == 34 || byte == 13 || byte == 10 || (byte == first && at-delimiter input at delimiter) || field-special input (at + 1) delimiter first
+@@ -720,8 +667,0 @@
+-
+-
+-  -- | Traverse large buffers using retained owners and machine-counter SIMD spans.
+-  field-special-large :: Bytes -> Nat -> Char -> InRange 0 255 Nat -> Bool
+-  field-special-large input at delimiter first =
+-    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 && eq-u8 (contains-byte8 (bytes-read-le64 input at) 13) 0 then
+-      let next = at + 8 in field-special-fringe input (next + bulk-special input next (wrapping-i64-to-u8 (nat-to-i64 first)) 13) 16 delimiter first
+-    else field-special-fringe input at 8 delimiter first
+@@ -754,6 +694 @@
+-    if bytes-len field < 128 then quoted-size-small field at crlf total else quoted-size-large field at crlf total
+-
+-  -- | Preserve the original short-buffer loop without allocating or entering bulk traversal setup.
+-  quoted-size-small :: Bytes -> Nat -> Bool -> Nat -> Nat
+-  quoted-size-small field at crlf total =
+-    if at + 8 <= bytes-len field && quoted-ordinary8 (bytes-read-le64 field at) then quoted-size-small field (at + 8) crlf (total + 8)
++    if at + 8 <= bytes-len field && quoted-ordinary8 (bytes-read-le64 field at) then quoted-size field (at + 8) crlf (total + 8)
+@@ -763,13 +698 @@
+-      quoted-size-small field (at + 1) crlf (total + extra)
+-    else total
+-
+-
+-  -- | Traverse large buffers using retained owners and machine-counter SIMD spans.
+-  quoted-size-large :: Bytes -> Nat -> Bool -> Nat -> Nat
+-  quoted-size-large field at crlf total =
+-    if at + 8 <= bytes-len field && quoted-ordinary8 (bytes-read-le64 field at) then
+-      let n = 8 + bulk-special field (at + 8) 34 13 in quoted-size-large field (at + n) crlf (total + n)
+-    else if at < bytes-len field then
+-      let byte = bytes-get field at in
+-      let extra = if byte == 34 || (byte == 10 && crlf) then (2 :: Nat) else if byte == 13 && crlf then 0 else 1 in
+-      quoted-size-large field (at + 1) crlf (total + extra)
++      quoted-size field (at + 1) crlf (total + extra)
+@@ -781,5 +703,0 @@
+-    if bytes-len field < 128 then write-quoted-small field at out oi crlf else write-quoted-large field at out oi crlf
+-
+-  -- | Preserve the original short-buffer loop without allocating or entering bulk traversal setup.
+-  write-quoted-small :: Bytes -> Nat -> Bytes -> Nat -> Bool -> Unit
+-  write-quoted-small field at out oi crlf =
+@@ -787 +705 @@
+-      let copied = bytes-copy-range out field oi at 8 in write-quoted-small field (at + 8) out (oi + 8) crlf
++      let copied = bytes-copy-range out field oi at 8 in write-quoted field (at + 8) out (oi + 8) crlf
+@@ -790 +708 @@
+-      if byte == 13 && crlf then write-quoted-small field (at + 1) out oi crlf
++      if byte == 13 && crlf then write-quoted field (at + 1) out oi crlf
+@@ -795 +713 @@
+-          write-quoted-small field (at + 1) out (oi + 2) crlf
++          write-quoted field (at + 1) out (oi + 2) crlf
+@@ -798,24 +716 @@
+-        let copied = bytes-set out oi byte in write-quoted-small field (at + 1) out (oi + 1) crlf
+-      else ()
+-    else ()
+-
+-
+-  -- | Traverse large buffers using retained owners and machine-counter SIMD spans.
+-  write-quoted-large :: Bytes -> Nat -> Bytes -> Nat -> Bool -> Unit
+-  write-quoted-large field at out oi crlf =
+-    if at + 8 <= bytes-len field && oi + 8 <= bytes-len out && quoted-ordinary8 (bytes-read-le64 field at) then
+-      let n = 8 + bulk-special field (at + 8) 34 13 in
+-      if oi + n <= bytes-len out && at + n <= bytes-len field then
+-        let copied = bytes-copy-range out field oi at n in write-quoted-large field (at + n) out (oi + n) crlf
+-      else ()
+-    else if at < bytes-len field then
+-      let byte = bytes-get field at in
+-      if byte == 13 && crlf then write-quoted-large field (at + 1) out oi crlf
+-      else if byte == 34 || (byte == 10 && crlf) then
+-        if oi + 2 <= bytes-len out then
+-          let first = bytes-set out oi (if byte == 34 then 34 else 13) in
+-          let last = bytes-set out (oi + 1) (if byte == 34 then 34 else 10) in
+-          write-quoted-large field (at + 1) out (oi + 2) crlf
+-        else ()
+-      else if oi < bytes-len out then
+-        let copied = bytes-set out oi byte in write-quoted-large field (at + 1) out (oi + 1) crlf
++        let copied = bytes-set out oi byte in write-quoted field (at + 1) out (oi + 1) crlf
+--- a/compiler/prelude/Effect/Csv.cinch
++++ b/compiler/prelude/Effect/Csv.cinch
+@@ -25 +24,0 @@
+-  export csv-stream-reader-configure, csv-byte-stream-reader-configure, csv-stream-writer-configure
+@@ -113,10 +111,0 @@
+-
+-  -- | Select validated policies for the next record, preserving owned lookahead and any sticky source failure.
+-  csv-stream-reader-configure :: forall r. CsvStreamReader r -> CsvOptions -> CsvStreamReader r
+-  csv-stream-reader-configure reader selected = case reader of
+-    Input options source buffers text-mode -> Input selected source buffers text-mode
+-    InputFailed error previous -> InputFailed error (csv-stream-reader-configure previous selected)
+-
+-  -- | Reconfigure the next lossless byte record while preserving its advanced source and unread lookahead.
+-  csv-byte-stream-reader-configure :: forall r. CsvByteStreamReader r -> CsvOptions -> CsvByteStreamReader r
+-  csv-byte-stream-reader-configure reader selected = case reader of RawStream state -> RawStream (csv-stream-reader-configure state selected)
+@@ -222,7 +210,0 @@
+-  -- | Convert a machine distance exactly through unsigned halves without a signed refinement contract.
+-  scan-distance :: U64 -> Nat
+-  scan-distance value =
+-    let low = u32-to-nat (wrapping-u64-to-u32 value) in
+-    let high = wrapping-u64-to-u32 (wrapping-shr-u64 value 32) in
+-    if eq-u32 high 0 then low else u32-to-nat high * 4294967296 + low
+-
+@@ -235 +217,2 @@
+-    let n = scan-distance skipped in if n <= remaining then n else 0
++    let signed = wrapping-u64-to-i64 skipped in
++    if 0 <= signed then let n = nat-from-i64 signed in if n <= remaining then n else 0 else 0
+@@ -244 +227,2 @@
+-    let n = scan-distance skipped in if n <= remaining then n else 0
++    let signed = wrapping-u64-to-i64 skipped in
++    if 0 <= signed then let n = nat-from-i64 signed in if n <= remaining then n else 0 else 0
+@@ -250,3 +234,3 @@
+-    if at + 8 <= bytes-len input && eq-u8 (contains8 (bytes-read-le64 input at) 10) 0 then
+-      let next = at + 8 in newline-fringe input (next + bulk-match input next 10)
+-    else newline-fringe input at
++    if at + 8 <= bytes-len input && eq-u8 (contains8 (bytes-read-le64 input at) 10) 0 then newline-at input (at + 8)
++    else if at < bytes-len input then if bytes-get input at == 10 then at else newline-at input (at + 1)
++    else at
+@@ -303 +287 @@
+-        let next = at + 8 in frame-line input (next + bulk-special input next first 34) delimiter first lazy trim frame
++        frame-line input (at + 8) delimiter first lazy trim frame
+@@ -306 +290 @@
+-        let next = at + 8 in frame-line input (next + bulk-match input next 34) delimiter first lazy trim frame
++        frame-line input (at + 8) delimiter first lazy trim frame
+@@ -398 +381,0 @@
+-        let delimiter-code = char-code delimiter in
+@@ -402 +385 @@
+-        else case frame-line physical 0 delimiter-code (scalar-first (wrapping-i64-to-u32 (nat-to-i64 delimiter-code))) (csv-options-lazy-quotes options) (csv-options-trim-leading-space options) frame of
++        else case frame-line physical 0 (char-code delimiter) (scalar-first (char-to-u32 delimiter)) (csv-options-lazy-quotes options) (csv-options-trim-leading-space options) frame of
+@@ -469,6 +451,0 @@
+-  -- | Select delimiter and newline policies for subsequent records without discarding a sticky output failure.
+-  csv-stream-writer-configure :: forall r. CsvStreamWriter r -> CsvOptions -> Bool -> CsvStreamWriter r
+-  csv-stream-writer-configure writer selected crlf = case writer of
+-    Output options previous-crlf sink -> Output selected crlf sink
+-    OutputFailed error sink -> writer
+-

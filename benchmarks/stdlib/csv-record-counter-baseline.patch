@@ -1,0 +1,68 @@
+--- a/compiler/prelude/Text/Csv/Record.cinch
++++ b/compiler/prelude/Text/Csv/Record.cinch
+@@ -413 +413,4 @@
+-    if bytes-len input < 128 then seek-byte-small input at wanted else seek-byte-large input at wanted
++    if at + 8 <= bytes-len input && eq-u8 (contains-byte8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 wanted))) 0 then seek-byte input (at + 8) wanted
++    else if at < bytes-len input then if bytes-get input at == wanted then at else seek-byte input (at + 1) wanted
++    else at
++
+@@ -530 +533,8 @@
+-    if bytes-len input < 128 then plain-end-small input at delimiter first lazy else plain-end-large input at delimiter first lazy
++    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 then plain-end input (at + 8) delimiter first lazy
++    else if at >= bytes-len input then RecordEnd at
++    else let byte = bytes-get input at in
++      if byte == 10 then RecordEnd at
++      else if not lazy && byte == 34 then BareEnd at
++      else if byte == first && at-delimiter input at delimiter then DelimiterEnd at
++      else plain-end input (at + 1) delimiter first lazy
++
+@@ -710 +720,6 @@
+-    if bytes-len input < 128 then field-special-small input at delimiter first else field-special-large input at delimiter first
++    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 && eq-u8 (contains-byte8 (bytes-read-le64 input at) 13) 0 then field-special input (at + 8) delimiter first
++    else if at < bytes-len input then
++      let byte = bytes-get input at in
++      byte == 34 || byte == 13 || byte == 10 || (byte == first && at-delimiter input at delimiter) || field-special input (at + 1) delimiter first
++    else False
++
+@@ -754 +769,7 @@
+-    if bytes-len field < 128 then quoted-size-small field at crlf total else quoted-size-large field at crlf total
++    if at + 8 <= bytes-len field && quoted-ordinary8 (bytes-read-le64 field at) then quoted-size field (at + 8) crlf (total + 8)
++    else if at < bytes-len field then
++      let byte = bytes-get field at in
++      let extra = if byte == 34 || (byte == 10 && crlf) then (2 :: Nat) else if byte == 13 && crlf then 0 else 1 in
++      quoted-size field (at + 1) crlf (total + extra)
++    else total
++
+@@ -781 +802,16 @@
+-    if bytes-len field < 128 then write-quoted-small field at out oi crlf else write-quoted-large field at out oi crlf
++    if at + 8 <= bytes-len field && oi + 8 <= bytes-len out && quoted-ordinary8 (bytes-read-le64 field at) then
++      let copied = bytes-copy-range out field oi at 8 in write-quoted field (at + 8) out (oi + 8) crlf
++    else if at < bytes-len field then
++      let byte = bytes-get field at in
++      if byte == 13 && crlf then write-quoted field (at + 1) out oi crlf
++      else if byte == 34 || (byte == 10 && crlf) then
++        if oi + 2 <= bytes-len out then
++          let first = bytes-set out oi (if byte == 34 then 34 else 13) in
++          let last = bytes-set out (oi + 1) (if byte == 34 then 34 else 10) in
++          write-quoted field (at + 1) out (oi + 2) crlf
++        else ()
++      else if oi < bytes-len out then
++        let copied = bytes-set out oi byte in write-quoted field (at + 1) out (oi + 1) crlf
++      else ()
++    else ()
++
+--- a/compiler/prelude/Effect/Csv.cinch
++++ b/compiler/prelude/Effect/Csv.cinch
+@@ -250,3 +250,3 @@
+-    if at + 8 <= bytes-len input && eq-u8 (contains8 (bytes-read-le64 input at) 10) 0 then
+-      let next = at + 8 in newline-fringe input (next + bulk-match input next 10)
+-    else newline-fringe input at
++    if at + 8 <= bytes-len input && eq-u8 (contains8 (bytes-read-le64 input at) 10) 0 then newline-at input (at + 8)
++    else if at < bytes-len input then if bytes-get input at == 10 then at else newline-at input (at + 1)
++    else at
+@@ -303 +303 @@
+-        let next = at + 8 in frame-line input (next + bulk-special input next first 34) delimiter first lazy trim frame
++        frame-line input (at + 8) delimiter first lazy trim frame
+@@ -306 +306 @@
+-        let next = at + 8 in frame-line input (next + bulk-match input next 34) delimiter first lazy trim frame
++        frame-line input (at + 8) delimiter first lazy trim frame
