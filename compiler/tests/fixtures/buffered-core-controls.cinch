@@ -188,6 +188,38 @@ module Main where
             case buffer-sink-write next-sink (string-to-bytes "YZ") of
               (written, after-sink) -> original-read && original-write && read-is data-event "Q" && write-is written 2
 
+  -- | Advertise text writes over a transport whose immutable continuation owns the current output cursor.
+  text-sink :: forall r. using (io :: Io r) => Bytes -> Nat -> Bool -> BufferSink r
+  text-sink output at allowed = let plain = buffer-sink (\input -> text-sink-write output at allowed input) in
+    if allowed then buffer-sink-with-text plain (\input -> text-sink-write output at False input) else plain
+
+  -- | Advance the cursor for both byte and raw-text paths; a text operation intentionally drops its own capability.
+  text-sink-write :: forall r. using (io :: Io r) => Bytes -> Nat -> Bool -> Bytes ->{IO r} (WriteEvent, BufferSink r)
+  text-sink-write output at allowed input = let count = bytes-len input in
+    if at + count <= bytes-len output then
+      let copied = bytes-copy-range output input at 0 count in
+      (WriteEvent (nat-to-int count) None, text-sink output (at + count) allowed)
+    else (WriteEvent 0 (Some (BufferCustomError "text fixture capacity")), text-sink output at allowed)
+
+  -- | Interleave direct transfer, raw-text forwarding and a retained byte callback through one authoritative sink proxy.
+  text-proxy-control :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  text-proxy-control unit = let output = bytes-new 5 in let raw = bytes-new 1 in let written = bytes-set raw 0 255 in
+    case buffer-source-transfer transferring-source (text-sink output 0 True) of
+      (None, source, sink) -> False
+      (Some event, source, sink) -> let advertised = buffer-sink-has-text sink in
+        case buffer-sink-write-text sink raw of
+          (None, next) -> False
+          (Some accepted, next) -> let dropped = not (buffer-sink-has-text next) in
+            case buffer-source-read source 1 of
+              (read, next-source) -> case buffer-sink-write next (string-to-bytes "E") of
+                (last, final) -> let expected = string-to-bytes "AB0CE" in
+                  if 2 < bytes-len expected then
+                    let changed = bytes-set expected 2 255 in
+                    case buffer-sink-write-text final (string-to-bytes "ignored") of
+                      (Some unexpected, ignored) -> False
+                      (None, untouched) -> advertised && dropped && write-is accepted 1 && read-is read "R" && write-is last 1 && same output expected
+                  else False
+
   -- | Repeatedly release both proxy/cell directions; none installs its proxy into its own cell.
   reclaim :: forall r. using (io :: Io r) => Nat ->{IO r} Bool
   reclaim count = if count == 0 then True
@@ -201,4 +233,5 @@ module Main where
     else if not (sink-transfer-control ()) then 3
     else if not (absent-transfer-control ()) then 4
     else if not (stream-adapters ()) then 5
-    else if reclaim 64 then 0 else 6
+    else if not (text-proxy-control ()) then 6
+    else if reclaim 64 then 0 else 7
