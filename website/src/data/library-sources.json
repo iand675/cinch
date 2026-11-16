@@ -869,9 +869,9 @@
     {
       "module": "Text.Ascii85",
       "path": "compiler/prelude/Text/Ascii85.cinch",
-      "sha256": "3247c75afe5b1c77bbc62ddcf5340cdc063df2ed6af5d724489a84b45a7ef0d4",
+      "sha256": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
       "embedded": false,
-      "values": 12,
+      "values": 18,
       "public_methods": 0
     },
     {

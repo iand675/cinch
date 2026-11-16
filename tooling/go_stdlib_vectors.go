@@ -20,6 +20,57 @@ import (
 	"unicode/utf16"
 )
 
+// ascii85ProgressVectors records finite-destination progress and the bytes actually changed.
+// The reference resets its counts on malformed input after writing full groups;
+// a successful non-final decode of the valid prefix recovers that completed boundary.
+func ascii85ProgressVectors(buffers, malformed []map[string]string) []map[string]interface{} {
+	inputs := [][]byte{}
+	for _, row := range buffers {
+		inputs = append(inputs, []byte(row["ascii85"]))
+	}
+	for _, row := range malformed {
+		source, err := hex.DecodeString(row["encoded_hex"])
+		if err != nil {
+			panic(err)
+		}
+		inputs = append(inputs, source)
+	}
+	rows := []map[string]interface{}{}
+	for _, source := range inputs {
+		seen := map[int]bool{}
+		for _, capacity := range []int{0, 1, 2, 3, 4, 5, 7, 8, 9, 12, len(source)*4 + 4} {
+			if seen[capacity] {
+				continue
+			}
+			seen[capacity] = true
+			for _, finish := range []bool{false, true} {
+				out := make([]byte, capacity)
+				for i := range out {
+					out[i] = 85
+				}
+				written, consumed, err := ascii85.Decode(out, source, finish)
+				reportedWritten, reportedConsumed := written, consumed
+				offset, kind := -1, ""
+				if err != nil {
+					offset = int(err.(ascii85.CorruptInputError))
+					kind = "byte"
+					if offset == len(source) {
+						kind = "tail"
+					}
+					prefix := make([]byte, capacity)
+					var prefixError error
+					written, consumed, prefixError = ascii85.Decode(prefix, source[:offset], false)
+					if prefixError != nil {
+						panic(prefixError)
+					}
+				}
+				rows = append(rows, map[string]interface{}{"encoded_hex": hex.EncodeToString(source), "capacity": capacity, "finish": finish, "written": written, "consumed": consumed, "kind": kind, "offset": offset, "decoded_hex": hex.EncodeToString(out[:written]), "destination_hex": hex.EncodeToString(out), "sdk_reported_written": reportedWritten, "sdk_reported_consumed": reportedConsumed})
+			}
+		}
+	}
+	return rows
+}
+
 // checkedWordDivision records the reference API's fault as well as its successful result.
 func checkedWordDivision(width int, high, low, divisor uint64) (quotient, remainder uint64, failed bool) {
 	defer func() {
@@ -258,7 +309,7 @@ func main() {
 	}
 	// Cover compression, ignored controls, noncanonical groups and malformed tails.
 	asciiDecodes := []map[string]string{}
-	for _, text := range []string{"", "z", "zz z", "!!!!!", "uuuuu", "s8W-!", "!!", "!!!", "!!!!", "!\x00!\t!\r!\n!", "!", "z!", "!z", "!!!!z", "!!!!!~", "v", "\xff", "\xc3\xa9", "<~!!!!!~>", "z~>"} {
+	for _, text := range []string{"", "z", "zz z", "!!!!!", "uuuuu", "s8W-!", "!!", "!!!", "!!!!", "!\x00!\t!\r!\n!", "!", "z!", "!z", "!!!!z", "!!!!!~", "v", "\xff", "\xc3\xa9", "<~!!!!!~>", "z~>", " \t\r\n\x00\x1f  ", " \t\r\n\x00\x1f  \xff", "!!!!! \t\r\n\x00\x1f  !!"} {
 		out := make([]byte, len(text)*4+4)
 		n, _, err := ascii85.Decode(out, []byte(text), true)
 		offset := ""
@@ -269,7 +320,7 @@ func main() {
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(map[string]interface{}{"buffers": checks, "words": words, "signed": signed, "ascii85_decodes": asciiDecodes, "utf16": utf16Vectors(), "word_ops": wordVectors(), "hex_decodes": hexDecodeVectors()}); err != nil {
+	if err := encoder.Encode(map[string]interface{}{"buffers": checks, "words": words, "signed": signed, "ascii85_decodes": asciiDecodes, "utf16": utf16Vectors(), "word_ops": wordVectors(), "hex_decodes": hexDecodeVectors(), "ascii85_progress": ascii85ProgressVectors(checks, asciiDecodes)}); err != nil {
 		panic(err)
 	}
 }

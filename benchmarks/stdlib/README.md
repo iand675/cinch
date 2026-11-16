@@ -344,3 +344,52 @@ arrows retain their flattened call path. A second regression checks multiple
 stages through a local alias; ordinary, partial and owned-dictionary calls keep
 their ownership checks. These are correctness checks, independent of the
 retained throughput reports' frozen compiler identities.
+
+The preserved portable/interface comparison is also complete: 94 of 106 targets
+pass. All twelve failing targets were rerun with the immutable previous native
+compiler; their exit codes, failed test names and full normalized logs match.
+`bootstrap/stdlib-qualified-call-preserved-target-results.json` records that
+comparison. It is additional regression evidence from a frozen self-built
+Stage1 candidate, not the audited Stage3 gate or an all-green target set.
+
+## ASCII85 caller buffers and source offsets
+
+`ascii85-complete-O2-2026-11-16.json` measures eleven public buffer and stream
+pipelines at three input sizes (33 rows). Every checksum matches an independent
+SDK pipeline. The new APIs expose exact written/consumed counts, checked source
+and destination offsets, complete prefixes before errors, and overlap snapshots.
+Full quanta use SIMD digit arithmetic; eight-lane classification skips runs of
+ignored controls without overreading short input. The control workloads prefix
+4096 ignored bytes; preparation stays outside the measured loop.
+
+The scalar-control and forced-snapshot reports are reconstructed ablations of
+the same API, not historical committed versions. Their paired reports alternate
+retained executables built with the same frozen compiler, driver, runtime and
+`-O2`, verify checksums and retain source/executable/LLVM hashes. At 16 KiB,
+`interleaved-ascii85-control-runs-O2-2026-11-16.json` measures approximately
+1.37× improvements in both control-heavy decoding APIs; its ordinary decoder
+control improves 1.04×. `interleaved-ascii85-snapshot-elision-O2-2026-11-16.json`
+measures 7.51× faster decoding through a reusable four-byte output interval.
+Its short encoder controls are 17–24% slower. The retained longer run,
+`interleaved-ascii85-long-encoder-control-O2-2026-11-16.json`, uses 512
+iterations per sample: byte-encoder controls range from 4.3% slower to 2% faster,
+and into-encoder controls from 1.9% slower to 10.9% faster across sizes. Both
+16 KiB encoder controls are within 0.3%. These results establish no bulk encoder
+speedup; the original short-run variation remains visible.
+
+`ascii85-offset-allocation-2026-11-16.json` separately observes the self-built
+Stage3 compiler draining 64 KiB of zero bytes through one four-byte destination.
+Checking actual source/destination overlap avoids cloning the whole remaining
+source on each call. Cumulative allocated bytes fall from 271,613,980 to
+2,785,309, about 97.5×; peak live heap is essentially unchanged at 164 KiB.
+Both variants finish with an 8 MiB stack, 32 MiB heap limit and zero leaks.
+These counters use normal reclamation, without diagnostic quarantine.
+
+The small-output pipeline still takes about 439 µs versus the SDK's 48.6 µs
+at 16 KiB. Inspection of the measured Rust-generated LLVM shows that inlining
+and product-return optimization already remove the result/triple allocations;
+they do not explain this remaining gap. Reference-count operations, tagged
+natural arithmetic and checked per-byte writes remain around each small read.
+The separate native allocation probe has different lowering and must not be
+used to claim those boxes survive in the measured Rust loop. Buffer semantics,
+allocation and representation differ between these public pipelines.
