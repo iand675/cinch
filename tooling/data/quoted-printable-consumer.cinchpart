@@ -1,0 +1,169 @@
+-- | Shared fixture consumers for public quoted-printable value and stream APIs.
+module Main where
+  import Text.QuotedPrintable
+  import Effect.QuotedPrintable
+  import Effect.Stream
+  import Data.Bytes
+  import Data.Bool
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Compare byte contents without relying on a global mutable-buffer Eq instance.
+  same :: Bytes -> Bytes -> Bool
+  same a b = eq-i64 (bytes-compare a b) 0
+
+  -- | Preserve decoded prefix bytes and normalize only the named physical-line-capacity error.
+  codec-message :: Option QuotedPrintableError -> String
+  codec-message error = case error of
+    None -> ""
+    Some failure -> case failure of
+      QuotedPrintableLineTooLong offset -> "bufio: buffer full"
+      _ -> quoted-printable-error-message failure
+
+  -- | Check both newline policies and the independent partial decoder result.
+  value-is :: Bytes -> Bytes -> Bytes -> Bytes -> String -> Bool
+  value-is input text binary decoded message =
+    same (quoted-printable-encode-bytes QuotedPrintableText input) text &&
+    same (quoted-printable-encode-bytes QuotedPrintableBinary input) binary &&
+    (case quoted-printable-decode-prefix input of
+      (out, error) -> same out decoded && codec-message error == message)
+
+  -- | Copy a checked fixture interval into independent source or expected storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 at count in out
+    else bytes-new 0
+
+  -- | Construct a bounded chunk source with a distinct failure after an exact input prefix.
+  chunk-source :: forall r. using (io :: Io r) => Bytes -> Nat -> I64 -> ByteReader r
+  chunk-source input chunk failure = chunk-reader (part input 0 (bytes-len input)) 0 chunk failure
+
+  -- | Preserve source position explicitly across each custom chunk and injected failure.
+  chunk-reader :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> I64 -> ByteReader r
+  chunk-reader input pos chunk failure = stream-reader (\request ->
+    if failure >= 0 then
+      let limit = nat-from-i64 failure in
+      if pos >= limit then (Err (StreamClosed "fixture source failure"), chunk-reader input pos chunk failure)
+      else chunk-read input pos chunk failure request (limit - pos)
+    else chunk-read input pos chunk failure request request)
+
+  -- | Return only a proved source interval, respecting request, source chunk and failure boundary.
+  chunk-read :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> I64 -> Nat -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  chunk-read input pos chunk failure request allowed =
+    if pos < bytes-len input then
+      let remaining = bytes-len input - pos in
+      let a = if request < chunk then request else chunk in
+      let b = if a < allowed then a else allowed in
+      let count = if b < remaining then b else remaining in
+      (Ok (part input pos count), chunk-reader input (pos + count) chunk failure)
+    else (Ok (bytes-new 0), chunk-reader input pos chunk failure)
+
+  -- | Normalize stream diagnostics to the independent fixture vocabulary.
+  stream-message :: StreamError -> String
+  stream-message error = case error of
+    StreamClosed message -> message
+    StreamEncodingError encoding offset message -> if message == "quoted-printable physical line buffer is full" then "bufio: buffer full" else message
+    _ -> "unexpected stream failure"
+
+  -- | Preserve a simultaneous read prefix and its ready/EOF/failure diagnostic.
+  status-message :: QuotedPrintableReadStatus -> String
+  status-message status = case status of
+    QuotedPrintableReady -> ""
+    QuotedPrintableEof -> "EOF"
+    QuotedPrintableReadFailure error -> stream-message error
+
+  -- | Inspect the exact source read-ahead through its advanced tee mirror.
+  source-count :: forall r. QuotedPrintableReader r -> Nat
+  source-count reader = case reader-tee-writer (quoted-printable-reader-source reader) of
+    None -> 999999999
+    Some sink -> case writer-bytes sink of
+      None -> 999999999
+      Some bytes -> bytes-len bytes
+
+  -- | Validate every independent read result, including zero requests and repeated failures.
+  read-steps :: forall r. using (io :: Io r) => QuotedPrintableReader r -> List (Nat, (Bytes, (String, Nat))) ->{IO r} Bool
+  read-steps reader steps = case steps of
+    Nil -> True
+    Cons step rest -> case step of
+      (request, expectedPair) -> case expectedPair of
+        (expected, statusPair) -> case statusPair of
+          (message, consumed) -> case quoted-printable-read reader request of
+            (pair, next) -> case pair of
+              (out, status) -> if same out expected && status-message status == message && source-count next == consumed then read-steps next rest else False
+
+  -- | Start one independently chunked source and retain exact source consumption observations.
+  reader-is :: forall r. using (io :: Io r) => Bytes -> Nat -> I64 -> List (Nat, (Bytes, (String, Nat))) ->{IO r} Bool
+  reader-is input chunk failure steps =
+    read-steps (quoted-printable-reader (reader-tee (chunk-source input chunk failure) writer-buffer)) steps
+
+  -- | Reset one serialized external sink fixture; a negative budget accepts all output.
+  foreign import ccall "qp_fixture_reset" raw-reset :: forall r. I64 ->{IO r} I64
+  -- | Copy one borrowed input span into the independent external sink fixture.
+  foreign import ccall "qp_fixture_write" raw-write :: forall r. I64 -> I64 ->{IO r} I64
+  -- | Observe the exact accepted external output length after success or failure.
+  foreign import ccall "qp_fixture_length" raw-length :: forall r. I64 ->{IO r} I64
+  -- | Observe one accepted external byte; consumers check the complete length first.
+  foreign import ccall "qp_fixture_byte" raw-byte :: forall r. I64 ->{IO r} U8
+  -- | Execute the independent scalar oracle against the actual linked SIMD kernel object.
+  foreign import ccall "qp_fixture_kernel_check" raw-kernel-check :: forall r. I64 ->{IO r} I32
+
+  -- | Retain the input owner until a borrowed external sink write has completed.
+  hold-result :: Bytes -> I64 -> I64
+  hold-result input result = case bytes-len input of _ -> result
+
+  -- | A descriptor-like fixture sink that accepts short prefixes and then reports a stable error.
+  fixture-sink :: forall r. using (io :: Io r) => ByteWriter r
+  fixture-sink = stream-writer (\input ->
+    let accepted = hold-result input (raw-write (bytes-data input) (nat-to-i64 (bytes-len input))) in
+    if accepted >= 0 then (Ok (nat-from-i64 accepted), fixture-sink)
+    else (Err (StreamClosed "fixture sink failure"), fixture-sink))
+
+  -- | Compare only initialized external sink bytes against the independent expected prefix.
+  sink-bytes :: forall r. using (io :: Io r) => Bytes -> Nat ->{IO r} Bool
+  sink-bytes expected at = if at < bytes-len expected then
+    u8-to-nat (raw-byte (nat-to-i64 at)) == bytes-get expected at && sink-bytes expected (at + 1)
+    else True
+
+  -- | Check external progress before examining its exact byte prefix.
+  sink-is :: forall r. using (io :: Io r) => Bytes ->{IO r} Bool
+  sink-is expected = eq-i64 (raw-length 0) (nat-to-i64 (bytes-len expected)) && sink-bytes expected 0
+
+  -- | Normalize success or a failure checkpoint without discarding the reported input prefix.
+  write-result-is :: Result (Nat, StreamError) Nat -> Nat -> String -> Bool
+  write-result-is result expected message = case result of
+    Ok count -> count == expected && message == ""
+    Err pair -> case pair of (count, error) -> count == expected && stream-message error == message
+
+  -- | Finish only an independently successful trace, leaving failed traces at their accepted prefix.
+  finish-write :: forall r. using (io :: Io r) => QuotedPrintableWriter r -> Bool -> String -> Bytes ->{IO r} Bool
+  finish-write writer finish closeMessage expectedFinal =
+    if finish then
+      case quoted-printable-finish writer of
+        (result, sink) ->
+          let message = case result of Ok unit -> ""; Err error -> stream-message error in
+          message == closeMessage && sink-is expectedFinal
+    else sink-is expectedFinal
+
+  -- | Validate each write's mode update, accepted input count, failure and observable output prefix.
+  write-steps :: forall r. using (io :: Io r) => QuotedPrintableWriter r -> List (Bytes, (Bool, (Nat, (String, Bytes)))) -> Bool -> String -> Bytes ->{IO r} Bool
+  write-steps writer steps finish closeMessage expectedFinal = case steps of
+    Nil -> finish-write writer finish closeMessage expectedFinal
+    Cons step rest -> case step of
+      (input, modePair) -> case modePair of
+        (binary, countPair) -> case countPair of
+          (accepted, messagePair) -> case messagePair of
+            (message, expected) ->
+              let mode = if binary then QuotedPrintableBinary else QuotedPrintableText in
+              case quoted-printable-write (quoted-printable-writer-mode mode writer) input of
+                (result, next) ->
+                  if write-result-is result accepted message && sink-is expected then write-steps next rest finish closeMessage expectedFinal else False
+
+  -- | Start a compliant failing sink and validate the complete independent writer trace.
+  writer-is :: forall r. using (io :: Io r) => I64 -> List (Bytes, (Bool, (Nat, (String, Bytes)))) -> Bool -> String -> Bytes ->{IO r} Bool
+  writer-is limit steps finish closeMessage expected =
+    let reset = raw-reset limit in
+    write-steps (quoted-printable-writer QuotedPrintableText fixture-sink) steps finish closeMessage expected
