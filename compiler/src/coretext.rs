@@ -548,6 +548,21 @@ impl<'a> Printer<'a> {
                 anns.push((rank("prim"), format!("@prim({} for {})", plan.name, plan.selected_why)));
             }
         }
+        // What `rc::borrow_modes` decided about this unit's parameters. The
+        // `@borrowed` annotation below is `Program::lent`, which is the
+        // lending convention a call site uses and is populated for the units
+        // this artifact calls through a worker, not for every lending unit.
+        if let Some(modes) = self.program.borrowed.get(&f.id.0) {
+            let lendable: Vec<String> = modes
+                .iter()
+                .enumerate()
+                .filter(|(_, borrowable)| **borrowable)
+                .map(|(index, _)| (index + 1).to_string())
+                .collect();
+            if !lendable.is_empty() {
+                anns.push((rank("borrow-modes"), format!("@borrow-modes({})", lendable.join(","))));
+            }
+        }
         if let Some(lent) = self.program.lent.get(&f.id.0) {
             let borrowed: Vec<String> = lent
                 .iter()
@@ -1055,7 +1070,11 @@ fn class_text(class: Class) -> String {
     match class {
         Class::Raw => "uncounted".to_string(),
         Class::Wide => "uncounted wide".to_string(),
-        Class::Obj | Class::TObj => "owned".to_string(),
+        // A counted object class, NOT the owned calling convention. The
+        // dump once labelled this `@owned`, which reads as the opposite of
+        // the `@borrow-modes` annotation beside it and sent a reader looking
+        // for a lending analysis result that was never printed.
+        Class::Obj | Class::TObj => "obj".to_string(),
         Class::Param(index) => format!("param({index})"),
     }
 }
@@ -2036,6 +2055,7 @@ const ANNOTATION_ORDER: &[&str] = &[
     "tier",
     "ffi",
     "borrowed",
+    "borrow-modes",
     "uses",
     "borrow-candidates",
     "frame",
@@ -4739,8 +4759,8 @@ mod tests {
     #[test]
     fn ownership_classes_print_their_reclaim_kind() {
         assert_eq!(class_text(Class::Raw), "uncounted");
-        assert_eq!(class_text(Class::Obj), "owned");
-        assert_eq!(class_text(Class::TObj), "owned");
+        assert_eq!(class_text(Class::Obj), "obj");
+        assert_eq!(class_text(Class::TObj), "obj");
         assert_eq!(class_text(Class::Param(3)), "param(3)");
     }
 
@@ -4837,9 +4857,9 @@ mod tests {
         );
         // The parameter is `t0`, and the two shadowing binders are `t1` and
         // `t2`: one name per binder, numbered by first appearance.
-        assert!(text.contains("@params t0 :: Int @owned"), "{text}");
-        assert!(text.contains("(let t1 @class(owned)"), "{text}");
-        assert!(text.contains("(let t2 @class(owned)"), "{text}");
+        assert!(text.contains("@params t0 :: Int @obj"), "{text}");
+        assert!(text.contains("(let t1 @class(obj)"), "{text}");
+        assert!(text.contains("(let t2 @class(obj)"), "{text}");
         // No placeholder or `LocalId` reaches the text.
         assert!(!text.contains("$v"), "{text}");
         let placeholder = text

@@ -5763,8 +5763,21 @@ pub fn driver_with_profile_opts(
     {
         dump.write(&program, crate::coretext::Stage::Checked, &ifaces, &mut core_rows)?;
     }
+    // The dump prints what the pipeline's counting would produce, so it
+    // routes through the same entry: `rc::insert` is the all-owned
+    // convention and runs no borrow inference at all, which made every
+    // `--dump-core owned` show owned parameters and hid the analysis's
+    // result from the one artifact a reader debugs ownership with.
     let owned_program = if dump.wants(crate::coretext::Stage::Owned) && mode != Mode::Check {
-        Some(crate::rc::insert(program.clone(), profile)?)
+        let closed = !opts.shared && mode != Mode::EmitObject && emit_modules.is_empty() && opts.package_objects.is_empty();
+        if closed {
+            Some(crate::rc::insert_closed(program.clone(), profile)?)
+        } else {
+            let sources: Vec<std::path::PathBuf> = opts.package_objects.iter().chain(&opts.lent_objects).cloned().collect();
+            let imported = package_lent_modes(&sources)?;
+            let boundary = crate::rc::Boundary { modules: &emit_modules, imported: &imported, closed: false };
+            Some(crate::rc::insert_open(program.clone(), profile, &boundary)?)
+        }
     } else {
         None
     };

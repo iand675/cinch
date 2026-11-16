@@ -63,7 +63,7 @@ def census(text):
                     continue
                 declared.add(parameter)
                 params += 1
-                if "@owned" in entry:
+                if entry.endswith("@obj"):
                     owned += 1
                 if "@borrowed" in entry:
                     borrowed += 1
