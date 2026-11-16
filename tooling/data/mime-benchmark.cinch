@@ -1,0 +1,88 @@
+-- | Measure complete public media, word, header and explicit-registry pipelines.
+module Main where
+  import Text.Mime
+  import Effect.Mime
+  import Effect.Clock
+  import Effect.Process
+  import Effect.Io
+  import Data.Bytes
+  import Data.Char
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show
+
+  -- | Parse runtime harness sizes before measuring operations.
+  decimal :: String -> Nat
+  decimal text = digits (unpack text) 0
+  -- | Accumulate checked decimal digits without machine overflow.
+  digits :: List Char -> Nat -> Nat
+  digits input value = case input of Nil -> value; Cons char rest -> case digit-value char of None -> 0; Some digit -> digits rest (value * 10 + digit)
+
+  -- | Fill independent deterministic input outside the timed interval.
+  fill :: Bytes -> Bool -> Bool -> Nat -> Unit
+  fill out ascii lower at = if at < bytes-len out then
+    let byte = if ascii then (if lower then 97 else 65) + nat-rem at 26 else nat-rem (at * 37 + 11) 256 in
+    let stored = if byte <= 255 then bytes-set out at byte else () in fill out ascii lower (at + 1)
+    else ()
+
+  -- | Allocate optional preparation storage behind an explicitly nondependent byte signature.
+  query-storage :: Bool -> Nat -> Bytes
+  query-storage wanted size = if wanted then bytes-new size else bytes-new 0
+
+  -- | Join caller-owned input spans into one fresh complete wire value.
+  join :: Bytes -> Bytes -> Bytes
+  join first last = let out = bytes-new (bytes-len first + bytes-len last) in
+    let copied-first = bytes-copy-range out first 0 0 (bytes-len first) in
+    let copied-last = bytes-copy-range out last (bytes-len first) 0 (bytes-len last) in out
+
+  -- | Observe all output bytes with a stable bounded scalar checksum.
+  checksum :: Bytes -> Nat -> I64 -> I64
+  checksum bytes at value = if at < bytes-len bytes then checksum bytes (at + 1) (bit-and-i64 (wrapping-add-i64 (wrapping-mul-i64 value 131) (nat-to-i64 (bytes-get bytes at))) 2147483647) else value
+
+  -- | Execute a complete public operation, including canonical media observations.
+  operation :: forall r. using (io :: Io r) => String -> Bytes -> MimeParameters -> MimeRegistry ->{IO r} Bytes
+  operation name input params registry =
+    if name == "parse" then
+      let result = mime-parse-media-type input in
+      case mime-media-parameters result of None -> bytes-new 0; Some values -> string-to-bytes (mime-format-media-type (string-to-bytes (mime-media-base result)) values)
+    else if name == "format" then string-to-bytes (mime-format-media-type (string-to-bytes "application/x-cinch") params)
+    else if name == "b-encode" then mime-word-encode-bytes mime-b-encoding (string-to-bytes "UTF-8") input
+    else if name == "q-encode" then mime-word-encode-bytes mime-q-encoding (string-to-bytes "UTF-8") input
+    else if (name == "header" || name == "header-q") then case mime-header-decode (mime-default-word-decoder ()) input of Ok bytes -> bytes; Err error -> bytes-new 0
+    else mime-registry-type input registry
+
+  -- | Repeat complete allocations and output traversal before the next operation.
+  repeat :: forall r. using (io :: Io r) => String -> Bytes -> MimeParameters -> MimeRegistry -> I64 -> I64 ->{IO r} I64
+  repeat name input params registry count value = if gt-i64 count 0 then
+    let output = operation name input params registry in
+    repeat name input params registry (wrapping-sub-i64 count 1) (checksum output 0 value)
+    else value
+
+  -- | Prepare inputs and contexts, then time only complete operations and output checksums.
+  measure :: forall r. using (io :: Io r) => String -> Nat -> Nat ->{IO r} Int
+  measure name size count = if count <= 9223372036854775807 then
+    let raw = bytes-new size in
+    let initialized = fill raw (name == "parse" || name == "registry") False 0 in
+    let query = query-storage (name == "registry") size in
+    let query-initialized = fill query True True 0 in
+    let input = if name == "parse" then join (join (string-to-bytes "TEXT/PLAIN; Name=\"") raw) (string-to-bytes "\"") else if (name == "header" || name == "header-q") then mime-word-encode-bytes (if name == "header-q" then mime-q-encoding else mime-b-encoding) (string-to-bytes "UTF-8") raw else if name == "registry" then join (string-to-bytes ".cinch-") query else raw in
+    let params = mime-parameter-set (string-to-bytes "name") raw mime-parameters-empty in
+    let registry = if name == "registry" then (case mime-registry-add (join (string-to-bytes ".cinch-") raw) (string-to-bytes "application/x-cinch-benchmark") mime-registry-empty of Ok context -> context; Err error -> mime-registry-empty) else mime-registry-empty in
+    let start = clock-monotonic-ns () in
+    let result = repeat name input params registry (nat-to-i64 count) 0 in
+    let end = clock-monotonic-ns () in
+    let input-retained = checksum input 0 0 in
+    let params-retained = case mime-parameter-find (string-to-bytes "name") params of Some value -> checksum value 0 input-retained; None -> input-retained in
+    let retained = checksum (mime-registry-type input registry) 0 params-retained in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (int-to-string (int-from-i64 result)) (string-concat " " (string-concat (int-to-string (int-from-i64 retained)) "\n")))))) in 0
+    else 2
+
+  -- | Accept workload, byte count and iteration count through the public process API.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case process-args () of Ok (Cons name (Cons size (Cons count Nil))) -> measure name (decimal size) (decimal count); _ -> 2

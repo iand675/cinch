@@ -1,0 +1,6 @@
+{
+  "status": "applied after complete bothfrontend3119+17-control functional corpus",
+  "before_sha256": "901396fb29df24e32944b73a616a199ecff558e51b7e83e3089a2f7a36e46786",
+  "after_sha256": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+  "verification": "all non-comment lines identical; class instance implementations inherit existing class declarations and their implementation prose uses ordinary comments to avoid orphan canonical blocks"
+}
