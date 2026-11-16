@@ -77,7 +77,7 @@ module Text.OptionParser where
   import Data.Option
   import Data.Result
   import Data.String
-  import Text.Scan
+  import Text.Scan (string-join as scan-string-join)
   import Text.Show
 
   export OptionSpec, OptSpec, Converter, ConvString, ConvInt, ConvFloat, ConvFlag
@@ -567,8 +567,10 @@ module Text.OptionParser where
     let n = string-length s in
     if n >= w then s else string-concat s (string-repeat (w - n) " ")
 
+  -- | Separate formatted usage lines with a single line feed.
   join-lines :: List String -> String
-  join-lines xs = string-join "\n" xs
+  join-lines xs = scan-string-join "\n" xs
 
+  -- | Separate formatted option names with a comma and space.
   join-commas :: List String -> String
-  join-commas xs = string-join ", " xs
+  join-commas xs = scan-string-join ", " xs
