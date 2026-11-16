@@ -1,0 +1,3674 @@
+{
+  "pinned_sdk": "go1.27.4",
+  "unicode_version": "17.0.0",
+  "packages": [
+    {
+      "package": "unicode",
+      "declaration_count": 344,
+      "rows": [
+        {
+          "declaration": "const LowerCase = 1",
+          "capabilities": [
+            "UnicodeLower"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const LowerCase ideal-int",
+          "capabilities": [
+            "UnicodeLower"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const MaxASCII = 127",
+          "capabilities": [
+            "unicode-max-ascii"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const MaxASCII ideal-char",
+          "capabilities": [
+            "unicode-max-ascii"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const MaxCase = 3",
+          "capabilities": [
+            "unicode-case-count"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const MaxCase ideal-int",
+          "capabilities": [
+            "unicode-case-count"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const MaxLatin1 = 255",
+          "capabilities": [
+            "unicode-max-latin1"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const MaxLatin1 ideal-char",
+          "capabilities": [
+            "unicode-max-latin1"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const MaxRune = 1114111",
+          "capabilities": [
+            "unicode-max-codepoint / unicode-max-rune"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const MaxRune ideal-char",
+          "capabilities": [
+            "unicode-max-codepoint / unicode-max-rune"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const ReplacementChar = 65533",
+          "capabilities": [
+            "unicode-replacement"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const ReplacementChar ideal-char",
+          "capabilities": [
+            "unicode-replacement"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const TitleCase = 2",
+          "capabilities": [
+            "UnicodeTitle"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const TitleCase ideal-int",
+          "capabilities": [
+            "UnicodeTitle"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const UpperCase = 0",
+          "capabilities": [
+            "UnicodeUpper"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const UpperCase ideal-int",
+          "capabilities": [
+            "UnicodeUpper"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const UpperLower = 1114112",
+          "capabilities": [
+            "unicode-upper-lower"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const UpperLower ideal-char",
+          "capabilities": [
+            "unicode-upper-lower"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"10.0.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"11.0.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"12.0.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"13.0.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"15.0.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"17.0.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"6.2.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"6.3.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"7.0.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"8.0.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version = \"9.0.0\"",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const Version ideal-string",
+          "capabilities": [
+            "unicode-version (17.0.0 current edition only)"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func In(int32, ...*RangeTable) bool",
+          "capabilities": [
+            "unicode-in-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func Is(*RangeTable, int32) bool",
+          "capabilities": [
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsControl(int32) bool",
+          "capabilities": [
+            "unicode-is-control-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsDigit(int32) bool",
+          "capabilities": [
+            "unicode-is-digit-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsGraphic(int32) bool",
+          "capabilities": [
+            "unicode-is-graphic-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsLetter(int32) bool",
+          "capabilities": [
+            "unicode-is-letter-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsLower(int32) bool",
+          "capabilities": [
+            "unicode-is-lower-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsMark(int32) bool",
+          "capabilities": [
+            "unicode-is-mark-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsNumber(int32) bool",
+          "capabilities": [
+            "unicode-is-number-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsOneOf([]*RangeTable, int32) bool",
+          "capabilities": [
+            "unicode-is-one-of-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsPrint(int32) bool",
+          "capabilities": [
+            "unicode-is-print-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsPunct(int32) bool",
+          "capabilities": [
+            "unicode-is-punct-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsSpace(int32) bool",
+          "capabilities": [
+            "unicode-is-space-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsSymbol(int32) bool",
+          "capabilities": [
+            "unicode-is-symbol-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsTitle(int32) bool",
+          "capabilities": [
+            "unicode-is-title-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func IsUpper(int32) bool",
+          "capabilities": [
+            "unicode-is-upper-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func SimpleFold(int32) int32",
+          "capabilities": [
+            "unicode-simple-fold-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func To(int, int32) int32",
+          "capabilities": [
+            "unicode-to-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func ToLower(int32) int32",
+          "capabilities": [
+            "unicode-to-lower-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func ToTitle(int32) int32",
+          "capabilities": [
+            "unicode-to-title-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func ToUpper(int32) int32",
+          "capabilities": [
+            "unicode-to-upper-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "method (SpecialCase) ToLower(int32) int32",
+          "capabilities": [
+            "unicode-special-to-lower-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "method (SpecialCase) ToTitle(int32) int32",
+          "capabilities": [
+            "unicode-special-to-title-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "method (SpecialCase) ToUpper(int32) int32",
+          "capabilities": [
+            "unicode-special-to-upper-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type CaseRange struct",
+          "capabilities": [
+            "UnicodeCaseRange / MkUnicodeCaseRange",
+            "unicode-case-range-low/high/upper/lower/title",
+            "unicode-special-case checked construction"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type CaseRange struct, Delta d",
+          "capabilities": [
+            "UnicodeCaseRange / MkUnicodeCaseRange",
+            "unicode-case-range-low/high/upper/lower/title",
+            "unicode-special-case checked construction"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type CaseRange struct, Hi uint32",
+          "capabilities": [
+            "UnicodeCaseRange / MkUnicodeCaseRange",
+            "unicode-case-range-low/high/upper/lower/title",
+            "unicode-special-case checked construction"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type CaseRange struct, Lo uint32",
+          "capabilities": [
+            "UnicodeCaseRange / MkUnicodeCaseRange",
+            "unicode-case-range-low/high/upper/lower/title",
+            "unicode-special-case checked construction"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type Range16 struct",
+          "capabilities": [
+            "UnicodeRange16 / MkUnicodeRange16",
+            "unicode-range16-low/high/stride"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type Range16 struct, Hi uint16",
+          "capabilities": [
+            "UnicodeRange16 / MkUnicodeRange16",
+            "unicode-range16-low/high/stride"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type Range16 struct, Lo uint16",
+          "capabilities": [
+            "UnicodeRange16 / MkUnicodeRange16",
+            "unicode-range16-low/high/stride"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type Range16 struct, Stride uint16",
+          "capabilities": [
+            "UnicodeRange16 / MkUnicodeRange16",
+            "unicode-range16-low/high/stride"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type Range32 struct",
+          "capabilities": [
+            "UnicodeRange32 / MkUnicodeRange32",
+            "unicode-range32-low/high/stride"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type Range32 struct, Hi uint32",
+          "capabilities": [
+            "UnicodeRange32 / MkUnicodeRange32",
+            "unicode-range32-low/high/stride"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type Range32 struct, Lo uint32",
+          "capabilities": [
+            "UnicodeRange32 / MkUnicodeRange32",
+            "unicode-range32-low/high/stride"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type Range32 struct, Stride uint32",
+          "capabilities": [
+            "UnicodeRange32 / MkUnicodeRange32",
+            "unicode-range32-low/high/stride"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type RangeTable struct",
+          "capabilities": [
+            "UnicodeRangeTable",
+            "unicode-range-table / unicode-range-table-with-offset",
+            "unicode-range16/32-ranges / count / at",
+            "unicode-latin-offset"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type RangeTable struct, LatinOffset int",
+          "capabilities": [
+            "UnicodeRangeTable",
+            "unicode-range-table / unicode-range-table-with-offset",
+            "unicode-range16/32-ranges / count / at",
+            "unicode-latin-offset"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type RangeTable struct, R16 []Range16",
+          "capabilities": [
+            "UnicodeRangeTable",
+            "unicode-range-table / unicode-range-table-with-offset",
+            "unicode-range16/32-ranges / count / at",
+            "unicode-latin-offset"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type RangeTable struct, R32 []Range32",
+          "capabilities": [
+            "UnicodeRangeTable",
+            "unicode-range-table / unicode-range-table-with-offset",
+            "unicode-range16/32-ranges / count / at",
+            "unicode-latin-offset"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "type SpecialCase []CaseRange",
+          "capabilities": [
+            "UnicodeSpecialCase",
+            "unicode-special-case / unicode-special-case-count / unicode-special-case-range-at",
+            "unicode-special-to-upper/lower/title-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var ASCII_Hex_Digit *RangeTable",
+          "capabilities": [
+            "unicode-table \"ASCII_Hex_Digit\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Adlam *RangeTable",
+          "capabilities": [
+            "unicode-table \"Adlam\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Ahom *RangeTable",
+          "capabilities": [
+            "unicode-table \"Ahom\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Anatolian_Hieroglyphs *RangeTable",
+          "capabilities": [
+            "unicode-table \"Anatolian_Hieroglyphs\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Arabic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Arabic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Armenian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Armenian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Avestan *RangeTable",
+          "capabilities": [
+            "unicode-table \"Avestan\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var AzeriCase SpecialCase",
+          "capabilities": [
+            "unicode-azeri-case"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Balinese *RangeTable",
+          "capabilities": [
+            "unicode-table \"Balinese\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Bamum *RangeTable",
+          "capabilities": [
+            "unicode-table \"Bamum\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Bassa_Vah *RangeTable",
+          "capabilities": [
+            "unicode-table \"Bassa_Vah\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Batak *RangeTable",
+          "capabilities": [
+            "unicode-table \"Batak\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Bengali *RangeTable",
+          "capabilities": [
+            "unicode-table \"Bengali\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Beria_Erfe *RangeTable",
+          "capabilities": [
+            "unicode-table \"Beria_Erfe\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Bhaiksuki *RangeTable",
+          "capabilities": [
+            "unicode-table \"Bhaiksuki\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Bidi_Control *RangeTable",
+          "capabilities": [
+            "unicode-table \"Bidi_Control\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Bopomofo *RangeTable",
+          "capabilities": [
+            "unicode-table \"Bopomofo\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Brahmi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Brahmi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Braille *RangeTable",
+          "capabilities": [
+            "unicode-table \"Braille\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Buginese *RangeTable",
+          "capabilities": [
+            "unicode-table \"Buginese\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Buhid *RangeTable",
+          "capabilities": [
+            "unicode-table \"Buhid\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var C *RangeTable",
+          "capabilities": [
+            "unicode-table \"C\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Canadian_Aboriginal *RangeTable",
+          "capabilities": [
+            "unicode-table \"Canadian_Aboriginal\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Carian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Carian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var CaseRanges []CaseRange",
+          "capabilities": [
+            "unicode-case-range-at / unicode-case-ranges"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Categories map[string]*RangeTable",
+          "capabilities": [
+            "unicode-category"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var CategoryAliases map[string]string",
+          "capabilities": [
+            "unicode-category-canonical / unicode-category-alias-at / unicode-category-aliases"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Caucasian_Albanian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Caucasian_Albanian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Cc *RangeTable",
+          "capabilities": [
+            "unicode-table \"Cc\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Cf *RangeTable",
+          "capabilities": [
+            "unicode-table \"Cf\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Chakma *RangeTable",
+          "capabilities": [
+            "unicode-table \"Chakma\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Cham *RangeTable",
+          "capabilities": [
+            "unicode-table \"Cham\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Cherokee *RangeTable",
+          "capabilities": [
+            "unicode-table \"Cherokee\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Chorasmian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Chorasmian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Cn *RangeTable",
+          "capabilities": [
+            "unicode-table \"Cn\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Co *RangeTable",
+          "capabilities": [
+            "unicode-table \"Co\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Common *RangeTable",
+          "capabilities": [
+            "unicode-table \"Common\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Coptic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Coptic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Cs *RangeTable",
+          "capabilities": [
+            "unicode-table \"Cs\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Cuneiform *RangeTable",
+          "capabilities": [
+            "unicode-table \"Cuneiform\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Cypriot *RangeTable",
+          "capabilities": [
+            "unicode-table \"Cypriot\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Cypro_Minoan *RangeTable",
+          "capabilities": [
+            "unicode-table \"Cypro_Minoan\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Cyrillic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Cyrillic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Dash *RangeTable",
+          "capabilities": [
+            "unicode-table \"Dash\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Deprecated *RangeTable",
+          "capabilities": [
+            "unicode-table \"Deprecated\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Deseret *RangeTable",
+          "capabilities": [
+            "unicode-table \"Deseret\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Devanagari *RangeTable",
+          "capabilities": [
+            "unicode-table \"Devanagari\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Diacritic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Diacritic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Digit *RangeTable",
+          "capabilities": [
+            "unicode-table \"Digit\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Dives_Akuru *RangeTable",
+          "capabilities": [
+            "unicode-table \"Dives_Akuru\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Dogra *RangeTable",
+          "capabilities": [
+            "unicode-table \"Dogra\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Duployan *RangeTable",
+          "capabilities": [
+            "unicode-table \"Duployan\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Egyptian_Hieroglyphs *RangeTable",
+          "capabilities": [
+            "unicode-table \"Egyptian_Hieroglyphs\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Elbasan *RangeTable",
+          "capabilities": [
+            "unicode-table \"Elbasan\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Elymaic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Elymaic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Ethiopic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Ethiopic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Extender *RangeTable",
+          "capabilities": [
+            "unicode-table \"Extender\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var FoldCategory map[string]*RangeTable",
+          "capabilities": [
+            "unicode-fold-category"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var FoldScript map[string]*RangeTable",
+          "capabilities": [
+            "unicode-fold-script"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Garay *RangeTable",
+          "capabilities": [
+            "unicode-table \"Garay\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Georgian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Georgian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Glagolitic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Glagolitic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Gothic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Gothic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Grantha *RangeTable",
+          "capabilities": [
+            "unicode-table \"Grantha\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var GraphicRanges []*RangeTable",
+          "capabilities": [
+            "unicode-graphic-ranges"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Greek *RangeTable",
+          "capabilities": [
+            "unicode-table \"Greek\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Gujarati *RangeTable",
+          "capabilities": [
+            "unicode-table \"Gujarati\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Gunjala_Gondi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Gunjala_Gondi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Gurmukhi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Gurmukhi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Gurung_Khema *RangeTable",
+          "capabilities": [
+            "unicode-table \"Gurung_Khema\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Han *RangeTable",
+          "capabilities": [
+            "unicode-table \"Han\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Hangul *RangeTable",
+          "capabilities": [
+            "unicode-table \"Hangul\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Hanifi_Rohingya *RangeTable",
+          "capabilities": [
+            "unicode-table \"Hanifi_Rohingya\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Hanunoo *RangeTable",
+          "capabilities": [
+            "unicode-table \"Hanunoo\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Hatran *RangeTable",
+          "capabilities": [
+            "unicode-table \"Hatran\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Hebrew *RangeTable",
+          "capabilities": [
+            "unicode-table \"Hebrew\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Hex_Digit *RangeTable",
+          "capabilities": [
+            "unicode-table \"Hex_Digit\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Hiragana *RangeTable",
+          "capabilities": [
+            "unicode-table \"Hiragana\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Hyphen *RangeTable",
+          "capabilities": [
+            "unicode-table \"Hyphen\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var IDS_Binary_Operator *RangeTable",
+          "capabilities": [
+            "unicode-table \"IDS_Binary_Operator\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var IDS_Trinary_Operator *RangeTable",
+          "capabilities": [
+            "unicode-table \"IDS_Trinary_Operator\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var IDS_Unary_Operator *RangeTable",
+          "capabilities": [
+            "unicode-table \"IDS_Unary_Operator\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var ID_Compat_Math_Continue *RangeTable",
+          "capabilities": [
+            "unicode-table \"ID_Compat_Math_Continue\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var ID_Compat_Math_Start *RangeTable",
+          "capabilities": [
+            "unicode-table \"ID_Compat_Math_Start\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Ideographic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Ideographic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Imperial_Aramaic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Imperial_Aramaic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Inherited *RangeTable",
+          "capabilities": [
+            "unicode-table \"Inherited\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Inscriptional_Pahlavi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Inscriptional_Pahlavi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Inscriptional_Parthian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Inscriptional_Parthian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Javanese *RangeTable",
+          "capabilities": [
+            "unicode-table \"Javanese\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Join_Control *RangeTable",
+          "capabilities": [
+            "unicode-table \"Join_Control\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Kaithi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Kaithi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Kannada *RangeTable",
+          "capabilities": [
+            "unicode-table \"Kannada\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Katakana *RangeTable",
+          "capabilities": [
+            "unicode-table \"Katakana\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Kawi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Kawi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Kayah_Li *RangeTable",
+          "capabilities": [
+            "unicode-table \"Kayah_Li\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Kharoshthi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Kharoshthi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Khitan_Small_Script *RangeTable",
+          "capabilities": [
+            "unicode-table \"Khitan_Small_Script\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Khmer *RangeTable",
+          "capabilities": [
+            "unicode-table \"Khmer\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Khojki *RangeTable",
+          "capabilities": [
+            "unicode-table \"Khojki\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Khudawadi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Khudawadi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Kirat_Rai *RangeTable",
+          "capabilities": [
+            "unicode-table \"Kirat_Rai\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var L *RangeTable",
+          "capabilities": [
+            "unicode-table \"L\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var LC *RangeTable",
+          "capabilities": [
+            "unicode-table \"LC\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Lao *RangeTable",
+          "capabilities": [
+            "unicode-table \"Lao\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Latin *RangeTable",
+          "capabilities": [
+            "unicode-table \"Latin\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Lepcha *RangeTable",
+          "capabilities": [
+            "unicode-table \"Lepcha\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Letter *RangeTable",
+          "capabilities": [
+            "unicode-table \"Letter\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Limbu *RangeTable",
+          "capabilities": [
+            "unicode-table \"Limbu\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Linear_A *RangeTable",
+          "capabilities": [
+            "unicode-table \"Linear_A\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Linear_B *RangeTable",
+          "capabilities": [
+            "unicode-table \"Linear_B\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Lisu *RangeTable",
+          "capabilities": [
+            "unicode-table \"Lisu\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Ll *RangeTable",
+          "capabilities": [
+            "unicode-table \"Ll\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Lm *RangeTable",
+          "capabilities": [
+            "unicode-table \"Lm\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Lo *RangeTable",
+          "capabilities": [
+            "unicode-table \"Lo\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Logical_Order_Exception *RangeTable",
+          "capabilities": [
+            "unicode-table \"Logical_Order_Exception\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Lower *RangeTable",
+          "capabilities": [
+            "unicode-table \"Lower\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Lt *RangeTable",
+          "capabilities": [
+            "unicode-table \"Lt\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Lu *RangeTable",
+          "capabilities": [
+            "unicode-table \"Lu\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Lycian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Lycian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Lydian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Lydian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var M *RangeTable",
+          "capabilities": [
+            "unicode-table \"M\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Mahajani *RangeTable",
+          "capabilities": [
+            "unicode-table \"Mahajani\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Makasar *RangeTable",
+          "capabilities": [
+            "unicode-table \"Makasar\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Malayalam *RangeTable",
+          "capabilities": [
+            "unicode-table \"Malayalam\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Mandaic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Mandaic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Manichaean *RangeTable",
+          "capabilities": [
+            "unicode-table \"Manichaean\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Marchen *RangeTable",
+          "capabilities": [
+            "unicode-table \"Marchen\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Mark *RangeTable",
+          "capabilities": [
+            "unicode-table \"Mark\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Masaram_Gondi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Masaram_Gondi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Mc *RangeTable",
+          "capabilities": [
+            "unicode-table \"Mc\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Me *RangeTable",
+          "capabilities": [
+            "unicode-table \"Me\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Medefaidrin *RangeTable",
+          "capabilities": [
+            "unicode-table \"Medefaidrin\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Meetei_Mayek *RangeTable",
+          "capabilities": [
+            "unicode-table \"Meetei_Mayek\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Mende_Kikakui *RangeTable",
+          "capabilities": [
+            "unicode-table \"Mende_Kikakui\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Meroitic_Cursive *RangeTable",
+          "capabilities": [
+            "unicode-table \"Meroitic_Cursive\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Meroitic_Hieroglyphs *RangeTable",
+          "capabilities": [
+            "unicode-table \"Meroitic_Hieroglyphs\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Miao *RangeTable",
+          "capabilities": [
+            "unicode-table \"Miao\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Mn *RangeTable",
+          "capabilities": [
+            "unicode-table \"Mn\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Modi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Modi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Modifier_Combining_Mark *RangeTable",
+          "capabilities": [
+            "unicode-table \"Modifier_Combining_Mark\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Mongolian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Mongolian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Mro *RangeTable",
+          "capabilities": [
+            "unicode-table \"Mro\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Multani *RangeTable",
+          "capabilities": [
+            "unicode-table \"Multani\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Myanmar *RangeTable",
+          "capabilities": [
+            "unicode-table \"Myanmar\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var N *RangeTable",
+          "capabilities": [
+            "unicode-table \"N\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Nabataean *RangeTable",
+          "capabilities": [
+            "unicode-table \"Nabataean\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Nag_Mundari *RangeTable",
+          "capabilities": [
+            "unicode-table \"Nag_Mundari\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Nandinagari *RangeTable",
+          "capabilities": [
+            "unicode-table \"Nandinagari\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Nd *RangeTable",
+          "capabilities": [
+            "unicode-table \"Nd\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var New_Tai_Lue *RangeTable",
+          "capabilities": [
+            "unicode-table \"New_Tai_Lue\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Newa *RangeTable",
+          "capabilities": [
+            "unicode-table \"Newa\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Nko *RangeTable",
+          "capabilities": [
+            "unicode-table \"Nko\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Nl *RangeTable",
+          "capabilities": [
+            "unicode-table \"Nl\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var No *RangeTable",
+          "capabilities": [
+            "unicode-table \"No\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Noncharacter_Code_Point *RangeTable",
+          "capabilities": [
+            "unicode-table \"Noncharacter_Code_Point\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Number *RangeTable",
+          "capabilities": [
+            "unicode-table \"Number\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Nushu *RangeTable",
+          "capabilities": [
+            "unicode-table \"Nushu\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Nyiakeng_Puachue_Hmong *RangeTable",
+          "capabilities": [
+            "unicode-table \"Nyiakeng_Puachue_Hmong\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Ogham *RangeTable",
+          "capabilities": [
+            "unicode-table \"Ogham\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Ol_Chiki *RangeTable",
+          "capabilities": [
+            "unicode-table \"Ol_Chiki\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Ol_Onal *RangeTable",
+          "capabilities": [
+            "unicode-table \"Ol_Onal\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Old_Hungarian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Old_Hungarian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Old_Italic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Old_Italic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Old_North_Arabian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Old_North_Arabian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Old_Permic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Old_Permic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Old_Persian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Old_Persian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Old_Sogdian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Old_Sogdian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Old_South_Arabian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Old_South_Arabian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Old_Turkic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Old_Turkic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Old_Uyghur *RangeTable",
+          "capabilities": [
+            "unicode-table \"Old_Uyghur\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Oriya *RangeTable",
+          "capabilities": [
+            "unicode-table \"Oriya\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Osage *RangeTable",
+          "capabilities": [
+            "unicode-table \"Osage\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Osmanya *RangeTable",
+          "capabilities": [
+            "unicode-table \"Osmanya\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Other *RangeTable",
+          "capabilities": [
+            "unicode-table \"Other\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Other_Alphabetic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Other_Alphabetic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Other_Default_Ignorable_Code_Point *RangeTable",
+          "capabilities": [
+            "unicode-table \"Other_Default_Ignorable_Code_Point\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Other_Grapheme_Extend *RangeTable",
+          "capabilities": [
+            "unicode-table \"Other_Grapheme_Extend\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Other_ID_Continue *RangeTable",
+          "capabilities": [
+            "unicode-table \"Other_ID_Continue\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Other_ID_Start *RangeTable",
+          "capabilities": [
+            "unicode-table \"Other_ID_Start\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Other_Lowercase *RangeTable",
+          "capabilities": [
+            "unicode-table \"Other_Lowercase\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Other_Math *RangeTable",
+          "capabilities": [
+            "unicode-table \"Other_Math\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Other_Uppercase *RangeTable",
+          "capabilities": [
+            "unicode-table \"Other_Uppercase\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var P *RangeTable",
+          "capabilities": [
+            "unicode-table \"P\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Pahawh_Hmong *RangeTable",
+          "capabilities": [
+            "unicode-table \"Pahawh_Hmong\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Palmyrene *RangeTable",
+          "capabilities": [
+            "unicode-table \"Palmyrene\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Pattern_Syntax *RangeTable",
+          "capabilities": [
+            "unicode-table \"Pattern_Syntax\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Pattern_White_Space *RangeTable",
+          "capabilities": [
+            "unicode-table \"Pattern_White_Space\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Pau_Cin_Hau *RangeTable",
+          "capabilities": [
+            "unicode-table \"Pau_Cin_Hau\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Pc *RangeTable",
+          "capabilities": [
+            "unicode-table \"Pc\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Pd *RangeTable",
+          "capabilities": [
+            "unicode-table \"Pd\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Pe *RangeTable",
+          "capabilities": [
+            "unicode-table \"Pe\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Pf *RangeTable",
+          "capabilities": [
+            "unicode-table \"Pf\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Phags_Pa *RangeTable",
+          "capabilities": [
+            "unicode-table \"Phags_Pa\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Phoenician *RangeTable",
+          "capabilities": [
+            "unicode-table \"Phoenician\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Pi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Pi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Po *RangeTable",
+          "capabilities": [
+            "unicode-table \"Po\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Prepended_Concatenation_Mark *RangeTable",
+          "capabilities": [
+            "unicode-table \"Prepended_Concatenation_Mark\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var PrintRanges []*RangeTable",
+          "capabilities": [
+            "unicode-print-ranges"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Properties map[string]*RangeTable",
+          "capabilities": [
+            "unicode-property"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Ps *RangeTable",
+          "capabilities": [
+            "unicode-table \"Ps\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Psalter_Pahlavi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Psalter_Pahlavi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Punct *RangeTable",
+          "capabilities": [
+            "unicode-table \"Punct\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Quotation_Mark *RangeTable",
+          "capabilities": [
+            "unicode-table \"Quotation_Mark\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Radical *RangeTable",
+          "capabilities": [
+            "unicode-table \"Radical\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Regional_Indicator *RangeTable",
+          "capabilities": [
+            "unicode-table \"Regional_Indicator\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Rejang *RangeTable",
+          "capabilities": [
+            "unicode-table \"Rejang\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Runic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Runic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var S *RangeTable",
+          "capabilities": [
+            "unicode-table \"S\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var STerm *RangeTable",
+          "capabilities": [
+            "unicode-table \"STerm\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Samaritan *RangeTable",
+          "capabilities": [
+            "unicode-table \"Samaritan\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Saurashtra *RangeTable",
+          "capabilities": [
+            "unicode-table \"Saurashtra\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sc *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sc\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Scripts map[string]*RangeTable",
+          "capabilities": [
+            "unicode-script"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sentence_Terminal *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sentence_Terminal\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sharada *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sharada\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Shavian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Shavian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Siddham *RangeTable",
+          "capabilities": [
+            "unicode-table \"Siddham\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sidetic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sidetic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var SignWriting *RangeTable",
+          "capabilities": [
+            "unicode-table \"SignWriting\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sinhala *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sinhala\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sk *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sk\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sm *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sm\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var So *RangeTable",
+          "capabilities": [
+            "unicode-table \"So\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Soft_Dotted *RangeTable",
+          "capabilities": [
+            "unicode-table \"Soft_Dotted\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sogdian *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sogdian\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sora_Sompeng *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sora_Sompeng\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Soyombo *RangeTable",
+          "capabilities": [
+            "unicode-table \"Soyombo\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Space *RangeTable",
+          "capabilities": [
+            "unicode-table \"Space\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sundanese *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sundanese\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Sunuwar *RangeTable",
+          "capabilities": [
+            "unicode-table \"Sunuwar\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Syloti_Nagri *RangeTable",
+          "capabilities": [
+            "unicode-table \"Syloti_Nagri\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Symbol *RangeTable",
+          "capabilities": [
+            "unicode-table \"Symbol\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Syriac *RangeTable",
+          "capabilities": [
+            "unicode-table \"Syriac\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tagalog *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tagalog\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tagbanwa *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tagbanwa\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tai_Le *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tai_Le\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tai_Tham *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tai_Tham\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tai_Viet *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tai_Viet\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tai_Yo *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tai_Yo\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Takri *RangeTable",
+          "capabilities": [
+            "unicode-table \"Takri\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tamil *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tamil\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tangsa *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tangsa\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tangut *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tangut\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Telugu *RangeTable",
+          "capabilities": [
+            "unicode-table \"Telugu\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Terminal_Punctuation *RangeTable",
+          "capabilities": [
+            "unicode-table \"Terminal_Punctuation\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Thaana *RangeTable",
+          "capabilities": [
+            "unicode-table \"Thaana\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Thai *RangeTable",
+          "capabilities": [
+            "unicode-table \"Thai\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tibetan *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tibetan\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tifinagh *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tifinagh\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tirhuta *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tirhuta\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Title *RangeTable",
+          "capabilities": [
+            "unicode-table \"Title\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Todhri *RangeTable",
+          "capabilities": [
+            "unicode-table \"Todhri\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tolong_Siki *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tolong_Siki\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Toto *RangeTable",
+          "capabilities": [
+            "unicode-table \"Toto\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Tulu_Tigalari *RangeTable",
+          "capabilities": [
+            "unicode-table \"Tulu_Tigalari\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var TurkishCase SpecialCase",
+          "capabilities": [
+            "unicode-turkish-case"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Ugaritic *RangeTable",
+          "capabilities": [
+            "unicode-table \"Ugaritic\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Unified_Ideograph *RangeTable",
+          "capabilities": [
+            "unicode-table \"Unified_Ideograph\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Upper *RangeTable",
+          "capabilities": [
+            "unicode-table \"Upper\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Vai *RangeTable",
+          "capabilities": [
+            "unicode-table \"Vai\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Variation_Selector *RangeTable",
+          "capabilities": [
+            "unicode-table \"Variation_Selector\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Vithkuqi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Vithkuqi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Wancho *RangeTable",
+          "capabilities": [
+            "unicode-table \"Wancho\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Warang_Citi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Warang_Citi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var White_Space *RangeTable",
+          "capabilities": [
+            "unicode-table \"White_Space\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Yezidi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Yezidi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Yi *RangeTable",
+          "capabilities": [
+            "unicode-table \"Yi\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Z *RangeTable",
+          "capabilities": [
+            "unicode-table \"Z\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Zanabazar_Square *RangeTable",
+          "capabilities": [
+            "unicode-table \"Zanabazar_Square\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Zl *RangeTable",
+          "capabilities": [
+            "unicode-table \"Zl\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Zp *RangeTable",
+          "capabilities": [
+            "unicode-table \"Zp\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "var Zs *RangeTable",
+          "capabilities": [
+            "unicode-table \"Zs\"",
+            "unicode-table-count/name/names",
+            "unicode-range16/32-count/at/ranges",
+            "unicode-latin-offset",
+            "unicode-range-contains-code"
+          ],
+          "status": "implemented"
+        }
+      ]
+    },
+    {
+      "package": "unicode/utf8",
+      "declaration_count": 23,
+      "rows": [
+        {
+          "declaration": "const MaxRune = 1114111",
+          "capabilities": [
+            "utf8-max-rune"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const MaxRune ideal-char",
+          "capabilities": [
+            "utf8-max-rune"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const RuneError = 65533",
+          "capabilities": [
+            "utf8-rune-error"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const RuneError ideal-char",
+          "capabilities": [
+            "utf8-rune-error"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const RuneSelf = 128",
+          "capabilities": [
+            "utf8-rune-self"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const RuneSelf ideal-int",
+          "capabilities": [
+            "utf8-rune-self"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const UTFMax = 4",
+          "capabilities": [
+            "utf8-max-width"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "const UTFMax ideal-int",
+          "capabilities": [
+            "utf8-max-width"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func AppendRune([]uint8, int32) []uint8",
+          "capabilities": [
+            "utf8-append-rune"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func DecodeLastRune([]uint8) (int32, int)",
+          "capabilities": [
+            "utf8-last"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func DecodeLastRuneInString(string) (int32, int)",
+          "capabilities": [
+            "Data.String.string-utf8-last / planned Text.Utf8.utf8-last-text"
+          ],
+          "status": "pending-string-provider-epoch"
+        },
+        {
+          "declaration": "func DecodeRune([]uint8) (int32, int)",
+          "capabilities": [
+            "utf8-first / utf8-decode-at"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func DecodeRuneInString(string) (int32, int)",
+          "capabilities": [
+            "Data.String.string-utf8-first / planned Text.Utf8.utf8-first-text"
+          ],
+          "status": "pending-string-provider-epoch"
+        },
+        {
+          "declaration": "func EncodeRune([]uint8, int32) int",
+          "capabilities": [
+            "utf8-encode-into / utf8-encode-rune"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func FullRune([]uint8) bool",
+          "capabilities": [
+            "utf8-full-rune"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func FullRuneInString(string) bool",
+          "capabilities": [
+            "planned Text.Utf8.utf8-full-rune-text; valid String nonempty test"
+          ],
+          "status": "pending-string-provider-epoch"
+        },
+        {
+          "declaration": "func RuneCount([]uint8) int",
+          "capabilities": [
+            "utf8-count"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func RuneCountInString(string) int",
+          "capabilities": [
+            "Data.String.string-length / planned Text.Utf8.utf8-count-text"
+          ],
+          "status": "pending-string-provider-epoch"
+        },
+        {
+          "declaration": "func RuneLen(int32) int",
+          "capabilities": [
+            "utf8-rune-length"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func RuneStart(uint8) bool",
+          "capabilities": [
+            "utf8-rune-start"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func Valid([]uint8) bool",
+          "capabilities": [
+            "utf8-valid"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func ValidRune(int32) bool",
+          "capabilities": [
+            "utf8-valid-rune"
+          ],
+          "status": "implemented"
+        },
+        {
+          "declaration": "func ValidString(string) bool",
+          "capabilities": [
+            "String valid-UTF8 invariant / planned Text.Utf8.utf8-valid-text"
+          ],
+          "status": "pending-string-provider-epoch"
+        }
+      ]
+    }
+  ],
+  "policies": [
+    "Current Unicode edition is versioned; cumulative historical Version constant records do not create obsolete table sets.",
+    "Char is scalar-only; numeric range membership includes surrogate code points.",
+    "Built-in tables and catalogs are immutable; custom metadata is checked before private owned storage is allocated.",
+    "Simple mappings preserve one scalar; no normalization, expansion or full case folding is supplied by this package.",
+    "Raw byte APIs retain malformed/non-UTF8 input; valid String adapters use the private backing under a separately registered provider epoch.",
+    "Invalid decoding consumes one byte as U+FFFD; invalid numeric encoding emits U+FFFD; rune-length reports None for invalid numbers.",
+    "Append and repair outputs are unconditionally fresh; encode-into capacity refusal writes nothing."
+  ]
+}
