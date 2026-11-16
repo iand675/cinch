@@ -114,6 +114,23 @@ A container-generic surface sits above the primitive:
 > Write the test first. Both programs fail today, so a test added before the
 > synthesis is a red gate, and the gate is what stops this from being
 > described as landed again before it is.
+>
+> **And why a source instance cannot be the answer, in one function name.**
+> An implicit instance written as `both f g = parBoth f g` is refused by
+> `Bootstrap.Infer.cinch`'s `parallel-callback` (about line 5030), which
+> calls `parallel-callback-literal` on each callback's checked term and
+> accepts only a lambda, a global name, or a partial application of a
+> global. A method body's parameters are none of those, so every forwarding
+> body fails the same way, and wrapping them in lambdas fails the Share rule
+> instead (section 2.1). The kernel instance must therefore be built rather
+> than declared: either a `DInstance` admitted from `parallelism-source`
+> whose four members are external bindings the elaboration treats as
+> primitives, or the Core dictionary itself, with one
+> `MkCoreDictionaryField` per slot and `CPrimitive` bodies naming the
+> operations `par-lowering-name` already returns. Exempting kernel instance
+> members from `parallel-callback-literal` is the third option and the worst
+> of the three: it weakens a safety rule to admit compiler-internal code
+> that never needed checking.
 
 ```text
 parTraverse :: forall t a b e. using (trav :: Traversable t, par :: Parallelism)
