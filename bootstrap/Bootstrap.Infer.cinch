@@ -2094,9 +2094,15 @@ module Bootstrap.Infer where
     Cons (DMethod sp label symbol syntax) rest -> case source-method label (class-methods description) of
       Some method -> case class-method-equation method of
         Some equation -> register-source-methods description rest env st
-        None -> register-source-methods description rest
-          (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method))
-            (without-binding symbol env)) st
+        -- A method whose symbol is a kernel operation is checked at the call
+        -- site, where the caller's element classes are known; a method
+        -- binding would route the call through the class contract instead
+        -- and record the method's own type parameters (section 4).
+        None -> case par-syntax-name symbol of
+          True -> register-source-methods description rest env st
+          False -> register-source-methods description rest
+            (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method))
+              (without-binding symbol env)) st
       None -> register-source-methods description rest env (add-error sp "source method has no declaring slot" st)
     Cons (DFun sp label clauses) rest -> case source-method label (class-methods description) of
       Some (MkCoreEquationMethod at name slot telescope symbol equation) ->

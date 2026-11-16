@@ -257,6 +257,9 @@ module Bootstrap.Typing where
       else if same name "thunk-force" then (case deferral-parts (core-type first) of
         Some (row, result) -> equal-type ty result
         None -> False)
+      -- `parWorkers n` sets the participant budget and answers `Unit`; the
+      -- count is a `Nat` in source and crosses as a length at lowering.
+      else if same name "par-workers" then type-is "Unit" ty && type-is "Nat" (core-type first)
       else same name "negate" && type-is "Int" ty && equal-type ty (core-type first)
     CArgument sp first (CArgument at second (CArgumentsEnd end)) ->
       if same name "par-both" then par-both-type ty first second
