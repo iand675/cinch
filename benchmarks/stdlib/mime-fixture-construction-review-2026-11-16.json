@@ -1,0 +1,11 @@
+{
+  "previous_report_sha256": "1f1a2d5253fbb0fe768cc304a9839e2cf84eb2882231ed24e53862239e369751",
+  "changed_groups": [
+    "encoded-0384",
+    "encoded-0512"
+  ],
+  "changed_previously_passed_groups": [
+    "encoded-0384"
+  ],
+  "reason": "Bounded fixture construction replaces one excessively deep source byte-list group; no library source change."
+}

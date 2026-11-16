@@ -1,0 +1,26 @@
+{
+  "status": "provisional matched V2 provider, independently admitted and tested with fully gated old Native2f077; new compiler family gate pending",
+  "files": {
+    "cinch": {
+      "source": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+      "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+    },
+    "libcinchruntime.a": {
+      "source": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/libcinchruntime.a",
+      "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+    },
+    "base-interfaces.json": {
+      "source": "/workspace/dasl-stdlib-merged-family/build/merged-provider-v2-config/base-interfaces.json",
+      "sha256": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de"
+    },
+    "objects.json": {
+      "source": "/workspace/dasl-stdlib-merged-family/build/merged-provider-v2-config/objects.json",
+      "sha256": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641"
+    }
+  },
+  "provider_receipt": {
+    "source": "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/provider.json",
+    "sha256": "a6df3c8aab20edfd7e9eef2136a95ea6834b08ae1ef0efaa70e46697121ed01e"
+  },
+  "provider_probe_sha256": "d2acd432f79b444c735abeba79f3f12f0766e2d767626038e7e6295279290955"
+}
