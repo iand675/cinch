@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Prepare and check independent comparison fixtures with explicitly supplied frozen frontends.
 
-No compiler is built here. Compile fixture-only C, emit LLVM through each public
+No compiler is built here. An optional ordinary build initializes its host runtime.
+Compile fixture-only C, emit LLVM through each public
 frontend, link against its exact runtime/provider, and run ordinary and poisoned
 allocation profiles separately. All commands, hashes, failures and timing samples
 are retained in the report rather than normalized away.
 """
 from __future__ import annotations
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -24,6 +26,31 @@ ROOT=Path(__file__).resolve().parents[1]
 def digest(path: Path) -> str:
     """Identify the bytes actually used for source, compiler and object artifacts."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def initialize_runtime(compiler: Path, runtime: Path, work: Path) -> tuple[Path,dict]:
+    """Use the normal build path to refresh the exact host archive and retain a locked snapshot."""
+    source=work/'RuntimeInit.cinch'
+    source.write_text('''-- | Initialize the current Rust compiler's normal host runtime build.
+module Main where
+  -- | Return successfully without depending on any comparison fixture.
+  main :: Int
+  main = 0
+''')
+    executable=work/'runtime-initializer'
+    command=[str(compiler),'build',str(source),'-o',str(executable)]
+    built=run(command,work,600)
+    env={**os.environ,'CINCH_HEAP_LIMIT':'32M','CINCH_STACK_SIZE':'8M','CINCH_LEAK_CHECK':'1','CINCH_RC_DEBUG':'0'}
+    initialized=run([str(executable)],work,60,env)
+    if 'leaked=0' not in initialized.stderr: raise RuntimeError('runtime initializer omitted zero-leak evidence')
+    if not runtime.is_file(): raise RuntimeError(f'normal Rust build did not produce the expected host archive: {runtime}')
+    snapshot=work/'host-runtime.a'
+    with (runtime.parent.parent/'.cinch-runtime.lock').open('a+b') as lock:
+        fcntl.flock(lock,fcntl.LOCK_SH)
+        shutil.copyfile(runtime,snapshot)
+        archive_sha256=digest(runtime)
+        if digest(snapshot)!=archive_sha256: raise RuntimeError('host runtime changed while being captured')
+    return snapshot,{'command':command,'archive_path':str(runtime),'archive_sha256':archive_sha256,'snapshot_sha256':digest(snapshot),'initializer_source_sha256':digest(source),'initializer_executable_sha256':digest(executable),'build_stdout':built.stdout,'build_stderr':built.stderr,'run_stdout':initialized.stdout,'run_stderr':initialized.stderr}
 
 
 def run(argv: list[str], cwd: Path, timeout: int = 180, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -184,10 +211,15 @@ def main() -> None:
     parser.add_argument('--resume',action='store_true',help='Retain verified completed cases with identical source and frontend identities')
     parser.add_argument('--rust',type=Path)
     parser.add_argument('--rust-runtime',type=Path)
+    parser.add_argument('--initialize-rust-runtime',action='store_true',help='Initialize/refresh the current Rust compiler host runtime through an ordinary build, then capture its exact archive')
+    parser.add_argument('--native-rc-debug',action='store_true',help='Emit Native count operations through checked out-of-line runtime entries; Rust CLI does not expose this option')
     parser.add_argument('--native',type=Path,help='Frozen snapshot directory with cinch, manifests, runtime and provider')
     parser.add_argument('--only',nargs='+')
     parser.add_argument('--cpu',type=int)
     args=parser.parse_args(); work=args.work.resolve(); work.mkdir(parents=True,exist_ok=True)
+    if args.rust and not args.rust_runtime: parser.error('--rust requires its exact --rust-runtime archive')
+    if args.initialize_rust_runtime and (not args.rust or args.native or args.resume): parser.error('--initialize-rust-runtime requires a fresh explicit Rust-only invocation')
+    if args.native_rc_debug and not args.native: parser.error('--native-rc-debug requires --native')
     counts=prepare(work,args.vectors)
     if args.prepare_only: print(json.dumps(counts)); return
     if args.cpu is not None: os.sched_setaffinity(0,{args.cpu})
@@ -201,12 +233,19 @@ def main() -> None:
             if previous[key]!=report[key]: raise RuntimeError(f'cannot resume changed input {key}')
         report=previous
     frontends=[]
-    if args.rust: frontends.append(('rust',args.rust.resolve(),args.rust_runtime.resolve()))
+    if args.rust:
+        runtime=args.rust_runtime.resolve()
+        if args.initialize_rust_runtime:
+            runtime,initialization=initialize_runtime(args.rust.resolve(),runtime,work)
+            report['runtime_initialization']=initialization
+        frontends.append(('rust',args.rust.resolve(),runtime))
     if args.native: frontends.append(('native',args.native.resolve()/'cinch',args.native.resolve()/'libcinchruntime.a'))
     for label,compiler,runtime in frontends:
         if label in report['frontends'] and (report['frontends'][label]['compiler_sha256']!=digest(compiler) or report['frontends'][label]['runtime_sha256']!=digest(runtime)):
             raise RuntimeError(f'cannot resume changed frontend {label}')
-        report['frontends'][label]={'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime':str(runtime),'runtime_sha256':digest(runtime)}
+        if label in report['frontends'] and report['frontends'][label].get('compile_rc_debug',False)!=(label=='native' and args.native_rc_debug):
+            raise RuntimeError(f'cannot resume changed count instrumentation for {label}')
+        report['frontends'][label]={'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime':str(runtime),'runtime_sha256':digest(runtime),'compile_rc_debug':label=='native' and args.native_rc_debug}
         if label=='native':
             snap=args.native.resolve(); cfg=json.loads((snap/'objects.json').read_text()); provider=Path(cfg['object'])
             report['frontends'][label].update({key:digest(snap/key) for key in ('base-interfaces.json','objects.json')}); report['frontends'][label]['provider_sha256']=digest(provider)
@@ -216,6 +255,7 @@ def main() -> None:
             ir=work/f'{label}-{name}.ll'; exe=work/f'{label}-{name}'
             (work/'bundle.source').write_text((work/'Data.Compare.cinch').read_text()+'\n'+(work/'Main.cinch').read_text())
             command=[str(compiler),'emit-ir',str(work/'Main.cinch'),'-o',str(ir)] if label=='rust' else [str(compiler),'--emit-ir','--interfaces',str(snap/'base-interfaces.json'),'--objects',str(snap/'objects.json'),str(work/'bundle.source'),str(ir)]
+            if label=='native' and args.native_rc_debug: command.insert(2,'--rc-debug')
             start=time.monotonic(); result=run(command,work,300)
             target=re.search(r'target triple = "([^"]+)"',ir.read_text())
             triple=target.group(1) if target else cfg['target'] if label=='native' else 'unspecified'
