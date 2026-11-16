@@ -1,0 +1,65 @@
+{
+  "before_compiler_sha256": "c6cbaface42b9e509f3a3324511bc480fbfa7bcd6691eb46bdc6e827dc98b7c3",
+  "after_compiler_sha256": "060818de9f34dd9ddbe4278e3abb03a3dda380568958424c780ba70cfac72863",
+  "cases": [
+    {
+      "name": "monoid_over_nonempty_is_rejected_naming_the_preservation_law",
+      "runs": {
+        "before": {
+          "exit": 1,
+          "diagnostic": "cinch: 6:3: instance `Main.Monoid_NonEmpty` breaks preservation law `Data.NonEmpty.NonEmpty.preserve-mempty` at sample values (): `mempty` produced `<adt 0 >`, which does not satisfy `NotNull xs` (refinement types design: a container's methods transfer exactly when they preserve the refinement)"
+        },
+        "after": {
+          "exit": 1,
+          "diagnostic": "cinch: 6:3: instance `Main.Monoid_NonEmpty` breaks preservation law `Data.NonEmpty.NonEmpty.preserve-mempty` at sample values (): `mempty` produced `<adt 0 >`, which does not satisfy `NotNull xs` (refinement types design: a container's methods transfer exactly when they preserve the refinement)"
+        }
+      },
+      "same_diagnostic_and_laws": true
+    },
+    {
+      "name": "sorted_reverse_append_is_rejected_naming_the_preservation_law",
+      "runs": {
+        "before": {
+          "exit": 1,
+          "diagnostic": "cinch: 7:3: instance `Main.Semigroup_SortedReverse` breaks preservation law `Data.Sorted.Sorted.preserve-<>` at sample values ($a0 = <adt 1 0, <adt 0 >>, $a1 = <adt 1 1, <adt 0 >>): `<>` produced `<adt 1 1, <adt 1 0, <adt 0 >>>`, which does not satisfy `Ordered xs` (refinement types design: a container's methods transfer exactly when they preserve the refinement)"
+        },
+        "after": {
+          "exit": 1,
+          "diagnostic": "cinch: 7:3: instance `Main.Semigroup_SortedReverse` breaks preservation law `Data.Sorted.Sorted.preserve-<>` at sample values ($a0 = <adt 1 0, <adt 0 >>, $a1 = <adt 1 1, <adt 0 >>): `<>` produced `<adt 1 1, <adt 1 0, <adt 0 >>>`, which does not satisfy `Ordered xs` (refinement types design: a container's methods transfer exactly when they preserve the refinement)"
+        }
+      },
+      "same_diagnostic_and_laws": true
+    },
+    {
+      "name": "unprovable_transfers_report_not_checked_honestly",
+      "runs": {
+        "before": {
+          "exit": 0,
+          "diagnostic": "",
+          "nonzero_unit_laws": [
+            {
+              "class": "Algebra.Monoid.Monoid",
+              "instance": "Data.NonZero.Monoid_NonZero",
+              "law": "left-unit",
+              "status": "checked (2 samples)"
+            }
+          ]
+        },
+        "after": {
+          "exit": 0,
+          "diagnostic": "",
+          "nonzero_unit_laws": [
+            {
+              "class": "Algebra.Monoid.Monoid",
+              "instance": "Data.NonZero.Monoid_NonZero",
+              "law": "left-unit",
+              "status": "checked (2 samples)"
+            }
+          ]
+        }
+      },
+      "same_diagnostic_and_laws": true
+    }
+  ],
+  "description": "Existing refinement tests expected short law/class identities; the compiler already emitted qualified identities before the effect-stage fix. Only exact expected identities were updated; preservation rejection and sampled law outcomes are unchanged."
+}

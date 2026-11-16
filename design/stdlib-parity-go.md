@@ -19,7 +19,7 @@ is not an available API.
 | `math/bits` | [Data.Word](../library/Data.Word.md), `Data.Machine`, `Algebra.Bits` | All fixed/native-width count and reversal families, significant length, signed rotations, carry/borrow, exact wide multiply, checked and proof-bearing division/remainder | All 52 reference declarations mapped; portable 128-bit division helpers and checked-result allocations remain performance costs |
 | `unicode/utf16` | [Text.Utf16](../library/Text.Utf16.md) | Scalar length, surrogate classification/pairs, sequence encode/decode, append, explicit-order byte codecs, replacement policy | All seven reference capabilities mapped and tested; byte-codec throughput and immutable-list append costs are documented |
 | `encoding/binary` | [Text.Binary](../library/Text.Binary.md) | U16/U32/U64, both byte orders, offset reads, checked writes, unsigned and zigzag I64 varints, consumed byte count | Float/aggregate codecs, stream and append operations |
-| `encoding/hex` | [Text.Hex](../library/Text.Hex.md) | Lowercase text/byte encoders, either-case decoding, prefix-preserving and append APIs, checked caller buffers with overlap isolation, length helpers and invalid-byte offsets | Dumps and stream adapters |
+| `encoding/hex` | [Text.Hex](../library/Text.Hex.md), [Effect.Hex](../library/Effect.Hex.md) | Text/byte codecs, prefix and append APIs, checked caller buffers, formatted dumps, encoding writers, decoding readers and explicitly finished dump sinks | All 15 declarations mapped; immutable continuation, partial-row latency and allocation differences are documented |
 | `encoding/ascii85` | [Text.Ascii85](../library/Text.Ascii85.md), [Effect.Ascii85](../library/Effect.Ascii85.md) | Whole buffers, incremental feed/finish, absolute byte errors, streaming reader/writer adapters, zero-word shorthand, control-byte tolerance and wrapped arithmetic | Caller-supplied buffers, decoded prefix/progress on errors, allocation and ownership costs |
 | `encoding/base32` | [Text.Base32](../library/Text.Base32.md) | RFC 4648 standard and extended-hex alphabets, padded and raw forms, CR/LF tolerance, final-quantum validation | Custom alphabets/padding, stream adapters |
 | `hash/adler32` | [Text.Checksum](../library/Text.Checksum.md) | Whole-buffer checksum and incremental update | Stream adapters, serialized state |
@@ -60,13 +60,20 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records two functionally complete, 66 partial
-and 112 unreviewed packages. UTF-16 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records three functionally complete, 65 partial
+and 112 unreviewed packages. Hexadecimal, UTF-16 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
 The [benchmark notes](../benchmarks/stdlib/README.md) describe measured public
 API pipelines and their limits. The full standard library goal remains open.
+
+Hexadecimal dump formatting uses SIMD nibble encoding and eight-lane printable
+ASCII classification, plus SWAR masks to interleave four digit pairs and spaces
+per store block. `Effect.Hex` snapshots retained tails, retries odd short writes,
+delays decoder errors until completed output is drained, and retains sticky
+failures. Its dump sink buffers up to fifteen input bytes until a full row or
+`hex-dump-finish`; finishing does not close or flush the underlying sink.
 
 Base32 discards unused low bits in the final symbol, like Go. The `hex-decode` text convenience and Base32 decoders return an error for the
 entire input. Hex prefix, append and caller-buffer APIs retain completed pairs
@@ -125,6 +132,13 @@ two-chunk split, empty feeds, malformed input after complete words, streaming
 short writes, sticky failures and mutable-alias isolation. They inspect the
 emitted SIMD and compile its kernels for AArch64 and big-endian PowerPC; those
 cross-target checks do not claim execution on that hardware.
+[Hexadecimal buffer tests](../compiler/tests/lib_hex.rs) verify prefix progress,
+all byte values and lane positions, overlap, short destinations and exact dump
+columns. [Stream tests](../compiler/tests/lib_hex_stream.rs) exercise every source
+split, one-byte reads, short/failing sinks, mutable aliases and dump finalization.
+Ordinary bounded-memory runs are separate from debug poisoning runs: the debug
+runtime deliberately quarantines freed blocks, so its heap peak measures retained
+diagnostic storage as well as live values.
 [UTF-16 tests](../compiler/tests/lib_utf16.rs) compare all scalar/pair APIs
 against independent fixtures, exhaust all 65,536 individual code units, and
 check both byte orders, odd byte counts, marks and SWAR block tails.

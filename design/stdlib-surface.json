@@ -527,26 +527,43 @@
     },
     {
       "reference_package": "encoding/hex",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
+        "Effect.Hex",
         "Text.Hex"
       ],
-      "remaining": [
-        "dump formatting",
-        "reader/writer adapters",
-        "append operations"
-      ],
+      "remaining": [],
       "reference_declarations": 15,
       "tests": [
-        "lib_go_stdlib::hexadecimal_matches_go_and_names_invalid_bytes",
-        "lib_hex::hexadecimal_prefix_and_append_match_reference_progress",
-        "lib_hex::hexadecimal_caller_buffers_preserve_bounds_progress_and_overlap",
-        "lib_hex::hexadecimal_all_byte_values_preserve_first_error_and_prefix"
+        "lib_hex",
+        "lib_hex_stream"
       ],
       "benchmarks": [
         "hex-encode",
-        "hex-decode"
-      ]
+        "hex-decode",
+        "hex-append-encode",
+        "hex-append-decode",
+        "hex-into-encode",
+        "hex-into-decode",
+        "hex-dump",
+        "hex-stream-encode",
+        "hex-stream-decode",
+        "hex-stream-dump",
+        "hex-bytes-encode",
+        "hex-prefix-decode"
+      ],
+      "capability_mapping": {
+        "Encode, EncodeToString": "hex-encode-into writes a checked caller interval; hex-encode-bytes and hex-encode return fresh bytes or text",
+        "Decode, DecodeString": "hex-decode-into and hex-decode-prefix retain completed pairs and an optional error; hex-decode provides an all-or-error text convenience",
+        "AppendEncode, AppendDecode": "hex-encode-append and hex-decode-append copy the prefix and preserve complete decoded pairs on failure",
+        "EncodedLen, DecodedLen": "hex-encoded-length and hex-decoded-length compute exact encode and maximum complete decode lengths",
+        "Dump": "hex-dump and hex-dump-bytes provide grouped sixteen-byte rows, printable ASCII and wrapping 32-bit offsets",
+        "Dumper": "hex-dumper, hex-dump-write and hex-dump-finish retain a partial row until explicit idempotent finalization; hex-dumper-sink exposes the advanced sink",
+        "NewEncoder": "hex-writer/hex-write provide inspectable encoding continuations; hex-encoding-writer composes through ByteWriter and retries short output writes",
+        "NewDecoder": "hex-reader composes through ByteReader with bounded source fetches, a private output cursor, absolute input offsets and completed output before failure",
+        "InvalidByteError, InvalidByteError.Error, ErrLength": "InvalidHexByte stores offset and byte, OddHexLength names an unpaired final digit, hex-error-message renders diagnostics; a streaming valid odd tail is StreamUnexpectedEnd"
+      },
+      "review": "All 15 reference declarations have reviewed functional mappings. Both compilers execute independent byte, prefix and dump fixtures, all byte/lane cases, every stream split, odd short writes, sticky failures, alias isolation and finalization. Caller destinations explicitly reject insufficient capacity before mutation; immutable continuations retain advanced sinks. Dump sinks buffer unfinished rows until finish and do not own underlying close/flush. SIMD nibble/ASCII kernels and SWAR column scatter cross-compile for 32-bit Wasm, ARM64 and big-endian PowerPC without claiming foreign execution. Public pipeline benchmarks retain independent SDK checksums, allocation differences and an alternating scatter comparison; completion does not assert identical allocation cost, streaming latency or throughput."
     },
     {
       "reference_package": "encoding/json",

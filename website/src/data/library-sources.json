@@ -643,6 +643,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Hex",
+      "path": "compiler/prelude/Effect/Hex.cinch",
+      "sha256": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+      "embedded": false,
+      "values": 9,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Http",
       "path": "compiler/prelude/Effect/Http.cinch",
       "sha256": "28ce800080f068afac0b699ae592bf9630a2d20f5ea2246d171a0cdea87e774c",
@@ -765,7 +773,7 @@
     {
       "module": "Effect.Stream",
       "path": "compiler/prelude/Effect/Stream.cinch",
-      "sha256": "6079746ad326c94b72c6c3b41f3cb5d652d67a0f7ced213031747e6e342bd7c1",
+      "sha256": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
       "embedded": false,
       "values": 24,
       "public_methods": 0
@@ -941,9 +949,9 @@
     {
       "module": "Text.Hex",
       "path": "compiler/prelude/Text/Hex.cinch",
-      "sha256": "2753b6e34d7e386ddd0328079925f036e66b362da0f24407ce95cdb19e90ecfb",
+      "sha256": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
       "embedded": false,
-      "values": 10,
+      "values": 13,
       "public_methods": 0
     },
     {
