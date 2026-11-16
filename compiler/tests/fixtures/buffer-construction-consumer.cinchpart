@@ -1,0 +1,54 @@
+  -- | Build repeated scalar input in exact order without a second deep reversed list.
+  make-characters :: Nat -> List Char -> List Char -> List Char -> List Char
+  make-characters cycles pattern pending chars = if cycles == 0 then chars else
+    case pending of
+      Nil -> let left = cycles - 1 in make-characters left pattern pattern chars
+      Cons first rest -> let next = Cons first chars in make-characters cycles pattern rest next
+  -- | Observe exact scalar packing independently of the runtime String representation.
+  packed-case :: String -> Nat -> Nat -> Nat -> String -> String -> Bool
+  packed-case text count size scalars hex digest =
+    let n = runtime-count count in let pattern = reverse (unpack text) in
+    let chars = make-characters n pattern pattern Nil in
+    observed (pack chars) size scalars hex digest
+  -- | Select each independent typed-byte test pattern without integer narrowing surprises.
+  byte-pattern :: U8 -> Nat -> InRange 0 255 Nat
+  byte-pattern mode i = if eq-u8 mode 0 then 0 else if eq-u8 mode 1 then 255
+    else if eq-u8 mode 2 then nat-rem (i * 37 + 11) 256
+    else if nat-rem i 2 == 0 then 170 else 85
+  -- | Build range-checked natural bytes with a bounded-stack accumulator.
+  make-nat-bytes :: U8 -> Nat -> Nat -> List (InRange 0 255 Nat) -> List (InRange 0 255 Nat)
+  make-nat-bytes mode left i reversed = if left == 0 then reverse reversed else
+    let byte = byte-pattern mode i in let values = (Cons byte reversed :: List (InRange 0 255 Nat)) in
+    let remaining = left - 1 in let next = i + 1 in make-nat-bytes mode remaining next values
+  -- | Build concrete machine bytes with a bounded-stack accumulator.
+  make-word-bytes :: U8 -> Nat -> Nat -> List U8 -> List U8
+  make-word-bytes mode left i reversed = if left == 0 then reverse reversed else
+    let byte = byte-pattern mode i in let word = wrapping-i64-to-u8 (nat-to-i64 byte) in
+    let values = Cons word reversed in let remaining = left - 1 in let next = i + 1 in
+    make-word-bytes mode remaining next values
+  -- | Compare complete raw bytes without imposing a UTF-8 policy on mutable byte buffers.
+  observed-buffer :: Bytes -> Nat -> String -> String -> Bool
+  observed-buffer raw size hex digest = bytes-len raw == size
+    && same (sha256-bytes raw) (expected-bytes digest)
+    && (if size <= 512 then same raw (expected-bytes hex) else True)
+  -- | Exercise natural and machine constructors, the actual FromList method and independent mutable outputs.
+  buffer-case :: U8 -> Nat -> Nat -> String -> String -> Bool
+  buffer-case mode count size hex digest =
+    let n = runtime-count count in let nats = make-nat-bytes mode n 0 Nil in
+    let words = make-word-bytes mode n 0 Nil in
+    let raw = bytes-from-list nats in let word-raw = bytes-from-u8s words in
+    let from-method = (from-list words :: Bytes) in
+    let exact = observed-buffer raw size hex digest && observed-buffer word-raw size hex digest && observed-buffer from-method size hex digest in
+    let again = bytes-from-list nats in
+    let changed = if 0 < bytes-len raw then bytes-set raw 0 (if bytes-get raw 0 == 0 then 1 else 0) else () in
+    exact && observed-buffer again size hex digest && observed-buffer word-raw size hex digest && observed-buffer from-method size hex digest
+  -- | Repeat temporary typed byte and scalar constructors under the normal bounded heap.
+  buffer-owner-loop :: Nat -> Nat -> Bool
+  buffer-owner-loop left count = if left == 0 then True else
+    let words = make-word-bytes 2 count 0 Nil in let raw = bytes-from-u8s words in
+    let chars = unpack (string-repeat count "éλ") in let packed = pack chars in
+    let ok = bytes-len raw == count && string-byte-length packed == count * 4 && string-length packed == count * 2 in
+    if ok then let remaining = left - 1 in buffer-owner-loop remaining count else False
+  -- | Force deep construction into runtime execution and release complete temporary results between calls.
+  buffer-owners-case :: Unit -> Bool
+  buffer-owners-case unit = alias-case () && buffer-owner-loop (runtime-count 32) (runtime-count 4097)
