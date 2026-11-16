@@ -1,0 +1,62 @@
+{
+  "description": "Validate source-owned phantom kinds through a genuine interface-only client.",
+  "compiler_sha256": "138b7efeaa8a0628e8335bd0e752cf61242a9edb7336da0cd8702be5487ec6cc",
+  "manifest_sha256": "1efa9dc943e2ad79f1e1fd350618000da7e7f6e0795b83789054dbdb11a975d3",
+  "cpu_affinity": [
+    4
+  ],
+  "producer": {
+    "source_sha256": "38be394fade56bd8e853f75f2db8b3751c8945826ead7222b9d12f8197e2ff07",
+    "contract_sha256": "df86831a68e48d7021be6d722cbcc5b23f4e1846d1f604ba74dbbcce9e615f0d",
+    "interface_hash": "6249318190401778670",
+    "parameter_kinds": {
+      "Ordinary": [
+        "Type"
+      ],
+      "Vector": [
+        "Region",
+        "Type"
+      ]
+    }
+  },
+  "clients": [
+    {
+      "name": "region-roundtrip",
+      "source_sha256": "be568a9c837866ba5b7094683636c100da5980b4c309213e9cd0e85b50942a09",
+      "accepted": true,
+      "exit": 0,
+      "diagnostic": "",
+      "leaked": 0
+    },
+    {
+      "name": "region-cannot-be-type",
+      "source_sha256": "8955667f060511f312c202912096e0b40a92af85c728dbbe3865d737d2f562db",
+      "accepted": false,
+      "exit": 4,
+      "diagnostic": "bootstrap.check:5:10: kind mismatch in type inference\n",
+      "leaked": 0
+    },
+    {
+      "name": "ordinary-cannot-be-region",
+      "source_sha256": "38722ba95e8a96929cce99f41210b03b75936835f63f546a73d30a85910b9205",
+      "accepted": false,
+      "exit": 4,
+      "diagnostic": "bootstrap.check:5:20: kind mismatch in type inference\n",
+      "leaked": 0
+    },
+    {
+      "name": "imported-allocation-monomorphic",
+      "source_sha256": "71dfe6190af113a9e9a59d98a48b14fa6074d7635ca2f35ea24c6408b82ee18f",
+      "accepted": false,
+      "exit": 4,
+      "diagnostic": "bootstrap.check:6:106: type mismatch: expected Int, found Bool\n",
+      "leaked": 0
+    }
+  ],
+  "producer_source_removed_before_clients": true,
+  "runner_sha256": "765dc4e48d6f85e97d61f168ff10100841012b7b03620e66b443d5f779e508cd",
+  "frontend_provenance": "First corrected Cinch frontend, compiled by frozen Rust f2d5; snapshot predates the class-context extension and strict explicit-forall retention follow-up. Neither change affects this interface producer or these four clients.",
+  "compiler_source_infer_sha256": "6a28d53aaa062bfa797d15bb790ac331a349f47a987d9e258b27369a70f25004",
+  "mixed_epoch_parity_claimed": false,
+  "older_epoch_limitation": "Frozen Rust f2d5 nominal metadata for existing phantom mutation-region parameters uses Type. Imported kind headers remain authoritative; this gate uses the corrected Native producer and its genuine checked contracts."
+}
