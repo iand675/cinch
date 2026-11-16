@@ -26,9 +26,15 @@ Measured 2026-11-16 on `main` = 63663f0f, no-PGO stage 3:
     ownership sites 237825, on parameters 111273 (46.8%)
 
 A site is `(dup x`, `(drop x` or `(release x` whose operand is exactly one of
-the enclosing unit's `@params` names. `@borrowed` is the marker a borrowed
-parameter would carry; a count of zero means the mechanism is absent, not
-merely underused, and that is the finding this census exists to keep visible.
+the enclosing unit's `@params` names.
+
+Read `borrowed` carefully: the `owned` stage is `crate::rc::insert`, so this
+dump reflects the SEED's whole-program `borrow_modes`, not the self-hosted
+emitter. `coretext.rs` prints `@borrowed(a,b)` on a unit whenever a lend
+exists, and the count here is zero, which therefore says the seed's analysis
+lends no parameter in the compiler's own source. It does not say the
+mechanism is missing, and it is not evidence about what the per-unit emitter
+would do.
 """
 
 import argparse
@@ -97,9 +103,9 @@ def main():
     print(f"ownership sites {result['sites']}, on parameters {result['on_params']} "
           f"({share:.1f}%)")
     if result["borrowed"] == 0:
-        print("no parameter is marked @borrowed: the borrow mechanism is absent "
-              "from this emitter, so every parameter site is a candidate rather "
-              "than a rejected one")
+        print("no unit carries @borrowed: the seed's whole-program borrow_modes "
+              "lends no parameter here, so each parameter site is an offer to "
+              "check rather than a decision this dump already made")
     if args.by_module:
         print()
         for module, count in result["by_module"].most_common(args.top):
