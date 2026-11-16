@@ -38,6 +38,23 @@ module Main where
     (Ok (CsvReadRecord row None), next) -> same (csv-record-fields row) ["a", "b"] && consume-rows next (count + 1) expected
     other -> False
 
+  -- | Fill repeated expected text with checked bulk copies and constant traversal stack.
+  fill-pattern :: Bytes -> Bytes -> Nat -> Unit
+  fill-pattern pattern out at =
+    if bytes-len pattern > 0 then
+      if at + bytes-len pattern <= bytes-len out then
+        let copied = bytes-copy-range out pattern at 0 (bytes-len pattern) in
+        fill-pattern pattern out (at + bytes-len pattern)
+      else ()
+    else ()
+
+  -- | Build expected UTF-8 text without a recursive allocation-before-copy helper.
+  expected-text :: Nat -> String -> String
+  expected-text count text =
+    let pattern = string-to-bytes text in let out = bytes-new (count * bytes-len pattern) in
+    let copied = fill-pattern pattern out 0 in
+    case string-from-bytes out of Some result -> result; None -> ""
+
   -- | Generate one long quoted multiline field from small source pieces, then validate its exact content.
   large-field :: forall r. using (io :: Io r) => Nat ->{IO r} Bool
   large-field count =
@@ -45,7 +62,7 @@ module Main where
     let repeated = repeated-source (string-to-bytes "x\n") (count * 2) 0 (bytes-new 1) in
     let source = reader-concat [begin, repeated, reader-from-string "\",z\n"] in
     case csv-stream-read (csv-stream-reader csv-default-options source) of
-      (Ok (CsvReadRecord row None), next) -> same (csv-record-fields row) [string-repeat count "x\n", "z"]
+      (Ok (CsvReadRecord row None), next) -> same (csv-record-fields row) [expected-text count "x\n", "z"]
         && (case csv-stream-read next of (Ok CsvEnd, final) -> csv-stream-input-offset final == count * 2 + 5; other -> False)
       other -> False
 
@@ -55,7 +72,7 @@ module Main where
     let repeated = repeated-source (string-to-bytes "x") count 0 (bytes-new 1) in
     let source = reader-concat [reader-from-string "\"", repeated, reader-from-string "\"\n"] in
     case csv-stream-read (csv-stream-reader csv-default-options source) of
-      (Ok (CsvReadRecord row None), next) -> same (csv-record-fields row) [string-repeat count "x"]
+      (Ok (CsvReadRecord row None), next) -> same (csv-record-fields row) [expected-text count "x"]
         && (case csv-stream-read next of (Ok CsvEnd, final) -> csv-stream-input-offset final == count + 3; other -> False)
       other -> False
 
