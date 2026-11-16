@@ -1,0 +1,323 @@
+{
+  "description": "Ordinary complete-process heap allocation probes; includes input, both prepared queues, runtime startup and one public operation. Quarantine is disabled.",
+  "executable_sha256": "6ba99298bb49011402746450b5e028ab1f7c812e05aa026a96d211d9eebea851",
+  "driver_sha256": "f29de4abcf9bf333ce4e1fdeeafbca26587c8d1de13120c1e0cf64fa55fc7031",
+  "sources": {
+    "Data.Mutable.Heap": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
+    "Data.Mutable.HeapView": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c",
+    "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7"
+  },
+  "heap": "32M",
+  "stack": "8M",
+  "cpu_affinity": [
+    4
+  ],
+  "rows": [
+    {
+      "workload": "owned-init-drain",
+      "elements": 32,
+      "iterations": 1,
+      "checksum": 372777294,
+      "stats": {
+        "blocks": 469,
+        "bytes": 16231,
+        "peak": 2590,
+        "header-blocks": 445,
+        "header-bytes": 14800,
+        "immortal": 0,
+        "freed": 445,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "owned-init-drain",
+      "elements": 1024,
+      "iterations": 1,
+      "checksum": 342449093,
+      "stats": {
+        "blocks": 16677,
+        "bytes": 624361,
+        "peak": 54176,
+        "header-blocks": 16653,
+        "header-bytes": 622920,
+        "immortal": 0,
+        "freed": 16653,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "owned-init-drain",
+      "elements": 16384,
+      "iterations": 1,
+      "checksum": 464734045,
+      "stats": {
+        "blocks": 346649,
+        "bytes": 12775532,
+        "peak": 852897,
+        "header-blocks": 346625,
+        "header-bytes": 12774080,
+        "immortal": 0,
+        "freed": 346625,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "view-init-drain",
+      "elements": 32,
+      "iterations": 1,
+      "checksum": 372777294,
+      "stats": {
+        "blocks": 695,
+        "bytes": 15583,
+        "peak": 2678,
+        "header-blocks": 671,
+        "header-bytes": 14152,
+        "immortal": 0,
+        "freed": 671,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "view-init-drain",
+      "elements": 1024,
+      "iterations": 1,
+      "checksum": 342449093,
+      "stats": {
+        "blocks": 38211,
+        "bytes": 698157,
+        "peak": 54152,
+        "header-blocks": 38187,
+        "header-bytes": 696712,
+        "immortal": 0,
+        "freed": 38187,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "view-init-drain",
+      "elements": 16384,
+      "iterations": 1,
+      "checksum": 464734045,
+      "stats": {
+        "blocks": 904070,
+        "bytes": 15823900,
+        "peak": 852873,
+        "header-blocks": 904046,
+        "header-bytes": 15822448,
+        "immortal": 0,
+        "freed": 904046,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "owned-push-drain",
+      "elements": 32,
+      "iterations": 1,
+      "checksum": 372777294,
+      "stats": {
+        "blocks": 464,
+        "bytes": 16031,
+        "peak": 2590,
+        "header-blocks": 440,
+        "header-bytes": 14600,
+        "immortal": 0,
+        "freed": 440,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "owned-push-drain",
+      "elements": 1024,
+      "iterations": 1,
+      "checksum": 342449093,
+      "stats": {
+        "blocks": 16557,
+        "bytes": 619561,
+        "peak": 54176,
+        "header-blocks": 16533,
+        "header-bytes": 618120,
+        "immortal": 0,
+        "freed": 16533,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "owned-push-drain",
+      "elements": 16384,
+      "iterations": 1,
+      "checksum": 464734045,
+      "stats": {
+        "blocks": 344645,
+        "bytes": 12695372,
+        "peak": 852897,
+        "header-blocks": 344621,
+        "header-bytes": 12693920,
+        "immortal": 0,
+        "freed": 344621,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "view-push-drain",
+      "elements": 32,
+      "iterations": 1,
+      "checksum": 372777294,
+      "stats": {
+        "blocks": 695,
+        "bytes": 15583,
+        "peak": 2838,
+        "header-blocks": 671,
+        "header-bytes": 14152,
+        "immortal": 0,
+        "freed": 671,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "view-push-drain",
+      "elements": 1024,
+      "iterations": 1,
+      "checksum": 342449093,
+      "stats": {
+        "blocks": 38211,
+        "bytes": 698157,
+        "peak": 54424,
+        "header-blocks": 38187,
+        "header-bytes": 696712,
+        "immortal": 0,
+        "freed": 38187,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "view-push-drain",
+      "elements": 16384,
+      "iterations": 1,
+      "checksum": 464734045,
+      "stats": {
+        "blocks": 905248,
+        "bytes": 15842748,
+        "peak": 853145,
+        "header-blocks": 905224,
+        "header-bytes": 15841296,
+        "immortal": 0,
+        "freed": 905224,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "owned-root-replace",
+      "elements": 32,
+      "iterations": 1,
+      "checksum": 476,
+      "stats": {
+        "blocks": 256,
+        "bytes": 7999,
+        "peak": 2086,
+        "header-blocks": 232,
+        "header-bytes": 6608,
+        "immortal": 0,
+        "freed": 232,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "owned-root-replace",
+      "elements": 1024,
+      "iterations": 1,
+      "checksum": 3452,
+      "stats": {
+        "blocks": 4368,
+        "bytes": 140307,
+        "peak": 45600,
+        "header-blocks": 4344,
+        "header-bytes": 138904,
+        "immortal": 0,
+        "freed": 4344,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "owned-root-replace",
+      "elements": 16384,
+      "iterations": 1,
+      "checksum": 49221,
+      "stats": {
+        "blocks": 85677,
+        "bytes": 2467620,
+        "peak": 721441,
+        "header-blocks": 85653,
+        "header-bytes": 2466208,
+        "immortal": 0,
+        "freed": 85653,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "view-root-fix",
+      "elements": 32,
+      "iterations": 1,
+      "checksum": 476,
+      "stats": {
+        "blocks": 252,
+        "bytes": 7743,
+        "peak": 2062,
+        "header-blocks": 228,
+        "header-bytes": 6352,
+        "immortal": 0,
+        "freed": 228,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "view-root-fix",
+      "elements": 1024,
+      "iterations": 1,
+      "checksum": 3452,
+      "stats": {
+        "blocks": 4359,
+        "bytes": 139851,
+        "peak": 45600,
+        "header-blocks": 4335,
+        "header-bytes": 138448,
+        "immortal": 0,
+        "freed": 4335,
+        "live": 0
+      },
+      "leaked": 0
+    },
+    {
+      "workload": "view-root-fix",
+      "elements": 16384,
+      "iterations": 1,
+      "checksum": 49221,
+      "stats": {
+        "blocks": 85668,
+        "bytes": 2467068,
+        "peak": 721441,
+        "header-blocks": 85644,
+        "header-bytes": 2465656,
+        "immortal": 0,
+        "freed": 85644,
+        "live": 0
+      },
+      "leaked": 0
+    }
+  ]
+}
