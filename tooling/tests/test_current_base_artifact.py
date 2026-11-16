@@ -12,6 +12,7 @@ import bootstrap
 import bootstrap_objects
 import build_base_artifact
 import verify_stage3
+import validate_native_string_construction
 from bootstrap_interfaces import content_hash, interface_hash
 
 
@@ -76,6 +77,15 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         self.host_patch.start()
         self.addCleanup(self.host_patch.stop)
 
+    def test_named_variant_limit_keeps_its_actual_emission_phase(self):
+        """A known representation refusal does not excuse another compiler phase or a different missing unit."""
+        text = "bootstrap.runtime-ir:7:74: checked external variant is absent from the runtime object: i.Data$2eList$2eis$2dempty [O]\n"
+        classify = validate_native_string_construction.missing_list_object_variant
+        self.assertTrue(classify("list-string-O", 5, text))
+        self.assertFalse(classify("list-string-O", 4, text))
+        self.assertFalse(classify("concrete-string", 5, text))
+        self.assertFalse(classify("list-string-O", 5, text.replace("[O]", "[R]")))
+
     def seal(self):
         """Reseal file digests so semantic rejection cases cannot pass merely through a stale checksum."""
         bootstrap.write_json(self.directory / "library.abi.json", self.metadata)
@@ -108,6 +118,21 @@ class CurrentBaseArtifactContract(unittest.TestCase):
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "digest mismatch"):
                     self.admit()
                 path.write_bytes(original)
+
+    def test_requested_representation_must_be_present_in_actual_metadata(self):
+        """A coherent receipt cannot claim a demanded generic variant that its object did not emit."""
+        for kind, demand, message in [
+            ("units", {"symbol": "Data.List.is-empty", "classes": "O"}, "unit"),
+            ("dictionaries", {"symbol": "Data.List.FromList_List", "classes": "O"}, "dictionary"),
+            ("methods", {"class": "Category.Foldable.Foldable", "slot": 2, "own": "O"}, "method"),
+        ]:
+            with self.subTest(kind=kind):
+                roots = {"schema": 1, kind: [demand]}
+                bootstrap.write_json(self.root / "bootstrap/library-object-roots.json", roots)
+                bootstrap.write_json(self.directory / "roots.json", roots)
+                self.seal()
+                with self.assertRaisesRegex(bootstrap.BootstrapError, message + " specialization is absent"):
+                    self.admit()
 
     def test_resealed_incompatible_abi_and_ownership_modes_are_rejected(self):
         """Hash agreement cannot waive physical or ownership ABI requirements."""

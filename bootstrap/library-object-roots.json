@@ -497,6 +497,10 @@
     },
     {
       "classes": "O",
+      "symbol": "Data.List.is-empty"
+    },
+    {
+      "classes": "O",
       "symbol": "Data.List.sort-by"
     },
     {
