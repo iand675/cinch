@@ -62,8 +62,24 @@ module Main where
     && utf8-step-width (utf8-decode-at source 4) == 0
     && utf8-step-width (utf8-decode-at source 5) == 0
 
+  -- | Check the scalar step constructor derives consistent metadata.
+  factory :: Char -> Nat -> Bool
+  factory scalar expected = let step = utf8-scalar-step scalar in
+    utf8-step-char step == scalar && utf8-step-width step == expected
+      && (case utf8-step-status step of Utf8Valid -> True; other -> False)
+
+  -- | Cover every UTF-8 scalar-width boundary and the distinct empty observation.
+  factories :: Unit -> Bool
+  factories unit = factory '\u{0}' 1 && factory '\u{7F}' 1 && factory '\u{80}' 2
+    && factory '\u{7FF}' 2 && factory '\u{800}' 3 && factory '\u{D7FF}' 3
+    && factory '\u{E000}' 3 && factory '\u{FFFF}' 3 && factory '\u{10000}' 4
+    && factory '\u{10FFFF}' 4
+    && utf8-step-char (utf8-end-step ()) == utf8-rune-error
+    && utf8-step-width (utf8-end-step ()) == 0
+    && (case utf8-step-status (utf8-end-step ()) of Utf8End -> True; other -> False)
+
   -- | Verify all invalid numeric classes, atomic mutations and independent result ownership.
   main :: Int
   main = if invalid-number (-2147483648) && invalid-number (-1) && invalid-number 55296
     && invalid-number 57343 && invalid-number 1114112 && invalid-number 2147483647
-    && capacity () && aliases () && fresh () && statuses () then 0 else 1
+    && capacity () && aliases () && fresh () && statuses () && factories () then 0 else 1
