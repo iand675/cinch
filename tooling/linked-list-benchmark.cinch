@@ -1,0 +1,145 @@
+-- | Measure complete mutable linked-list pipelines with changing, fully consumed results.
+module Main where
+  import Data.Mutable.LinkedList as LL
+  import Data.Mutable.Vec
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.List (reverse, list-length)
+  import Effect.Clock
+  import Effect.Process
+
+  -- | Decode validated nonnegative decimal host arguments.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Accumulate digits without accepting malformed benchmark configuration.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons first rest -> case digit-value first of None -> 0; Some digit -> decimal-from rest (value * 10 + digit)
+
+  -- | Convert only bounded benchmark sizes and iteration values to machine words.
+  word :: Nat -> U64
+  word value = if value <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 value) else 0
+
+  -- | Preserve a nonnegative word's exact natural value for printing.
+  natural :: U64 -> Nat
+  natural value = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 value) 9223372036854775807)
+
+  -- | Consume every output value under a wrapping machine-word checksum.
+  mix :: U64 -> U64 -> U64
+  mix checksum value = bit-and-u64 (wrapping-add-u64 (wrapping-mul-u64 checksum 1099511628211) value) 9223372036854775807
+
+  -- | Prepare deterministic immutable machine-word values before the measured interval.
+  input-from :: Nat -> Nat -> List U64 -> List U64
+  input-from size index reversed = if index == size then reverse reversed else
+    input-from size (index + 1) (Cons (word (nat-rem (index * 37 + 11) 65536)) reversed)
+
+  -- | Change the first construction value without copying the remaining input.
+  varied :: List U64 -> Nat -> List U64
+  varied values iteration = case values of Nil -> Nil; Cons first rest -> Cons (word (nat-rem iteration 257)) rest
+
+  -- | Build retained handles over a prepared list outside the measured interval.
+  prepare :: forall r. LL.LinkedList r U64 -> Vec r (LL.ListElement r U64) -> List U64 ->{Mut r} Bool
+  prepare list references values = case values of
+    Nil -> True
+    Cons first rest -> case LL.list-push-back list first of
+      Err error -> False
+      Ok element -> let kept = vec-push references element in prepare list references rest
+
+  -- | Push each input through the selected public end operation.
+  push-values :: forall r. LL.LinkedList r U64 -> Bool -> List U64 ->{Mut r} Bool
+  push-values list front values = case values of
+    Nil -> True
+    Cons first rest -> case (if front then LL.list-push-front list first else LL.list-push-back list first) of
+      Err error -> False
+      Ok element -> push-values list front rest
+
+  -- | Drain through public end handles and checked removal, consuming every returned value.
+  drain :: forall r. LL.LinkedList r U64 -> Bool -> U64 ->{Mut r} U64
+  drain list front checksum = case (if front then LL.list-front list else LL.list-back list) of
+    None -> checksum
+    Some element -> case LL.list-remove list element of Err error -> 0; Ok value -> drain list front (mix checksum value)
+
+  -- | Include list creation, node allocation, public pushes and the complete public drain.
+  construction :: forall r. Bool -> List U64 ->{Mut r} U64
+  construction front values =
+    let list = LL.list-new () in
+    let inserted = push-values list front values in
+    if inserted then drain list (not front) 1 else 0
+
+  -- | Consume a complete materialized output sequence rather than only its length or first element.
+  checksum-values :: List U64 -> U64 -> U64
+  checksum-values values checksum = case values of Nil -> checksum; Cons first rest -> checksum-values rest (mix checksum first)
+
+  -- | Change one prepared value on every operation without changing its stable handle.
+  change-first :: forall r. Vec r (LL.ListElement r U64) -> Nat ->{Mut r} Unit
+  change-first references iteration = case vec-get references 0 of None -> (); Some element -> LL.list-element-set element (word (nat-rem iteration 257))
+
+  -- | Move every original handle to the front through the checked public operation.
+  move-handles :: forall r. LL.LinkedList r U64 -> Vec r (LL.ListElement r U64) -> Nat -> Nat ->{Mut r} Bool
+  move-handles list references index count = if index == count then True else case vec-get references index of
+    None -> False
+    Some element -> case LL.list-move-front list element of Err error -> False; Ok unit -> move-handles list references (index + 1) count
+
+  -- | Remove and replace every node while reusing arena holes and updating caller-owned handles.
+  reuse-handles :: forall r. LL.LinkedList r U64 -> Vec r (LL.ListElement r U64) -> Nat -> Nat ->{Mut r} Bool
+  reuse-handles list references index count = if index == count then True else case vec-get references index of
+    None -> False
+    Some element -> case LL.list-remove list element of
+      Err error -> False
+      Ok value -> case LL.list-push-back list value of
+        Err error -> False
+        Ok replacement -> let changed = vec-set references index replacement in if changed then reuse-handles list references (index + 1) count else False
+
+  -- | Copy one complete sequence, append itself, prepend itself and consume the resulting four copies.
+  copy-pipeline :: forall r. LL.LinkedList r U64 ->{Mut r} U64
+  copy-pipeline source =
+    let destination = LL.list-new () in
+    case LL.list-append-list destination source of
+      Err error -> 0
+      Ok unit -> case LL.list-append-list destination destination of
+        Err error -> 0
+        Ok unit -> case LL.list-prepend-list destination destination of Err error -> 0; Ok unit -> checksum-values (LL.list-to-list destination) 1
+
+  -- | Select a complete changing public pipeline over the prepared owners.
+  operation :: forall r. Nat -> List U64 -> LL.LinkedList r U64 -> Vec r (LL.ListElement r U64) -> Nat ->{Mut r} U64
+  operation mode input list references iteration = if mode < 2 then construction (mode == 1) (varied input iteration) else
+    let changed = change-first references iteration in
+    let count = vec-length references in
+    if mode == 2 then
+      let moved = move-handles list references 0 count in if moved then checksum-values (LL.list-to-list list) 1 else 0
+    else if mode == 3 then
+      let reused = reuse-handles list references 0 count in if reused then checksum-values (LL.list-to-list list) 1 else 0
+    else copy-pipeline list
+
+  -- | Repeat observable operations while retaining every prepared owner beyond the final clock.
+  repeat :: forall r. Nat -> List U64 -> LL.LinkedList r U64 -> Vec r (LL.ListElement r U64) -> Nat -> Nat -> U64 ->{Mut r} U64
+  repeat mode input list references iterations iteration checksum = if iteration == iterations then checksum else
+    let observed = operation mode input list references iteration in
+    let total = bit-and-u64 (wrapping-add-u64 checksum observed) 9223372036854775807 in
+    repeat mode input list references iterations (iteration + 1) total
+
+  -- | Time only the operation loop; prepared owners remain observed after the interval to exclude their teardown.
+  measure :: forall r. using (io :: Io r) => Nat -> Nat -> Nat ->{IO r, Mut r} Int
+  measure mode size iterations =
+    let input = input-from size 0 Nil in
+    let list = LL.list-new () in
+    let references = vec-new () in
+    let prepared = prepare list references input in
+    if not prepared then 3 else
+      let start = clock-monotonic-ns () in
+      let checksum = repeat mode input list references iterations 0 0 in
+      let end = clock-monotonic-ns () in
+      let retained = LL.list-length list + vec-length references + list-length input in
+      let observed = bit-and-u64 (wrapping-add-u64 checksum (word retained)) 9223372036854775807 in
+      let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string (natural observed)) "\n")))) in 0
+
+  -- | Read host configuration before constructing or timing any workload.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons mode (Cons size (Cons iterations Nil))) -> measure (decimal mode) (decimal size) (decimal iterations)
+    other -> 2

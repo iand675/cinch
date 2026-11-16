@@ -1,0 +1,181 @@
+-- | Exercise stable linked-list ownership and every structural operation.
+module Main where
+  import Data.Mutable.LinkedList as LL
+  import Data.Bytes
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+
+  -- | Compare complete immutable observations in their original order.
+  same-values :: List Nat -> List Nat -> Bool
+  same-values first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> a == b && same-values rest more
+    other -> False
+
+  -- | Recognize a successful structural update.
+  success :: Result LL.LinkedListError Unit -> Bool
+  success value = case value of Ok unit -> True; Err error -> False
+
+  -- | Require an explicit removed-membership refusal.
+  removed :: forall a. Result LL.LinkedListError a -> Bool
+  removed value = case value of Err LL.RemovedListElement -> True; other -> False
+
+  -- | Require an explicit foreign-owner refusal.
+  foreign-error :: forall a. Result LL.LinkedListError a -> Bool
+  foreign-error value = case value of Err LL.ForeignListElement -> True; other -> False
+
+  -- | Require a bounded-capacity refusal without depending on a stored element representation.
+  capacity-refused :: Result LL.LinkedListError Unit -> Bool
+  capacity-refused value = case value of Err LL.ListCapacityExceeded -> True; other -> False
+
+  -- | Compare a checked navigation result to one stable element identity.
+  follows :: forall r. Result LL.LinkedListError (Option (LL.ListElement r Nat)) -> LL.ListElement r Nat -> Bool
+  follows result wanted = case result of Ok (Some actual) -> LL.list-same-element actual wanted; other -> False
+
+  -- | Require a valid end position rather than an invalid element error.
+  at-end :: forall r. Result LL.LinkedListError (Option (LL.ListElement r Nat)) -> Bool
+  at-end result = case result of Ok None -> True; other -> False
+
+  -- | Retain values and identities through moves, removal, slot reuse, clearing and self-copy.
+  exercise :: forall r. Unit ->{Mut r} Bool
+  exercise unit =
+    let list = LL.list-new () in
+    let other = LL.list-new () in
+    case LL.list-push-back list (1 :: Nat) of
+      Err error -> False
+      Ok a -> case LL.list-push-back list 2 of
+        Err error -> False
+        Ok b -> case LL.list-push-back list 3 of
+          Err error -> False
+          Ok c -> case LL.list-push-back other (30 :: Nat) of
+            Err error -> False
+            Ok outsider ->
+              let first = LL.list-move-front list c in
+              let phase-one = same-values (LL.list-to-list list) [3,1,2] in
+              let second = LL.list-move-back list a in
+              let phase-two = same-values (LL.list-to-list list) [3,2,1] in
+              let third = LL.list-move-before list a c in
+              let phase-three = same-values (LL.list-to-list list) [1,3,2] in
+              let fourth = LL.list-move-after list c b in
+              let phase-four = same-values (LL.list-to-list list) [1,2,3] in
+              let self-before = LL.list-move-before list b b in
+              let self-after = LL.list-move-after list b b in
+              case LL.list-insert-before list 9 b of
+                Err error -> False
+                Ok detached -> case LL.list-insert-after list 8 detached of
+                  Err error -> False
+                  Ok middle ->
+                    let inserted = same-values (LL.list-to-list list) [1,9,8,2,3] in
+                    let gone = LL.list-remove list detached in
+                    let old-alias = detached in
+                    let changed = LL.list-element-set detached 99 in
+                    let detached-value = LL.list-element-value old-alias in
+                    let stale = LL.list-next list detached in
+                    let twice = LL.list-remove list detached in
+                    case LL.list-push-front list 7 of
+                      Err error -> False
+                      Ok reused ->
+                        let reused-order = same-values (LL.list-to-list list) [7,1,8,2,3] in
+                        let distinct-reuse = not (LL.list-same-element detached reused) in
+                        let next = LL.list-next list reused in
+                        let prev = LL.list-prev list a in
+                        let front-end = LL.list-prev list reused in
+                        let back-end = LL.list-next list c in
+                        let wrong-remove = LL.list-remove list outsider in
+                        let wrong-insert = LL.list-insert-after list 100 outsider in
+                        let wrong-move = LL.list-move-before list a outsider in
+                        let unchanged = same-values (LL.list-to-list list) [7,1,8,2,3] in
+                        let old-value = LL.list-element-value a in
+                        let cleared = LL.list-clear list in
+                        let empty = LL.list-is-empty list && LL.list-length list == 0 in
+                        let stale-clear = LL.list-next list a in
+                        let still-value = LL.list-element-value a in
+                        let edited = LL.list-element-set a 11 in
+                        let edited-value = LL.list-element-value a in
+                        case LL.list-push-back list 4 of
+                          Err error -> False
+                          Ok fresh ->
+                            let fresh-identity = not (LL.list-same-element a fresh) in
+                            let copied = LL.list-append-list list other in
+                            let appended = same-values (LL.list-to-list list) [4,30] in
+                            let self-copy = LL.list-append-list list list in
+                            let doubled = same-values (LL.list-to-list list) [4,30,4,30] in
+                            let self-prepend = LL.list-prepend-list list list in
+                            let quadrupled = same-values (LL.list-to-list list) [4,30,4,30,4,30,4,30] in
+                            let oversized = LL.list-reserve list 340282366920938463463374607431768211455 in
+                            let bounded = same-values (LL.list-to-list list) [4,30,4,30,4,30,4,30] in
+                            success first && success second && success third && success fourth && success self-before && success self-after
+                              && phase-one && phase-two && phase-three && phase-four && inserted
+                              && (case gone of Ok 9 -> True; other -> False)
+                              && detached-value == 99 && removed stale && removed twice
+                              && reused-order && distinct-reuse && follows next a && follows prev reused
+                              && at-end front-end && at-end back-end
+                              && foreign-error wrong-remove && foreign-error wrong-insert && foreign-error wrong-move && unchanged
+                              && empty && removed stale-clear && old-value == 1 && still-value == 1 && edited-value == 11
+                              && fresh-identity && success copied && appended && success self-copy && doubled
+                              && success self-prepend && quadrupled && capacity-refused oversized && bounded
+                              && same-values (LL.list-to-list other) [30]
+
+  -- | Recognize a capacity refusal without requiring an allocated root.
+  capacity-root-refused :: forall r. Result LL.LinkedListError (LL.LinkedList r Nat) -> Bool
+  capacity-root-refused result = case result of Err LL.ListCapacityExceeded -> True; other -> False
+
+  -- | Check empty construction, immutable input construction and unbounded requested capacity.
+  construction-case :: forall r. Unit ->{Mut r} Bool
+  construction-case unit =
+    let oversized = capacity-root-refused (LL.list-with-capacity 340282366920938463463374607431768211455) in
+    case LL.list-with-capacity 3 of
+      Err error -> False
+      Ok reserved -> case LL.list-push-back reserved (4 :: Nat) of
+        Err error -> False
+        Ok element ->
+          let capacity = LL.list-capacity reserved in
+          case LL.list-from-list [5,6,7] of
+            Err error -> False
+            Ok built -> oversized && capacity >= 3 && same-values (LL.list-to-list reserved) [4] && same-values (LL.list-to-list built) [5,6,7]
+
+  -- | Return a value handle while dropping its only list root and arena owners.
+  escaped-element :: forall r. Unit ->{Mut r} Result LL.LinkedListError (LL.ListElement r Bytes)
+  escaped-element unit =
+    let list = LL.list-new () in
+    let buffer = bytes-new 32 in
+    let initialized = if bytes-len buffer > 0 then bytes-set buffer 0 7 else () in
+    LL.list-push-back list buffer
+
+  -- | Inspect one retained owned buffer without overreading an empty value.
+  buffer-matches :: Bytes -> Nat -> Nat -> Bool
+  buffer-matches buffer count first = if bytes-len buffer > 0 then bytes-len buffer == count && bytes-get buffer 0 == first else False
+
+  -- | Prove that a handle owns its value after root destruction and replacement of its own value cell.
+  escaped-value-case :: forall r. Unit ->{Mut r} Bool
+  escaped-value-case unit = case escaped-element () of
+    Err error -> False
+    Ok element ->
+      let original = LL.list-element-value element in
+      let before = buffer-matches original 32 7 in
+      let replacement = bytes-new 64 in
+      let initialized = if bytes-len replacement > 0 then bytes-set replacement 0 9 else () in
+      let changed = LL.list-element-set element replacement in
+      let current = LL.list-element-value element in
+      let other = LL.list-new () in
+      let independent = not (LL.list-is-member other element) in
+      let unrelated = LL.list-next other element in
+      before && buffer-matches original 32 7 && buffer-matches current 64 9 && independent && foreign-error unrelated
+
+  -- | Preserve raw machine-word payloads, including bit patterns that cannot be treated as object owners.
+  machine-word-case :: forall r. Unit ->{Mut r} Bool
+  machine-word-case unit =
+    let list = LL.list-new () in
+    case LL.list-push-back list (18446744073709551615 :: U64) of
+      Err error -> False
+      Ok element ->
+        let before = LL.list-element-value element in
+        let changed = LL.list-element-set element (9223372036854775808 :: U64) in
+        case LL.list-remove list element of
+          Err error -> False
+          Ok actual -> eq-u64 before 18446744073709551615 && eq-u64 actual 9223372036854775808 && eq-u64 (LL.list-element-value element) actual
+
+  -- | Return a deterministic result after observing every stable-handle control.
+  main :: Unit ->{Mut r} Int
+  main unit = if exercise () && construction-case () && escaped-value-case () && machine-word-case () then 0 else 1

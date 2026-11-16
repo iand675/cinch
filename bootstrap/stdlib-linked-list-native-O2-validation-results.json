@@ -1,0 +1,347 @@
+{
+  "description": "Native corpus optimized linking at O2 from the same exact verified consumer IR; separate normal and poisoned runs.",
+  "object_manifest_sha256": "100023001018d140f06602b87eec20b09bf0bb062c677b8c0c449d6643c62aeb",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "source_sha256": {
+    "Data.Mutable.LinkedList": "7251889893471322b75e5c8d7006ec87402c929db744b97cd3cdd7c90af38301",
+    "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7"
+  },
+  "cpu_affinity": [
+    4
+  ],
+  "suites": [
+    {
+      "suite": "trace-0",
+      "llvm_sha256": "ab0609afb40848f55e96ed662adeaed878cad522aa79f6c6a05a14d5d6bd6b99",
+      "executable_sha256": "3aa48d24a357bc4aab707a8979af9b4c9c62525f1af666025edf94b272dfcbf8",
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-0/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-0/consumer-O2",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "runs": [
+        {
+          "poisoned_free": false,
+          "heap": "32M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=244946 bytes=5216468 peak=51867 header-blocks=244929 header-bytes=5216192 immortal=0 freed=244929 live=0\n"
+        },
+        {
+          "poisoned_free": true,
+          "heap": "256M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=244946 bytes=5216468 peak=5216443 header-blocks=244929 header-bytes=5216192 immortal=0 freed=244929 live=0\n"
+        }
+      ]
+    },
+    {
+      "suite": "trace-1",
+      "llvm_sha256": "7d0e4dde2cd69bada177b6682fdecd4227cf660b1ccd1967240f7d8d1aba9d19",
+      "executable_sha256": "fd4a8e76b11b5f1762b405e08066d612c1cfd91cd32c22afeff4616827266410",
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-1/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-1/consumer-O2",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "runs": [
+        {
+          "poisoned_free": false,
+          "heap": "32M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=199147 bytes=4574738 peak=64392 header-blocks=199132 header-bytes=4574464 immortal=0 freed=199132 live=0\n"
+        },
+        {
+          "poisoned_free": true,
+          "heap": "256M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=199147 bytes=4574738 peak=4574712 header-blocks=199132 header-bytes=4574464 immortal=0 freed=199132 live=0\n"
+        }
+      ]
+    },
+    {
+      "suite": "trace-2",
+      "llvm_sha256": "789cdc3ae6aad0061f394df057b96ed85a1d4723b05425c5630fb6d13b66c492",
+      "executable_sha256": "c528ef26b2556b1ed92751fbe0b5c97e014d069e932920163e3287a1cdd44d4a",
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-2/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-2/consumer-O2",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "runs": [
+        {
+          "poisoned_free": false,
+          "heap": "32M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=74028 bytes=1593869 peak=22612 header-blocks=74010 header-bytes=1593592 immortal=0 freed=74010 live=0\n"
+        },
+        {
+          "poisoned_free": true,
+          "heap": "256M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=74028 bytes=1593869 peak=1593844 header-blocks=74010 header-bytes=1593592 immortal=0 freed=74010 live=0\n"
+        }
+      ]
+    },
+    {
+      "suite": "trace-3",
+      "llvm_sha256": "25a9540785397e5c3b0932a0bf8afa2937645e029b4e3ba16c483c172b2ed7b7",
+      "executable_sha256": "d332b4bd67ccfe353ee19c54523a40db10b238eb14b27b0010334224c06f0f7f",
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-3/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-3/consumer-O2",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "runs": [
+        {
+          "poisoned_free": false,
+          "heap": "32M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=38902 bytes=834976 peak=17069 header-blocks=38881 header-bytes=834696 immortal=0 freed=38881 live=0\n"
+        },
+        {
+          "poisoned_free": true,
+          "heap": "256M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=38902 bytes=834976 peak=834950 header-blocks=38881 header-bytes=834696 immortal=0 freed=38881 live=0\n"
+        }
+      ]
+    },
+    {
+      "suite": "trace-4",
+      "llvm_sha256": "f322a97f0c12ee26098dc0c2da32944c9df006c16ce88e2799362d8be16c916a",
+      "executable_sha256": "e1a4c98d31ad837cce077339ed6b5fbc52cf58981721ceac9fc2d5c9c62d759b",
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-4/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-4/consumer-O2",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "runs": [
+        {
+          "poisoned_free": false,
+          "heap": "32M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=352037 bytes=7865428 peak=64649 header-blocks=352020 header-bytes=7865152 immortal=0 freed=352020 live=0\n"
+        },
+        {
+          "poisoned_free": true,
+          "heap": "256M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=352037 bytes=7865428 peak=7865402 header-blocks=352020 header-bytes=7865152 immortal=0 freed=352020 live=0\n"
+        }
+      ]
+    },
+    {
+      "suite": "trace-5",
+      "llvm_sha256": "fd89dad9475cab16e354d348cace143317ee526f2146c23d41fed203a7190240",
+      "executable_sha256": "d053af69e58626b5fa77d7c44ea79d12a7e0a6dc0a1a9cd4a538467afd4eea65",
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-5/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-5/consumer-O2",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "runs": [
+        {
+          "poisoned_free": false,
+          "heap": "32M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=271173 bytes=6047213 peak=48761 header-blocks=271155 header-bytes=6046936 immortal=0 freed=271155 live=0\n"
+        },
+        {
+          "poisoned_free": true,
+          "heap": "256M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=271173 bytes=6047213 peak=6047186 header-blocks=271155 header-bytes=6046936 immortal=0 freed=271155 live=0\n"
+        }
+      ]
+    },
+    {
+      "suite": "trace-6",
+      "llvm_sha256": "3347dc0e227b24aaa06e54f0e10714e993762130dee183b7e31da8837aca336d",
+      "executable_sha256": "1d706c5d0bd523e10207fe6f3397c5fd3f0ced2d1b61c7cbec6c7d2eee196e25",
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-6/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-6/consumer-O2",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "runs": [
+        {
+          "poisoned_free": false,
+          "heap": "32M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=174579 bytes=3698341 peak=39442 header-blocks=174561 header-bytes=3698064 immortal=0 freed=174561 live=0\n"
+        },
+        {
+          "poisoned_free": true,
+          "heap": "256M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=174579 bytes=3698341 peak=3698315 header-blocks=174561 header-bytes=3698064 immortal=0 freed=174561 live=0\n"
+        }
+      ]
+    },
+    {
+      "suite": "trace-7",
+      "llvm_sha256": "db6d51380089e1cb174b929ecef8d9359cb0ea8bf64eae58e1eac010c044f451",
+      "executable_sha256": "a00a8c05acf7fd9715ae0bbbac85c97dbdacd826eb84a13ddce2309e0a91183e",
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-7/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/trace-7/consumer-O2",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "runs": [
+        {
+          "poisoned_free": false,
+          "heap": "32M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=574936 bytes=12270555 peak=66986 header-blocks=574920 header-bytes=12270280 immortal=0 freed=574920 live=0\n"
+        },
+        {
+          "poisoned_free": true,
+          "heap": "256M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=574936 bytes=12270555 peak=12270530 header-blocks=574920 header-bytes=12270280 immortal=0 freed=574920 live=0\n"
+        }
+      ]
+    },
+    {
+      "suite": "control",
+      "llvm_sha256": "0ef7656ca656622c2b0aeda1bfcca9159673ba89f4e49b4e2595bc21b84b8fae",
+      "executable_sha256": "12121b8b5e9ee26f92a54e6e572dc84e1884677d166c1b5babaaa9ed7f7b6b19",
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/control/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+        "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-collections/build/linked-list-optimized-native/control/consumer-O2",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "runs": [
+        {
+          "poisoned_free": false,
+          "heap": "32M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=559 bytes=14936 peak=3974 header-blocks=534 header-bytes=14528 immortal=0 freed=534 live=0\n"
+        },
+        {
+          "poisoned_free": true,
+          "heap": "256M",
+          "stack": "8M",
+          "exit": 0,
+          "live": 0,
+          "leaked": 0,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=559 bytes=14936 peak=14771 header-blocks=534 header-bytes=14528 immortal=0 freed=534 live=0\n"
+        }
+      ]
+    }
+  ]
+}
