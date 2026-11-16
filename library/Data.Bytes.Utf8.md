@@ -37,7 +37,7 @@ non-ASCII fringes enforce shortest encoding, scalar bounds and exact input loads
 
 Whether a decoding position is valid, malformed, exactly at the end, or beyond the buffer.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 26
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 27
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Utf8End</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Utf8</span>.<span class="tok-constructor">Utf8Status</span></code></pre>
 
@@ -55,7 +55,7 @@ Whether a decoding position is valid, malformed, exactly at the end, or beyond t
 
 A decoded scalar, exact consumed byte width and explicit position status.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 37
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 38
 
 # Values
 
@@ -67,7 +67,7 @@ A decoded scalar, exact consumed byte width and explicit position status.
 
 Append one encoded numeric rune to a fresh copy of arbitrary source bytes.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 605
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 636
 
 <a id="value-757466382d636f756e74"></a>
 
@@ -77,7 +77,21 @@ Append one encoded numeric rune to a fresh copy of arbitrary source bytes.
 
 Count scalars with exact one-byte progress on all malformed input and SWAR ASCII blocks.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 509
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 526
+
+<a id="value-757466382d636f756e742d6265747765656e"></a>
+
+## `utf8-count-between`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-count-between</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+
+Count decoded scalars in the half-open byte span [start,end), without copying.
+Bounds are absolute owner offsets. Return None if start > end or end exceeds
+buffer length; valid empty spans return Some 0. Each malformed or truncated
+byte counts as one replacement scalar, including a continuation at start.
+SIMD/SWAR ASCII blocks and exact scalar fringes never read outside the span.
+
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 535
 
 <a id="value-757466382d6465636f64652d6174"></a>
 
@@ -87,7 +101,22 @@ Count scalars with exact one-byte progress on all malformed input and SWAR ASCII
 
 Decode at a byte offset; a malformed nonempty suffix always consumes exactly one byte.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 431
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 432
+
+<a id="value-757466382d6465636f64652d6265747765656e"></a>
+
+## `utf8-decode-between`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-decode-between</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Utf8</span>.<span class="tok-constructor">Utf8Step</span>))))</code></pre>
+
+Decode at an absolute owner offset within the half-open byte span [start,end).
+Invalid bounds (start > end or end > buffer length), positions before start,
+and positions beyond end return Utf8OutOfBounds with zero width and U+FFFD.
+A valid at == end returns Utf8End, including an empty span. The span is decoded
+independently: a leading continuation or encoding truncated by end consumes
+exactly one byte as Utf8Invalid. No byte outside the span is read or copied.
+
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 445
 
 <a id="value-757466382d656e636f64652d696e746f"></a>
 
@@ -97,7 +126,7 @@ Decode at a byte offset; a malformed nonempty suffix always consumes exactly one
 
 Encode into an existing buffer, returning written width; insufficient capacity or an invalid offset writes nothing.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 595
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 626
 
 <a id="value-757466382d656e636f64652d72756e65"></a>
 
@@ -107,7 +136,7 @@ Encode into an existing buffer, returning written width; insufficient capacity o
 
 Encode a numeric rune into fresh bytes, replacing invalid scalar inputs with U+FFFD.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 600
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 631
 
 <a id="value-757466382d656e642d73746570"></a>
 
@@ -117,7 +146,7 @@ Encode a numeric rune into fresh bytes, replacing invalid scalar inputs with U+F
 
 Construct the empty-suffix observation without allocating or exposing a byte buffer.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 667
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 698
 
 <a id="value-757466382d6669727374"></a>
 
@@ -127,7 +156,7 @@ Construct the empty-suffix observation without allocating or exposing a byte buf
 
 Decode the first scalar or one malformed byte; an empty buffer has Utf8End status.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 439
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 456
 
 <a id="value-757466382d66697273742d696e76616c6964"></a>
 
@@ -137,7 +166,7 @@ Decode the first scalar or one malformed byte; an empty buffer has Utf8End statu
 
 Locate the first malformed byte, preserving end as None and never copying input.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 483
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 500
 
 <a id="value-757466382d66756c6c2d72756e65"></a>
 
@@ -148,7 +177,7 @@ Locate the first malformed byte, preserving end as None and never copying input.
 Whether a nonempty prefix already determines a decoding step, valid or malformed.
 A potentially valid but incomplete sequence is false; an already invalid prefix is true.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 515
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 546
 
 <a id="value-757466382d6c617374"></a>
 
@@ -158,7 +187,7 @@ A potentially valid but incomplete sequence is false; an already invalid prefix 
 
 Decode the final scalar or one final malformed byte; empty input has Utf8End status.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 463
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 480
 
 <a id="value-757466382d6c6173742d6265666f7265"></a>
 
@@ -168,7 +197,7 @@ Decode the final scalar or one final malformed byte; empty input has Utf8End sta
 
 Decode immediately before a byte offset; malformed endings consume exactly the final byte.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 454
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 471
 
 <a id="value-757466382d6d61782d72756e65"></a>
 
@@ -178,7 +207,7 @@ Decode immediately before a byte offset; malformed endings consume exactly the f
 
 The greatest Unicode code point, which is a valid scalar.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 62
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 63
 
 <a id="value-757466382d6d61782d7769647468"></a>
 
@@ -188,7 +217,7 @@ The greatest Unicode code point, which is a valid scalar.
 
 Maximum bytes in a scalar's shortest UTF-8 encoding.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 66
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 67
 
 <a id="value-757466382d726570616972"></a>
 
@@ -198,7 +227,7 @@ Maximum bytes in a scalar's shortest UTF-8 encoding.
 
 Replace each maximal run of malformed bytes with one arbitrary byte replacement; output is always fresh.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 648
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 679
 
 <a id="value-757466382d7265706169722d65616368"></a>
 
@@ -208,7 +237,7 @@ Replace each maximal run of malformed bytes with one arbitrary byte replacement;
 
 Replace every malformed byte separately, retaining exact one-byte decoding progress; output is always fresh.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 652
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 683
 
 <a id="value-757466382d7265706c6163652d696e76616c6964"></a>
 
@@ -218,7 +247,7 @@ Replace every malformed byte separately, retaining exact one-byte decoding progr
 
 Repair every malformed byte as U+FFFD, producing fresh valid UTF-8 bytes.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 656
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 687
 
 <a id="value-757466382d72756e652d6572726f72"></a>
 
@@ -228,7 +257,7 @@ Repair every malformed byte as U+FFFD, producing fresh valid UTF-8 bytes.
 
 The scalar emitted for a malformed byte or invalid numeric encoding input.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 54
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 55
 
 <a id="value-757466382d72756e652d6c656e677468"></a>
 
@@ -238,7 +267,7 @@ The scalar emitted for a malformed byte or invalid numeric encoding input.
 
 Return the exact encoded byte width, or None for an invalid numeric rune.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 527
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 558
 
 <a id="value-757466382d72756e652d73656c66"></a>
 
@@ -248,7 +277,7 @@ Return the exact encoded byte width, or None for an invalid numeric rune.
 
 The first byte requiring a multibyte encoding.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 58
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 59
 
 <a id="value-757466382d72756e652d7374617274"></a>
 
@@ -258,7 +287,7 @@ The first byte requiring a multibyte encoding.
 
 Test whether a byte can start an encoding, including malformed leading bytes.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 443
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 460
 
 <a id="value-757466382d7363616c61722d73746570"></a>
 
@@ -269,7 +298,7 @@ Test whether a byte can start an encoding, including malformed leading bytes.
 Construct a valid decoding observation for one scalar, deriving its unique encoded width.
 Callers cannot provide inconsistent status or width metadata.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 661
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 692
 
 <a id="value-757466382d737465702d63686172"></a>
 
@@ -279,7 +308,7 @@ Callers cannot provide inconsistent status or width metadata.
 
 Observe the decoded scalar, or U+FFFD for an invalid/end/out-of-bounds step.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 42
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 43
 
 <a id="value-757466382d737465702d737461747573"></a>
 
@@ -289,7 +318,7 @@ Observe the decoded scalar, or U+FFFD for an invalid/end/out-of-bounds step.
 
 Observe whether the position represents valid input, a malformed byte, end, or an invalid offset.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 50
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 51
 
 <a id="value-757466382d737465702d7769647468"></a>
 
@@ -299,7 +328,7 @@ Observe whether the position represents valid input, a malformed byte, end, or a
 
 Observe consumed bytes: one through four for valid input, one for malformed input, zero at end or beyond.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 46
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 47
 
 <a id="value-757466382d76616c6964"></a>
 
@@ -309,7 +338,7 @@ Observe consumed bytes: one through four for valid input, one for malformed inpu
 
 Whether every byte participates in a shortest-form scalar encoding; empty input is valid.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 489
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 506
 
 <a id="value-757466382d76616c69642d72756e65"></a>
 
@@ -319,8 +348,8 @@ Whether every byte participates in a shortest-form scalar encoding; empty input 
 
 Whether a numeric rune is a Unicode scalar; negatives, surrogates and values above U+10FFFF are false.
 
-[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 523
+[Source](/reference-sources/Data.Bytes.Utf8.cinch) · line 554
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Utf8.cinch`. Source SHA-256: `6c73d599aef05a9854c78a02b6dcd26e6f40dda24ac95dba6dc07d13d7c1cdb6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes/Utf8.cinch`. Source SHA-256: `f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -1959,7 +1959,7 @@
     },
     {
       "reference_package": "unicode",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
         "Data.Char",
         "Data.Unicode",
@@ -1968,17 +1968,17 @@
         "Data.Unicode.Range",
         "Data.Unicode.Tables"
       ],
-      "remaining": [
-        "Review public pipeline benchmarks and any measured code generation improvements before completion promotion"
-      ],
+      "remaining": [],
       "reference_declarations": 344,
       "tests": [
         "lib_unicode_kernel",
         "lib_unicode_catalog"
       ],
-      "benchmarks": [],
+      "benchmarks": [
+        "benchmarks/stdlib/unicode-optimization-evidence.json"
+      ],
       "capability_mapping": "tooling/data/unicode-capabilities.json: all 344 actual declaration records mapped",
-      "review": "Unicode 17 classification, simple case mappings, fold cycles, complete named catalogs and checked custom ranges are implemented. Exhaustive numeric code-point, scalar, catalog and ownership validation passes both frozen frontends. Parent kernel/catalog targets pass all ten checks. Public-pipeline performance review remains in progress; package stays partial until that review is integrated."
+      "review": "All 344 declaration records have reviewed functional mappings. Exhaustive code-point, scalar, case, custom-range and catalog observations pass both frozen frontends in normal and poisoned reclamation modes. The classification-only optimization preserves all unrelated case/fold/table accessor bodies and removes 174 imported calls from the Native classification graph; paired public benchmarks retain all samples and observed regressions. Parent kernel/catalog gates pass all eleven checks, including portable inline LLVM object emission. Complete denotes functional coverage; immutable catalog trees and typed observation allocations have different costs from the reference implementation."
     },
     {
       "reference_package": "unicode/utf16",
