@@ -1,0 +1,306 @@
+{
+  "description": "Equal-length retained executable paths, one complete public operation, ordinary reclamation and no poison quarantine",
+  "cpu_affinity": [
+    4
+  ],
+  "inputs": {
+    "before": {
+      "executable_sha256": "d4c5c463c7438f4994df0412f7e14ecb810616293df805124a5fc54bfa3980f5",
+      "sources": {
+        "Text.Base64.Encoding": "00660c5d1445273b453de43657608fccc2ba97b16bfc32040f2ac56e28d1cc52",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+        "Effect.Base64": "4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+      },
+      "driver_sha256": "aa429b1dbf197cf6e3be823618563913e6490e93f3cf65f63ed34ec392125987",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e"
+    },
+    "after": {
+      "executable_sha256": "791e068fc4e08ffcbcee6f9b28fe59fae520b251968ea91c3d13f13907f9f3e0",
+      "sources": {
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+        "Effect.Base64": "4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+      },
+      "driver_sha256": "aa429b1dbf197cf6e3be823618563913e6490e93f3cf65f63ed34ec392125987",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e"
+    }
+  },
+  "rows": [
+    {
+      "variant": "before",
+      "workload": "encode-bytes",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 87510,
+      "stats": {
+        "blocks": 131,
+        "bytes": 156557,
+        "peak": 153482,
+        "header-blocks": 104,
+        "header-bytes": 2176,
+        "immortal": 0,
+        "freed": 104,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "decode-bytes",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 11076,
+        "bytes": 1227802,
+        "peak": 219087,
+        "header-blocks": 11046,
+        "header-bytes": 876808,
+        "immortal": 0,
+        "freed": 11046,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "custom-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 87492,
+      "stats": {
+        "blocks": 136,
+        "bytes": 156981,
+        "peak": 153802,
+        "header-blocks": 106,
+        "header-bytes": 2216,
+        "immortal": 0,
+        "freed": 106,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "custom-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 11081,
+        "bytes": 1228226,
+        "peak": 219407,
+        "header-blocks": 11048,
+        "header-bytes": 876848,
+        "immortal": 0,
+        "freed": 11048,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "legacy-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 87510,
+      "stats": {
+        "blocks": 139,
+        "bytes": 331449,
+        "peak": 240882,
+        "header-blocks": 110,
+        "header-bytes": 2296,
+        "immortal": 0,
+        "freed": 110,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "legacy-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 502579,
+        "bytes": 10970093,
+        "peak": 4369738,
+        "header-blocks": 502550,
+        "header-bytes": 10662784,
+        "immortal": 0,
+        "freed": 502550,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "stream-encode64",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 87510,
+      "stats": {
+        "blocks": 20626,
+        "bytes": 931611,
+        "peak": 290042,
+        "header-blocks": 14111,
+        "header-bytes": 338312,
+        "immortal": 0,
+        "freed": 14111,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "stream-decode64",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 18504,
+        "bytes": 1661741,
+        "peak": 293277,
+        "header-blocks": 17385,
+        "header-bytes": 1070376,
+        "immortal": 0,
+        "freed": 17385,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "encode-bytes",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 87510,
+      "stats": {
+        "blocks": 131,
+        "bytes": 156557,
+        "peak": 153482,
+        "header-blocks": 104,
+        "header-bytes": 2176,
+        "immortal": 0,
+        "freed": 104,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "decode-bytes",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 147,
+        "bytes": 353482,
+        "peak": 219087,
+        "header-blocks": 117,
+        "header-bytes": 2488,
+        "immortal": 0,
+        "freed": 117,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "custom-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 87492,
+      "stats": {
+        "blocks": 136,
+        "bytes": 156981,
+        "peak": 153802,
+        "header-blocks": 106,
+        "header-bytes": 2216,
+        "immortal": 0,
+        "freed": 106,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "custom-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 152,
+        "bytes": 353906,
+        "peak": 219407,
+        "header-blocks": 119,
+        "header-bytes": 2528,
+        "immortal": 0,
+        "freed": 119,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "legacy-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 87510,
+      "stats": {
+        "blocks": 139,
+        "bytes": 331449,
+        "peak": 240882,
+        "header-blocks": 110,
+        "header-bytes": 2296,
+        "immortal": 0,
+        "freed": 110,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "legacy-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 502579,
+        "bytes": 10970093,
+        "peak": 4369738,
+        "header-blocks": 502550,
+        "header-bytes": 10662784,
+        "immortal": 0,
+        "freed": 502550,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "stream-encode64",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 87510,
+      "stats": {
+        "blocks": 20628,
+        "bytes": 931655,
+        "peak": 290042,
+        "header-blocks": 14113,
+        "header-bytes": 338352,
+        "immortal": 0,
+        "freed": 14113,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "stream-decode64",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 7595,
+        "bytes": 789137,
+        "peak": 293357,
+        "header-blocks": 6476,
+        "header-bytes": 197776,
+        "immortal": 0,
+        "freed": 6476,
+        "live": 0
+      }
+    }
+  ]
+}
