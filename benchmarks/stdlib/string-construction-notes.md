@@ -44,8 +44,8 @@ now pass at O0 and O2, alongside regression and ownership cases in both heap
 modes. The pinned SDK Go1.27.4 generator agrees on every decoded observation;
 its JSON formatting differs and both file hashes are retained. Paired O2
 baseline/new binaries also pass independent digest/checksum functional smokes
-for ASCII and Unicode repeat/concat at 65536 and 65537 units. Initial paired samples are recorded; a corrected driver will separate final
-input-owner teardown from the timed interval. The supplied four-test Rust
+for ASCII and Unicode repeat/concat at 65536 and 65537 units. Corrected paired samples now keep final input cleanup after the timed interval;
+the initial cleanup-inclusive samples and driver remain separately retained. The supplied four-test Rust
 target is pending coordinated Cargo integration. The receipt is
 `bootstrap/stdlib-string-construction-source-override-results.json`.
 
@@ -69,31 +69,34 @@ concrete implementations and independent fixtures pass their gates.
 
 ## Paired performance and remaining costs
 
-The [initial paired O2 results](string-construction-initial-O2-2026-11-16.json) retain five
+The [corrected O2 results](string-construction-O2-2026-11-16.json) retain five
 alternating samples for each of twelve conditions, with independent exact wire
-SHA-256 and changed-output checksums. CPU0 was exclusively granted; other
-assigned CPUs continued compilation, so this is not a whole-machine isolation
-claim. Input setup and the initial reference digest were outside the timer, but IR
-inspection showed final input-owner teardown occurred inside the measured loop.
-The initial driver also built an unused deep piece list for repeat. These raw
-samples and the exact initial driver are retained as cleanup-inclusive pipeline
-evidence. A corrected driver avoids that unused list and observes retained
-inputs after the end clock; corrected measurements remain pending.
+SHA-256 and changed-output checksums. CPU0 was exclusively granted at a Compare
+agent batch boundary; own CPU3 was idle, while other assigned CPUs could continue
+compilation. This is not a whole-machine isolation claim. Input construction and
+reference digest setup were outside the timer. Observable input traversal after
+the end clock keeps final input cleanup outside the measurement; repeat builds
+no unused piece list. IR boundary receipts and normal/poisoned functional checks
+cover both versions. Complete public construction plus output copying was timed.
 
 | Pipeline and input unit | 17 units | 4097 units | 65536 units |
 | --- | ---: | ---: | ---: |
-| Repeat, ASCII | 0.910× | 36.521× | 5.284× |
-| Repeat, Unicode | 1.053× | 21.698× | 5.294× |
-| Concat, ASCII | 0.875× | 0.910× | 0.953× |
-| Concat, Unicode | 0.950× | 1.178× | 0.850× |
+| Repeat, ASCII | 1.470× | 112.232× | 245.092× |
+| Repeat, Unicode | 1.471× | 58.439× | 49.193× |
+| Concat, ASCII | 1.085× | 1.441× | 1.343× |
+| Concat, Unicode | 1.074× | 1.344× | 1.377× |
 
-These provisional ratios are old/new median time including input teardown. Small repeat and several concat conditions
-regress at O2. Concatenation now revisits list/string metadata in a size pass and
-a copy pass and retains tagged natural counters, explicit checked-copy capacity
-branches and ownership machinery. The result fixes unbounded native traversal
-stack; it does not claim every O2 condition became faster. A separate measured
-machine-counter trial can investigate these costs without silently changing the
-already frozen source epoch used for fresh-base validation.
+Ratios are old/new median time. Every corrected measured condition improves.
+The initial driver included final input cleanup and an unused repeat piece list;
+its [raw samples](string-construction-initial-O2-2026-11-16.json) and exact driver
+are retained as cleanup-inclusive evidence, rather than construction-only ratios.
+Both exact driver sources and all source/compiler/executable hashes are retained.
+
+Concatenation still revisits list/string metadata in a size pass and a copy pass,
+and retains tagged natural counters, explicit checked-copy capacity branches and
+ownership machinery. Those costs remain candidates for a separate measured
+machine-counter or compiler trial; this evidence does not silently change the
+frozen source epoch used for fresh-base validation.
 
 [Disassembly evidence](../../bootstrap/stdlib-string-construction-stack-analysis.json)
 explains why the old O2 program passed while O0 failed. The measured old CSV
