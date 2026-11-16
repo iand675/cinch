@@ -42,6 +42,26 @@ ABI is no longer part of any surface declaration.
 
 A container-generic surface sits above the primitive:
 
+> **Status 2026-11-16: not implemented, and blocked on a missing type.** The
+> two declarations below are written against a `Parallel` applicative
+> (`MkParallel`, `runParallel`, and a `lift-a2` that is `both`). That type
+> does not exist anywhere in the tree: `grep` for `MkParallel`, `runParallel`
+> or `data Parallel` returns nothing outside this note. `traverse` itself is
+> present in `compiler/prelude/Category/Traversable.cinch` and needs an
+> `Applicative f`, so `parTraverse` cannot be written until something
+> supplies `Applicative Parallel`. Two routes exist and neither is decided
+> here: make `Parallel` a kernel-declared type with a synthesized
+> `Applicative` instance (the route `parallelism-instance-name` already takes
+> for `Parallelism`), or give `parTraverse` its own lowering that walks the
+> `Traversable` dictionary and combines with `both` directly, as `par-map`
+> already does for arrays. Section 2.1's measurement is about the
+> `Parallelism` implicit instance; it does not settle this question.
+>
+> What did land: the `Parallelism` interface, the named host instance
+> `b.HostParallelism`, the four-slot lowering table, and `par-workers`
+> wired end to end (`cinch_par_set_workers`). All four slots now reach a
+> runtime entry; none is a no-op.
+
 ```text
 parTraverse :: forall t a b e. using (trav :: Traversable t, par :: Parallelism)
              => (a ->{|e} b) -> t a ->{|e} t b
