@@ -1,0 +1,4 @@
+
+thread 'main' (628699) panicked at src/check_decls.rs:22247:25:
+attempt to subtract with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

@@ -1,0 +1,4 @@
+
+thread 'main' (628738) panicked at src/check_decls.rs:22386:33:
+attempt to shift right with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

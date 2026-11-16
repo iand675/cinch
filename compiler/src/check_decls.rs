@@ -21422,11 +21422,11 @@ fn law_index_arithmetic(op: &IdxOp, left: &Value, right: &Value) -> Result<Value
 fn scalar_shape(name: &str) -> Option<(u32, bool)> {
     Some(match name {
         "I8" => (8, true),
-        "U8" | "Char" => (8, false),
+        "U8" => (8, false),
         "I16" => (16, true),
         "U16" => (16, false),
         "I32" => (32, true),
-        "U32" => (32, false),
+        "U32" | "Char" => (32, false),
         "I64" | "Isize" => (64, true),
         "U64" | "Usize" => (64, false),
         _ => return None,
@@ -22125,6 +22125,7 @@ impl Checker {
     /// Primitive operation semantics for compile-time evaluation.
     fn eval_prim(&mut self, cx: &mut StageCx, op: PrimOp, args: &[Value]) -> Result<Value> {
         use crate::core::{ArithMode, ArithOp, BitOp, CmpOp, IntOp, NatOp, PrimOp, ShiftOp};
+        let op = op.resolve_widths(self.usize_bits);
         // The evaluator's machine values are words; an operation over a
         // wide scalar would compute at the wrong width.
         if op.touches_wide() {
@@ -22244,12 +22245,12 @@ impl Checker {
                 let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
                 let v = if max {
                     if signed {
-                        (1i64 << (bits - 1)) - 1
+                        ((1i128 << (bits - 1)) - 1) as i64
                     } else {
                         mask_to(bits, false, -1)
                     }
                 } else if signed {
-                    -(1i64 << (bits - 1))
+                    (-(1i128 << (bits - 1))) as i64
                 } else {
                     0
                 };
@@ -22281,8 +22282,8 @@ impl Checker {
             }
             PrimOp::Arith { ty, op: aop, mode } => {
                 let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
-                let a = word_of(&args[0], "a machine word")?;
-                let b = word_of(&args[1], "a machine word")?;
+                let a = mask_to(bits, signed, word_of(&args[0], "a machine word")?);
+                let b = mask_to(bits, signed, word_of(&args[1], "a machine word")?);
                 let raw = match aop {
                     ArithOp::Add => a.wrapping_add(b),
                     ArithOp::Sub => a.wrapping_sub(b),
@@ -22291,36 +22292,26 @@ impl Checker {
                 Ok(Value::Word(match mode {
                     ArithMode::Wrapping => mask_to(bits, signed, raw),
                     ArithMode::Saturating => {
-                        let w = mask_to(bits, signed, raw);
                         if signed {
-                            let (lo, hi) = (-(1i64 << (bits - 1)), (1i64 << (bits - 1)) - 1);
+                            let (lo, hi) = (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1);
                             // Re-do in wider space to detect overflow.
                             let wide = match aop {
                                 ArithOp::Add => (a as i128) + (b as i128),
                                 ArithOp::Sub => (a as i128) - (b as i128),
                                 ArithOp::Mul => (a as i128) * (b as i128),
                             };
-                            if wide > hi as i128 {
-                                hi
-                            } else if wide < lo as i128 {
-                                lo
-                            } else {
-                                w
-                            }
+                            wide.clamp(lo, hi) as i64
                         } else {
-                            let max = if bits >= 64 { u64::MAX as i128 } else { (1i128 << bits) - 1 };
+                            // Two unsigned words can produce a full 128-bit
+                            // product. Signed i128 cannot hold that product.
+                            let max = (1u128 << bits) - 1;
+                            let (a, b) = (a as u64 as u128, b as u64 as u128);
                             let wide = match aop {
-                                ArithOp::Add => (a as u64 as i128) + (b as u64 as i128),
-                                ArithOp::Sub => (a as u64 as i128) - (b as u64 as i128),
-                                ArithOp::Mul => (a as u64 as i128) * (b as u64 as i128),
+                                ArithOp::Add => a + b,
+                                ArithOp::Sub => a.saturating_sub(b),
+                                ArithOp::Mul => a * b,
                             };
-                            if wide > max {
-                                max as i64
-                            } else if wide < 0 {
-                                0
-                            } else {
-                                w
-                            }
+                            wide.min(max) as i64
                         }
                     }
                     ArithMode::Checked => {
@@ -22368,7 +22359,7 @@ impl Checker {
                         if signed {
                             a.wrapping_shr(n)
                         } else {
-                            mask_to(bits, false, a).wrapping_shr(n)
+                            ((mask_to(bits, false, a) as u64) >> n) as i64
                         }
                     }
                 };
@@ -22380,7 +22371,9 @@ impl Checker {
                 let n = word_of(&args[1], "a rotate count")?.rem_euclid(bits as i64) as u32;
                 let mask = if bits >= 64 { u64::MAX } else { (1u64 << bits) - 1 };
                 let a = a & mask;
-                let r = if right {
+                let r = if n == 0 {
+                    a
+                } else if right {
                     ((a >> n) | (a << (bits - n))) & mask
                 } else {
                     ((a << n) | (a >> (bits - n))) & mask
@@ -24731,5 +24724,116 @@ mod sealed_array_positivity_tests {
         fake.identity = "Array".into();
         checker.types.entry("forged".into()).or_default().push(fake);
         assert!(!accepted(&checker, container("Array", recursive())));
+    }
+}
+
+
+#[cfg(test)]
+mod staged_word_boundary_tests {
+    use super::*;
+    use crate::core::{ArithMode, ArithOp, CmpOp, PrimOp, ShiftOp};
+
+    /// Evaluate the actual staging primitive with an explicit target word width.
+    fn evaluate(bits: u32, op: PrimOp, args: &[i64]) -> Value {
+        let mut checker = Checker::new();
+        checker.usize_bits = bits;
+        let mut cx = StageCx::new(&StagingCx::default());
+        let values = args.iter().copied().map(Value::Word).collect::<Vec<_>>();
+        checker.eval_prim(&mut cx, op, &values).unwrap()
+    }
+
+    /// Compare a staged word directly, without passing through runtime folding.
+    fn expect_word(bits: u32, op: PrimOp, args: &[i64], expected: i64) {
+        match evaluate(bits, op, args) {
+            Value::Word(actual) => assert_eq!(actual, expected, "{op:?} {args:?}"),
+            other => panic!("expected word, found {}", value_kind_name(&other)),
+        }
+    }
+
+    /// Native scalar saturation agrees with independent host integer operations at every width.
+    #[test]
+    fn saturating_arithmetic_matches_independent_scalar_boundaries() {
+        macro_rules! cases {
+            ($ty:ty, $scalar:ident, [$($value:expr),+]) => {{
+                let values: &[$ty] = &[$($value),+];
+                for &a in values {
+                    for &b in values {
+                        for (op, expected) in [
+                            (ArithOp::Add, a.saturating_add(b)),
+                            (ArithOp::Sub, a.saturating_sub(b)),
+                            (ArithOp::Mul, a.saturating_mul(b)),
+                        ] {
+                            expect_word(64, PrimOp::Arith { ty: Scalar::$scalar, op,
+                                mode: ArithMode::Saturating }, &[a as i64, b as i64], expected as i64);
+                        }
+                    }
+                }
+            }};
+        }
+        cases!(i8, I8, [i8::MIN, -1, 0, 1, i8::MAX]);
+        cases!(u8, U8, [0, 1, 127, 128, u8::MAX]);
+        cases!(i16, I16, [i16::MIN, -1, 0, 1, i16::MAX]);
+        cases!(u16, U16, [0, 1, 32767, 32768, u16::MAX]);
+        cases!(i32, I32, [i32::MIN, -1, 0, 1, i32::MAX]);
+        cases!(u32, U32, [0, 1, 2147483647, 2147483648, u32::MAX]);
+        cases!(i64, I64, [i64::MIN, -1, 0, 1, i64::MAX]);
+        cases!(u64, U64, [0, 1, 9223372036854775807, 9223372036854775808, u64::MAX]);
+    }
+
+    /// Signed bound constants retain their full width without overflowing the host interpreter.
+    #[test]
+    fn signed_bound_constants_match_each_scalar_width() {
+        for (ty, low, high) in [(Scalar::I8, i8::MIN as i64, i8::MAX as i64),
+            (Scalar::I16, i16::MIN as i64, i16::MAX as i64),
+            (Scalar::I32, i32::MIN as i64, i32::MAX as i64),
+            (Scalar::I64, i64::MIN, i64::MAX)] {
+            expect_word(64, PrimOp::Bound { ty, max: false }, &[], low);
+            expect_word(64, PrimOp::Bound { ty, max: true }, &[], high);
+        }
+    }
+
+    /// High unsigned bits are shifted logically; a zero or full-width rotation is an identity.
+    #[test]
+    fn unsigned_shifts_and_rotations_match_host_bit_operations() {
+        for a in [0u64, 1, 0x8000000000000001, u64::MAX] {
+            for n in [0u32, 1, 31, 32, 63, 64, 65, u32::MAX] {
+                expect_word(64, PrimOp::Shift { ty: Scalar::U64, op: ShiftOp::Shr, checked: false },
+                    &[a as i64, n as i64], a.wrapping_shr(n) as i64);
+                expect_word(64, PrimOp::Rotate { ty: Scalar::U64, right: false },
+                    &[a as i64, n as i64], a.rotate_left(n) as i64);
+                expect_word(64, PrimOp::Rotate { ty: Scalar::U64, right: true },
+                    &[a as i64, n as i64], a.rotate_right(n) as i64);
+            }
+        }
+    }
+
+    /// A staged character comparison observes complete Unicode scalars, including differing high bytes.
+    #[test]
+    fn character_order_uses_complete_unicode_scalars() {
+        for a in [0u32, 255, 256, 0xd7ff, 0xe000, 0x10000, 0x10ffff] {
+            for b in [0u32, 255, 256, 0xd7ff, 0xe000, 0x10000, 0x10ffff] {
+                match evaluate(64, PrimOp::Cmp { ty: Scalar::Char, op: CmpOp::Lt }, &[a as i64, b as i64]) {
+                    Value::Bool(actual) => assert_eq!(actual, a < b),
+                    _ => panic!("character comparison did not return Bool"),
+                }
+            }
+        }
+    }
+
+    /// Pointer words follow the selected target, including conversion, bounds and saturation.
+    #[test]
+    fn pointer_words_use_target_width_in_staging() {
+        for bits in [32, 64] {
+            let high = if bits == 32 { u32::MAX as i64 } else { -1 };
+            expect_word(bits, PrimOp::Bound { ty: Scalar::Usize, max: true }, &[], high);
+            expect_word(bits, PrimOp::Arith { ty: Scalar::Usize, op: ArithOp::Add,
+                mode: ArithMode::Saturating }, &[high, 1], high);
+            expect_word(bits, PrimOp::Shift { ty: Scalar::Usize, op: ShiftOp::Shr, checked: false },
+                &[high, 1], if bits == 32 { 2147483647 } else { i64::MAX });
+            expect_word(bits, PrimOp::Conv { from: Scalar::Usize, to: Scalar::U64,
+                mode: crate::core::ConvMode::Total }, &[-1], high);
+            expect_word(bits, PrimOp::Bound { ty: Scalar::Isize, max: false }, &[],
+                if bits == 32 { i32::MIN as i64 } else { i64::MIN });
+        }
     }
 }

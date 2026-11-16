@@ -1,0 +1,20 @@
+[
+  {
+    "name": "unicode-compare",
+    "ir_path": "bootstrap/repros/staged-word-boundaries/unicode-compare.ll.gz",
+    "ir_sha256": "ffa912350013c4ed1e1465acd32a6cfa319746bb6aa18ba37cae198936e044fa",
+    "archive_sha256": "b0897a46abbcc07a2cde7c79cbc9282dc87c39cec27cb937a6a8553d44869c3e",
+    "executable_path": "build/staged-word-boundaries/unicode-compare.out",
+    "executable_sha256": "21b9075f97fb2b95b60a517d171c7faeae649e1587ea28512f3282cd6bd88b91",
+    "observation": "Generated consumer exits one, while the mathematically correct staged comparison is true."
+  },
+  {
+    "name": "unsigned-shift",
+    "ir_path": "bootstrap/repros/staged-word-boundaries/unsigned-shift.ll.gz",
+    "ir_sha256": "ffa912350013c4ed1e1465acd32a6cfa319746bb6aa18ba37cae198936e044fa",
+    "archive_sha256": "b0897a46abbcc07a2cde7c79cbc9282dc87c39cec27cb937a6a8553d44869c3e",
+    "executable_path": "build/staged-word-boundaries/unsigned-shift.out",
+    "executable_sha256": "d294533d0d1f7694d12e262deceacf5eb56d488c2730e579fb98d90953754bf0",
+    "observation": "Generated consumer exits one, while the mathematically correct staged comparison is true."
+  }
+]

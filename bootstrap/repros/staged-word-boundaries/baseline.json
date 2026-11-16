@@ -1,0 +1,101 @@
+{
+  "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+  "rows": [
+    {
+      "name": "signed-bounds",
+      "source_sha256": "45ff213e5933d313cf2e8e8a91ccc958d00ab816b8b4d5bf30124be94ec7498f",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/cinch",
+        "build",
+        "build/staged-word-boundaries/signed-bounds.cinch",
+        "-o",
+        "build/staged-word-boundaries/signed-bounds.out",
+        "--opt-level",
+        "0"
+      ],
+      "build_exit": 101,
+      "stderr_sha256": "21475764b606004e9082020d1fb647689bd34e755fc469f1aac1d6264fc11b0a"
+    },
+    {
+      "name": "signed-saturation",
+      "source_sha256": "600f29ba594e79f221f4ae3b7a7586d4c678e23169046f9624e287025c822522",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/cinch",
+        "build",
+        "build/staged-word-boundaries/signed-saturation.cinch",
+        "-o",
+        "build/staged-word-boundaries/signed-saturation.out",
+        "--opt-level",
+        "0"
+      ],
+      "build_exit": 101,
+      "stderr_sha256": "57959d2d8c7717672c9e172226b435fd5f587b3cdd384d3aa2ce1f83e52cc325"
+    },
+    {
+      "name": "unicode-compare",
+      "source_sha256": "4b4362d01e630350dda394cde4e6f9a90621ab84de03b957373447063dfb1393",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/cinch",
+        "build",
+        "build/staged-word-boundaries/unicode-compare.cinch",
+        "-o",
+        "build/staged-word-boundaries/unicode-compare.out",
+        "--opt-level",
+        "0"
+      ],
+      "build_exit": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run_exit": 1,
+      "run_stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "unsigned-product",
+      "source_sha256": "ebf49417a26ae36a4f39aa7a98030d566b0283efb810bc5cf7440d75d41fe2b1",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/cinch",
+        "build",
+        "build/staged-word-boundaries/unsigned-product.cinch",
+        "-o",
+        "build/staged-word-boundaries/unsigned-product.out",
+        "--opt-level",
+        "0"
+      ],
+      "build_exit": 101,
+      "stderr_sha256": "e1213ee2c8bce9124bf76d9388b999450cf8627365be847b8c294dff799174f6"
+    },
+    {
+      "name": "unsigned-shift",
+      "source_sha256": "bb2e3122fd4ca7f67d62dfbd83aab11bf76255f46c8ab5f6b98a0d33d33eb6ee",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/cinch",
+        "build",
+        "build/staged-word-boundaries/unsigned-shift.cinch",
+        "-o",
+        "build/staged-word-boundaries/unsigned-shift.out",
+        "--opt-level",
+        "0"
+      ],
+      "build_exit": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run_exit": 1,
+      "run_stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "zero-rotation",
+      "source_sha256": "9cb03546f9ff4f844c2f8fc6b8f4fd9a60f9bf2c2431b65c785de00739411a08",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/cinch",
+        "build",
+        "build/staged-word-boundaries/zero-rotation.cinch",
+        "-o",
+        "build/staged-word-boundaries/zero-rotation.out",
+        "--opt-level",
+        "0"
+      ],
+      "build_exit": 101,
+      "stderr_sha256": "1bf32326e6ac69bce3aa71b9c1e5812e504b90b7e5fc38f15db28dde44e82621"
+    }
+  ],
+  "description": "Actual pre-repair staged scalar consumers; original commands and exit observations are preserved.",
+  "expected_post_repair": "All six build and their generated consumers exit zero."
+}
