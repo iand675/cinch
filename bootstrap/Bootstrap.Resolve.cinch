@@ -1196,7 +1196,14 @@ module Bootstrap.Resolve where
           -- The parallel interface is a kernel declaration: a program that
           -- names `Parallelism` or one of its methods keeps it, exactly as
           -- a source mention of a prelude family would.
-          let parallel = if parallelism-used all-reference-set then parallelism-declarations else Nil in
+          -- The methods are the operations that lower them (Builtin's
+          -- `parallelism-method-symbol`), so a program that calls one needs
+          -- the kernel externals, which `builtin-declarations` already ships.
+          -- Admitting the class as well makes the resolver treat the name as
+          -- a method of it, which routes the call through the dictionary
+          -- path and records the method's own type parameters instead of the
+          -- caller's element classes.
+          let parallel = Nil in
           let admitted = if referenced "b.Fin" all-reference-set then Cons finite-index-declaration declarations else declarations in
           let admitted = admitted <> parallel in
           case materialize-externals all-reference-set admitted Nil of
