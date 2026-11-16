@@ -1,0 +1,8 @@
+-- | A minimal mutation-row source contract without any ownership constructor ambiguity.
+module Main where
+  -- | Retain a value under its explicitly declared mutation-region effect.
+  marker :: forall r a. a ->{Mut r} a
+  marker value = value
+  -- | Keep frontend acceptance independent of a runtime mutation or resource.
+  main :: Int
+  main = 0
