@@ -1,0 +1,186 @@
+{
+  "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
+  "frontend": "native",
+  "opt_level": 0,
+  "native_link_policy": "frozen-wrapper clang default; no -O flag",
+  "runner_sha256": "5c3bed67fa0ebc66ae7210909f799e4626e3c22845fbc6e55f5dcb90bbb91843",
+  "compiler_sha256": "98535f99062bb90d8109f879dd22f412f65a0365b036e6d2bba95f1e1c5fbcac",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Value": "f52e7fe9d0ea33f455b7876484a8fa028f6fb32695c2a1d232b65a0625dc5793"
+  },
+  "fixture_sha256": "0e1cf2647c83c0f9602e5430ed18025a7f1536ff2c2adaf9139363b0533de6b8",
+  "cpu_affinity": [
+    2
+  ],
+  "compiler_host_stack_kib": 65536,
+  "consumer_stack_limit": "8M",
+  "suites": [
+    {
+      "suite": "quote",
+      "consumer_source_sha256": "c698463f5a21cdfa796a8b0d921887e76ea5ef19734a936f3e39ac039acec1c3",
+      "llvm_sha256": "b625ec5d40d12e9659a383a97ec6706787decf35a113f0bf35b3ae14d640e40d",
+      "build_seconds": 23.018525366001995,
+      "runs": [
+        {
+          "poisoned_free_validation": false,
+          "heap_limit": "32M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 22712,
+            "bytes": 531608,
+            "peak": 2522,
+            "header-blocks": 21789,
+            "header-bytes": 457384,
+            "immortal": 0,
+            "freed": 21789,
+            "live": 0
+          },
+          "leaked": 0
+        },
+        {
+          "poisoned_free_validation": true,
+          "heap_limit": "256M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 22712,
+            "bytes": 531608,
+            "peak": 458834,
+            "header-blocks": 21789,
+            "header-bytes": 457384,
+            "immortal": 0,
+            "freed": 21789,
+            "live": 0
+          },
+          "leaked": 0
+        }
+      ]
+    },
+    {
+      "suite": "number",
+      "consumer_source_sha256": "08e88d1194da4f9bbe99ed330553b5675e8608ba60a9d0e0aac4421eee9e0eec",
+      "llvm_sha256": "56300a3db155efe67270c9d45b7f7a553dd7469467f10de16f4e064cef909faf",
+      "build_seconds": 22.434192002998316,
+      "runs": [
+        {
+          "poisoned_free_validation": false,
+          "heap_limit": "32M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 502,
+            "bytes": 10100,
+            "peak": 1280,
+            "header-blocks": 319,
+            "header-bytes": 7272,
+            "immortal": 0,
+            "freed": 319,
+            "live": 0
+          },
+          "leaked": 0
+        },
+        {
+          "poisoned_free_validation": true,
+          "heap_limit": "256M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 502,
+            "bytes": 10100,
+            "peak": 8528,
+            "header-blocks": 319,
+            "header-bytes": 7272,
+            "immortal": 0,
+            "freed": 319,
+            "live": 0
+          },
+          "leaked": 0
+        }
+      ]
+    },
+    {
+      "suite": "indent",
+      "consumer_source_sha256": "b444a7d4377bdcfc3302cad60ff20a0dc7cf1680ded9614c00594bee4d458807",
+      "llvm_sha256": "3b4d9a362d2df058eb4148b95102605d74f2f5d79f136d86e748c7b99024984b",
+      "build_seconds": 23.054496561991982,
+      "runs": [
+        {
+          "poisoned_free_validation": false,
+          "heap_limit": "32M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 849,
+            "bytes": 21646,
+            "peak": 1648,
+            "header-blocks": 790,
+            "header-bytes": 19696,
+            "immortal": 0,
+            "freed": 790,
+            "live": 0
+          },
+          "leaked": 0
+        },
+        {
+          "poisoned_free_validation": true,
+          "heap_limit": "256M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 849,
+            "bytes": 21646,
+            "peak": 20952,
+            "header-blocks": 790,
+            "header-bytes": 19696,
+            "immortal": 0,
+            "freed": 790,
+            "live": 0
+          },
+          "leaked": 0
+        }
+      ]
+    },
+    {
+      "suite": "control",
+      "consumer_source_sha256": "29874f12605451c193ae19978adc4cf96519968e2dd421a4c24e1385b49cafc3",
+      "llvm_sha256": "786b9e71f0e2f9fb2111b274a4639549a0f9fc64860eb5fe27155249ba6ebe49",
+      "build_seconds": 22.116959167004097,
+      "runs": [
+        {
+          "poisoned_free_validation": false,
+          "heap_limit": "32M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 261680,
+            "bytes": 6737273,
+            "peak": 580573,
+            "header-blocks": 260008,
+            "header-bytes": 6213488,
+            "immortal": 0,
+            "freed": 260008,
+            "live": 0
+          },
+          "leaked": 0
+        },
+        {
+          "poisoned_free_validation": true,
+          "heap_limit": "256M",
+          "stdout": "0\n",
+          "stats": {
+            "blocks": 261680,
+            "bytes": 6737273,
+            "peak": 6214745,
+            "header-blocks": 260008,
+            "header-bytes": 6213488,
+            "immortal": 0,
+            "freed": 260008,
+            "live": 0
+          },
+          "leaked": 0
+        }
+      ]
+    }
+  ],
+  "observed_runtime_archive_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+  "native_compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+  "interfaces_sha256": "89189ebe8226d4f26defffdd6481f40351f4da80e035a6a2ee4b2fa19800893f"
+}

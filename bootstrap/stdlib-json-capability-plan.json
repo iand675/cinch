@@ -1,0 +1,1391 @@
+{
+  "reference_package": "encoding/json",
+  "reference_sdk": "go1.27.4 linux/amd64",
+  "reference_declarations": 92,
+  "status": "partial-core-tested; typed codecs and effects remain in progress",
+  "source_base_commit": "689eb0c0",
+  "existing_modules_preserved": [
+    "Text.Json",
+    "Data.Json",
+    "Text.Codec"
+  ],
+  "planned_modules": [
+    "Text.Json.Value",
+    "Text.Json.Codec",
+    "Effect.Json"
+  ],
+  "declarations": [
+    {
+      "reference_declaration": "func CallMethodsWithLegacySemantics(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func Compact(*bytes.Buffer, []uint8) error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "syntax-format",
+      "planned_cinch_capabilities": [
+        "json-compact",
+        "json-append-compact"
+      ],
+      "status": "implemented-core; both frontend matrices passed",
+      "review_note": "Byte transformations return fresh immutable results and preserve an explicit existing prefix through append forms. Syntax offsets use original encoded byte widths and operation-specific incomplete-token checkpoints."
+    },
+    {
+      "reference_declaration": "func DefaultOptionsV1() jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func FormatByteArrayAsArray(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func FormatBytesWithLegacySemantics(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func FormatDurationAsNano(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func HTMLEscape(*bytes.Buffer, []uint8)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "syntax-format",
+      "planned_cinch_capabilities": [
+        "json-html-escape",
+        "json-append-html-escape"
+      ],
+      "status": "implemented-core; both frontend matrices passed",
+      "review_note": "Byte transformations return fresh immutable results and preserve an explicit existing prefix through append forms. Syntax offsets use original encoded byte widths and operation-specific incomplete-token checkpoints."
+    },
+    {
+      "reference_declaration": "func Indent(*bytes.Buffer, []uint8, string, string) error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "syntax-format",
+      "planned_cinch_capabilities": [
+        "json-indent",
+        "json-append-indent"
+      ],
+      "status": "implemented-core; both frontend matrices passed",
+      "review_note": "Byte transformations return fresh immutable results and preserve an explicit existing prefix through append forms. Syntax offsets use original encoded byte widths and operation-specific incomplete-token checkpoints."
+    },
+    {
+      "reference_declaration": "func Marshal(interface{}) ([]uint8, error)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "typed-codecs",
+      "planned_cinch_capabilities": [
+        "json-marshal"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func MarshalIndent(interface{}, string, string) ([]uint8, error)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "typed-codecs",
+      "planned_cinch_capabilities": [
+        "json-marshal-indent"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func MatchCaseSensitiveDelimiter(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func MergeWithLegacySemantics(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func NewDecoder(io.Reader) *Decoder",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-decoder",
+      "planned_cinch_capabilities": [
+        "json-decoder"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func NewEncoder(io.Writer) *Encoder",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-encoder",
+      "planned_cinch_capabilities": [
+        "json-encoder"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func OmitEmptyWithLegacySemantics(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func ParseBytesWithLooseRFC4648(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func ParseTimeWithLooseRFC3339(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func ReportErrorsWithLegacySemantics(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func StringifyWithLegacySemantics(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func Unmarshal([]uint8, interface{}) error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "typed-codecs",
+      "planned_cinch_capabilities": [
+        "json-unmarshal",
+        "json-update"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func UnmarshalArrayFromAnyLength(bool) jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies",
+        "json-policies",
+        "json-default-policies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "func Valid([]uint8) bool",
+      "surface": "historical-v1-form-or-shared",
+      "group": "syntax-format",
+      "planned_cinch_capabilities": [
+        "json-valid"
+      ],
+      "status": "implemented-core; both frontend matrices passed",
+      "review_note": "Byte transformations return fresh immutable results and preserve an explicit existing prefix through append forms. Syntax offsets use original encoded byte widths and operation-specific incomplete-token checkpoints."
+    },
+    {
+      "reference_declaration": "method (*Decoder) Buffered() io.Reader",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-decoder",
+      "planned_cinch_capabilities": [
+        "JsonDecoder",
+        "json-decode",
+        "json-decoder-token",
+        "json-decoder-more",
+        "json-decoder-offset",
+        "json-decoder-buffered",
+        "json-decoder-use-number",
+        "json-decoder-reject-unknown"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*Decoder) Decode(interface{}) error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-decoder",
+      "planned_cinch_capabilities": [
+        "JsonDecoder",
+        "json-decode",
+        "json-decoder-token",
+        "json-decoder-more",
+        "json-decoder-offset",
+        "json-decoder-buffered",
+        "json-decoder-use-number",
+        "json-decoder-reject-unknown"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*Decoder) DisallowUnknownFields()",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-decoder",
+      "planned_cinch_capabilities": [
+        "JsonDecoder",
+        "json-decode",
+        "json-decoder-token",
+        "json-decoder-more",
+        "json-decoder-offset",
+        "json-decoder-buffered",
+        "json-decoder-use-number",
+        "json-decoder-reject-unknown"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*Decoder) InputOffset() int64",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-decoder",
+      "planned_cinch_capabilities": [
+        "JsonDecoder",
+        "json-decode",
+        "json-decoder-token",
+        "json-decoder-more",
+        "json-decoder-offset",
+        "json-decoder-buffered",
+        "json-decoder-use-number",
+        "json-decoder-reject-unknown"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*Decoder) More() bool",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-decoder",
+      "planned_cinch_capabilities": [
+        "JsonDecoder",
+        "json-decode",
+        "json-decoder-token",
+        "json-decoder-more",
+        "json-decoder-offset",
+        "json-decoder-buffered",
+        "json-decoder-use-number",
+        "json-decoder-reject-unknown"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*Decoder) Token() (Token, error)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-decoder",
+      "planned_cinch_capabilities": [
+        "JsonDecoder",
+        "json-decode",
+        "json-decoder-token",
+        "json-decoder-more",
+        "json-decoder-offset",
+        "json-decoder-buffered",
+        "json-decoder-use-number",
+        "json-decoder-reject-unknown"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*Decoder) UseNumber()",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-decoder",
+      "planned_cinch_capabilities": [
+        "JsonDecoder",
+        "json-decode",
+        "json-decoder-token",
+        "json-decoder-more",
+        "json-decoder-offset",
+        "json-decoder-buffered",
+        "json-decoder-use-number",
+        "json-decoder-reject-unknown"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*Encoder) Encode(interface{}) error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-encoder",
+      "planned_cinch_capabilities": [
+        "JsonEncoder",
+        "json-encode",
+        "json-encoder-indent",
+        "json-encoder-escape-html"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*Encoder) SetEscapeHTML(bool)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-encoder",
+      "planned_cinch_capabilities": [
+        "JsonEncoder",
+        "json-encode",
+        "json-encoder-indent",
+        "json-encoder-escape-html"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*Encoder) SetIndent(string, string)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-encoder",
+      "planned_cinch_capabilities": [
+        "JsonEncoder",
+        "json-encode",
+        "json-encoder-indent",
+        "json-encoder-escape-html"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*InvalidUTF8Error) Error() string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Deprecated carrier retained as an explicit diagnostic adaptation; not fabricated as a current default runtime behavior."
+    },
+    {
+      "reference_declaration": "method (*InvalidUnmarshalError) Error() string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*MarshalerError) Error() string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*MarshalerError) Unwrap() error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*Number) UnmarshalJSONFrom(*jsontext.Decoder) error",
+      "surface": "active-jsonv2-facade",
+      "group": "incremental-decoder",
+      "planned_cinch_capabilities": [
+        "JsonDecoder",
+        "json-decode",
+        "json-decoder-token",
+        "json-decoder-more",
+        "json-decoder-offset",
+        "json-decoder-buffered",
+        "json-decoder-use-number",
+        "json-decoder-reject-unknown"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*RawMessage) MarshalJSON() ([]uint8, error)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "raw-messages",
+      "planned_cinch_capabilities": [
+        "JsonRawMessage",
+        "json-raw-null",
+        "json-raw-from-bytes",
+        "json-raw-bytes",
+        "json-raw-replace",
+        "json-raw-type"
+      ],
+      "status": "partial-core",
+      "review_note": "Null/empty distinction and copying construction, assignment and getters are implemented. Typed/custom marshal methods and stream methods remain in the Codec/Effect increment."
+    },
+    {
+      "reference_declaration": "method (*RawMessage) UnmarshalJSON([]uint8) error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "raw-messages",
+      "planned_cinch_capabilities": [
+        "JsonRawMessage",
+        "json-raw-null",
+        "json-raw-from-bytes",
+        "json-raw-bytes",
+        "json-raw-replace",
+        "json-raw-type"
+      ],
+      "status": "partial-core",
+      "review_note": "Null/empty distinction and copying construction, assignment and getters are implemented. Typed/custom marshal methods and stream methods remain in the Codec/Effect increment."
+    },
+    {
+      "reference_declaration": "method (*SyntaxError) Error() string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "implemented-core; both frontend matrices passed",
+      "review_note": "Byte transformations return fresh immutable results and preserve an explicit existing prefix through append forms. Syntax offsets use original encoded byte widths and operation-specific incomplete-token checkpoints."
+    },
+    {
+      "reference_declaration": "method (*UnmarshalFieldError) Error() string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Deprecated carrier retained as an explicit diagnostic adaptation; not fabricated as a current default runtime behavior."
+    },
+    {
+      "reference_declaration": "method (*UnmarshalTypeError) Error() string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*UnmarshalTypeError) Unwrap() error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*UnsupportedTypeError) Error() string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (*UnsupportedValueError) Error() string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (Delim) String() string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "tokens",
+      "planned_cinch_capabilities": [
+        "JsonToken",
+        "JsonBeginArray",
+        "JsonEndArray",
+        "JsonBeginObject",
+        "JsonEndObject",
+        "json-token-delimiter-text"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (Number) Float64() (float64, error)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "exact-numbers",
+      "planned_cinch_capabilities": [
+        "JsonNumber",
+        "json-number",
+        "json-number-text",
+        "json-number-int64",
+        "json-number-float64",
+        "json-number-type",
+        "json-number-token"
+      ],
+      "status": "partial-core",
+      "review_note": "Validated exact lexemes and an explicit absent-spelling default are implemented. Arbitrary string-cast conversion forms and saturated/overflow numeric outcomes remain open before this declaration is complete."
+    },
+    {
+      "reference_declaration": "method (Number) Int64() (int64, error)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "exact-numbers",
+      "planned_cinch_capabilities": [
+        "JsonNumber",
+        "json-number",
+        "json-number-text",
+        "json-number-int64",
+        "json-number-float64",
+        "json-number-type",
+        "json-number-token"
+      ],
+      "status": "partial-core",
+      "review_note": "Validated exact lexemes and an explicit absent-spelling default are implemented. Arbitrary string-cast conversion forms and saturated/overflow numeric outcomes remain open before this declaration is complete."
+    },
+    {
+      "reference_declaration": "method (Number) MarshalJSONTo(*jsontext.Encoder) error",
+      "surface": "active-jsonv2-facade",
+      "group": "incremental-encoder",
+      "planned_cinch_capabilities": [
+        "JsonEncoder",
+        "json-encode",
+        "json-encoder-indent",
+        "json-encoder-escape-html"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "method (Number) String() string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "exact-numbers",
+      "planned_cinch_capabilities": [
+        "JsonNumber",
+        "json-number",
+        "json-number-text",
+        "json-number-int64",
+        "json-number-float64",
+        "json-number-type",
+        "json-number-token"
+      ],
+      "status": "partial-core",
+      "review_note": "Validated exact lexemes and an explicit absent-spelling default are implemented. Arbitrary string-cast conversion forms and saturated/overflow numeric outcomes remain open before this declaration is complete."
+    },
+    {
+      "reference_declaration": "method (RawMessage) MarshalJSON() ([]uint8, error)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "raw-messages",
+      "planned_cinch_capabilities": [
+        "JsonRawMessage",
+        "json-raw-null",
+        "json-raw-from-bytes",
+        "json-raw-bytes",
+        "json-raw-replace",
+        "json-raw-type"
+      ],
+      "status": "partial-core",
+      "review_note": "Null/empty distinction and copying construction, assignment and getters are implemented. Typed/custom marshal methods and stream methods remain in the Codec/Effect increment."
+    },
+    {
+      "reference_declaration": "type Decoder struct",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-decoder",
+      "planned_cinch_capabilities": [
+        "JsonDecoder",
+        "json-decode",
+        "json-decoder-token",
+        "json-decoder-more",
+        "json-decoder-offset",
+        "json-decoder-buffered",
+        "json-decoder-use-number",
+        "json-decoder-reject-unknown"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type Delim int32",
+      "surface": "historical-v1-form-or-shared",
+      "group": "tokens",
+      "planned_cinch_capabilities": [
+        "JsonToken",
+        "JsonBeginArray",
+        "JsonEndArray",
+        "JsonBeginObject",
+        "JsonEndObject",
+        "json-token-delimiter-text"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type Encoder struct",
+      "surface": "historical-v1-form-or-shared",
+      "group": "incremental-encoder",
+      "planned_cinch_capabilities": [
+        "JsonEncoder",
+        "json-encode",
+        "json-encoder-indent",
+        "json-encoder-escape-html"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type InvalidUTF8Error //deprecated",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Deprecated carrier retained as an explicit diagnostic adaptation; not fabricated as a current default runtime behavior."
+    },
+    {
+      "reference_declaration": "type InvalidUTF8Error struct",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Deprecated carrier retained as an explicit diagnostic adaptation; not fabricated as a current default runtime behavior."
+    },
+    {
+      "reference_declaration": "type InvalidUTF8Error struct, S string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Deprecated carrier retained as an explicit diagnostic adaptation; not fabricated as a current default runtime behavior."
+    },
+    {
+      "reference_declaration": "type InvalidUnmarshalError struct",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type InvalidUnmarshalError struct, Type reflect.Type",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Typed labels and field descriptors replace runtime reflection metadata."
+    },
+    {
+      "reference_declaration": "type Marshaler = json.Marshaler",
+      "surface": "active-jsonv2-facade",
+      "group": "custom-capabilities",
+      "planned_cinch_capabilities": [
+        "JsonType",
+        "json-custom-type",
+        "json-text-type",
+        "json-key-type"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type Marshaler interface { MarshalJSON }",
+      "surface": "historical-v1-form-or-shared",
+      "group": "custom-capabilities",
+      "planned_cinch_capabilities": [
+        "JsonType",
+        "json-custom-type",
+        "json-text-type",
+        "json-key-type"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type Marshaler interface, MarshalJSON() ([]uint8, error)",
+      "surface": "historical-v1-form-or-shared",
+      "group": "custom-capabilities",
+      "planned_cinch_capabilities": [
+        "JsonType",
+        "json-custom-type",
+        "json-text-type",
+        "json-key-type"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type MarshalerError struct",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type MarshalerError struct, Err error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type MarshalerError struct, Type reflect.Type",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Typed labels and field descriptors replace runtime reflection metadata."
+    },
+    {
+      "reference_declaration": "type Number string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "exact-numbers",
+      "planned_cinch_capabilities": [
+        "JsonNumber",
+        "json-number",
+        "json-number-text",
+        "json-number-int64",
+        "json-number-float64",
+        "json-number-type",
+        "json-number-token"
+      ],
+      "status": "partial-core",
+      "review_note": "Validated exact lexemes and an explicit absent-spelling default are implemented. Arbitrary string-cast conversion forms and saturated/overflow numeric outcomes remain open before this declaration is complete."
+    },
+    {
+      "reference_declaration": "type Options = jsonopts.Options",
+      "surface": "active-jsonv2-facade",
+      "group": "active-policy-values",
+      "planned_cinch_capabilities": [
+        "JsonPolicies"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type RawMessage = jsontext.Value",
+      "surface": "active-jsonv2-facade",
+      "group": "raw-messages",
+      "planned_cinch_capabilities": [
+        "JsonRawMessage",
+        "json-raw-null",
+        "json-raw-from-bytes",
+        "json-raw-bytes",
+        "json-raw-replace",
+        "json-raw-type"
+      ],
+      "status": "partial-core",
+      "review_note": "Null/empty distinction and copying construction, assignment and getters are implemented. Typed/custom marshal methods and stream methods remain in the Codec/Effect increment."
+    },
+    {
+      "reference_declaration": "type RawMessage []uint8",
+      "surface": "historical-v1-form-or-shared",
+      "group": "raw-messages",
+      "planned_cinch_capabilities": [
+        "JsonRawMessage",
+        "json-raw-null",
+        "json-raw-from-bytes",
+        "json-raw-bytes",
+        "json-raw-replace",
+        "json-raw-type"
+      ],
+      "status": "partial-core",
+      "review_note": "Null/empty distinction and copying construction, assignment and getters are implemented. Typed/custom marshal methods and stream methods remain in the Codec/Effect increment."
+    },
+    {
+      "reference_declaration": "type SyntaxError struct",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "implemented-core; both frontend matrices passed",
+      "review_note": "Byte transformations return fresh immutable results and preserve an explicit existing prefix through append forms. Syntax offsets use original encoded byte widths and operation-specific incomplete-token checkpoints."
+    },
+    {
+      "reference_declaration": "type SyntaxError struct, Offset int64",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "implemented-core; both frontend matrices passed",
+      "review_note": "Byte transformations return fresh immutable results and preserve an explicit existing prefix through append forms. Syntax offsets use original encoded byte widths and operation-specific incomplete-token checkpoints."
+    },
+    {
+      "reference_declaration": "type Token interface {}",
+      "surface": "historical-v1-form-or-shared",
+      "group": "tokens",
+      "planned_cinch_capabilities": [
+        "JsonToken"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type UnmarshalFieldError //deprecated",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Deprecated carrier retained as an explicit diagnostic adaptation; not fabricated as a current default runtime behavior."
+    },
+    {
+      "reference_declaration": "type UnmarshalFieldError struct",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Deprecated carrier retained as an explicit diagnostic adaptation; not fabricated as a current default runtime behavior."
+    },
+    {
+      "reference_declaration": "type UnmarshalFieldError struct, Field reflect.StructField",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Deprecated carrier retained as an explicit diagnostic adaptation; not fabricated as a current default runtime behavior."
+    },
+    {
+      "reference_declaration": "type UnmarshalFieldError struct, Key string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Deprecated carrier retained as an explicit diagnostic adaptation; not fabricated as a current default runtime behavior."
+    },
+    {
+      "reference_declaration": "type UnmarshalFieldError struct, Type reflect.Type",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Deprecated carrier retained as an explicit diagnostic adaptation; not fabricated as a current default runtime behavior."
+    },
+    {
+      "reference_declaration": "type UnmarshalTypeError struct",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type UnmarshalTypeError struct, Err error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type UnmarshalTypeError struct, Field string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type UnmarshalTypeError struct, Offset int64",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type UnmarshalTypeError struct, Struct string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type UnmarshalTypeError struct, Type reflect.Type",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Typed labels and field descriptors replace runtime reflection metadata."
+    },
+    {
+      "reference_declaration": "type UnmarshalTypeError struct, Value string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type Unmarshaler = json.Unmarshaler",
+      "surface": "active-jsonv2-facade",
+      "group": "custom-capabilities",
+      "planned_cinch_capabilities": [
+        "JsonType",
+        "json-custom-type",
+        "json-text-type",
+        "json-key-type"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type Unmarshaler interface { UnmarshalJSON }",
+      "surface": "historical-v1-form-or-shared",
+      "group": "custom-capabilities",
+      "planned_cinch_capabilities": [
+        "JsonType",
+        "json-custom-type",
+        "json-text-type",
+        "json-key-type"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type Unmarshaler interface, UnmarshalJSON([]uint8) error",
+      "surface": "historical-v1-form-or-shared",
+      "group": "custom-capabilities",
+      "planned_cinch_capabilities": [
+        "JsonType",
+        "json-custom-type",
+        "json-text-type",
+        "json-key-type"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type UnsupportedTypeError struct",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type UnsupportedTypeError struct, Type reflect.Type",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Typed labels and field descriptors replace runtime reflection metadata."
+    },
+    {
+      "reference_declaration": "type UnsupportedValueError struct",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type UnsupportedValueError struct, Str string",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": ""
+    },
+    {
+      "reference_declaration": "type UnsupportedValueError struct, Value reflect.Value",
+      "surface": "historical-v1-form-or-shared",
+      "group": "structured-errors",
+      "planned_cinch_capabilities": [
+        "JsonError",
+        "json-error-message",
+        "json-error-offset",
+        "json-error-path",
+        "json-error-type",
+        "json-error-value",
+        "json-error-cause"
+      ],
+      "status": "planned",
+      "review_note": "Typed labels and field descriptors replace runtime reflection metadata."
+    }
+  ],
+  "historical_v1_declaration_records": 73,
+  "active_jsonv2_facade_declaration_records": 19,
+  "reference_default_experiment": "JSONv2 is true in internal/buildcfg/exp.go even with an empty GOEXPERIMENT environment value",
+  "reference_selected_sources": [
+    "v2_decode.go",
+    "v2_encode.go",
+    "v2_indent.go",
+    "v2_inject.go",
+    "v2_options.go",
+    "v2_scanner.go",
+    "v2_stream.go"
+  ],
+  "facade_scope": "Policy value construction and typed number/raw/custom-capability adapters are active default capabilities reviewed alongside the historical declaration forms; this is not a claim to implement all encoding/json/v2 or encoding/json/jsontext declarations.",
+  "native_policy_name_mappings": {
+    "CallMethodsWithLegacySemantics": "json-addressable-methods-only",
+    "FormatByteArrayAsArray": "json-byte-array-numbers",
+    "FormatBytesWithLegacySemantics": "json-named-bytes-as-binary",
+    "FormatDurationAsNano": "json-duration-nanoseconds",
+    "MatchCaseSensitiveDelimiter": "json-preserve-name-delimiters",
+    "MergeWithLegacySemantics": "json-preserve-scalar-null",
+    "OmitEmptyWithLegacySemantics": "json-omit-empty-application-values",
+    "ParseBytesWithLooseRFC4648": "json-loose-base64-padding",
+    "ParseTimeWithLooseRFC3339": "json-loose-timestamps",
+    "ReportErrorsWithLegacySemantics": "json-continue-after-type-errors",
+    "StringifyWithLegacySemantics": "json-quote-scalar-fields",
+    "UnmarshalArrayFromAnyLength": "json-allow-array-length-mismatch"
+  },
+  "source_dependencies": [
+    {
+      "commit": "fee3e98e",
+      "lane_cherry_pick": "ba68b029",
+      "modules": [
+        "Data.Unicode.Kernel",
+        "Data.Unicode.Tables"
+      ],
+      "purpose": "Unicode print/space diagnostics and typed record name folding"
+    }
+  ],
+  "implemented_core_modules": [
+    "Text.Json.Value"
+  ],
+  "remaining_modules": [
+    "Text.Json.Codec",
+    "Effect.Json"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "module": "Text.Json.Value",
+  "source_sha256": "f52e7fe9d0ea33f455b7876484a8fa028f6fb32695c2a1d232b65a0625dc5793",
+  "canonical_declarations": 260,
+  "diagnostics": [],
+  "orphans": [],
+  "doc_extraction_sha256": "b8f28e92d0c8bf30160c3881b721d5537c4737fca6f4b7a0f2fdfb5d6aa4c4c7"
+}

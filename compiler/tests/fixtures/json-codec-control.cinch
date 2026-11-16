@@ -1,0 +1,133 @@
+-- | Source ownership, original spans, bounded documents and every lexical chunk split.
+module Main where
+  import Text.Json.Value
+  import Data.Machine
+  import Data.List
+
+  -- | Keep generated buffer lengths in runtime execution.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Compare complete buffers independently of scalar-string conversion.
+  same :: Bytes -> Bytes -> Bool
+  same left right = eq-i64 (bytes-compare left right) 0
+
+  -- | Copy a complete checked byte interval into independent storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at size = if at + size <= bytes-len input then
+    let out = bytes-new size in let copied = bytes-copy-range out input 0 at size in out
+    else bytes-new 0
+
+  -- | Fill one proved writable interval using a tail traversal.
+  fill :: Bytes -> Nat -> Nat -> InRange 0 255 Nat -> Unit
+  fill out at end byte = if at < end && end <= bytes-len out then let written = bytes-set out at byte in fill out (at + 1) end byte else ()
+
+  -- | Documents and raw messages retain snapshots independent of mutable input and exported buffers.
+  ownership :: Unit -> Bool
+  ownership unit =
+    let input = string-to-bytes " {\"a\":1,\"\\u0061\":2,\"b\":[true,{\"x\":\"yes\"}]} " in
+    case json-document input of
+      Err error -> False
+      Ok document ->
+        let changed = if bytes-len input > 2 then bytes-set input 2 120 else () in
+        let exported = json-document-input document in
+        let changed = if bytes-len exported > 2 then bytes-set exported 2 120 else () in
+        let value = json-document-value document in
+        let raw = json-raw-from-bytes (json-value-source value) in
+        let changed = case json-raw-bytes raw of None -> (); Some bytes -> if bytes-len bytes > 0 then bytes-set bytes 0 120 else () in
+        (case json-object-lookup value "a" of
+          None -> False
+          Some number -> json-value-start number == 17 && (case json-value-number number of None -> False; Some text -> json-number-text text == "2"))
+          && (case json-object-members value of None -> False; Some members -> length members == 3)
+          && (case json-object-lookup value "b" of
+            None -> False
+            Some array -> (case json-array-length array of None -> False; Some count -> count == 2)
+              && (case json-array-get array 1 of None -> False; Some object -> case json-object-lookup object "x" of None -> False; Some leaf -> case json-value-string leaf of None -> False; Some text -> text == "yes"))
+          && (case json-raw-bytes raw of None -> False; Some bytes -> json-valid bytes)
+          && json-value-start value == 1 && json-value-end value + 1 == bytes-len input
+
+  -- | Construct a long valid string using checked tail writes rather than unrelated text producers.
+  large-string :: Nat -> Bytes
+  large-string size =
+    let out = bytes-new (size + 2) in let opening = bytes-set out 0 34 in
+    let body = fill out 1 (size + 1) 97 in let closing = bytes-set out (size + 1) 34 in out
+
+  -- | A 64 KiB string pipeline fits ordinary heap and stack bounds with exact byte comparisons.
+  bounded-string :: Unit -> Bool
+  bounded-string unit =
+    let size = u32-to-nat (runtime-size 65536) in let input = large-string size in
+    case json-document input of
+      Err error -> False
+      Ok document -> case json-value-string (json-document-value document) of
+        None -> False
+        Some text -> string-byte-length text == size && same (json-quote text False) input
+          && (case json-compact input of Err error -> False; Ok compact -> same compact input)
+
+  -- | Construct an arbitrarily deep syntax-only control using an explicit writable buffer.
+  nested :: Nat -> Bytes
+  nested depth =
+    let out = bytes-new (depth * 2 + 1) in let openings = fill out 0 depth 91 in
+    let middle = bytes-set out depth 48 in let closings = fill out (depth + 1) (depth * 2 + 1) 93 in out
+
+  -- | Validation accepts the documented nesting limit and refuses the next opening delimiter.
+  bounded-depth :: Unit -> Bool
+  bounded-depth unit = json-valid (nested (u32-to-nat (runtime-size 10000))) && not (json-valid (nested (u32-to-nat (runtime-size 10001))))
+
+  -- | Give each lexical category a stable comparison code without relying on deriving support.
+  tag-code :: JsonLexTag -> Nat
+  tag-code tag = case tag of
+    JsonLexNull -> 1; JsonLexTrue -> 2; JsonLexFalse -> 3; JsonLexNumber -> 4; JsonLexString -> 5
+    JsonLexArrayStart -> 6; JsonLexArrayEnd -> 7; JsonLexObjectStart -> 8; JsonLexObjectEnd -> 9; JsonLexColon -> 10; JsonLexComma -> 11
+
+  -- | Resume within the same owned chunk after a token, or request the next independent chunk.
+  lex-chunk :: Bytes -> Nat -> Nat -> Nat -> JsonLexState -> Bytes -> Nat -> Nat -> Result JsonError Nat
+  lex-chunk whole split base size state chunk at checksum =
+    case json-lex-read state chunk at base (base + size == bytes-len whole) of
+      JsonLexEnd next -> Ok checksum
+      JsonLexFailure error next -> Err error
+      JsonLexToken token next ->
+        let code = tag-code (json-lexeme-tag token) + json-lexeme-start token * 17 + json-lexeme-end token * 31 in
+        lex-chunk whole split base size json-lex-start chunk next (checksum * 131 + code)
+      JsonLexNeedInput next-state next -> lex-next whole split (base + size) next-state checksum
+
+  -- | Supply the next bounded independent interval without retaining an earlier source buffer.
+  lex-next :: Bytes -> Nat -> Nat -> JsonLexState -> Nat -> Result JsonError Nat
+  lex-next whole split base state checksum =
+    let remaining = if base <= bytes-len whole then bytes-len whole - base else 0 in
+    let size = if remaining < split then remaining else split in
+    lex-chunk whole split base size state (part whole base size) 0 checksum
+
+  -- | Compare exact lexical progress and named errors across chunk boundaries.
+  same-lex :: Result JsonError Nat -> Result JsonError Nat -> Bool
+  same-lex left right = case left of
+    Ok expected -> case right of Ok actual -> expected == actual; Err error -> False
+    Err expected -> case right of Ok actual -> False; Err actual -> json-error-offset expected == json-error-offset actual && json-error-message expected == json-error-message actual
+
+  -- | Exercise every chunk width, including all one-byte scalar, number and escape boundaries.
+  every-width :: Bytes -> Nat -> Bool
+  every-width input width = if width <= bytes-len input + 1 then
+    if same-lex (lex-next input (bytes-len input + 1) 0 json-lex-start 0) (lex-next input width 0 json-lex-start 0) then every-width input (width + 1) else False
+    else True
+
+  -- | Cover nested tokens, escaped names, malformed escapes, exact exponents and unexpected Unicode scalars.
+  chunks :: Unit -> Bool
+  chunks unit = every-width (string-to-bytes " {\"é\": [true, null, -12.34e+56, \"😀\\uD800\\uDC00\"]} ") 1
+    && every-width (string-to-bytes "\"\\u12xZ\"") 1 && every-width (string-to-bytes "123.45e-") 1
+    && every-width (bytes-from-list [239,187,191,49]) 1 && every-width (bytes-from-list [49,101,194,160]) 1
+    && every-width (bytes-from-list [34,240,159,152]) 1 && every-width (bytes-from-list [34,240,159,152,128]) 1
+    && every-width (bytes-from-list [34,240,159,34]) 1 && every-width (bytes-from-list [34,226,130,92,110,34]) 1
+
+  -- | The absent-spelling default remains distinct from an explicit numeric zero.
+  number-default :: Unit -> Bool
+  number-default unit = json-number-text json-empty-number == "" && json-number-text json-zero-number == "0"
+    && (case json-number-int64 json-empty-number of Err error -> True; Ok value -> False)
+    && (case json-number-float64 json-empty-number of Err error -> True; Ok value -> False)
+
+  -- | Report a failing control while keeping the same ordinary runtime memory limits.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = if not (ownership ()) then (1 :: Nat) else if not (bounded-string ()) then 2 else if not (bounded-depth ()) then 3 else if not (chunks ()) then 4 else if not (number-default ()) then 5 else 0 in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in if failed == 0 then 0 else 1
