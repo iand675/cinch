@@ -1,0 +1,488 @@
+{
+  "description": "Complete mutable linked-list pipelines with exact ordered output checksums; ownership, snapshots and allocation representations differ",
+  "compiler_sha256": "138b7efeaa8a0628e8335bd0e752cf61242a9edb7336da0cd8702be5487ec6cc",
+  "checkout_compiler_source_sha256_not_binary_provenance": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+  "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+  "driver_sha256": "39067d5eaf222f2037ea302f3b92e1cf3289a1fe2e3d8a13bbc5cd03433afb28",
+  "sources": {
+    "Data.Mutable.LinkedList": "3cc4ffeaacad2f063a0ba111fbde267c21a61ca8394de14ecb336be5abe60ec3",
+    "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7"
+  },
+  "opt_level": 2,
+  "rc_debug_capability": true,
+  "executable_sha256": "91f603e36efe23bf68d3462b7a15101d36c24f1e76feb2c04bf0039ff4d30ccc",
+  "llvm_sha256": "05b89fa98d607040270b00f6991fb04145e8306c83a08bed3f4805832990fabe",
+  "assembly_sha256": "78a17e68814880c8e081767caf83a20538f8f625a8690a4fc988e52a437d1f01",
+  "reference_source_sha256": "1c695a92ca974f79aa27915c90d4461b9eed8e63171af429b6bf5f42d24e58d8",
+  "reference_executable_sha256": "c375cffcdf4aefaaa08c6e1cbab49da5ee34bc9f190fbdba9be8ff3329e72897",
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "artifacts": "/workspace/dasl-stdlib-collections/build/linked-list-bench-native",
+  "results": [
+    {
+      "workload": "append-drain",
+      "elements": 32,
+      "checksum": 7983963943904062088,
+      "samples_ns": {
+        "cinch": [
+          982571,
+          1046337,
+          692925,
+          538261,
+          536338
+        ],
+        "reference": [
+          62114,
+          62654,
+          61523,
+          19619,
+          18458
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 43307.8125,
+        "reference": 3845.1875
+      }
+    },
+    {
+      "workload": "append-drain",
+      "elements": 1024,
+      "checksum": 3933020961821620520,
+      "samples_ns": {
+        "cinch": [
+          17128097,
+          17440418,
+          16513282,
+          17162951,
+          17275720
+        ],
+        "reference": [
+          753486,
+          840357,
+          754918,
+          1045626,
+          889040
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 1072684.4375,
+        "reference": 52522.3125
+      }
+    },
+    {
+      "workload": "append-drain",
+      "elements": 16384,
+      "checksum": 4787499544352525608,
+      "samples_ns": {
+        "cinch": [
+          276470885,
+          379599597,
+          397296673,
+          363606832,
+          296563538
+        ],
+        "reference": [
+          21289546,
+          28767580,
+          30925844,
+          20417140,
+          18903509
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 22725427.0,
+        "reference": 1330596.625
+      }
+    },
+    {
+      "workload": "prepend-drain",
+      "elements": 32,
+      "checksum": 7983963943904062088,
+      "samples_ns": {
+        "cinch": [
+          523359,
+          516879,
+          2248304,
+          1089022,
+          960878
+        ],
+        "reference": [
+          19119,
+          53620,
+          19990,
+          78288,
+          70987
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 60054.875,
+        "reference": 3351.25
+      }
+    },
+    {
+      "workload": "prepend-drain",
+      "elements": 1024,
+      "checksum": 3933020961821620520,
+      "samples_ns": {
+        "cinch": [
+          30180690,
+          17943652,
+          17542637,
+          17774216,
+          17239710
+        ],
+        "reference": [
+          1478008,
+          863412,
+          775189,
+          831283,
+          852996
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 1110888.5,
+        "reference": 53312.25
+      }
+    },
+    {
+      "workload": "prepend-drain",
+      "elements": 16384,
+      "checksum": 4787499544352525608,
+      "samples_ns": {
+        "cinch": [
+          308765253,
+          389991459,
+          304982310,
+          407774172,
+          317690188
+        ],
+        "reference": [
+          21365751,
+          22388563,
+          21943482,
+          34232329,
+          30161901
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 19855636.75,
+        "reference": 1399285.1875
+      }
+    },
+    {
+      "workload": "move-front",
+      "elements": 32,
+      "checksum": 6149379935145435960,
+      "samples_ns": {
+        "cinch": [
+          633034,
+          642919,
+          618823,
+          644662,
+          329126
+        ],
+        "reference": [
+          5578,
+          5718,
+          5528,
+          5739,
+          5809
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 39564.625,
+        "reference": 357.375
+      }
+    },
+    {
+      "workload": "move-front",
+      "elements": 1024,
+      "checksum": 7603091436204223448,
+      "samples_ns": {
+        "cinch": [
+          10833399,
+          10737214,
+          10866619,
+          11840647,
+          10943576
+        ],
+        "reference": [
+          199170,
+          195435,
+          181244,
+          299291,
+          194213
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 679163.6875,
+        "reference": 12214.6875
+      }
+    },
+    {
+      "workload": "move-front",
+      "elements": 16384,
+      "checksum": 3870747305167994840,
+      "samples_ns": {
+        "cinch": [
+          186263278,
+          179488716,
+          216531090,
+          199928835,
+          185070309
+        ],
+        "reference": [
+          3316999,
+          3170570,
+          3200364,
+          3572084,
+          2691366
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 11641454.875,
+        "reference": 200022.75
+      }
+    },
+    {
+      "workload": "remove-reuse",
+      "elements": 32,
+      "checksum": 7983963943904062088,
+      "samples_ns": {
+        "cinch": [
+          753616,
+          876491,
+          605753,
+          783731,
+          687857
+        ],
+        "reference": [
+          16014,
+          93380,
+          17647,
+          20120,
+          16405
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 47101.0,
+        "reference": 1102.9375
+      }
+    },
+    {
+      "workload": "remove-reuse",
+      "elements": 1024,
+      "checksum": 3933020961821620520,
+      "samples_ns": {
+        "cinch": [
+          21991399,
+          23634144,
+          25783684,
+          23196163,
+          26782008
+        ],
+        "reference": [
+          689870,
+          756800,
+          706044,
+          883491,
+          1060098
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 1477134.0,
+        "reference": 47300.0
+      }
+    },
+    {
+      "workload": "remove-reuse",
+      "elements": 16384,
+      "checksum": 4787499544352525608,
+      "samples_ns": {
+        "cinch": [
+          349170831,
+          361324665,
+          382231527,
+          399993300,
+          365081712
+        ],
+        "reference": [
+          18830303,
+          18489139,
+          18711795,
+          18575051,
+          20860278
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 22817607.0,
+        "reference": 1169487.1875
+      }
+    },
+    {
+      "workload": "self-copy",
+      "elements": 32,
+      "checksum": 2967702107006759120,
+      "samples_ns": {
+        "cinch": [
+          3802389,
+          1440041,
+          1892373,
+          1569717,
+          1405540
+        ],
+        "reference": [
+          103206,
+          101513,
+          89855,
+          93851,
+          85680
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 98107.3125,
+        "reference": 5865.6875
+      }
+    },
+    {
+      "workload": "self-copy",
+      "elements": 1024,
+      "checksum": 4285202698410967152,
+      "samples_ns": {
+        "cinch": [
+          53056330,
+          45676221,
+          59327133,
+          78526620,
+          79537645
+        ],
+        "reference": [
+          3395260,
+          3473408,
+          3064080,
+          5033711,
+          4842202
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 3707945.8125,
+        "reference": 217088.0
+      }
+    },
+    {
+      "workload": "self-copy",
+      "elements": 16384,
+      "checksum": 4594938917940491376,
+      "samples_ns": {
+        "cinch": [
+          795084817,
+          931074471,
+          850496142,
+          752124856,
+          795810546
+        ],
+        "reference": [
+          72722407,
+          82539657,
+          93743414,
+          192127434,
+          100153707
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 49738159.125,
+        "reference": 5858963.375
+      }
+    }
+  ],
+  "frontend": "native",
+  "compiler_host_stack": "64M",
+  "native_provenance": {
+    "compiler_sha256": "138b7efeaa8a0628e8335bd0e752cf61242a9edb7336da0cd8702be5487ec6cc",
+    "interfaces_sha256": "1efa9dc943e2ad79f1e1fd350618000da7e7f6e0795b83789054dbdb11a975d3",
+    "objects_sha256": "100023001018d140f06602b87eec20b09bf0bb062c677b8c0c449d6643c62aeb",
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "compiler_snapshot_sources": {
+      "Bootstrap.Ast.cinch": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455",
+      "Bootstrap.BodyContract.cinch": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4",
+      "Bootstrap.Builtin.cinch": "ecd7f0992ad0ae82e070bbb48f240d9a0ce31fd5a0dbf09fe82aa787df21cddc",
+      "Bootstrap.Check.cinch": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32",
+      "Bootstrap.Contracts.cinch": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac",
+      "Bootstrap.Core.cinch": "7541af1b31550939e6ed028b4f60f2e9035d3a4075ec1cbf5d6223651801e030",
+      "Bootstrap.CoreBody.cinch": "7a32cf05fb400707820e829a37edfa16b787b1b530871b9631d7ac42402ec0da",
+      "Bootstrap.Dictionary.cinch": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6",
+      "Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+      "Bootstrap.Eval.cinch": "888606e854aab7ec820f607d9004722c26075731f580b7f51c524988f1a68967",
+      "Bootstrap.Expand.cinch": "3730803f333ee26a7941be0aca9911b56276735b08bd36995c0a1f88fbb4655a",
+      "Bootstrap.Export.cinch": "dbe7a43bf3c9b9a2afdd64e3dad8c7a9395e38b61ac5ac3b4ccc161eca2e0cdc",
+      "Bootstrap.ExportNominal.cinch": "d439bae5030019593fdb9b92373875090d5bac0a0e30df054db29fc17481c85a",
+      "Bootstrap.ExportType.cinch": "2484cfc1a90c186e36ac5df077c507040efcf5d2cb77da4dffcd05fa23eb320e",
+      "Bootstrap.Foreign.cinch": "08a1d9777383b643de478d247f9bd46be815ef2bc0d98301154c6fbec351546a",
+      "Bootstrap.Global.cinch": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0",
+      "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+      "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+      "Bootstrap.Infer.cinch": "6a28d53aaa062bfa797d15bb790ac331a349f47a987d9e258b27369a70f25004",
+      "Bootstrap.Inputs.cinch": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194",
+      "Bootstrap.Instance.cinch": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314",
+      "Bootstrap.Interface.cinch": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032",
+      "Bootstrap.Ir.cinch": "be9f22e3f530cf03261edd00a9f879484365e4face8cb63cbb0f8eb2e34fd984",
+      "Bootstrap.Kinds.cinch": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+      "Bootstrap.Load.cinch": "f533faeddcdc2881f62187cf7e119efa2e6e3c5b3c59fa64ba76efe7f7bf887d",
+      "Bootstrap.Manifest.cinch": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac",
+      "Bootstrap.Nominal.cinch": "da38bafe2f771a7f0e65ea92c39e820bf77d85a0c310ac4c7c8424dc86e2e9c5",
+      "Bootstrap.Object.cinch": "17a0e96300ad6110b748aab156c9651608877264f8bde042d5e27c0f08ed7168",
+      "Bootstrap.Parse.cinch": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1",
+      "Bootstrap.Pipeline.cinch": "5f7dc1216ee085f20933196d46c26b9ba4235eff31cb68f724a217fdc9e27a6c",
+      "Bootstrap.Proof.cinch": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3",
+      "Bootstrap.Report.cinch": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7",
+      "Bootstrap.Resolve.cinch": "8317093e0f884473a49ef848625e4aea3d8e237eaee009ba8e9a961fee90f651",
+      "Bootstrap.RuntimeAbi.cinch": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e",
+      "Bootstrap.RuntimeIr.cinch": "6253b546d3fb635d19872b938b5fa5c7565572a73503817d2405ef4fbaa430a1",
+      "Bootstrap.Stage.cinch": "3320cfd63a9983fc053e0c9b94ae393d0d2962b7b78ff428a162c012cdfb3f61",
+      "Bootstrap.StageEval.cinch": "d53907533611569bccc45f3a42af819a625ffaa68740d5b313488a849ab938ef",
+      "Bootstrap.Temporal.cinch": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca",
+      "Bootstrap.TemporalCheck.cinch": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c",
+      "Bootstrap.Test.cinch": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4",
+      "Bootstrap.Total.cinch": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317",
+      "Bootstrap.TotalSemantics.cinch": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de",
+      "Bootstrap.Type.cinch": "a262657787e2a41cac0464ec597d52115e35eed7007f5e7bc9d916e9ec15ca39",
+      "Bootstrap.Typing.cinch": "b777884156093cf85ca921d732089e507d65062190cbfa9cbeafdcbdf553a5c1",
+      "Main.cinch": "686dd5c33049bfa40425404105db701be57b44d1477bdf149b25f362326523b9",
+      "Text.Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+      "Text.Json.cinch": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
+      "Text.Lex.cinch": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+      "Text.Parse.cinch": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+      "Text.Scan.cinch": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+    }
+  },
+  "source_snapshots": "/workspace/dasl-stdlib-collections/build/linked-list-bench-native/sources",
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+  "timing_started_utc": "2026-11-16T15:09:16.444988+00:00",
+  "background_note": "Only the selected CPU is reserved for this timing window. Compiler/validation work may overlap on other assigned CPUs; shared memory and caches are not isolated.",
+  "background_process_snapshot": [
+    "   5498   4  0.3 lib_go_stdlib-4",
+    "  52739   1  0.2 cinch",
+    "  54309   1  0.0 cinch",
+    "  54865   3  0.0 python3",
+    "  54867   4  0.1 clang",
+    "  54869   2  0.1 clang",
+    "  65199   4  0.0 rustc",
+    "  87650   2  0.0 python3",
+    " 133432   2  0.0 rustc",
+    " 140904   2  0.1 rustc",
+    " 181166   1  0.5 cinch",
+    " 221699   3  0.4 rustc",
+    " 294162   1  2.6 python3",
+    " 305892   1 98.9 cinch",
+    " 308179   4 16.3 python3",
+    " 308214   2  2.6 python3",
+    " 308215   2  0.3 python3",
+    " 308216   2 99.2 cinch",
+    " 308221   3  100 cinch"
+  ],
+  "cpu_affinity": [
+    0
+  ],
+  "iterations": 16,
+  "samples": 5,
+  "timing": "runtime monotonic clock around operation loop; startup, configuration and preparation excluded"
+}

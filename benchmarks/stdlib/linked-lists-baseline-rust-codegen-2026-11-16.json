@@ -1,0 +1,208 @@
+{
+  "description": "Record optimized linked-list function bodies and their remaining allocation/ownership call operands.",
+  "reporter_sha256": "e55f5a590f8983b6b4ed8b2b53d77c0b4101600b16ee3d1735e22838690e0edb",
+  "original_llvm_sha256": "85d3183b58e66e04a1027001f49e16c61386f5ad0a7e653c19b733c70fc0067c",
+  "optimized_llvm_sha256": "cef2deaf13c4017f1d835f80d6e45e035eabf87142cfc0974537385aca23f2e6",
+  "assembly_sha256": "3c539af745cfb739308e659d1a07b15dcf4a0ae049d62eeccef011cde71e16ac",
+  "optimization": "clang -O2 -S -emit-llvm from the exact consumed IR; function absence may reflect inlining, not absence of the underlying work.",
+  "note": "Static call sites describe code shape, not dynamic allocation counts. Ordinary process allocation probes provide independent space evidence.",
+  "functions": [
+    {
+      "symbol": "Data.Mutable.LinkedList.element-at@RR",
+      "decoded_symbol": "Data.Mutable.LinkedList.element-at@RR",
+      "header": "define noundef i64 @\"Data.Mutable.LinkedList.element-at@RR\"(i64 %p0, i64 noundef %p1) local_unnamed_addr #2 {",
+      "body_sha256": "972551a4e30b5b2bb9e92a2539b52c5508f5bb0b41e53cc3f99377bea4db8380",
+      "lines": 252,
+      "call_operands": {
+        "@cinch_alloc_ctor": 1,
+        "@cinch_drop_mt": 1,
+        "@cinch_drop_slow": 1,
+        "@cinch_dup_mt": 4,
+        "@cinch_slots_fault": 8
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 1
+    },
+    {
+      "symbol": "Data.Mutable.LinkedList.membership-error@RR",
+      "decoded_symbol": "Data.Mutable.LinkedList.membership-error@RR",
+      "header": "define i64 @\"Data.Mutable.LinkedList.membership-error@RR\"(i64 %p0, i64 %p1) local_unnamed_addr #2 {",
+      "body_sha256": "66d74a390ea370bfe3bc34595db917077a71a48f3249d5e54df69b678992ba3a",
+      "lines": 425,
+      "call_operands": {
+        "@cinch.rc.drop.tobj": 1,
+        "@cinch_alloc_ctor": 1,
+        "@cinch_bytes_data": 4,
+        "@cinch_bytes_len": 4,
+        "@cinch_drop_mt": 2,
+        "@cinch_drop_slow": 2,
+        "@cinch_dup_mt": 2,
+        "@cinch_slots_fault": 5
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 1,
+      "explicit_constructor_allocation_sites": 1
+    },
+    {
+      "symbol": "Data.Mutable.LinkedList.allocate-node@RR",
+      "decoded_symbol": "Data.Mutable.LinkedList.allocate-node@RR",
+      "header": "define noundef i64 @\"Data.Mutable.LinkedList.allocate-node@RR\"(i64 %p0, i64 %p1) local_unnamed_addr #2 {",
+      "body_sha256": "ac9ef3b65bd27e60d2acce15217e0e23c89b6b1bbb59dacfb7795aede77999c5",
+      "lines": 336,
+      "call_operands": {
+        "@\"Data.Mutable.LinkedList.allocate-node@RR.shared0\"": 2,
+        "@\"Data.Mutable.LinkedList.slots-read@O\"": 1,
+        "@\"Data.Mutable.LinkedList.slots-write@O\"": 1,
+        "@cinch.rc.drop.obj": 2,
+        "@cinch_alloc_ctor": 2,
+        "@cinch_drop_mt": 3,
+        "@cinch_drop_slow": 3,
+        "@cinch_dup_mt": 2,
+        "@cinch_free": 1,
+        "@cinch_slots_fault": 6,
+        "@cinch_slots_move": 1,
+        "@cinch_slots_new": 1,
+        "@llvm.umax.i64": 1
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 3,
+      "explicit_constructor_allocation_sites": 3
+    },
+    {
+      "symbol": "Data.Mutable.LinkedList.copy-members@R",
+      "decoded_symbol": "Data.Mutable.LinkedList.copy-members@R",
+      "header": "define noundef i64 @\"Data.Mutable.LinkedList.copy-members@R\"(i64 %p0, i64 %p1, i64 noundef %p2, i64 noundef %p3, i64 noundef %p4) local_unnamed_addr #2 {",
+      "body_sha256": "a07e392860bb0c381ba881247258309c1eac7d65b993f3afcda178b27dcf3860",
+      "lines": 1874,
+      "call_operands": {
+        "@\"Data.Mutable.LinkedList.allocate-node@RR\"": 2,
+        "@\"Data.Mutable.LinkedList.attach@RR\"": 2,
+        "@\"Data.Mutable.LinkedList.element-at@RR\"": 2,
+        "@\"Data.Mutable.LinkedList.list-push-back@R\"": 1,
+        "@\"Data.Mutable.LinkedList.list-push-front@R\"": 1,
+        "@\"Data.Mutable.LinkedList.node-at@RR\"": 1,
+        "@cinch_alloc_ctor": 8,
+        "@cinch_drop_mt": 24,
+        "@cinch_drop_slow": 24,
+        "@cinch_dup_mt": 13,
+        "@cinch_free": 6,
+        "@cinch_slots_fault": 16
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 6,
+      "explicit_constructor_allocation_sites": 8
+    },
+    {
+      "symbol": "Data.Mutable.LinkedList.collect-values@RR",
+      "decoded_symbol": "Data.Mutable.LinkedList.collect-values@RR",
+      "header": "define i64 @\"Data.Mutable.LinkedList.collect-values@RR\"(i64 %p0, i64 noundef %p1, i64 %p2) local_unnamed_addr #2 {",
+      "body_sha256": "6731473b5fb62b23f523caff4305ffc9668cdd953c42670ff29fb0c053501e39",
+      "lines": 1114,
+      "call_operands": {
+        "@\"Data.Mutable.LinkedList.node-at@RR\"": 1,
+        "@\"Data.Mutable.LinkedList.reverse-values@R\"": 2,
+        "@cinch.rc.drop.obj": 13,
+        "@cinch.rc.dup.obj": 7,
+        "@cinch_alloc_ctor": 10,
+        "@cinch_drop_mt": 10,
+        "@cinch_drop_slow": 10,
+        "@cinch_dup_mt": 5,
+        "@cinch_free": 1,
+        "@cinch_slots_fault": 8
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 21,
+      "explicit_constructor_allocation_sites": 10
+    },
+    {
+      "symbol": "Main.drain",
+      "decoded_symbol": "Main.drain",
+      "header": "define i64 @Main.drain(i64 %p0, i64 noundef %p1, i64 noundef %p2) local_unnamed_addr #2 {",
+      "body_sha256": "07010026ee28eb8f162e2210a6165a21ec60a1e35d63a9af66ee1372fa2cecaa",
+      "lines": 1508,
+      "call_operands": {
+        "@\"Data.Mutable.LinkedList.list-back@R\"": 1,
+        "@\"Data.Mutable.LinkedList.list-front@R\"": 1,
+        "@\"Data.Mutable.LinkedList.list-remove@R\"": 2,
+        "@cinch_alloc_ctor": 2,
+        "@cinch_drop_mt": 22,
+        "@cinch_drop_slow": 22,
+        "@cinch_dup_mt": 16,
+        "@cinch_free": 4,
+        "@cinch_slots_fault": 18
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 4,
+      "explicit_constructor_allocation_sites": 2
+    },
+    {
+      "symbol": "Main.move-handles",
+      "decoded_symbol": "Main.move-handles",
+      "header": "define range(i64 0, 2) i64 @Main.move-handles(i64 %p0, i64 %p1, i64 %p2, i64 %p3) local_unnamed_addr #2 {",
+      "body_sha256": "15ec1116e8a3124ed1f90901365da6c573f3edac527c4727574869eef6d9c639",
+      "lines": 2388,
+      "call_operands": {
+        "@\"Data.Mutable.LinkedList.attach@RR\"": 1,
+        "@\"Data.Mutable.LinkedList.detach@RR\"": 1,
+        "@\"Data.Mutable.LinkedList.list-move-front@R\"": 1,
+        "@\"Data.Mutable.Vec.vec-get@O\"": 1,
+        "@cinch_alloc_ctor": 5,
+        "@cinch_bytes_data": 4,
+        "@cinch_bytes_len": 6,
+        "@cinch_drop_mt": 40,
+        "@cinch_drop_slow": 40,
+        "@cinch_dup_mt": 16,
+        "@cinch_free": 4,
+        "@cinch_nat_add": 2,
+        "@cinch_nat_cmp": 4,
+        "@cinch_nat_low_word": 1,
+        "@cinch_slots_fault": 12
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 4,
+      "explicit_constructor_allocation_sites": 5
+    },
+    {
+      "symbol": "Main.reuse-handles",
+      "decoded_symbol": "Main.reuse-handles",
+      "header": "define range(i64 0, 2) i64 @Main.reuse-handles(i64 %p0, i64 %p1, i64 %p2, i64 %p3) local_unnamed_addr #2 {",
+      "body_sha256": "79c390133bccff707f605277dcf039b45edb8ccf09f307e0935521d87c81d614",
+      "lines": 698,
+      "call_operands": {
+        "@\"Data.Mutable.LinkedList.list-push-back@R\"": 1,
+        "@\"Data.Mutable.LinkedList.list-remove@R\"": 1,
+        "@\"Data.Mutable.Vec.vec-get@O\"": 1,
+        "@\"Data.Mutable.Vec.vec-set@O\"": 2,
+        "@cinch_drop_mt": 14,
+        "@cinch_drop_slow": 14,
+        "@cinch_dup_mt": 5,
+        "@cinch_free": 3,
+        "@cinch_nat_add": 2,
+        "@cinch_nat_cmp": 1
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 3,
+      "explicit_constructor_allocation_sites": 0
+    },
+    {
+      "symbol": "Data.Mutable.LinkedList.allocate-node@RR.shared0",
+      "decoded_symbol": "Data.Mutable.LinkedList.allocate-node@RR.shared0",
+      "header": "define noundef i64 @\"Data.Mutable.LinkedList.allocate-node@RR.shared0\"(i64 %p0, i64 %p1, i64 %p2) local_unnamed_addr #2 {",
+      "body_sha256": "5aa57d9af86205f667bba180ac2df8fcafa9f099937b69667a8e022725785160",
+      "lines": 325,
+      "call_operands": {
+        "@cinch_alloc_ctor": 1,
+        "@cinch_drop_mt": 3,
+        "@cinch_drop_slow": 3,
+        "@cinch_dup_mt": 3,
+        "@cinch_nat_add": 1,
+        "@cinch_slots_fault": 10,
+        "@cinch_slots_new": 2
+      },
+      "indirect_calls": 0,
+      "ownership_call_sites": 0,
+      "explicit_constructor_allocation_sites": 3
+    }
+  ]
+}
