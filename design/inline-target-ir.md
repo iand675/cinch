@@ -64,6 +64,15 @@ unchanged.
   invoke/landingpad, no stores outside declared buffers).
 - The synthesized unit carries the attribute chapter's hints like any
   function (`#[inline]` family applies; `repr` does not).
+- Inline LLVM fragments use `i128` for both `I128` and `U128`. Their
+  wrappers preserve those positions in direct calls and object ABI metadata;
+  indirect calls use the ordinary boxed wide-value closure frames. Other
+  scalar positions retain the canonical word wrapper ABI and convert to
+  their declared fragment widths, including floating-point payloads.
+  The Rust object writer publishes wide inline-primitive entries. The
+  self-built backend still requires uniform-word public primitive object
+  entries and supports private wide helpers in ordinary builds; its wider
+  closure and tail-group limits are described in `design/wide-scalars.md`.
 
 ## 4 Migration of the intrinsic set
 

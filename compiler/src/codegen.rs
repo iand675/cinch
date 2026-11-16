@@ -1822,6 +1822,18 @@ impl Registry {
                 reg.narrow_sigs.insert(op.symbol(), sig);
             }
         }
+        // Inline primitive wrappers keep their canonical word ABI except at
+        // declared wide positions. The fragment's i128 values cross those
+        // boundaries directly; closure frames use the ordinary wide boxing path.
+        for plan in &p.prims {
+            let cross = |t: &PrimAbiTy| {
+                if matches!(t, PrimAbiTy::Int { bits: 128, .. }) { Cross::WIDE } else { Cross::WORD }
+            };
+            let sig = NarrowSig { params: plan.args.iter().map(cross).collect(), ret: cross(&plan.res) };
+            if sig.is_wide() {
+                reg.narrow_sigs.insert(plan.unit.clone(), sig);
+            }
+        }
         // A foreign import's wrapper takes and gives a `__int128` as the
         // `i128` it is in every wide position.
         for (name, plan) in &p.foreigns {
@@ -15210,6 +15222,7 @@ fn prim_wrapper_unit(
         ));
     }
     let mut b = Builder::new();
+    let narrow = reg.narrow_sigs.get(name);
     let mut args: Vec<String> = Vec::new();
     for (i, t) in plan.args.iter().enumerate() {
         let v = prim_arg_bridge(&mut b, t, &format!("%p{i}"));
@@ -15223,13 +15236,15 @@ fn prim_wrapper_unit(
         args.join(", ")
     ));
     let r = prim_res_bridge(&mut b, &plan.res, &v);
-    ret(&mut b, &r);
+    let ret_cross = narrow.map_or(Cross::WORD, |s| s.ret);
+    let result = ret_cross.narrow(&mut b, &r);
+    b.line(&format!("ret {} {result}", ret_cross.ty()));
     let scan = scan_body(&format!("{}{}", b.allocas, b.code), reg.unit_symbols(), Some(impl_name.as_str()));
     Ok(EmittedUnit {
         name: name.clone(),
         hints: f.hints.clone(),
         globals: String::new(),
-        header: fn_header(name, plan.arity, None, &vec![true; plan.arity], None),
+        header: fn_header(name, plan.arity, None, &vec![true; plan.arity], narrow),
         allocas: b.allocas,
         code: b.code,
         stub: stub_def(reg, name, plan.arity),
@@ -15245,11 +15260,11 @@ fn prim_wrapper_unit(
     })
 }
 
-/// The canonical word to one fragment parameter.
+/// The canonical slot to one fragment parameter; wide slots already contain i128.
 fn prim_arg_bridge(b: &mut Builder, t: &PrimAbiTy, word: &str) -> String {
     match t {
         PrimAbiTy::Int { bits, .. } => {
-            if *bits == 64 {
+            if *bits == 64 || *bits == 128 {
                 word.to_string()
             } else {
                 let r = b.reg();
@@ -15272,12 +15287,12 @@ fn prim_arg_bridge(b: &mut Builder, t: &PrimAbiTy, word: &str) -> String {
     }
 }
 
-/// The fragment's result to the canonical word (the declared type's
-/// word form: sign-extended signed widths, zero-extended unsigned).
+/// The fragment's result to its canonical slot: sign-extended signed widths,
+/// zero-extended unsigned widths, and raw i128 for either wide scalar.
 fn prim_res_bridge(b: &mut Builder, t: &PrimAbiTy, v: &str) -> String {
     match t {
         PrimAbiTy::Int { bits, signed } => {
-            if *bits == 64 {
+            if *bits == 64 || *bits == 128 {
                 v.to_string()
             } else {
                 let r = b.reg();
