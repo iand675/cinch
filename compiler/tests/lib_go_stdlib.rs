@@ -34,6 +34,7 @@ fn run_with_profile(name: &str, checks: Vec<String>, profile: Option<cinch::core
         ("Hex", include_str!("../prelude/Text/Hex.cinch")),
         ("Base32", include_str!("../prelude/Text/Base32.cinch")),
         ("Checksum", include_str!("../prelude/Text/Checksum.cinch")),
+        ("Adler32", include_str!("../prelude/Text/Adler32.cinch")),
         ("Fnv", include_str!("../prelude/Text/Fnv.cinch")),
     ] {
         std::fs::write(dir.path().join(format!("Text.{module}.cinch")), source).unwrap();
@@ -255,8 +256,9 @@ fn primitive(source: &str, name: &str) -> String {
 fn inline_kernels_compile_for_portable_arm_crc_and_big_endian_targets() {
     let mut source = String::from("module Main where\n  import Data.Machine\n  signature ArmCrc32 where\n    arm-crc32-evidence :: Unit -> Unit\n\n");
     let checksum = include_str!("../prelude/Text/Checksum.cinch");
+    source.push_str(&primitive(include_str!("../prelude/Text/Adler32.cinch"), "adler16"));
+    source.push_str(&primitive(include_str!("../prelude/Text/Adler32.cinch"), "reduce-sums"));
     for name in [
-        "adler16",
         "crc32-word",
         "crc64-word",
         "crc32c-available",
@@ -273,7 +275,7 @@ fn inline_kernels_compile_for_portable_arm_crc_and_big_endian_targets() {
         include_str!("../prelude/Text/Base32.cinch"),
         "encode5",
     ));
-    source.push_str("  main :: Int\n  main = if eq-u64 (adler16 0 0) 0 && eq-u32 (crc32c-word 0 0) 0 && eq-u32 (crc32-ieee-word 0 0) 0 && eq-u32 (crc32-word 0 0 0) 0 && eq-u64 (crc64-word 0 0 0) 0 && eq-u64 (encode4 0) 0x3030303030303030 && eq-u64 (encode5 0 0) 0x4141414141414141 then 0 else 1\n");
+    source.push_str("  main :: Int\n  main = if eq-u32 (reduce-sums 65521 65521) 0 && eq-u64 (adler16 0 0) 0 && eq-u32 (crc32c-word 0 0) 0 && eq-u32 (crc32-ieee-word 0 0) 0 && eq-u32 (crc32-word 0 0 0) 0 && eq-u64 (crc64-word 0 0 0) 0 && eq-u64 (encode4 0) 0x3030303030303030 && eq-u64 (encode5 0 0) 0x4141414141414141 then 0 else 1\n");
     let dir = tempfile::tempdir().unwrap();
     for (name, triple, arch, endian, crc) in [
         (

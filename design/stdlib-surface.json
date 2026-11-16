@@ -751,18 +751,37 @@
     },
     {
       "reference_package": "hash/adler32",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
+        "Effect.Adler32",
+        "Text.Adler32",
         "Text.Checksum"
       ],
       "remaining": [],
       "reference_declarations": 4,
       "tests": [
-        "lib_go_stdlib::checksums_match_go_and_update_over_every_split"
+        "lib_go_stdlib::checksums_match_go_and_update_over_every_split",
+        "lib_adler32"
       ],
       "benchmarks": [
-        "adler32"
-      ]
+        "adler32",
+        "adler32-state",
+        "adler32-roundtrip",
+        "adler32-stream",
+        "adler32-stream4096"
+      ],
+      "capability_mapping": {
+        "Size (value and untyped integer declarations)": "adler32-state-size adler32-state supplies the fixed digest size 4 as Nat without processing input",
+        "Checksum": "Text.Adler32.adler32-sum; existing Text.Checksum.adler32-sum delegates to the standalone implementation",
+        "New": "adler32-state initializes the immutable 32-bit accumulator to 1",
+        "hash.Hash.Write": "adler32-state-update consumes a full buffer; Effect.Adler32.adler32-write returns its accepted count and advanced scalar state; adler32-hashing-writer adapts to ByteWriter",
+        "hash.Hash.Sum/Sum32": "adler32-state-word returns U32; adler32-state-sum returns fresh network-order bytes; adler32-state-append copies a caller prefix before the digest",
+        "hash.Hash.Reset/Size/BlockSize": "adler32-state-reset returns the initial state; size is 4 and preferred block size is 4, with arbitrary input lengths supported",
+        "hash.Cloner.Clone": "Retaining an immutable Adler32State branches computation; every update preserves all prior states",
+        "encoding.BinaryMarshaler/BinaryAppender": "adler32-state-save and adler32-state-append-save encode adl, version byte 1 and the full network-order checksum",
+        "encoding.BinaryUnmarshaler": "adler32-state-load checks the four-byte identifier before exact eight-byte size and accepts all 32-bit payloads without retaining mutable source storage"
+      },
+      "review": "All four recorded declarations (including two records of Size) and returned hash/clone/binary-state capabilities have functional mappings. Independent fixtures cover 46 digest/checkpoint cases, all two-chunk splits through 257 bytes and selected long segment boundaries, 414 arbitrary restored-state updates, and 60 malformed size/identifier cases. Both compilers pass the ten-test target (including three shared profile checks), mutable-buffer isolation, precise errors, stream continuation tests and a 64 KiB one-byte reader under normal 32 MiB heap/8 MiB stack bounds plus separate poisoned-free validation, with zero leaks. Rust also passes all twelve existing stdlib regression tests, including ARM CRC/big-endian kernel compile checks. The portable SIMD core now has a standalone home; the compatibility Text.Checksum module still includes CRC embedded assembly unsupported by the self-built frontend, an existing CRC integration limitation not repaired here. Machine U32 accumulation reduces after bounded 5552-byte segments, preserving accepted state words and exact scalar tails. Twenty-four public pipeline/control rows match independent SDK checksums; paired frozen executables establish the local reduction improvement without claiming allocation/throughput parity. Large test corpus setup uses an LLVM identity to keep generation at runtime after the Rust compiler overflowed its stack on fully constant setup; that compiler limitation is not claimed fixed."
     },
     {
       "reference_package": "hash/crc32",
@@ -770,7 +789,11 @@
       "cinch_modules": [
         "Text.Checksum"
       ],
-      "remaining": [],
+      "remaining": [
+        "table and hash-state capability review",
+        "inspectable stream adapters and serialized state",
+        "native frontend validation of embedded assembly bodies"
+      ],
       "reference_declarations": 16,
       "tests": [
         "lib_go_stdlib::checksums_match_go_and_update_over_every_split"
@@ -786,7 +809,11 @@
       "cinch_modules": [
         "Text.Checksum"
       ],
-      "remaining": [],
+      "remaining": [
+        "table and hash-state capability review",
+        "inspectable stream adapters and serialized state",
+        "native frontend validation of embedded assembly bodies"
+      ],
       "reference_declarations": 11,
       "tests": [
         "lib_go_stdlib::checksums_match_go_and_update_over_every_split"

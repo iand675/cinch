@@ -454,3 +454,49 @@ reuses the binary word operations. Remaining streaming costs include owned
 input chunks, reference counting and per-chunk state/reader continuations;
 checkpoint and digest APIs also allocate fresh buffers. Functional completeness
 does not establish equal throughput or allocation complexity.
+
+## Standalone Adler-32 and bounded modular reduction
+
+`Text.Adler32` now owns the portable SIMD accumulator, persistent scalar states
+and binary checkpoints. `Text.Checksum` preserves its public Adler-32 functions
+as delegates. Keeping the standalone module independent of CRC assembly lets
+both compilers exercise this complete checksum/state surface; it does not add
+embedded-assembly support to the self-built frontend or repair the CRC facade.
+
+The accumulator previously converted each sixteen-byte vector reduction to
+natural numbers and reduced both sums modulo 65521 immediately. It now keeps
+machine U32 sums for segments of at most 5552 bytes, then uses constant unsigned
+LLVM remainders to normalize. SIMD weighted sums, exact short tails and network
+byte order retain their semantics. The generated x86 kernel already lowers to
+`pmaddwd` and `psadbw`; no wider ISA or speculative vector-width change is needed.
+
+`adler32-state-O2-2026-11-16.json` records 24 pipeline/control rows, seven samples
+of 128 iterations after warmup, at 32 bytes, 1 KiB, 16 KiB and 64 KiB. Scalar
+checksums, fresh state digests, checkpoint roundtrips and 64-/4096-byte stream
+copies all match independent SDK checksums. The FNV control also matches. Source
+snapshots, owned read chunks, continuation states and fresh digest/checkpoint
+buffers remain part of the pipelines. The SDK stream loop reuses a buffer.
+
+`adler32-before-segments-O2-2026-11-16.json` retains the committed prior
+`Text.Checksum` implementation under the same new driver, compiler, runtime and
+optimization level. The standalone state and FNV controls use identical sources
+on both sides. `interleaved-adler32-segments-O2-2026-11-16.json` alternates nine
+retained-executable samples with matching checksums. Scalar checksum medians at
+16 KiB fall from 12.80 to 8.41 µs (1.522×), and at 64 KiB from 51.20 to 33.60 µs
+(1.524×). The 32-byte improvement is only 1.063×. Controls vary by up to about 5%
+across sizes, and are within 2.3% at 16/64 KiB. This is a local
+reduction improvement, not evidence of general throughput parity.
+
+The new independent fixtures contain 46 digest/checkpoint cases, 414 arbitrary
+restored-state cases and 60 malformed identifier/size cases. Every two-chunk
+split through 257 bytes and selected long splits around 5552/11104 bytes are
+checked, including all-ones and full-byte-permutation input. Both compilers
+validate normal 32 MiB live heap/8 MiB stack bounds, separately budget poisoned
+frees, and report zero leaks for one-byte reads of a 64 KiB source. Existing Rust
+stdlib checks also retain ARM CRC and big-endian kernel compilation checks.
+
+Large constant corpus initialization overflowed the Rust compiler stack during
+an initial test run. A pure LLVM identity keeps fixture setup at runtime, so the
+tests execute the generated buffer code; that compiler issue remains open.
+Remaining runtime costs include checked buffer access, natural index bookkeeping,
+reference counting, owned stream chunks and fresh state/checkpoint buffers.

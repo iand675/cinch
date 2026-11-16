@@ -1,0 +1,37 @@
+-- | Inspectable Adler-32 hashing sinks and bounded reader-to-checksum copying.
+-- The immutable scalar state is the sink handle. Writes accept every byte and
+-- never retain input buffers. Copying returns the advanced reader and the last
+-- valid checksum on failure, and never closes a borrowed source.
+module Effect.Adler32 where
+
+  import Effect.Stream
+  import Text.Adler32
+  import Data.Bytes
+  import Data.Nat
+  import Data.Result
+
+  export adler32-write, adler32-hashing-writer, adler32-copy
+
+  -- | Hash a whole chunk, returning its accepted count and the advanced immutable state.
+  adler32-write :: forall r. using (io :: Io r) => Adler32State -> Bytes ->{IO r} (Nat, Adler32State)
+  adler32-write state input = (bytes-len input, adler32-state-update state input)
+
+  -- | Adapt a checksum state to the generic byte-writer protocol.
+  -- Use the explicit state or adler32-copy when the advanced checksum must be inspected.
+  adler32-hashing-writer :: forall r. using (io :: Io r) => Adler32State -> ByteWriter r
+  adler32-hashing-writer state = stream-writer (\input -> case adler32-write state input of
+    (count, next) -> (Ok count, adler32-hashing-writer next))
+
+  -- | Hash successful reader chunks through EOF, preserving both advanced handles on errors.
+  -- A zero chunk size is rejected before reading. Invalid source counts do not enter the checksum.
+  adler32-copy :: forall r. using (io :: Io r) => Nat -> ByteReader r -> Adler32State ->{IO r} (Result StreamError Nat, (ByteReader r, Adler32State))
+  adler32-copy chunk source state =
+    if chunk == 0 then (Err StreamInvalidChunkSize, (source, state))
+    else copy-from chunk source state 0
+
+  -- | Carry only the scalar state and accepted byte count through the bounded copying loop.
+  copy-from :: forall r. using (io :: Io r) => Nat -> ByteReader r -> Adler32State -> Nat ->{IO r} (Result StreamError Nat, (ByteReader r, Adler32State))
+  copy-from chunk source state count = case stream-read source chunk of
+    (Err error, next) -> (Err error, (next, state))
+    (Ok input, next) -> if bytes-len input == 0 then (Ok count, (next, state))
+      else copy-from chunk next (adler32-state-update state input) (count + bytes-len input)
