@@ -1,0 +1,112 @@
+-- | Independent relative scalar fingerprints and retained-view controls.
+module Main where
+  import Data.Bytes.View
+  import Data.Bytes.Utf8
+  import Data.Bytes
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String hiding (utf8-encode-into)
+  import Text.Hex
+  import Effect.Process
+
+  -- | Increment bounded fixture coordinates without allocating a result wrapper.
+  prim next :: U32 -> U32 where
+    llvm {
+      %value = add i32 %0, 1
+      ret i32 %value
+    }
+
+  -- | Hash a complete U32 observation in fixed little-endian wire order.
+  prim hash-word :: U32 -> U64 -> U64 where
+    llvm {
+      %wide = zext i32 %0 to i64
+      %a = and i64 %wide, 255
+      %b = xor i64 %1, %a
+      %c = mul i64 %b, 1099511628211
+      %d = lshr i64 %wide, 8
+      %e = and i64 %d, 255
+      %f = xor i64 %c, %e
+      %g = mul i64 %f, 1099511628211
+      %h = lshr i64 %wide, 16
+      %i = and i64 %h, 255
+      %j = xor i64 %g, %i
+      %k = mul i64 %j, 1099511628211
+      %l = lshr i64 %wide, 24
+      %m = xor i64 %k, %l
+      %n = mul i64 %m, 1099511628211
+      ret i64 %n
+    }
+
+  -- | Observe relative position, scalar, width and status independently.
+  decode :: ByteView -> U32 -> U64 -> U64
+  decode view at hash = let relative = u32-to-nat at in let step = byte-view-utf8-at view relative in
+    let a = hash-word at hash in let character = utf8-step-char step in let cp = char-to-u32 character in
+    let b = hash-word cp a in let width = utf8-step-width step in
+    let raw-width = ((if width <= 4 then let wide = nat-to-i64 width in wrapping-i64-to-u32 wide else 4294967295) :: U32) in
+    let c = hash-word raw-width b in
+    let status = case utf8-step-status step of Utf8End -> 0; Utf8Valid -> 1; Utf8Invalid -> 2; Utf8OutOfBounds -> 3 in
+    hash-word status c
+
+  -- | Probe relative starts, interiors, logical end and past-end positions for one retained range.
+  positions :: ByteView -> U32 -> U32 -> U64 -> U64
+  positions view owner-size span-size hash = let a = decode view 0 hash in
+    let b = decode view 1 a in let middle = wrapping-shr-u32 span-size 1 in let c = decode view middle b in
+    let d = decode view span-size c in let after = next span-size in let e = decode view after d in
+    let past-owner = next owner-size in decode view past-owner e
+
+  -- | Enumerate every checked half-open subspan, including scalar-truncated and empty ranges.
+  spans :: Bytes -> U32 -> U32 -> U32 -> U64 -> U64
+  spans raw size start end hash = if le-u32 start size then
+    if le-u32 end size then
+      let a = u32-to-nat start in let b = u32-to-nat end in
+      case bytes-view-range raw a b of
+        Err error -> 0
+        Ok view -> let first = hash-word start hash in let second = hash-word end first in
+          let width = wrapping-sub-u32 end start in let result = positions view size width second in
+          let following = next end in spans raw size start following result
+    else let following = next start in spans raw size following following hash
+    else hash
+
+  -- | Compare a complete independent owner fingerprint without reconstructing expected scalar observations.
+  scalar-case :: String -> U64 -> Bool
+  scalar-case hex expected = case hex-decode hex of
+    Err error -> False
+    Ok raw -> let size = bytes-len raw in if size <= 1048576 then
+      let count = wrapping-i64-to-u32 (nat-to-i64 size) in
+      eq-u64 (spans raw count 0 0 14695981039346656037) expected
+      else False
+
+  -- | Check a single opaque observation through its public scalar, width and status getters.
+  step-is :: Utf8Step -> U32 -> Nat -> U8 -> Bool
+  step-is step cp width status = let character = utf8-step-char step in let code = char-to-u32 character in
+    eq-u32 code cp && utf8-step-width step == width
+      && (case utf8-step-status step of Utf8End -> eq-u8 status 0; Utf8Valid -> eq-u8 status 1; Utf8Invalid -> eq-u8 status 2; Utf8OutOfBounds -> eq-u8 status 3)
+
+  -- | Return a temporary retained view whose original owner handle never escapes independently.
+  temporary-view :: Unit -> ByteView
+  temporary-view unit = let raw = bytes-from-u8s [0,240,159,153,130,0] in
+    case bytes-view-range raw 1 5 of Ok view -> view; Err error -> bytes-view (bytes-new 0)
+
+  -- | Observe retained temporary owners, exact span truncation, aliases and huge relative offsets.
+  owners-case :: Unit -> Bool
+  owners-case unit = let raw = bytes-from-u8s [240,159,153,130] in
+    case bytes-view-range raw 0 3 of
+      Err error -> False
+      Ok truncated -> let whole = bytes-view raw in
+        let before = (step-is (byte-view-utf8-at whole 0) 128578 4 1
+          && step-is (byte-view-utf8-at truncated 0) 65533 1 2
+          && step-is (byte-view-utf8-at whole 4) 65533 0 0
+          && step-is (byte-view-utf8-at whole 9223372036854775807) 65533 0 3
+          && step-is (byte-view-utf8-at (temporary-view ()) 0) 128578 4 1) in
+        let changed = if 0 < bytes-len raw then bytes-set raw 0 97 else () in
+        before && step-is (byte-view-utf8-at whole 0) 97 1 1
+          && step-is (byte-view-utf8-at truncated 0) 97 1 1
+
+  -- | Conjoin bounded complete observations.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest

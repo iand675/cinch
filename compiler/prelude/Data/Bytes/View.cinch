@@ -17,6 +17,7 @@ module Data.Bytes.View where
   export bytes-view, bytes-view-range, byte-view-slice, byte-view-length, byte-view-is-empty
   export byte-view-get, byte-view-set, byte-view-snapshot, byte-view-clone, byte-view-copy-into
   export byte-view-take, byte-view-drop
+  export byte-view-utf8-at
   export BytePattern, bytes-compile-pattern, byte-pattern-length, byte-pattern-bytes
   export byte-view-index-pattern, byte-view-last-index-pattern, byte-view-contains-pattern
   export byte-view-has-prefix-pattern, byte-view-has-suffix-pattern
@@ -116,6 +117,15 @@ module Data.Bytes.View where
       case bytes-view-range raw begin end of
         Ok result -> result
         Err error -> view
+
+  -- | Observe one bounded scalar at a relative byte position without copying or exposing backing storage.
+  -- The logical end returns Utf8End; positions past it return Utf8OutOfBounds.
+  -- Each malformed or view-truncated byte returns U+FFFD with width one and Utf8Invalid.
+  byte-view-utf8-at :: ByteView -> Nat -> Utf8.Utf8Step
+  byte-view-utf8-at view at = case view of
+    View raw start end -> if at <= end - start then
+      let absolute = start + at in Utf8.utf8-decode-between raw start end absolute
+      else let past = end + 1 in Utf8.utf8-decode-between raw start end past
 
   -- | A stable private needle snapshot and its complete proper-prefix failure table.
   data BytePattern where
