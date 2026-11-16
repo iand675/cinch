@@ -51,13 +51,17 @@
     "../benchmarks/stdlib/qualified-calls-space-2026-11-16.json"
   ],
   "preserved_frontend_comparison": {
-    "status": "running separately at checkpoint",
+    "status": "completed with unchanged baseline failures",
     "scope": "106 preserved portable/interface targets",
     "candidate_compiler_stage": 1,
     "candidate_compiler": "build/stdlib-qualified-tail-frozen/cinch",
     "results_artifact": "build/qualified-tail-preserved-targets/results.json",
     "before_compiler_reruns": "build/qualified-tail-preserved-targets-baseline/results.json",
     "all_targets_passed": false,
-    "note": "Targeted baseline suites listed above pass. Wider baseline comparison is additional ongoing evidence; historical failures are not claimed repaired."
+    "note": "Every failing target was rerun through the immutable previous compiler. Failed test identities and exit codes match; this does not claim those historical failures are repaired.",
+    "report": "stdlib-qualified-call-preserved-target-results.json",
+    "passed_targets": 94,
+    "failed_targets": 12,
+    "new_failed_tests": 0
   }
 }

@@ -20,7 +20,7 @@ is not an available API.
 | `unicode/utf16` | [Text.Utf16](../library/Text.Utf16.md) | Scalar length, surrogate classification/pairs, sequence encode/decode, append, explicit-order byte codecs, replacement policy | All seven reference capabilities mapped and tested; byte-codec throughput and immutable-list append costs are documented |
 | `encoding/binary` | [Text.Binary](../library/Text.Binary.md) | U16/U32/U64, both byte orders, offset reads, checked writes, unsigned and zigzag I64 varints, consumed byte count | Float/aggregate codecs, stream and append operations |
 | `encoding/hex` | [Text.Hex](../library/Text.Hex.md), [Effect.Hex](../library/Effect.Hex.md) | Text/byte codecs, prefix and append APIs, checked caller buffers, formatted dumps, encoding writers, decoding readers and explicitly finished dump sinks | All 15 declarations mapped; immutable continuation, partial-row latency and allocation differences are documented |
-| `encoding/ascii85` | [Text.Ascii85](../library/Text.Ascii85.md), [Effect.Ascii85](../library/Effect.Ascii85.md) | Whole buffers, incremental feed/finish, absolute byte errors, streaming reader/writer adapters, zero-word shorthand, control-byte tolerance and wrapped arithmetic | Caller-supplied buffers, decoded prefix/progress on errors, allocation and ownership costs |
+| `encoding/ascii85` | [Text.Ascii85](../library/Text.Ascii85.md), [Effect.Ascii85](../library/Effect.Ascii85.md) | Text/byte codecs, checked caller buffers and source offsets, retained prefix/progress, incremental states, stream adapters, shorthand, control runs and wrapped arithmetic | All seven declarations mapped; immutable continuation, buffered-read copying and allocation costs are documented |
 | `encoding/base32` | [Text.Base32](../library/Text.Base32.md) | RFC 4648 standard and extended-hex alphabets, padded and raw forms, CR/LF tolerance, final-quantum validation | Custom alphabets/padding, stream adapters |
 | `hash/adler32` | [Text.Checksum](../library/Text.Checksum.md) | Whole-buffer checksum and incremental update | Stream adapters, serialized state |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
@@ -60,8 +60,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records three functionally complete, 65 partial
-and 112 unreviewed packages. Hexadecimal, UTF-16 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records four functionally complete, 64 partial
+and 112 unreviewed packages. ASCII85, hexadecimal, UTF-16 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
@@ -80,6 +80,15 @@ entire input. Hex prefix, append and caller-buffer APIs retain completed pairs
 alongside an error; short destination ranges fail before mutation. Short binary reads return `UnexpectedBinaryEnd`, and
 overflowing varints return `BinaryVarintOverflow`. Fixed-width put operations
 validate the complete destination range before writing any bytes.
+
+ASCII85 now also exposes finite-destination decoding and explicit source offsets.
+The returned source count identifies complete quanta for retrying a non-final
+suffix. Completed output remains available alongside malformed-input errors;
+whole-buffer conveniences keep their all-or-error result. Separate buffer errors
+name invalid source/destination offsets and insufficient encoding capacity.
+Overlapping buffers snapshot input before writing; disjoint buffers avoid that
+copy. A caller can reuse a small destination and advance through one original
+source with `ascii85-decode-at`. SIMD skips eight ignored control bytes at once.
 
 ASCII85 has independent buffer and stream measurements against the reference
 SDK. SIMD digit kernels lower to short, call-free arithmetic; generated buffer

@@ -1,0 +1,467 @@
+{
+  "format": 1,
+  "description": "Alternating retained executables with matched compiler, driver, optimization and runtime sources",
+  "compiler_sha256": "2953cb0246737ee110c139fbff4a8968c2da7de271da4b55aff7d94f63c94e84",
+  "compiler_source_sha256": "61ab9b3cc29cc9ee7831b2e1001d0bba63ae5a1a23df42c8d431469230380961",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "driver_sha256": "707f30de7830f5ab1ca6050f71f6d3811440ecf9003e94673e7c863c81eb1e64",
+  "opt_level": 2,
+  "iterations": 8,
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpu_affinity": [
+    0
+  ],
+  "warmup_processes_per_case": 1,
+  "inputs": {
+    "before": {
+      "report": "/workspace/dasl-stdlib-io/benchmarks/stdlib/ascii85-forced-snapshot-ablation-O2-2026-11-16.json",
+      "sources": {
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+        "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+        "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "Text.Ascii85": "dece1c718f2d510f7eca6c90d0e0148dead60be427f3bbdf351bb6ec20fe6a8a",
+        "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+        "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+        "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+        "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+        "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+      },
+      "executable_sha256": "29d12203e0e815c65bc2a85abade3bcb0e12b6883a7a9a26690bb5d2abdd17a8",
+      "llvm_sha256": "06683444acf2018b1efe325aee6042330d93933da85d5cb52bb4af4dbc58ca74"
+    },
+    "after": {
+      "report": "/workspace/dasl-stdlib-io/benchmarks/stdlib/ascii85-complete-O2-2026-11-16.json",
+      "sources": {
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Word": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
+        "Effect.Ascii85": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+        "Effect.Hex": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+        "Text.Ascii85": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+        "Text.Base32": "ae82b9c24657458ca5d6b0f33ee80b8ba8239cef592e793a926270cb45e308bd",
+        "Text.Base64": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+        "Text.Binary": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+        "Text.Checksum": "92aeb92792906cc05fde3a49ec2e71800d8fe7a2372926b4a4665e015fd02c29",
+        "Text.Fnv": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Utf16": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8"
+      },
+      "executable_sha256": "4c14c75300840934b6bfa7420740ae67010d3a34de9a6eb731390ecc46a777bd",
+      "llvm_sha256": "c7dd64adda3863e377619df9c16282c64dc9a77d4bbc2dc590dfcc03aee8a309"
+    }
+  },
+  "results": [
+    {
+      "workload": "ascii85-into-encode",
+      "raw_input_bytes": 32,
+      "checksum": 1483,
+      "samples_ns": {
+        "before": [
+          9664,
+          9625,
+          7501,
+          7572,
+          7871,
+          8032,
+          8213,
+          7291,
+          9024
+        ],
+        "after": [
+          7812,
+          8112,
+          10496,
+          9634,
+          7511,
+          7952,
+          7621,
+          7331,
+          8302
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 1004.0,
+        "after": 994.0
+      },
+      "before_over_after": 1.0100603621730382
+    },
+    {
+      "workload": "ascii85-into-encode",
+      "raw_input_bytes": 1024,
+      "checksum": 21323,
+      "samples_ns": {
+        "before": [
+          42304,
+          43706,
+          43816,
+          42614,
+          41653,
+          41723,
+          42113,
+          45148,
+          40962
+        ],
+        "after": [
+          48934,
+          50887,
+          50927,
+          48062,
+          48613,
+          48282,
+          48714,
+          49024,
+          48624
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 5288.0,
+        "after": 6089.25
+      },
+      "before_over_after": 0.8684156505316747
+    },
+    {
+      "workload": "ascii85-into-encode",
+      "raw_input_bytes": 16384,
+      "checksum": 328523,
+      "samples_ns": {
+        "before": [
+          592063,
+          599314,
+          702850,
+          608778,
+          597470,
+          597180,
+          649159,
+          593434,
+          607075
+        ],
+        "after": [
+          763942,
+          719695,
+          718533,
+          703751,
+          831264,
+          713225,
+          777352,
+          700587,
+          772405
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 74914.25,
+        "after": 89961.875
+      },
+      "before_over_after": 0.8327333106385344
+    },
+    {
+      "workload": "ascii85-into-decode",
+      "raw_input_bytes": 32,
+      "checksum": 2978,
+      "samples_ns": {
+        "before": [
+          6059,
+          7711,
+          6380,
+          8633,
+          7061,
+          6630,
+          6630,
+          7392,
+          5939
+        ],
+        "after": [
+          6620,
+          6970,
+          6279,
+          6149,
+          7421,
+          5248,
+          6279,
+          6070,
+          7741
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 828.75,
+        "after": 784.875
+      },
+      "before_over_after": 1.0559006211180124
+    },
+    {
+      "workload": "ascii85-into-decode",
+      "raw_input_bytes": 1024,
+      "checksum": 60514,
+      "samples_ns": {
+        "before": [
+          45449,
+          46830,
+          83936,
+          46019,
+          44928,
+          49605,
+          45229,
+          49515,
+          45769
+        ],
+        "after": [
+          45078,
+          44347,
+          45639,
+          44277,
+          46591,
+          45058,
+          48433,
+          49735,
+          47662
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 5752.375,
+        "after": 5704.875
+      },
+      "before_over_after": 1.0083262122307675
+    },
+    {
+      "workload": "ascii85-into-decode",
+      "raw_input_bytes": 16384,
+      "checksum": 951394,
+      "samples_ns": {
+        "before": [
+          704121,
+          832676,
+          648187,
+          1240801,
+          1258347,
+          1279820,
+          1280711,
+          667347,
+          702850
+        ],
+        "after": [
+          831514,
+          753276,
+          681568,
+          1233941,
+          1254422,
+          1373521,
+          1186950,
+          661207,
+          741629
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 104084.5,
+        "after": 103939.25
+      },
+      "before_over_after": 1.0013974509148373
+    },
+    {
+      "workload": "ascii85-offset-decode",
+      "raw_input_bytes": 32,
+      "checksum": 15950,
+      "samples_ns": {
+        "before": [
+          11387,
+          10646,
+          10105,
+          10856,
+          10856,
+          11538,
+          10506,
+          11437,
+          10086
+        ],
+        "after": [
+          8883,
+          8563,
+          8262,
+          9284,
+          8613,
+          8633,
+          7801,
+          8062,
+          8283
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 1357.0,
+        "after": 1070.375
+      },
+      "before_over_after": 1.2677799836505896
+    },
+    {
+      "workload": "ascii85-offset-decode",
+      "raw_input_bytes": 1024,
+      "checksum": 544718,
+      "samples_ns": {
+        "before": [
+          323278,
+          439213,
+          402447,
+          326923,
+          325000,
+          530490,
+          648337,
+          448376,
+          390348
+        ],
+        "after": [
+          177287,
+          236827,
+          176276,
+          175524,
+          178039,
+          235885,
+          246542,
+          175885,
+          178389
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 50305.875,
+        "after": 22254.875
+      },
+      "before_over_after": 2.2604429366599454
+    },
+    {
+      "workload": "ascii85-offset-decode",
+      "raw_input_bytes": 16384,
+      "checksum": 8716238,
+      "samples_ns": {
+        "before": [
+          23540107,
+          25343282,
+          24437481,
+          28750916,
+          22334920,
+          22541702,
+          22555463,
+          23339475,
+          24555408
+        ],
+        "after": [
+          3784246,
+          3243380,
+          3133185,
+          3018291,
+          2843288,
+          3192054,
+          3152544,
+          3101237,
+          2961686
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 2942513.375,
+        "after": 391648.125
+      },
+      "before_over_after": 7.513155782374804
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 32,
+      "checksum": 1326,
+      "samples_ns": {
+        "before": [
+          5949,
+          6620,
+          6840,
+          7782,
+          6720,
+          8773,
+          6109,
+          10295,
+          8503
+        ],
+        "after": [
+          95184,
+          6450,
+          7862,
+          8483,
+          8242,
+          90446,
+          14842,
+          6470,
+          9895
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 855.0,
+        "after": 1060.375
+      },
+      "before_over_after": 0.8063185193917246
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 1024,
+      "checksum": 10918,
+      "samples_ns": {
+        "before": [
+          42023,
+          43325,
+          41252,
+          42264,
+          41473,
+          42003,
+          40821,
+          251870,
+          42474
+        ],
+        "after": [
+          133061,
+          47862,
+          48974,
+          48152,
+          51027,
+          48293,
+          50285,
+          48563,
+          48683
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 5252.875,
+        "after": 6085.375
+      },
+      "before_over_after": 0.8631965984019062
+    },
+    {
+      "workload": "ascii85-bytes-encode",
+      "raw_input_bytes": 16384,
+      "checksum": 164518,
+      "samples_ns": {
+        "before": [
+          692223,
+          676179,
+          665684,
+          865876,
+          576079,
+          1157435,
+          1474414,
+          1071085,
+          1093108
+        ],
+        "after": [
+          723461,
+          746927,
+          721208,
+          793116,
+          1144881,
+          1226809,
+          1224657,
+          1254502,
+          1222774
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 108234.5,
+        "after": 143110.125
+      },
+      "before_over_after": 0.7563021833710228
+    }
+  ]
+}
