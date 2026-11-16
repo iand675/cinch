@@ -10,7 +10,9 @@ import (
 	"io"
 	"math"
 	"os"
+	"reflect"
 	"strconv"
+	"strings"
 )
 
 // failure retains structured causes independently from human-readable diagnostic text.
@@ -254,8 +256,85 @@ func byteIndentCases() []map[string]any {
 	return rows
 }
 
+// floatCodecCases independently pins shortest JSON formatting and typed binary64 updates.
+func floatCodecCases() map[string]any {
+	encoding := []map[string]any{}
+	patterns := []uint64{0, 1 << 63, 1, 0x000fffffffffffff, 0x0010000000000000, 0x3ff0000000000000, 0x3eb0c6f7a0b5ed8d, 0x3e7ad7f29abcaf48, 0x4415af1d78b58c40, 0x444b1ae4d6e2ef50, 0x7fefffffffffffff, 0xffefffffffffffff, 0x7ff0000000000000, 0xfff0000000000000, 0x7ff8000000000000}
+	state := uint64(0x819c9e3779b97f4a)
+	for index := 0; index < 128; index++ {
+		state ^= state << 13
+		state ^= state >> 7
+		state ^= state << 17
+		patterns = append(patterns, state)
+	}
+	for _, bits := range patterns {
+		value := math.Float64frombits(bits)
+		encoded, err := json.Marshal(value)
+		encoding = append(encoding, map[string]any{"bits": fmt.Sprintf("%016x", bits), "output_hex": wireHex(encoded), "error": errorInfo(err)})
+	}
+	updates := []map[string]any{}
+	for _, text := range []string{"null", "0", "-0", "1", "1.0", "1e-6", "1e-7", "1e20", "1e21", "9007199254740993", "1.7976931348623157e308", "1.7976931348623159e308", "5e-324", "1e-9999", "-1e-9999", "1e9999", "\"1\"", "true", "[]", "{}"} {
+		value := float64(7)
+		updates = append(updates, typedCase("F64", []byte(text), &value))
+	}
+	return map[string]any{"float_encoding": encoding, "typed": updates}
+}
+
+// fieldCodecCases independently observes name matching across complete SIMD and Unicode boundaries.
+func fieldCodecCases() map[string]any {
+	rows := []map[string]any{}
+	appendCase := func(name, key string) {
+		tag := reflect.StructTag("json:" + strconv.Quote(name))
+		typ := reflect.StructOf([]reflect.StructField{{Name: "Field", Type: reflect.TypeOf(int64(0)), Tag: tag}})
+		value := reflect.New(typ)
+		input, err := json.Marshal(map[string]int64{key: 19})
+		if err != nil {
+			panic(err)
+		}
+		err = json.Unmarshal(input, value.Interface())
+		encoded, encodeErr := json.Marshal(value.Interface())
+		rows = append(rows, map[string]any{"name": name, "input_hex": wireHex(input), "output_hex": wireHex(encoded), "value": value.Elem().Field(0).Int(), "error": errorInfo(err), "output_error": errorInfo(encodeErr)})
+	}
+	for _, n := range []int{1, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65} {
+		name := strings.Repeat("A", n)
+		appendCase(name, name)
+		appendCase(name, strings.ToLower(name))
+		for _, at := range []int{0, n / 2, n - 1} {
+			key := []byte(strings.ToLower(name))
+			key[at] = 'b'
+			appendCase(name, string(key))
+		}
+	}
+	name := strings.Repeat("A", 32)
+	for at := 0; at < 32; at++ {
+		key := []byte(strings.ToLower(name))
+		key[at] = 'b'
+		appendCase(name, string(key))
+	}
+	for _, names := range [][2]string{{"K", "K"}, {"K", "k"}, {"Σ", "ς"}, {"σ", "Σ"}, {"I", "ı"}, {"İ", "i"}, {"LongField_ABC-XYZ", "longfield_abc-xyz"}, {"LongField_ABC-XYZ", "longfieldabcxyz"}, {strings.Repeat("A", 15) + "K", "aaaaaaaaaaaaaaaK"}, {strings.Repeat("A", 16) + "Σ", "aaaaaaaaaaaaaaaaς"}, {strings.Repeat("A", 31) + "Σ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaσ"}, {"É漢😀", "é漢😀"}} {
+		appendCase(names[0], names[1])
+	}
+	return map[string]any{"field_matching": rows}
+}
+
 // main spans malformed grammar, byte/escape boundaries and exact finite-number ranges.
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--field-codecs" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(fieldCodecCases()); err != nil {
+			panic(err)
+		}
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "--float-codecs" {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(floatCodecCases()); err != nil {
+			panic(err)
+		}
+		return
+	}
 	inputs := [][]byte{}
 	for _, text := range []string{"", " ", "null", " true \r\n", "false", "0", "-0", "0.00", "1e+09", "1e9999", "[1,2,3]", "{}", "[]", "{\"a\":1,\"a\":2}", "{\"x\":[true,null,{\"é\":\"漢😀\"}]}", "\"\\uD83D\\uDE00\"", "\"\\uD800\"", "\"\\uDC00\"", "\"\\uD800\\u0041\"", "\"\\uD800\\uD800\\uDC00\"", "01", "-", "1.", "1e", "1e+", "[1,]", "{\"x\":}", "{x:1}", "[}", "{]", "truex", "true false", "\"\\x00\"", "\"\\u12xz\"", "\"unterminated", "\"line\nfeed\"", "[1 2]", "{\"a\" 1}", "{\"a\":1 \"b\":2}"} {
 		inputs = append(inputs, []byte(text))
