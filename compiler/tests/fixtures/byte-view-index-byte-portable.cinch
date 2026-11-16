@@ -1,0 +1,29 @@
+-- | Root the complete owner-preserving public exact-byte query in actual portable object code.
+module Main where
+  import Data.Bytes
+  import Data.Bytes.View
+  import Data.Bool
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  -- | Require an exact relative offset while distinguishing an absent result from an empty-range match.
+  found :: Option Nat -> Nat -> Bool
+  found result expected = case result of None -> False; Some at -> at == expected
+
+  -- | Require absence after a complete bounded traversal.
+  absent :: Option Nat -> Bool
+  absent result = case result of None -> True; Some at -> False
+
+  -- | Exercise unaligned complete words, scalar fringes and empty checked ranges through the public API.
+  main :: Int
+  main = let raw = bytes-new 65 in
+    let a = if 31 < bytes-len raw then bytes-set raw 31 255 else () in
+    let b = if 63 < bytes-len raw then bytes-set raw 63 128 else () in
+    let c = if 1 < bytes-len raw then bytes-set raw 1 2 else () in
+    case bytes-view-range raw 1 65 of
+      Err error -> 1
+      Ok view -> if found (byte-view-index-byte view 255) 30 && found (byte-view-index-byte view 128) 62
+        && found (byte-view-index-byte view 0) 1 && absent (byte-view-index-byte view 250)
+        && absent (byte-view-index-byte (byte-view-take 0 view) 0) then 0 else 1
