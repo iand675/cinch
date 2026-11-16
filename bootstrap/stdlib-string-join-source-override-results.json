@@ -1,0 +1,1768 @@
+{
+  "scope": "Private-backing-safe immutable String cloning and separator-aware single-allocation joining.",
+  "source_sha256": "a28cbf5ff36878b866a2cbc13d5a0a17641ad590432ee9a84a7c21d4e352ffab",
+  "canonical_interface_source_hash": "2208935183635788093",
+  "fresh_embedded_validation_claimed": false,
+  "fresh_native_base_validation_claimed": false,
+  "sdk_crosscheck": {
+    "rows": 450,
+    "all_decoded_observations_equal": true,
+    "fixture_sha256": "db801bd8d1ff54a058524cb16864778f8bca53eae4eac9f4105e94c69fa53691",
+    "sdk_output_sha256": "c04d51c7df006b24c9833cf482649814922a561919c343c8ee28a1c2cfefc924"
+  },
+  "runs": {
+    "o0": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "source_sha256": "a28cbf5ff36878b866a2cbc13d5a0a17641ad590432ee9a84a7c21d4e352ffab",
+      "fixture_sha256": "db801bd8d1ff54a058524cb16864778f8bca53eae4eac9f4105e94c69fa53691",
+      "opt_level": 0,
+      "epoch": "source-override",
+      "fresh_embedded_validation_claimed": false,
+      "native_base_validation_claimed": false,
+      "results": [
+        {
+          "group": "joins",
+          "cases": 450,
+          "epoch_receipt": {
+            "interface_sha256": "fced158207e11989a0dc07912b6d3ae0204882df15056923f32ef45746dc4a6f",
+            "source_hash": "3442465887547229185",
+            "module_source_sha256": "b0b578354e8f142cd1bc5696e3f489770a71bb6bdba7b4e255cd33ad89a7eb14"
+          },
+          "entry_sha256": "3eddf5800e8158da8b70ad76bdad01b1d4f542968e056f037a0558e02e56265c",
+          "executable_sha256": "28ab06daaca954f0ee7c5feb8da7047b05f6a55a2f3cd4210d37c9f803a81460",
+          "llvm_sha256": "dc9686d94785ba7df8d997d6ae8b5676a17aa0cb244a3d805c5a8b0e3f013d73",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 1,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 2,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 3,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 4,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 5,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 6,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 7,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 8,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 9,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 10,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 11,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 12,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 13,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 14,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 15,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 16,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 17,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 18,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 19,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 20,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 21,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 22,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 23,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 24,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 25,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 26,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 27,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 28,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 29,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 30,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 31,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 32,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 33,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 34,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 35,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 36,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 37,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 38,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 39,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 40,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 41,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 42,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 43,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 44,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 45,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 46,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 47,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 48,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 49,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 50,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 51,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 52,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 53,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 54,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 55,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 56,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 1,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 2,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 3,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 4,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 5,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 6,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 7,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 8,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 9,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 10,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 11,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 12,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 13,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 14,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 15,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 16,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 17,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 18,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 19,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 20,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 21,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 22,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 23,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 24,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 25,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 26,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 27,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 28,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 29,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 30,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 31,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 32,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 33,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 34,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 35,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 36,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 37,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 38,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 39,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 40,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 41,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 42,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 43,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 44,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 45,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 46,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 47,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 48,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 49,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 50,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 51,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 52,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 53,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 54,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 55,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 56,
+              "repetition": 0,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "owners",
+          "cases": 1,
+          "epoch_receipt": {
+            "interface_sha256": "fced158207e11989a0dc07912b6d3ae0204882df15056923f32ef45746dc4a6f",
+            "source_hash": "3442465887547229185",
+            "module_source_sha256": "b0b578354e8f142cd1bc5696e3f489770a71bb6bdba7b4e255cd33ad89a7eb14"
+          },
+          "entry_sha256": "8b915c79a645d44b297507a1be46a19fae70d2028f95e8aba364676ed3c7e064",
+          "executable_sha256": "a6037f9f6abb5f6c59e6b2409a9ab587f253a9f64c77a0ba7c71f98ebe6e2872",
+          "llvm_sha256": "b43516e70051f5ac4f11f4e49a83199d920126d1f456b37e46a1b82602e03119",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 9,
+              "zero_leaks": true
+            }
+          ]
+        }
+      ],
+      "compiler_process_settings": {
+        "shell_stack_soft_bytes": 67108864,
+        "RUST_MIN_STACK": "67108864",
+        "cpu": 0
+      },
+      "compiled_program_settings": {
+        "normal": {
+          "CINCH_HEAP_LIMIT": "32M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "0"
+        },
+        "poison": {
+          "CINCH_HEAP_LIMIT": "256M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "1"
+        },
+        "CINCH_LEAK_CHECK": "1",
+        "rows_per_process": 8,
+        "owner_pipelines_per_process": 10,
+        "owner_processes_per_profile": 10
+      }
+    },
+    "o2": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "source_sha256": "a28cbf5ff36878b866a2cbc13d5a0a17641ad590432ee9a84a7c21d4e352ffab",
+      "fixture_sha256": "db801bd8d1ff54a058524cb16864778f8bca53eae4eac9f4105e94c69fa53691",
+      "opt_level": 2,
+      "epoch": "source-override",
+      "fresh_embedded_validation_claimed": false,
+      "native_base_validation_claimed": false,
+      "results": [
+        {
+          "group": "joins",
+          "cases": 450,
+          "epoch_receipt": {
+            "interface_sha256": "fced158207e11989a0dc07912b6d3ae0204882df15056923f32ef45746dc4a6f",
+            "source_hash": "3442465887547229185",
+            "module_source_sha256": "b0b578354e8f142cd1bc5696e3f489770a71bb6bdba7b4e255cd33ad89a7eb14"
+          },
+          "entry_sha256": "3eddf5800e8158da8b70ad76bdad01b1d4f542968e056f037a0558e02e56265c",
+          "executable_sha256": "cbc1a1f54dad72a431497f6c189bb7777002bfff66ca57f935bc71d255eb14be",
+          "llvm_sha256": "dc9686d94785ba7df8d997d6ae8b5676a17aa0cb244a3d805c5a8b0e3f013d73",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 1,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 2,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 3,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 4,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 5,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 6,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 7,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 8,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 9,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 10,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 11,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 12,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 13,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 14,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 15,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 16,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 17,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 18,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 19,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 20,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 21,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 22,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 23,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 24,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 25,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 26,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 27,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 28,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 29,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 30,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 31,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 32,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 33,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 34,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 35,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 36,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 37,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 38,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 39,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 40,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 41,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 42,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 43,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 44,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 45,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 46,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 47,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 48,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 49,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 50,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 51,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 52,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 53,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 54,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 55,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 56,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 1,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 2,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 3,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 4,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 5,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 6,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 7,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 8,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 9,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 10,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 11,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 12,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 13,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 14,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 15,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 16,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 17,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 18,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 19,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 20,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 21,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 22,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 23,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 24,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 25,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 26,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 27,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 28,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 29,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 30,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 31,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 32,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 33,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 34,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 35,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 36,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 37,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 38,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 39,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 40,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 41,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 42,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 43,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 44,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 45,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 46,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 47,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 48,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 49,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 50,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 51,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 52,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 53,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 54,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 55,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 56,
+              "repetition": 0,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "owners",
+          "cases": 1,
+          "epoch_receipt": {
+            "interface_sha256": "fced158207e11989a0dc07912b6d3ae0204882df15056923f32ef45746dc4a6f",
+            "source_hash": "3442465887547229185",
+            "module_source_sha256": "b0b578354e8f142cd1bc5696e3f489770a71bb6bdba7b4e255cd33ad89a7eb14"
+          },
+          "entry_sha256": "8b915c79a645d44b297507a1be46a19fae70d2028f95e8aba364676ed3c7e064",
+          "executable_sha256": "d8bea37f439e93979953f396a67c420511639c4039b053c1130aeb9220fcc1ab",
+          "llvm_sha256": "b43516e70051f5ac4f11f4e49a83199d920126d1f456b37e46a1b82602e03119",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 0,
+              "repetition": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "repetition": 9,
+              "zero_leaks": true
+            }
+          ]
+        }
+      ],
+      "compiler_process_settings": {
+        "shell_stack_soft_bytes": 67108864,
+        "RUST_MIN_STACK": "67108864",
+        "cpu": 0
+      },
+      "compiled_program_settings": {
+        "normal": {
+          "CINCH_HEAP_LIMIT": "32M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "0"
+        },
+        "poison": {
+          "CINCH_HEAP_LIMIT": "256M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "1"
+        },
+        "CINCH_LEAK_CHECK": "1",
+        "rows_per_process": 8,
+        "owner_pipelines_per_process": 10,
+        "owner_processes_per_profile": 10
+      }
+    }
+  },
+  "o0_loop_receipts": {
+    "join-size": {
+      "emitted_workers": 1,
+      "recursive_calls": [],
+      "entry_backedges": true
+    },
+    "join-copy": {
+      "emitted_workers": 1,
+      "recursive_calls": [],
+      "entry_backedges": true
+    }
+  },
+  "canonical_new_declarations": 4,
+  "rust_tests_supplied": 4,
+  "rust_tests_run_in_lane": false,
+  "pending_validation": [
+    "fresh Rust embedded String gate",
+    "fresh Native provider/source receipt and functional corpus",
+    "focused parent Rust target",
+    "representative public pipeline benchmark"
+  ],
+  "api_mapping": {
+    "strings.Clone": "Data.String.string-clone",
+    "strings.Join": "Data.String.string-join"
+  }
+}

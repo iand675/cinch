@@ -1,0 +1,29 @@
+  -- | Compare separator placement and cloning with independently supplied complete bytes and digests.
+  join-case :: List String -> Nat -> String -> Nat -> Nat -> String -> String -> Bool
+  join-case pattern cycles separator size scalars hex digest =
+    let pieces = make-pieces (runtime-count cycles) pattern pattern Nil in
+    let joined = string-join pieces separator in let cloned = string-clone joined in
+    observed joined size scalars hex digest && observed cloned size scalars hex digest
+      && (if separator == "" then observed (string-concat-all pieces) size scalars hex digest else True)
+  -- | Check independent mutable inputs and copied output bytes around private immutable backings.
+  join-alias-case :: Unit -> Bool
+  join-alias-case unit =
+    let raw = expected-bytes "c3a900f09f9982" in
+    case string-from-bytes raw of
+      None -> False
+      Some text ->
+        let cloned = string-clone text in let joined = string-join [text,text] text in
+        let changed = if 0 < bytes-len raw then bytes-set raw 0 0 else () in
+        let exposed = string-to-bytes cloned in
+        let output-change = if 0 < bytes-len exposed then bytes-set exposed 0 0 else () in
+        text == "é\u{0}🙂" && cloned == "é\u{0}🙂" && joined == "é\u{0}🙂é\u{0}🙂é\u{0}🙂"
+  -- | Release complete temporary input lists, joined backings and clones between public pipelines.
+  join-owners-loop :: Nat -> Nat -> Bool
+  join-owners-loop left count = if left == 0 then True else
+    let pieces = make-pieces count ["é","界🙂"] ["é","界🙂"] Nil in
+    let joined = string-join pieces "," in let cloned = string-clone joined in
+    let ok = string-byte-length cloned + 1 == count * 11 && string-length cloned + 1 == count * 5 && cloned == joined in
+    if ok then let remaining = left - 1 in join-owners-loop remaining count else False
+  -- | Exercise repeated exact-size String construction with temporary backing owners.
+  join-owners-case :: Unit -> Bool
+  join-owners-case unit = join-alias-case () && join-owners-loop (runtime-count 10) (runtime-count 4097)
