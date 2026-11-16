@@ -1,0 +1,103 @@
+{
+  "description": "Rust finite Array admission, frame lifetime repair and source-distributed library checkpoint",
+  "production_commits": [
+    "239a907d",
+    "50b256b0",
+    "1d73e3e4",
+    "f9bb50b0",
+    "21aff64d",
+    "d7f65bdd",
+    "7890ce1c",
+    "17b4754e",
+    "5423a39f",
+    "f8862d26",
+    "1e7f0095",
+    "0a1f6283"
+  ],
+  "gates": {
+    "full_library": {
+      "passed": 317,
+      "seconds": 260.09,
+      "log_sha256": "34fa51627e33b4ab6990451b7611815a6d0668deb834ad9d11ec1a0c5374dfb3"
+    },
+    "native_array_source": {
+      "passed": 6,
+      "seconds": 426.64,
+      "log_sha256": "b9944848aa90bb7701ac0e5271b05810f38c17612ff548fc74fdcb59024eb38d"
+    },
+    "capture_units": {
+      "passed": 6,
+      "seconds": 0.0,
+      "log_sha256": "7fd3c1c6512d32b3db7a97ab09ba662738cdcdb63677d0b09a4f3f0a9e252ff6"
+    },
+    "capture_runtime": {
+      "passed": 1,
+      "seconds": 14.09,
+      "log_sha256": "7a8ae1d680fbc2076d19a6ab526ad0f6a2faff5f6dd9c7151dc4125ca06c7682"
+    },
+    "recursive_array_runtime": {
+      "passed": 1,
+      "seconds": 3.83,
+      "log_sha256": "36d92d799e38acbc520e596fc057b3a48e227e0787b85ac3309cc14c239eb129"
+    },
+    "preserved_stack": {
+      "passed": 22,
+      "seconds": 116.27,
+      "log_sha256": "8eb811fd0c66746a2467a68b95b1866269ce6aef3ad1da796ffa5f4336beda75"
+    },
+    "typed_json_numeric_binary": {
+      "passed": 13,
+      "seconds": 125.04,
+      "log_sha256": "ca6ca52c2f742e24a750502639d92c4ed6efaf707c3a876751ba0b422386aa5c"
+    },
+    "quoted_printable": {
+      "passed": 2,
+      "seconds": 33.3,
+      "log_sha256": "e6a7672fdb76e59f130ace6c1b93ef3ddaedd88a061b9618ec1a090419969d27"
+    },
+    "view_portability": {
+      "passed": 1,
+      "seconds": 15.32,
+      "log_sha256": "f2b1abe850f9d36b09c0606b7769cb60e4742d23ae1b5f5aa06f6b6a9211d72e"
+    },
+    "source_interface_tag_guard": {
+      "passed": 1,
+      "seconds": 0.02,
+      "log_sha256": "a8d3eaf7d1a114020767bdf8083c24608465e9d989ba06f9c18fae3f1aa13e5a"
+    }
+  },
+  "frozen_rust_compiler": "build/array-frame-safe-frozen/cinch",
+  "frozen_rust_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+  "frozen_runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "documentation": {
+    "modules": 176,
+    "value_exports": 4643,
+    "public_methods": 115,
+    "diagnostics": 0,
+    "orphans": 0,
+    "drift_check": "passed",
+    "validation_log_sha256": "b423ece140b0baa398fe76e1fcd13191810b5582f60f9c8d14c2eecbb0f11b6d"
+  },
+  "inventory": {
+    "packages": 180,
+    "complete": 20,
+    "partial": 50,
+    "unreviewed": 110
+  },
+  "specific_library_sources": {
+    "Data.Bytes.View": "c55e57028c56d673d75c29ba91936ee614c3631addda328abe75c12a1bbf3e7e",
+    "Text.Json.Codec": "7f976b62e406a8e9ea517f850da5ef226bf97388b1ed7dd2acb017af9637a1a1"
+  },
+  "pending_at_this_checkpoint": [
+    "Final arrays/dependent/codata preserved targets",
+    "Updated c55 ByteView10 and JSON13/QP2 targets against final production epoch",
+    "Merged self-built Native Array/scalar/foreign-alias family with exact V2 provider",
+    "Ring/source scalar observation/Map/PEM/MIME increments remain separate"
+  ],
+  "limitations": [
+    "Full standard-library initiative remains active.",
+    "Frozen b004 is the focused compiler epoch, before the later source-distributed c55 module fingerprint rebuild; production Rust implementation is unchanged.",
+    "No interface schema, ARC ownership convention or unsafe foreign contract was relaxed.",
+    "All poison consumers retain 256M heap and8M stack; ordinary consumers retain32M heap and8M stack."
+  ]
+}

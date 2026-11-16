@@ -39,25 +39,39 @@
         "Data.Bytes.Build",
         "Data.Bytes.Search",
         "Data.Bytes.Word",
-        "Data.StringIo"
+        "Data.StringIo",
+        "Data.Bytes.View"
       ],
       "remaining": [
-        "Full operation-level review of the 102 reference declarations, including general substring search, splitting, replacement, Unicode text operations and buffer APIs",
-        "Public Search/Build benchmark review remains in progress"
+        "Complete the 102-record capability review, including splitting, iteration, replacement, Unicode operations and buffer APIs",
+        "General byte-view search/cut/compare and stable compiled patterns are implemented; further byte families remain open"
       ],
       "reference_declarations": 102,
       "tests": [
         "lib_byte_search",
         "lib_byte_build"
       ],
-      "benchmarks": [],
+      "benchmarks": [
+        "bootstrap/stdlib-byte-view-selected-results.json"
+      ],
       "capabilities": {
         "IndexByte": "Data.Bytes.Search.bytes-index-byte -> Option Nat",
         "LastIndexByte": "Data.Bytes.Search.bytes-last-index-byte -> Option Nat",
         "Clone": "Data.Bytes.Build.bytes-clone; always fresh mutable output",
         "Repeat": "Data.Bytes.Build.bytes-repeat; count-first checked natural input",
         "Join": "Data.Bytes.Build.bytes-join; separator-aware fresh output",
-        "specialized-foundations": "bytes-contains-byte, bytes-count-byte, bytes-concat; these do not claim general substring Contains/Count coverage"
+        "Contains": "Data.Bytes.View.bytes-contains",
+        "Count": "Data.Bytes.View.bytes-count, including raw UTF8 empty separator policy",
+        "Index": "Data.Bytes.View.bytes-index",
+        "LastIndex": "Data.Bytes.View.bytes-last-index",
+        "HasPrefix": "Data.Bytes.View.bytes-has-prefix",
+        "HasSuffix": "Data.Bytes.View.bytes-has-suffix",
+        "Cut": "Data.Bytes.View.bytes-cut -> Option owner-retaining bounded views",
+        "CutLast": "Data.Bytes.View.bytes-cut-last -> Option owner-retaining bounded views",
+        "CutPrefix": "Data.Bytes.View.bytes-cut-prefix",
+        "CutSuffix": "Data.Bytes.View.bytes-cut-suffix",
+        "Compare": "Data.Bytes.bytes-compare; byte-view-compare is additionally available",
+        "Equal": "Data.Bytes Eq_Bytes; byte-view-equal is additionally available"
       }
     },
     {
@@ -1396,10 +1410,32 @@
     },
     {
       "reference_package": "mime/quotedprintable",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Text.QuotedPrintable",
+        "Effect.QuotedPrintable"
+      ],
       "remaining": [],
-      "reference_declarations": 8
+      "reference_declarations": 8,
+      "tests": [
+        "lib_quoted_printable"
+      ],
+      "benchmarks": [
+        "benchmarks/stdlib/quoted-printable-validation-2026-11-16.json",
+        "benchmarks/stdlib/quoted-printable-final-benchmark-native-stream-policy-2026-11-16.json",
+        "benchmarks/stdlib/quoted-printable-final-benchmark-rust-stream-policy-2026-11-16.json"
+      ],
+      "capability_mapping": {
+        "NewReader": "quoted-printable-reader over ByteReader",
+        "Reader": "opaque QuotedPrintableReader",
+        "Reader.Read": "quoted-printable-read: fresh bytes, simultaneous status, advanced reader",
+        "NewWriter": "quoted-printable-writer with explicit mode and ByteWriter",
+        "Writer": "opaque QuotedPrintableWriter",
+        "Writer.Binary": "quoted-printable-writer-policy and quoted-printable-writer-mode, including failed handles",
+        "Writer.Write": "quoted-printable-write: accepted input count, error and advanced sink",
+        "Writer.Close": "quoted-printable-finish: flush final line without closing sink"
+      },
+      "review": "All eight records have implemented typed mappings. Independent whole-value, reader/writer trace, ownership, short-write, error precedence and mode-readback observations pass both identified frozen frontends in normal and poisoned profiles. Parent SDK-free Cargo target passes both tests. Bounded SIMD classifiers and all raw public timing samples, including slower Native results, are retained. Complete denotes functional coverage through the standard ByteReader/ByteWriter contract, not performance parity."
     },
     {
       "reference_package": "net",
