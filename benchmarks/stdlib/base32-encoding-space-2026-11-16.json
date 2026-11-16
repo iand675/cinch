@@ -1,0 +1,926 @@
+{
+  "description": "One complete public operation per process with equal-length executable paths and ordinary reclamation; startup and preparation included",
+  "inputs": {
+    "before": {
+      "description": "Public Base32 pipelines with matched length/boundary checksums; immutable buffers and mutable reference allocations differ",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "compiler_snapshot": {
+        "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+        "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
+        "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
+        "source_sha256": {
+          "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+          "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+          "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+          "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+        }
+      },
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+      "driver_sha256": "a146a2873e41a767a2ed03c4ee01aa5bfc695047f0c2eb20d1684cdfc6fc1648",
+      "sources": {
+        "Text.Base32": "c6ba4bb8bd5d91163f6d9b984af35fe40a22d618bc6f4c2bd31be5cf825027a4",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Effect.Base32": "56be422a4d99b7ead687ad1348df1e1a82f82297c6df5c0c6eddeb99adc4149f",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+      },
+      "source_root": "/workspace/dasl-stdlib-io/compiler/prelude",
+      "source_paths": {
+        "Text.Base32": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Text.Base32.cinch",
+        "Data.Bytes.Word": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Data.Bytes.Word.cinch",
+        "Effect.Base32": "/workspace/dasl-stdlib-base32-bench/build/base32-cursor-baseline/Effect.Base32.cinch",
+        "Effect.Stream": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Effect.Stream.cinch"
+      },
+      "source_overrides": {
+        "Text.Base32": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Text.Base32.cinch",
+        "Data.Bytes.Word": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Data.Bytes.Word.cinch",
+        "Effect.Base32": "/workspace/dasl-stdlib-base32-bench/build/base32-cursor-baseline/Effect.Base32.cinch",
+        "Effect.Stream": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources/Effect.Stream.cinch"
+      },
+      "source_snapshots": "/workspace/dasl-stdlib-base32-bench/build/base32-cursor-baseline-bench/sources",
+      "runner_sha256": "bf0ff8f40177fb9b8194dc31cda978bd129382c3ba086a06491498db65de66d7",
+      "opt_level": 2,
+      "rc_debug_capability": true,
+      "executable_sha256": "124f92b6ff386fd360c698547c7a3274c677fab57d1e1085fdfa4854a232418e",
+      "llvm_sha256": "d9266f4640b834647fd4f5e679675b576ba70e83a103c89c35664894214a9f46",
+      "assembly_sha256": "d1c4c88a99cc4579a733dc424a856f1e82366dcf543bd14d7166a75dd230b146",
+      "reference_source_sha256": "94516dc9d56ee421ce046134802dbb7eb2ca152f5f65ec2d53af8d84286391c5",
+      "reference_executable_sha256": "8800ce7c413c69ad66429b9f2687e4798aacef434078e83e4e9d3111d3d194e0",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "artifacts": "/workspace/dasl-stdlib-base32-bench/build/base32-cursor-baseline-bench",
+      "results": []
+    },
+    "after": {
+      "description": "Public Base32 pipelines with matched length/boundary checksums; immutable buffers and mutable reference allocations differ",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "compiler_snapshot": {
+        "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+        "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
+        "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
+        "source_sha256": {
+          "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+          "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+          "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+          "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+        }
+      },
+      "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+      "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+      "driver_sha256": "a146a2873e41a767a2ed03c4ee01aa5bfc695047f0c2eb20d1684cdfc6fc1648",
+      "sources": {
+        "Text.Base32": "c6ba4bb8bd5d91163f6d9b984af35fe40a22d618bc6f4c2bd31be5cf825027a4",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Effect.Base32": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
+        "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+      },
+      "source_root": "/workspace/dasl-stdlib-io/compiler/prelude",
+      "source_paths": {
+        "Text.Base32": "/workspace/dasl-stdlib-io/compiler/prelude/Text/Base32.cinch",
+        "Data.Bytes.Word": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Bytes/Word.cinch",
+        "Effect.Base32": "/workspace/dasl-stdlib-io/compiler/prelude/Effect/Base32.cinch",
+        "Effect.Stream": "/workspace/dasl-stdlib-io/compiler/prelude/Effect/Stream.cinch"
+      },
+      "source_overrides": {},
+      "source_snapshots": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench/sources",
+      "runner_sha256": "bf0ff8f40177fb9b8194dc31cda978bd129382c3ba086a06491498db65de66d7",
+      "opt_level": 2,
+      "rc_debug_capability": true,
+      "executable_sha256": "95f439f76360d1dfdb1e103a3e9d41bc5e5f2478f0bb6d4b4f0a85c4d1ddfe17",
+      "llvm_sha256": "b4565903367bb9d31ccd2f1a4f5eae7379343579f152a5fb34c78b5a2c800a0b",
+      "assembly_sha256": "480ab0cbf948e18e2004edd9a5a28a3c7317364a9c8e0749787746b8195a6c5e",
+      "reference_source_sha256": "94516dc9d56ee421ce046134802dbb7eb2ca152f5f65ec2d53af8d84286391c5",
+      "reference_executable_sha256": "8800ce7c413c69ad66429b9f2687e4798aacef434078e83e4e9d3111d3d194e0",
+      "reference_sdk": "go version go1.27.4 linux/amd64",
+      "artifacts": "/workspace/dasl-stdlib-base32-bench/build/base32-final-bench",
+      "results": []
+    }
+  },
+  "cpu_affinity": [
+    0
+  ],
+  "environment": {
+    "CINCH_RC_DEBUG": "0",
+    "CINCH_ALLOC_STATS": "1",
+    "CINCH_LEAK_CHECK": "1",
+    "CINCH_HEAP_LIMIT": "32M",
+    "CINCH_STACK_SIZE": "8M"
+  },
+  "rows": [
+    {
+      "variant": "before",
+      "workload": "encode-bytes",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 182,
+      "stats": {
+        "blocks": 105,
+        "bytes": 3129,
+        "peak": 1321,
+        "header-blocks": 78,
+        "header-bytes": 1648,
+        "immortal": 0,
+        "freed": 78,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "decode-bytes",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 169,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3505,
+        "peak": 1321,
+        "header-blocks": 89,
+        "header-bytes": 1920,
+        "immortal": 0,
+        "freed": 89,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "custom-encode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 172,
+      "stats": {
+        "blocks": 142,
+        "bytes": 4769,
+        "peak": 1321,
+        "header-blocks": 112,
+        "header-bytes": 2968,
+        "immortal": 0,
+        "freed": 112,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "custom-decode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 169,
+      "stats": {
+        "blocks": 156,
+        "bytes": 5145,
+        "peak": 1321,
+        "header-blocks": 123,
+        "header-bytes": 3240,
+        "immortal": 0,
+        "freed": 123,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "legacy-encode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 182,
+      "stats": {
+        "blocks": 294,
+        "bytes": 6969,
+        "peak": 1322,
+        "header-blocks": 261,
+        "header-bytes": 5312,
+        "immortal": 0,
+        "freed": 261,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "legacy-decode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 169,
+      "stats": {
+        "blocks": 174,
+        "bytes": 4737,
+        "peak": 1512,
+        "header-blocks": 144,
+        "header-bytes": 3112,
+        "immortal": 0,
+        "freed": 144,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "stream-encode64",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 182,
+      "stats": {
+        "blocks": 145,
+        "bytes": 4061,
+        "peak": 1322,
+        "header-blocks": 109,
+        "header-bytes": 2344,
+        "immortal": 0,
+        "freed": 109,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "stream-decode64",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 169,
+      "stats": {
+        "blocks": 155,
+        "bytes": 4661,
+        "peak": 1322,
+        "header-blocks": 122,
+        "header-bytes": 2928,
+        "immortal": 0,
+        "freed": 122,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "append-encode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 187,
+      "stats": {
+        "blocks": 110,
+        "bytes": 3233,
+        "peak": 1321,
+        "header-blocks": 82,
+        "header-bytes": 1744,
+        "immortal": 0,
+        "freed": 82,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "append-decode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 174,
+      "stats": {
+        "blocks": 126,
+        "bytes": 3673,
+        "peak": 1321,
+        "header-blocks": 94,
+        "header-bytes": 2048,
+        "immortal": 0,
+        "freed": 94,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "into-encode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 182,
+      "stats": {
+        "blocks": 114,
+        "bytes": 3326,
+        "peak": 1322,
+        "header-blocks": 86,
+        "header-bytes": 1808,
+        "immortal": 0,
+        "freed": 86,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "into-decode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 169,
+      "stats": {
+        "blocks": 126,
+        "bytes": 3673,
+        "peak": 1322,
+        "header-blocks": 95,
+        "header-bytes": 2048,
+        "immortal": 0,
+        "freed": 95,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "encode-bytes",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104990,
+      "stats": {
+        "blocks": 133,
+        "bytes": 174036,
+        "peak": 170915,
+        "header-blocks": 106,
+        "header-bytes": 2208,
+        "immortal": 0,
+        "freed": 106,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "decode-bytes",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 143,
+        "bytes": 370847,
+        "peak": 236516,
+        "header-blocks": 113,
+        "header-bytes": 2408,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "custom-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104980,
+      "stats": {
+        "blocks": 170,
+        "bytes": 175676,
+        "peak": 171203,
+        "header-blocks": 140,
+        "header-bytes": 3528,
+        "immortal": 0,
+        "freed": 140,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "custom-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 180,
+        "bytes": 372487,
+        "peak": 236804,
+        "header-blocks": 147,
+        "header-bytes": 3728,
+        "immortal": 0,
+        "freed": 147,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "legacy-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104990,
+      "stats": {
+        "blocks": 209984,
+        "bytes": 4685534,
+        "peak": 275787,
+        "header-blocks": 209951,
+        "header-bytes": 4199112,
+        "immortal": 0,
+        "freed": 209951,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "legacy-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 65704,
+        "bytes": 2022826,
+        "peak": 1848627,
+        "header-blocks": 65674,
+        "header-bytes": 1575736,
+        "immortal": 0,
+        "freed": 65674,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "stream-encode64",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104990,
+      "stats": {
+        "blocks": 22065,
+        "bytes": 1032066,
+        "peak": 324955,
+        "header-blocks": 15276,
+        "header-bytes": 358056,
+        "immortal": 0,
+        "freed": 15276,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "stream-decode64",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 9659,
+        "bytes": 2140836,
+        "peak": 328036,
+        "header-blocks": 7530,
+        "header-bytes": 231344,
+        "immortal": 0,
+        "freed": 7530,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "append-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104995,
+      "stats": {
+        "blocks": 138,
+        "bytes": 174140,
+        "peak": 170919,
+        "header-blocks": 110,
+        "header-bytes": 2304,
+        "immortal": 0,
+        "freed": 110,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "append-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65774,
+      "stats": {
+        "blocks": 150,
+        "bytes": 436519,
+        "peak": 236544,
+        "header-blocks": 118,
+        "header-bytes": 2536,
+        "immortal": 0,
+        "freed": 118,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "into-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104990,
+      "stats": {
+        "blocks": 142,
+        "bytes": 239737,
+        "peak": 236438,
+        "header-blocks": 114,
+        "header-bytes": 2368,
+        "immortal": 0,
+        "freed": 114,
+        "live": 0
+      }
+    },
+    {
+      "variant": "before",
+      "workload": "into-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 150,
+        "bytes": 436520,
+        "peak": 302083,
+        "header-blocks": 119,
+        "header-bytes": 2536,
+        "immortal": 0,
+        "freed": 119,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "encode-bytes",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 182,
+      "stats": {
+        "blocks": 105,
+        "bytes": 3129,
+        "peak": 1321,
+        "header-blocks": 78,
+        "header-bytes": 1648,
+        "immortal": 0,
+        "freed": 78,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "decode-bytes",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 169,
+      "stats": {
+        "blocks": 119,
+        "bytes": 3505,
+        "peak": 1321,
+        "header-blocks": 89,
+        "header-bytes": 1920,
+        "immortal": 0,
+        "freed": 89,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "custom-encode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 172,
+      "stats": {
+        "blocks": 142,
+        "bytes": 4769,
+        "peak": 1321,
+        "header-blocks": 112,
+        "header-bytes": 2968,
+        "immortal": 0,
+        "freed": 112,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "custom-decode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 169,
+      "stats": {
+        "blocks": 156,
+        "bytes": 5145,
+        "peak": 1321,
+        "header-blocks": 123,
+        "header-bytes": 3240,
+        "immortal": 0,
+        "freed": 123,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "legacy-encode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 182,
+      "stats": {
+        "blocks": 294,
+        "bytes": 6969,
+        "peak": 1322,
+        "header-blocks": 261,
+        "header-bytes": 5312,
+        "immortal": 0,
+        "freed": 261,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "legacy-decode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 169,
+      "stats": {
+        "blocks": 174,
+        "bytes": 4737,
+        "peak": 1512,
+        "header-blocks": 144,
+        "header-bytes": 3112,
+        "immortal": 0,
+        "freed": 144,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "stream-encode64",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 182,
+      "stats": {
+        "blocks": 145,
+        "bytes": 4061,
+        "peak": 1322,
+        "header-blocks": 109,
+        "header-bytes": 2344,
+        "immortal": 0,
+        "freed": 109,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "stream-decode64",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 169,
+      "stats": {
+        "blocks": 154,
+        "bytes": 4637,
+        "peak": 1322,
+        "header-blocks": 121,
+        "header-bytes": 2904,
+        "immortal": 0,
+        "freed": 121,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "append-encode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 187,
+      "stats": {
+        "blocks": 110,
+        "bytes": 3233,
+        "peak": 1321,
+        "header-blocks": 82,
+        "header-bytes": 1744,
+        "immortal": 0,
+        "freed": 82,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "append-decode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 174,
+      "stats": {
+        "blocks": 126,
+        "bytes": 3673,
+        "peak": 1321,
+        "header-blocks": 94,
+        "header-bytes": 2048,
+        "immortal": 0,
+        "freed": 94,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "into-encode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 182,
+      "stats": {
+        "blocks": 114,
+        "bytes": 3326,
+        "peak": 1322,
+        "header-blocks": 86,
+        "header-bytes": 1808,
+        "immortal": 0,
+        "freed": 86,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "into-decode",
+      "input_bytes": 32,
+      "iterations": 1,
+      "checksum": 169,
+      "stats": {
+        "blocks": 126,
+        "bytes": 3673,
+        "peak": 1322,
+        "header-blocks": 95,
+        "header-bytes": 2048,
+        "immortal": 0,
+        "freed": 95,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "encode-bytes",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104990,
+      "stats": {
+        "blocks": 133,
+        "bytes": 174036,
+        "peak": 170915,
+        "header-blocks": 106,
+        "header-bytes": 2208,
+        "immortal": 0,
+        "freed": 106,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "decode-bytes",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 143,
+        "bytes": 370847,
+        "peak": 236516,
+        "header-blocks": 113,
+        "header-bytes": 2408,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "custom-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104980,
+      "stats": {
+        "blocks": 170,
+        "bytes": 175676,
+        "peak": 171203,
+        "header-blocks": 140,
+        "header-bytes": 3528,
+        "immortal": 0,
+        "freed": 140,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "custom-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 180,
+        "bytes": 372487,
+        "peak": 236804,
+        "header-blocks": 147,
+        "header-bytes": 3728,
+        "immortal": 0,
+        "freed": 147,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "legacy-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104990,
+      "stats": {
+        "blocks": 209984,
+        "bytes": 4685534,
+        "peak": 275787,
+        "header-blocks": 209951,
+        "header-bytes": 4199112,
+        "immortal": 0,
+        "freed": 209951,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "legacy-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 65704,
+        "bytes": 2022826,
+        "peak": 1848627,
+        "header-blocks": 65674,
+        "header-bytes": 1575736,
+        "immortal": 0,
+        "freed": 65674,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "stream-encode64",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104990,
+      "stats": {
+        "blocks": 22063,
+        "bytes": 1032022,
+        "peak": 324955,
+        "header-blocks": 15274,
+        "header-bytes": 358016,
+        "immortal": 0,
+        "freed": 15274,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "stream-decode64",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 7637,
+        "bytes": 850596,
+        "peak": 328036,
+        "header-blocks": 6506,
+        "header-bytes": 206768,
+        "immortal": 0,
+        "freed": 6506,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "append-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104995,
+      "stats": {
+        "blocks": 138,
+        "bytes": 174140,
+        "peak": 170919,
+        "header-blocks": 110,
+        "header-bytes": 2304,
+        "immortal": 0,
+        "freed": 110,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "append-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65774,
+      "stats": {
+        "blocks": 150,
+        "bytes": 436519,
+        "peak": 236544,
+        "header-blocks": 118,
+        "header-bytes": 2536,
+        "immortal": 0,
+        "freed": 118,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "into-encode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 104990,
+      "stats": {
+        "blocks": 142,
+        "bytes": 239737,
+        "peak": 236438,
+        "header-blocks": 114,
+        "header-bytes": 2368,
+        "immortal": 0,
+        "freed": 114,
+        "live": 0
+      }
+    },
+    {
+      "variant": "after",
+      "workload": "into-decode",
+      "input_bytes": 65536,
+      "iterations": 1,
+      "checksum": 65769,
+      "stats": {
+        "blocks": 150,
+        "bytes": 436520,
+        "peak": 302083,
+        "header-blocks": 119,
+        "header-bytes": 2536,
+        "immortal": 0,
+        "freed": 119,
+        "live": 0
+      }
+    }
+  ]
+}

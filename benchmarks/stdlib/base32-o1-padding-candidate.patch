@@ -1,0 +1,8 @@
+--- Text.Base32.cinch
++++ Text.Base32.cinch
+@@ -112,0 +113,2 @@
++    let tail = nat-rem (bytes-len b) 5 in
++    let padding = if tail == 0 then (0 :: Nat) else if tail == 1 then 6 else if tail == 2 then 4 else if tail == 3 then 3 else 1 in
+@@ -114 +116 @@
+-    string-concat raw (string-repeat (nat-rem (8 - nat-rem (string-length raw) 8) 8) "=")
++    string-concat raw (string-repeat padding "=")
