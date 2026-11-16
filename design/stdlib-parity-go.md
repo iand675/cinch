@@ -19,7 +19,7 @@ is not an available API.
 | `math/bits` | [Data.Word](../library/Data.Word.md), `Data.Machine`, `Algebra.Bits` | All fixed/native-width count and reversal families, significant length, signed rotations, carry/borrow, exact wide multiply, checked and proof-bearing division/remainder | All 52 reference declarations mapped; portable 128-bit division helpers and checked-result allocations remain performance costs |
 | `unicode/utf16` | [Text.Utf16](../library/Text.Utf16.md) | Scalar length, surrogate classification/pairs, sequence encode/decode, append, explicit-order byte codecs, replacement policy | All seven reference capabilities mapped and tested; byte-codec throughput and immutable-list append costs are documented |
 | `encoding/binary` | [Text.Binary](../library/Text.Binary.md) | U16/U32/U64, both byte orders, offset reads, checked writes, unsigned and zigzag I64 varints, consumed byte count | Float/aggregate codecs, stream and append operations |
-| `encoding/hex` | [Text.Hex](../library/Text.Hex.md) | Lowercase encoder, either-case decoder, length helpers, invalid-byte offsets | Dumps, stream and append operations |
+| `encoding/hex` | [Text.Hex](../library/Text.Hex.md) | Lowercase text/byte encoders, either-case decoding, prefix-preserving and append APIs, checked caller buffers with overlap isolation, length helpers and invalid-byte offsets | Dumps and stream adapters |
 | `encoding/ascii85` | [Text.Ascii85](../library/Text.Ascii85.md), [Effect.Ascii85](../library/Effect.Ascii85.md) | Whole buffers, incremental feed/finish, absolute byte errors, streaming reader/writer adapters, zero-word shorthand, control-byte tolerance and wrapped arithmetic | Caller-supplied buffers, decoded prefix/progress on errors, allocation and ownership costs |
 | `encoding/base32` | [Text.Base32](../library/Text.Base32.md) | RFC 4648 standard and extended-hex alphabets, padded and raw forms, CR/LF tolerance, final-quantum validation | Custom alphabets/padding, stream adapters |
 | `hash/adler32` | [Text.Checksum](../library/Text.Checksum.md) | Whole-buffer checksum and incremental update | Stream adapters, serialized state |
@@ -68,9 +68,9 @@ containers are included as implementation homes, not assumed full coverage.
 The [benchmark notes](../benchmarks/stdlib/README.md) describe measured public
 API pipelines and their limits. The full standard library goal remains open.
 
-Base32 discards unused low bits in the final symbol, like Go. Hex
-and Base32 return an error for the entire input, rather than Go's partial
-decoded prefix. Short binary reads return `UnexpectedBinaryEnd`, and
+Base32 discards unused low bits in the final symbol, like Go. The `hex-decode` text convenience and Base32 decoders return an error for the
+entire input. Hex prefix, append and caller-buffer APIs retain completed pairs
+alongside an error; short destination ranges fail before mutation. Short binary reads return `UnexpectedBinaryEnd`, and
 overflowing varints return `BinaryVarintOverflow`. Fixed-width put operations
 validate the complete destination range before writing any bytes.
 
