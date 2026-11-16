@@ -1261,10 +1261,14 @@ module Bootstrap.Infer where
     Cons name rest -> case lookup-type-local name locals of
       Some local -> unbound-annotation-regions locals rest
       None -> Cons name (unbound-annotation-regions locals rest)
-  -- Validate every instantiation under fresh rigids. Only after checking
-  -- may the caller choose the representation and the concrete types.
+  -- | Validate every instantiation under fresh rigids before choosing concrete annotation types.
   infer-forall-annotation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> TypeExpr -> TypeExpr -> Store -> (CoreTerm, Store)
   infer-forall-annotation classes kinds families env locals sp expression binders body st =
+    infer-forall-annotation-with False classes kinds families env locals sp expression binders body st
+
+  -- | Retain a strict binding's explicit forall as a pure polymorphic value; ordinary uses instantiate it immediately.
+  infer-forall-annotation-with :: Bool -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> TypeExpr -> TypeExpr -> Store -> (CoreTerm, Store)
+  infer-forall-annotation-with retain classes kinds families env locals sp expression binders body st =
     let visible = value-locals env locals in
     let explicit = region-parameters (forall-params-of binders) (region-names body) in
     case parameters False kinds visible (inferred-forall-parameters kinds visible explicit body) 0 Nil st of
@@ -1277,7 +1281,11 @@ module Bootstrap.Infer where
               (expected, rigids, opened) ->
                 case check classes kinds families env (opened-locals params rigids <> locals) expression expected opened of
                   (value, checked) ->
-                    case open-scheme False scheme (restore-level (store-level st) checked) of
+                    let restored = restore-level (store-level st) checked in
+                    if retain then
+                      let pure = include-effects sp (core-effects value) (URow UEnd) restored in
+                      (CPolyIntro sp (UForall (quants-of params) ty) (rigid-ids rigids) value, pure)
+                    else case open-scheme False scheme restored of
                       (actual, actuals, ready) ->
                         let replacements = annotation-substitution rigids actuals in
                         (map-term-types (\t -> substitute-rigid-types replacements (normalize checked t)) value, ready)
@@ -1372,6 +1380,143 @@ module Bootstrap.Infer where
   inferred-data-parameters kinds params constructors = case params of
     Nil -> Nil
     other -> region-parameters params (constructor-region-names kinds params constructors)
+
+  -- | Group only source-owned declaration signatures by their canonical defining module.
+  -- Imported interface schemes never rewrite a source datatype's parameter kinds.
+  phantom-signature-groups :: List Decl -> HashMap String (List TypeExpr) -> HashMap String (List TypeExpr)
+  phantom-signature-groups declarations groups = case declarations of
+    Nil -> groups
+    Cons declaration rest -> case declaration of
+      DSig sp name annotation -> phantom-signature-groups rest (phantom-add-signature name annotation groups)
+      DForeign sp direction abi symbol name annotation -> phantom-signature-groups rest (phantom-add-signature name annotation groups)
+      DMethod sp label symbol annotation -> phantom-signature-groups rest (phantom-add-signature symbol annotation groups)
+      DClass sp owner params members -> phantom-signature-groups rest (phantom-class-signatures params (decls-of members) groups)
+      other -> phantom-signature-groups rest groups
+
+  -- | Keep a method's actual enclosing class binders, not just names that appear in its own annotation.
+  phantom-class-signatures :: List TypeParam -> List Decl -> HashMap String (List TypeExpr) -> HashMap String (List TypeExpr)
+  phantom-class-signatures params members groups = case members of
+    Nil -> groups
+    Cons member rest -> case member of
+      DMethod sp label symbol annotation -> phantom-class-signatures params rest
+        (phantom-add-signature symbol (phantom-class-annotation sp params annotation) groups)
+      DSig sp name annotation -> phantom-class-signatures params rest
+        (phantom-add-signature name (phantom-class-annotation sp params annotation) groups)
+      other -> phantom-class-signatures params rest groups
+
+  -- | Nest the class's lexical forall outside the method's own binders so shadowing cannot grant outer authority.
+  phantom-class-annotation :: Span -> List TypeParam -> TypeExpr -> TypeExpr
+  phantom-class-annotation sp params annotation = case params of
+    Nil -> annotation
+    other -> TForall sp (forall-param-spine sp params) annotation
+
+  -- | Retain one source annotation under its defining module without trusting a local display alias.
+  phantom-add-signature :: String -> TypeExpr -> HashMap String (List TypeExpr) -> HashMap String (List TypeExpr)
+  phantom-add-signature name annotation groups =
+    let owner = foreign-defining-owner (reverse (unpack name)) in
+    let previous = case hash-map-lookup owner groups of None -> Nil; Some annotations -> annotations in
+    hash-map-insert owner (Cons annotation previous) groups
+
+  -- | Collect declared or inferred Region binders while preserving explicit non-Region annotations.
+  phantom-scoped-regions :: TypeContext -> List TypeParam -> TypeExpr -> List String -> List String
+  phantom-scoped-regions kinds params body inherited =
+    let names = parameter-names-for-check params in
+    let suggested = region-names body <> nominal-region-names kinds params body in
+    phantom-region-parameters (region-parameters params suggested)
+      <> unshadowed-region-names suggested names <> unshadowed-region-names inherited names
+
+  -- | Read only actual Region annotations, rather than guessing from a binder's spelling.
+  phantom-region-parameters :: List TypeParam -> List String
+  phantom-region-parameters params = case params of
+    Nil -> Nil
+    Cons parameter rest -> case parameter of
+      MkTypeParam sp name (Some (TName at kind)) only -> if same kind "Region" then Cons name (phantom-region-parameters rest) else phantom-region-parameters rest
+      other -> phantom-region-parameters rest
+
+  -- | Test one exact nominal argument position for a scoped Region variable.
+  phantom-region-argument :: Nat -> List String -> TypeExpr -> Bool
+  phantom-region-argument index regions arguments = case arguments of
+    TArg sp value rest -> if index == 0 then (case value of TName at name -> has name regions; other -> False)
+      else phantom-region-argument (index - 1) regions rest
+    other -> False
+
+  -- | Follow a nominal identity through one lexical annotation, respecting nested forall shadowing.
+  phantom-region-use :: TypeContext -> String -> Nat -> List String -> List String -> TypeExpr -> Bool
+  phantom-region-use kinds owner index bound regions syntax = case syntax of
+    TForall sp binders body ->
+      let params = forall-params-of binders in
+      phantom-region-use kinds owner index (parameter-names-for-check params <> bound)
+        (phantom-scoped-regions kinds params body regions) body
+    TApp sp head arguments -> case source-type-application head arguments of
+      (actual, spine) ->
+        (case actual of TName at name -> same name owner && not (has name bound) && phantom-region-argument index regions spine; other -> False)
+        || phantom-region-use kinds owner index bound regions spine
+    TFun sp first last -> phantom-region-use kinds owner index bound regions first || phantom-region-use kinds owner index bound regions last
+    TFunEff sp first row last -> phantom-region-use kinds owner index bound regions first || phantom-region-use kinds owner index bound regions row || phantom-region-use kinds owner index bound regions last
+    TUsageArrow sp usage arrow -> phantom-region-use kinds owner index bound regions arrow
+    TUsing sp bounds body -> phantom-region-use kinds owner index bound regions bounds || phantom-region-use kinds owner index bound regions body
+    TBound sp name annotation rest -> phantom-region-use kinds owner index bound regions annotation || phantom-region-use kinds owner index bound regions rest
+    TArg sp first rest -> phantom-region-use kinds owner index bound regions first || phantom-region-use kinds owner index bound regions rest
+    TTuple sp fields -> phantom-region-use kinds owner index bound regions fields
+    TRow sp labels tail -> phantom-region-use kinds owner index bound regions labels
+    TRefined sp predicate carrier -> phantom-region-use kinds owner index bound regions predicate || phantom-region-use kinds owner index bound regions carrier
+    other -> False
+
+  -- | Require a Region-position constraint from an actual source signature in the defining module.
+  phantom-region-used :: TypeContext -> String -> Nat -> List TypeExpr -> Bool
+  phantom-region-used kinds owner index annotations = case annotations of
+    Nil -> False
+    Cons annotation rest -> phantom-region-use kinds owner index Nil (phantom-scoped-regions kinds Nil annotation Nil) annotation
+      || phantom-region-used kinds owner index rest
+
+  -- | Detect a parameter occurring in a constructor input, excluding its own nominal result application.
+  phantom-input-mentions :: String -> TypeExpr -> Bool
+  phantom-input-mentions name annotation = case annotation of
+    TFun sp first last -> has name (structural-type-names first) || phantom-input-mentions name last
+    TFunEff sp first row last -> has name (structural-type-names first <> structural-type-names row) || phantom-input-mentions name last
+    TUsageArrow sp usage arrow -> phantom-input-mentions name arrow
+    TForall sp binders body -> not (has name (parameter-names-for-check (forall-params-of binders))) && phantom-input-mentions name body
+    TUsing sp bounds body -> has name (structural-type-names bounds) || phantom-input-mentions name body
+    other -> False
+
+  -- | A phantom parameter has no runtime constructor input that already fixes it as an ordinary value type.
+  phantom-input-present :: String -> List (String, TypeExpr) -> Bool
+  phantom-input-present name constructors = case constructors of
+    Nil -> False
+    Cons (label, annotation) rest -> phantom-input-mentions name annotation || phantom-input-present name rest
+
+  -- | Refine only unannotated phantom positions, retaining explicit source kinds as authoritative.
+  phantom-data-parameters :: TypeContext -> String -> List (String, TypeExpr) -> List TypeExpr -> Nat -> List TypeParam -> (List TypeParam, Bool)
+  phantom-data-parameters kinds owner constructors annotations index params = case params of
+    Nil -> (Nil, False)
+    Cons parameter rest -> case phantom-data-parameters kinds owner constructors annotations (index + 1) rest of
+      (more, changed) -> case parameter of
+        MkTypeParam sp name None only -> if not (phantom-input-present name constructors) && phantom-region-used kinds owner index annotations then
+          (Cons (MkTypeParam sp name (Some (TName sp "Region")) only) more, True)
+          else (Cons parameter more, changed)
+        other -> (Cons parameter more, changed)
+
+  -- | Apply definition-site constraints only to source datatype declarations, never imported headers.
+  phantom-data-declarations :: TypeContext -> HashMap String (List TypeExpr) -> List Decl -> (List Decl, Bool)
+  phantom-data-declarations kinds groups declarations = case declarations of
+    Nil -> (Nil, False)
+    Cons declaration rest -> case phantom-data-declarations kinds groups rest of
+      (more, changed) -> case declaration of
+        DData sp owner params constructors ->
+          let module-owner = foreign-defining-owner (reverse (unpack owner)) in
+          let annotations = case hash-map-lookup module-owner groups of None -> Nil; Some values -> values in
+          case phantom-data-parameters kinds owner constructors annotations 0 params of
+            (refined, local) -> (Cons (DData sp owner refined constructors) more, changed || local)
+        other -> (Cons declaration more, changed)
+
+  -- | Propagate checked nominal Region positions to a fixed point before any constructor or scheme converts.
+  -- Each round can only refine an unannotated phantom parameter once. Imported
+  -- kinds remain fixed, and recollection starts from the original contract store.
+  refine-phantom-data-kinds :: HashMap String (List TypeExpr) -> List Decl -> TypeContext -> Store -> Store -> (List Decl, TypeContext, Store)
+  refine-phantom-data-kinds groups declarations kinds seed checked = case phantom-data-declarations kinds groups declarations of
+    (refined, False) -> (declarations, kinds, checked)
+    (refined, True) -> case collect-kinds refined primitive-kinds seed of
+      (next-kinds, next-store) -> refine-phantom-data-kinds groups refined next-kinds seed next-store
   region-names :: TypeExpr -> List String
   region-names ty = case ty of
     TApp s (TName h name) (TArg a (TName r region) (TArg b carrier (TArgsEnd end))) ->
@@ -3742,25 +3887,64 @@ module Bootstrap.Infer where
   let-chain-mentions ids term = case term of
     CLet sp ty id name sc rhs body -> contains-meta id ids || let-chain-mentions ids body
     other -> False
+
+  -- | Preserve an explicit strict forall without generalizing an evaluated annotation or its performed effects.
+  infer-strict-rhs :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
+  infer-strict-rhs classes kinds families env locals syntax st = case syntax of
+    EAnn sp expression (TForall at binders body) ->
+      infer-forall-annotation-with True classes kinds families env locals sp expression binders body st
+    other -> infer classes kinds families env locals syntax st
+
+  -- | Match strict local value generalization: functions, names, integer/unit literals and value-only aggregates.
+  -- Applications and annotations are evaluated once and remain monomorphic.
+  strict-syntactic-value :: Expr -> Bool
+  strict-syntactic-value syntax = case syntax of
+    EVar sp name -> True
+    ECon sp name arguments -> case arguments of EArgsEnd at -> True; other -> False
+    ELitInt sp value -> True
+    EUnit sp -> True
+    ELam sp parameters body -> True
+    ETuple sp fields -> strict-value-fields fields
+    EList sp fields -> strict-value-fields fields
+    other -> False
+
+  -- | Every tuple/list element must itself satisfy the strict value restriction.
+  strict-value-fields :: Expr -> Bool
+  strict-value-fields fields = case fields of
+    EArgsEnd sp -> True
+    EArg sp first rest -> strict-syntactic-value first && strict-value-fields rest
+    other -> False
+
+  -- | Building a function may be pure even when calling it has latent effects; demanding a memo cell is not pure.
+  strict-value-pure :: CoreTerm -> Store -> Bool
+  strict-value-pure value st = case normalize st (core-effects value) of URow UEnd -> True; other -> False
+
+  -- | Generalize only a pure syntactic value, preserving all variables of a single evaluated mutable allocation.
+  strict-value-scheme :: Bool -> Nat -> List CheckedBinding -> CoreTerm -> Store -> (Scheme, List (Nat, UType))
+  strict-value-scheme eligible level env value st = if eligible && strict-value-pure value st then
+    generalize-with level (\u -> env-metas env st) (core-type value) st
+    else (mono (normalize st (core-type value)), Nil)
+  -- | Check strict bindings under an expected result without generalizing evaluated applications.
   check-refined-let :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-refined-let classes kinds families env locals sp bindings body expected st = case bindings of
     EBindingsEnd s -> check classes kinds families env locals body expected st
     EBinding s name rhs rest -> let level = store-level st in
-      case infer classes kinds families env locals rhs (enter-level st) of
+      case infer-strict-rhs classes kinds families env locals rhs (enter-level st) of
         (value, checked) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value checked of
-          (resolved, ready) -> check-refined-binding classes kinds families env locals sp s name rest body expected level resolved ready
+          (resolved, ready) -> check-refined-binding classes kinds families env locals sp s name rest body expected level (strict-syntactic-value rhs) resolved ready
     other -> term-error sp "malformed let binding spine" st
 
-  check-refined-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> UType -> Nat -> CoreTerm -> Store -> (CoreTerm, Store)
-  check-refined-binding classes kinds families env locals sp at name rest body expected level value st =
+  -- | Bind one strict RHS under its source value restriction while retaining dependent witness scopes.
+  check-refined-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> UType -> Nat -> Bool -> CoreTerm -> Store -> (CoreTerm, Store)
+  check-refined-binding classes kinds families env locals sp at name rest body expected level eligible value st =
     if let-result-escapes value then (case value of
       CLet s ty id display sc rhs inner ->
         let binding = MkLocalBinding display sc id level in
         let bound = proof-let-env env binding id sc rhs st in
-        case check-refined-binding classes kinds families bound locals sp at name rest body expected level (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
+        case check-refined-binding classes kinds families bound locals sp at name rest body expected level (eligible && strict-value-pure value st) (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
           (result, done) -> (CLet s expected id display sc rhs result, done)
       other -> term-error at "dependent let result has no retained witness scope" st)
-    else let (scheme, pairs) = generalize-with level (\u -> env-metas env st) (core-type value) st in
+    else let (scheme, pairs) = strict-value-scheme eligible level env value st in
       case fresh-id (restore-level level st) of
         (id, fresh) -> case let-binding at env name scheme id level value fresh of
           (binding, prepared) -> case check-refined-let classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body expected prepared of
@@ -4091,25 +4275,27 @@ module Bootstrap.Infer where
     other -> st
   infer-let :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Store -> (CoreTerm, Store)
   infer-let classes kinds families env locals sp bs body st = infer-let-with-expected classes kinds families env locals sp bs body None st
+  -- | Preserve source value eligibility while inferring strict bindings and their performed effects.
   infer-let-with-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-let-with-expected classes kinds families env locals sp bs body wanted st = case bs of
     EBindingsEnd s -> case wanted of None -> infer classes kinds families env locals body st; Some expected -> check classes kinds families env locals body expected st
     EBinding s name rhs rest ->
       let level = store-level st in
-      case infer classes kinds families env locals rhs (enter-level st) of
+      case infer-strict-rhs classes kinds families env locals rhs (enter-level st) of
         (value, sr) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value sr of
-          (resolved, sd) -> infer-let-binding classes kinds families env locals sp s name rest body level wanted resolved sd
+          (resolved, sd) -> infer-let-binding classes kinds families env locals sp s name rest body level wanted (strict-syntactic-value rhs) resolved sd
     other -> term-error (expr-span bs) "malformed let binding spine" st
-  infer-let-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> Nat -> Option UType -> CoreTerm -> Store -> (CoreTerm, Store)
-  infer-let-binding classes kinds families env locals sp at name rest body level wanted value st =
+  -- | Keep an evaluated strict allocation monomorphic and retain its original mutation/effect identity.
+  infer-let-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> Nat -> Option UType -> Bool -> CoreTerm -> Store -> (CoreTerm, Store)
+  infer-let-binding classes kinds families env locals sp at name rest body level wanted eligible value st =
     if let-result-escapes value then (case value of
       CLet s ty id display sc rhs inner ->
         let binding = MkLocalBinding display sc id level in
         let bound = proof-let-env env binding id sc rhs st in
-        case infer-let-binding classes kinds families bound locals sp at name rest body level wanted (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
+        case infer-let-binding classes kinds families bound locals sp at name rest body level wanted (eligible && strict-value-pure value st) (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
           (result, done) -> (CLet s (core-type result) id display sc rhs result, done)
       other -> term-error at "dependent let result has no retained witness scope" st)
-    else let (scheme, pairs) = generalize-with level (\u -> env-metas env st) (core-type value) st in
+    else let (scheme, pairs) = strict-value-scheme eligible level env value st in
       case fresh-id (restore-level level st) of
         (id, fresh) -> case let-binding at env name scheme id level value fresh of
           (binding, prepared) -> case infer-let-with-expected classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body wanted prepared of
@@ -4174,22 +4360,24 @@ module Bootstrap.Infer where
     case (case pattern of PVar sp name -> group-signature name signatures; other -> None) of
       Some annotation -> (case checked-local-signature kinds env locals annotation st of
         (ty, checked) -> check classes kinds families env locals syntax ty checked)
-      None -> infer classes kinds families env locals syntax st
+      None -> infer-strict-rhs classes kinds families env locals syntax st
+  -- | Retain each local group RHS's actual value restriction when binding its result.
   infer-group-strict :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List (String, TypeExpr) -> Expr -> Store -> (List CheckedBinding, List LocalStep, Store)
   infer-group-strict classes kinds families env locals signatures bindings st = case bindings of
     ELocalStrict sp pattern syntax rest -> let level = store-level st in
       (case infer-group-rhs classes kinds families env locals signatures pattern syntax (enter-level st) of
         (term, checked) -> (case resolve-dictionary-term-with classes (env-instances env) (env-givens env) term checked of
-          (value, prepared) -> (case bind-group-value classes kinds families env locals sp pattern level value prepared of
+          (value, prepared) -> (case bind-group-value classes kinds families env locals sp pattern level (strict-syntactic-value syntax) value prepared of
             (bound, step, ready) -> (case infer-group-strict classes kinds families bound locals signatures rest ready of
               (finished, steps, done) -> (finished, Cons step steps, done)))))
     ELocalMemo sp name syntax rest -> infer-group-strict classes kinds families env locals signatures rest st
     ELocalSignature sp name ty rest -> infer-group-strict classes kinds families env locals signatures rest st
     ELocalEnd sp -> (env, Nil, st)
     other -> (env, Nil, add-error (expr-span bindings) "malformed local binding group" st)
-  bind-group-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Pat -> Nat -> CoreTerm -> Store -> (List CheckedBinding, LocalStep, Store)
-  bind-group-value classes kinds families env locals sp pattern level value st = case pattern of
-    PVar at name -> let (scheme, pairs) = generalize-with level (\u -> env-metas env st) (core-type value) st in
+  -- | Apply the same value restriction to strict local groups and ordinary let syntax.
+  bind-group-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Pat -> Nat -> Bool -> CoreTerm -> Store -> (List CheckedBinding, LocalStep, Store)
+  bind-group-value classes kinds families env locals sp pattern level eligible value st = case pattern of
+    PVar at name -> let (scheme, pairs) = strict-value-scheme eligible level env value st in
       (case fresh-id (restore-level level st) of
         (id, fresh) -> (case let-binding at env name scheme id level value fresh of
           (binding, ready) -> (proof-let-env env binding id scheme value ready,
@@ -5199,14 +5387,15 @@ module Bootstrap.Infer where
       let bound = proof-let-env env (MkLocalBinding name scheme id (store-level ready)) id scheme value ready in
       case check-do classes kinds families (if same name "_" then env else bound) locals sp rest expected (check-borrow-binding at env (scheme-body scheme) ready) of
         (body, done) -> (CLet at expected id name scheme value body, done)
+  -- | Keep do-let values pure and apply the same source value restriction as ordinary lets.
   check-do-lets :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-do-lets classes kinds families env locals sp bindings rest expected st = case bindings of
     EBindingsEnd at -> check-do classes kinds families env locals sp rest expected st
     EBinding at name rhs more -> let level = store-level st in
-      (case infer classes kinds families env locals rhs (enter-level st) of
+      (case infer-strict-rhs classes kinds families env locals rhs (enter-level st) of
         (value, checked) -> let checked-pure = include-effects at (core-effects value) (URow UEnd) checked in
           let continuation = EDo sp (case more of EBindingsEnd end -> rest; other -> EArg sp (ELet sp more (EUnit sp)) rest) in
-          check-refined-binding classes kinds families env locals sp at name (EBindingsEnd at) continuation expected level value checked-pure)
+          check-refined-binding classes kinds families env locals sp at name (EBindingsEnd at) continuation expected level (strict-syntactic-value rhs) value checked-pure)
     other -> term-error sp "malformed do let binding group" st
 
   check-alternatives :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreTerm -> UType -> Expr -> Store -> (CoreTerm, Store)
@@ -6501,20 +6690,23 @@ module Bootstrap.Infer where
   elaborate-module label m =
     let interfaces = load-checked-interface-set-from-contracts (total-interface-inputs (module-decls m)) in
     elaborate-module-with-source-bodies interfaces True label m
+  -- | Elaborate source with authoritative imported kinds, lexical regions and independently checked Core closure.
   elaborate-module-with-source-bodies :: Result String InterfaceSet -> Bool -> String -> Module -> Elaboration
   elaborate-module-with-source-bodies interfaces enable label m =
     let original = module-decls m in
     let has-codata = codata-present original in
     let declarations = if has-codata then unwrap-corec-declarations original else original in
-    let ds = if record-definitions-present declarations then record-declarations declarations declarations else declarations in
+    let unkinded = if record-definitions-present declarations then record-declarations declarations declarations else declarations in
     let initial = empty-store label in
     let guarded = if has-codata then check-codata-bodies original (codata-call-graph original) original initial else initial in
-    let contracts = check-imported-refinements ds Nil guarded in
+    let contracts = check-imported-refinements unkinded Nil guarded in
     -- Every data head registers before any constructor type converts
     -- (`collect-kinds`), so a data declaration may name one written later;
     -- `register` judges each declaration's strongly connected group
     -- (core specification section 2, mutual inductive groups).
-    let (source-kinds, source-store) = collect-kinds ds primitive-kinds contracts in
+    let (preliminary-kinds, preliminary-store) = collect-kinds unkinded primitive-kinds contracts in
+    let groups = phantom-signature-groups unkinded hash-map-empty in
+    let (ds, source-kinds, source-store) = refine-phantom-data-kinds groups unkinded preliminary-kinds contracts preliminary-store in
     let rows = class-rows ds in
     let (instance-kinds, instance-store) = source-instance-nominals ds rows source-kinds source-store in
     let (nominal-kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in

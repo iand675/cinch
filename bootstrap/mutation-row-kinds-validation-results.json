@@ -61,9 +61,16 @@
     "module_closure": 14
   },
   "pending": [
-    "parent bootstrap_mutation_kinds Cargo target",
-    "preserved bootstrap_typing and borrow/effect targets",
-    "full51-module check and Native bootstrap fixed point",
-    "source Mut region repro and heap corpus against rebuilt compiler"
-  ]
+    "Parent bootstrap_mutation_kinds, bootstrap_mutable_inference and lib_heap_view Cargo targets.",
+    "Preserved typing, borrows/effects, quotation and local-binding regression targets.",
+    "Final complete Native bootstrap fixed point with region inference and strict value restriction."
+  ],
+  "candidate_frontend": {
+    "provenance": "Cinch implementation compiled by frozen Rust f2d5, not a completed self-built fixed point.",
+    "binary_sha256": "138b7efeaa8a0628e8335bd0e752cf61242a9edb7336da0cd8702be5487ec6cc",
+    "minimal_source_repro_exit": 0,
+    "minimal_source_diagnostics": "",
+    "heap_consumers": 33,
+    "heap_report": "stdlib-heap-native-validation-results.json"
+  }
 }

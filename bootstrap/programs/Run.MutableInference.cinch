@@ -1,0 +1,224 @@
+-- | Recheck source-level mutation regions, definition-site kinds and strict value restrictions.
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Resolve (resolve-program)
+  import Bootstrap.Infer
+  import Bootstrap.Core (CoreData, core-data-name, core-data-params)
+  import Bootstrap.Type (Quant, quant-kind, kind-text)
+  import Bootstrap.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Data.Json
+  import Data.List
+  import Data.Option
+  import Data.String
+
+  -- | Compare a diagnostic prefix without relying on a locale-specific string search.
+  starts :: List Char -> List Char -> Bool
+  starts needle haystack = case needle of
+    Nil -> True
+    Cons first rest -> case haystack of
+      Nil -> False
+      Cons actual more -> char-code first == char-code actual && starts rest more
+
+  -- | Search a finite diagnostic for a required semantic refusal category.
+  contains-chars :: List Char -> List Char -> Bool
+  contains-chars needle haystack = if starts needle haystack then True else case haystack of
+    Nil -> False
+    Cons first rest -> contains-chars needle rest
+
+  -- | Require a named refusal rather than treating an unrelated parse failure as a successful negative test.
+  diagnosed :: String -> List Diagnostic -> Bool
+  diagnosed expected errors = case errors of
+    Nil -> False
+    Cons first rest -> contains-chars (unpack expected) (unpack (diagnostic-message first)) || diagnosed expected rest
+
+  -- | Find the exact definition-site nominal identity in checked Core data declarations.
+  find-data :: String -> List CoreData -> Option CoreData
+  find-data identity datas = case datas of
+    Nil -> None
+    Cons first rest -> if core-data-name first == identity then Some first else find-data identity rest
+
+  -- | Observe a list without relying on a precompiled element-representation variant.
+  empty-list :: forall a. List a -> Bool
+  empty-list values = case values of Nil -> True; Cons first rest -> False
+
+  -- | Inspect every actual checked parameter kind, including ordinary phantom Type parameters.
+  parameter-kinds :: List Quant -> List String -> Bool
+  parameter-kinds params expected = case params of
+    Nil -> empty-list expected
+    Cons first rest -> case expected of
+      Nil -> False
+      Cons wanted more -> kind-text (quant-kind first) == wanted && parameter-kinds rest more
+
+  -- | Verify producer kinds rather than inferring success from consumer acceptance alone.
+  checked-kinds :: List CoreData -> List (String, List String) -> Bool
+  checked-kinds datas expected = case expected of
+    Nil -> True
+    Cons first rest -> case first of
+      (identity, kinds) -> case find-data identity datas of
+        None -> False
+        Some declaration -> parameter-kinds (core-data-params declaration) kinds && checked-kinds datas rest
+
+  -- | Distinguish a valid producer, a required type refusal and unrelated diagnostics.
+  result-ok :: Bool -> String -> List (String, List String) -> Elaboration -> Bool
+  result-ok accepted expected kinds result =
+    let errors = elaboration-errors result in
+    if accepted then empty-list errors && checked-kinds (elaboration-data result) kinds
+    else diagnosed expected errors
+
+  -- | Parse and resolve a real source program before checking its typing and nominal contracts.
+  evaluate :: String -> Bool -> String -> List (String, List String) -> (Bool, String)
+  evaluate source accepted expected kinds = case parse-program "mutable-inference" (string-to-bytes source) of
+    Parsed program Nil -> if program-unmodeled-count program == 0 then
+      case resolve-program program of
+        (resolved, Nil) ->
+          let result = elaborate-program "mutable-inference" resolved in
+          let errors = elaboration-errors result in
+          let ok = result-ok accepted expected kinds result in
+          (ok, render-diagnostics errors)
+        other -> (False, "name resolution failed")
+      else (False, "unmodeled source")
+    other -> (False, "source did not parse")
+
+  -- | Retain the first source-case failure as a small deterministic process exit status.
+  first-failure :: List Bool -> Nat -> Int
+  first-failure values index = case values of
+    Nil -> 0
+    Cons first rest -> if first then first-failure rest (index + 1) else nat-to-int index
+
+  -- | Observe one checked verdict independently of its optional diagnostic payload.
+  verdict :: (Bool, String) -> Bool
+  verdict result = case result of (ok, details) -> ok
+
+  -- | Check the fresh-vector source and its exact nominal-kind obligations.
+  check-case0 :: Unit -> Bool
+  check-case0 unit = verdict (evaluate "module Main where\n  data Vector r a where\n    Vector :: Vector r a\n  empty :: forall r a. Unit ->{Mut r} Vector r a\n  empty unit = Vector\n  append :: forall r a. Vector r a -> a ->{Mut r} Unit\n  append values value = ()\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let values = empty () in let first = append values (0 :: Int) in 0\n  main :: Int\n  main = 0\n" True "" (Cons (("m.Main.Vector", (Cons ("Region") (Cons ("Type") Nil)))) Nil))
+
+  -- | Check the shared-vector-alias source and its exact nominal-kind obligations.
+  check-case1 :: Unit -> Bool
+  check-case1 unit = verdict (evaluate "module Main where\n  data Vector r a where\n    Vector :: Vector r a\n  empty :: forall r a. Unit ->{Mut r} Vector r a\n  empty unit = Vector\n  append :: forall r a. Vector r a -> a ->{Mut r} Unit\n  append values value = ()\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let values = empty () in let alias = values in let first = append values (0 :: Int) in let second = append alias (1 :: Int) in 0\n  main :: Int\n  main = 0\n" True "" (Cons (("m.Main.Vector", (Cons ("Region") (Cons ("Type") Nil)))) Nil))
+
+  -- | Check the mutable-vector-monomorphic source and its exact nominal-kind obligations.
+  check-case2 :: Unit -> Bool
+  check-case2 unit = verdict (evaluate "module Main where\n  data Vector r a where\n    Vector :: Vector r a\n  empty :: forall r a. Unit ->{Mut r} Vector r a\n  empty unit = Vector\n  append :: forall r a. Vector r a -> a ->{Mut r} Unit\n  append values value = ()\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let values = empty () in let first = append values (0 :: Int) in let second = append values True in 0\n  main :: Int\n  main = 0\n" False "type mismatch" Nil)
+
+  -- | Check the mutable-vector-alias-monomorphic source and its exact nominal-kind obligations.
+  check-case3 :: Unit -> Bool
+  check-case3 unit = verdict (evaluate "module Main where\n  data Vector r a where\n    Vector :: Vector r a\n  empty :: forall r a. Unit ->{Mut r} Vector r a\n  empty unit = Vector\n  append :: forall r a. Vector r a -> a ->{Mut r} Unit\n  append values value = ()\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let values = empty () in let alias = values in let first = append values (0 :: Int) in let second = append alias True in 0\n  main :: Int\n  main = 0\n" False "type mismatch" Nil)
+
+  -- | Check the local-group-monomorphic source and its exact nominal-kind obligations.
+  check-case4 :: Unit -> Bool
+  check-case4 unit = verdict (evaluate "module Main where\n  data Vector r a where\n    Vector :: Vector r a\n  empty :: forall r a. Unit ->{Mut r} Vector r a\n  empty unit = Vector\n  append :: forall r a. Vector r a -> a ->{Mut r} Unit\n  append values value = ()\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let { values = empty (); first = append values (0 :: Int); second = append values True } in 0\n  main :: Int\n  main = 0\n" False "type mismatch" Nil)
+
+  -- | Check the fresh-cell source and its exact nominal-kind obligations.
+  check-case5 :: Unit -> Bool
+  check-case5 unit = verdict (evaluate "module Main where\n  data Cell owner a where\n    Cell :: a -> Cell owner a\n  new :: forall owner a. a ->{Mut owner} Cell owner a\n  new value = Cell value\n  read :: forall owner a. Cell owner a ->{Mut owner} a\n  read cell = case cell of Cell value -> value\n  test :: forall region. Unit ->{Mut region} Int\n  test unit = let cell = new (7 :: Int) in read cell\n  main :: Int\n  main = 0\n" True "" (Cons (("m.Main.Cell", (Cons ("Region") (Cons ("Type") Nil)))) Nil))
+
+  -- | Check the fresh-heap source and its exact nominal-kind obligations.
+  check-case6 :: Unit -> Bool
+  check-case6 unit = verdict (evaluate "module Main where\n  data Heap lifetime a where\n    Heap :: a -> Heap lifetime a\n  new :: forall lifetime a. a ->{Mut lifetime} Heap lifetime a\n  new value = Heap value\n  first :: forall lifetime a. Heap lifetime a ->{Mut lifetime} a\n  first values = case values of Heap value -> value\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let heap = new (3 :: Int) in let alias = heap in first alias\n  main :: Int\n  main = 0\n" True "" (Cons (("m.Main.Heap", (Cons ("Region") (Cons ("Type") Nil)))) Nil))
+
+  -- | Check the region-position-fixed-point source and its exact nominal-kind obligations.
+  check-case7 :: Unit -> Bool
+  check-case7 unit = verdict (evaluate "module Main where\n  data First owner where\n    First :: First owner\n  data Second owner where\n    Second :: Second owner\n  bridge :: forall r. First r -> Second r -> Unit\n  bridge first second = ()\n  hint :: forall region. Io region -> Second region -> Unit\n  hint token value = ()\n  main :: Int\n  main = 0\n" True "" (Cons (("m.Main.First", (Cons ("Region") Nil))) (Cons (("m.Main.Second", (Cons ("Region") Nil))) Nil)))
+
+  -- | Check the ordinary-phantom-retains-type source and its exact nominal-kind obligations.
+  check-case8 :: Unit -> Bool
+  check-case8 unit = verdict (evaluate "module Main where\n  data Box a where\n    Box :: Box a\n  touch :: forall r a. Box a ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n" True "" (Cons (("m.Main.Box", (Cons ("Type") Nil))) Nil))
+
+  -- | Check the region-spelling-grants-no-kind source and its exact nominal-kind obligations.
+  check-case9 :: Unit -> Bool
+  check-case9 unit = verdict (evaluate "module Main where\n  data Region where\n    Region :: Region\n  data Box r where\n    Box :: Box r\n  use :: Box Region -> Unit\n  use value = ()\n  main :: Int\n  main = 0\n" True "" (Cons (("m.Main.Box", (Cons ("Type") Nil))) Nil))
+
+  -- | Check the constructor-forall-shadow source and its exact nominal-kind obligations.
+  check-case10 :: Unit -> Bool
+  check-case10 unit = verdict (evaluate "module Main where\n  data Outer r where\n    Outer :: (forall r. r -> r) -> Outer r\n  touch :: forall r. Outer r ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n" False "shadows a type variable" Nil)
+
+  -- | Check the signature-forall-shadow source and its exact nominal-kind obligations.
+  check-case11 :: Unit -> Bool
+  check-case11 unit = verdict (evaluate "module Main where\n  data Box r where\n    Box :: Box r\n  use :: forall r. Box r -> (forall r. Unit ->{Mut r} Unit) -> Unit\n  use value callback = ()\n  main :: Int\n  main = 0\n" False "shadows a type variable" Nil)
+
+  -- | Check the bound-head-does-not-name-family source and its exact nominal-kind obligations.
+  check-case12 :: Unit -> Bool
+  check-case12 unit = verdict (evaluate "module Main where\n  data Box a where\n    Box :: Box a\n  use :: forall (Box :: Region -> Type) r. Box r ->{Mut r} Unit\n  use value = ()\n  main :: Int\n  main = 0\n" True "" (Cons (("m.Main.Box", (Cons ("Type") Nil))) Nil))
+
+  -- | Check the explicit-type-authority source and its exact nominal-kind obligations.
+  check-case13 :: Unit -> Bool
+  check-case13 unit = verdict (evaluate "module Main where\n  data Box (r :: Type) where\n    Box :: Box r\n  touch :: forall r. Box r ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n" False "kind mismatch" Nil)
+
+  -- | Check the runtime-field-fixes-type source and its exact nominal-kind obligations.
+  check-case14 :: Unit -> Bool
+  check-case14 unit = verdict (evaluate "module Main where\n  data Box r where\n    Box :: r -> Box r\n  touch :: forall r. Box r ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n" False "kind mismatch" Nil)
+
+  -- | Check the client-cannot-rekind-producer source and its exact nominal-kind obligations.
+  check-case15 :: Unit -> Bool
+  check-case15 unit = verdict (evaluate "module Producer where\n  export Box, make\n  data Box a where\n    Box :: Box a\n  make :: Unit -> Box Int\n  make unit = Box\nmodule Main where\n  import Producer\n  touch :: forall r. Box r ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n" False "kind mismatch" Nil)
+
+  -- | Check the qualified-distinct-families source and its exact nominal-kind obligations.
+  check-case16 :: Unit -> Bool
+  check-case16 unit = verdict (evaluate "module Regional where\n  export Box, touch\n  data Box r where\n    Box :: Box r\n  touch :: forall r. Box r ->{Mut r} Unit\n  touch value = ()\nmodule Ordinary where\n  export Box, make\n  data Box a where\n    Box :: a -> Box a\n  make :: Int -> Box Int\n  make value = Box value\nmodule Main where\n  import Regional as R\n  import Ordinary as O\n  good :: forall r. R.Box r -> O.Box Int ->{Mut r} Unit\n  good regional ordinary = ()\n  main :: Int\n  main = 0\n" True "" (Cons (("m.Regional.Box", (Cons ("Region") Nil))) (Cons (("m.Ordinary.Box", (Cons ("Type") Nil))) Nil)))
+
+  -- | Check the qualified-alias-cannot-rekind source and its exact nominal-kind obligations.
+  check-case17 :: Unit -> Bool
+  check-case17 unit = verdict (evaluate "module Producer where\n  export Box, make\n  data Box a where\n    Box :: Box a\n  make :: Unit -> Box Int\n  make unit = Box\nmodule Main where\n  import Producer as Other\n  touch :: forall r. Other.Box r ->{Mut r} Unit\n  touch value = ()\n  main :: Int\n  main = 0\n" False "kind mismatch" Nil)
+
+  -- | Check the pure-identity-value source and its exact nominal-kind obligations.
+  check-case18 :: Unit -> Bool
+  check-case18 unit = verdict (evaluate "module Main where\n  main :: Int\n  main = let identity = \\value -> value in if identity True then identity (0 :: Int) else 1\n" True "" Nil)
+
+  -- | Check the pure-function-name-value source and its exact nominal-kind obligations.
+  check-case19 :: Unit -> Bool
+  check-case19 unit = verdict (evaluate "module Main where\n  identity :: forall a. a -> a\n  identity value = value\n  main :: Int\n  main = let alias = identity in if alias True then alias (0 :: Int) else 1\n" True "" Nil)
+
+  -- | Check the pure-local-group-value source and its exact nominal-kind obligations.
+  check-case20 :: Unit -> Bool
+  check-case20 unit = verdict (evaluate "module Main where\n  main :: Int\n  main = let { identity = \\value -> value; first = identity True } in identity (0 :: Int)\n" True "" Nil)
+
+  -- | Check the effectful-function-value-latent source and its exact nominal-kind obligations.
+  check-case21 :: Unit -> Bool
+  check-case21 unit = verdict (evaluate "module Main where\n  operation :: forall r a. a ->{Mut r} a\n  operation value = value\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let function = \\value -> operation value in let first = function True in function (0 :: Int)\n  main :: Int\n  main = 0\n" True "" Nil)
+
+  -- | Check the io-function-value-latent source and its exact nominal-kind obligations.
+  check-case22 :: Unit -> Bool
+  check-case22 unit = verdict (evaluate "module Main where\n  operation :: forall r a. using (io :: Io r) => a ->{IO r} a\n  operation value = value\n  test :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n  test unit = let function = \\value -> operation value in let first = function True in function (0 :: Int)\n  main :: Int\n  main = 0\n" True "" Nil)
+
+  -- | Check the pure-application-not-generalized source and its exact nominal-kind obligations.
+  check-case23 :: Unit -> Bool
+  check-case23 unit = verdict (evaluate "module Main where\n  make :: forall a. Unit -> a -> a\n  make unit = \\value -> value\n  main :: Int\n  main = let identity = make () in if identity True then identity (0 :: Int) else 1\n" False "type mismatch" Nil)
+
+  -- | Check the implicit-cell-alias-not-generalized source and its exact nominal-kind obligations.
+  check-case24 :: Unit -> Bool
+  check-case24 unit = verdict (evaluate "module Main where\n  main :: Int\n  main = let ~cell = \\value -> value in let alias = cell in if alias True then alias (0 :: Int) else 1\n" False "type mismatch" Nil)
+
+  -- | Check the class-region-context source and its exact nominal-kind obligations.
+  check-case25 :: Unit -> Bool
+  check-case25 unit = verdict (evaluate "module Main where\n  data Token r where\n    Token :: Token r\n  signature Owner (r :: Region) where\n    keep :: Token r -> Token r\n  main :: Int\n  main = 0\n" True "" (Cons (("m.Main.Token", (Cons ("Region") Nil))) Nil))
+
+  -- | Check the class-explicit-type-authority source and its exact nominal-kind obligations.
+  check-case26 :: Unit -> Bool
+  check-case26 unit = verdict (evaluate "module Main where\n  data Token (r :: Type) where\n    Token :: Token r\n  signature Owner (r :: Region) where\n    keep :: Token r -> Token r\n  main :: Int\n  main = 0\n" False "kind mismatch" Nil)
+
+  -- | Check the class-client-cannot-rekind source and its exact nominal-kind obligations.
+  check-case27 :: Unit -> Bool
+  check-case27 unit = verdict (evaluate "module Producer where\n  export Token, make\n  data Token r where\n    Token :: Token r\n  make :: Unit -> Token Int\n  make unit = Token\nmodule Main where\n  import Producer as P\n  signature Owner (r :: Region) where\n    keep :: P.Token r -> P.Token r\n  main :: Int\n  main = 0\n" False "kind mismatch" Nil)
+
+  -- | Check the explicit-pure-forall-value source and its exact nominal-kind obligations.
+  check-case28 :: Unit -> Bool
+  check-case28 unit = verdict (evaluate "module Main where\n  a :: Bool\n  a = True\n  main :: Int\n  main = let local = ((\\x -> if a then (x :: a) else x) :: forall a. a -> a) in if local True then local 0 else 1\n" True "" Nil)
+
+  -- | Check the explicit-pure-forall-local-group source and its exact nominal-kind obligations.
+  check-case29 :: Unit -> Bool
+  check-case29 unit = verdict (evaluate "module Main where\n  main :: Int\n  main = let { local = ((\\x -> x) :: forall a. a -> a); first = local True } in local (0 :: Int)\n" True "" Nil)
+
+  -- | Check the explicit-pure-forall-application source and its exact nominal-kind obligations.
+  check-case30 :: Unit -> Bool
+  check-case30 unit = verdict (evaluate "module Main where\n  make :: forall a. Unit -> a -> a\n  make unit = \\value -> value\n  main :: Int\n  main = let identity = (make () :: forall a. a -> a) in if identity True then identity (0 :: Int) else 1\n" True "" Nil)
+
+  -- | Check the explicit-forall-cannot-hide-performed-mutation source and its exact nominal-kind obligations.
+  check-case31 :: Unit -> Bool
+  check-case31 unit = verdict (evaluate "module Main where\n  operation :: forall r a. Unit ->{Mut r} (a -> a)\n  operation unit = \\value -> value\n  test :: forall r. Unit ->{Mut r} Int\n  test unit = let function = (operation () :: forall a. a -> a) in 0\n  main :: Int\n  main = 0\n" False "performed effects exceed the declared row" Nil)
+
+  -- | Run every source and authority check, preserving its original case number on failure.
+  main :: Int
+  main = first-failure (Cons (check-case0 ()) (Cons (check-case1 ()) (Cons (check-case2 ()) (Cons (check-case3 ()) (Cons (check-case4 ()) (Cons (check-case5 ()) (Cons (check-case6 ()) (Cons (check-case7 ()) (Cons (check-case8 ()) (Cons (check-case9 ()) (Cons (check-case10 ()) (Cons (check-case11 ()) (Cons (check-case12 ()) (Cons (check-case13 ()) (Cons (check-case14 ()) (Cons (check-case15 ()) (Cons (check-case16 ()) (Cons (check-case17 ()) (Cons (check-case18 ()) (Cons (check-case19 ()) (Cons (check-case20 ()) (Cons (check-case21 ()) (Cons (check-case22 ()) (Cons (check-case23 ()) (Cons (check-case24 ()) (Cons (check-case25 ()) (Cons (check-case26 ()) (Cons (check-case27 ()) (Cons (check-case28 ()) (Cons (check-case29 ()) (Cons (check-case30 ()) (Cons (check-case31 ()) Nil)))))))))))))))))))))))))))))))) 1

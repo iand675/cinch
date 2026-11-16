@@ -1,0 +1,416 @@
+{
+  "description": "Definition-site phantom region inference and strict local value restrictions, including retained explicit pure forall contracts.",
+  "status": "Focused source checker, preserved inference runner and independent source-absent interface gate passed. Parent Cargo and complete self-built Native fixed point remain pending.",
+  "source_sha256": {
+    "bootstrap/Bootstrap.Infer.cinch": "83e8a5f976c3ffb1447f8838f4a0c1a0c48ffbd0a33312ce20f4dbd273c77ca5",
+    "bootstrap/Bootstrap.Kinds.cinch": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+    "bootstrap/programs/Run.MutableInference.cinch": "f1627e1dc4a29fb21770586ca719d89fb03e34a5889d05403319b4d9fd5f09f9",
+    "bootstrap/programs/Run.Infer.cinch": "5084cad481c6de97584ee37c058aa21de3c44cba12818adb0db0509c2b69a49a",
+    "compiler/tests/bootstrap_mutable_inference.rs": "e98e07af4bef539a4c89f080fbc5650fdf5874055da75c8b6ea10c7bceea51fd",
+    "compiler/tests/fixtures/mutable-inference-vectors.json": "b0e1cb9c9a317bee4b2bd5b57c1b45ae29b294b545aa1c9d4f15787f4be2ad0d",
+    "tooling/generate_mutable_inference_cases.py": "2bfbf2803706d519b40d83ad331c75da01e07fbfc62685e772b29acc13f7a989",
+    "tooling/validate_mutable_interfaces.py": "765dc4e48d6f85e97d61f168ff10100841012b7b03620e66b443d5f779e508cd"
+  },
+  "authority": [
+    "Only unannotated phantom source datatype positions may refine to Region, from scoped Region actuals at the exact defining nominal argument position.",
+    "Explicit source annotations, runtime constructor fields and imported interface parameter kinds remain authoritative. Client signatures and qualified aliases cannot rekind producer declarations.",
+    "Class methods retain their actual global symbol and enclosing parameter forall context. Nested type binders preserve lexical scope and the existing shadowing refusal.",
+    "Strict inferred generalization requires a syntactic value with empty performed effects, retaining existing captured/literal-meta restrictions. Applications and ordinary annotations remain monomorphic; function values may carry latent effects.",
+    "A direct explicit forall annotation in a strict RHS retains a checked CPolyIntro/UForall with pure construction. Its declared contract is instantiated at use, without inferred generalization of an evaluated mutable allocation."
+  ],
+  "focused": {
+    "cases": 32,
+    "accepted": 18,
+    "required_refusals": 14,
+    "all_negatives_require_named_diagnostics": true,
+    "actual_core_data_parameter_kinds_checked": true,
+    "fixture_sources": [
+      {
+        "name": "fresh-vector",
+        "sha256": "695e38040a1f63da6322f6c2f4b2f1aa9e988546d010af33acc1649ef8d68b86",
+        "accepted": true,
+        "kinds": {
+          "m.Main.Vector": [
+            "Region",
+            "Type"
+          ]
+        },
+        "diagnostic": ""
+      },
+      {
+        "name": "shared-vector-alias",
+        "sha256": "10e8951c6ccf816f96901da769e86880b5f0e2e3d0493d76aa5a62eaeed49cac",
+        "accepted": true,
+        "kinds": {
+          "m.Main.Vector": [
+            "Region",
+            "Type"
+          ]
+        },
+        "diagnostic": ""
+      },
+      {
+        "name": "mutable-vector-monomorphic",
+        "sha256": "dbbbc5f1b8dfd9e3f415f954f605c4ccd16dcd305daf0b56e80849307f34f58d",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "type mismatch"
+      },
+      {
+        "name": "mutable-vector-alias-monomorphic",
+        "sha256": "908096304235957b0b1301b90ff05e9020b10fe645eb090b7494d1d0af801d23",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "type mismatch"
+      },
+      {
+        "name": "local-group-monomorphic",
+        "sha256": "7b49e25ad54425cb902e5d076f791f9a5767c599cbaaf29fd0ecde8ae173f67a",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "type mismatch"
+      },
+      {
+        "name": "fresh-cell",
+        "sha256": "139fd912c8d4aaa2c41b70dd46f8385365cbc5e0816817909026234c31521404",
+        "accepted": true,
+        "kinds": {
+          "m.Main.Cell": [
+            "Region",
+            "Type"
+          ]
+        },
+        "diagnostic": ""
+      },
+      {
+        "name": "fresh-heap",
+        "sha256": "b8d4123719534107a1a5dc7df0bc28ebdf6cef58dc1a5addb8c585a41403d162",
+        "accepted": true,
+        "kinds": {
+          "m.Main.Heap": [
+            "Region",
+            "Type"
+          ]
+        },
+        "diagnostic": ""
+      },
+      {
+        "name": "region-position-fixed-point",
+        "sha256": "efe8124d4fef2c350ba474df4e34e16419926b07d715d16334bddf1ba1271a0e",
+        "accepted": true,
+        "kinds": {
+          "m.Main.First": [
+            "Region"
+          ],
+          "m.Main.Second": [
+            "Region"
+          ]
+        },
+        "diagnostic": ""
+      },
+      {
+        "name": "ordinary-phantom-retains-type",
+        "sha256": "4b4308a92ab6074d9f7193609707d6541fd768ddc2a8c1e3bf9ea7fc947d5bad",
+        "accepted": true,
+        "kinds": {
+          "m.Main.Box": [
+            "Type"
+          ]
+        },
+        "diagnostic": ""
+      },
+      {
+        "name": "region-spelling-grants-no-kind",
+        "sha256": "31d1c0a63a076781bc40abc39c9aee1c939fbb4ee0d4bc5705721c3f58fbb071",
+        "accepted": true,
+        "kinds": {
+          "m.Main.Box": [
+            "Type"
+          ]
+        },
+        "diagnostic": ""
+      },
+      {
+        "name": "constructor-forall-shadow",
+        "sha256": "130d26f511afd3f652be6c4c94ed71e074b89e2a2df853715278f4443ce3a2a4",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "shadows a type variable"
+      },
+      {
+        "name": "signature-forall-shadow",
+        "sha256": "04d9f4d8fcffaa9af85433b3fd78eeb92b338cbf0cc51c8dc4fb84de06b19321",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "shadows a type variable"
+      },
+      {
+        "name": "bound-head-does-not-name-family",
+        "sha256": "6e6ef4992a8b984ab39db310ac640f0e5ae6937a57b0229a127d14d9c2c94e2d",
+        "accepted": true,
+        "kinds": {
+          "m.Main.Box": [
+            "Type"
+          ]
+        },
+        "diagnostic": ""
+      },
+      {
+        "name": "explicit-type-authority",
+        "sha256": "5c87c05548049e56778681204bfa38ae69b40123be4293c6d21e264a4b466e3b",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "kind mismatch"
+      },
+      {
+        "name": "runtime-field-fixes-type",
+        "sha256": "20f448307ee183eae0a08f3724ca12d3df00e0646a18839ef66e3a40d5ce9f19",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "kind mismatch"
+      },
+      {
+        "name": "client-cannot-rekind-producer",
+        "sha256": "987797945fdea663c9ec63b32f8314b93ea692123a5745ead8dcef9c18732bdd",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "kind mismatch"
+      },
+      {
+        "name": "qualified-distinct-families",
+        "sha256": "10210baa3555be067f23003a9386d7d88c9d1daf5d2ee3b7f9dceaaeff39bc0e",
+        "accepted": true,
+        "kinds": {
+          "m.Regional.Box": [
+            "Region"
+          ],
+          "m.Ordinary.Box": [
+            "Type"
+          ]
+        },
+        "diagnostic": ""
+      },
+      {
+        "name": "qualified-alias-cannot-rekind",
+        "sha256": "079edc5005a67af392aad4d04bd7fa197fade00138d242a4173d93b9a6b0b7bf",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "kind mismatch"
+      },
+      {
+        "name": "pure-identity-value",
+        "sha256": "7ce7babb651b53790ae989d9c506046e55c23f0ba01c371141890f8ba068469f",
+        "accepted": true,
+        "kinds": {},
+        "diagnostic": ""
+      },
+      {
+        "name": "pure-function-name-value",
+        "sha256": "5db8b6b69fa761b703f8f909b739eec81afe0a5998dacbad548deafaf8f9f8a3",
+        "accepted": true,
+        "kinds": {},
+        "diagnostic": ""
+      },
+      {
+        "name": "pure-local-group-value",
+        "sha256": "6a0c0e262b2c3fac41d4274b223d0c09041ff1080c30dd2c9d377e5ead80888c",
+        "accepted": true,
+        "kinds": {},
+        "diagnostic": ""
+      },
+      {
+        "name": "effectful-function-value-latent",
+        "sha256": "6169a5ab490d915114efc9ca40382a0b61b6a7e19849a071e3092dfc3aa501bd",
+        "accepted": true,
+        "kinds": {},
+        "diagnostic": ""
+      },
+      {
+        "name": "io-function-value-latent",
+        "sha256": "f3badf2978b8e3225d2f2f6949a59e308464dae3e230ef922fdee956989237a4",
+        "accepted": true,
+        "kinds": {},
+        "diagnostic": ""
+      },
+      {
+        "name": "pure-application-not-generalized",
+        "sha256": "8852bb1b4fdedb190dedd97cad6d47319b365af02080551b4cc1035a069e7ddb",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "type mismatch"
+      },
+      {
+        "name": "implicit-cell-alias-not-generalized",
+        "sha256": "26024332cd39de094b317f6d670d8a97d59fd5ab6f68bc3ec3ab225a4b34a172",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "type mismatch"
+      },
+      {
+        "name": "class-region-context",
+        "sha256": "2abe160f56616203f8e11589b778267c974bb9f2a4417fa7d642849f6c0d2d7c",
+        "accepted": true,
+        "kinds": {
+          "m.Main.Token": [
+            "Region"
+          ]
+        },
+        "diagnostic": ""
+      },
+      {
+        "name": "class-explicit-type-authority",
+        "sha256": "c0222cca6088deac4da310a37c2b10ab89b232de6acbcd547289a2abc4423664",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "kind mismatch"
+      },
+      {
+        "name": "class-client-cannot-rekind",
+        "sha256": "6f0b51a499ee3a9f01d63ec6135de060e6cfcca4b80af96b1b95fb65abef43bd",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "kind mismatch"
+      },
+      {
+        "name": "explicit-pure-forall-value",
+        "sha256": "93f8a48190f2b3618b6393f87e430e9324f5062efd6b2eb1ed341ad8ac8ce2ba",
+        "accepted": true,
+        "kinds": {},
+        "diagnostic": ""
+      },
+      {
+        "name": "explicit-pure-forall-local-group",
+        "sha256": "08b2fd66810e240368f8927130c365b099bdb7ff5289fdb3f1a5f0406a0901d4",
+        "accepted": true,
+        "kinds": {},
+        "diagnostic": ""
+      },
+      {
+        "name": "explicit-pure-forall-application",
+        "sha256": "ff0d5cd75947cd8316be36d0e4b6eb647af29f848e07aa1ca14a2bdb579a7d80",
+        "accepted": true,
+        "kinds": {},
+        "diagnostic": ""
+      },
+      {
+        "name": "explicit-forall-cannot-hide-performed-mutation",
+        "sha256": "51373292cc3d061bc236f15c2df829152c81036a90e2512b668148b47aa7cfdd",
+        "accepted": false,
+        "kinds": {},
+        "diagnostic": "performed effects exceed the declared row"
+      }
+    ]
+  },
+  "preserved": {
+    "runner": "bootstrap/programs/Run.Infer.cinch",
+    "positive_cases": 26,
+    "negative_cases": 30,
+    "final_invariants": [
+      "scope/export facts",
+      "kernel scheme invariants",
+      "malformed quantified spine refusal",
+      "dependent parameter carriers"
+    ],
+    "explicit_forall_regression_before_fix": {
+      "snapshot": "build/mutable-preserved-infer",
+      "infer_sha256": "6cb9b8d334f498ebb389e599be367722e9646b0c7190f9f25ae97cfee1440778",
+      "exit": 3,
+      "diagnostic": "bootstrap.check:5:106: type mismatch: integer literal cannot have type Bool"
+    },
+    "integer_range_expectation": {
+      "case": 102,
+      "before_diagnostic": "bootstrap.check:5:34: integer literal 128 is out of range for I8",
+      "after_diagnostic": "bootstrap.check:5:34: integer literal 128 is out of range for I8",
+      "identical_before_after_verdict": true,
+      "old_expected_substring": "integer carrier",
+      "new_required_substring": "out of range for I8",
+      "reason": "Require the actual specific range refusal; no rejected source became accepted."
+    }
+  },
+  "combined_runtime": {
+    "artifacts": "build/mutable-final-range-expectation",
+    "implementation_modules": 37,
+    "bundle_sha256": "b3859173ff11090e919fbef12434a55d8204270a9e72b0d5146edd15cca8086e",
+    "executable_sha256": "33378e426a0179e2038b005677d013890d61bc0ef8d8daf3ca791a575d4cb3e3",
+    "llvm_sha256": "21e54a641e28596aebb7c9477a0e19a5e9d44af19fb44b8193ad0c275605bcd4",
+    "generated_cases_module_sha256": "8fd551af896360777cf418d44ea641f6210ee707dcbffbdfd9af414633dad0d2",
+    "combined_main_sha256": "3fce3ce188b8c47f0a7a69fa6a6c12f8b35ad13278f49719d4ccef93252954ee",
+    "ordinary": {
+      "heap": "32M",
+      "stack": "8M",
+      "exit": 0,
+      "live": 0,
+      "leaked": 0,
+      "log": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    "poisoned_free": {
+      "heap": "256M",
+      "stack": "8M",
+      "exit": 0,
+      "live": 0,
+      "leaked": 0,
+      "log": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    "preserved_report_sha256": "09c24bb62309e1092a7cfbc1bb2a08ecf9290405d6d498795f776888ae9f2878",
+    "compiler_source_snapshot_sha256": {
+      "Bootstrap.Ast.cinch": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455",
+      "Bootstrap.BodyContract.cinch": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4",
+      "Bootstrap.Builtin.cinch": "ecd7f0992ad0ae82e070bbb48f240d9a0ce31fd5a0dbf09fe82aa787df21cddc",
+      "Bootstrap.Check.cinch": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32",
+      "Bootstrap.Contracts.cinch": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac",
+      "Bootstrap.Core.cinch": "7541af1b31550939e6ed028b4f60f2e9035d3a4075ec1cbf5d6223651801e030",
+      "Bootstrap.Dictionary.cinch": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6",
+      "Bootstrap.ExportType.cinch": "2484cfc1a90c186e36ac5df077c507040efcf5d2cb77da4dffcd05fa23eb320e",
+      "Bootstrap.Foreign.cinch": "08a1d9777383b643de478d247f9bd46be815ef2bc0d98301154c6fbec351546a",
+      "Bootstrap.Global.cinch": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0",
+      "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+      "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+      "Bootstrap.Infer.cinch": "83e8a5f976c3ffb1447f8838f4a0c1a0c48ffbd0a33312ce20f4dbd273c77ca5",
+      "Bootstrap.Inputs.cinch": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194",
+      "Bootstrap.Instance.cinch": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314",
+      "Bootstrap.Interface.cinch": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032",
+      "Bootstrap.Kinds.cinch": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+      "Bootstrap.Load.cinch": "f533faeddcdc2881f62187cf7e119efa2e6e3c5b3c59fa64ba76efe7f7bf887d",
+      "Bootstrap.Nominal.cinch": "da38bafe2f771a7f0e65ea92c39e820bf77d85a0c310ac4c7c8424dc86e2e9c5",
+      "Bootstrap.Parse.cinch": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1",
+      "Bootstrap.Proof.cinch": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3",
+      "Bootstrap.Report.cinch": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7",
+      "Bootstrap.Resolve.cinch": "8317093e0f884473a49ef848625e4aea3d8e237eaee009ba8e9a961fee90f651",
+      "Bootstrap.RuntimeAbi.cinch": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e",
+      "Bootstrap.Temporal.cinch": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca",
+      "Bootstrap.TemporalCheck.cinch": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c",
+      "Bootstrap.Total.cinch": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317",
+      "Bootstrap.TotalSemantics.cinch": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de",
+      "Bootstrap.Type.cinch": "a262657787e2a41cac0464ec597d52115e35eed7007f5e7bc9d916e9ec15ca39",
+      "Bootstrap.Typing.cinch": "b777884156093cf85ca921d732089e507d65062190cbfa9cbeafdcbdf553a5c1",
+      "Main.cinch": "3fce3ce188b8c47f0a7a69fa6a6c12f8b35ad13278f49719d4ccef93252954ee",
+      "MutableCases.cinch": "8fd551af896360777cf418d44ea641f6210ee707dcbffbdfd9af414633dad0d2",
+      "Text.Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+      "Text.Json.cinch": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
+      "Text.Lex.cinch": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+      "Text.Parse.cinch": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+      "Text.Scan.cinch": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+    }
+  },
+  "producer_frontend": {
+    "provenance": "Cinch compiler implementation compiled by frozen Rust f2d5. This producer predates the class-context and explicit-forall retention follow-ups; it compiles the latest checker implementation into the independent executable above. It is not a completed self-built stage3 chain.",
+    "binary": "build/mutable-kind-emitter/cinch",
+    "binary_sha256": "138b7efeaa8a0628e8335bd0e752cf61242a9edb7336da0cd8702be5487ec6cc",
+    "wrapper_sha256": "f4efda001656f064f77c67c6bf2e9a9c720c83a37944cc6479aca2e6a12096e3",
+    "producer_infer_sha256": "6a28d53aaa062bfa797d15bb790ac331a349f47a987d9e258b27369a70f25004",
+    "base_manifest_sha256": "1efa9dc943e2ad79f1e1fd350618000da7e7f6e0795b83789054dbdb11a975d3",
+    "object_manifest_sha256": "100023001018d140f06602b87eec20b09bf0bb062c677b8c0c449d6643c62aeb",
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+  },
+  "interface_authority_report": "mutable-interface-validation-results.json",
+  "heap_report_is_separate_epoch": "stdlib-heap-native-validation-results.json",
+  "known_existing_limits": [
+    "Frozen Rust f2d5 exports Type nominal parameter metadata for existing phantom mutation regions, whereas corrected Native emits Region. Imported Type headers are not reinterpreted; mixed-epoch parity is not claimed.",
+    "Rust generalize_local additionally excludes stored Code payload metas. That existing staging difference is not changed by this repair."
+  ],
+  "pending": [
+    "Parent Cargo targets lib_heap_view, bootstrap_mutation_kinds, bootstrap_mutable_inference, bootstrap_infer and bootstrap_typing.",
+    "Preserved effects, ownership, letrec, stage_code_expectations and syntax_quoted_macro_scope gates.",
+    "Complete Native compiler source check, rebuilt self-hosted stage chain and fixed point with the final implementation."
+  ]
+}
