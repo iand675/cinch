@@ -1,0 +1,219 @@
+-- | Independent byte-preserving URL component corpus.
+module Main where
+  import Effect.Process
+  import Text.Url.Codec
+  import Text.Url.Error
+  import Text.Hex
+  import Text.Fnv
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Keep large deterministic input construction in the executable.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Parse nonnegative fixture metadata independently of URL conversion.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Fold independently recorded decimal digits.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars total = case chars of
+    Nil -> total
+    Cons char rest -> case digit-value char of Some value -> decimal-from rest (total * 10 + value); None -> 0
+
+  -- | Select one exact component policy from compact fixture metadata.
+  encoding :: Nat -> UrlEncoding
+  encoding mode =
+    if mode == 1 then UrlPath else if mode == 2 then UrlPathSegment
+    else if mode == 3 then UrlHost else if mode == 4 then UrlZone
+    else if mode == 5 then UrlUserPassword else if mode == 6 then UrlQueryComponent else UrlFragment
+
+  -- | Parse hexadecimal expected bytes without using URL decoding.
+  input :: String -> Bytes
+  input text = case hex-decode text of Ok bytes -> bytes; Err error -> bytes-new 0
+
+  -- | Compare every byte, including invalid UTF-8 and embedded NULs.
+  same :: Bytes -> Bytes -> Bool
+  same first last = eq-i64 (bytes-compare first last) 0
+
+  -- | Find a bounded NUL delimiter in the ASCII fixture stream.
+  field-end :: Bytes -> Nat -> Nat
+  field-end bytes at = if at < bytes-len bytes then
+    if bytes-get bytes at == 0 then at else field-end bytes (at + 1)
+    else at
+
+  -- | Read one copied metadata field and its advanced original byte position.
+  field :: Bytes -> Nat -> (String, Nat)
+  field bytes at = let end = field-end bytes at in
+    if at <= end && end <= bytes-len bytes then
+      let out = bytes-new (end - at) in let copied = bytes-copy-range out bytes 0 at (end - at) in
+      case string-from-bytes out of Some text -> (text, end + 1); None -> ("", end + 1)
+    else ("", end + 1)
+
+  -- | Check textual convenience functions only for their two supported component policies.
+  text-encoded :: Nat -> Bytes -> Bytes -> Bool
+  text-encoded mode raw expected = case string-from-bytes raw of
+    None -> True
+    Some text -> case string-from-bytes expected of
+      None -> False
+      Some out -> if mode == 2 then url-path-escape-text text == out else if mode == 6 then url-query-escape-text text == out else True
+
+  -- | Validate exact encoding bytes, exact capacity and optional text convenience behavior.
+  encoded-case :: String -> String -> String -> Bool
+  encoded-case mode-text raw-hex expected-hex =
+    let mode = decimal mode-text in let raw = input raw-hex in let expected = input expected-hex in
+    same (url-escape (encoding mode) raw) expected && url-escaped-length (encoding mode) raw == bytes-len expected && text-encoded mode raw expected
+
+  -- | Return the first incorrect encoder row offset plus one, or zero on success.
+  encoded-from :: Bytes -> Nat -> Nat
+  encoded-from stream at = if at >= bytes-len stream then 0 else case field stream at of
+    (mode, a) -> case field stream a of
+      (raw, b) -> case field stream b of
+        (expected, next) -> if encoded-case mode raw expected then encoded-from stream next else at + 1
+
+  -- | Classify precise URL failures without requiring identical diagnostic wording.
+  failure-code :: UrlFailure -> String
+  failure-code failure = case url-failure-kind failure of UrlInvalidEscape -> "escape"; UrlInvalidHost -> "host"; other -> "other"
+
+  -- | Validate arbitrary decoded bytes or the independently recorded first failure offset.
+  decoded-case :: String -> String -> String -> String -> String -> Bool
+  decoded-case mode-text raw-hex expected-hex error-code offset =
+    let raw = input raw-hex in case url-unescape (encoding (decimal mode-text)) raw of
+      Ok bytes -> error-code == "" && same bytes (input expected-hex)
+      Err failure -> failure-code failure == error-code && url-failure-offset failure == decimal offset
+
+  -- | Return the first incorrect decoder row offset plus one, or zero on success.
+  decoded-from :: Bytes -> Nat -> Nat
+  decoded-from stream at = if at >= bytes-len stream then 0 else case field stream at of
+    (mode, a) -> case field stream a of
+      (raw, b) -> case field stream b of
+        (expected, c) -> case field stream c of
+          (error-code, d) -> case field stream d of
+            (offset, next) -> if decoded-case mode raw expected error-code offset then decoded-from stream next else at + 1
+
+  -- | Select a deterministic corpus byte with explicit constant positive divisors.
+  corpus-byte :: Nat -> Nat -> Bytes -> Nat
+  corpus-byte i pattern table =
+    if pattern == 1 then 32
+    else if pattern == 2 then u8-to-nat (wrapping-i64-to-u8 (nat-to-i64 (nat-rem (i * 37 + 11) 256)))
+    else let at = if pattern == 3 then nat-rem i 19 else nat-rem i 10 in
+      if at < bytes-len table then bytes-get table at else 0
+
+  -- | Fill a bounded runtime corpus independently of percent encoding.
+  fill :: Bytes -> Nat -> Nat -> Bytes -> Unit
+  fill out at pattern table = if at < bytes-len out then
+    let byte = corpus-byte at pattern table in
+    if byte <= 255 then let written = bytes-set out at byte in fill out (at + 1) pattern table else ()
+    else ()
+
+  -- | Build raw UTF-8 or arbitrary bytes, including deliberately truncated UTF-8 tails.
+  corpus :: Nat -> Nat -> Bytes
+  corpus n pattern = if n <= 65536 then
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 n))) in
+    let out = bytes-new size in
+    let table = string-to-bytes (if pattern == 3 then "a/b?c&d=e+f #\"[]%:;" else if pattern == 4 then "é中😀/" else "AZaz09-_.~") in
+    let written = fill out 0 pattern table in out
+    else bytes-new 0
+
+  -- | Observe every input/output byte through independent large-pipeline fingerprints.
+  long-case :: Nat -> Nat -> Nat -> U64 -> Nat -> U64 -> Bool
+  long-case mode size pattern input-hash expected-size expected-hash =
+    let raw = corpus size pattern in let out = url-escape (encoding mode) raw in
+    eq-u64 (fnv64a raw) input-hash && bytes-len out == expected-size && eq-u64 (fnv64a out) expected-hash
+      && url-escaped-length (encoding mode) raw == expected-size
+
+  -- | Conjoin bounded groups without creating a deep compile-time fixture expression.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+
+  -- | Preserve source and result independence for escaped bytes, decoded bytes and failure detail.
+  aliases :: Unit -> Bool
+  aliases unit =
+    let source = bytes-from-u8s [97,32,255] in let encoded = url-query-escape source in
+    let wire = string-to-bytes "%FF+%00" in
+    let malformed = string-to-bytes "%gg" in
+    if bytes-len source > 0 && bytes-len wire > 0 && bytes-len malformed > 0 then
+      let changed = bytes-set source 0 98 in
+      case url-query-unescape wire of
+        Err error -> False
+        Ok decoded -> let changed-wire = bytes-set wire 0 120 in
+          case url-query-unescape malformed of
+            Ok bytes -> False
+            Err failure ->
+              let detail = url-failure-detail failure in
+              if bytes-len detail > 0 then
+                let changed-detail = bytes-set detail 0 120 in
+                same encoded (string-to-bytes "a+%FF") && same decoded (bytes-from-u8s [255,32,0])
+                  && same (url-failure-detail failure) (string-to-bytes "%gg")
+              else False
+    else False
+
+  -- | Raw hints preserve pchar spellings while rejecting spaces, hashes and malformed percent triples.
+  hints :: Unit -> Bool
+  hints unit =
+    (case url-unescape-path-hint (string-to-bytes "%2f['!*]") of Ok bytes -> same bytes (string-to-bytes "/['!*]"); Err error -> False)
+      && (case url-unescape-path-hint (string-to-bytes "a?b") of Err error -> True; Ok bytes -> False)
+      && (case url-unescape-fragment-hint (string-to-bytes "a?b%FF") of Ok bytes -> same bytes (bytes-from-u8s [97,63,98,255]); Err error -> False)
+      && (case url-unescape-fragment-hint (string-to-bytes "a#b") of Err error -> True; Ok bytes -> False)
+      && (case url-unescape-path-hint (string-to-bytes "%zz") of Err error -> True; Ok bytes -> False)
+
+  -- | Format a typed custom cause without converting it to an untyped error string.
+  format-number :: Nat -> String
+  format-number number = nat-to-string number
+
+  -- | Contexts preserve original bytes, typed causes and explicit retry/timeout classification.
+  contexts :: Unit -> Bool
+  contexts unit =
+    let original = bytes-from-u8s [255] in let failure = url-failure UrlInvalidEscape 7 original in
+    let error = url-error "parse" original failure False False in
+    let external = url-error "fetch" original (7 :: Nat) True True in
+    if bytes-len original > 0 then
+      let changed = bytes-set original 0 0 in
+      let observed = url-error-input error in
+      if bytes-len observed > 0 then
+        let changed-copy = bytes-set observed 0 0 in
+        url-error-operation error == "parse" && same (url-error-input error) (bytes-from-u8s [255])
+          && same (url-failure-detail (url-error-cause error)) (bytes-from-u8s [255])
+          && url-failure-offset (url-error-cause error) == 7
+          && not (url-error-temporary error) && not (url-error-timeout error)
+          && url-error-temporary external && url-error-timeout external && url-error-cause external == 7
+          && url-error-render format-number external == "fetch \"\\xFF\": 7"
+      else False
+    else False
+
+__LONG_DECLS__
+
+  -- | Check all small exact-byte rows and independent alias/error observations.
+  small-cases :: Unit -> Bool
+  small-cases unit =
+    let encoded = string-to-bytes __ENCODED__ in
+    let decoded = string-to-bytes __DECODED__ in
+    encoded-from encoded (u32-to-nat (runtime-size 0)) == 0
+      && decoded-from decoded (u32-to-nat (runtime-size 0)) == 0
+      && aliases () && hints () && contexts ()
+
+  -- | Run a selected bounded group, retaining complete coverage across poisoned processes.
+  selected :: String -> Bool
+  selected name = if name == "all" then small-cases () && all [__LONG_CALLS__]
+    else if name == "small" then small-cases ()
+__LONG_SELECT__
+    else False
+
+  -- | Execute all rows by default, or one named group for bounded poisoned-free quarantine.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let args = process-args () in
+    let name = case args of Ok values -> (case values of Nil -> "all"; Cons value rest -> value); Err error -> "invalid" in
+    if selected name then 0
+    else let printed = ioWrite (string-to-bytes (string-concat "URL codec group failed: " (string-concat name "\n"))) in 1
