@@ -1,0 +1,303 @@
+// Generate independent JSON byte grammar, formatting, number and stream observations.
+package main
+
+import (
+	"bytes"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"math"
+	"os"
+	"strconv"
+)
+
+// failure retains structured causes independently from human-readable diagnostic text.
+type failure struct {
+	Kind   string `json:"kind"`
+	Offset int64  `json:"offset"`
+	Value  string `json:"value,omitempty"`
+	Type   string `json:"type,omitempty"`
+	Struct string `json:"struct,omitempty"`
+	Field  string `json:"field,omitempty"`
+	Text   string `json:"text,omitempty"`
+	Cause  string `json:"cause,omitempty"`
+}
+
+// errorInfo extracts stable error metadata rather than converting every failure to a boolean.
+func errorInfo(err error) failure {
+	if err == nil {
+		return failure{}
+	}
+	out := failure{Kind: "other", Text: err.Error()}
+	var numeric *strconv.NumError
+	var syntax *json.SyntaxError
+	var mismatch *json.UnmarshalTypeError
+	var custom *json.MarshalerError
+	var unsupported *json.UnsupportedValueError
+	var unsupportedType *json.UnsupportedTypeError
+	var target *json.InvalidUnmarshalError
+	switch {
+	case errors.As(err, &custom):
+		out.Kind, out.Type, out.Cause = "custom", custom.Type.String(), custom.Unwrap().Error()
+	case errors.As(err, &numeric):
+		out.Kind = "number"
+		if errors.Is(numeric.Err, strconv.ErrRange) {
+			out.Cause = "range"
+		} else {
+			out.Cause = "syntax"
+		}
+	case errors.As(err, &syntax):
+		out.Kind, out.Offset = "syntax", syntax.Offset
+	case errors.As(err, &mismatch):
+		out.Kind, out.Offset = "type", mismatch.Offset
+		out.Value, out.Type, out.Struct, out.Field = mismatch.Value, mismatch.Type.String(), mismatch.Struct, mismatch.Field
+	case errors.As(err, &unsupported):
+		out.Kind, out.Type, out.Value = "value", unsupported.Value.Type().String(), unsupported.Str
+	case errors.As(err, &unsupportedType):
+		out.Kind, out.Type = "unsupported-type", unsupportedType.Type.String()
+	case errors.As(err, &target):
+		out.Kind = "target"
+		if target.Type != nil {
+			out.Type = target.Type.String()
+		}
+	}
+	return out
+}
+
+// wireHex prevents fixture serialization from repairing malformed UTF-8 bytes.
+func wireHex(input []byte) string { return hex.EncodeToString(input) }
+
+// syntaxCase records exact raw transformations and syntax offsets for one arbitrary byte sequence.
+func syntaxCase(input []byte) map[string]any {
+	var raw json.RawMessage
+	err := json.Unmarshal(input, &raw)
+	var compact, html bytes.Buffer
+	compactErr := json.Compact(&compact, input)
+	json.HTMLEscape(&html, input)
+	indents := []map[string]any{}
+	for _, settings := range [][2]string{{"", "  "}, {"P:", "\t"}, {"", ""}} {
+		var output bytes.Buffer
+		indentErr := json.Indent(&output, input, settings[0], settings[1])
+		indents = append(indents, map[string]any{"prefix": settings[0], "step": settings[1], "output_hex": wireHex(output.Bytes()), "error": errorInfo(indentErr)})
+	}
+	return map[string]any{"input_hex": wireHex(input), "valid": json.Valid(input), "raw_hex": wireHex(raw), "error": errorInfo(err), "compact_hex": wireHex(compact.Bytes()), "compact_error": errorInfo(compactErr), "html_hex": wireHex(html.Bytes()), "indents": indents}
+}
+
+// quoteCase retains text replacement and both HTML policies over arbitrary string bytes.
+func quoteCase(input []byte) map[string]any {
+	results := []map[string]any{}
+	for _, html := range []bool{false, true} {
+		var output bytes.Buffer
+		encoder := json.NewEncoder(&output)
+		encoder.SetEscapeHTML(html)
+		err := encoder.Encode(string(input))
+		encoded := bytes.TrimSuffix(output.Bytes(), []byte{'\n'})
+		var decoded string
+		decodeErr := json.Unmarshal(encoded, &decoded)
+		results = append(results, map[string]any{"html": html, "output_hex": wireHex(encoded), "error": errorInfo(err), "decoded_hex": wireHex([]byte(decoded)), "decode_error": errorInfo(decodeErr)})
+	}
+	return map[string]any{"input_hex": wireHex(input), "results": results}
+}
+
+// numberCase separates exact source spellings from integer/float conversion and range errors.
+func numberCase(text string) map[string]any {
+	number := json.Number(text)
+	integer, integerErr := number.Int64()
+	floating, floatErr := number.Float64()
+	encoded, marshalErr := json.Marshal(number)
+	return map[string]any{"text": text, "integer": strconv.FormatInt(integer, 10), "integer_error": errorInfo(integerErr), "float_bits": fmt.Sprintf("%016x", math.Float64bits(floating)), "float_error": errorInfo(floatErr), "marshal_hex": wireHex(encoded), "marshal_error": errorInfo(marshalErr)}
+}
+
+// chunkReader bounds each source read while retaining normal reader EOF semantics.
+type chunkReader struct {
+	input []byte
+	chunk int
+}
+
+// Read copies one source fragment into the decoder's supplied buffer.
+func (r *chunkReader) Read(out []byte) (int, error) {
+	if len(r.input) == 0 {
+		return 0, io.EOF
+	}
+	n := min(len(out), len(r.input), r.chunk)
+	copy(out, r.input[:n])
+	r.input = r.input[n:]
+	return n, nil
+}
+
+// tokenValue converts one public token into stable data without losing float bit patterns.
+func tokenValue(token json.Token) map[string]any {
+	switch value := token.(type) {
+	case nil:
+		return map[string]any{"kind": "null"}
+	case json.Delim:
+		return map[string]any{"kind": "delimiter", "text": value.String()}
+	case bool:
+		return map[string]any{"kind": "bool", "value": value}
+	case string:
+		return map[string]any{"kind": "string", "utf8_hex": wireHex([]byte(value))}
+	case json.Number:
+		return map[string]any{"kind": "number", "text": value.String()}
+	case float64:
+		return map[string]any{"kind": "float", "bits": fmt.Sprintf("%016x", math.Float64bits(value))}
+	default:
+		panic(fmt.Sprintf("unhandled token %T", token))
+	}
+}
+
+// streamCase observes every token, logical cursor and snapshot of already-buffered source bytes.
+func streamCase(input []byte, chunk int, numbers bool) map[string]any {
+	decoder := json.NewDecoder(&chunkReader{bytes.Clone(input), chunk})
+	if numbers {
+		decoder.UseNumber()
+	}
+	steps := []map[string]any{}
+	for i := 0; i < 1000; i++ {
+		more := decoder.More()
+		token, err := decoder.Token()
+		buffered, readErr := io.ReadAll(decoder.Buffered())
+		if readErr != nil {
+			panic(readErr)
+		}
+		step := map[string]any{"more": more, "offset": decoder.InputOffset(), "buffered_hex": wireHex(buffered)}
+		if err == io.EOF {
+			step["eof"] = true
+		} else if err != nil {
+			step["error"] = errorInfo(err)
+		} else {
+			step["token"] = tokenValue(token)
+		}
+		steps = append(steps, step)
+		if err != nil {
+			break
+		}
+	}
+	return map[string]any{"input_hex": wireHex(input), "chunk": chunk, "numbers": numbers, "steps": steps}
+}
+
+// applicationRecord exercises exact-first field matching, quoted fields and omission metadata.
+type applicationRecord struct {
+	ID      int64  `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled,omitempty"`
+	Quoted  int64  `json:"quoted,string"`
+	Zero    int64  `json:"zero,omitzero"`
+}
+
+// typedCase retains the partial result after unmarshal, independently from the returned error.
+func typedCase(label string, input []byte, initial any) map[string]any {
+	err := json.Unmarshal(input, initial)
+	encoded, encodeErr := json.Marshal(initial)
+	return map[string]any{"type": label, "input_hex": wireHex(input), "error": errorInfo(err), "output_hex": wireHex(encoded), "output_error": errorInfo(encodeErr)}
+}
+
+// typedCases covers null preservation, type errors, later updates, arrays, maps and binary values.
+func typedCases() []map[string]any {
+	rows := []map[string]any{}
+	for _, text := range []string{"null", "true", "false", "0", "\"true\"", "[]"} {
+		value := true
+		rows = append(rows, typedCase("Bool", []byte(text), &value))
+	}
+	for _, text := range []string{"null", "\"x\"", "\"\\ud800\"", "42", "{}"} {
+		value := "before"
+		rows = append(rows, typedCase("String", []byte(text), &value))
+	}
+	for _, text := range []string{"null", "0", "-9223372036854775808", "9223372036854775807", "9223372036854775808", "1.0", "1e1", "\"1\"", "true"} {
+		value := int64(7)
+		rows = append(rows, typedCase("I64", []byte(text), &value))
+	}
+	for _, text := range []string{"null", "0", "18446744073709551615", "18446744073709551616", "-1", "1.0", "\"1\""} {
+		value := uint64(7)
+		rows = append(rows, typedCase("U64", []byte(text), &value))
+	}
+	for _, text := range []string{"null", "1.00e+09", "\"1.00e+09\"", "\"\\u0031.0\"", "\"01\"", "\"x\"", "true"} {
+		value := json.Number("7")
+		rows = append(rows, typedCase("JsonNumber", []byte(text), &value))
+	}
+	for _, text := range []string{"null", "[]", "[1]", "[1,2,3,4]", "[1,\"x\",3]", "[null,2]", "{}"} {
+		value := []int64{7, 8, 9}
+		rows = append(rows, typedCase("List I64", []byte(text), &value))
+		array := [3]int64{7, 8, 9}
+		rows = append(rows, typedCase("Array3 I64", []byte(text), &array))
+	}
+	for _, text := range []string{"null", "{}", "{\"a\":1}", "{\"a\":1,\"a\":2}", "{\"a\":\"x\",\"b\":3}", "{\"a\":null}", "[]"} {
+		value := map[string]int64{"a": 7, "old": 8}
+		rows = append(rows, typedCase("Map String I64", []byte(text), &value))
+	}
+	for _, text := range []string{"null", "\"\"", "\"AAECA/8=\"", "\"AB==\"", "\"AA\\nEC\"", "\"?\"", "[1,2,255]", "[256]", "[null,2]"} {
+		value := []byte{7, 8}
+		rows = append(rows, typedCase("Bytes", []byte(text), &value))
+	}
+	for _, text := range []string{"null", "{}", "{\"id\":2,\"name\":\"after\",\"quoted\":\"5\"}", "{\"ID\":2,\"NAME\":\"after\"}", "{\"id\":\"bad\",\"name\":\"after\",\"enabled\":true}", "{\"id\":9223372036854775808,\"name\":\"after\"}", "{\"unknown\":1,\"name\":\"after\"}", "{\"quoted\":5,\"name\":\"after\"}", "{\"quoted\":\"bad\",\"name\":\"after\"}", "[]"} {
+		value := applicationRecord{ID: 7, Name: "before", Quoted: 9}
+		rows = append(rows, typedCase("ApplicationRecord", []byte(text), &value))
+	}
+	for _, text := range []string{"null", " {\"a\": 1,\"a\":2} ", "\"\\ud800\"", "[]", ""} {
+		value := json.RawMessage(`{"before":true}`)
+		rows = append(rows, typedCase("JsonRawMessage", []byte(text), &value))
+	}
+	return rows
+}
+
+// byteIndentCases keeps arbitrary line-prefix bytes independent from scalar string fixtures.
+func byteIndentCases() []map[string]any {
+	rows := []map[string]any{}
+	for _, input := range []string{`{"a":[1,2],"b":{}}`, "  [true,{}] \n", "  1.0 \t"} {
+		for _, settings := range [][2]string{{string([]byte{255, 0}), "x\n"}, {"\"\\", string([]byte{192, 175})}, {"", ""}} {
+			var out bytes.Buffer
+			err := json.Indent(&out, []byte(input), settings[0], settings[1])
+			rows = append(rows, map[string]any{"input_hex": wireHex([]byte(input)), "prefix_hex": wireHex([]byte(settings[0])), "step_hex": wireHex([]byte(settings[1])), "output_hex": wireHex(out.Bytes()), "error": errorInfo(err)})
+		}
+	}
+	return rows
+}
+
+// main spans malformed grammar, byte/escape boundaries and exact finite-number ranges.
+func main() {
+	inputs := [][]byte{}
+	for _, text := range []string{"", " ", "null", " true \r\n", "false", "0", "-0", "0.00", "1e+09", "1e9999", "[1,2,3]", "{}", "[]", "{\"a\":1,\"a\":2}", "{\"x\":[true,null,{\"é\":\"漢😀\"}]}", "\"\\uD83D\\uDE00\"", "\"\\uD800\"", "\"\\uDC00\"", "\"\\uD800\\u0041\"", "\"\\uD800\\uD800\\uDC00\"", "01", "-", "1.", "1e", "1e+", "[1,]", "{\"x\":}", "{x:1}", "[}", "{]", "truex", "true false", "\"\\x00\"", "\"\\u12xz\"", "\"unterminated", "\"line\nfeed\"", "[1 2]", "{\"a\" 1}", "{\"a\":1 \"b\":2}"} {
+		inputs = append(inputs, []byte(text))
+	}
+	inputs = append(inputs, []byte{34, 255, 34}, []byte{34, 237, 160, 128, 34}, []byte{34, 192, 175, 34}, []byte{239, 187, 191, 49}, []byte{0}, []byte{34, 0, 34})
+	// Checkpoint offsets depend on token kind and the public operation that consumes it.
+	for _, text := range []string{"  -", "[ -", "[12.", "{\"n\":12e+", "123.45e-", "n", "tru", "\"abc\\", "\"\\u12", "\"\\u12x", "\"\\u12x\"", "\"\\u12xZ\"", "1.x", "1ex", "-x", "[1. ]", "[\"\\x\"]"} {
+		inputs = append(inputs, []byte(text))
+	}
+	for _, input := range [][]byte{{34, 226}, {34, 226, 130}, {34, 194}, {34, 240, 144}, {34, 255}, {226}, {226, 130}, {192}, {194, 65}, {194, 160}, {226, 128, 131}, {239, 191, 189}, {34, 92, 117, 49, 50, 255}, {34, 92, 117, 48, 48, 9, 34}, {34, 92, 117, 48, 48, 96, 34}} {
+		inputs = append(inputs, input)
+	}
+	quotes := [][]byte{nil, []byte("plain"), []byte("\"\\\b\f\n\r\t\x00\x1f"), []byte("<>&\u2028\u2029é漢😀"), {255, 254, 192, 175}, {237, 160, 128}, {244, 144, 128, 128}, {239, 191, 189}}
+	for _, n := range []int{0, 1, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65, 119, 120, 121, 127, 128, 129, 255, 256, 257} {
+		body := bytes.Repeat([]byte{'a'}, n)
+		wire := append(append([]byte{'"'}, body...), '"')
+		inputs = append(inputs, wire)
+		quotes = append(quotes, body, append(bytes.Clone(body), []byte("<\\\"\n😀")...))
+	}
+	syntax := []map[string]any{}
+	for _, input := range inputs {
+		syntax = append(syntax, syntaxCase(input))
+	}
+	quoteVectors := []map[string]any{}
+	for _, input := range quotes {
+		quoteVectors = append(quoteVectors, quoteCase(input))
+	}
+	numbers := []map[string]any{}
+	for _, text := range []string{"0", "-0", "1", "-1", "1.0", "0.000001", "1e-7", "1e+21", "9007199254740993", "9223372036854775807", "-9223372036854775808", "9223372036854775808", "-9223372036854775809", "18446744073709551615", "1e9999", "-1e9999", "1e-9999", "1.7976931348623157e308", "1.7976931348623159e308", "5e-324", "", "01", "+1", "1x", " 1 "} {
+		numbers = append(numbers, numberCase(text))
+	}
+	streams := []map[string]any{}
+	for _, input := range inputs[:45] {
+		for _, chunk := range []int{1, 7, 4096} {
+			for _, numbers := range []bool{false, true} {
+				streams = append(streams, streamCase(input, chunk, numbers))
+			}
+		}
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(map[string]any{"syntax": syntax, "quote": quoteVectors, "number": numbers, "stream": streams, "typed": typedCases(), "indent_bytes": byteIndentCases()}); err != nil {
+		panic(err)
+	}
+}

@@ -1,0 +1,95 @@
+-- | Independent JSON value and formatting consumer with runtime inputs and complete byte comparisons.
+module Main where
+  import Text.Json.Value
+  import Data.Machine
+  -- | Keep input preparation live through front-end evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Observe a finite float's complete IEEE bit pattern without decimal rendering.
+  prim float-bits :: F64 -> U64 where
+    llvm {
+      %value = bitcast double %0 to i64
+      ret i64 %value
+    }
+  -- | Snapshot fixture bytes through a runtime-sized destination.
+  runtime-bytes :: Bytes -> Bytes
+  runtime-bytes input =
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let out = bytes-new size in
+    if bytes-len input <= bytes-len out then let copied = bytes-copy-range out input 0 0 (bytes-len input) in out else bytes-new 0
+  -- | Compare complete bytes, including embedded NUL and malformed UTF-8.
+  same-bytes :: Bytes -> Bytes -> Bool
+  same-bytes left right = eq-i64 (bytes-compare left right) 0
+  -- | Compare syntax failures using original offsets and neutral JSON diagnostic text.
+  syntax-error :: JsonError -> Nat -> String -> Bool
+  syntax-error actual offset message = case actual of JsonSyntaxError at text -> at == offset && text == message; other -> False
+  -- | Check validation and exact retained raw source for a complete valid document.
+  valid-case :: Bytes -> Bytes -> Bool
+  valid-case input raw = json-valid input && (case json-document input of Err error -> False; Ok document -> same-bytes (json-value-source (json-document-value document)) raw && same-bytes (json-document-input document) input)
+  -- | Check named syntax failure before a document or output can escape.
+  invalid-case :: Bytes -> Nat -> String -> Bool
+  invalid-case input offset message = not (json-valid input) && (case json-document input of Err error -> syntax-error error offset message; Ok document -> False)
+  -- | Compare the entire compact output or its exact original syntax refusal.
+  compact-case :: Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  compact-case input expected valid offset message = case json-compact input of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare indentation, including arbitrary line prefixes and preserved trailing whitespace.
+  indent-case :: Bytes -> String -> String -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-case input prefix step expected valid offset message = case json-indent input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare raw-byte indentation fragments independently of scalar text validity.
+  indent-byte-case :: Bytes -> Bytes -> Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-byte-case input prefix step expected valid offset message = case json-indent-bytes input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare quoted arbitrary bytes and their decoded replacement-scalar text.
+  quote-case :: Bytes -> Bool -> Bytes -> Bytes -> Bool
+  quote-case input html expected decoded =
+    let out = json-quote-bytes input html in same-bytes out expected && (case json-document out of
+      Err error -> False
+      Ok document -> case json-value-string (json-document-value document) of None -> False; Some text -> same-bytes (string-to-bytes text) decoded)
+  -- | Compare valid number spellings and integer/float conversions without a rounding-based oracle.
+  number-case :: String -> Bool -> I64 -> Bool -> U64 -> Bool
+  number-case text integer-ok integer float-ok bits = case json-number text of
+    Err error -> False
+    Ok number -> json-number-text number == text
+      && (case json-number-int64 number of Ok actual -> integer-ok && eq-i64 actual integer; Err error -> not integer-ok)
+      && (case json-number-float64 number of Ok actual -> float-ok && eq-u64 (float-bits actual) bits; Err error -> not float-ok)
+  -- | Reject malformed number spellings at construction rather than admitting an invalid number value.
+  number-invalid :: String -> Bool
+  number-invalid text = case json-number text of Err error -> True; Ok value -> False
+  -- | Preserve a failing fixture index within a bounded group.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks index = case checks of Nil -> 0; Cons first rest -> if first then first-failure rest (index + 1) else index
+  -- | Preserve the first failing group without constructing one enormous evaluation body.
+  first-result :: List Nat -> Nat
+  first-result groups = case groups of Nil -> 0; Cons first rest -> if first > 0 then first else first-result rest
+
+  -- | Evaluate bounded independent indent checks with global failure indexes.
+  check-batch0 :: Unit -> Nat
+  check-batch0 unit = first-failure [
+      (indent-byte-case (runtime-bytes (string-to-bytes "{\"a\":[1,2],\"b\":{}}")) (bytes-from-list [255,0]) (string-to-bytes "x\n") (bytes-from-list [123,10,255,0,120,10,34,97,34,58,32,91,10,255,0,120,10,120,10,49,44,10,255,0,120,10,120,10,50,10,255,0,120,10,93,44,10,255,0,120,10,34,98,34,58,32,123,125,10,255,0,125]) True 0 ""),
+      (indent-byte-case (runtime-bytes (string-to-bytes "{\"a\":[1,2],\"b\":{}}")) (string-to-bytes "\"\\") (bytes-from-list [192,175]) (bytes-from-list [123,10,34,92,192,175,34,97,34,58,32,91,10,34,92,192,175,192,175,49,44,10,34,92,192,175,192,175,50,10,34,92,192,175,93,44,10,34,92,192,175,34,98,34,58,32,123,125,10,34,92,125]) True 0 ""),
+      (indent-byte-case (runtime-bytes (string-to-bytes "{\"a\":[1,2],\"b\":{}}")) (string-to-bytes "") (string-to-bytes "") (string-to-bytes "{\n\"a\": [\n1,\n2\n],\n\"b\": {}\n}") True 0 ""),
+      (indent-byte-case (runtime-bytes (string-to-bytes "  [true,{}] \n")) (bytes-from-list [255,0]) (string-to-bytes "x\n") (bytes-from-list [91,10,255,0,120,10,116,114,117,101,44,10,255,0,120,10,123,125,10,255,0,93,32,10]) True 0 ""),
+      (indent-byte-case (runtime-bytes (string-to-bytes "  [true,{}] \n")) (string-to-bytes "\"\\") (bytes-from-list [192,175]) (bytes-from-list [91,10,34,92,192,175,116,114,117,101,44,10,34,92,192,175,123,125,10,34,92,93,32,10]) True 0 ""),
+      (indent-byte-case (runtime-bytes (string-to-bytes "  [true,{}] \n")) (string-to-bytes "") (string-to-bytes "") (string-to-bytes "[\ntrue,\n{}\n] \n") True 0 "")] 1
+
+  -- | Evaluate bounded independent indent checks with global failure indexes.
+  check-batch1 :: Unit -> Nat
+  check-batch1 unit = first-failure [
+      (indent-byte-case (runtime-bytes (string-to-bytes "  1.0 \t")) (bytes-from-list [255,0]) (string-to-bytes "x\n") (string-to-bytes "1.0 \t") True 0 ""),
+      (indent-byte-case (runtime-bytes (string-to-bytes "  1.0 \t")) (string-to-bytes "\"\\") (bytes-from-list [192,175]) (string-to-bytes "1.0 \t") True 0 ""),
+      (indent-byte-case (runtime-bytes (string-to-bytes "  1.0 \t")) (string-to-bytes "") (string-to-bytes "") (string-to-bytes "1.0 \t") True 0 "")] 7
+
+  -- | Print the original failing observation and return a nonzero status on failure.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = first-result [check-batch0 (),check-batch1 ()] in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in
+    if failed == 0 then 0 else 1

@@ -1,0 +1,29 @@
+{
+  "description": "Exact retained first-generation consumer host-stack diagnostic; no consumer stack or heap limit is raised",
+  "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+  "source_files": {
+    "Data.Array.cinch": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Main.cinch": "4595e46a19070f90d7c65d99f4c554dcea33fcf9a0071dd3947e4add0bb25d85",
+    "Text.Json.Value.cinch": "3cd57c886f60226686098bea99e0c66d03cc3b39d9ebe1d23d3fcf30dd7f6bc9",
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+  },
+  "command": [
+    "/workspace/dasl-stdlib-io/build/nested-frame-guard-final-frozen/cinch",
+    "build",
+    "/workspace/dasl-stdlib-json/build/json-core-corpus/syntax/Main.cinch",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/json-core-corpus/syntax/consumer-host64m",
+    "--opt-level",
+    "2",
+    "--rc-debug"
+  ],
+  "compiler_host_stack_bytes": 67108864,
+  "rust_min_stack": "67108864",
+  "elapsed_seconds": 24.54872401600005,
+  "exit_code": 0,
+  "original_8m_host_result": "process aborted134: thread main has overflowed its stack; see retained /tmp/cinch-json-core-syntax-build.log",
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "consumer_executed": false,
+  "source_archive": "compiler/tests/fixtures/json-host-stack-original.tar.gz",
+  "source_archive_sha256": "71b541a67b3534c1651374fef062aa317cce9c1cc5091317bcbbd4706533d3bc"
+}

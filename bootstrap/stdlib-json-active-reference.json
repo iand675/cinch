@@ -1,0 +1,26 @@
+{
+  "package": "encoding/json",
+  "version": "go version go1.27.4 linux/amd64",
+  "sdk_executable_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "environment": {
+    "GOARCH": "amd64",
+    "GOEXPERIMENT": "",
+    "GOOS": "linux",
+    "GOROOT": "/tmp/cinch-go-current/go",
+    "GOTOOLCHAIN": "auto"
+  },
+  "selected_files": {
+    "v2_decode.go": "d82e2e8ac32bc64c967b02769fc1fc6e2e5e9d7aae384673709e6af4669bc3fe",
+    "v2_encode.go": "8d3601b3a4c652b90ece3b9c5f5b1bcb7ad155eb85e625372a158c1dd9e8c414",
+    "v2_indent.go": "f8ac9f3dba216cc5577ca731268db70c7667a1c0d7bb61f436ffd3db92a8f500",
+    "v2_inject.go": "b91accbba6b414cbc94bc2e08193736f601e956188bcdff837e2e24f45d74c19",
+    "v2_options.go": "253e7ccb9c38463ab47b5c78e1bc1f103b2e95f976dfe0805e23f4922d59ab0a",
+    "v2_scanner.go": "d3f720d1a0a001f010c8556dc01507d99d78d6640c953f95c256a6c398fa20ad",
+    "v2_stream.go": "ae20daf462b86bf14884637fc2e8256aaadd9bba91c580fbb6840020e6a12898"
+  },
+  "build_configuration_sha256": "5825d40b47471bca28a00c0c19215930efef22b758120b6d972da1a955f21fa0",
+  "default_json_experiment_evidence": [
+    "JSONv2:                true,"
+  ],
+  "scope": "The cumulative declaration records include historical forms. These selected source files define the active reference behavior, including internally enabled default experiments."
+}

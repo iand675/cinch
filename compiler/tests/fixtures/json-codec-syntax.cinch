@@ -1,0 +1,1068 @@
+-- | Independent JSON value and formatting consumer with runtime inputs and complete byte comparisons.
+module Main where
+  import Text.Json.Value
+  import Data.Machine
+  -- | Keep input preparation live through front-end evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Observe a finite float's complete IEEE bit pattern without decimal rendering.
+  prim float-bits :: F64 -> U64 where
+    llvm {
+      %value = bitcast double %0 to i64
+      ret i64 %value
+    }
+  -- | Snapshot fixture bytes through a runtime-sized destination.
+  runtime-bytes :: Bytes -> Bytes
+  runtime-bytes input =
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let out = bytes-new size in
+    if bytes-len input <= bytes-len out then let copied = bytes-copy-range out input 0 0 (bytes-len input) in out else bytes-new 0
+  -- | Compare complete bytes, including embedded NUL and malformed UTF-8.
+  same-bytes :: Bytes -> Bytes -> Bool
+  same-bytes left right = eq-i64 (bytes-compare left right) 0
+  -- | Compare syntax failures using original offsets and neutral JSON diagnostic text.
+  syntax-error :: JsonError -> Nat -> String -> Bool
+  syntax-error actual offset message = case actual of JsonSyntaxError at text -> at == offset && text == message; other -> False
+  -- | Check validation and exact retained raw source for a complete valid document.
+  valid-case :: Bytes -> Bytes -> Bool
+  valid-case input raw = json-valid input && (case json-document input of Err error -> False; Ok document -> same-bytes (json-value-source (json-document-value document)) raw && same-bytes (json-document-input document) input)
+  -- | Check named syntax failure before a document or output can escape.
+  invalid-case :: Bytes -> Nat -> String -> Bool
+  invalid-case input offset message = not (json-valid input) && (case json-document input of Err error -> syntax-error error offset message; Ok document -> False)
+  -- | Compare the entire compact output or its exact original syntax refusal.
+  compact-case :: Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  compact-case input expected valid offset message = case json-compact input of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare indentation, including arbitrary line prefixes and preserved trailing whitespace.
+  indent-case :: Bytes -> String -> String -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-case input prefix step expected valid offset message = case json-indent input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare raw-byte indentation fragments independently of scalar text validity.
+  indent-byte-case :: Bytes -> Bytes -> Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-byte-case input prefix step expected valid offset message = case json-indent-bytes input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare quoted arbitrary bytes and their decoded replacement-scalar text.
+  quote-case :: Bytes -> Bool -> Bytes -> Bytes -> Bool
+  quote-case input html expected decoded =
+    let out = json-quote-bytes input html in same-bytes out expected && (case json-document out of
+      Err error -> False
+      Ok document -> case json-value-string (json-document-value document) of None -> False; Some text -> same-bytes (string-to-bytes text) decoded)
+  -- | Compare valid number spellings and integer/float conversions without a rounding-based oracle.
+  number-case :: String -> Bool -> I64 -> Bool -> U64 -> Bool
+  number-case text integer-ok integer float-ok bits = case json-number text of
+    Err error -> False
+    Ok number -> json-number-text number == text
+      && (case json-number-int64 number of Ok actual -> integer-ok && eq-i64 actual integer; Err error -> not integer-ok)
+      && (case json-number-float64 number of Ok actual -> float-ok && eq-u64 (float-bits actual) bits; Err error -> not float-ok)
+  -- | Reject malformed number spellings at construction rather than admitting an invalid number value.
+  number-invalid :: String -> Bool
+  number-invalid text = case json-number text of Err error -> True; Ok value -> False
+  -- | Preserve a failing fixture index within a bounded group.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks index = case checks of Nil -> 0; Cons first rest -> if first then first-failure rest (index + 1) else index
+  -- | Preserve the first failing group without constructing one enormous evaluation body.
+  first-result :: List Nat -> Nat
+  first-result groups = case groups of Nil -> 0; Cons first rest -> if first > 0 then first else first-result rest
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch0 :: Unit -> Nat
+  check-batch0 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "")) 0 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "")) (string-to-bytes "") False 0 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes ""))) (string-to-bytes "")),
+      (indent-case (runtime-bytes (string-to-bytes "")) "" "  " (string-to-bytes "") False 0 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "")) "P:" "\t" (string-to-bytes "") False 0 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "")) "" "" (string-to-bytes "") False 0 "unexpected end of JSON input")] 1
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch1 :: Unit -> Nat
+  check-batch1 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes " ")) 1 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes " ")) (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes " "))) (string-to-bytes " ")),
+      (indent-case (runtime-bytes (string-to-bytes " ")) "" "  " (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes " ")) "P:" "\t" (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes " ")) "" "" (string-to-bytes "") False 1 "unexpected end of JSON input")] 7
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch2 :: Unit -> Nat
+  check-batch2 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "null")) (string-to-bytes "null")),
+      (compact-case (runtime-bytes (string-to-bytes "null")) (string-to-bytes "null") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "null"))) (string-to-bytes "null")),
+      (indent-case (runtime-bytes (string-to-bytes "null")) "" "  " (string-to-bytes "null") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "null")) "P:" "\t" (string-to-bytes "null") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "null")) "" "" (string-to-bytes "null") True 0 "")] 13
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch3 :: Unit -> Nat
+  check-batch3 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes " true \r\n")) (string-to-bytes "true")),
+      (compact-case (runtime-bytes (string-to-bytes " true \r\n")) (string-to-bytes "true") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes " true \r\n"))) (string-to-bytes " true \r\n")),
+      (indent-case (runtime-bytes (string-to-bytes " true \r\n")) "" "  " (string-to-bytes "true \r\n") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes " true \r\n")) "P:" "\t" (string-to-bytes "true \r\n") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes " true \r\n")) "" "" (string-to-bytes "true \r\n") True 0 "")] 19
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch4 :: Unit -> Nat
+  check-batch4 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "false")) (string-to-bytes "false")),
+      (compact-case (runtime-bytes (string-to-bytes "false")) (string-to-bytes "false") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "false"))) (string-to-bytes "false")),
+      (indent-case (runtime-bytes (string-to-bytes "false")) "" "  " (string-to-bytes "false") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "false")) "P:" "\t" (string-to-bytes "false") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "false")) "" "" (string-to-bytes "false") True 0 "")] 25
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch5 :: Unit -> Nat
+  check-batch5 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "0")) (string-to-bytes "0")),
+      (compact-case (runtime-bytes (string-to-bytes "0")) (string-to-bytes "0") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "0"))) (string-to-bytes "0")),
+      (indent-case (runtime-bytes (string-to-bytes "0")) "" "  " (string-to-bytes "0") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "0")) "P:" "\t" (string-to-bytes "0") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "0")) "" "" (string-to-bytes "0") True 0 "")] 31
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch6 :: Unit -> Nat
+  check-batch6 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "-0")) (string-to-bytes "-0")),
+      (compact-case (runtime-bytes (string-to-bytes "-0")) (string-to-bytes "-0") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "-0"))) (string-to-bytes "-0")),
+      (indent-case (runtime-bytes (string-to-bytes "-0")) "" "  " (string-to-bytes "-0") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "-0")) "P:" "\t" (string-to-bytes "-0") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "-0")) "" "" (string-to-bytes "-0") True 0 "")] 37
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch7 :: Unit -> Nat
+  check-batch7 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "0.00")) (string-to-bytes "0.00")),
+      (compact-case (runtime-bytes (string-to-bytes "0.00")) (string-to-bytes "0.00") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "0.00"))) (string-to-bytes "0.00")),
+      (indent-case (runtime-bytes (string-to-bytes "0.00")) "" "  " (string-to-bytes "0.00") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "0.00")) "P:" "\t" (string-to-bytes "0.00") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "0.00")) "" "" (string-to-bytes "0.00") True 0 "")] 43
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch8 :: Unit -> Nat
+  check-batch8 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "1e+09")) (string-to-bytes "1e+09")),
+      (compact-case (runtime-bytes (string-to-bytes "1e+09")) (string-to-bytes "1e+09") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "1e+09"))) (string-to-bytes "1e+09")),
+      (indent-case (runtime-bytes (string-to-bytes "1e+09")) "" "  " (string-to-bytes "1e+09") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "1e+09")) "P:" "\t" (string-to-bytes "1e+09") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "1e+09")) "" "" (string-to-bytes "1e+09") True 0 "")] 49
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch9 :: Unit -> Nat
+  check-batch9 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "1e9999")) (string-to-bytes "1e9999")),
+      (compact-case (runtime-bytes (string-to-bytes "1e9999")) (string-to-bytes "1e9999") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "1e9999"))) (string-to-bytes "1e9999")),
+      (indent-case (runtime-bytes (string-to-bytes "1e9999")) "" "  " (string-to-bytes "1e9999") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "1e9999")) "P:" "\t" (string-to-bytes "1e9999") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "1e9999")) "" "" (string-to-bytes "1e9999") True 0 "")] 55
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch10 :: Unit -> Nat
+  check-batch10 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "[1,2,3]")) (string-to-bytes "[1,2,3]")),
+      (compact-case (runtime-bytes (string-to-bytes "[1,2,3]")) (string-to-bytes "[1,2,3]") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "[1,2,3]"))) (string-to-bytes "[1,2,3]")),
+      (indent-case (runtime-bytes (string-to-bytes "[1,2,3]")) "" "  " (string-to-bytes "[\n  1,\n  2,\n  3\n]") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "[1,2,3]")) "P:" "\t" (string-to-bytes "[\nP:\t1,\nP:\t2,\nP:\t3\nP:]") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "[1,2,3]")) "" "" (string-to-bytes "[\n1,\n2,\n3\n]") True 0 "")] 61
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch11 :: Unit -> Nat
+  check-batch11 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "{}")) (string-to-bytes "{}")),
+      (compact-case (runtime-bytes (string-to-bytes "{}")) (string-to-bytes "{}") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "{}"))) (string-to-bytes "{}")),
+      (indent-case (runtime-bytes (string-to-bytes "{}")) "" "  " (string-to-bytes "{}") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "{}")) "P:" "\t" (string-to-bytes "{}") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "{}")) "" "" (string-to-bytes "{}") True 0 "")] 67
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch12 :: Unit -> Nat
+  check-batch12 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "[]")) (string-to-bytes "[]")),
+      (compact-case (runtime-bytes (string-to-bytes "[]")) (string-to-bytes "[]") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "[]"))) (string-to-bytes "[]")),
+      (indent-case (runtime-bytes (string-to-bytes "[]")) "" "  " (string-to-bytes "[]") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "[]")) "P:" "\t" (string-to-bytes "[]") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "[]")) "" "" (string-to-bytes "[]") True 0 "")] 73
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch13 :: Unit -> Nat
+  check-batch13 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "{\"a\":1,\"a\":2}")) (string-to-bytes "{\"a\":1,\"a\":2}")),
+      (compact-case (runtime-bytes (string-to-bytes "{\"a\":1,\"a\":2}")) (string-to-bytes "{\"a\":1,\"a\":2}") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "{\"a\":1,\"a\":2}"))) (string-to-bytes "{\"a\":1,\"a\":2}")),
+      (indent-case (runtime-bytes (string-to-bytes "{\"a\":1,\"a\":2}")) "" "  " (string-to-bytes "{\n  \"a\": 1,\n  \"a\": 2\n}") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "{\"a\":1,\"a\":2}")) "P:" "\t" (string-to-bytes "{\nP:\t\"a\": 1,\nP:\t\"a\": 2\nP:}") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "{\"a\":1,\"a\":2}")) "" "" (string-to-bytes "{\n\"a\": 1,\n\"a\": 2\n}") True 0 "")] 79
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch14 :: Unit -> Nat
+  check-batch14 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "{\"x\":[true,null,{\"é\":\"漢😀\"}]}")) (string-to-bytes "{\"x\":[true,null,{\"é\":\"漢😀\"}]}")),
+      (compact-case (runtime-bytes (string-to-bytes "{\"x\":[true,null,{\"é\":\"漢😀\"}]}")) (string-to-bytes "{\"x\":[true,null,{\"é\":\"漢😀\"}]}") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "{\"x\":[true,null,{\"é\":\"漢😀\"}]}"))) (string-to-bytes "{\"x\":[true,null,{\"é\":\"漢😀\"}]}")),
+      (indent-case (runtime-bytes (string-to-bytes "{\"x\":[true,null,{\"é\":\"漢😀\"}]}")) "" "  " (string-to-bytes "{\n  \"x\": [\n    true,\n    null,\n    {\n      \"é\": \"漢😀\"\n    }\n  ]\n}") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "{\"x\":[true,null,{\"é\":\"漢😀\"}]}")) "P:" "\t" (string-to-bytes "{\nP:\t\"x\": [\nP:\t\ttrue,\nP:\t\tnull,\nP:\t\t{\nP:\t\t\t\"é\": \"漢😀\"\nP:\t\t}\nP:\t]\nP:}") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "{\"x\":[true,null,{\"é\":\"漢😀\"}]}")) "" "" (string-to-bytes "{\n\"x\": [\ntrue,\nnull,\n{\n\"é\": \"漢😀\"\n}\n]\n}") True 0 "")] 85
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch15 :: Unit -> Nat
+  check-batch15 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"\\uD83D\\uDE00\"")) (string-to-bytes "\"\\uD83D\\uDE00\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\uD83D\\uDE00\"")) (string-to-bytes "\"\\uD83D\\uDE00\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\uD83D\\uDE00\""))) (string-to-bytes "\"\\uD83D\\uDE00\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD83D\\uDE00\"")) "" "  " (string-to-bytes "\"\\uD83D\\uDE00\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD83D\\uDE00\"")) "P:" "\t" (string-to-bytes "\"\\uD83D\\uDE00\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD83D\\uDE00\"")) "" "" (string-to-bytes "\"\\uD83D\\uDE00\"") True 0 "")] 91
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch16 :: Unit -> Nat
+  check-batch16 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"\\uD800\"")) (string-to-bytes "\"\\uD800\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\uD800\"")) (string-to-bytes "\"\\uD800\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\uD800\""))) (string-to-bytes "\"\\uD800\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD800\"")) "" "  " (string-to-bytes "\"\\uD800\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD800\"")) "P:" "\t" (string-to-bytes "\"\\uD800\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD800\"")) "" "" (string-to-bytes "\"\\uD800\"") True 0 "")] 97
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch17 :: Unit -> Nat
+  check-batch17 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"\\uDC00\"")) (string-to-bytes "\"\\uDC00\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\uDC00\"")) (string-to-bytes "\"\\uDC00\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\uDC00\""))) (string-to-bytes "\"\\uDC00\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uDC00\"")) "" "  " (string-to-bytes "\"\\uDC00\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uDC00\"")) "P:" "\t" (string-to-bytes "\"\\uDC00\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uDC00\"")) "" "" (string-to-bytes "\"\\uDC00\"") True 0 "")] 103
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch18 :: Unit -> Nat
+  check-batch18 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"\\uD800\\u0041\"")) (string-to-bytes "\"\\uD800\\u0041\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\uD800\\u0041\"")) (string-to-bytes "\"\\uD800\\u0041\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\uD800\\u0041\""))) (string-to-bytes "\"\\uD800\\u0041\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD800\\u0041\"")) "" "  " (string-to-bytes "\"\\uD800\\u0041\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD800\\u0041\"")) "P:" "\t" (string-to-bytes "\"\\uD800\\u0041\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD800\\u0041\"")) "" "" (string-to-bytes "\"\\uD800\\u0041\"") True 0 "")] 109
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch19 :: Unit -> Nat
+  check-batch19 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"\\uD800\\uD800\\uDC00\"")) (string-to-bytes "\"\\uD800\\uD800\\uDC00\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\uD800\\uD800\\uDC00\"")) (string-to-bytes "\"\\uD800\\uD800\\uDC00\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\uD800\\uD800\\uDC00\""))) (string-to-bytes "\"\\uD800\\uD800\\uDC00\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD800\\uD800\\uDC00\"")) "" "  " (string-to-bytes "\"\\uD800\\uD800\\uDC00\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD800\\uD800\\uDC00\"")) "P:" "\t" (string-to-bytes "\"\\uD800\\uD800\\uDC00\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\uD800\\uD800\\uDC00\"")) "" "" (string-to-bytes "\"\\uD800\\uD800\\uDC00\"") True 0 "")] 115
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch20 :: Unit -> Nat
+  check-batch20 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "01")) 2 "invalid character '1' after top-level value"),
+      (compact-case (runtime-bytes (string-to-bytes "01")) (string-to-bytes "") False 2 "invalid character '1' after top-level value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "01"))) (string-to-bytes "01")),
+      (indent-case (runtime-bytes (string-to-bytes "01")) "" "  " (string-to-bytes "") False 2 "invalid character '1' after top-level value"),
+      (indent-case (runtime-bytes (string-to-bytes "01")) "P:" "\t" (string-to-bytes "") False 2 "invalid character '1' after top-level value"),
+      (indent-case (runtime-bytes (string-to-bytes "01")) "" "" (string-to-bytes "") False 2 "invalid character '1' after top-level value")] 121
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch21 :: Unit -> Nat
+  check-batch21 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "-")) 0 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "-")) (string-to-bytes "") False 0 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "-"))) (string-to-bytes "-")),
+      (indent-case (runtime-bytes (string-to-bytes "-")) "" "  " (string-to-bytes "") False 0 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "-")) "P:" "\t" (string-to-bytes "") False 0 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "-")) "" "" (string-to-bytes "") False 0 "unexpected end of JSON input")] 127
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch22 :: Unit -> Nat
+  check-batch22 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "1.")) 0 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "1.")) (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "1."))) (string-to-bytes "1.")),
+      (indent-case (runtime-bytes (string-to-bytes "1.")) "" "  " (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "1.")) "P:" "\t" (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "1.")) "" "" (string-to-bytes "") False 1 "unexpected end of JSON input")] 133
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch23 :: Unit -> Nat
+  check-batch23 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "1e")) 0 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "1e")) (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "1e"))) (string-to-bytes "1e")),
+      (indent-case (runtime-bytes (string-to-bytes "1e")) "" "  " (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "1e")) "P:" "\t" (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "1e")) "" "" (string-to-bytes "") False 1 "unexpected end of JSON input")] 139
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch24 :: Unit -> Nat
+  check-batch24 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "1e+")) 0 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "1e+")) (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "1e+"))) (string-to-bytes "1e+")),
+      (indent-case (runtime-bytes (string-to-bytes "1e+")) "" "  " (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "1e+")) "P:" "\t" (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "1e+")) "" "" (string-to-bytes "") False 1 "unexpected end of JSON input")] 145
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch25 :: Unit -> Nat
+  check-batch25 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "[1,]")) 4 "invalid character ']' looking for beginning of value"),
+      (compact-case (runtime-bytes (string-to-bytes "[1,]")) (string-to-bytes "") False 4 "invalid character ']' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "[1,]"))) (string-to-bytes "[1,]")),
+      (indent-case (runtime-bytes (string-to-bytes "[1,]")) "" "  " (string-to-bytes "") False 4 "invalid character ']' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "[1,]")) "P:" "\t" (string-to-bytes "") False 4 "invalid character ']' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "[1,]")) "" "" (string-to-bytes "") False 4 "invalid character ']' looking for beginning of value")] 151
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch26 :: Unit -> Nat
+  check-batch26 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "{\"x\":}")) 6 "invalid character '}' looking for beginning of value"),
+      (compact-case (runtime-bytes (string-to-bytes "{\"x\":}")) (string-to-bytes "") False 6 "invalid character '}' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "{\"x\":}"))) (string-to-bytes "{\"x\":}")),
+      (indent-case (runtime-bytes (string-to-bytes "{\"x\":}")) "" "  " (string-to-bytes "") False 6 "invalid character '}' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "{\"x\":}")) "P:" "\t" (string-to-bytes "") False 6 "invalid character '}' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "{\"x\":}")) "" "" (string-to-bytes "") False 6 "invalid character '}' looking for beginning of value")] 157
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch27 :: Unit -> Nat
+  check-batch27 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "{x:1}")) 2 "invalid character 'x' looking for beginning of object key string"),
+      (compact-case (runtime-bytes (string-to-bytes "{x:1}")) (string-to-bytes "") False 2 "invalid character 'x' looking for beginning of object key string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "{x:1}"))) (string-to-bytes "{x:1}")),
+      (indent-case (runtime-bytes (string-to-bytes "{x:1}")) "" "  " (string-to-bytes "") False 2 "invalid character 'x' looking for beginning of object key string"),
+      (indent-case (runtime-bytes (string-to-bytes "{x:1}")) "P:" "\t" (string-to-bytes "") False 2 "invalid character 'x' looking for beginning of object key string"),
+      (indent-case (runtime-bytes (string-to-bytes "{x:1}")) "" "" (string-to-bytes "") False 2 "invalid character 'x' looking for beginning of object key string")] 163
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch28 :: Unit -> Nat
+  check-batch28 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "[}")) 2 "invalid character '}' looking for beginning of value"),
+      (compact-case (runtime-bytes (string-to-bytes "[}")) (string-to-bytes "") False 2 "invalid character '}' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "[}"))) (string-to-bytes "[}")),
+      (indent-case (runtime-bytes (string-to-bytes "[}")) "" "  " (string-to-bytes "") False 2 "invalid character '}' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "[}")) "P:" "\t" (string-to-bytes "") False 2 "invalid character '}' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "[}")) "" "" (string-to-bytes "") False 2 "invalid character '}' looking for beginning of value")] 169
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch29 :: Unit -> Nat
+  check-batch29 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "{]")) 2 "invalid character ']' looking for beginning of object key string"),
+      (compact-case (runtime-bytes (string-to-bytes "{]")) (string-to-bytes "") False 2 "invalid character ']' looking for beginning of object key string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "{]"))) (string-to-bytes "{]")),
+      (indent-case (runtime-bytes (string-to-bytes "{]")) "" "  " (string-to-bytes "") False 2 "invalid character ']' looking for beginning of object key string"),
+      (indent-case (runtime-bytes (string-to-bytes "{]")) "P:" "\t" (string-to-bytes "") False 2 "invalid character ']' looking for beginning of object key string"),
+      (indent-case (runtime-bytes (string-to-bytes "{]")) "" "" (string-to-bytes "") False 2 "invalid character ']' looking for beginning of object key string")] 175
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch30 :: Unit -> Nat
+  check-batch30 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "truex")) 5 "invalid character 'x' after top-level value"),
+      (compact-case (runtime-bytes (string-to-bytes "truex")) (string-to-bytes "") False 5 "invalid character 'x' after top-level value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "truex"))) (string-to-bytes "truex")),
+      (indent-case (runtime-bytes (string-to-bytes "truex")) "" "  " (string-to-bytes "") False 5 "invalid character 'x' after top-level value"),
+      (indent-case (runtime-bytes (string-to-bytes "truex")) "P:" "\t" (string-to-bytes "") False 5 "invalid character 'x' after top-level value"),
+      (indent-case (runtime-bytes (string-to-bytes "truex")) "" "" (string-to-bytes "") False 5 "invalid character 'x' after top-level value")] 181
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch31 :: Unit -> Nat
+  check-batch31 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "true false")) 6 "invalid character 'f' after top-level value"),
+      (compact-case (runtime-bytes (string-to-bytes "true false")) (string-to-bytes "") False 6 "invalid character 'f' after top-level value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "true false"))) (string-to-bytes "true false")),
+      (indent-case (runtime-bytes (string-to-bytes "true false")) "" "  " (string-to-bytes "") False 6 "invalid character 'f' after top-level value"),
+      (indent-case (runtime-bytes (string-to-bytes "true false")) "P:" "\t" (string-to-bytes "") False 6 "invalid character 'f' after top-level value"),
+      (indent-case (runtime-bytes (string-to-bytes "true false")) "" "" (string-to-bytes "") False 6 "invalid character 'f' after top-level value")] 187
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch32 :: Unit -> Nat
+  check-batch32 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"\\x00\"")) 3 "invalid escape sequence `\\x` in string"),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\x00\"")) (string-to-bytes "") False 3 "invalid escape sequence `\\x` in string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\x00\""))) (string-to-bytes "\"\\x00\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\x00\"")) "" "  " (string-to-bytes "") False 3 "invalid escape sequence `\\x` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\x00\"")) "P:" "\t" (string-to-bytes "") False 3 "invalid escape sequence `\\x` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\x00\"")) "" "" (string-to-bytes "") False 3 "invalid escape sequence `\\x` in string")] 193
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch33 :: Unit -> Nat
+  check-batch33 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"\\u12xz\"")) 7 "invalid escape sequence `\\u12xz` in string"),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\u12xz\"")) (string-to-bytes "") False 7 "invalid escape sequence `\\u12xz` in string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\u12xz\""))) (string-to-bytes "\"\\u12xz\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12xz\"")) "" "  " (string-to-bytes "") False 7 "invalid escape sequence `\\u12xz` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12xz\"")) "P:" "\t" (string-to-bytes "") False 7 "invalid escape sequence `\\u12xz` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12xz\"")) "" "" (string-to-bytes "") False 7 "invalid escape sequence `\\u12xz` in string")] 199
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch34 :: Unit -> Nat
+  check-batch34 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"unterminated")) 13 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "\"unterminated")) (string-to-bytes "") False 13 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"unterminated"))) (string-to-bytes "\"unterminated")),
+      (indent-case (runtime-bytes (string-to-bytes "\"unterminated")) "" "  " (string-to-bytes "") False 13 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "\"unterminated")) "P:" "\t" (string-to-bytes "") False 13 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "\"unterminated")) "" "" (string-to-bytes "") False 13 "unexpected end of JSON input")] 205
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch35 :: Unit -> Nat
+  check-batch35 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"line\nfeed\"")) 6 "invalid character '\\n' in string"),
+      (compact-case (runtime-bytes (string-to-bytes "\"line\nfeed\"")) (string-to-bytes "") False 6 "invalid character '\\n' in string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"line\nfeed\""))) (string-to-bytes "\"line\nfeed\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"line\nfeed\"")) "" "  " (string-to-bytes "") False 6 "invalid character '\\n' in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"line\nfeed\"")) "P:" "\t" (string-to-bytes "") False 6 "invalid character '\\n' in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"line\nfeed\"")) "" "" (string-to-bytes "") False 6 "invalid character '\\n' in string")] 211
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch36 :: Unit -> Nat
+  check-batch36 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "[1 2]")) 4 "invalid character '2' after array element"),
+      (compact-case (runtime-bytes (string-to-bytes "[1 2]")) (string-to-bytes "") False 4 "invalid character '2' after array value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "[1 2]"))) (string-to-bytes "[1 2]")),
+      (indent-case (runtime-bytes (string-to-bytes "[1 2]")) "" "  " (string-to-bytes "") False 4 "invalid character '2' after array value"),
+      (indent-case (runtime-bytes (string-to-bytes "[1 2]")) "P:" "\t" (string-to-bytes "") False 4 "invalid character '2' after array value"),
+      (indent-case (runtime-bytes (string-to-bytes "[1 2]")) "" "" (string-to-bytes "") False 4 "invalid character '2' after array value")] 217
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch37 :: Unit -> Nat
+  check-batch37 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "{\"a\" 1}")) 6 "invalid character '1' after object key"),
+      (compact-case (runtime-bytes (string-to-bytes "{\"a\" 1}")) (string-to-bytes "") False 6 "invalid character '1' after object key"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "{\"a\" 1}"))) (string-to-bytes "{\"a\" 1}")),
+      (indent-case (runtime-bytes (string-to-bytes "{\"a\" 1}")) "" "  " (string-to-bytes "") False 6 "invalid character '1' after object key"),
+      (indent-case (runtime-bytes (string-to-bytes "{\"a\" 1}")) "P:" "\t" (string-to-bytes "") False 6 "invalid character '1' after object key"),
+      (indent-case (runtime-bytes (string-to-bytes "{\"a\" 1}")) "" "" (string-to-bytes "") False 6 "invalid character '1' after object key")] 223
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch38 :: Unit -> Nat
+  check-batch38 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "{\"a\":1 \"b\":2}")) 8 "invalid character '\"' after object key:value pair"),
+      (compact-case (runtime-bytes (string-to-bytes "{\"a\":1 \"b\":2}")) (string-to-bytes "") False 8 "invalid character '\"' after object key:value pair"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "{\"a\":1 \"b\":2}"))) (string-to-bytes "{\"a\":1 \"b\":2}")),
+      (indent-case (runtime-bytes (string-to-bytes "{\"a\":1 \"b\":2}")) "" "  " (string-to-bytes "") False 8 "invalid character '\"' after object key:value pair"),
+      (indent-case (runtime-bytes (string-to-bytes "{\"a\":1 \"b\":2}")) "P:" "\t" (string-to-bytes "") False 8 "invalid character '\"' after object key:value pair"),
+      (indent-case (runtime-bytes (string-to-bytes "{\"a\":1 \"b\":2}")) "" "" (string-to-bytes "") False 8 "invalid character '\"' after object key:value pair")] 229
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch39 :: Unit -> Nat
+  check-batch39 unit = first-failure [
+      (valid-case (runtime-bytes (bytes-from-list [34,255,34])) (bytes-from-list [34,255,34])),
+      (compact-case (runtime-bytes (bytes-from-list [34,255,34])) (bytes-from-list [34,255,34]) True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [34,255,34]))) (bytes-from-list [34,255,34])),
+      (indent-case (runtime-bytes (bytes-from-list [34,255,34])) "" "  " (bytes-from-list [34,255,34]) True 0 ""),
+      (indent-case (runtime-bytes (bytes-from-list [34,255,34])) "P:" "\t" (bytes-from-list [34,255,34]) True 0 ""),
+      (indent-case (runtime-bytes (bytes-from-list [34,255,34])) "" "" (bytes-from-list [34,255,34]) True 0 "")] 235
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch40 :: Unit -> Nat
+  check-batch40 unit = first-failure [
+      (valid-case (runtime-bytes (bytes-from-list [34,237,160,128,34])) (bytes-from-list [34,237,160,128,34])),
+      (compact-case (runtime-bytes (bytes-from-list [34,237,160,128,34])) (bytes-from-list [34,237,160,128,34]) True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [34,237,160,128,34]))) (bytes-from-list [34,237,160,128,34])),
+      (indent-case (runtime-bytes (bytes-from-list [34,237,160,128,34])) "" "  " (bytes-from-list [34,237,160,128,34]) True 0 ""),
+      (indent-case (runtime-bytes (bytes-from-list [34,237,160,128,34])) "P:" "\t" (bytes-from-list [34,237,160,128,34]) True 0 ""),
+      (indent-case (runtime-bytes (bytes-from-list [34,237,160,128,34])) "" "" (bytes-from-list [34,237,160,128,34]) True 0 "")] 241
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch41 :: Unit -> Nat
+  check-batch41 unit = first-failure [
+      (valid-case (runtime-bytes (bytes-from-list [34,192,175,34])) (bytes-from-list [34,192,175,34])),
+      (compact-case (runtime-bytes (bytes-from-list [34,192,175,34])) (bytes-from-list [34,192,175,34]) True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [34,192,175,34]))) (bytes-from-list [34,192,175,34])),
+      (indent-case (runtime-bytes (bytes-from-list [34,192,175,34])) "" "  " (bytes-from-list [34,192,175,34]) True 0 ""),
+      (indent-case (runtime-bytes (bytes-from-list [34,192,175,34])) "P:" "\t" (bytes-from-list [34,192,175,34]) True 0 ""),
+      (indent-case (runtime-bytes (bytes-from-list [34,192,175,34])) "" "" (bytes-from-list [34,192,175,34]) True 0 "")] 247
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch42 :: Unit -> Nat
+  check-batch42 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "﻿1")) 3 "invalid character '\\ufeff' looking for beginning of value"),
+      (compact-case (runtime-bytes (string-to-bytes "﻿1")) (string-to-bytes "") False 3 "invalid character '\\ufeff' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "﻿1"))) (string-to-bytes "﻿1")),
+      (indent-case (runtime-bytes (string-to-bytes "﻿1")) "" "  " (string-to-bytes "") False 3 "invalid character '\\ufeff' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "﻿1")) "P:" "\t" (string-to-bytes "") False 3 "invalid character '\\ufeff' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "﻿1")) "" "" (string-to-bytes "") False 3 "invalid character '\\ufeff' looking for beginning of value")] 253
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch43 :: Unit -> Nat
+  check-batch43 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\u{0}")) 1 "invalid character '\\x00' looking for beginning of value"),
+      (compact-case (runtime-bytes (string-to-bytes "\u{0}")) (string-to-bytes "") False 1 "invalid character '\\x00' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\u{0}"))) (string-to-bytes "\u{0}")),
+      (indent-case (runtime-bytes (string-to-bytes "\u{0}")) "" "  " (string-to-bytes "") False 1 "invalid character '\\x00' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "\u{0}")) "P:" "\t" (string-to-bytes "") False 1 "invalid character '\\x00' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "\u{0}")) "" "" (string-to-bytes "") False 1 "invalid character '\\x00' looking for beginning of value")] 259
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch44 :: Unit -> Nat
+  check-batch44 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"\u{0}\"")) 2 "invalid character '\\x00' in string"),
+      (compact-case (runtime-bytes (string-to-bytes "\"\u{0}\"")) (string-to-bytes "") False 2 "invalid character '\\x00' in string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\u{0}\""))) (string-to-bytes "\"\u{0}\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\u{0}\"")) "" "  " (string-to-bytes "") False 2 "invalid character '\\x00' in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\u{0}\"")) "P:" "\t" (string-to-bytes "") False 2 "invalid character '\\x00' in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\u{0}\"")) "" "" (string-to-bytes "") False 2 "invalid character '\\x00' in string")] 265
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch45 :: Unit -> Nat
+  check-batch45 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "  -")) 2 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "  -")) (string-to-bytes "") False 2 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "  -"))) (string-to-bytes "  -")),
+      (indent-case (runtime-bytes (string-to-bytes "  -")) "" "  " (string-to-bytes "") False 2 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "  -")) "P:" "\t" (string-to-bytes "") False 2 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "  -")) "" "" (string-to-bytes "") False 2 "unexpected end of JSON input")] 271
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch46 :: Unit -> Nat
+  check-batch46 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "[ -")) 2 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "[ -")) (string-to-bytes "") False 2 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "[ -"))) (string-to-bytes "[ -")),
+      (indent-case (runtime-bytes (string-to-bytes "[ -")) "" "  " (string-to-bytes "") False 2 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "[ -")) "P:" "\t" (string-to-bytes "") False 2 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "[ -")) "" "" (string-to-bytes "") False 2 "unexpected end of JSON input")] 277
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch47 :: Unit -> Nat
+  check-batch47 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "[12.")) 1 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "[12.")) (string-to-bytes "") False 3 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "[12."))) (string-to-bytes "[12.")),
+      (indent-case (runtime-bytes (string-to-bytes "[12.")) "" "  " (string-to-bytes "") False 3 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "[12.")) "P:" "\t" (string-to-bytes "") False 3 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "[12.")) "" "" (string-to-bytes "") False 3 "unexpected end of JSON input")] 283
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch48 :: Unit -> Nat
+  check-batch48 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "{\"n\":12e+")) 5 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "{\"n\":12e+")) (string-to-bytes "") False 7 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "{\"n\":12e+"))) (string-to-bytes "{\"n\":12e+")),
+      (indent-case (runtime-bytes (string-to-bytes "{\"n\":12e+")) "" "  " (string-to-bytes "") False 7 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "{\"n\":12e+")) "P:" "\t" (string-to-bytes "") False 7 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "{\"n\":12e+")) "" "" (string-to-bytes "") False 7 "unexpected end of JSON input")] 289
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch49 :: Unit -> Nat
+  check-batch49 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "123.45e-")) 0 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "123.45e-")) (string-to-bytes "") False 6 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "123.45e-"))) (string-to-bytes "123.45e-")),
+      (indent-case (runtime-bytes (string-to-bytes "123.45e-")) "" "  " (string-to-bytes "") False 6 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "123.45e-")) "P:" "\t" (string-to-bytes "") False 6 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "123.45e-")) "" "" (string-to-bytes "") False 6 "unexpected end of JSON input")] 295
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch50 :: Unit -> Nat
+  check-batch50 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "n")) 1 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "n")) (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "n"))) (string-to-bytes "n")),
+      (indent-case (runtime-bytes (string-to-bytes "n")) "" "  " (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "n")) "P:" "\t" (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "n")) "" "" (string-to-bytes "") False 1 "unexpected end of JSON input")] 301
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch51 :: Unit -> Nat
+  check-batch51 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "tru")) 3 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "tru")) (string-to-bytes "") False 3 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "tru"))) (string-to-bytes "tru")),
+      (indent-case (runtime-bytes (string-to-bytes "tru")) "" "  " (string-to-bytes "") False 3 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "tru")) "P:" "\t" (string-to-bytes "") False 3 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "tru")) "" "" (string-to-bytes "") False 3 "unexpected end of JSON input")] 307
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch52 :: Unit -> Nat
+  check-batch52 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"abc\\")) 4 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "\"abc\\")) (string-to-bytes "") False 4 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"abc\\"))) (string-to-bytes "\"abc\\")),
+      (indent-case (runtime-bytes (string-to-bytes "\"abc\\")) "" "  " (string-to-bytes "") False 4 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "\"abc\\")) "P:" "\t" (string-to-bytes "") False 4 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "\"abc\\")) "" "" (string-to-bytes "") False 4 "unexpected end of JSON input")] 313
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch53 :: Unit -> Nat
+  check-batch53 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"\\u12")) 1 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\u12")) (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\u12"))) (string-to-bytes "\"\\u12")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12")) "" "  " (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12")) "P:" "\t" (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12")) "" "" (string-to-bytes "") False 1 "unexpected end of JSON input")] 319
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch54 :: Unit -> Nat
+  check-batch54 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"\\u12x")) 6 "invalid escape sequence `\\u12x` in string"),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\u12x")) (string-to-bytes "") False 6 "invalid escape sequence `\\u12x` in string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\u12x"))) (string-to-bytes "\"\\u12x")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12x")) "" "  " (string-to-bytes "") False 6 "invalid escape sequence `\\u12x` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12x")) "P:" "\t" (string-to-bytes "") False 6 "invalid escape sequence `\\u12x` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12x")) "" "" (string-to-bytes "") False 6 "invalid escape sequence `\\u12x` in string")] 325
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch55 :: Unit -> Nat
+  check-batch55 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"\\u12x\"")) 7 "invalid escape sequence `\\u12x\"` in string"),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\u12x\"")) (string-to-bytes "") False 7 "invalid escape sequence `\\u12x\"` in string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\u12x\""))) (string-to-bytes "\"\\u12x\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12x\"")) "" "  " (string-to-bytes "") False 7 "invalid escape sequence `\\u12x\"` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12x\"")) "P:" "\t" (string-to-bytes "") False 7 "invalid escape sequence `\\u12x\"` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12x\"")) "" "" (string-to-bytes "") False 7 "invalid escape sequence `\\u12x\"` in string")] 331
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch56 :: Unit -> Nat
+  check-batch56 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"\\u12xZ\"")) 7 "invalid escape sequence `\\u12xZ` in string"),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\u12xZ\"")) (string-to-bytes "") False 7 "invalid escape sequence `\\u12xZ` in string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\u12xZ\""))) (string-to-bytes "\"\\u12xZ\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12xZ\"")) "" "  " (string-to-bytes "") False 7 "invalid escape sequence `\\u12xZ` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12xZ\"")) "P:" "\t" (string-to-bytes "") False 7 "invalid escape sequence `\\u12xZ` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u12xZ\"")) "" "" (string-to-bytes "") False 7 "invalid escape sequence `\\u12xZ` in string")] 337
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch57 :: Unit -> Nat
+  check-batch57 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "1.x")) 3 "invalid character 'x' in numeric literal"),
+      (compact-case (runtime-bytes (string-to-bytes "1.x")) (string-to-bytes "") False 3 "invalid character 'x' in numeric literal"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "1.x"))) (string-to-bytes "1.x")),
+      (indent-case (runtime-bytes (string-to-bytes "1.x")) "" "  " (string-to-bytes "") False 3 "invalid character 'x' in numeric literal"),
+      (indent-case (runtime-bytes (string-to-bytes "1.x")) "P:" "\t" (string-to-bytes "") False 3 "invalid character 'x' in numeric literal"),
+      (indent-case (runtime-bytes (string-to-bytes "1.x")) "" "" (string-to-bytes "") False 3 "invalid character 'x' in numeric literal")] 343
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch58 :: Unit -> Nat
+  check-batch58 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "1ex")) 3 "invalid character 'x' in numeric literal"),
+      (compact-case (runtime-bytes (string-to-bytes "1ex")) (string-to-bytes "") False 3 "invalid character 'x' in numeric literal"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "1ex"))) (string-to-bytes "1ex")),
+      (indent-case (runtime-bytes (string-to-bytes "1ex")) "" "  " (string-to-bytes "") False 3 "invalid character 'x' in numeric literal"),
+      (indent-case (runtime-bytes (string-to-bytes "1ex")) "P:" "\t" (string-to-bytes "") False 3 "invalid character 'x' in numeric literal"),
+      (indent-case (runtime-bytes (string-to-bytes "1ex")) "" "" (string-to-bytes "") False 3 "invalid character 'x' in numeric literal")] 349
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch59 :: Unit -> Nat
+  check-batch59 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "-x")) 2 "invalid character 'x' in numeric literal"),
+      (compact-case (runtime-bytes (string-to-bytes "-x")) (string-to-bytes "") False 2 "invalid character 'x' in numeric literal"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "-x"))) (string-to-bytes "-x")),
+      (indent-case (runtime-bytes (string-to-bytes "-x")) "" "  " (string-to-bytes "") False 2 "invalid character 'x' in numeric literal"),
+      (indent-case (runtime-bytes (string-to-bytes "-x")) "P:" "\t" (string-to-bytes "") False 2 "invalid character 'x' in numeric literal"),
+      (indent-case (runtime-bytes (string-to-bytes "-x")) "" "" (string-to-bytes "") False 2 "invalid character 'x' in numeric literal")] 355
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch60 :: Unit -> Nat
+  check-batch60 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "[1. ]")) 4 "invalid character ' ' in numeric literal"),
+      (compact-case (runtime-bytes (string-to-bytes "[1. ]")) (string-to-bytes "") False 4 "invalid character ' ' in numeric literal"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "[1. ]"))) (string-to-bytes "[1. ]")),
+      (indent-case (runtime-bytes (string-to-bytes "[1. ]")) "" "  " (string-to-bytes "") False 4 "invalid character ' ' in numeric literal"),
+      (indent-case (runtime-bytes (string-to-bytes "[1. ]")) "P:" "\t" (string-to-bytes "") False 4 "invalid character ' ' in numeric literal"),
+      (indent-case (runtime-bytes (string-to-bytes "[1. ]")) "" "" (string-to-bytes "") False 4 "invalid character ' ' in numeric literal")] 361
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch61 :: Unit -> Nat
+  check-batch61 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "[\"\\x\"]")) 4 "invalid escape sequence `\\x` in string"),
+      (compact-case (runtime-bytes (string-to-bytes "[\"\\x\"]")) (string-to-bytes "") False 4 "invalid escape sequence `\\x` in string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "[\"\\x\"]"))) (string-to-bytes "[\"\\x\"]")),
+      (indent-case (runtime-bytes (string-to-bytes "[\"\\x\"]")) "" "  " (string-to-bytes "") False 4 "invalid escape sequence `\\x` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "[\"\\x\"]")) "P:" "\t" (string-to-bytes "") False 4 "invalid escape sequence `\\x` in string"),
+      (indent-case (runtime-bytes (string-to-bytes "[\"\\x\"]")) "" "" (string-to-bytes "") False 4 "invalid escape sequence `\\x` in string")] 367
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch62 :: Unit -> Nat
+  check-batch62 unit = first-failure [
+      (invalid-case (runtime-bytes (bytes-from-list [34,226])) 1 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (bytes-from-list [34,226])) (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [34,226]))) (bytes-from-list [34,226])),
+      (indent-case (runtime-bytes (bytes-from-list [34,226])) "" "  " (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (bytes-from-list [34,226])) "P:" "\t" (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (bytes-from-list [34,226])) "" "" (string-to-bytes "") False 1 "unexpected end of JSON input")] 373
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch63 :: Unit -> Nat
+  check-batch63 unit = first-failure [
+      (invalid-case (runtime-bytes (bytes-from-list [34,226,130])) 1 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (bytes-from-list [34,226,130])) (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [34,226,130]))) (bytes-from-list [34,226,130])),
+      (indent-case (runtime-bytes (bytes-from-list [34,226,130])) "" "  " (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (bytes-from-list [34,226,130])) "P:" "\t" (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (bytes-from-list [34,226,130])) "" "" (string-to-bytes "") False 1 "unexpected end of JSON input")] 379
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch64 :: Unit -> Nat
+  check-batch64 unit = first-failure [
+      (invalid-case (runtime-bytes (bytes-from-list [34,194])) 1 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (bytes-from-list [34,194])) (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [34,194]))) (bytes-from-list [34,194])),
+      (indent-case (runtime-bytes (bytes-from-list [34,194])) "" "  " (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (bytes-from-list [34,194])) "P:" "\t" (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (bytes-from-list [34,194])) "" "" (string-to-bytes "") False 1 "unexpected end of JSON input")] 385
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch65 :: Unit -> Nat
+  check-batch65 unit = first-failure [
+      (invalid-case (runtime-bytes (bytes-from-list [34,240,144])) 1 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (bytes-from-list [34,240,144])) (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [34,240,144]))) (bytes-from-list [34,240,144])),
+      (indent-case (runtime-bytes (bytes-from-list [34,240,144])) "" "  " (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (bytes-from-list [34,240,144])) "P:" "\t" (string-to-bytes "") False 1 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (bytes-from-list [34,240,144])) "" "" (string-to-bytes "") False 1 "unexpected end of JSON input")] 391
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch66 :: Unit -> Nat
+  check-batch66 unit = first-failure [
+      (invalid-case (runtime-bytes (bytes-from-list [34,255])) 2 "unexpected end of JSON input"),
+      (compact-case (runtime-bytes (bytes-from-list [34,255])) (string-to-bytes "") False 2 "unexpected end of JSON input"),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [34,255]))) (bytes-from-list [34,255])),
+      (indent-case (runtime-bytes (bytes-from-list [34,255])) "" "  " (string-to-bytes "") False 2 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (bytes-from-list [34,255])) "P:" "\t" (string-to-bytes "") False 2 "unexpected end of JSON input"),
+      (indent-case (runtime-bytes (bytes-from-list [34,255])) "" "" (string-to-bytes "") False 2 "unexpected end of JSON input")] 397
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch67 :: Unit -> Nat
+  check-batch67 unit = first-failure [
+      (invalid-case (runtime-bytes (bytes-from-list [226])) 1 "invalid character '\\xe2' looking for beginning of value"),
+      (compact-case (runtime-bytes (bytes-from-list [226])) (string-to-bytes "") False 1 "invalid character '\\xe2' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [226]))) (bytes-from-list [226])),
+      (indent-case (runtime-bytes (bytes-from-list [226])) "" "  " (string-to-bytes "") False 1 "invalid character '\\xe2' looking for beginning of value"),
+      (indent-case (runtime-bytes (bytes-from-list [226])) "P:" "\t" (string-to-bytes "") False 1 "invalid character '\\xe2' looking for beginning of value"),
+      (indent-case (runtime-bytes (bytes-from-list [226])) "" "" (string-to-bytes "") False 1 "invalid character '\\xe2' looking for beginning of value")] 403
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch68 :: Unit -> Nat
+  check-batch68 unit = first-failure [
+      (invalid-case (runtime-bytes (bytes-from-list [226,130])) 1 "invalid character '\\xe2' looking for beginning of value"),
+      (compact-case (runtime-bytes (bytes-from-list [226,130])) (string-to-bytes "") False 1 "invalid character '\\xe2' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [226,130]))) (bytes-from-list [226,130])),
+      (indent-case (runtime-bytes (bytes-from-list [226,130])) "" "  " (string-to-bytes "") False 1 "invalid character '\\xe2' looking for beginning of value"),
+      (indent-case (runtime-bytes (bytes-from-list [226,130])) "P:" "\t" (string-to-bytes "") False 1 "invalid character '\\xe2' looking for beginning of value"),
+      (indent-case (runtime-bytes (bytes-from-list [226,130])) "" "" (string-to-bytes "") False 1 "invalid character '\\xe2' looking for beginning of value")] 409
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch69 :: Unit -> Nat
+  check-batch69 unit = first-failure [
+      (invalid-case (runtime-bytes (bytes-from-list [192])) 1 "invalid character '\\xc0' looking for beginning of value"),
+      (compact-case (runtime-bytes (bytes-from-list [192])) (string-to-bytes "") False 1 "invalid character '\\xc0' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [192]))) (bytes-from-list [192])),
+      (indent-case (runtime-bytes (bytes-from-list [192])) "" "  " (string-to-bytes "") False 1 "invalid character '\\xc0' looking for beginning of value"),
+      (indent-case (runtime-bytes (bytes-from-list [192])) "P:" "\t" (string-to-bytes "") False 1 "invalid character '\\xc0' looking for beginning of value"),
+      (indent-case (runtime-bytes (bytes-from-list [192])) "" "" (string-to-bytes "") False 1 "invalid character '\\xc0' looking for beginning of value")] 415
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch70 :: Unit -> Nat
+  check-batch70 unit = first-failure [
+      (invalid-case (runtime-bytes (bytes-from-list [194,65])) 1 "invalid character '\\xc2' looking for beginning of value"),
+      (compact-case (runtime-bytes (bytes-from-list [194,65])) (string-to-bytes "") False 1 "invalid character '\\xc2' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [194,65]))) (bytes-from-list [194,65])),
+      (indent-case (runtime-bytes (bytes-from-list [194,65])) "" "  " (string-to-bytes "") False 1 "invalid character '\\xc2' looking for beginning of value"),
+      (indent-case (runtime-bytes (bytes-from-list [194,65])) "P:" "\t" (string-to-bytes "") False 1 "invalid character '\\xc2' looking for beginning of value"),
+      (indent-case (runtime-bytes (bytes-from-list [194,65])) "" "" (string-to-bytes "") False 1 "invalid character '\\xc2' looking for beginning of value")] 421
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch71 :: Unit -> Nat
+  check-batch71 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes " ")) 2 "invalid character '\\u00a0' looking for beginning of value"),
+      (compact-case (runtime-bytes (string-to-bytes " ")) (string-to-bytes "") False 2 "invalid character '\\u00a0' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes " "))) (string-to-bytes " ")),
+      (indent-case (runtime-bytes (string-to-bytes " ")) "" "  " (string-to-bytes "") False 2 "invalid character '\\u00a0' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes " ")) "P:" "\t" (string-to-bytes "") False 2 "invalid character '\\u00a0' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes " ")) "" "" (string-to-bytes "") False 2 "invalid character '\\u00a0' looking for beginning of value")] 427
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch72 :: Unit -> Nat
+  check-batch72 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes " ")) 3 "invalid character '\\u2003' looking for beginning of value"),
+      (compact-case (runtime-bytes (string-to-bytes " ")) (string-to-bytes "") False 3 "invalid character '\\u2003' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes " "))) (string-to-bytes " ")),
+      (indent-case (runtime-bytes (string-to-bytes " ")) "" "  " (string-to-bytes "") False 3 "invalid character '\\u2003' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes " ")) "P:" "\t" (string-to-bytes "") False 3 "invalid character '\\u2003' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes " ")) "" "" (string-to-bytes "") False 3 "invalid character '\\u2003' looking for beginning of value")] 433
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch73 :: Unit -> Nat
+  check-batch73 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "�")) 3 "invalid character '�' looking for beginning of value"),
+      (compact-case (runtime-bytes (string-to-bytes "�")) (string-to-bytes "") False 3 "invalid character '�' looking for beginning of value"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "�"))) (string-to-bytes "�")),
+      (indent-case (runtime-bytes (string-to-bytes "�")) "" "  " (string-to-bytes "") False 3 "invalid character '�' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "�")) "P:" "\t" (string-to-bytes "") False 3 "invalid character '�' looking for beginning of value"),
+      (indent-case (runtime-bytes (string-to-bytes "�")) "" "" (string-to-bytes "") False 3 "invalid character '�' looking for beginning of value")] 439
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch74 :: Unit -> Nat
+  check-batch74 unit = first-failure [
+      (invalid-case (runtime-bytes (bytes-from-list [34,92,117,49,50,255])) 6 "invalid escape sequence \"\\\\u12\\xff\" in string"),
+      (compact-case (runtime-bytes (bytes-from-list [34,92,117,49,50,255])) (string-to-bytes "") False 6 "invalid escape sequence \"\\\\u12\\xff\" in string"),
+      (same-bytes (json-html-escape (runtime-bytes (bytes-from-list [34,92,117,49,50,255]))) (bytes-from-list [34,92,117,49,50,255])),
+      (indent-case (runtime-bytes (bytes-from-list [34,92,117,49,50,255])) "" "  " (string-to-bytes "") False 6 "invalid escape sequence \"\\\\u12\\xff\" in string"),
+      (indent-case (runtime-bytes (bytes-from-list [34,92,117,49,50,255])) "P:" "\t" (string-to-bytes "") False 6 "invalid escape sequence \"\\\\u12\\xff\" in string"),
+      (indent-case (runtime-bytes (bytes-from-list [34,92,117,49,50,255])) "" "" (string-to-bytes "") False 6 "invalid escape sequence \"\\\\u12\\xff\" in string")] 445
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch75 :: Unit -> Nat
+  check-batch75 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"\\u00\t\"")) 7 "invalid escape sequence \"\\\\u00\\t\\\"\" in string"),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\u00\t\"")) (string-to-bytes "") False 7 "invalid escape sequence \"\\\\u00\\t\\\"\" in string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\u00\t\""))) (string-to-bytes "\"\\u00\t\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u00\t\"")) "" "  " (string-to-bytes "") False 7 "invalid escape sequence \"\\\\u00\\t\\\"\" in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u00\t\"")) "P:" "\t" (string-to-bytes "") False 7 "invalid escape sequence \"\\\\u00\\t\\\"\" in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u00\t\"")) "" "" (string-to-bytes "") False 7 "invalid escape sequence \"\\\\u00\\t\\\"\" in string")] 451
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch76 :: Unit -> Nat
+  check-batch76 unit = first-failure [
+      (invalid-case (runtime-bytes (string-to-bytes "\"\\u00`\"")) 7 "invalid escape sequence \"\\\\u00`\\\"\" in string"),
+      (compact-case (runtime-bytes (string-to-bytes "\"\\u00`\"")) (string-to-bytes "") False 7 "invalid escape sequence \"\\\\u00`\\\"\" in string"),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\\u00`\""))) (string-to-bytes "\"\\u00`\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u00`\"")) "" "  " (string-to-bytes "") False 7 "invalid escape sequence \"\\\\u00`\\\"\" in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u00`\"")) "P:" "\t" (string-to-bytes "") False 7 "invalid escape sequence \"\\\\u00`\\\"\" in string"),
+      (indent-case (runtime-bytes (string-to-bytes "\"\\u00`\"")) "" "" (string-to-bytes "") False 7 "invalid escape sequence \"\\\\u00`\\\"\" in string")] 457
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch77 :: Unit -> Nat
+  check-batch77 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"\"")) (string-to-bytes "\"\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"\"")) (string-to-bytes "\"\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"\""))) (string-to-bytes "\"\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"\"")) "" "  " (string-to-bytes "\"\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\"")) "P:" "\t" (string-to-bytes "\"\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"\"")) "" "" (string-to-bytes "\"\"") True 0 "")] 463
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch78 :: Unit -> Nat
+  check-batch78 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"a\"")) (string-to-bytes "\"a\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"a\"")) (string-to-bytes "\"a\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"a\""))) (string-to-bytes "\"a\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"a\"")) "" "  " (string-to-bytes "\"a\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"a\"")) "P:" "\t" (string-to-bytes "\"a\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"a\"")) "" "" (string-to-bytes "\"a\"") True 0 "")] 469
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch79 :: Unit -> Nat
+  check-batch79 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaa\"")) (string-to-bytes "\"aaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaa\"")) (string-to-bytes "\"aaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaa\""))) (string-to-bytes "\"aaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaa\"") True 0 "")] 475
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch80 :: Unit -> Nat
+  check-batch80 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaa\"")) (string-to-bytes "\"aaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaa\"")) (string-to-bytes "\"aaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaa\""))) (string-to-bytes "\"aaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaa\"") True 0 "")] 481
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch81 :: Unit -> Nat
+  check-batch81 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaa\"") True 0 "")] 487
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch82 :: Unit -> Nat
+  check-batch82 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaa\"") True 0 "")] 493
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch83 :: Unit -> Nat
+  check-batch83 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaa\"") True 0 "")] 499
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch84 :: Unit -> Nat
+  check-batch84 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 505
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch85 :: Unit -> Nat
+  check-batch85 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 511
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch86 :: Unit -> Nat
+  check-batch86 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 517
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch87 :: Unit -> Nat
+  check-batch87 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 523
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch88 :: Unit -> Nat
+  check-batch88 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 529
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch89 :: Unit -> Nat
+  check-batch89 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 535
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch90 :: Unit -> Nat
+  check-batch90 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 541
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch91 :: Unit -> Nat
+  check-batch91 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 547
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch92 :: Unit -> Nat
+  check-batch92 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 553
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch93 :: Unit -> Nat
+  check-batch93 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 559
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch94 :: Unit -> Nat
+  check-batch94 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 565
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch95 :: Unit -> Nat
+  check-batch95 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 571
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch96 :: Unit -> Nat
+  check-batch96 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 577
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch97 :: Unit -> Nat
+  check-batch97 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 583
+
+  -- | Evaluate bounded independent syntax checks with global failure indexes.
+  check-batch98 :: Unit -> Nat
+  check-batch98 unit = first-failure [
+      (valid-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (compact-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (same-bytes (json-html-escape (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""))) (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "  " (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "P:" "\t" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 ""),
+      (indent-case (runtime-bytes (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")) "" "" (string-to-bytes "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"") True 0 "")] 589
+
+  -- | Print the original failing observation and return a nonzero status on failure.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = first-result [check-batch0 (),check-batch1 (),check-batch2 (),check-batch3 (),check-batch4 (),check-batch5 (),check-batch6 (),check-batch7 (),check-batch8 (),check-batch9 (),check-batch10 (),check-batch11 (),check-batch12 (),check-batch13 (),check-batch14 (),check-batch15 (),check-batch16 (),check-batch17 (),check-batch18 (),check-batch19 (),check-batch20 (),check-batch21 (),check-batch22 (),check-batch23 (),check-batch24 (),check-batch25 (),check-batch26 (),check-batch27 (),check-batch28 (),check-batch29 (),check-batch30 (),check-batch31 (),check-batch32 (),check-batch33 (),check-batch34 (),check-batch35 (),check-batch36 (),check-batch37 (),check-batch38 (),check-batch39 (),check-batch40 (),check-batch41 (),check-batch42 (),check-batch43 (),check-batch44 (),check-batch45 (),check-batch46 (),check-batch47 (),check-batch48 (),check-batch49 (),check-batch50 (),check-batch51 (),check-batch52 (),check-batch53 (),check-batch54 (),check-batch55 (),check-batch56 (),check-batch57 (),check-batch58 (),check-batch59 (),check-batch60 (),check-batch61 (),check-batch62 (),check-batch63 (),check-batch64 (),check-batch65 (),check-batch66 (),check-batch67 (),check-batch68 (),check-batch69 (),check-batch70 (),check-batch71 (),check-batch72 (),check-batch73 (),check-batch74 (),check-batch75 (),check-batch76 (),check-batch77 (),check-batch78 (),check-batch79 (),check-batch80 (),check-batch81 (),check-batch82 (),check-batch83 (),check-batch84 (),check-batch85 (),check-batch86 (),check-batch87 (),check-batch88 (),check-batch89 (),check-batch90 (),check-batch91 (),check-batch92 (),check-batch93 (),check-batch94 (),check-batch95 (),check-batch96 (),check-batch97 (),check-batch98 ()] in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in
+    if failed == 0 then 0 else 1
