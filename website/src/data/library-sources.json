@@ -941,9 +941,9 @@
     {
       "module": "Text.Hex",
       "path": "compiler/prelude/Text/Hex.cinch",
-      "sha256": "6a9bd7d383931fadbf35503562d57a26c92fd52f2d8f3961b6bdbdc29622e522",
+      "sha256": "2753b6e34d7e386ddd0328079925f036e66b362da0f24407ce95cdb19e90ecfb",
       "embedded": false,
-      "values": 4,
+      "values": 10,
       "public_methods": 0
     },
     {

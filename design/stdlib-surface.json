@@ -538,7 +538,10 @@
       ],
       "reference_declarations": 15,
       "tests": [
-        "lib_go_stdlib::hexadecimal_matches_go_and_names_invalid_bytes"
+        "lib_go_stdlib::hexadecimal_matches_go_and_names_invalid_bytes",
+        "lib_hex::hexadecimal_prefix_and_append_match_reference_progress",
+        "lib_hex::hexadecimal_caller_buffers_preserve_bounds_progress_and_overlap",
+        "lib_hex::hexadecimal_all_byte_values_preserve_first_error_and_prefix"
       ],
       "benchmarks": [
         "hex-encode",
