@@ -145,9 +145,13 @@ module Bootstrap.Builtin where
     -- visible; `register-source-methods` then replaces each with the real
     -- `MkMethodBinding` from the class contract, which is what the safety
     -- rules key on.
-    , ("Parallelism", "b.Parallelism")
-    , ("both", "b.parBoth"), ("tabulate", "b.parTabulate")
-    , ("mapArray", "b.parMap"), ("workers", "b.parWorkers")
+    -- `both` is NOT a surface name: `Function.Combinators` already defines
+    -- `both :: (a -> b) -> (a -> c) -> a -> (b, c)`, and the prelude's
+    -- definition wins a bare call, so a program writing `both` gets the
+    -- combinator rather than the operation. The four operations are named
+    -- `parBoth`, `parTabulate`, `parMap` and `parWorkers`
+    -- (design/parallelism-as-a-value.md).
+    , ("parWorkers", "b.parWorkers")
     , ("Scope", "b.Scope"), ("Task", "b.Task")
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")

@@ -926,7 +926,7 @@ fn the_host_instance_sets_the_participant_budget() {
         r#"
 module Main where
   main :: Int
-  main = case workers 4 of _ -> 0
+  main = case parWorkers 4 of _ -> 0
 "#,
         0,
     );
@@ -941,7 +941,7 @@ module Main where
   import Data.Nat
 
   pair :: (Nat, Nat)
-  pair = both (\() -> 1) (\() -> 2)
+  pair = parBoth (\() -> 1) (\() -> 2)
 
   main :: Int
   main = case pair of
