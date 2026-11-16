@@ -1,0 +1,34 @@
+{
+  "description": "Native character numeric-index contract gap, isolated without changing the authored contract; CSV uses bounded mathematical char-code instead",
+  "source_sha256": "ae86f11d589cee16c0c7d8f1d59f8623676909f96d49e7d10b609e8f64979275",
+  "epochs": [
+    {
+      "label": "old_frozen",
+      "compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+      "wrapper_sha256": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+      "interfaces_sha256": "1efa9dc943e2ad79f1e1fd350618000da7e7f6e0795b83789054dbdb11a975d3",
+      "exit_code": 4,
+      "diagnostics": "bootstrap.check:1:56: proof predicate needs checked mathematical carriers\nbootstrap.check:1:18: ill-formed source refinement\nbootstrap.check:1:2: ill-formed source dependent function\n"
+    },
+    {
+      "label": "new_fixed_point",
+      "compiler_sha256": "4a14ad5dd79cff86a14deb513b1bb5f5e6e8e12a8866fd342b7d37d8915f526a",
+      "wrapper_sha256": "d402939abc0f6e1b9c036e3a87a4b585af3ada6bd8ba68c43e3a8b049ebc36e8",
+      "interfaces_sha256": "cbe51b568e67208210b8ba2fff70dda599cef0fc448dd8610f9e9c42bf34f8e8",
+      "exit_code": 4,
+      "diagnostics": "bootstrap.check:1:56: proof predicate needs checked mathematical carriers\nbootstrap.check:1:18: ill-formed source refinement\nbootstrap.check:1:2: ill-formed source dependent function\n"
+    }
+  ],
+  "interface_receipt": {
+    "module": "Data.Char",
+    "interface_sha256": "ff7dc16627388c16c6911a685620a0c81db01aeb357aca42a590f015d1f45fa9",
+    "authored_and_exported_value": {
+      "arity": 1,
+      "name": "char-to-u32",
+      "resolved": null,
+      "scheme": "((a0 :: Char) -> refined (((0 <= r && r <= 1114111) && r == a0)) U32)",
+      "symbol": "Data.Char.char-to-u32",
+      "total_body": null
+    }
+  }
+}
