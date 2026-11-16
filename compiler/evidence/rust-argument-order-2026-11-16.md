@@ -85,3 +85,13 @@ a computation rather than an inert function value; the value classifier
 must preserve its new binding too, or the next pre-inline pass would move
 it again. Structural tests cover these ownership and instantiation facts
 alongside the executable byte-alias regression.
+
+Runtime identities are recorded separately: the Rust CLI controls use the
+unchanged host release archive SHA-256
+`c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac`
+(archive timestamp 2026-11-15 19:14:38 UTC), frozen under the lane's
+`build/rust-order-runtime-frozen` for explicit final linking. The Native
+control uses its provider's frozen archive SHA-256
+`80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141`.
+No runtime source changes form part of either correction, and the checks
+make no cross-runtime performance comparison.

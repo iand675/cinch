@@ -208,5 +208,17 @@
     "heap": "32M",
     "stack": "8M",
     "opt_level": "2"
+  },
+  "runtime_archives": {
+    "rust_host_default": {
+      "path": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+      "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "mtime_utc": "2026-11-15T19:14:38.025339625Z",
+      "frozen_copy": "/workspace/dasl-stdlib-rust-order/build/rust-order-runtime-frozen/libcinchruntime.a"
+    },
+    "native_provider": {
+      "path": "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+      "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+    }
   }
 }
