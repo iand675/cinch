@@ -285,6 +285,7 @@ struct BorrowWork {
     unit_visits: usize,
     reuse_requests: usize,
     reuse_scans: usize,
+    reuse_skipped_owned: usize,
     reuse_nodes: usize,
     allocation_nodes: usize,
     cache_entries: usize,
@@ -523,6 +524,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
     // The opt-out is for controlled work/allocation measurements and for
     // reproducing uncached inference with otherwise identical code.
     let cache_reuse = std::env::var("CINCH_BORROW_REUSE_CACHE").as_deref() != Ok("0");
+    let skip_owned = std::env::var("CINCH_BORROW_SKIP_OWNED").as_deref() != Ok("0");
     let mut reuse_checked = if cache_reuse { vec![false; units.len()] } else { Vec::new() };
     let mut killed: Vec<String> = Vec::new();
     while let Some(u) = queue.pop() {
@@ -543,7 +545,14 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
             // ownership rule for a reset target).
             if report.work_enabled { report.work.reuse_requests += 1; }
             if !cache_reuse || !reuse_checked[u] {
-                owned.extend(report.reuse_scrutinees(&f.body, ctors));
+                // Reuse can only withdraw another loan. If the earlier
+                // analysis already owns every candidate, no scan can
+                // change the answer, and those loans can never return.
+                if skip_owned && mine.is_subset(&owned) {
+                    if report.work_enabled { report.work.reuse_skipped_owned += 1; }
+                } else {
+                    owned.extend(report.reuse_scrutinees(&f.body, ctors));
+                }
                 if cache_reuse { reuse_checked[u] = true; }
             }
             for &p in &owned {
