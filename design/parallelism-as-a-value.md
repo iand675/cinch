@@ -608,3 +608,58 @@ What remains open is only the generic form. `parTraverse` over any
 thing the class vector forbids, and a `Parallel e a` wrapper needs a row
 parameter no data type can declare. Both are recorded above; neither is
 attempted.
+
+## 12 Why a generic `parTraverse` is refused, measured
+
+My earlier notes blamed the dictionary and the row parameter. Both were wrong
+for the case that actually matters, and the real blocker is one rule.
+
+**It is the capture rule, and it reads types only.** `par-callback-error`
+takes a callback's free variables and classifies each with
+`par-capture-error ... id ty`; the only thing it knows about a capture is its
+**type**. `task-shareable` has no case for `UFun` or `UFunEff`: a function
+type falls through to `task-data-property`, finds no data declaration, and
+answers False. So a capture of function type can never be `Share`, no matter
+what value is passed.
+
+Two programs, both checked against stage 3, isolate it:
+
+```ken
+-- refused: bootstrap.check:8:25: a parallel capture must be Share, or move
+-- into one parBoth branch: f is shared with a parBoth callback without
+-- shareable evidence
+parTraverseList f xs = case xs of
+  Cons y rest -> case parBoth (\() -> f y) (\() -> parTraverseList f rest) of
+    (head, tail) -> Cons head tail
+
+-- accepted, exit 0: the same walk with a global callback, `twice`
+doubleAll xs = case xs of
+  Cons y rest -> case parBoth (\() -> twice y) (\() -> doubleAll rest) of
+    (head, tail) -> Cons head tail
+```
+
+So the operations, the lowering, the call-site classes and the walk itself
+are all fine. What is missing is a channel for **evidence about a function
+value's captures**.
+
+**What that takes.** A capture is Share when the value's own captures are:
+a global function has none and is trivially Share; a lambda or partial
+application is Share iff each of its captures is. The checker sees captures
+where the value is *built*, so the evidence has to travel with the value —
+the note's own section 2.4 `share` attribute, or a `Share` class whose
+function instance is discharged at the binding site. Then
+
+```text
+parTraverse :: using (shareable :: Share (a -> b)) => (a -> b) -> t a -> t b
+```
+
+and a caller either passes a global (free) or a closure whose captures it can
+prove shareable.
+
+**And the row parameter is only needed for the other encoding.** The
+`Parallel e a` wrapper exists to instantiate the prelude's `traverse`, which
+requires an `Applicative f`. Walking the container directly with `parBoth`
+needs no wrapper and no row parameter, as `doubleAll` shows. So the two
+remaining pieces are independent: the generic-over-`Traversable` version
+needs an applicative (hence the row parameter), and any version taking a
+callback *parameter* needs Share evidence for it.
