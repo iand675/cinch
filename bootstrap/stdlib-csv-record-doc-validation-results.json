@@ -1,0 +1,14 @@
+{
+  "Text.Csv.Record": {
+    "sha256": "a9f4220c17a27ef09808c2835109cf7b5e9e83fddae72d23bc649e0923c11806",
+    "documented_declarations": 140,
+    "diagnostics": 0,
+    "orphans": 0
+  },
+  "Effect.Csv": {
+    "sha256": "115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605",
+    "documented_declarations": 74,
+    "diagnostics": 0,
+    "orphans": 0
+  }
+}

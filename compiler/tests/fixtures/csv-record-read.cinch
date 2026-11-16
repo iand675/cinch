@@ -1,0 +1,422 @@
+-- | Configurable CSV fixture consumer with runtime input and precise expected metadata.
+module Main where
+  import Text.Csv.Record
+  import Data.Char
+  import Data.Machine
+  -- | Keep immutable fixture input in runtime execution rather than constant evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Rebuild fixture text through a runtime-sized copied byte interval.
+  runtime-text :: String -> String
+  runtime-text text =
+    let input = string-to-bytes text in
+    let n = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let out = bytes-new n in
+    if bytes-len input <= bytes-len out then
+      let copied = bytes-copy-range out input 0 0 (bytes-len input) in
+      case string-from-bytes out of Some result -> result; None -> ""
+    else ""
+  -- | Obtain a validated scalar from compact fixture data.
+  scalar :: Nat -> Char
+  scalar code = case char-from-code code of Some value -> value; None -> ','
+  -- | Build a checked fixture dialect without embedding representation constructors.
+  config :: Nat -> Nat -> CsvFieldPolicy -> Bool -> Bool -> CsvOptions
+  config delimiter comment policy lazy trim =
+    case csv-options (scalar delimiter) (if comment == 0 then None else Some (scalar comment)) policy lazy trim of
+      Ok selected -> selected
+      Err error -> csv-default-options
+  -- | Compare immutable field lists without requiring an orphan list equality instance.
+  fields-equal :: List String -> List String -> Bool
+  fields-equal left right = case left of
+    Nil -> case right of Nil -> True; Cons first rest -> False
+    Cons a more -> case right of Nil -> False; Cons b rest -> a == b && fields-equal more rest
+  -- | Compare every expected field position through the safe public indexing API.
+  positions-equal :: CsvRecord -> List (Nat, Nat) -> Nat -> Bool
+  positions-equal row positions index = case positions of
+    Nil -> case csv-record-field-position row index of None -> True; Some value -> False
+    Cons first rest -> case first of
+      (line, column) -> case csv-record-field-position row index of
+        None -> False
+        Some actual -> case actual of (actual-line, actual-column) -> actual-line == line && actual-column == column && positions-equal row rest (index + 1)
+  -- | Complete expected read progress and structured error details.
+  data Expected where
+    -- | Fields, positions, input offset, error kind/location and expected/actual counts.
+    Expect :: List String -> List (Nat, Nat) -> Nat -> String -> Nat -> Nat -> Nat -> Nat -> Nat -> Expected
+  -- | Compare precise error locations while treating both quote failures as one external category.
+  error-equal :: Option CsvRecordError -> String -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool
+  error-equal actual kind start line column expected count = case actual of
+    None -> kind == ""
+    Some failure -> csv-record-error-start-line failure == start && csv-record-error-line failure == line && csv-record-error-column failure == column
+      && (case failure of
+        CsvBareQuote a b c -> kind == "bare"
+        CsvQuote a b c -> kind == "quote"
+        CsvUnclosedQuote a b c -> kind == "quote"
+        CsvFieldCount a b c required received -> kind == "fields" && required == expected && received == count
+        CsvFieldEncoding a b c index -> False)
+  -- | Compare every advanced read, including continuing after malformed physical records.
+  read-equal :: CsvReader -> List Expected -> Bool
+  read-equal reader expected = case expected of
+    Nil -> case csv-reader-read reader of (CsvEnd, next) -> True; other -> False
+    Cons first rest -> case first of
+      Expect fields positions offset kind start line column required count -> case csv-reader-read reader of
+        (CsvReadRecord row error, next) -> fields-equal (csv-record-fields row) fields
+          && positions-equal row positions 0 && csv-reader-input-offset next == offset
+          && error-equal error kind start line column required count && read-equal next rest
+        other -> False
+  -- | Give all writer fixtures runtime text as well as their static expected output.
+  runtime-fields :: List String -> List String
+  runtime-fields fields = case fields of Nil -> Nil; Cons first rest -> Cons (runtime-text first) (runtime-fields rest)
+  -- | Identify the first failed fixture without obscuring later source positions.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks index = case checks of
+    Nil -> 0
+    Cons first rest -> if first then first-failure rest (index + 1) else index
+  -- | Preserve a bounded group's original failing index without expanding all fixtures in one body.
+  first-result :: List Nat -> Nat
+  first-result groups = case groups of Nil -> 0; Cons first rest -> if first > 0 then first else first-result rest
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch0 :: Unit -> Nat
+  check-batch0 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "")) []),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "\n\r\n\r")) []),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a,b\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a,b\r\nc,d\r\n")) [(Expect ["a","b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0),(Expect ["c","d"] [(2,1),(2,3)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a,b\nc\nx,y,z\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["c"] [(2,1)] 6 "fields" 2 2 1 2 1),(Expect ["x","y","z"] [(3,1),(3,3),(3,5)] 12 "fields" 3 3 1 2 3)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a,,b,\n")) [(Expect ["a","","b",""] [(1,1),(1,3),(1,4),(1,6)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "\"a,b\",\"x\"\"y\"\n")) [(Expect ["a,b","x\"y"] [(1,1),(1,7)] 13 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "\"a\r\nb\",x\r\n")) [(Expect ["a\nb","x"] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "\"a\rb\",x\n")) [(Expect ["a\rb","x"] [(1,1),(1,7)] 8 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a,b\r")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a\rb,c\n")) [(Expect ["a\rb","c"] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "\"unterminated")) [(Expect [] [] 13 "quote" 1 1 14 0 0)])] 1
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch1 :: Unit -> Nat
+  check-batch1 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "first,\"unterminated\nnext")) [(Expect ["first"] [(1,1)] 24 "quote" 1 2 5 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a\"b,c\nnext,row\n")) [(Expect [] [] 6 "bare" 1 1 2 0 0),(Expect ["next","row"] [(2,1),(2,6)] 15 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a,\"b\"tail\nnext,row\n")) [(Expect ["a"] [(1,1)] 10 "quote" 1 1 5 0 0),(Expect ["next","row"] [(2,1),(2,6)] 19 "fields" 2 2 1 1 2)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a,\"b\" \n")) [(Expect ["a"] [(1,1)] 7 "quote" 1 1 5 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "#comment\n\n a,b\n #literal,c\n")) [(Expect ["#comment"] [(1,1)] 9 "" 0 0 0 0 0),(Expect [" a","b"] [(3,1),(3,4)] 15 "fields" 3 3 1 1 2),(Expect [" #literal","c"] [(4,1),(4,11)] 27 "fields" 4 4 1 1 2)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text " a,\t b\n")) [(Expect [" a","\t b"] [(1,1),(1,4)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text " a, \"b\"\n")) [(Expect [" a"] [(1,1)] 11 "bare" 1 1 8 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "   \n\t\r\n")) [(Expect ["   "] [(1,1)] 4 "" 0 0 0 0 0),(Expect ["\t"] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a;b;\"c;d\"\n#skip\nx;y;z\n")) [(Expect [] [] 10 "bare" 1 1 5 0 0),(Expect ["#skip"] [(2,1)] 16 "" 0 0 0 0 0),(Expect ["x;y;z"] [(3,1)] 22 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "aλbλ\"cλd\"\r\n※comment\nxλ yλz\n")) [(Expect [] [] 14 "bare" 1 1 7 0 0),(Expect ["※comment"] [(2,1)] 25 "" 0 0 0 0 0),(Expect ["xλ yλz"] [(3,1)] 34 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "\"a\"\"\"\n")) [(Expect ["a\""] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "\"a\"\"b\"\n")) [(Expect ["a\"b"] [(1,1)] 7 "" 0 0 0 0 0)])] 13
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch2 :: Unit -> Nat
+  check-batch2 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "\"a\n\nb\",z\n")) [(Expect ["a\n\nb","z"] [(1,1),(3,4)] 9 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "\"\",\n")) [(Expect ["",""] [(1,1),(1,4)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a,b\n\"x\nq\",\"r\"z\nnext,row\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["x\nq"] [(2,1)] 15 "quote" 2 3 6 0 0),(Expect ["next","row"] [(4,1),(4,6)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a,b\n\"x\nq\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect [] [] 9 "quote" 2 3 3 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "﻿a,b\n")) [(Expect ["﻿a","b"] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvInferFields False False) (runtime-text "a,\u{0000}b\n")) [(Expect ["a","\u{0000}b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "")) []),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "\n\r\n\r")) []),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a,b\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a,b\r\nc,d\r\n")) [(Expect ["a","b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0),(Expect ["c","d"] [(2,1),(2,3)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a,b\nc\nx,y,z\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["c"] [(2,1)] 6 "" 0 0 0 0 0),(Expect ["x","y","z"] [(3,1),(3,3),(3,5)] 12 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a,,b,\n")) [(Expect ["a","","b",""] [(1,1),(1,3),(1,4),(1,6)] 6 "" 0 0 0 0 0)])] 25
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch3 :: Unit -> Nat
+  check-batch3 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "\"a,b\",\"x\"\"y\"\n")) [(Expect ["a,b","x\"y"] [(1,1),(1,7)] 13 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "\"a\r\nb\",x\r\n")) [(Expect ["a\nb","x"] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "\"a\rb\",x\n")) [(Expect ["a\rb","x"] [(1,1),(1,7)] 8 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a,b\r")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a\rb,c\n")) [(Expect ["a\rb","c"] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "\"unterminated")) [(Expect [] [] 13 "quote" 1 1 14 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "first,\"unterminated\nnext")) [(Expect ["first"] [(1,1)] 24 "quote" 1 2 5 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a\"b,c\nnext,row\n")) [(Expect [] [] 6 "bare" 1 1 2 0 0),(Expect ["next","row"] [(2,1),(2,6)] 15 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a,\"b\"tail\nnext,row\n")) [(Expect ["a"] [(1,1)] 10 "quote" 1 1 5 0 0),(Expect ["next","row"] [(2,1),(2,6)] 19 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a,\"b\" \n")) [(Expect ["a"] [(1,1)] 7 "quote" 1 1 5 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "#comment\n\n a,b\n #literal,c\n")) [(Expect ["#comment"] [(1,1)] 9 "" 0 0 0 0 0),(Expect [" a","b"] [(3,1),(3,4)] 15 "" 0 0 0 0 0),(Expect [" #literal","c"] [(4,1),(4,11)] 27 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text " a,\t b\n")) [(Expect [" a","\t b"] [(1,1),(1,4)] 7 "" 0 0 0 0 0)])] 37
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch4 :: Unit -> Nat
+  check-batch4 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text " a, \"b\"\n")) [(Expect [" a"] [(1,1)] 11 "bare" 1 1 8 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "   \n\t\r\n")) [(Expect ["   "] [(1,1)] 4 "" 0 0 0 0 0),(Expect ["\t"] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a;b;\"c;d\"\n#skip\nx;y;z\n")) [(Expect [] [] 10 "bare" 1 1 5 0 0),(Expect ["#skip"] [(2,1)] 16 "" 0 0 0 0 0),(Expect ["x;y;z"] [(3,1)] 22 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "aλbλ\"cλd\"\r\n※comment\nxλ yλz\n")) [(Expect [] [] 14 "bare" 1 1 7 0 0),(Expect ["※comment"] [(2,1)] 25 "" 0 0 0 0 0),(Expect ["xλ yλz"] [(3,1)] 34 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "\"a\"\"\"\n")) [(Expect ["a\""] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "\"a\"\"b\"\n")) [(Expect ["a\"b"] [(1,1)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "\"a\n\nb\",z\n")) [(Expect ["a\n\nb","z"] [(1,1),(3,4)] 9 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "\"\",\n")) [(Expect ["",""] [(1,1),(1,4)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a,b\n\"x\nq\",\"r\"z\nnext,row\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["x\nq"] [(2,1)] 15 "quote" 2 3 6 0 0),(Expect ["next","row"] [(4,1),(4,6)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a,b\n\"x\nq\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect [] [] 9 "quote" 2 3 3 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "﻿a,b\n")) [(Expect ["﻿a","b"] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields False False) (runtime-text "a,\u{0000}b\n")) [(Expect ["a","\u{0000}b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0)])] 49
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch5 :: Unit -> Nat
+  check-batch5 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "")) []),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "\n\r\n\r")) []),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a,b\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a,b\r\nc,d\r\n")) [(Expect ["a","b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0),(Expect ["c","d"] [(2,1),(2,3)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a,b\nc\nx,y,z\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["c"] [(2,1)] 6 "fields" 2 2 1 2 1),(Expect ["x","y","z"] [(3,1),(3,3),(3,5)] 12 "fields" 3 3 1 2 3)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a,,b,\n")) [(Expect ["a","","b",""] [(1,1),(1,3),(1,4),(1,6)] 6 "fields" 1 1 1 2 4)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "\"a,b\",\"x\"\"y\"\n")) [(Expect ["a,b","x\"y"] [(1,1),(1,7)] 13 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "\"a\r\nb\",x\r\n")) [(Expect ["a\nb","x"] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "\"a\rb\",x\n")) [(Expect ["a\rb","x"] [(1,1),(1,7)] 8 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a,b\r")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a\rb,c\n")) [(Expect ["a\rb","c"] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "\"unterminated")) [(Expect [] [] 13 "quote" 1 1 14 0 0)])] 61
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch6 :: Unit -> Nat
+  check-batch6 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "first,\"unterminated\nnext")) [(Expect ["first"] [(1,1)] 24 "quote" 1 2 5 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a\"b,c\nnext,row\n")) [(Expect [] [] 6 "bare" 1 1 2 0 0),(Expect ["next","row"] [(2,1),(2,6)] 15 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a,\"b\"tail\nnext,row\n")) [(Expect ["a"] [(1,1)] 10 "quote" 1 1 5 0 0),(Expect ["next","row"] [(2,1),(2,6)] 19 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a,\"b\" \n")) [(Expect ["a"] [(1,1)] 7 "quote" 1 1 5 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "#comment\n\n a,b\n #literal,c\n")) [(Expect ["#comment"] [(1,1)] 9 "fields" 1 1 1 2 1),(Expect [" a","b"] [(3,1),(3,4)] 15 "" 0 0 0 0 0),(Expect [" #literal","c"] [(4,1),(4,11)] 27 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text " a,\t b\n")) [(Expect [" a","\t b"] [(1,1),(1,4)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text " a, \"b\"\n")) [(Expect [" a"] [(1,1)] 11 "bare" 1 1 8 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "   \n\t\r\n")) [(Expect ["   "] [(1,1)] 4 "fields" 1 1 1 2 1),(Expect ["\t"] [(2,1)] 7 "fields" 2 2 1 2 1)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a;b;\"c;d\"\n#skip\nx;y;z\n")) [(Expect [] [] 10 "bare" 1 1 5 0 0),(Expect ["#skip"] [(2,1)] 16 "fields" 2 2 1 2 1),(Expect ["x;y;z"] [(3,1)] 22 "fields" 3 3 1 2 1)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "aλbλ\"cλd\"\r\n※comment\nxλ yλz\n")) [(Expect [] [] 14 "bare" 1 1 7 0 0),(Expect ["※comment"] [(2,1)] 25 "fields" 2 2 1 2 1),(Expect ["xλ yλz"] [(3,1)] 34 "fields" 3 3 1 2 1)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "\"a\"\"\"\n")) [(Expect ["a\""] [(1,1)] 6 "fields" 1 1 1 2 1)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "\"a\"\"b\"\n")) [(Expect ["a\"b"] [(1,1)] 7 "fields" 1 1 1 2 1)])] 73
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch7 :: Unit -> Nat
+  check-batch7 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "\"a\n\nb\",z\n")) [(Expect ["a\n\nb","z"] [(1,1),(3,4)] 9 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "\"\",\n")) [(Expect ["",""] [(1,1),(1,4)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a,b\n\"x\nq\",\"r\"z\nnext,row\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["x\nq"] [(2,1)] 15 "quote" 2 3 6 0 0),(Expect ["next","row"] [(4,1),(4,6)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a,b\n\"x\nq\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect [] [] 9 "quote" 2 3 3 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "﻿a,b\n")) [(Expect ["﻿a","b"] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 (CsvExactFields 2) False False) (runtime-text "a,\u{0000}b\n")) [(Expect ["a","\u{0000}b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "")) []),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "\n\r\n\r")) []),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a,b\n")) [(Expect ["a,b"] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a,b\r\nc,d\r\n")) [(Expect ["a,b"] [(1,1)] 5 "" 0 0 0 0 0),(Expect ["c,d"] [(2,1)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a,b\nc\nx,y,z\n")) [(Expect ["a,b"] [(1,1)] 4 "" 0 0 0 0 0),(Expect ["c"] [(2,1)] 6 "" 0 0 0 0 0),(Expect ["x,y,z"] [(3,1)] 12 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a,,b,\n")) [(Expect ["a,,b,"] [(1,1)] 6 "" 0 0 0 0 0)])] 85
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch8 :: Unit -> Nat
+  check-batch8 unit = first-failure [
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "\"a,b\",\"x\"\"y\"\n")) [(Expect [] [] 13 "quote" 1 1 5 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "\"a\r\nb\",x\r\n")) [(Expect [] [] 10 "quote" 1 2 2 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "\"a\rb\",x\n")) [(Expect [] [] 8 "quote" 1 1 5 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a,b\r")) [(Expect ["a,b"] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a\rb,c\n")) [(Expect ["a\rb,c"] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "\"unterminated")) [(Expect [] [] 13 "quote" 1 1 14 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "first,\"unterminated\nnext")) [(Expect [] [] 20 "bare" 1 1 7 0 0),(Expect ["next"] [(2,1)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a\"b,c\nnext,row\n")) [(Expect [] [] 6 "bare" 1 1 2 0 0),(Expect ["next,row"] [(2,1)] 15 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a,\"b\"tail\nnext,row\n")) [(Expect [] [] 10 "bare" 1 1 3 0 0),(Expect ["next,row"] [(2,1)] 19 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a,\"b\" \n")) [(Expect [] [] 7 "bare" 1 1 3 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "#comment\n\n a,b\n #literal,c\n")) [(Expect [" a,b"] [(3,1)] 15 "" 0 0 0 0 0),(Expect [" #literal,c"] [(4,1)] 27 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text " a,\t b\n")) [(Expect [" a,\t b"] [(1,1)] 7 "" 0 0 0 0 0)])] 97
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch9 :: Unit -> Nat
+  check-batch9 unit = first-failure [
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text " a, \"b\"\n")) [(Expect [] [] 11 "bare" 1 1 8 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "   \n\t\r\n")) [(Expect ["   "] [(1,1)] 4 "" 0 0 0 0 0),(Expect ["\t"] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a;b;\"c;d\"\n#skip\nx;y;z\n")) [(Expect ["a","b","c;d"] [(1,1),(1,3),(1,5)] 10 "" 0 0 0 0 0),(Expect ["x","y","z"] [(3,1),(3,3),(3,5)] 22 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "aλbλ\"cλd\"\r\n※comment\nxλ yλz\n")) [(Expect [] [] 14 "bare" 1 1 7 0 0),(Expect ["※comment"] [(2,1)] 25 "" 0 0 0 0 0),(Expect ["xλ yλz"] [(3,1)] 34 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "\"a\"\"\"\n")) [(Expect ["a\""] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "\"a\"\"b\"\n")) [(Expect ["a\"b"] [(1,1)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "\"a\n\nb\",z\n")) [(Expect [] [] 9 "quote" 1 3 2 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "\"\",\n")) [(Expect [] [] 4 "quote" 1 1 2 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a,b\n\"x\nq\",\"r\"z\nnext,row\n")) [(Expect ["a,b"] [(1,1)] 4 "" 0 0 0 0 0),(Expect [] [] 15 "quote" 2 3 2 0 0),(Expect ["next,row"] [(4,1)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a,b\n\"x\nq\n")) [(Expect ["a,b"] [(1,1)] 4 "" 0 0 0 0 0),(Expect [] [] 9 "quote" 2 3 3 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "﻿a,b\n")) [(Expect ["﻿a,b"] [(1,1)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 59 35 CsvAnyFields False False) (runtime-text "a,\u{0000}b\n")) [(Expect ["a,\u{0000}b"] [(1,1)] 5 "" 0 0 0 0 0)])] 109
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch10 :: Unit -> Nat
+  check-batch10 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "")) []),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "\n\r\n\r")) []),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a,b\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a,b\r\nc,d\r\n")) [(Expect ["a","b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0),(Expect ["c","d"] [(2,1),(2,3)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a,b\nc\nx,y,z\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["c"] [(2,1)] 6 "fields" 2 2 1 2 1),(Expect ["x","y","z"] [(3,1),(3,3),(3,5)] 12 "fields" 3 3 1 2 3)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a,,b,\n")) [(Expect ["a","","b",""] [(1,1),(1,3),(1,4),(1,6)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "\"a,b\",\"x\"\"y\"\n")) [(Expect ["a,b","x\"y"] [(1,1),(1,7)] 13 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "\"a\r\nb\",x\r\n")) [(Expect ["a\nb","x"] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "\"a\rb\",x\n")) [(Expect ["a\rb","x"] [(1,1),(1,7)] 8 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a,b\r")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a\rb,c\n")) [(Expect ["a\rb","c"] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "\"unterminated")) [(Expect [] [] 13 "quote" 1 1 14 0 0)])] 121
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch11 :: Unit -> Nat
+  check-batch11 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "first,\"unterminated\nnext")) [(Expect ["first"] [(1,1)] 24 "quote" 1 2 5 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a\"b,c\nnext,row\n")) [(Expect [] [] 6 "bare" 1 1 2 0 0),(Expect ["next","row"] [(2,1),(2,6)] 15 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a,\"b\"tail\nnext,row\n")) [(Expect ["a"] [(1,1)] 10 "quote" 1 1 5 0 0),(Expect ["next","row"] [(2,1),(2,6)] 19 "fields" 2 2 1 1 2)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a,\"b\" \n")) [(Expect ["a"] [(1,1)] 7 "quote" 1 1 5 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "#comment\n\n a,b\n #literal,c\n")) [(Expect ["a","b"] [(3,2),(3,4)] 15 "" 0 0 0 0 0),(Expect ["#literal","c"] [(4,2),(4,11)] 27 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text " a,\t b\n")) [(Expect ["a","b"] [(1,2),(1,6)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text " a, \"b\"\n")) [(Expect ["a","b"] [(1,3),(1,8)] 11 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "   \n\t\r\n")) [(Expect [""] [(1,4)] 4 "" 0 0 0 0 0),(Expect [""] [(2,2)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a;b;\"c;d\"\n#skip\nx;y;z\n")) [(Expect [] [] 10 "bare" 1 1 5 0 0),(Expect ["x;y;z"] [(3,1)] 22 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "aλbλ\"cλd\"\r\n※comment\nxλ yλz\n")) [(Expect [] [] 14 "bare" 1 1 7 0 0),(Expect ["※comment"] [(2,1)] 25 "" 0 0 0 0 0),(Expect ["xλ yλz"] [(3,1)] 34 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "\"a\"\"\"\n")) [(Expect ["a\""] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "\"a\"\"b\"\n")) [(Expect ["a\"b"] [(1,1)] 7 "" 0 0 0 0 0)])] 133
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch12 :: Unit -> Nat
+  check-batch12 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "\"a\n\nb\",z\n")) [(Expect ["a\n\nb","z"] [(1,1),(3,4)] 9 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "\"\",\n")) [(Expect ["",""] [(1,1),(1,4)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a,b\n\"x\nq\",\"r\"z\nnext,row\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["x\nq"] [(2,1)] 15 "quote" 2 3 6 0 0),(Expect ["next","row"] [(4,1),(4,6)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a,b\n\"x\nq\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect [] [] 9 "quote" 2 3 3 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "﻿a,b\n")) [(Expect ["﻿a","b"] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 35 CsvInferFields False True) (runtime-text "a,\u{0000}b\n")) [(Expect ["a","\u{0000}b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "")) []),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "\n\r\n\r")) []),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a,b\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a,b\r\nc,d\r\n")) [(Expect ["a","b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0),(Expect ["c","d"] [(2,1),(2,3)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a,b\nc\nx,y,z\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["c"] [(2,1)] 6 "" 0 0 0 0 0),(Expect ["x","y","z"] [(3,1),(3,3),(3,5)] 12 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a,,b,\n")) [(Expect ["a","","b",""] [(1,1),(1,3),(1,4),(1,6)] 6 "" 0 0 0 0 0)])] 145
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch13 :: Unit -> Nat
+  check-batch13 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "\"a,b\",\"x\"\"y\"\n")) [(Expect ["a,b","x\"y"] [(1,1),(1,7)] 13 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "\"a\r\nb\",x\r\n")) [(Expect ["a\nb","x"] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "\"a\rb\",x\n")) [(Expect ["a\rb","x"] [(1,1),(1,7)] 8 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a,b\r")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a\rb,c\n")) [(Expect ["a\rb","c"] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "\"unterminated")) [(Expect ["unterminated"] [(1,1)] 13 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "first,\"unterminated\nnext")) [(Expect ["first","unterminated\nnext"] [(1,1),(1,7)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a\"b,c\nnext,row\n")) [(Expect ["a\"b","c"] [(1,1),(1,5)] 6 "" 0 0 0 0 0),(Expect ["next","row"] [(2,1),(2,6)] 15 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a,\"b\"tail\nnext,row\n")) [(Expect ["a","b\"tail\nnext,row\n"] [(1,1),(1,3)] 19 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a,\"b\" \n")) [(Expect ["a","b\" \n"] [(1,1),(1,3)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "#comment\n\n a,b\n #literal,c\n")) [(Expect ["#comment"] [(1,1)] 9 "" 0 0 0 0 0),(Expect [" a","b"] [(3,1),(3,4)] 15 "" 0 0 0 0 0),(Expect [" #literal","c"] [(4,1),(4,11)] 27 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text " a,\t b\n")) [(Expect [" a","\t b"] [(1,1),(1,4)] 7 "" 0 0 0 0 0)])] 157
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch14 :: Unit -> Nat
+  check-batch14 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text " a, \"b\"\n")) [(Expect [" a"," \"b\""] [(1,1),(1,5)] 11 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "   \n\t\r\n")) [(Expect ["   "] [(1,1)] 4 "" 0 0 0 0 0),(Expect ["\t"] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a;b;\"c;d\"\n#skip\nx;y;z\n")) [(Expect ["a;b;\"c;d\""] [(1,1)] 10 "" 0 0 0 0 0),(Expect ["#skip"] [(2,1)] 16 "" 0 0 0 0 0),(Expect ["x;y;z"] [(3,1)] 22 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "aλbλ\"cλd\"\r\n※comment\nxλ yλz\n")) [(Expect ["aλbλ\"cλd\""] [(1,1)] 14 "" 0 0 0 0 0),(Expect ["※comment"] [(2,1)] 25 "" 0 0 0 0 0),(Expect ["xλ yλz"] [(3,1)] 34 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "\"a\"\"\"\n")) [(Expect ["a\""] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "\"a\"\"b\"\n")) [(Expect ["a\"b"] [(1,1)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "\"a\n\nb\",z\n")) [(Expect ["a\n\nb","z"] [(1,1),(3,4)] 9 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "\"\",\n")) [(Expect ["",""] [(1,1),(1,4)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a,b\n\"x\nq\",\"r\"z\nnext,row\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["x\nq","r\"z\nnext,row\n"] [(2,1),(3,4)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a,b\n\"x\nq\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["x\nq\n"] [(2,1)] 9 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "﻿a,b\n")) [(Expect ["﻿a","b"] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True False) (runtime-text "a,\u{0000}b\n")) [(Expect ["a","\u{0000}b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0)])] 169
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch15 :: Unit -> Nat
+  check-batch15 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "")) []),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "\n\r\n\r")) []),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a,b\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a,b\r\nc,d\r\n")) [(Expect ["a","b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0),(Expect ["c","d"] [(2,1),(2,3)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a,b\nc\nx,y,z\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["c"] [(2,1)] 6 "" 0 0 0 0 0),(Expect ["x","y","z"] [(3,1),(3,3),(3,5)] 12 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a,,b,\n")) [(Expect ["a","","b",""] [(1,1),(1,3),(1,4),(1,6)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "\"a,b\",\"x\"\"y\"\n")) [(Expect ["a,b","x\"y"] [(1,1),(1,7)] 13 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "\"a\r\nb\",x\r\n")) [(Expect ["a\nb","x"] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "\"a\rb\",x\n")) [(Expect ["a\rb","x"] [(1,1),(1,7)] 8 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a,b\r")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a\rb,c\n")) [(Expect ["a\rb","c"] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "\"unterminated")) [(Expect ["unterminated"] [(1,1)] 13 "" 0 0 0 0 0)])] 181
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch16 :: Unit -> Nat
+  check-batch16 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "first,\"unterminated\nnext")) [(Expect ["first","unterminated\nnext"] [(1,1),(1,7)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a\"b,c\nnext,row\n")) [(Expect ["a\"b","c"] [(1,1),(1,5)] 6 "" 0 0 0 0 0),(Expect ["next","row"] [(2,1),(2,6)] 15 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a,\"b\"tail\nnext,row\n")) [(Expect ["a","b\"tail\nnext,row\n"] [(1,1),(1,3)] 19 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a,\"b\" \n")) [(Expect ["a","b\" \n"] [(1,1),(1,3)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "#comment\n\n a,b\n #literal,c\n")) [(Expect ["#comment"] [(1,1)] 9 "" 0 0 0 0 0),(Expect ["a","b"] [(3,2),(3,4)] 15 "" 0 0 0 0 0),(Expect ["#literal","c"] [(4,2),(4,11)] 27 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text " a,\t b\n")) [(Expect ["a","b"] [(1,2),(1,6)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text " a, \"b\"\n")) [(Expect ["a","b"] [(1,3),(1,8)] 11 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "   \n\t\r\n")) [(Expect [""] [(1,4)] 4 "" 0 0 0 0 0),(Expect [""] [(2,2)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a;b;\"c;d\"\n#skip\nx;y;z\n")) [(Expect ["a;b;\"c;d\""] [(1,1)] 10 "" 0 0 0 0 0),(Expect ["#skip"] [(2,1)] 16 "" 0 0 0 0 0),(Expect ["x;y;z"] [(3,1)] 22 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "aλbλ\"cλd\"\r\n※comment\nxλ yλz\n")) [(Expect ["aλbλ\"cλd\""] [(1,1)] 14 "" 0 0 0 0 0),(Expect ["※comment"] [(2,1)] 25 "" 0 0 0 0 0),(Expect ["xλ yλz"] [(3,1)] 34 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "\"a\"\"\"\n")) [(Expect ["a\""] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "\"a\"\"b\"\n")) [(Expect ["a\"b"] [(1,1)] 7 "" 0 0 0 0 0)])] 193
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch17 :: Unit -> Nat
+  check-batch17 unit = first-failure [
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "\"a\n\nb\",z\n")) [(Expect ["a\n\nb","z"] [(1,1),(3,4)] 9 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "\"\",\n")) [(Expect ["",""] [(1,1),(1,4)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a,b\n\"x\nq\",\"r\"z\nnext,row\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["x\nq","r\"z\nnext,row\n"] [(2,1),(3,4)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a,b\n\"x\nq\n")) [(Expect ["a","b"] [(1,1),(1,3)] 4 "" 0 0 0 0 0),(Expect ["x\nq\n"] [(2,1)] 9 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "﻿a,b\n")) [(Expect ["﻿a","b"] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 44 0 CsvAnyFields True True) (runtime-text "a,\u{0000}b\n")) [(Expect ["a","\u{0000}b"] [(1,1),(1,3)] 5 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "")) []),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "\n\r\n\r")) []),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a,b\n")) [(Expect ["a,b"] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a,b\r\nc,d\r\n")) [(Expect ["a,b"] [(1,1)] 5 "" 0 0 0 0 0),(Expect ["c,d"] [(2,1)] 10 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a,b\nc\nx,y,z\n")) [(Expect ["a,b"] [(1,1)] 4 "" 0 0 0 0 0),(Expect ["c"] [(2,1)] 6 "" 0 0 0 0 0),(Expect ["x,y,z"] [(3,1)] 12 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a,,b,\n")) [(Expect ["a,,b,"] [(1,1)] 6 "" 0 0 0 0 0)])] 205
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch18 :: Unit -> Nat
+  check-batch18 unit = first-failure [
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "\"a,b\",\"x\"\"y\"\n")) [(Expect [] [] 13 "quote" 1 1 5 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "\"a\r\nb\",x\r\n")) [(Expect [] [] 10 "quote" 1 2 2 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "\"a\rb\",x\n")) [(Expect [] [] 8 "quote" 1 1 5 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a,b\r")) [(Expect ["a,b"] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a\rb,c\n")) [(Expect ["a\rb,c"] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "\"unterminated")) [(Expect [] [] 13 "quote" 1 1 14 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "first,\"unterminated\nnext")) [(Expect [] [] 20 "bare" 1 1 7 0 0),(Expect ["next"] [(2,1)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a\"b,c\nnext,row\n")) [(Expect [] [] 6 "bare" 1 1 2 0 0),(Expect ["next,row"] [(2,1)] 15 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a,\"b\"tail\nnext,row\n")) [(Expect [] [] 10 "bare" 1 1 3 0 0),(Expect ["next,row"] [(2,1)] 19 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a,\"b\" \n")) [(Expect [] [] 7 "bare" 1 1 3 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "#comment\n\n a,b\n #literal,c\n")) [(Expect ["#comment"] [(1,1)] 9 "" 0 0 0 0 0),(Expect ["a,b"] [(3,2)] 15 "" 0 0 0 0 0),(Expect ["#literal,c"] [(4,2)] 27 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text " a,\t b\n")) [(Expect ["a,\t b"] [(1,2)] 7 "" 0 0 0 0 0)])] 217
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch19 :: Unit -> Nat
+  check-batch19 unit = first-failure [
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text " a, \"b\"\n")) [(Expect [] [] 11 "bare" 1 1 8 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "   \n\t\r\n")) [(Expect [""] [(1,4)] 4 "" 0 0 0 0 0),(Expect [""] [(2,2)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a;b;\"c;d\"\n#skip\nx;y;z\n")) [(Expect [] [] 10 "bare" 1 1 5 0 0),(Expect ["#skip"] [(2,1)] 16 "" 0 0 0 0 0),(Expect ["x;y;z"] [(3,1)] 22 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "aλbλ\"cλd\"\r\n※comment\nxλ yλz\n")) [(Expect ["a","b","cλd"] [(1,1),(1,4),(1,7)] 14 "" 0 0 0 0 0),(Expect ["x","y","z"] [(3,1),(3,5),(3,8)] 34 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "\"a\"\"\"\n")) [(Expect ["a\""] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "\"a\"\"b\"\n")) [(Expect ["a\"b"] [(1,1)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "\"a\n\nb\",z\n")) [(Expect [] [] 9 "quote" 1 3 2 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "\"\",\n")) [(Expect [] [] 4 "quote" 1 1 2 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a,b\n\"x\nq\",\"r\"z\nnext,row\n")) [(Expect ["a,b"] [(1,1)] 4 "" 0 0 0 0 0),(Expect [] [] 15 "quote" 2 3 2 0 0),(Expect ["next,row"] [(4,1)] 24 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a,b\n\"x\nq\n")) [(Expect ["a,b"] [(1,1)] 4 "" 0 0 0 0 0),(Expect [] [] 9 "quote" 2 3 3 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "﻿a,b\n")) [(Expect ["﻿a,b"] [(1,1)] 7 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 955 8251 CsvAnyFields False True) (runtime-text "a,\u{0000}b\n")) [(Expect ["a,\u{0000}b"] [(1,1)] 5 "" 0 0 0 0 0)])] 229
+
+  -- | Evaluate a bounded group of independent read fixtures with original failing indices.
+  check-batch20 :: Unit -> Nat
+  check-batch20 unit = first-failure [
+      (read-equal (csv-record-reader (config 28450 8251 CsvAnyFields False True) (runtime-text "a漢b漢\"c漢d\"\r\n※skip\nx漢y漢z\n")) [(Expect ["a","b","c漢d"] [(1,1),(1,5),(1,9)] 17 "" 0 0 0 0 0),(Expect ["x","y","z"] [(3,1),(3,5),(3,9)] 35 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 28450 8251 CsvAnyFields False True) (runtime-text "　a漢 \"b\"\n")) [(Expect ["a","b"] [(1,4),(1,11)] 14 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 28450 8251 CsvAnyFields False True) (runtime-text "\"😀😀😀\r\n😀😀\"漢z\n")) [(Expect ["😀😀😀\n😀😀","z"] [(1,1),(2,13)] 29 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 28450 8251 CsvAnyFields False True) (runtime-text "a漢\"b\"tail\nnext漢row\n")) [(Expect ["a"] [(1,1)] 12 "quote" 1 1 7 0 0),(Expect ["next","row"] [(2,1),(2,8)] 23 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 28450 8251 CsvAnyFields False True) (runtime-text "\"unterminated\n")) [(Expect [] [] 14 "quote" 1 1 15 0 0)]),
+      (read-equal (csv-record-reader (config 28450 8251 CsvAnyFields False True) (runtime-text "\n\r\n")) []),
+      (read-equal (csv-record-reader (config 128512 128221 CsvAnyFields True True) (runtime-text "a😀b😀\"c😀d\"\r\n📝skip\nx😀y😀z\n")) [(Expect ["a","b","c😀d"] [(1,1),(1,6),(1,11)] 20 "" 0 0 0 0 0),(Expect ["x","y","z"] [(3,1),(3,6),(3,11)] 41 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 128512 128221 CsvAnyFields True True) (runtime-text "　a😀 \"b\"\n")) [(Expect ["a","b"] [(1,4),(1,12)] 15 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 128512 128221 CsvAnyFields True True) (runtime-text "\"😀😀😀\r\n😀😀\"😀z\n")) [(Expect ["😀😀😀\n😀😀","z"] [(1,1),(2,14)] 30 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 128512 128221 CsvAnyFields True True) (runtime-text "a😀\"b\"tail\nnext😀row\n")) [(Expect ["a","b\"tail\nnext😀row\n"] [(1,1),(1,6)] 25 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 128512 128221 CsvAnyFields True True) (runtime-text "\"unterminated\n")) [(Expect ["unterminated\n"] [(1,1)] 14 "" 0 0 0 0 0)]),
+      (read-equal (csv-record-reader (config 128512 128221 CsvAnyFields True True) (runtime-text "\n\r\n")) [])] 241
+
+  -- | Print a failing fixture index and return a nonzero exit status for failed observations.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let result = first-result [check-batch0 (),check-batch1 (),check-batch2 (),check-batch3 (),check-batch4 (),check-batch5 (),check-batch6 (),check-batch7 (),check-batch8 (),check-batch9 (),check-batch10 (),check-batch11 (),check-batch12 (),check-batch13 (),check-batch14 (),check-batch15 (),check-batch16 (),check-batch17 (),check-batch18 (),check-batch19 (),check-batch20 ()] in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string result) "\n")) in
+    if result == 0 then 0 else 1
