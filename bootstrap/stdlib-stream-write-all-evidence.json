@@ -1,0 +1,62 @@
+{
+  "description": "Shared stream-write-all uses an original first offer and private adaptive fresh windows after short writes",
+  "source_sha256": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+  "fixture_sha256": "da18bbf03dd34225e0552b22033d6496f116889c334e6b7dbbcf390de6e21370",
+  "original_source_sha256": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+  "original_source_commit": "4c46a7a2",
+  "matrix": [
+    {
+      "report": "bootstrap/stdlib-stream-write-all-rust-o2-validation.json",
+      "frontend": "rust",
+      "opt_level": 2,
+      "runs": 2,
+      "actual_bulk_copy_bytes": [
+        602032,
+        602032
+      ]
+    },
+    {
+      "report": "bootstrap/stdlib-stream-write-all-rust-o0-validation.json",
+      "frontend": "rust",
+      "opt_level": 0,
+      "runs": 2,
+      "actual_bulk_copy_bytes": [
+        602032,
+        602032
+      ]
+    },
+    {
+      "report": "bootstrap/stdlib-stream-write-all-native-o2-validation.json",
+      "frontend": "native",
+      "opt_level": 2,
+      "runs": 2,
+      "actual_bulk_copy_bytes": [
+        602032,
+        602032
+      ]
+    },
+    {
+      "report": "bootstrap/stdlib-stream-write-all-native-o0-validation.json",
+      "frontend": "native",
+      "opt_level": 0,
+      "runs": 2,
+      "actual_bulk_copy_bytes": [
+        602032,
+        602032
+      ]
+    }
+  ],
+  "same_source_memory_runs": 8,
+  "canonical_declarations": 67,
+  "documentation_diagnostics": [],
+  "documentation_orphans": [],
+  "source_code_changed_runtime": false,
+  "counter_abi": "GNU linker wrap of existing cinch_bytes_copy(dst,src,di,si,n), no new runtime intrinsic",
+  "copy_bound": "helper <=3N; complete fixture bulk copies <=5*sum(input sizes)+16384 including fixture setup, sink copies, probes and trace rendering",
+  "observed_one_byte_offered": 163838,
+  "observed_variable_offered": 174250,
+  "large_input_bytes": 65536,
+  "original_baseline_receipt": "bootstrap/stdlib-stream-write-all-before-validation.json",
+  "baseline_scope": "The original is stopped by an independent4N offer budget after5 calls instead of executing its full quadratic suffix series. It fails the same functional and actual-copy bounds with zero leaks.",
+  "parent_gate": "lib_stream targeted Cargo gate pending; no local Cargo build performed"
+}
