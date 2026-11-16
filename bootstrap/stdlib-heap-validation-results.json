@@ -1,6 +1,6 @@
 {
   "description": "Owned four-way indexed heap repairs and a callback-backed binary heap interface.",
-  "status": "Full Rust CLI corpus and benchmark evidence passed; Native functional gate blocked by existing mutation/phantom-region typing gaps. Package remains partial pending compiler repair.",
+  "status": "Frozen Rust and corrected Cinch frontend each pass all 33 runtime consumers; full self-built Native fixed point and parent Cargo gates remain pending.",
   "reference_package": "container/heap",
   "reference_declarations": 11,
   "full_stdlib_goal_complete": false,
@@ -9,7 +9,7 @@
     "compiler/prelude/Data/Mutable/HeapView.cinch": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c",
     "compiler/tests/lib_heap_view.rs": "db3681c965d7da8087d30cc3ca484b90319968634bed4849e91d69ebd1626eed",
     "compiler/tests/fixtures/heap-view-vectors.json": "1b72723c603b3cc23bc806093fdbd03c65d142b347cc277bf79504700da4d54f",
-    "compiler/tests/fixtures/heap-view-consumer.cinch": "ee861159b2bb5a9a6d0505c6ffbc4c08c5d87b07a7edb8ca1786e18ce28ce10c",
+    "compiler/tests/fixtures/heap-view-consumer.cinch": "ead4d406aa2d1e7ca855e04afcffa4bccb1346ffcfff6d5f05944212527d587e",
     "tooling/go_heap_view_vectors.go": "69d983ebe47b1dcfea0107f8a7f28c9740985a3ae70429dd9a94f4f75fbab73c",
     "tooling/generate_heap_view_cases.py": "4127901e75dc68d0b40b07a96ee1b2b1cbf297a405e696bef85190a4f3392bd9",
     "tooling/validate_heap_views.py": "fe839ef4dc12d8177c1b9a9384a31032573fed1105c6c2f1cb9aa1db9d15fd52"
@@ -62,8 +62,10 @@
     "cargo_run_in_lane": false,
     "full_trace_report": "stdlib-heap-rust-validation-results.json",
     "control_report": "stdlib-heap-control-validation-results.json",
-    "note": "The new control helper was appended after the32-case run; the final separate control build type-checks every helper and executes the additional policy cases. Library bytes match both receipts.",
-    "reference_fixture_reproduces_exactly": true
+    "note": "The separate Rust control check type-checks every helper. The Native corpus uses a corrected Cinch compiler compiled by frozen Rust; the source fixture now observes local list emptiness directly to avoid a missing generic O variant in the older provider. Library bytes match all receipts.",
+    "reference_fixture_reproduces_exactly": true,
+    "native_projected_consumers": 33,
+    "native_report": "stdlib-heap-native-validation-results.json"
   },
   "documentation": {
     "Data.Mutable.Heap": {
@@ -94,9 +96,13 @@
     "HeapView currently incurs indirect callback, checked vector, ownership and Nat arithmetic paths; no throughput or allocation parity is claimed.",
     "Full constructor-tree fixture initialization overflowed the frozen Rust compiler stack at257items; independently packed input now materializes as runtime records. No library algorithm was weakened."
   ],
-  "native_blockers": [
+  "native_initial_blockers": [
     "Existing phantom region parameters in Vec/Var/Heap default to Type when Native only examines constructor fields. Source Region annotations are not supported by the frozen Rust nominal-kind converter.",
     "Native currently generalizes effectful strict bindings, separating a newly allocated container's region from its performed Mut row.",
     "The Core kind table admits Mut as ownership Region->Type->Type but ordinary name lookup rejects Mut effect labels Region->Effect; focused contextual repair8aff20d0 is held until mutable value restriction is corrected."
+  ],
+  "pending": [
+    "Full self-built Native compiler fixed point with the focused mutation-kind and strict value-restriction repairs.",
+    "Parent Cargo targets: lib_heap_view, bootstrap_mutation_kinds, bootstrap_mutable_inference and preserved typing/effect gates."
   ]
 }

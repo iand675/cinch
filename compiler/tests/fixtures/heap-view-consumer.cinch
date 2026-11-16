@@ -274,6 +274,10 @@ module Main where
   no-owned :: Option Bytes -> Bool
   no-owned value = case value of None -> True; Some bytes -> False
 
+  -- | Observe an empty fixture input without relying on a provider-specific generic helper variant.
+  empty-items :: List Item -> Bool
+  empty-items values = case values of Nil -> True; Cons first rest -> False
+
   -- | Check indexed replacement, mutable-priority repair, removal and comparator rebuilding.
   owned-case :: forall r. List Item -> Nat -> U64 -> U64 -> U64 -> U64 ->{Mut r} Bool
   owned-case initial wanted-id replace-hash fix-hash remove-hash reverse-hash =
@@ -289,7 +293,7 @@ module Main where
     let invalid-fix = heap-fix-by owned-before replaced 1000000 in
     let index = owned-index replaced wanted-id 0 in
     let indexed = case index of
-          None -> is-empty initial
+          None -> empty-items initial
           Some at ->
             let old = heap-replace-by owned-before replaced at (owned-item (Item 5000 wanted-id)) in
             let fix-index = owned-index fixed wanted-id 0 in
