@@ -1,0 +1,401 @@
+{
+  "description": "Alternating URL public pipelines with explicit corpus patterns; matched compiler, runtime, driver and optimization",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+  "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+  "driver_sha256": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb",
+  "opt_level": 2,
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpu_affinity": [
+    0
+  ],
+  "iterations": 32,
+  "warmup_processes_per_case": 1,
+  "inputs": {
+    "before": {
+      "report": "build/url-bench-rust/identity.json",
+      "sources": {
+        "Text.Url.cinch": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+        "Text.Url.Resolve.cinch": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+        "Text.Url.Userinfo.cinch": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+        "Text.Url.Scan.cinch": "906cf2b8fcc3067457f26f1686d2155f03097b879c8f85315ec4a1c622647d35",
+        "Text.Url.Codec.cinch": "5c28a93b65e0c8eb587c33da520ec38e1b0b311454c6940b3fb54198fbfb6103",
+        "Text.Url.Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+        "Text.Url.Parser.cinch": "e5ea50e1e0d52590f86c16b02fd37cccec67fb51d9311f89231a868b4a4c1618",
+        "Text.Url.Model.cinch": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+        "Text.Url.Query.cinch": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+        "Text.Url.Ip.cinch": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+        "Main.cinch": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb"
+      },
+      "executable_sha256": "0ebede7f3f4f2f8cbd20b0baa173302fc39019f92e825cd50d5169b0f1ce78a4",
+      "llvm_sha256": "dc95b4f13759b8c59bffaef9c30f35501ff4e9030eae6de09eeeb86d45269fb3"
+    },
+    "after": {
+      "report": "build/url-bench-final/identity.json",
+      "sources": {
+        "Text.Url.cinch": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
+        "Text.Url.Resolve.cinch": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
+        "Text.Url.Userinfo.cinch": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
+        "Text.Url.Scan.cinch": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
+        "Text.Url.Codec.cinch": "b5235ed086b3497609a96d4288f253589db52e1d01a8ef975456996123464b91",
+        "Text.Url.Error.cinch": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
+        "Text.Url.Parser.cinch": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
+        "Text.Url.Model.cinch": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
+        "Text.Url.Query.cinch": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
+        "Text.Url.Ip.cinch": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
+        "Main.cinch": "2e7fcdac28c84d5e0cb45812f46433729c368c9180929d662f7d59bb934199cb"
+      },
+      "executable_sha256": "88d30a5e6a84b1d0f74a3aecc98568871438f5c9acc6d248f8ca94685b4f45f6",
+      "llvm_sha256": "b4abd31f375058a8a1ce644b57a1f8fcfc4e3c6a9f2bdd9fd5024e427f113f78"
+    }
+  },
+  "results": [
+    {
+      "workload": "escape-length",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "checksum": 1024,
+      "samples_ns": {
+        "before": [
+          2294,
+          2253,
+          2284,
+          2444,
+          2443
+        ],
+        "after": [
+          3476,
+          2043,
+          2815,
+          2103,
+          2033
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 71.6875,
+        "after": 65.71875
+      },
+      "before_over_after": 1.0908226343319067
+    },
+    {
+      "workload": "escape-length",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "checksum": 2097152,
+      "samples_ns": {
+        "before": [
+          1606021,
+          1583407,
+          1671059,
+          1561704,
+          1553281
+        ],
+        "after": [
+          917583,
+          815910,
+          812404,
+          851233,
+          795159
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 49481.46875,
+        "after": 25497.1875
+      },
+      "before_over_after": 1.9406637987032884
+    },
+    {
+      "workload": "escape-length",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "checksum": 1920,
+      "samples_ns": {
+        "before": [
+          2283,
+          2274,
+          2283,
+          2293,
+          2494
+        ],
+        "after": [
+          2063,
+          2263,
+          1993,
+          2033,
+          2043
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 71.34375,
+        "after": 63.84375
+      },
+      "before_over_after": 1.117474302496329
+    },
+    {
+      "workload": "escape-length",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "checksum": 3844800,
+      "samples_ns": {
+        "before": [
+          1556908,
+          1562315,
+          1642656,
+          1612671,
+          1552771
+        ],
+        "after": [
+          888739,
+          836581,
+          811243,
+          816070,
+          806776
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 48822.34375,
+        "after": 25502.1875
+      },
+      "before_over_after": 1.9144374869802836
+    },
+    {
+      "workload": "escape-length",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "checksum": 1536,
+      "samples_ns": {
+        "before": [
+          2313,
+          2474,
+          3075,
+          2443,
+          2273
+        ],
+        "after": [
+          2043,
+          2053,
+          2063,
+          2024,
+          2073
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 76.34375,
+        "after": 64.15625
+      },
+      "before_over_after": 1.1899659035557721
+    },
+    {
+      "workload": "escape-length",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "checksum": 3145728,
+      "samples_ns": {
+        "before": [
+          1709157,
+          1570147,
+          1576176,
+          1581755,
+          1605541
+        ],
+        "after": [
+          814198,
+          794938,
+          953898,
+          891144,
+          815019
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 49429.84375,
+        "after": 25469.34375
+      },
+      "before_over_after": 1.9407584363063928
+    },
+    {
+      "workload": "query-unescape",
+      "raw_input_bytes": 32,
+      "pattern": 0,
+      "checksum": 10352,
+      "samples_ns": {
+        "before": [
+          4987,
+          5348,
+          4947,
+          4958,
+          4957
+        ],
+        "after": [
+          4968,
+          4958,
+          5148,
+          4967,
+          5238
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 154.9375,
+        "after": 155.25
+      },
+      "before_over_after": 0.9979871175523349
+    },
+    {
+      "workload": "query-unescape",
+      "raw_input_bytes": 65536,
+      "pattern": 0,
+      "checksum": 2106480,
+      "samples_ns": {
+        "before": [
+          2376042,
+          2283703,
+          2289902,
+          2391305,
+          2290353
+        ],
+        "after": [
+          1417747,
+          1506732,
+          1416375,
+          1417146,
+          1465770
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 71573.53125,
+        "after": 44304.59375
+      },
+      "before_over_after": 1.615487812705652
+    },
+    {
+      "workload": "query-unescape",
+      "raw_input_bytes": 32,
+      "pattern": 1,
+      "checksum": 9264,
+      "samples_ns": {
+        "before": [
+          13770,
+          13851,
+          14031,
+          13981,
+          14111
+        ],
+        "after": [
+          15533,
+          15513,
+          15914,
+          15453,
+          37857
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 436.90625,
+        "after": 485.40625
+      },
+      "before_over_after": 0.900083692783107
+    },
+    {
+      "workload": "query-unescape",
+      "raw_input_bytes": 65536,
+      "pattern": 1,
+      "checksum": 2105520,
+      "samples_ns": {
+        "before": [
+          19571835,
+          19745267,
+          19219905,
+          19674250,
+          19291523
+        ],
+        "after": [
+          19873651,
+          20447686,
+          20131249,
+          19769904,
+          19769764
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 611619.84375,
+        "after": 621051.59375
+      },
+      "before_over_after": 0.9848132585200374
+    },
+    {
+      "workload": "query-unescape",
+      "raw_input_bytes": 32,
+      "pattern": 2,
+      "checksum": 8272,
+      "samples_ns": {
+        "before": [
+          52560,
+          52609,
+          52860,
+          52710,
+          52609
+        ],
+        "after": [
+          57367,
+          57396,
+          57237,
+          57426,
+          57287
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 1644.03125,
+        "after": 1792.71875
+      },
+      "before_over_after": 0.9170603308522322
+    },
+    {
+      "workload": "query-unescape",
+      "raw_input_bytes": 65536,
+      "pattern": 2,
+      "checksum": 1055888,
+      "samples_ns": {
+        "before": [
+          111701997,
+          112708390,
+          145029247,
+          153162287,
+          107969191
+        ],
+        "after": [
+          139500184,
+          111192549,
+          110788905,
+          167021086,
+          115672209
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 3522137.1875,
+        "after": 3614756.53125
+      },
+      "before_over_after": 0.9743774323528307
+    }
+  ],
+  "verified_frozen_toolchain": {
+    "compiler_path": "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "compiler_snapshot": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
+      "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
+      "source_sha256": {
+        "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+        "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+        "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+        "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+      }
+    },
+    "runtime_archive": {
+      "path": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+      "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "mtime_ns": 1794770078025339625
+    }
+  },
+  "load_controls": "First URL window; retained generic vs constant-policy/machine-scan executables.",
+  "retained_raw_report_sha256": "b852ed13f5afd3f39d25899b3cb79dcdbd036e3885027790ac9649e6b518ff90",
+  "provenance_note": "Legacy compiler_source_sha256 is worktree context; exact frozen compiler source snapshot is separately recorded. Compiler/runtime archives predate every retained executable and were unchanged throughout measurements."
+}

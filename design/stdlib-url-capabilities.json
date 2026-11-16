@@ -392,11 +392,11 @@
   "intentional_differences": [
     "Arbitrary decoded and preserved URL data use Bytes. url-to-text is Option String. URL/query/userinfo byte storage is copied at public boundaries and immutable internally.",
     "Query updates and URL field edits return persistent values; UrlParts snapshots provide all independently assignable fields. Nil pointer/map receiver behavior is represented with explicit Option and empty values.",
-    "The default query field limit is10000; url-parse-query-limit is explicit, inclusive and zero means unbounded. Environment compatibility overrides are not consulted.",
+    "The default query field limit is 10000; url-parse-query-limit is explicit, inclusive and zero means unbounded. Environment compatibility overrides are not consulted.",
     "HTTP/HTTPS multiple-colon authorities use strict validation. Environment compatibility overrides are not consulted.",
     "UrlFailure exposes structured categories, exact byte details and offsets. Diagnostic text uses byte-safe ASCII quoting and independent wording; generic UrlError cause preserves typed causes and explicit temporary/timeout classification.",
     "Serialization produces fresh bytes and cannot return an operational error; unmarshalling returns a fresh parsed URL. Append produces a fresh prefix+URL allocation.",
     "Method joining preserves the original URL on malformed escaped elements; url-join-path-checked additionally exposes the failure. Top-level joining wraps its failure with operation join and original base bytes."
   ],
-  "validation_status": "Full implementations and frozen dual-frontend corpora are under final source/hash validation; parent-owned serial Rust target and coordinated timing remain integration gates."
+  "validation_status": "All 62 reviewed declaration capabilities are implemented. Exact final sources pass 302 zero-leak memory processes with both frozen frontends, 258 canonical declaration docs, the exhaustive 65,536-pair digest, and actual WebAssembly/AArch64 kernel object compilation. Coordinated timing and remaining costs are recorded in benchmarks/stdlib/url-notes.md. The parent-owned serial lib_url Cargo gate and its big-endian profile remain integration checks."
 }

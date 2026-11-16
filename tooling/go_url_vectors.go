@@ -302,6 +302,25 @@ func queryLongRows() []interface{} {
 	return rows
 }
 
+// hexPairHash independently observes every two-byte percent-digit combination through the public decoder.
+func hexPairHash() uint64 {
+	h := fnv.New64a()
+	for first := 0; first < 256; first++ {
+		for last := 0; last < 256; last++ {
+			output, err := url.PathUnescape(string([]byte{'%', byte(first), byte(last)}))
+			value := uint16(256)
+			if err == nil {
+				if len(output) != 1 {
+					panic("unexpected pair width")
+				}
+				value = uint16(output[0])
+			}
+			h.Write([]byte{byte(value), byte(value >> 8)})
+		}
+	}
+	return h.Sum64()
+}
+
 func main() {
 	encoded := []map[string]interface{}{}
 	decoded := []map[string]interface{}{}
@@ -348,7 +367,7 @@ func main() {
 	}
 	e := json.NewEncoder(os.Stdout)
 	e.SetIndent("", "  ")
-	if err := e.Encode(map[string]interface{}{"encoded": encoded, "decoded": decoded, "long": long, "queries": queryRows(), "query_long": queryLongRows(), "parsing": parsingRows(), "resolution": resolutionRows(), "joining": joiningRows(), "manual": manualRows()}); err != nil {
+	if err := e.Encode(map[string]interface{}{"hex_pair_hash": hexPairHash(), "encoded": encoded, "decoded": decoded, "long": long, "queries": queryRows(), "query_long": queryLongRows(), "parsing": parsingRows(), "resolution": resolutionRows(), "joining": joiningRows(), "manual": manualRows()}); err != nil {
 		panic(err)
 	}
 }
