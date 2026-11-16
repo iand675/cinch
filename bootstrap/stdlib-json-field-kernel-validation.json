@@ -1,0 +1,26 @@
+{
+  "production_source_sha256": "ae4470f5497bb4558ed11df1bb534d7777b041e02ab0898015172971813eb138",
+  "primitive_sha256": "42af0f23c8f75cf0fcafe7d65e8fad9ab7d9cf885b4e59bc3b5039865f941783",
+  "consumer_sha256": "9ad81f1ddb7ac6d6b2d3b57bc68dc13601efa79859f34ef235aec9325b683d87",
+  "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+  "runner_sha256": "1dab5cdef5d656862838f0fee2e0b4f51d8d11db226a3ca5368cf58ce0db04e9",
+  "cpu_affinity": [
+    2
+  ],
+  "compiler_host_stack_kib": 65536,
+  "foreign_execution_claimed": false,
+  "targets": [
+    {
+      "triple": "wasm32-unknown-unknown",
+      "llvm_sha256": "90397624f4560bea225fb54987bf184fe07d199b2acc6d0ddd10fbd622b404ef",
+      "object_sha256": "40cde0bf67020d7ab44cf750b483e58f309bceba5ae7c566955ac3b5ddf2d40f",
+      "object_bytes": 9555
+    },
+    {
+      "triple": "aarch64-unknown-linux-gnu",
+      "llvm_sha256": "977681cf03f971c0ed8114c2a6bde4beb462afef75ca5a14edacf32bf9f483d6",
+      "object_sha256": "ac873251427720ce89bc7104c4a9012dceae52fce52494935e1db333f3bb01ed",
+      "object_bytes": 5168
+    }
+  ]
+}

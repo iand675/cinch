@@ -1,0 +1,310 @@
+-- | Independent JSON value and formatting consumer with runtime inputs and complete byte comparisons.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Data.Array
+  import Data.Machine
+  -- | Keep input preparation live through front-end evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Observe a finite float's complete IEEE bit pattern without decimal rendering.
+  prim float-bits :: F64 -> U64 where
+    llvm {
+      %value = bitcast double %0 to i64
+      ret i64 %value
+    }
+  -- | Snapshot fixture bytes through a runtime-sized destination.
+  runtime-bytes :: Bytes -> Bytes
+  runtime-bytes input =
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let out = bytes-new size in
+    if bytes-len input <= bytes-len out then let copied = bytes-copy-range out input 0 0 (bytes-len input) in out else bytes-new 0
+  -- | Compare complete bytes, including embedded NUL and malformed UTF-8.
+  same-bytes :: Bytes -> Bytes -> Bool
+  same-bytes left right = eq-i64 (bytes-compare left right) 0
+  -- | Compare syntax failures using original offsets and neutral JSON diagnostic text.
+  syntax-error :: JsonError -> Nat -> String -> Bool
+  syntax-error actual offset message = case actual of JsonSyntaxError at text -> at == offset && text == message; other -> False
+  -- | Check validation and exact retained raw source for a complete valid document.
+  valid-case :: Bytes -> Bytes -> Bool
+  valid-case input raw = json-valid input && (case json-document input of Err error -> False; Ok document -> same-bytes (json-value-source (json-document-value document)) raw && same-bytes (json-document-input document) input)
+  -- | Check named syntax failure before a document or output can escape.
+  invalid-case :: Bytes -> Nat -> String -> Bool
+  invalid-case input offset message = not (json-valid input) && (case json-document input of Err error -> syntax-error error offset message; Ok document -> False)
+  -- | Compare the entire compact output or its exact original syntax refusal.
+  compact-case :: Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  compact-case input expected valid offset message = case json-compact input of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare indentation, including arbitrary line prefixes and preserved trailing whitespace.
+  indent-case :: Bytes -> String -> String -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-case input prefix step expected valid offset message = case json-indent input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare raw-byte indentation fragments independently of scalar text validity.
+  indent-byte-case :: Bytes -> Bytes -> Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-byte-case input prefix step expected valid offset message = case json-indent-bytes input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare quoted arbitrary bytes and their decoded replacement-scalar text.
+  quote-case :: Bytes -> Bool -> Bytes -> Bytes -> Bool
+  quote-case input html expected decoded =
+    let out = json-quote-bytes input html in same-bytes out expected && (case json-document out of
+      Err error -> False
+      Ok document -> case json-value-string (json-document-value document) of None -> False; Some text -> same-bytes (string-to-bytes text) decoded)
+  -- | Compare valid number spellings and integer/float conversions without a rounding-based oracle.
+  number-case :: String -> Bool -> I64 -> Bool -> U64 -> Bool
+  number-case text integer-ok integer float-ok bits = case json-number text of
+    Err error -> False
+    Ok number -> json-number-text number == text
+      && (case json-number-int64 number of Ok actual -> integer-ok && eq-i64 actual integer; Err error -> not integer-ok)
+      && (case json-number-float64 number of Ok actual -> float-ok && eq-u64 (float-bits actual) bits; Err error -> not float-ok)
+  -- | Reject malformed number spellings at construction rather than admitting an invalid number value.
+  number-invalid :: String -> Bool
+  number-invalid text = case json-number text of Err error -> True; Ok value -> False
+  -- | Preserve a failing fixture index within a bounded group.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks index = case checks of Nil -> 0; Cons first rest -> if first then first-failure rest (index + 1) else index
+  -- | Preserve the first failing group without constructing one enormous evaluation body.
+  first-result :: List Nat -> Nat
+  first-result groups = case groups of Nil -> 0; Cons first rest -> if first > 0 then first else first-result rest
+
+  -- | Application record used by independent field update/omission observations.
+  data ApplicationRecord where
+    -- | Identifier, display text, enabled flag, quoted integer and omitted-zero integer.
+    App :: I64 -> String -> Bool -> I64 -> I64 -> ApplicationRecord
+  -- | Read the application's identifier field.
+  app-id :: ApplicationRecord -> I64
+  app-id value = case value of App ident name enabled quoted zero -> ident
+  -- | Functionally install an identifier while preserving unrelated fields.
+  app-id-set :: I64 -> ApplicationRecord -> ApplicationRecord
+  app-id-set next value = case value of App ident name enabled quoted zero -> App next name enabled quoted zero
+  -- | Read the application's display name.
+  app-name :: ApplicationRecord -> String
+  app-name value = case value of App ident name enabled quoted zero -> name
+  -- | Functionally install display text while preserving unrelated fields.
+  app-name-set :: String -> ApplicationRecord -> ApplicationRecord
+  app-name-set next value = case value of App ident name enabled quoted zero -> App ident next enabled quoted zero
+  -- | Read the application's enabled flag.
+  app-enabled :: ApplicationRecord -> Bool
+  app-enabled value = case value of App ident name enabled quoted zero -> enabled
+  -- | Functionally install the enabled flag while preserving unrelated fields.
+  app-enabled-set :: Bool -> ApplicationRecord -> ApplicationRecord
+  app-enabled-set next value = case value of App ident name enabled quoted zero -> App ident name next quoted zero
+  -- | Read the quoted integer field.
+  app-quoted :: ApplicationRecord -> I64
+  app-quoted value = case value of App ident name enabled quoted zero -> quoted
+  -- | Functionally install the quoted integer while preserving unrelated fields.
+  app-quoted-set :: I64 -> ApplicationRecord -> ApplicationRecord
+  app-quoted-set next value = case value of App ident name enabled quoted zero -> App ident name enabled next zero
+  -- | Read the omitted-zero integer field.
+  app-zero :: ApplicationRecord -> I64
+  app-zero value = case value of App ident name enabled quoted zero -> zero
+  -- | Functionally install the omitted-zero field while preserving unrelated fields.
+  app-zero-set :: I64 -> ApplicationRecord -> ApplicationRecord
+  app-zero-set next value = case value of App ident name enabled quoted zero -> App ident name enabled quoted next
+  -- | Construct an independent application zero value.
+  app-default :: Unit -> ApplicationRecord
+  app-default unit = App 0 "" False 0 0
+  -- | Classify the application's actual complete zero value.
+  app-is-zero :: ApplicationRecord -> Bool
+  app-is-zero value = case value of App ident name enabled quoted zero -> eq-i64 ident 0 && name == "" && not enabled && eq-i64 quoted 0 && eq-i64 zero 0
+  -- | Describe explicit application fields with omission, naming and quoted-number metadata.
+  app-type :: Unit -> JsonType ApplicationRecord
+  app-type unit = json-record-type "ApplicationRecord" app-default app-is-zero [
+    json-field-with "id" (json-field-options False False False 0 True JsonFieldDefaultMatch) json-int64-type app-id app-id-set,
+    json-field-with "name" (json-field-options False False False 0 True JsonFieldDefaultMatch) json-string-type app-name app-name-set,
+    json-field-with "enabled" (json-field-options True False False 0 True JsonFieldDefaultMatch) json-bool-type app-enabled app-enabled-set,
+    json-field-with "quoted" (json-field-options False False True 0 True JsonFieldDefaultMatch) json-int64-type app-quoted app-quoted-set,
+    json-field-with "zero" (json-field-options False True False 0 True JsonFieldDefaultMatch) json-int64-type app-zero app-zero-set]
+  -- | Construct a known valid initial exact number through the public checked constructor.
+  initial-number :: Unit -> JsonNumber
+  initial-number unit = case json-number "7" of Ok value -> value; Err error -> json-empty-number
+  -- | Inspect the semantic error family without conflating path context with an underlying cause.
+  error-family :: JsonError -> String
+  error-family error = case error of
+    JsonSyntaxError at text -> "syntax"
+    JsonTypeError expected actual at path -> "type"
+    JsonTypeCause expected actual at path cause -> "type"
+    JsonPathError path cause -> error-family cause
+    JsonCustomError label cause -> "custom"
+    JsonValueError label text -> "value"
+    other -> "other"
+  -- | Compare the complete remarshal of a partially updated value.
+  typed-value-ok :: forall a. JsonType a -> a -> Bytes -> Bool
+  typed-value-ok descriptor value expected = case json-marshal descriptor value of
+    Ok output -> same-bytes output expected
+    Err error -> False
+  -- | Treat absent optional diagnostic metadata as the empty reference field.
+  optional-text :: Option String -> String
+  optional-text value = case value of None -> ""; Some text -> text
+  -- | Compare the original structured error independently of conversion success.
+  typed-error-ok :: Option JsonError -> String -> Nat -> String -> String -> String -> Bool
+  typed-error-ok error family offset actual expected-type path = case error of
+    None -> family == ""
+    Some value -> error-family value == family && json-error-offset value == offset && optional-text (json-error-value value) == actual && optional-text (json-error-type value) == expected-type && json-error-path value == path
+  -- | Compare complete partial-update state and original error metadata against an independent observation.
+  typed-case :: forall a. JsonType a -> Bytes -> a -> Bytes -> String -> Nat -> String -> String -> String -> Bool
+  typed-case descriptor input prior expected family offset actual expected-type path =
+    let decoded = json-update descriptor (runtime-bytes input) prior in
+    typed-value-ok descriptor (json-decoded-value decoded) expected && typed-error-ok (json-decoded-error decoded) family offset actual expected-type path
+  -- | Read the first component of a fixture record.
+  pair-left :: (I64, I64) -> I64
+  pair-left value = case value of (left, right) -> left
+  -- | Read the second component of a fixture record.
+  pair-right :: (I64, I64) -> I64
+  pair-right value = case value of (left, right) -> right
+  -- | Replace the first component through an ordinary functional application capability.
+  pair-left-set :: I64 -> (I64, I64) -> (I64, I64)
+  pair-left-set next value = case value of (left, right) -> (next, right)
+  -- | Replace the second component through an ordinary functional application capability.
+  pair-right-set :: I64 -> (I64, I64) -> (I64, I64)
+  pair-right-set next value = case value of (left, right) -> (left, next)
+  -- | Construct a deterministic default fixture record.
+  pair-default :: Unit -> (I64, I64)
+  pair-default unit = (0, 0)
+  -- | Classify a fixture record's application zero value.
+  pair-zero :: (I64, I64) -> Bool
+  pair-zero value = eq-i64 (pair-left value) 0 && eq-i64 (pair-right value) 0
+  -- | Compare a complete encoding through the public descriptor pipeline.
+  encodes :: forall a. JsonType a -> a -> String -> Bool
+  encodes descriptor value expected = case json-marshal descriptor value of
+    Err error -> False
+    Ok output -> same-bytes output (string-to-bytes expected)
+  -- | Inspect exact decoded record state without requiring structural equality derivation.
+  pair-is :: JsonDecoded (I64, I64) -> I64 -> I64 -> Bool
+  pair-is decoded left right = eq-i64 (pair-left (json-decoded-value decoded)) left && eq-i64 (pair-right (json-decoded-value decoded)) right
+  -- | Policy assignments retain their last value independently for each selector.
+  policy-control :: Unit -> Bool
+  policy-control unit =
+    let configured = json-configure-policies json-empty-policies [json-preserve-scalar-null True, json-preserve-scalar-null False, json-byte-array-numbers True] in
+    not (json-policy-enabled configured JsonPreserveScalarNull) && json-policy-enabled configured JsonByteArrayNumbers && not (json-policy-enabled configured JsonContinueAfterTypeErrors)
+  -- | Exact names dominate folded names; complete ASCII blocks and Unicode cycles use the same policy.
+  matching-control :: Unit -> Bool
+  matching-control unit =
+    let descriptor = json-record-type "Pair" pair-default pair-zero [json-field "LongFieldNameBoundaryABC" json-int64-type pair-left pair-left-set, json-field "Σ" json-int64-type pair-right pair-right-set] in
+    let decoded = json-update descriptor (runtime-bytes (string-to-bytes "{\"longfieldnameboundaryabc\":3,\"ς\":4}")) (7,8) in
+    pair-is decoded 3 4 && (case json-decoded-error decoded of None -> True; Some error -> False)
+  -- | Explicit exact matching suppresses case-fold fallback while exact spelling remains accepted.
+  exact-control :: Unit -> Bool
+  exact-control unit =
+    let field = json-field-with "K" (json-field-options False False False 0 False JsonFieldExactMatch) json-int64-type pair-left pair-left-set in
+    let descriptor = json-record-type "Pair" pair-default pair-zero [field, json-field "k" json-int64-type pair-right pair-right-set] in
+    pair-is (json-update descriptor (runtime-bytes (string-to-bytes "{\"K\":4,\"K\":5}")) (7,8)) 5 4
+  -- | Shallower fields dominate deeper duplicates and equal-priority duplicate fields are omitted.
+  dominance-control :: Unit -> Bool
+  dominance-control unit =
+    let deep = json-field-with "x" (json-field-options False False False 2 False JsonFieldDefaultMatch) json-int64-type pair-left pair-left-set in
+    let shallow = json-field-with "x" (json-field-options False False False 1 False JsonFieldDefaultMatch) json-int64-type pair-right pair-right-set in
+    let descriptor = json-record-type "Pair" pair-default pair-zero [deep, shallow] in
+    let ambiguous = json-record-type "Pair" pair-default pair-zero [shallow, shallow] in
+    encodes descriptor (7,8) "{\"x\":8}" && pair-is (json-update descriptor (string-to-bytes "{\"x\":3}") (7,8)) 7 3 && encodes ambiguous (7,8) "{}" && pair-is (json-update ambiguous (string-to-bytes "{\"x\":3}") (7,8)) 7 8
+  -- | Explicit names dominate unnamed fields at the same embedding depth.
+  named-control :: Unit -> Bool
+  named-control unit =
+    let unnamed = json-field-with "x" (json-field-options False False False 1 False JsonFieldDefaultMatch) json-int64-type pair-left pair-left-set in
+    let named = json-field-with "x" (json-field-options False False False 1 True JsonFieldDefaultMatch) json-int64-type pair-right pair-right-set in
+    let descriptor = json-record-type "Pair" pair-default pair-zero [unnamed,named] in
+    encodes descriptor (7,8) "{\"x\":8}" && pair-is (json-update descriptor (string-to-bytes "{\"x\":3}") (7,8)) 7 3
+  -- | A refused custom decoder is fatal and prevents later field updates while preserving its cause.
+  failing-type :: JsonType I64
+  failing-type = json-custom-type "Guard" (\unit -> 0) (\value -> eq-i64 value 0) (\value -> eq-i64 value 0)
+    (\options value -> Ok (string-to-bytes "0"))
+    (\options source prior -> json-decoded-failure prior (JsonValueError "Guard" "stopped"))
+  -- | Custom refusal state remains separate from ordinary recoverable field mismatch continuation.
+  custom-control :: Unit -> Bool
+  custom-control unit =
+    let descriptor = json-record-type "Pair" pair-default pair-zero [json-field "a" failing-type pair-left pair-left-set,json-field "b" json-int64-type pair-right pair-right-set] in
+    let decoded = json-update descriptor (string-to-bytes "{\"a\":1,\"b\":2}") (7,8) in
+    pair-is decoded 7 8 && json-decoded-fatal decoded && (case json-decoded-error decoded of None -> False; Some error -> json-error-path error == "a" && (case json-error-cause error of None -> False; Some cause -> error-family cause == "value"))
+  -- | Omitted application zero values are skipped before their deliberately failing encoder executes.
+  omission-control :: Unit -> Bool
+  omission-control unit =
+    let bad = json-custom-type "Omitted" (\unit -> 0) (\value -> True) (\value -> True) (\options value -> Err (JsonValueError "Omitted" "must not run")) (\options source prior -> json-decoded-ok prior) in
+    let descriptor = json-record-type "Pair" pair-default pair-zero [json-field-with "x" (json-field-options False True False 0 True JsonFieldDefaultMatch) bad pair-left pair-left-set,json-field "b" json-int64-type pair-right pair-right-set] in
+    encodes descriptor (7,8) "{\"b\":8}"
+  -- | Unknown-field refusal retains the first error while later known fields continue under default policy.
+  unknown-control :: Unit -> Bool
+  unknown-control unit =
+    let descriptor = json-record-type "Pair" pair-default pair-zero [json-field "a" json-int64-type pair-left pair-left-set,json-field "b" json-int64-type pair-right pair-right-set] in
+    let decoded = json-update-with descriptor (json-read-options False True json-default-policies) (string-to-bytes "{\"unknown\":1,\"b\":2}") (7,8) in
+    pair-is decoded 7 2 && (case json-decoded-error decoded of None -> False; Some error -> json-error-path error == "unknown")
+  -- | Explicitly stopping on recoverable mismatches preserves unvisited record fields.
+  stop-control :: Unit -> Bool
+  stop-control unit =
+    let descriptor = json-record-type "Pair" pair-default pair-zero [json-field "a" json-int64-type pair-left pair-left-set,json-field "b" json-int64-type pair-right pair-right-set] in
+    let policies = json-configure-policies json-default-policies [json-continue-after-type-errors False] in
+    let decoded = json-update-with descriptor (json-read-options False False policies) (string-to-bytes "{\"a\":\"bad\",\"b\":2}") (7,8) in
+    pair-is decoded 7 8 && not (json-decoded-fatal decoded) && (case json-decoded-error decoded of None -> False; Some error -> json-error-path error == "a")
+  -- | Strict fixed arrays refuse a different source length without modifying prior elements.
+  array-control :: Unit -> Bool
+  array-control unit =
+    let descriptor = json-fixed-array-type json-int64-type 3 in
+    let policies = json-configure-policies json-default-policies [json-allow-array-length-mismatch False] in
+    let decoded = json-update-with descriptor (json-read-options False False policies) (string-to-bytes "[1]") (array-from-list [7,8,9]) in
+    encodes descriptor (json-decoded-value decoded) "[7,8,9]" && (case json-decoded-error decoded of None -> False; Some error -> True)
+  -- | Null-clearing policies reset scalars and preexisting sequence elements explicitly.
+  null-control :: Unit -> Bool
+  null-control unit =
+    let policies = json-configure-policies json-default-policies [json-preserve-scalar-null False] in
+    let options = json-read-options False False policies in
+    let scalar = json-update-with json-int64-type options (string-to-bytes "null") 7 in
+    let sequence = json-list-type json-int64-type in
+    let decoded = json-update-with sequence options (string-to-bytes "[null,2]") [7,8,9] in
+    eq-i64 (json-decoded-value scalar) 0 && encodes sequence (json-decoded-value decoded) "[0,2]"
+  -- | Invalid custom fragments are rejected before they can corrupt a surrounding document.
+  invalid-custom-control :: Unit -> Bool
+  invalid-custom-control unit =
+    let descriptor = json-custom-type "Broken" (\unit -> False) not not (\options value -> Ok (string-to-bytes "[1,")) (\options source prior -> json-decoded-ok prior) in
+    case json-marshal descriptor True of Ok output -> False; Err error -> error-family error == "custom" && (case json-error-cause error of None -> False; Some cause -> error-family cause == "syntax")
+  -- | Count complete bytes before one checked output allocation in the scale fixture.
+  pieces-size :: List Bytes -> Nat -> Nat
+  pieces-size pieces total = case pieces of Nil -> total; Cons first rest -> pieces-size rest (total + bytes-len first)
+  -- | Copy fixture fragments with bounded tail traversal and exact write intervals.
+  pieces-copy :: List Bytes -> Bytes -> Nat -> Unit
+  pieces-copy pieces out at = case pieces of
+    Nil -> ()
+    Cons first rest -> if at + bytes-len first <= bytes-len out then let written = bytes-copy-range out first at 0 (bytes-len first) in pieces-copy rest out (at + bytes-len first) else ()
+  -- | Join scale input once without repeated prefix copies.
+  pieces-join :: List Bytes -> Bytes
+  pieces-join pieces = let out = bytes-new (pieces-size pieces 0) in let written = pieces-copy pieces out 0 in out
+  -- | Compile many distinguishable field setters into a balanced exact-name index.
+  scale-fields :: Nat -> Nat -> List (JsonField I64) -> List (JsonField I64)
+  scale-fields at count reversed = if at < count && at < 1000000 then
+    let factor = nat-to-i64 (at + 1) in
+    let field = json-field (string-concat "field" (nat-to-string at)) json-int64-type (\prior -> prior) (\value prior -> wrapping-add-i64 prior (wrapping-mul-i64 factor value)) in
+    scale-fields (at + 1) count (Cons field reversed)
+    else reverse reversed
+  -- | Build ordered independent name/value bytes for the large field-index control.
+  scale-input :: Nat -> Nat -> List Bytes -> Bytes
+  scale-input at count reversed = if at < count then
+    let piece = string-to-bytes (string-concat-all [if at == 0 then "" else ",", "\"field", nat-to-string at, "\":", nat-to-string (at + 1)]) in
+    scale-input (at + 1) count (Cons piece reversed)
+    else pieces-join (reverse (Cons (string-to-bytes "}") reversed))
+  -- | One thousand fields require every balanced lookup and setter to contribute the expected weighted sum.
+  scale-control :: Unit -> Bool
+  scale-control unit =
+    let count = u32-to-nat (runtime-size 1000) in
+    let descriptor = json-record-type "Sum" (\unit -> 0) (\value -> eq-i64 value 0) (scale-fields 0 count Nil) in
+    let input = scale-input 0 count (Cons (string-to-bytes "{") Nil) in
+    let decoded = json-update descriptor input 0 in
+    eq-i64 (json-decoded-value decoded) 333833500 && (case json-decoded-error decoded of None -> True; Some error -> False)
+  -- | Fill a proved ASCII text interval using ordinary checked writes.
+  control-fill :: Bytes -> Nat -> Nat -> Unit
+  control-fill output at end = if at < end && end <= bytes-len output then let written = bytes-set output at 97 in control-fill output (at + 1) end else ()
+  -- | The public typed string pipeline handles 64 KiB without relying on a large recursive fixture producer.
+  bounded-control :: Unit -> Bool
+  bounded-control unit =
+    let size = u32-to-nat (runtime-size 65536) in let input = bytes-new (size + 2) in
+    let opening = bytes-set input 0 34 in let filled = control-fill input 1 (size + 1) in let closing = bytes-set input (size + 1) 34 in
+    let decoded = json-unmarshal json-string-type input in
+    case decoded of Err error -> False; Ok value -> case json-marshal json-string-type value of Err error -> False; Ok output -> same-bytes output input
+  -- | Report the first failed independent control with ordinary runtime limits.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = first-failure [policy-control (), matching-control (), exact-control (), dominance-control (), named-control (), custom-control (), omission-control (), unknown-control (), stop-control (), array-control (), null-control (), invalid-custom-control (), scale-control (), bounded-control ()] 1 in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in
+    if failed == 0 then 0 else 1

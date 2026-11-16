@@ -1,0 +1,447 @@
+-- | Independent JSON value and formatting consumer with runtime inputs and complete byte comparisons.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Data.Array
+  import Data.Machine
+  -- | Keep input preparation live through front-end evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Observe a finite float's complete IEEE bit pattern without decimal rendering.
+  prim float-bits :: F64 -> U64 where
+    llvm {
+      %value = bitcast double %0 to i64
+      ret i64 %value
+    }
+  -- | Snapshot fixture bytes through a runtime-sized destination.
+  runtime-bytes :: Bytes -> Bytes
+  runtime-bytes input =
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let out = bytes-new size in
+    if bytes-len input <= bytes-len out then let copied = bytes-copy-range out input 0 0 (bytes-len input) in out else bytes-new 0
+  -- | Compare complete bytes, including embedded NUL and malformed UTF-8.
+  same-bytes :: Bytes -> Bytes -> Bool
+  same-bytes left right = eq-i64 (bytes-compare left right) 0
+  -- | Compare syntax failures using original offsets and neutral JSON diagnostic text.
+  syntax-error :: JsonError -> Nat -> String -> Bool
+  syntax-error actual offset message = case actual of JsonSyntaxError at text -> at == offset && text == message; other -> False
+  -- | Check validation and exact retained raw source for a complete valid document.
+  valid-case :: Bytes -> Bytes -> Bool
+  valid-case input raw = json-valid input && (case json-document input of Err error -> False; Ok document -> same-bytes (json-value-source (json-document-value document)) raw && same-bytes (json-document-input document) input)
+  -- | Check named syntax failure before a document or output can escape.
+  invalid-case :: Bytes -> Nat -> String -> Bool
+  invalid-case input offset message = not (json-valid input) && (case json-document input of Err error -> syntax-error error offset message; Ok document -> False)
+  -- | Compare the entire compact output or its exact original syntax refusal.
+  compact-case :: Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  compact-case input expected valid offset message = case json-compact input of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare indentation, including arbitrary line prefixes and preserved trailing whitespace.
+  indent-case :: Bytes -> String -> String -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-case input prefix step expected valid offset message = case json-indent input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare raw-byte indentation fragments independently of scalar text validity.
+  indent-byte-case :: Bytes -> Bytes -> Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-byte-case input prefix step expected valid offset message = case json-indent-bytes input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare quoted arbitrary bytes and their decoded replacement-scalar text.
+  quote-case :: Bytes -> Bool -> Bytes -> Bytes -> Bool
+  quote-case input html expected decoded =
+    let out = json-quote-bytes input html in same-bytes out expected && (case json-document out of
+      Err error -> False
+      Ok document -> case json-value-string (json-document-value document) of None -> False; Some text -> same-bytes (string-to-bytes text) decoded)
+  -- | Compare valid number spellings and integer/float conversions without a rounding-based oracle.
+  number-case :: String -> Bool -> I64 -> Bool -> U64 -> Bool
+  number-case text integer-ok integer float-ok bits = case json-number text of
+    Err error -> False
+    Ok number -> json-number-text number == text
+      && (case json-number-int64 number of Ok actual -> integer-ok && eq-i64 actual integer; Err error -> not integer-ok)
+      && (case json-number-float64 number of Ok actual -> float-ok && eq-u64 (float-bits actual) bits; Err error -> not float-ok)
+  -- | Reject malformed number spellings at construction rather than admitting an invalid number value.
+  number-invalid :: String -> Bool
+  number-invalid text = case json-number text of Err error -> True; Ok value -> False
+  -- | Preserve a failing fixture index within a bounded group.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks index = case checks of Nil -> 0; Cons first rest -> if first then first-failure rest (index + 1) else index
+  -- | Preserve the first failing group without constructing one enormous evaluation body.
+  first-result :: List Nat -> Nat
+  first-result groups = case groups of Nil -> 0; Cons first rest -> if first > 0 then first else first-result rest
+
+  -- | Application record used by independent field update/omission observations.
+  data ApplicationRecord where
+    -- | Identifier, display text, enabled flag, quoted integer and omitted-zero integer.
+    App :: I64 -> String -> Bool -> I64 -> I64 -> ApplicationRecord
+  -- | Read the application's identifier field.
+  app-id :: ApplicationRecord -> I64
+  app-id value = case value of App ident name enabled quoted zero -> ident
+  -- | Functionally install an identifier while preserving unrelated fields.
+  app-id-set :: I64 -> ApplicationRecord -> ApplicationRecord
+  app-id-set next value = case value of App ident name enabled quoted zero -> App next name enabled quoted zero
+  -- | Read the application's display name.
+  app-name :: ApplicationRecord -> String
+  app-name value = case value of App ident name enabled quoted zero -> name
+  -- | Functionally install display text while preserving unrelated fields.
+  app-name-set :: String -> ApplicationRecord -> ApplicationRecord
+  app-name-set next value = case value of App ident name enabled quoted zero -> App ident next enabled quoted zero
+  -- | Read the application's enabled flag.
+  app-enabled :: ApplicationRecord -> Bool
+  app-enabled value = case value of App ident name enabled quoted zero -> enabled
+  -- | Functionally install the enabled flag while preserving unrelated fields.
+  app-enabled-set :: Bool -> ApplicationRecord -> ApplicationRecord
+  app-enabled-set next value = case value of App ident name enabled quoted zero -> App ident name next quoted zero
+  -- | Read the quoted integer field.
+  app-quoted :: ApplicationRecord -> I64
+  app-quoted value = case value of App ident name enabled quoted zero -> quoted
+  -- | Functionally install the quoted integer while preserving unrelated fields.
+  app-quoted-set :: I64 -> ApplicationRecord -> ApplicationRecord
+  app-quoted-set next value = case value of App ident name enabled quoted zero -> App ident name enabled next zero
+  -- | Read the omitted-zero integer field.
+  app-zero :: ApplicationRecord -> I64
+  app-zero value = case value of App ident name enabled quoted zero -> zero
+  -- | Functionally install the omitted-zero field while preserving unrelated fields.
+  app-zero-set :: I64 -> ApplicationRecord -> ApplicationRecord
+  app-zero-set next value = case value of App ident name enabled quoted zero -> App ident name enabled quoted next
+  -- | Construct an independent application zero value.
+  app-default :: Unit -> ApplicationRecord
+  app-default unit = App 0 "" False 0 0
+  -- | Classify the application's actual complete zero value.
+  app-is-zero :: ApplicationRecord -> Bool
+  app-is-zero value = case value of App ident name enabled quoted zero -> eq-i64 ident 0 && name == "" && not enabled && eq-i64 quoted 0 && eq-i64 zero 0
+  -- | Describe explicit application fields with omission, naming and quoted-number metadata.
+  app-type :: Unit -> JsonType ApplicationRecord
+  app-type unit = json-record-type "ApplicationRecord" app-default app-is-zero [
+    json-field-with "id" (json-field-options False False False 0 True JsonFieldDefaultMatch) json-int64-type app-id app-id-set,
+    json-field-with "name" (json-field-options False False False 0 True JsonFieldDefaultMatch) json-string-type app-name app-name-set,
+    json-field-with "enabled" (json-field-options True False False 0 True JsonFieldDefaultMatch) json-bool-type app-enabled app-enabled-set,
+    json-field-with "quoted" (json-field-options False False True 0 True JsonFieldDefaultMatch) json-int64-type app-quoted app-quoted-set,
+    json-field-with "zero" (json-field-options False True False 0 True JsonFieldDefaultMatch) json-int64-type app-zero app-zero-set]
+  -- | Construct a known valid initial exact number through the public checked constructor.
+  initial-number :: Unit -> JsonNumber
+  initial-number unit = case json-number "7" of Ok value -> value; Err error -> json-empty-number
+  -- | Inspect the semantic error family without conflating path context with an underlying cause.
+  error-family :: JsonError -> String
+  error-family error = case error of
+    JsonSyntaxError at text -> "syntax"
+    JsonTypeError expected actual at path -> "type"
+    JsonTypeCause expected actual at path cause -> "type"
+    JsonPathError path cause -> error-family cause
+    JsonCustomError label cause -> "custom"
+    JsonValueError label text -> "value"
+    other -> "other"
+  -- | Compare the complete remarshal of a partially updated value.
+  typed-value-ok :: forall a. JsonType a -> a -> Bytes -> Bool
+  typed-value-ok descriptor value expected = case json-marshal descriptor value of
+    Ok output -> same-bytes output expected
+    Err error -> False
+  -- | Treat absent optional diagnostic metadata as the empty reference field.
+  optional-text :: Option String -> String
+  optional-text value = case value of None -> ""; Some text -> text
+  -- | Compare the original structured error independently of conversion success.
+  typed-error-ok :: Option JsonError -> String -> Nat -> String -> String -> String -> Bool
+  typed-error-ok error family offset actual expected-type path = case error of
+    None -> family == ""
+    Some value -> error-family value == family && json-error-offset value == offset && optional-text (json-error-value value) == actual && optional-text (json-error-type value) == expected-type && json-error-path value == path
+  -- | Compare complete partial-update state and original error metadata against an independent observation.
+  typed-case :: forall a. JsonType a -> Bytes -> a -> Bytes -> String -> Nat -> String -> String -> String -> Bool
+  typed-case descriptor input prior expected family offset actual expected-type path =
+    let decoded = json-update descriptor (runtime-bytes input) prior in
+    typed-value-ok descriptor (json-decoded-value decoded) expected && typed-error-ok (json-decoded-error decoded) family offset actual expected-type path
+
+  -- | Reconstruct an independently supplied binary64 payload without decimal evaluation.
+  prim float-from-bits :: U64 -> F64 where
+    llvm {
+      %value = bitcast i64 %0 to double
+      ret double %value
+    }
+  -- | Compare exact shortest JSON output or the structured unsupported nonfinite value.
+  float-encode-case :: U64 -> Bytes -> String -> String -> Bool
+  float-encode-case bits expected family description = case json-marshal json-float64-type (float-from-bits bits) of
+    Ok output -> family == "" && same-bytes output expected
+    Err error -> error-family error == family && optional-text (json-error-value error) == description
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch0 :: Unit -> Nat
+  check-batch0 unit = first-failure [
+      (typed-case json-float64-type (string-to-bytes "null") (i64-to-f64 7) (string-to-bytes "7") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "0") (i64-to-f64 7) (string-to-bytes "0") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "-0") (i64-to-f64 7) (string-to-bytes "-0") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "1") (i64-to-f64 7) (string-to-bytes "1") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "1.0") (i64-to-f64 7) (string-to-bytes "1") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "1e-6") (i64-to-f64 7) (string-to-bytes "0.000001") "" 0 "" "" "")] 1
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch1 :: Unit -> Nat
+  check-batch1 unit = first-failure [
+      (typed-case json-float64-type (string-to-bytes "1e-7") (i64-to-f64 7) (string-to-bytes "1e-7") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "1e20") (i64-to-f64 7) (string-to-bytes "100000000000000000000") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "1e21") (i64-to-f64 7) (string-to-bytes "1e+21") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "9007199254740993") (i64-to-f64 7) (string-to-bytes "9007199254740992") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "1.7976931348623157e308") (i64-to-f64 7) (string-to-bytes "1.7976931348623157e+308") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "1.7976931348623159e308") (i64-to-f64 7) (string-to-bytes "7") "type" 22 "number 1.7976931348623159e308" "F64" "")] 7
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch2 :: Unit -> Nat
+  check-batch2 unit = first-failure [
+      (typed-case json-float64-type (string-to-bytes "5e-324") (i64-to-f64 7) (string-to-bytes "5e-324") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "1e-9999") (i64-to-f64 7) (string-to-bytes "0") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "-1e-9999") (i64-to-f64 7) (string-to-bytes "-0") "" 0 "" "" ""),
+      (typed-case json-float64-type (string-to-bytes "1e9999") (i64-to-f64 7) (string-to-bytes "7") "type" 6 "number 1e9999" "F64" ""),
+      (typed-case json-float64-type (string-to-bytes "\"1\"") (i64-to-f64 7) (string-to-bytes "7") "type" 3 "string" "F64" ""),
+      (typed-case json-float64-type (string-to-bytes "true") (i64-to-f64 7) (string-to-bytes "7") "type" 4 "boolean" "F64" "")] 13
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch3 :: Unit -> Nat
+  check-batch3 unit = first-failure [
+      (typed-case json-float64-type (string-to-bytes "[]") (i64-to-f64 7) (string-to-bytes "7") "type" 1 "array" "F64" ""),
+      (typed-case json-float64-type (string-to-bytes "{}") (i64-to-f64 7) (string-to-bytes "7") "type" 1 "object" "F64" ""),
+      (float-encode-case (0 :: U64) (string-to-bytes "0") "" ""),
+      (float-encode-case (9223372036854775808 :: U64) (string-to-bytes "-0") "" ""),
+      (float-encode-case (1 :: U64) (string-to-bytes "5e-324") "" ""),
+      (float-encode-case (4503599627370495 :: U64) (string-to-bytes "2.225073858507201e-308") "" "")] 19
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch4 :: Unit -> Nat
+  check-batch4 unit = first-failure [
+      (float-encode-case (4503599627370496 :: U64) (string-to-bytes "2.2250738585072014e-308") "" ""),
+      (float-encode-case (4607182418800017408 :: U64) (string-to-bytes "1") "" ""),
+      (float-encode-case (4517329193108106637 :: U64) (string-to-bytes "0.000001") "" ""),
+      (float-encode-case (4502148214488346440 :: U64) (string-to-bytes "1e-7") "" ""),
+      (float-encode-case (4906019910204099648 :: U64) (string-to-bytes "100000000000000000000") "" ""),
+      (float-encode-case (4921056587992461136 :: U64) (string-to-bytes "1e+21") "" "")] 25
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch5 :: Unit -> Nat
+  check-batch5 unit = first-failure [
+      (float-encode-case (9218868437227405311 :: U64) (string-to-bytes "1.7976931348623157e+308") "" ""),
+      (float-encode-case (18442240474082181119 :: U64) (string-to-bytes "-1.7976931348623157e+308") "" ""),
+      (float-encode-case (9218868437227405312 :: U64) (string-to-bytes "") "value" "+Inf"),
+      (float-encode-case (18442240474082181120 :: U64) (string-to-bytes "") "value" "-Inf"),
+      (float-encode-case (9221120237041090560 :: U64) (string-to-bytes "") "value" "NaN"),
+      (float-encode-case (11077280700399132468 :: U64) (string-to-bytes "-9.710381212839723e-185") "" "")] 31
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch6 :: Unit -> Nat
+  check-batch6 unit = first-failure [
+      (float-encode-case (4258054535094795018 :: U64) (string-to-bytes "4.890414185488319e-24") "" ""),
+      (float-encode-case (6804424426877769852 :: U64) (string-to-bytes "7.535086282258555e+146") "" ""),
+      (float-encode-case (5666979009067078604 :: U64) (string-to-bytes "7.29992292812226e+70") "" ""),
+      (float-encode-case (1199653568891630443 :: U64) (string-to-bytes "1.8159417587097305e-228") "" ""),
+      (float-encode-case (3059647969801119949 :: U64) (string-to-bytes "3.8462102349428745e-104") "" ""),
+      (float-encode-case (7810328081249681628 :: U64) (string-to-bytes "1.3371289145250688e+214") "" "")] 37
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch7 :: Unit -> Nat
+  check-batch7 unit = first-failure [
+      (float-encode-case (12832590457935019357 :: U64) (string-to-bytes "-2.088251010708283e-67") "" ""),
+      (float-encode-case (12838744333798660967 :: U64) (string-to-bytes "-5.263848192902788e-67") "" ""),
+      (float-encode-case (719752357897610001 :: U64) (string-to-bytes "1.4773018972981997e-260") "" ""),
+      (float-encode-case (3573867233989705239 :: U64) (string-to-bytes "9.029239543020827e-70") "" ""),
+      (float-encode-case (2764784710660841899 :: U64) (string-to-bytes "7.2063821802441616e-124") "" ""),
+      (float-encode-case (128268678855481000 :: U64) (string-to-bytes "4.424022312574047e-300") "" "")] 43
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch8 :: Unit -> Nat
+  check-batch8 unit = first-failure [
+      (float-encode-case (11238095240489993733 :: U64) (string-to-bytes "-5.492320298615145e-174") "" ""),
+      (float-encode-case (11135480072237740873 :: U64) (string-to-bytes "-7.582925112448877e-181") "" ""),
+      (float-encode-case (17692097507554383599 :: U64) (string-to-bytes "-1.3787898056350483e+258") "" ""),
+      (float-encode-case (3534751834601994626 :: U64) (string-to-bytes "2.1196793537581984e-72") "" ""),
+      (float-encode-case (7992145666149032049 :: U64) (string-to-bytes "1.910356910187597e+226") "" ""),
+      (float-encode-case (11154503610896115569 :: U64) (string-to-bytes "-1.3860682377420373e-179") "" "")] 49
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch9 :: Unit -> Nat
+  check-batch9 unit = first-failure [
+      (float-encode-case (10579787877300115455 :: U64) (string-to-bytes "-5.370259713732414e-218") "" ""),
+      (float-encode-case (11741234792384815632 :: U64) (string-to-bytes "-2.2627503143441874e-140") "" ""),
+      (float-encode-case (15444477369256934868 :: U64) (string-to-bytes "-8.001929218761559e+107") "" ""),
+      (float-encode-case (4447148693676995631 :: U64) (string-to-bytes "2.1324008854245362e-11") "" ""),
+      (float-encode-case (14761568581814105223 :: U64) (string-to-bytes "-1.7757707432258371e+62") "" ""),
+      (float-encode-case (3263982484840530990 :: U64) (string-to-bytes "1.717889471727611e-90") "" "")] 55
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch10 :: Unit -> Nat
+  check-batch10 unit = first-failure [
+      (float-encode-case (6316490506859218726 :: U64) (string-to-bytes "1.899471115709271e+114") "" ""),
+      (float-encode-case (8663986119863271336 :: U64) (string-to-bytes "1.5141978366983903e+271") "" ""),
+      (float-encode-case (14535449997418377047 :: U64) (string-to-bytes "-1.386829941938378e+47") "" ""),
+      (float-encode-case (8661038941925096649 :: U64) (string-to-bytes "9.610481374901803e+270") "" ""),
+      (float-encode-case (17632446267901453552 :: U64) (string-to-bytes "-1.395419124180744e+254") "" ""),
+      (float-encode-case (2114637042659247033 :: U64) (string-to-bytes "2.617932493582082e-167") "" "")] 61
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch11 :: Unit -> Nat
+  check-batch11 unit = first-failure [
+      (float-encode-case (8593750057553273214 :: U64) (string-to-bytes "3.084735380316759e+266") "" ""),
+      (float-encode-case (1907514655418537916 :: U64) (string-to-bytes "3.743420226605811e-181") "" ""),
+      (float-encode-case (3038466498591366419 :: U64) (string-to-bytes "1.4607318670127382e-105") "" ""),
+      (float-encode-case (8130980164227912937 :: U64) (string-to-bytes "3.6635574162835085e+235") "" ""),
+      (float-encode-case (2432672318902522880 :: U64) (string-to-bytes "4.651895980911354e-146") "" ""),
+      (float-encode-case (7901386353479740584 :: U64) (string-to-bytes "1.6494627454178914e+220") "" "")] 67
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch12 :: Unit -> Nat
+  check-batch12 unit = first-failure [
+      (float-encode-case (13788506910779754609 :: U64) (string-to-bytes "-0.0016245795997602808") "" ""),
+      (float-encode-case (9599158355102131105 :: U64) (string-to-bytes "-1.5508359731473757e-283") "" ""),
+      (float-encode-case (16494976970474389542 :: U64) (string-to-bytes "-1.3134551237635672e+178") "" ""),
+      (float-encode-case (17449108557181356454 :: U64) (string-to-bytes "-7.897147527955691e+241") "" ""),
+      (float-encode-case (88308569300446261 :: U64) (string-to-bytes "9.381873900878128e-303") "" ""),
+      (float-encode-case (18377385941271481389 :: U64) (string-to-bytes "-8.774511687834887e+303") "" "")] 73
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch13 :: Unit -> Nat
+  check-batch13 unit = first-failure [
+      (float-encode-case (1062792140451568245 :: U64) (string-to-bytes "1.2207263359350001e-237") "" ""),
+      (float-encode-case (18437034491775550849 :: U64) (string-to-bytes "-8.287543842318752e+307") "" ""),
+      (float-encode-case (6819102360680175050 :: U64) (string-to-bytes "7.319669787260159e+147") "" ""),
+      (float-encode-case (8447604285378533985 :: U64) (string-to-bytes "5.240114944173901e+256") "" ""),
+      (float-encode-case (6669203825269456405 :: U64) (string-to-bytes "6.924541762418163e+137") "" ""),
+      (float-encode-case (5667409481709134377 :: U64) (string-to-bytes "7.827680851654444e+70") "" "")] 79
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch14 :: Unit -> Nat
+  check-batch14 unit = first-failure [
+      (float-encode-case (8213546801778679853 :: U64) (string-to-bytes "1.18274215012425e+241") "" ""),
+      (float-encode-case (5472838769420004269 :: U64) (string-to-bytes "7.622425082782324e+57") "" ""),
+      (float-encode-case (10213991837637551930 :: U64) (string-to-bytes "-1.8387991615345346e-242") "" ""),
+      (float-encode-case (10796991616654305780 :: U64) (string-to-bytes "-1.803648159730702e-203") "" ""),
+      (float-encode-case (11246047753769651495 :: U64) (string-to-bytes "-1.818184011544234e-173") "" ""),
+      (float-encode-case (3793310425685012221 :: U64) (string-to-bytes "4.189620116301687e-55") "" "")] 85
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch15 :: Unit -> Nat
+  check-batch15 unit = first-failure [
+      (float-encode-case (238956869667965664 :: U64) (string-to-bytes "1.0612910406569872e-292") "" ""),
+      (float-encode-case (14650013458116646773 :: U64) (string-to-bytes "-5.9965031930613464e+54") "" ""),
+      (float-encode-case (17627986508249698843 :: U64) (string-to-bytes "-7.034190462728558e+253") "" ""),
+      (float-encode-case (1658957270248112383 :: U64) (string-to-bytes "9.113665142743296e-198") "" ""),
+      (float-encode-case (895601647272492734 :: U64) (string-to-bytes "8.328872670859957e-249") "" ""),
+      (float-encode-case (2827720341610810819 :: U64) (string-to-bytes "1.1649042069251096e-119") "" "")] 91
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch16 :: Unit -> Nat
+  check-batch16 unit = first-failure [
+      (float-encode-case (12504522553543060120 :: U64) (string-to-bytes "-2.4534002474285053e-89") "" ""),
+      (float-encode-case (5013558674122824269 :: U64) (string-to-bytes "1.5271909984748446e+27") "" ""),
+      (float-encode-case (14256535986240044985 :: U64) (string-to-bytes "-3.143180592856256e+28") "" ""),
+      (float-encode-case (14860692713664881542 :: U64) (string-to-bytes "-7.491166346473059e+68") "" ""),
+      (float-encode-case (401240759230362689 :: U64) (string-to-bytes "7.529074871022097e-282") "" ""),
+      (float-encode-case (12794493638925414121 :: U64) (string-to-bytes "-5.645774773875133e-70") "" "")] 97
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch17 :: Unit -> Nat
+  check-batch17 unit = first-failure [
+      (float-encode-case (7897021998456388980 :: U64) (string-to-bytes "8.421942352171631e+219") "" ""),
+      (float-encode-case (2073040405108031502 :: U64) (string-to-bytes "4.3304543032828894e-170") "" ""),
+      (float-encode-case (1274825110733995406 :: U64) (string-to-bytes "1.8466727406889578e-223") "" ""),
+      (float-encode-case (5228574661200086645 :: U64) (string-to-bytes "3.4440625682284584e+41") "" ""),
+      (float-encode-case (5472341089298504249 :: U64) (string-to-bytes "6.928760234035718e+57") "" ""),
+      (float-encode-case (17343212383754528461 :: U64) (string-to-bytes "-6.253368021403861e+234") "" "")] 103
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch18 :: Unit -> Nat
+  check-batch18 unit = first-failure [
+      (float-encode-case (4207564095737791936 :: U64) (string-to-bytes "2.046799190009169e-27") "" ""),
+      (float-encode-case (2334407854169830091 :: U64) (string-to-bytes "1.2818032907828106e-152") "" ""),
+      (float-encode-case (16894266085874612590 :: U64) (string-to-bytes "-6.424267522942257e+204") "" ""),
+      (float-encode-case (4912848250220665500 :: U64) (string-to-bytes "276177093073153430000") "" ""),
+      (float-encode-case (399577616892421929 :: U64) (string-to-bytes "5.936150986624912e-282") "" ""),
+      (float-encode-case (13902254057419255463 :: U64) (string-to-bytes "-62931.263392058485") "" "")] 109
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch19 :: Unit -> Nat
+  check-batch19 unit = first-failure [
+      (float-encode-case (17793189222954634554 :: U64) (string-to-bytes "-7.5842032831733885e+264") "" ""),
+      (float-encode-case (14515784613084662176 :: U64) (string-to-bytes "-6.574813966057746e+45") "" ""),
+      (float-encode-case (12249391772359957939 :: U64) (string-to-bytes "-2.0834508600420436e-106") "" ""),
+      (float-encode-case (8342971446346032712 :: U64) (string-to-bytes "5.41203223107557e+249") "" ""),
+      (float-encode-case (16793873351455762692 :: U64) (string-to-bytes "-1.1894224866988842e+198") "" ""),
+      (float-encode-case (10693731176948268758 :: U64) (string-to-bytes "-2.2589748824264205e-210") "" "")] 115
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch20 :: Unit -> Nat
+  check-batch20 unit = first-failure [
+      (float-encode-case (12062293632970719659 :: U64) (string-to-bytes "-6.777217882406196e-119") "" ""),
+      (float-encode-case (18424786575868776808 :: U64) (string-to-bytes "-1.2633918448411928e+307") "" ""),
+      (float-encode-case (8531320203675180490 :: U64) (string-to-bytes "2.0997116744911474e+262") "" ""),
+      (float-encode-case (2958594273845081969 :: U64) (string-to-bytes "6.4531266500257296e-111") "" ""),
+      (float-encode-case (5433931363896631263 :: U64) (string-to-bytes "1.9311195594183937e+55") "" ""),
+      (float-encode-case (841620912065764128 :: U64) (string-to-bytes "2.0485496337771971e-252") "" "")] 121
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch21 :: Unit -> Nat
+  check-batch21 unit = first-failure [
+      (float-encode-case (3114984770865521558 :: U64) (string-to-bytes "1.903717273301101e-100") "" ""),
+      (float-encode-case (9243941568207955921 :: U64) (string-to-bytes "-2.7899817737112787e-307") "" ""),
+      (float-encode-case (2161799256822543070 :: U64) (string-to-bytes "3.528149914277724e-164") "" ""),
+      (float-encode-case (17316926799279046075 :: U64) (string-to-bytes "-1.1229496620848596e+233") "" ""),
+      (float-encode-case (8495323377606640384 :: U64) (string-to-bytes "8.245658557495408e+259") "" ""),
+      (float-encode-case (16593638231284687494 :: U64) (string-to-bytes "-5.1935789075377314e+184") "" "")] 127
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch22 :: Unit -> Nat
+  check-batch22 unit = first-failure [
+      (float-encode-case (6212626535254909507 :: U64) (string-to-bytes "2.1727021611593535e+107") "" ""),
+      (float-encode-case (16987379372070404935 :: U64) (string-to-bytes "-1.0288517490039771e+211") "" ""),
+      (float-encode-case (16153480010052021889 :: U64) (string-to-bytes "-1.9233092839440898e+155") "" ""),
+      (float-encode-case (7378818247277060764 :: U64) (string-to-bytes "1.940015127811541e+185") "" ""),
+      (float-encode-case (17928184495912106201 :: U64) (string-to-bytes "-8.035160587735005e+273") "" ""),
+      (float-encode-case (11022997813495705064 :: U64) (string-to-bytes "-2.2942489170897715e-188") "" "")] 133
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch23 :: Unit -> Nat
+  check-batch23 unit = first-failure [
+      (float-encode-case (11945789753824343219 :: U64) (string-to-bytes "-1.1066030709652715e-126") "" ""),
+      (float-encode-case (16015186989286448794 :: U64) (string-to-bytes "-1.0847380303281834e+146") "" ""),
+      (float-encode-case (3012403816802646183 :: U64) (string-to-bytes "2.5725099682817595e-107") "" ""),
+      (float-encode-case (18166982887076965270 :: U64) (string-to-bytes "-7.330572707603157e+289") "" ""),
+      (float-encode-case (10009693660259101505 :: U64) (string-to-bytes "-4.2583300158309474e-256") "" ""),
+      (float-encode-case (17967942682799090007 :: U64) (string-to-bytes "-3.7330812465531993e+276") "" "")] 139
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch24 :: Unit -> Nat
+  check-batch24 unit = first-failure [
+      (float-encode-case (10362017928390033349 :: U64) (string-to-bytes "-1.4735554005236531e-232") "" ""),
+      (float-encode-case (4967566056247409658 :: U64) (string-to-bytes "1.2346063035737098e+24") "" ""),
+      (float-encode-case (3588318339510325517 :: U64) (string-to-bytes "8.19144814911328e-69") "" ""),
+      (float-encode-case (7320763776978690799 :: U64) (string-to-bytes "2.5496293564895422e+181") "" ""),
+      (float-encode-case (5995727763150684266 :: U64) (string-to-bytes "6.878349710324318e+92") "" ""),
+      (float-encode-case (15037243355841629290 :: U64) (string-to-bytes "-4.597618352090165e+80") "" "")] 145
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch25 :: Unit -> Nat
+  check-batch25 unit = first-failure [
+      (float-encode-case (5046280034038661362 :: U64) (string-to-bytes "2.375666751364842e+29") "" ""),
+      (float-encode-case (4341757338905556723 :: U64) (string-to-bytes "1.8453866865851656e-18") "" ""),
+      (float-encode-case (4912977165007075422 :: U64) (string-to-bytes "280401372794233750000") "" ""),
+      (float-encode-case (4731140021634489262 :: U64) (string-to-bytes "204563514.07882446") "" ""),
+      (float-encode-case (5782980171821818009 :: U64) (string-to-bytes "4.00009808823263e+78") "" ""),
+      (float-encode-case (17747771496886109336 :: U64) (string-to-bytes "-7.072820500026608e+261") "" "")] 151
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch26 :: Unit -> Nat
+  check-batch26 unit = first-failure [
+      (float-encode-case (10229900547643032721 :: U64) (string-to-bytes "-2.2408852572223314e-241") "" ""),
+      (float-encode-case (1367164436890971224 :: U64) (string-to-bytes "2.8491412838357653e-217") "" ""),
+      (float-encode-case (608558568777066368 :: U64) (string-to-bytes "5.461908259930989e-268") "" ""),
+      (float-encode-case (2652873621434020815 :: U64) (string-to-bytes "2.380997612143344e-131") "" ""),
+      (float-encode-case (14225081702152013928 :: U64) (string-to-bytes "-2.4799754637411015e+26") "" ""),
+      (float-encode-case (666972645780770424 :: U64) (string-to-bytes "4.357411817937584e-264") "" "")] 157
+
+  -- | Evaluate bounded independent float checks with global failure indexes.
+  check-batch27 :: Unit -> Nat
+  check-batch27 unit = first-failure [
+      (float-encode-case (10143955458829550820 :: U64) (string-to-bytes "-4.034892426398014e-247") "" "")] 163
+
+  -- | Print the original failing observation and return a nonzero status on failure.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = first-result [check-batch0 (),check-batch1 (),check-batch2 (),check-batch3 (),check-batch4 (),check-batch5 (),check-batch6 (),check-batch7 (),check-batch8 (),check-batch9 (),check-batch10 (),check-batch11 (),check-batch12 (),check-batch13 (),check-batch14 (),check-batch15 (),check-batch16 (),check-batch17 (),check-batch18 (),check-batch19 (),check-batch20 (),check-batch21 (),check-batch22 (),check-batch23 (),check-batch24 (),check-batch25 (),check-batch26 (),check-batch27 ()] in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in
+    if failed == 0 then 0 else 1
