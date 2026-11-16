@@ -1,0 +1,223 @@
+-- | Concrete independent binary-layout fixture consumers.
+module Main where
+  import Text.Binary.Layout as B
+  import Effect.Binary as E
+  import Effect.Stream
+  import Text.Hex
+  import Data.Complex as Complex
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  -- | Parse exact independently recorded bytes.
+  input :: String -> Bytes
+  input text = case hex-decode text of Ok bytes -> bytes; Err error -> bytes-new 0
+  -- | Compare all bytes, including exact lengths.
+  same :: Bytes -> Bytes -> Bool
+  same left right = eq-i64 (bytes-compare left right) 0
+  -- | Conjoin every runtime observation.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+  -- | Keep large fixture construction outside the compiler's constant evaluator.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Preserve a bounded count as an exact opaque runtime value.
+  runtime-count :: Nat -> Nat
+  runtime-count n = if n <= 65536 then u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 n))) else 0
+  -- | Snapshot a checked half-open interval for independent observations.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part bytes start end = if start <= end && end <= bytes-len bytes then
+    let out = bytes-new (end - start) in let copied = bytes-copy-range out bytes 0 start (end - start) in out
+    else bytes-new 0
+  -- | Join independent expected buffers without retaining aliases.
+  joined :: Bytes -> Bytes -> Bytes
+  joined first last = let n = bytes-len first in let out = bytes-new (n + bytes-len last) in
+    if n <= bytes-len out then
+      let a = bytes-copy-range out first 0 0 n in let b = bytes-copy-range out last n 0 (bytes-len last) in out
+    else out
+  -- | Select one of the three concrete public order values.
+  order :: U8 -> B.BinaryOrder
+  order tag = if eq-u8 tag 0 then B.BinaryLittleEndian else if eq-u8 tag 1 then B.BinaryBigEndian else B.BinaryNativeEndian
+  -- | Select exact independent arithmetic patterns by runtime position, without floating arithmetic.
+  pattern-bits :: U8 -> Nat -> U64
+  pattern-bits kind i =
+    if eq-u8 kind 9 || eq-u8 kind 11 then
+      let n = nat-rem i 11 in
+      if n == 0 then 0 else if n == 1 then 2147483648 else if n == 2 then 1 else if n == 3 then 2147483649 else if n == 4 then 1065353216 else if n == 5 then 2139095039 else if n == 6 then 2139095040 else if n == 7 then 4286578688 else if n == 8 then 2143289345 else if n == 9 then 4290847557 else 2139095041
+    else if eq-u8 kind 10 || eq-u8 kind 12 then
+      let n = nat-rem i 11 in
+      if n == 0 then 0 else if n == 1 then 9223372036854775808 else if n == 2 then 1 else if n == 3 then 9223372036854775809 else if n == 4 then 4607182418800017408 else if n == 5 then 9218868437227405311 else if n == 6 then 9218868437227405312 else if n == 7 then 18442240474082181120 else if n == 8 then 9221120237041090561 else if n == 9 then 18444512289894210236 else 9218868437227405313
+    else
+      let n = nat-rem i 15 in
+      if n == 0 then 0 else if n == 1 then 1 else if n == 2 then 127 else if n == 3 then 128 else if n == 4 then 255 else if n == 5 then 256 else if n == 6 then 32767 else if n == 7 then 32768 else if n == 8 then 65535 else if n == 9 then 2147483647 else if n == 10 then 2147483648 else if n == 11 then 4294967295 else if n == 12 then 9223372036854775807 else if n == 13 then 9223372036854775808 else 18446744073709551615
+  -- | Normalize input bits to their actual fixed arithmetic carrier.
+  carrier-bits :: U8 -> U64 -> U64
+  carrier-bits kind bits = if eq-u8 kind 0 then (if eq-u64 bits 0 then 0 else 1)
+    else if eq-u8 kind 1 || eq-u8 kind 2 then bit-and-u64 bits 255
+    else if eq-u8 kind 3 || eq-u8 kind 4 then bit-and-u64 bits 65535
+    else if eq-u8 kind 5 || eq-u8 kind 6 || eq-u8 kind 9 || eq-u8 kind 11 then bit-and-u64 bits 4294967295
+    else bits
+  -- | Build concrete typed list values in a bounded-stack accumulator.
+  make-values :: forall a. (U64 -> a) -> U8 -> Nat -> Nat -> List a -> List a
+  make-values from-bits kind remaining i reversed = if remaining == 0 then reverse reversed else
+    let bits = pattern-bits kind i in let value = from-bits bits in let values = Cons value reversed in
+    let left = remaining - 1 in let next = i + 1 in make-values from-bits kind left next values
+  -- | Check every decoded element through exact raw-bit views rather than NaN equality.
+  check-values :: forall a. (a -> U64) -> U8 -> List a -> Nat -> Nat -> Bool
+  check-values bits kind values i count = case values of
+    Nil -> i == count
+    Cons first rest -> if i < count then
+      let actual = bits first in let expected = carrier-bits kind (pattern-bits kind i) in
+      if eq-u64 actual expected then let next = i + 1 in check-values bits kind rest next count else False
+      else False
+  -- | Uniform raw observations of a concretely typed scalar result.
+  data DecodedBits where
+    -- | Real bits, imaginary bits and consumed count.
+    DecodedBits :: U64 -> U64 -> Nat -> DecodedBits
+
+  -- | Encode concrete scalar carriers without reflective type guessing.
+  encode-scalar :: U8 -> B.BinaryOrder -> U64 -> U64 -> Result B.BinaryLayoutError Bytes
+  encode-scalar kind wire-order bits imaginary =
+    if eq-u8 kind 0 then B.binary-encode B.binary-bool wire-order ((\bits -> not (eq-u64 bits 0)) bits)
+    else if eq-u8 kind 1 then B.binary-encode B.binary-u8 wire-order (wrapping-u64-to-u8 bits)
+    else if eq-u8 kind 2 then B.binary-encode B.binary-i8 wire-order ((\bits -> wrapping-u8-to-i8 (wrapping-u64-to-u8 bits)) bits)
+    else if eq-u8 kind 3 then B.binary-encode B.binary-u16 wire-order (wrapping-u64-to-u16 bits)
+    else if eq-u8 kind 4 then B.binary-encode B.binary-i16 wire-order ((\bits -> wrapping-u16-to-i16 (wrapping-u64-to-u16 bits)) bits)
+    else if eq-u8 kind 5 then B.binary-encode B.binary-u32 wire-order (wrapping-u64-to-u32 bits)
+    else if eq-u8 kind 6 then B.binary-encode B.binary-i32 wire-order ((\bits -> wrapping-u32-to-i32 (wrapping-u64-to-u32 bits)) bits)
+    else if eq-u8 kind 7 then B.binary-encode B.binary-u64 wire-order ((\bits -> bits) bits)
+    else if eq-u8 kind 8 then B.binary-encode B.binary-i64 wire-order (wrapping-u64-to-i64 bits)
+    else if eq-u8 kind 9 then B.binary-encode B.binary-f32 wire-order ((\bits -> B.binary-f32-from-bits (wrapping-u64-to-u32 bits)) bits)
+    else if eq-u8 kind 10 then B.binary-encode B.binary-f64 wire-order ((\bits -> B.binary-f64-from-bits bits) bits)
+    else if eq-u8 kind 11 then B.binary-encode B.binary-complex64 wire-order (((\word -> B.binary-f32-from-bits (wrapping-u64-to-u32 word)) bits), ((\word -> B.binary-f32-from-bits (wrapping-u64-to-u32 word)) imaginary))
+    else if eq-u8 kind 12 then B.binary-encode B.binary-complex128 wire-order ((B.binary-f64-from-bits bits), (B.binary-f64-from-bits imaginary))
+    else Err (B.BinaryLengthMismatch 13 0)
+
+  -- | Observe concrete decoded scalar bits and exact consumed counts.
+  decode-scalar :: U8 -> B.BinaryOrder -> Bytes -> Nat -> Result B.BinaryLayoutError DecodedBits
+  decode-scalar kind wire-order input start =
+    if eq-u8 kind 0 then (case B.binary-decode-at B.binary-bool wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits ((\value -> if value then 1 else 0) value) 0 used))
+    else if eq-u8 kind 1 then (case B.binary-decode-at B.binary-u8 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits (wrapping-u8-to-u64 value) 0 used))
+    else if eq-u8 kind 2 then (case B.binary-decode-at B.binary-i8 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits ((\value -> wrapping-u8-to-u64 (wrapping-i8-to-u8 value)) value) 0 used))
+    else if eq-u8 kind 3 then (case B.binary-decode-at B.binary-u16 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits (wrapping-u16-to-u64 value) 0 used))
+    else if eq-u8 kind 4 then (case B.binary-decode-at B.binary-i16 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits ((\value -> wrapping-u16-to-u64 (wrapping-i16-to-u16 value)) value) 0 used))
+    else if eq-u8 kind 5 then (case B.binary-decode-at B.binary-u32 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits (wrapping-u32-to-u64 value) 0 used))
+    else if eq-u8 kind 6 then (case B.binary-decode-at B.binary-i32 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits ((\value -> wrapping-u32-to-u64 (wrapping-i32-to-u32 value)) value) 0 used))
+    else if eq-u8 kind 7 then (case B.binary-decode-at B.binary-u64 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits ((\value -> value) value) 0 used))
+    else if eq-u8 kind 8 then (case B.binary-decode-at B.binary-i64 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits (wrapping-i64-to-u64 value) 0 used))
+    else if eq-u8 kind 9 then (case B.binary-decode-at B.binary-f32 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits ((\value -> wrapping-u32-to-u64 (B.binary-f32-bits value)) value) 0 used))
+    else if eq-u8 kind 10 then (case B.binary-decode-at B.binary-f64 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> Ok (DecodedBits ((\value -> B.binary-f64-bits value) value) 0 used))
+    else if eq-u8 kind 11 then (case B.binary-decode-at B.binary-complex64 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> case value of (real, imag) -> Ok (DecodedBits ((\value -> wrapping-u32-to-u64 (B.binary-f32-bits value)) real) ((\value -> wrapping-u32-to-u64 (B.binary-f32-bits value)) imag) used))
+    else if eq-u8 kind 12 then (case B.binary-decode-at B.binary-complex128 wire-order input start of Err error -> Err error; Ok pair -> case pair of (value, used) -> case value of (real, imag) -> Ok (DecodedBits (B.binary-f64-bits real) (B.binary-f64-bits imag) used))
+    else Err (B.BinaryLengthMismatch 13 0)
+
+  -- | Observe actual descriptor size for each concrete arithmetic layout.
+  scalar-size :: U8 -> Nat
+  scalar-size kind =
+    if eq-u8 kind 0 then B.binary-size B.binary-bool
+    else if eq-u8 kind 1 then B.binary-size B.binary-u8
+    else if eq-u8 kind 2 then B.binary-size B.binary-i8
+    else if eq-u8 kind 3 then B.binary-size B.binary-u16
+    else if eq-u8 kind 4 then B.binary-size B.binary-i16
+    else if eq-u8 kind 5 then B.binary-size B.binary-u32
+    else if eq-u8 kind 6 then B.binary-size B.binary-i32
+    else if eq-u8 kind 7 then B.binary-size B.binary-u64
+    else if eq-u8 kind 8 then B.binary-size B.binary-i64
+    else if eq-u8 kind 9 then B.binary-size B.binary-f32
+    else if eq-u8 kind 10 then B.binary-size B.binary-f64
+    else if eq-u8 kind 11 then B.binary-size B.binary-complex64
+    else if eq-u8 kind 12 then B.binary-size B.binary-complex128
+    else 0
+
+  -- | Exercise public buffer and append APIs for every concrete scalar layout.
+  scalar-buffer-case :: U8 -> B.BinaryOrder -> U64 -> U64 -> Bytes -> Bool
+  scalar-buffer-case kind wire-order bits imaginary expected =
+    if eq-u8 kind 0 then check-buffer B.binary-bool wire-order ((\bits -> not (eq-u64 bits 0)) bits) expected
+    else if eq-u8 kind 1 then check-buffer B.binary-u8 wire-order (wrapping-u64-to-u8 bits) expected
+    else if eq-u8 kind 2 then check-buffer B.binary-i8 wire-order ((\bits -> wrapping-u8-to-i8 (wrapping-u64-to-u8 bits)) bits) expected
+    else if eq-u8 kind 3 then check-buffer B.binary-u16 wire-order (wrapping-u64-to-u16 bits) expected
+    else if eq-u8 kind 4 then check-buffer B.binary-i16 wire-order ((\bits -> wrapping-u16-to-i16 (wrapping-u64-to-u16 bits)) bits) expected
+    else if eq-u8 kind 5 then check-buffer B.binary-u32 wire-order (wrapping-u64-to-u32 bits) expected
+    else if eq-u8 kind 6 then check-buffer B.binary-i32 wire-order ((\bits -> wrapping-u32-to-i32 (wrapping-u64-to-u32 bits)) bits) expected
+    else if eq-u8 kind 7 then check-buffer B.binary-u64 wire-order ((\bits -> bits) bits) expected
+    else if eq-u8 kind 8 then check-buffer B.binary-i64 wire-order (wrapping-u64-to-i64 bits) expected
+    else if eq-u8 kind 9 then check-buffer B.binary-f32 wire-order ((\bits -> B.binary-f32-from-bits (wrapping-u64-to-u32 bits)) bits) expected
+    else if eq-u8 kind 10 then check-buffer B.binary-f64 wire-order ((\bits -> B.binary-f64-from-bits bits) bits) expected
+    else if eq-u8 kind 11 then check-buffer B.binary-complex64 wire-order (((\word -> B.binary-f32-from-bits (wrapping-u64-to-u32 word)) bits), ((\word -> B.binary-f32-from-bits (wrapping-u64-to-u32 word)) imaginary)) expected
+    else if eq-u8 kind 12 then check-buffer B.binary-complex128 wire-order ((B.binary-f64-from-bits bits), (B.binary-f64-from-bits imaginary)) expected
+    else False
+
+  -- | Encode each concrete homogeneous list through its actual array descriptor.
+  encode-array :: U8 -> B.BinaryOrder -> Nat -> Result B.BinaryLayoutError Bytes
+  encode-array kind wire-order count =
+    if eq-u8 kind 0 then let values = make-values (\bits -> not (eq-u64 bits 0)) kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-bool) wire-order values
+    else if eq-u8 kind 1 then let values = make-values wrapping-u64-to-u8 kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-u8) wire-order values
+    else if eq-u8 kind 2 then let values = make-values (\bits -> wrapping-u8-to-i8 (wrapping-u64-to-u8 bits)) kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-i8) wire-order values
+    else if eq-u8 kind 3 then let values = make-values wrapping-u64-to-u16 kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-u16) wire-order values
+    else if eq-u8 kind 4 then let values = make-values (\bits -> wrapping-u16-to-i16 (wrapping-u64-to-u16 bits)) kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-i16) wire-order values
+    else if eq-u8 kind 5 then let values = make-values wrapping-u64-to-u32 kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-u32) wire-order values
+    else if eq-u8 kind 6 then let values = make-values (\bits -> wrapping-u32-to-i32 (wrapping-u64-to-u32 bits)) kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-i32) wire-order values
+    else if eq-u8 kind 7 then let values = make-values (\bits -> bits) kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-u64) wire-order values
+    else if eq-u8 kind 8 then let values = make-values wrapping-u64-to-i64 kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-i64) wire-order values
+    else if eq-u8 kind 9 then let values = make-values (\bits -> B.binary-f32-from-bits (wrapping-u64-to-u32 bits)) kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-f32) wire-order values
+    else if eq-u8 kind 10 then let values = make-values (\bits -> B.binary-f64-from-bits bits) kind count 0 Nil in B.binary-encode (B.binary-array count B.binary-f64) wire-order values
+    else Err (B.BinaryLengthMismatch 11 0)
+
+  -- | Check every concrete decoded array element including exact float payloads.
+  decode-array :: U8 -> B.BinaryOrder -> Nat -> Bytes -> Nat -> Bool
+  decode-array kind wire-order count input size =
+    if eq-u8 kind 0 then (case B.binary-decode (B.binary-array count B.binary-bool) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values (\value -> if value then 1 else 0) kind values 0 count)
+    else if eq-u8 kind 1 then (case B.binary-decode (B.binary-array count B.binary-u8) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values wrapping-u8-to-u64 kind values 0 count)
+    else if eq-u8 kind 2 then (case B.binary-decode (B.binary-array count B.binary-i8) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values (\value -> wrapping-u8-to-u64 (wrapping-i8-to-u8 value)) kind values 0 count)
+    else if eq-u8 kind 3 then (case B.binary-decode (B.binary-array count B.binary-u16) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values wrapping-u16-to-u64 kind values 0 count)
+    else if eq-u8 kind 4 then (case B.binary-decode (B.binary-array count B.binary-i16) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values (\value -> wrapping-u16-to-u64 (wrapping-i16-to-u16 value)) kind values 0 count)
+    else if eq-u8 kind 5 then (case B.binary-decode (B.binary-array count B.binary-u32) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values wrapping-u32-to-u64 kind values 0 count)
+    else if eq-u8 kind 6 then (case B.binary-decode (B.binary-array count B.binary-i32) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values (\value -> wrapping-u32-to-u64 (wrapping-i32-to-u32 value)) kind values 0 count)
+    else if eq-u8 kind 7 then (case B.binary-decode (B.binary-array count B.binary-u64) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values (\value -> value) kind values 0 count)
+    else if eq-u8 kind 8 then (case B.binary-decode (B.binary-array count B.binary-i64) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values wrapping-i64-to-u64 kind values 0 count)
+    else if eq-u8 kind 9 then (case B.binary-decode (B.binary-array count B.binary-f32) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values (\value -> wrapping-u32-to-u64 (B.binary-f32-bits value)) kind values 0 count)
+    else if eq-u8 kind 10 then (case B.binary-decode (B.binary-array count B.binary-f64) wire-order input of Err error -> False; Ok pair -> case pair of (values, used) -> used == size && check-values (\value -> B.binary-f64-bits value) kind values 0 count)
+    else False
+
+  -- | Validate exact-size caller-buffer writes, untouched margins, append copies and short-buffer atomicity.
+  check-buffer :: forall a. B.BinaryLayout a -> B.BinaryOrder -> a -> Bytes -> Bool
+  check-buffer layout wire-order value expected =
+    let size = B.binary-size layout in let prefix = input "aabb" in let destination = bytes-new (size + 4) in
+    (case B.binary-append layout wire-order prefix value of Ok out -> same out (joined prefix expected); Err error -> False)
+      && (case B.binary-encode-into layout wire-order destination 2 value of
+        Ok used -> used == size && same (part destination 2 (2 + size)) expected && bytes-get destination 0 == 0 && bytes-get destination (size + 3) == 0
+        Err error -> False)
+      && (if size > 0 then let short = bytes-new (size - 1) in
+        case B.binary-encode-into layout wire-order short 0 value of
+          Err (B.BinaryShortDestination required available) -> required == size && available + 1 == size && same short (bytes-new (size - 1))
+          other -> False
+        else True)
+
+  -- | Compare every scalar encoder, fixed size, offset decoder and copied-prefix operation with exact independent bytes.
+  scalar-case :: U8 -> U8 -> U64 -> U64 -> Nat -> String -> Bool
+  scalar-case kind selected bits imaginary size expected =
+    let wire-order = order selected in let raw = input expected in
+    case encode-scalar kind wire-order bits imaginary of
+      Err error -> False
+      Ok encoded -> same encoded raw && scalar-size kind == size
+        && (case decode-scalar kind wire-order (joined (input "aabb") (joined raw (input "ccdd"))) 2 of
+          Err error -> False
+          Ok (DecodedBits actual imag used) -> eq-u64 actual (carrier-bits kind bits)
+            && eq-u64 imag (if eq-u8 kind 11 || eq-u8 kind 12 then carrier-bits kind imaginary else 0) && used == size)
+        && scalar-buffer-case kind wire-order bits imaginary raw
+  -- | Compare a homogeneous block plus its fringe with independent full bytes or a full-output digest.
+  array-case :: U8 -> U8 -> Nat -> Nat -> String -> String -> Bool
+  array-case kind selected count size expected hash =
+    let n = runtime-count count in let wire-order = order selected in
+    case encode-array kind wire-order n of
+      Err error -> False
+      Ok encoded -> bytes-len encoded == size && same (sha256-bytes encoded) (input hash)
+        && (if count <= 65 then same encoded (input expected) else True)
+        && decode-array kind wire-order n encoded size

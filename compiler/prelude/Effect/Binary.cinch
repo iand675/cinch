@@ -1,0 +1,154 @@
+-- | Typed binary stream reads and writes with explicit advanced reader/writer continuations.
+-- Fixed reads decode only after a complete private frame is available. Empty EOF
+-- is distinct from truncation and transport failures. Varint readers consume at
+-- most ten bytes and never read into the next frame. Writers preserve known
+-- progress on failure and adapt retry sizes so tiny short writes do not cause
+-- repeated whole-remainder copying. Borrowed streams are never closed or flushed.
+module Effect.Binary where
+
+  import Effect.Stream
+  import Text.Binary.Layout
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export BinaryStreamError, BinaryEndOfInput, BinaryInputFailure, BinaryOutputFailure, BinaryFormatFailure
+  export binary-stream-error-message, binary-stream-error-count
+  export binary-read, binary-write, binary-read-uvarint, binary-read-varint, binary-write-uvarint, binary-write-varint
+
+  -- | Binary stream failures retain either transport progress or an explicit typed-format error.
+  data BinaryStreamError where
+    -- | A positive-sized read encountered EOF before consuming any bytes.
+    BinaryEndOfInput :: BinaryStreamError
+    -- | Known bytes read before a transport, count-validation or truncated-frame failure.
+    BinaryInputFailure :: Nat -> StreamError -> BinaryStreamError
+    -- | Known bytes accepted before an output failure; the advanced writer remains available.
+    BinaryOutputFailure :: Nat -> StreamError -> BinaryStreamError
+    -- | A typed value is invalid, a private frame cannot decode, or a varint overflows.
+    BinaryFormatFailure :: BinaryLayoutError -> BinaryStreamError
+
+  -- | Known completed input or output bytes associated with a transport failure; other errors return zero.
+  binary-stream-error-count :: BinaryStreamError -> Nat
+  binary-stream-error-count error = case error of
+    BinaryInputFailure count cause -> count
+    BinaryOutputFailure count cause -> count
+    other -> 0
+
+  -- | Describe EOF, guaranteed stream progress or the underlying typed-format failure.
+  -- Transport causes remain inspectable in the error constructor.
+  binary-stream-error-message :: BinaryStreamError -> String
+  binary-stream-error-message error = case error of
+    BinaryEndOfInput -> "end of binary input"
+    BinaryInputFailure count cause -> string-concat "binary input failed after " (string-concat (nat-to-string count) " bytes")
+    BinaryOutputFailure count cause -> string-concat "binary output failed after " (string-concat (nat-to-string count) " bytes")
+    BinaryFormatFailure cause -> binary-layout-error-message cause
+
+  -- | Snapshot an exact private byte interval for a writer callback.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start count = if start + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 start count in out
+    else bytes-new 0
+
+  -- | Read one fixed layout, returning the advanced source on success, EOF or any failure.
+  -- Zero-sized layouts do not invoke the source. A reused callback buffer is copied before advancing.
+  binary-read :: forall r a. using (io :: Io r) => BinaryLayout a -> BinaryOrder -> ByteReader r ->{IO r} (Result BinaryStreamError a, ByteReader r)
+  binary-read layout order source =
+    let size = binary-size layout in let frame = bytes-new size in
+    read-frame layout order source frame size 0
+
+  -- | Fill one private frame directly, retaining no mutable source chunk across reads.
+  read-frame :: forall r a. using (io :: Io r) => BinaryLayout a -> BinaryOrder -> ByteReader r -> Bytes -> Nat -> Nat ->{IO r} (Result BinaryStreamError a, ByteReader r)
+  read-frame layout order source frame required got =
+    if got >= required then case binary-decode layout order frame of
+      Err error -> (Err (BinaryFormatFailure error), source)
+      Ok pair -> case pair of (value, used) -> (Ok value, source)
+    else
+      let left = required - got in case stream-read source left of
+        (Err error, advanced) -> (Err (BinaryInputFailure got error), advanced)
+        (Ok input, advanced) -> if bytes-len input == 0 then
+          if got == 0 then (Err BinaryEndOfInput, advanced)
+          else (Err (BinaryInputFailure got (StreamUnexpectedEnd required got)), advanced)
+          else if got + bytes-len input <= bytes-len frame then
+            let copied = bytes-copy-range frame input got 0 (bytes-len input) in
+            let next = got + bytes-len input in read-frame layout order advanced frame required next
+          else (Err (BinaryInputFailure got (StreamInvalidCount left (bytes-len input))), advanced)
+
+  -- | Write a whole private encoding, returning accepted wire bytes and the advanced writer.
+  -- Invalid values fail before touching the writer; zero-sized values do not invoke it.
+  binary-write :: forall r a. using (io :: Io r) => BinaryLayout a -> BinaryOrder -> ByteWriter r -> a ->{IO r} (Result BinaryStreamError Nat, ByteWriter r)
+  binary-write layout order sink value = case binary-encode layout order value of
+    Err error -> (Err (BinaryFormatFailure error), sink)
+    Ok bytes -> write-frame sink bytes
+
+  -- | Offer an independent complete frame once, then adapt retries to actual accepted counts.
+  -- Callback mutation cannot corrupt bytes retained privately for a later short-write retry.
+  write-frame :: forall r. using (io :: Io r) => ByteWriter r -> Bytes ->{IO r} (Result BinaryStreamError Nat, ByteWriter r)
+  write-frame sink bytes =
+    if bytes-len bytes == 0 then (Ok 0, sink)
+    else let offered = part bytes 0 (bytes-len bytes) in case stream-write sink offered of
+      (Err error, advanced) -> (Err (BinaryOutputFailure 0 error), advanced)
+      (Ok count, advanced) ->
+        if count == bytes-len bytes then (Ok count, advanced)
+        else if count == 0 then (Err (BinaryOutputFailure 0 (StreamShortWrite (bytes-len bytes) 0)), advanced)
+        else write-retries advanced bytes count count
+
+  -- | Retry at most twice the last successful chunk size; copied retry bytes stay linear in total progress.
+  -- An error reports guaranteed earlier acceptance, since callbacks cannot return simultaneous data and failure.
+  write-retries :: forall r. using (io :: Io r) => ByteWriter r -> Bytes -> Nat -> Nat ->{IO r} (Result BinaryStreamError Nat, ByteWriter r)
+  write-retries sink bytes offset hint =
+    if offset >= bytes-len bytes then (Ok offset, sink)
+    else
+      let left = bytes-len bytes - offset in let amount = if hint < left then hint else left in
+      let chunk = part bytes offset amount in case stream-write sink chunk of
+        (Err error, advanced) -> (Err (BinaryOutputFailure offset error), advanced)
+        (Ok count, advanced) -> if count == 0 then
+          (Err (BinaryOutputFailure offset (StreamShortWrite (bytes-len bytes) offset)), advanced)
+          else
+            let next = offset + count in let following = if count == amount then count * 2 else count in
+            write-retries advanced bytes next following
+
+  -- | Read one unsigned base-128 integer, stopping at its terminator or after ten consumed bytes.
+  -- Empty EOF is BinaryEndOfInput; partial EOF preserves its count in BinaryInputFailure.
+  binary-read-uvarint :: forall r. using (io :: Io r) => ByteReader r ->{IO r} (Result BinaryStreamError (U64, Nat), ByteReader r)
+  binary-read-uvarint source = read-varint-prefix source 0 0 0
+
+  -- | Carry the exact bounded varint prefix through one-byte stream requests without overreading.
+  read-varint-prefix :: forall r. using (io :: Io r) => ByteReader r -> Nat -> U32 -> U64 ->{IO r} (Result BinaryStreamError (U64, Nat), ByteReader r)
+  read-varint-prefix source used shift acc =
+    if used == 10 then (Err (BinaryFormatFailure (BinaryVarintOverflow 10)), source)
+    else case stream-read source 1 of
+      (Err error, advanced) -> (Err (BinaryInputFailure used error), advanced)
+      (Ok bytes, advanced) ->
+        if bytes-len bytes == 0 then
+          if used == 0 then (Err BinaryEndOfInput, advanced)
+          else let required = used + 1 in (Err (BinaryInputFailure used (StreamUnexpectedEnd required used)), advanced)
+        else if 0 < bytes-len bytes then
+          let byte = bytes-get bytes 0 in let count = used + 1 in
+          if byte < 128 then
+            if used == 9 && byte > 1 then (Err (BinaryFormatFailure (BinaryVarintOverflow count)), advanced)
+            else let lane = wrapping-i64-to-u64 (nat-to-i64 byte) in
+              let value = bit-or-u64 acc (wrapping-shl-u64 lane shift) in (Ok (value, count), advanced)
+          else
+            let lane = wrapping-i64-to-u64 (nat-to-i64 (nat-rem byte 128)) in
+            let value = bit-or-u64 acc (wrapping-shl-u64 lane shift) in let next-shift = wrapping-add-u32 shift 7 in
+            read-varint-prefix advanced count next-shift value
+        else (Err BinaryEndOfInput, advanced)
+
+  -- | Read and inverse-zigzag one signed integer without reading bytes from the following frame.
+  binary-read-varint :: forall r. using (io :: Io r) => ByteReader r ->{IO r} (Result BinaryStreamError (I64, Nat), ByteReader r)
+  binary-read-varint source = case binary-read-uvarint source of
+    (Err error, advanced) -> (Err error, advanced)
+    (Ok pair, advanced) -> case pair of
+      (word, count) ->
+        let value = wrapping-u64-to-i64 (wrapping-shr-u64 word 1) in
+        (Ok ((if eq-u64 (bit-and-u64 word 1) 1 then bit-not-i64 value else value), count), advanced)
+
+  -- | Write one minimal unsigned varint, preserving accepted-byte progress and the advanced sink.
+  binary-write-uvarint :: forall r. using (io :: Io r) => ByteWriter r -> U64 ->{IO r} (Result BinaryStreamError Nat, ByteWriter r)
+  binary-write-uvarint sink value = write-frame sink (binary-encode-uvarint value)
+
+  -- | Write one minimal signed zigzag varint, preserving accepted-byte progress and the advanced sink.
+  binary-write-varint :: forall r. using (io :: Io r) => ByteWriter r -> I64 ->{IO r} (Result BinaryStreamError Nat, ByteWriter r)
+  binary-write-varint sink value = write-frame sink (binary-encode-varint value)
