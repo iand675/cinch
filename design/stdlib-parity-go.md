@@ -24,7 +24,7 @@ is not an available API.
 | `encoding/base32` | [Text.Base32](../library/Text.Base32.md) | RFC 4648 standard and extended-hex alphabets, padded and raw forms, CR/LF tolerance, final-quantum validation | Custom alphabets/padding, stream adapters |
 | `hash/adler32` | [Text.Adler32](../library/Text.Adler32.md), [Effect.Adler32](../library/Effect.Adler32.md), [Text.Checksum](../library/Text.Checksum.md) | SIMD bounded-segment checksums, persistent states, numeric/byte digests, reset, copied-prefix append, checked checkpoints and stream sinks/copies | All four recorded declarations and returned hash/clone/state capabilities mapped; ownership and streaming costs are documented |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
-| `hash/crc64` | [Text.Checksum](../library/Text.Checksum.md) | ISO, ECMA and custom reflected polynomials, incremental update | Table acceleration, stream adapters, serialized state |
+| `hash/crc64` | [Text.Crc64](../library/Text.Crc64.md), [Effect.Crc64](../library/Effect.Crc64.md), [Text.Checksum](../library/Text.Checksum.md) | Immutable SIMD-built tables, packed slicing-by-eight updates, persistent states, numeric/byte digests, reset, prefix-preserving append, table-checked checkpoints and stream sinks/copies | All eleven recorded declarations and returned hash/clone/state capabilities mapped; prepared-table setup and stream-copy costs are documented |
 | `hash/fnv` | [Text.Fnv](../library/Text.Fnv.md), [Text.Fnv.State](../library/Text.Fnv.State.md), [Effect.Fnv](../library/Effect.Fnv.md) | All six variants, numeric and byte digests, persistent states, reset, copied-prefix append, checked checkpoints and inspectable stream sinks/copies | All six constructors and returned hash/clone/state capabilities mapped; allocation and stream-copy costs are documented |
 | `io` | [Effect.Stream](../library/Effect.Stream.md) | Explicit reader/writer continuations, memory and borrowed-descriptor adapters, limited/concatenated/mirrored sources, broadcast sinks, exact/minimum/all reads, full writes, bulk and limited copies | Random access, seek/close/flush capabilities, pipes and cancellation, section/offset adapters |
 
@@ -50,7 +50,7 @@ be reassociated into independent lanes for a single message.
 loads and retains the backing owner until each load completes. Writes use
 checked byte access. SIMD/SWAR format kernels accept machine words; the raw
 load helper stays private. Short tails retain the scalar semantics, and no
-block overreads its input. Table acceleration is still open.
+block overreads its input. CRC-64 has prepared slicing tables; CRC-32 table acceleration is still open.
 
 `Effect.Stream` preserves advanced handles after failures and snapshots buffers
 retained by memory sources and sinks. Its native consumers run with reference
@@ -60,8 +60,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records six functionally complete, 62 partial
-and 112 unreviewed packages. ASCII85, hexadecimal, UTF-16, FNV, Adler-32 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records seven functionally complete, 61 partial
+and 112 unreviewed packages. ASCII85, hexadecimal, UTF-16, FNV, Adler-32, CRC-64 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
@@ -121,10 +121,32 @@ append and checked eight-byte checkpoints. `Effect.Adler32` carries the scalar
 state directly through bounded stream copies, including after source failures.
 Both compilers validate this standalone API. The separate CRC assembly definitions
 in `Text.Checksum` remain unsupported by the self-built frontend; this increment
-does not repair or promote the CRC packages. The benchmark notes retain matched
+does not repair or promote CRC-32. CRC-64 now has an independently validated standalone home. The benchmark notes retain matched
 before/after pipelines and controls. Runtime fixture setup also avoids a known
 Rust compiler stack overflow on large constant corpus initialization; that
 compiler limitation remains open.
+
+CRC-64 now has a standalone `Text.Crc64` home. `crc64-table` builds an
+immutable base table and seven derived slices using pairs of SIMD polynomial
+entries; read-only indexed and list views expose all 256 base values. Reusing a
+table avoids its 16 KiB allocation and construction cost. Updates consume packed
+eight-byte words with masked table lookups and exact tails. The private traversal
+retains both backing owners around its machine-counter loop, replacing generated
+natural-number tag, overflow and ownership checks inside each block. Polynomial
+conveniences prepare a table at 16 KiB and above, where measured setup costs are
+amortized; shorter inputs keep the direct shift-register path.
+
+Persistent CRC-64 states expose numeric and network-order digests, reset without
+changing polynomial, copied-prefix append and twenty-byte binary checkpoints.
+The checkpoint contains `crc`, version 2, the ISO checksum of the base entries in
+network order and the full checksum. Loading validates identity before exact
+length and then table matching. `Effect.Crc64` preserves the advanced reader and
+last valid checksum on failed copies. Independent vectors cover every base entry
+for seven polynomials, 350 complete digest/checkpoint cases, 525 arbitrary restored
+updates and 791 malformed checkpoints, including the 16 KiB selection boundary.
+An optimized poisoned-free case repeatedly releases ephemeral input/table owners.
+Prepared tables, fresh serialization buffers and owned stream chunks have explicit
+allocation costs; equivalent results do not imply matching allocation behavior.
 
 ### Using the additions
 

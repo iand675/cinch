@@ -519,3 +519,61 @@ the compiler change. No throughput improvement for existing word-only operations
 is claimed. [Validation evidence](../../bootstrap/stdlib-prim-wide-validation-results.json)
 records the exact compiler/source identities, 297 unit tests, existing primitive
 and wide regressions, foreign object compilation and the pinned bootstrap gate.
+
+## Prepared CRC-64 tables, states and streams
+
+`Text.Crc64` prepares an immutable 16 KiB slicing-by-eight table from any
+reflected polynomial. SIMD generates two independent base entries at a time;
+the x86 output uses packed shifts, masks and XORs. Updates combine one packed
+input word with eight masked table entries and consume exact scalar tails.
+The table and input owners remain alive around the private traversal. Persistent
+states retain their table, expose numeric/network-order digests and reset,
+append to copied prefixes, and save/load twenty-byte table-checked checkpoints.
+`Effect.Crc64` provides inspectable writes, generic sinks and bounded copying.
+
+[Final samples](crc64-state-O2-2026-11-16.json) cover eight workloads and four
+input sizes: polynomial convenience, prepared table, state/digest, checkpoint
+round trip, 64/4096-byte stream chunks, construction and an Adler-32 control.
+All 32 rows match the independent SDK's observable results. The shared prepared
+table is initialized before timing. The explicit build workload and large
+polynomial convenience measure their own table construction.
+Construction intentionally prepares eight slices and caches the checkpoint
+fingerprint; the SDK's public custom-table constructor prepares only the base
+row. These construction workloads therefore have different work and storage
+costs. Input cloning, per-chunk owned buffers and fresh digest/checkpoint
+allocations remain included in their corresponding public pipelines.
+
+The first prepared-table loop still emitted natural-number tag, overflow and
+ownership paths within each block. Fixed-width remaining-length counters remove
+those paths while preserving complete-word and positive-tail bounds. The
+[isolated alternating comparison](interleaved-crc64-word-counter-O2-2026-11-16.json)
+measures about 1.56x for the 64 KiB prepared-table pipeline; the 64 KiB Adler
+control varied by about 8%. The generated word loop has masked scalar loads,
+XORs and tail jumps, with no natural-number runtime calls or owner operations.
+
+The polynomial convenience API now prepares a table from 16 KiB upward, leaving
+short buffers on the direct shift-register path. A separate
+[alternating comparison](interleaved-crc64-auto-table-O2-2026-11-16.json) measures
+1.85x at 16 KiB and 5.56x at 64 KiB for that convenience, including table setup.
+Its Adler controls differ by at most 5.7%. Retaining a prepared table amortizes
+construction across repeated updates. Results are local paired measurements;
+the reports retain every sample and both source identities.
+
+[Ordinary-space probes](crc64-space-2026-11-16.json) measure one complete
+64 KiB operation with normal reclamation, including startup, common input
+setup and table construction. The prepared-table pipeline peaks at 82288 bytes;
+64-byte stream copying peaks at 148073 bytes and allocates 6798 blocks, versus
+236 blocks with 4096-byte chunks. Every probe finishes with zero live allocations.
+These are complete pipeline counts, not isolated kernel costs. Separate poisoned
+runs use quarantine for ownership validation and do not measure ordinary live space.
+
+The [natural-counter baseline patch](crc64-natural-counter-baseline.patch)
+and [counter-only patch](crc64-counter-before-auto-table.patch) reconstruct
+the measured intermediate sources from this checkpoint's `Text/Crc64.cinch`.
+Apply either patch to a temporary copy, check its SHA-256 against the linked
+report and use `bench_stdlib.py --source-override Text.Crc64=PATH` to reproduce
+that source snapshot. The corresponding unpaired reports are
+[initial tables](crc64-natural-counter-O2-2026-11-16.json) and
+[counter-only traversal](crc64-counter-before-auto-table-O2-2026-11-16.json).
+Compiler, driver, runtime and optimization identities match in each paired
+comparison. No allocation or universal throughput parity is claimed.

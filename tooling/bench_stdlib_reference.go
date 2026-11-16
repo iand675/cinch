@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"hash"
 	"hash/adler32"
+	"hash/crc64"
 	"hash/fnv"
 	"io"
 	"math/bits"
@@ -97,8 +98,61 @@ func fnvState(variant int) hash.Hash {
 	}
 }
 
+// crc64Prepared initializes the standard polynomial before any sample clock starts.
+var crc64Prepared = crc64.MakeTable(crc64.ECMA)
+
 // operation exercises a public buffer or stream pipeline and consumes its output.
 func operation(mode int, input []byte) uint64 {
+	if mode == 9 || mode == 72 {
+		return crc64.Checksum(input, crc64Prepared)
+	}
+	if mode >= 73 && mode <= 77 {
+		if mode == 77 {
+			var first uint64
+			if len(input) > 0 {
+				first = uint64(input[0])
+			}
+			return crc64.MakeTable(crc64.ECMA ^ first)[255]
+		}
+		h := crc64.New(crc64Prepared)
+		if mode == 73 {
+			h.Write(input)
+			return fingerprint(h.Sum(nil))
+		}
+		if mode == 74 {
+			h.Write(input)
+			saved, err := h.(encoding.BinaryMarshaler).MarshalBinary()
+			if err != nil {
+				return 1000000000
+			}
+			loaded := crc64.New(crc64Prepared)
+			if err := loaded.(encoding.BinaryUnmarshaler).UnmarshalBinary(saved); err != nil {
+				return 1000000000
+			}
+			return fingerprint(saved) + fingerprint(loaded.Sum(nil))
+		}
+		chunkSize := 64
+		if mode == 76 {
+			chunkSize = 4096
+		}
+		source := bytes.NewReader(bytes.Clone(input))
+		chunk := make([]byte, chunkSize)
+		var count uint64
+		for {
+			n, err := source.Read(chunk)
+			if n > 0 {
+				h.Write(chunk[:n])
+				count += uint64(n)
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return 1000000000
+			}
+		}
+		return count + fingerprint(h.Sum(nil))
+	}
 	if mode >= 68 && mode <= 71 {
 		h := adler32.New()
 		if mode == 68 {
@@ -342,6 +396,20 @@ func operation(mode int, input []byte) uint64 {
 // workloadCode resolves command-line text outside the measured interval.
 func workloadCode(name string) int {
 	switch name {
+	case "crc64":
+		return 9
+	case "crc64-table":
+		return 72
+	case "crc64-state":
+		return 73
+	case "crc64-roundtrip":
+		return 74
+	case "crc64-stream":
+		return 75
+	case "crc64-stream4096":
+		return 76
+	case "crc64-table-build":
+		return 77
 	case "adler32":
 		return 6
 	case "adler32-state":
@@ -518,7 +586,7 @@ func main() {
 				input[0] = byte(i % 256)
 			}
 		}
-		checksum = (checksum + operation(mode, input)) % 1000000007
+		checksum = (checksum + operation(mode, input)%1000000007) % 1000000007
 	}
 	fmt.Printf("%d %d\n", time.Since(start).Nanoseconds(), checksum)
 }
