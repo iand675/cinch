@@ -1,0 +1,321 @@
+{
+  "description": "Standalone slash-path lexical operations and reusable checked shell patterns. Full stdlib goal remains open.",
+  "full_stdlib_goal_complete": false,
+  "status": "CLI validation passed; Rust test target awaits coordinated parent integration",
+  "source_sha256": {
+    "compiler/prelude/Text/Path.cinch": "8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad",
+    "compiler/tests/lib_path.rs": "3c440981c2646f4cf193d86342e8a6ca0036b522d2c90d753f8d9119a0a90451",
+    "compiler/tests/fixtures/path-vectors.json": "b32919543e47ea59740ade28380f822a9591b5fd13c33ba5619b95a176d6feb6",
+    "compiler/tests/fixtures/path-consumer-helpers.cinchpart": "e7a4742c3343046abcf9a97221691e03f9649b5b91c3344af52ccc11ce185f83",
+    "compiler/tests/fixtures/path-owner-consumer.cinchpart": "6053f92444e6d5edc8524505e3d16d79f3ae65d72f42c44fd5b1ff084c60dca1",
+    "compiler/tests/fixtures/path-kernel-entry.cinchpart": "3d71b904a5465b5f1ff162a9fc31c8a9127d8b2444000d1b47e060764c00bc16",
+    "tooling/go_path_vectors.go": "38b83cd741d5bf72df0081cce5d1e0bb730fb4e69e6d454cc1205de01c98c5b9",
+    "tooling/validate_path.py": "36e1de3991a815cb370ef69b7f10512e41f93ba00581ce8fbeceb35ec73199c4",
+    "tooling/bench_path.py": "0356817980bd6c7b771bb71ed9b573de0a32ec24a5bc97920820941476954a2e",
+    "tooling/bench_path_reference.go": "569b4552224b4bfa4de862222465df1c22f07b26aa25d2b841e5bb67f9266a9c"
+  },
+  "compilers": {
+    "rust_cli_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "native_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "native_frontend_wrapper_sha256": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+    "compiler_implementation_unchanged": true
+  },
+  "fixture_rows": {
+    "globs": 2347,
+    "joins": 170,
+    "lexical": 364
+  },
+  "fixtures_reproduce_byte_for_byte": true,
+  "cli_validation": {
+    "rust_o2": [
+      {
+        "group": "lexical",
+        "cases": 364,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "joins",
+        "cases": 170,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "globs",
+        "cases": 2347,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      }
+    ],
+    "native_stage3": [
+      {
+        "group": "lexical",
+        "cases": 364,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "joins",
+        "cases": 170,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "globs",
+        "cases": 2347,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      }
+    ],
+    "baseline_rust_o2": [
+      {
+        "group": "lexical",
+        "cases": 364,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "joins",
+        "cases": 170,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "globs",
+        "cases": 2347,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      }
+    ],
+    "rust_o2_owners": [
+      {
+        "group": "owners",
+        "cases": 1,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      }
+    ],
+    "native_owners": [
+      {
+        "group": "owners",
+        "cases": 1,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      }
+    ],
+    "owner_iterations": 100,
+    "owner_input_bytes": 16385,
+    "ordinary_heap": "32M",
+    "stack": "8M",
+    "separate_poisoned_free_heap": "256M",
+    "zero_leaks_all_modes": true
+  },
+  "rust_test_target": {
+    "name": "lib_path",
+    "defined_tests_including_shared_profiles": 9,
+    "expected_selected_native_tests": 7,
+    "shared_profile_tests": 3,
+    "not_run_in_lane_by_parent_coordination": true,
+    "explicit_rust_only_cases": [
+      "optimized borrowed-owner stress",
+      "foreign object profiles including big-endian PowerPC"
+    ]
+  },
+  "foreign_objects": [
+    {
+      "triple": "wasm32-unknown-unknown",
+      "ir_sha256": "6b164e5332e92d67e4a3682f42137c52e76bcf8b1ec4eb25da6e4e2eae98e70a",
+      "object_sha256": "3feec929708519a5a25daf168f2965e8a0fe7088935b7727c179cc7acdbf28ff",
+      "actual_profile_checked": true,
+      "executed": false
+    },
+    {
+      "triple": "aarch64-unknown-linux-gnu",
+      "ir_sha256": "49afd1fb0264eb9f08721f0ab60f99d81bf9cf7e1be51347a0853b6c65c576ae",
+      "object_sha256": "0a26fbe6a924cb861946814fd5fd3ab1b5bbe2379675b6d58cfafe327838ad2e",
+      "actual_profile_checked": true,
+      "executed": false
+    }
+  ],
+  "documentation": {
+    "declarations": 60,
+    "diagnostics": 0,
+    "orphans": 0,
+    "all_canonical": true,
+    "new_comments_have_no_reference_language_mentions": true
+  },
+  "benchmarks": {
+    "paired_rows": 32,
+    "all_independent_checksums_match": true,
+    "report": "../benchmarks/stdlib/path-counter-O2-2026-11-16.json",
+    "space_report": "../benchmarks/stdlib/path-space-2026-11-16.json",
+    "baseline_patch": "../benchmarks/stdlib/path-natural-counter-baseline.patch",
+    "baseline_patch_reconstruction_hash_matches": true,
+    "word_loop_natural_number_and_owner_operations_removed": true,
+    "control_range_before_over_after": [
+      0.9910814782540566,
+      1.085352243850937
+    ],
+    "allocation_or_throughput_parity_claimed": false
+  },
+  "codegen": {
+    "seek-forward": {
+      "assembly_sha256": "c1f71dea465f7fc9cc6e547db458cb88021f896820e9f50fcdd0ab94fe6d0a34",
+      "lines": 292,
+      "calls": [],
+      "natural_number_or_owner_runtime_calls": false
+    },
+    "skip-forward": {
+      "assembly_sha256": "b39bdd013edf003873e38cd496284919a607bab216876d2552b821ef298ed7a7",
+      "lines": 283,
+      "calls": [],
+      "natural_number_or_owner_runtime_calls": false
+    },
+    "meta-forward": {
+      "assembly_sha256": "a9cbabb833db580540d14cca15c284c2eed66b54c912dddeced0d7c292a2349c",
+      "lines": 117,
+      "calls": [],
+      "natural_number_or_owner_runtime_calls": false
+    },
+    "forward-tail": {
+      "assembly_sha256": "7378e9ad21741372eddcdd7068a77ce3ac8d5e86ea69778a952b116872ad6fb1",
+      "lines": 212,
+      "calls": [],
+      "natural_number_or_owner_runtime_calls": false
+    },
+    "trim-backward#cc": {
+      "assembly_sha256": "99c8295c17bc88ec063d559bfaf974f88f4fbba285b73fd0b0c7a2b05ea24900",
+      "lines": 137,
+      "calls": [],
+      "natural_number_or_owner_runtime_calls": false
+    },
+    "seek-backward#cc": {
+      "assembly_sha256": "2f57d07a221fb36877f6fdad9ce41bcd5549e2294ecef33046dfb996a75b14a9",
+      "lines": 129,
+      "calls": [],
+      "natural_number_or_owner_runtime_calls": false
+    },
+    "extension-backward#cc": {
+      "assembly_sha256": "f317fef75844e62e4f7bc521b993eeeb0fe7e5691a84ed6b22064b87624addaf",
+      "lines": 99,
+      "calls": [],
+      "natural_number_or_owner_runtime_calls": false
+    },
+    "backward-tail": {
+      "assembly_sha256": "ff7b2552e19a9fab78a9567f5019f788f2b87cfb8037f94634959a1cc75c5a25",
+      "lines": 77,
+      "calls": [
+        "\"Text.Path.backward-tail.shared0#cc\"@PLT"
+      ],
+      "natural_number_or_owner_runtime_calls": false
+    },
+    "equal-literal": {
+      "assembly_sha256": "36ab9808c4cf85e7c0155608ac23a5fe1eb6f5d7eab7bd440a5ee11f5506f849",
+      "lines": 111,
+      "calls": [],
+      "natural_number_or_owner_runtime_calls": false
+    },
+    "equal-literal-tail": {
+      "assembly_sha256": "e40d801b3b4bc60cc5b3fee725c6e4876fc94cf5e03d8785a3a305e42c2f5bf4",
+      "lines": 96,
+      "calls": [],
+      "natural_number_or_owner_runtime_calls": false
+    }
+  },
+  "limitations": [
+    "String APIs accept valid UTF-8; no raw invalid-UTF-8 path carrier is introduced.",
+    "Cleaning and lexical readers allocate private byte/text copies; the reference can reuse unchanged strings.",
+    "Compiled matches retain literal buffers but still allocate temporary chunk list structure during matching.",
+    "Star candidate positions advance by bytes; Unicode classes and question marks decode a scalar at that position, treating skipped UTF-8 continuation bytes as one replacement scalar.",
+    "Large constant fixture construction uses a runtime-size identity to avoid an existing Rust compile-time evaluator stack overflow; that compiler limitation is not claimed fixed.",
+    "Foreign object compilation does not establish foreign runtime behavior."
+  ]
+}

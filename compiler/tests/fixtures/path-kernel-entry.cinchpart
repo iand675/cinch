@@ -1,0 +1,15 @@
+  -- | Retain exact fixture storage until a borrowed result has completed.
+  keep :: forall a. Bytes -> a -> a
+  keep bytes value = case bytes-len bytes of _ -> value
+  -- | Keep every scan mode and raw literal comparison reachable without claiming foreign execution.
+  main :: Int
+  main =
+    let bytes = bytes-new 64 in
+    let a = keep bytes (scan-forward (bytes-data bytes) 0 64 0) in
+    let b = keep bytes (scan-forward (bytes-data bytes) 0 64 1) in
+    let c = keep bytes (scan-forward (bytes-data bytes) 0 64 2) in
+    let d = keep bytes (scan-backward (bytes-data bytes) 64 0) in
+    let e = keep bytes (scan-backward (bytes-data bytes) 64 1) in
+    let f = keep bytes (scan-backward (bytes-data bytes) 64 2) in
+    let same = keep bytes (equal-literal (bytes-data bytes) (bytes-data bytes) 64) in
+    if eq-i64 a 64 && eq-i64 b 0 && eq-i64 c 64 && eq-i64 d 64 && eq-i64 e 0 && eq-i64 f 64 && same then 0 else 1

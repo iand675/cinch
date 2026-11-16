@@ -1,0 +1,14 @@
+  -- | Exercise each raw scanner and compare a retained pattern with independently allocated names.
+  lifetime :: Nat -> String -> PathPattern -> Bool
+  lifetime count raw pattern = if count == 0 then True else
+    let text = runtime-text raw in
+    path-clean (string-concat text "/../x") == "x"
+      && path-base (string-concat "a/" text) == text
+      && path-ext text == empty-string
+      && path-pattern-match pattern text
+      && lifetime (count - 1) raw pattern
+  -- | Capture private literal storage originating in a temporary pattern text.
+  owner-case :: Unit -> Bool
+  owner-case unit = let size = u32-to-nat (runtime-size 16385) in let raw = string-repeat size "x" in case path-pattern (runtime-text (string-concat raw "*")) of
+    Err error -> False
+    Ok compiled -> lifetime 100 raw compiled
