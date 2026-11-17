@@ -1,0 +1,274 @@
+{
+  "schema_version": 1,
+  "status": "static-unqualified-proposal",
+  "scope": "isolated random-library surface audit, concrete dependency-backed proposals, independent unexecuted fixtures and future benchmark plan",
+  "proposal_base_lane_head": "98d43161764cdbd3d3c06c6bdcac3025a40cebd0",
+  "audited_root_head": "f30db1451460d4571273637218233f589f984230",
+  "root_worktree": "/workspace/dasl-stdlib-io",
+  "sdk": {
+    "root": "/tmp/cinch-go-current/go",
+    "version": "go1.27.4\ntime 2026-11-02T20:36:20Z",
+    "binary_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+    "public_surface": [
+      {
+        "path": "src/crypto/rand/rand.go",
+        "line": 34,
+        "declaration": "var Reader io.Reader = rand.Reader"
+      },
+      {
+        "path": "src/crypto/rand/rand.go",
+        "line": 47,
+        "declaration": "func Read(b []byte) (n int, err error) {"
+      },
+      {
+        "path": "src/crypto/rand/text.go",
+        "line": 14,
+        "declaration": "func Text() string {"
+      },
+      {
+        "path": "src/crypto/rand/util.go",
+        "line": 21,
+        "declaration": "func Prime(r io.Reader, bits int) (*big.Int, error) {"
+      },
+      {
+        "path": "src/crypto/rand/util.go",
+        "line": 71,
+        "declaration": "func Int(rand io.Reader, max *big.Int) (n *big.Int, err error) {"
+      }
+    ],
+    "relevant_source_identities": [
+      {
+        "path": "VERSION",
+        "sha256": "28ff77ac2178f2faca8a4f535e60b1738e397c9086b3ecfc18c9955abe75634a",
+        "bytes": 35
+      },
+      {
+        "path": "src/crypto/rand/rand.go",
+        "sha256": "7c289648d453d0bdca0f05091d00bb86c94b69637080c748ff3d3476677521ac",
+        "bytes": 2362
+      },
+      {
+        "path": "src/crypto/rand/util.go",
+        "sha256": "109920499d49126f14b7d78469d4863035da5c5ad3e4737bf5056a9123fb172c",
+        "bytes": 2843
+      },
+      {
+        "path": "src/crypto/rand/text.go",
+        "sha256": "c2c7d3bc9f093676f362b9e22772b6ab2d48acd6c06ca85fea0fef4741c17ce4",
+        "bytes": 833
+      },
+      {
+        "path": "src/crypto/internal/rand/rand.go",
+        "sha256": "05cd001af939810177933adb53a5321be90a12ed032019c9391108015d340ca5",
+        "bytes": 2136
+      },
+      {
+        "path": "src/crypto/internal/fips140only/fips140only.go",
+        "sha256": "5d6822d08c317a7a4e9865b0ba70d1198a5a208567213f7a12cacc78f9bbf268",
+        "bytes": 663
+      },
+      {
+        "path": "src/crypto/fips140/fips140.go",
+        "sha256": "8a9e62523e766e1717af8e9b1fbf6253ae81fa7ca0cad6e0f3beba131f55557b",
+        "bytes": 1737
+      },
+      {
+        "path": "src/crypto/fips140/enforcement.go",
+        "sha256": "b8106111dbbf1a1b2eb3b7123d5d6affe61cc22b4f5ea4510fc187ac0e401531",
+        "bytes": 1269
+      },
+      {
+        "path": "src/math/big/prime.go",
+        "sha256": "783e8e94c38db53b28b67ffacecbdb6efb7b04f5ee50e77666a530ac10956609",
+        "bytes": 10789
+      },
+      {
+        "path": "src/io/io.go",
+        "sha256": "3945d328a9072e4f5970b7d4bc0eb834eec29fd22889a1ed9f3fb76ad41c3274",
+        "bytes": 23003
+      }
+    ]
+  },
+  "audited_dependency_sources": [
+    {
+      "path": "compiler/prelude/Data/Core.cinch",
+      "sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+      "bytes": 1597,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Data/Nat.cinch",
+      "sha256": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b",
+      "bytes": 6929,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Data/Int.cinch",
+      "sha256": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea",
+      "bytes": 5007,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Data/Bytes.cinch",
+      "sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+      "bytes": 9223,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Data/Bytes/Word.cinch",
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "bytes": 4243,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Data/Machine.cinch",
+      "sha256": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032",
+      "bytes": 103711,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Data/Option.cinch",
+      "sha256": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01",
+      "bytes": 7511,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Data/Result.cinch",
+      "sha256": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d",
+      "bytes": 6313,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Data/String.cinch",
+      "sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+      "bytes": 26887,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Effect/Random.cinch",
+      "sha256": "75d3f181771dfa42e5c912f04c9a003e943b3e6eb7ebabe45eefa9e028be9216",
+      "bytes": 7825,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Effect/Stream.cinch",
+      "sha256": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+      "bytes": 23587,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Effect/Buffered/Core.cinch",
+      "sha256": "10f5c2ae23a9171d1cf967de98f6b9e6300c93b7fbb5a8fb45b389d6f411c4b1",
+      "bytes": 20597,
+      "matches_captured_head": true
+    },
+    {
+      "path": "compiler/prelude/Text/Base32.cinch",
+      "sha256": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
+      "bytes": 56135,
+      "matches_captured_head": true
+    },
+    {
+      "path": "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
+      "sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+      "bytes": 14195,
+      "matches_captured_head": true
+    },
+    {
+      "path": "experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch",
+      "sha256": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
+      "bytes": 2585,
+      "matches_captured_head": true
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "AUDIT.md",
+      "sha256": "bd8cc47cb4a642463a33bcfec5269b3c5adc0039cd9b82702a64239611d420a5",
+      "bytes": 8596
+    },
+    {
+      "path": "BENCHMARK_PLAN.md",
+      "sha256": "455c815991828f354bdbb81c3412f9a12ec8640146c9576878a571d30975fef2",
+      "bytes": 2685
+    },
+    {
+      "path": "PRIME_API.md",
+      "sha256": "57b98ebddbdc02fa3eeb3f610172b642aaa83cc47931f50d9070ff936eb211af",
+      "bytes": 3331
+    },
+    {
+      "path": "QUALIFICATION_PLAN.md",
+      "sha256": "5fd12c9bb505e4790e543168c806ed7d0861803bc65c764a9ce6d5df06ddbafd",
+      "bytes": 4593
+    },
+    {
+      "path": "README.md",
+      "sha256": "06082d275733b928785a94916045db19c409d7ce98deb9e3c654f621def42f85",
+      "bytes": 1883
+    },
+    {
+      "path": "STATIC_REVIEW.json",
+      "sha256": "388beb3cc02c62f0ed96eff64dccb02a649c4e9d8a598d2a745eb8d9f7121d15",
+      "bytes": 10596
+    },
+    {
+      "path": "proposed/Data.Nat.Bytes.cinch",
+      "sha256": "061edfc77ee37fdbad18db598aeb0ddc96c6bdab0bd4a4cc8673e438584f69c6",
+      "bytes": 2570
+    },
+    {
+      "path": "proposed/Data.Prime.Candidate.cinch",
+      "sha256": "70c82d03f134da6b1f35c1e00846d8d4902a2594ff52125a6f551aef1bc800a9",
+      "bytes": 3130
+    },
+    {
+      "path": "proposed/Effect.Random.Buffer.cinch",
+      "sha256": "8818f29bfffbda334aab13df0f186f5b509c789585de35b419f90d254682a8b2",
+      "bytes": 3049
+    },
+    {
+      "path": "proposed/Effect.Random.Read.cinch",
+      "sha256": "ea45364cfa809b208b06baf48b81e9ca35be36c69dac8134fb306d93548fe376",
+      "bytes": 2540
+    },
+    {
+      "path": "proposed/Effect.Random.Text.cinch",
+      "sha256": "20b3ed1ff495f101272bbd7ef1e7ea96b03d4ec00ec1260cfb496d6b1b1e8cf2",
+      "bytes": 1836
+    },
+    {
+      "path": "proposed/Effect.Random.Uniform.cinch",
+      "sha256": "8e70fcdbe63afc769bf78f353e0d241e01279b237262cab7c8aac0725ba6b5b5",
+      "bytes": 7159
+    },
+    {
+      "path": "proposed/Text.Token.cinch",
+      "sha256": "694407e678c002b966fc4ab46b1977d4ff2a362f1a81dc16dbc5223e40a000ce",
+      "bytes": 4302
+    },
+    {
+      "path": "reference/INVOCATION_PLAN.json",
+      "sha256": "21b4dadab65786d86cf0fb2146dd90246a41ec8a417a3053922a13089bac5108",
+      "bytes": 2091
+    },
+    {
+      "path": "reference/generate.go",
+      "sha256": "b54d9f6729d00c270bc07cc81ffb406d5eadde9bba703814f5f5ec9d5404460f",
+      "bytes": 12275
+    }
+  ],
+  "executions": {
+    "sdk_build": false,
+    "compiler": false,
+    "proposed_code": false,
+    "fixture_generator": false,
+    "runtime": false,
+    "timing": false,
+    "only_checks": "Read-only source inspection, metadata/hash calculation, textual declaration/doc checks and git whitespace checks."
+  },
+  "production_edits": false,
+  "sealed_provider_edits": false,
+  "full_prime_implementation": "blocked: maintained modular arithmetic/primality/policy qualification dependencies",
+  "budget_bytes": 5242880
+}
