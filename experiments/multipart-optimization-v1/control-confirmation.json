@@ -1,0 +1,1144 @@
+{
+  "scope": "Confirm three control pipelines using existing sealed programs and a fresh report.",
+  "runner_sha256": "bda6fbf529327aba1b3227bf06a0869a086d649472382ec81668c6d85d6a565f",
+  "cpu_affinity": [
+    0
+  ],
+  "background_context": "Root explicit START; all six peers and Root held/no child, Codegen archive checkpoint closed; sealed programs only, CPU0 exclusive, source/build inputs unchanged",
+  "iterations": 200,
+  "samples": 7,
+  "resource_policy": {
+    "scope": "Explicit Root timing-only exception; no build guard changes",
+    "start_mib": 300,
+    "reserve_mib": 250,
+    "new_report_cap_mib": 5,
+    "maximum_measurement_wall_seconds": 20
+  },
+  "initial_free_bytes": 364187648,
+  "allocation_counters": false,
+  "profile": {
+    "heap": "32M",
+    "stack": "8M",
+    "poison": false,
+    "leak_check": true
+  },
+  "sealed_inputs": [
+    {
+      "folder": "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1",
+      "report_sha256": "67cdc10fe9efc858df9696d5cbb0a9b538123de176245decb1484184912e0ee5",
+      "executable_sha256": "626500fc59e616cfb3cee135c1d64ad75e97343526539011930baa0e531a1a1d",
+      "reference_executable_sha256": "8351d6d0569165409f36dcfe050b7c725eb868dc0d40599f6e5e17379ef9dfa4",
+      "source_sha256": {
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Mime": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+        "Text.Multipart": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2",
+        "Text.QuotedPrintable": "cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb",
+        "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+        "Effect.Multipart": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b"
+      },
+      "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf"
+    },
+    {
+      "folder": "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1",
+      "report_sha256": "34d2775b147a0b177dc70ea8f500f3e01c7c85e4c2b462eb9bb585ebca39031d",
+      "executable_sha256": "8395122d766d53fa78442631d06865f11e6573cab638b4d17658728fbe1cff1b",
+      "reference_executable_sha256": "8351d6d0569165409f36dcfe050b7c725eb868dc0d40599f6e5e17379ef9dfa4",
+      "source_sha256": {
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Mime": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+        "Text.Multipart": "86c44a04566ff9cdd5b3ed97889cf6a52f13af507036b583412586f467da099d",
+        "Text.QuotedPrintable": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00",
+        "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+        "Effect.Multipart": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b"
+      },
+      "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf"
+    }
+  ],
+  "results": [
+    {
+      "mode": "read",
+      "input_bytes": 4096,
+      "output_and_retained_input_checksums": [
+        93856496,
+        1755871688
+      ],
+      "raw_samples_ns": {
+        "baseline": [
+          4800846,
+          4650819,
+          4643388,
+          4651069,
+          5857859,
+          5048589,
+          4902679
+        ],
+        "candidate": [
+          4763500,
+          4684600,
+          4698421,
+          4780836,
+          4815287,
+          5374921,
+          4783389
+        ],
+        "reference": [
+          2778338,
+          2194588,
+          2121758,
+          2305695,
+          2225524,
+          3019771,
+          2729935
+        ]
+      },
+      "median_ns_per_iteration": {
+        "baseline": 24004.23,
+        "candidate": 23904.18,
+        "reference": 11528.475
+      },
+      "baseline_over_candidate": 1.00418546045085
+    },
+    {
+      "mode": "write-body",
+      "input_bytes": 4096,
+      "output_and_retained_input_checksums": [
+        227715312,
+        1998750127
+      ],
+      "raw_samples_ns": {
+        "baseline": [
+          1660643,
+          1449395,
+          1588464,
+          1461743,
+          1471367,
+          1458087,
+          1453952
+        ],
+        "candidate": [
+          1468063,
+          1558168,
+          1463065,
+          1464697,
+          1486981,
+          1453140,
+          1473361
+        ],
+        "reference": [
+          2413497,
+          1832542,
+          2391744,
+          1785421,
+          2010079,
+          1797919,
+          2428741
+        ]
+      },
+      "median_ns_per_iteration": {
+        "baseline": 7308.715,
+        "candidate": 7340.315,
+        "reference": 10050.395
+      },
+      "baseline_over_candidate": 0.995695007639318
+    },
+    {
+      "mode": "disposition-dense",
+      "input_bytes": 4096,
+      "output_and_retained_input_checksums": [
+        1609590104,
+        609652617
+      ],
+      "raw_samples_ns": {
+        "baseline": [
+          150831771,
+          151576002,
+          151349461,
+          152337330,
+          153917822,
+          154796055,
+          151409292
+        ],
+        "candidate": [
+          35534615,
+          35912865,
+          35516838,
+          35454374,
+          35230226,
+          35444520,
+          35675387
+        ],
+        "reference": [
+          14475395,
+          14372491,
+          14615748,
+          14351238,
+          14649137,
+          13732697,
+          14288184
+        ]
+      },
+      "median_ns_per_iteration": {
+        "baseline": 757880.01,
+        "candidate": 177584.19,
+        "reference": 71862.455
+      },
+      "baseline_over_candidate": 4.2677223124423405
+    }
+  ],
+  "observations": [
+    {
+      "label": "baseline",
+      "sample_index": -1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4649939 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": -1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4671400 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": -1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "2807120 93856496 1755871688\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 0,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4800846 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 0,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4763500 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 0,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "2778338 93856496 1755871688\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4650819 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "2194588 93856496 1755871688\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4684600 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 2,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "2121758 93856496 1755871688\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 2,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4643388 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 2,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4698421 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 3,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "2305695 93856496 1755871688\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 3,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4780836 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 3,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4651069 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 4,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4815287 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 4,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "2225524 93856496 1755871688\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 4,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "5857859 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 5,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "5374921 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 5,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "5048589 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 5,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "3019771 93856496 1755871688\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 6,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4902679 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 6,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "4783389 93856496 1755871688\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 6,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "read",
+        "4096",
+        "200"
+      ],
+      "stdout": "2729935 93856496 1755871688\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": -1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1479810 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": -1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "2044942 227715312 1998750127\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": -1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1466340 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 0,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1468063 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 0,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "2413497 227715312 1998750127\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 0,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1660643 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1558168 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1449395 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1832542 227715312 1998750127\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 2,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1588464 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 2,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1463065 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 2,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "2391744 227715312 1998750127\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 3,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1461743 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 3,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1785421 227715312 1998750127\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 3,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1464697 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 4,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "2010079 227715312 1998750127\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 4,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1471367 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 4,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1486981 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 5,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1797919 227715312 1998750127\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 5,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1453140 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 5,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1458087 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 6,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1473361 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 6,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "2428741 227715312 1998750127\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 6,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "write-body",
+        "4096",
+        "200"
+      ],
+      "stdout": "1453952 227715312 1998750127\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": -1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "14893216 1609590104 609652617\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": -1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "149273071 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": -1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "35309055 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 0,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "14475395 1609590104 609652617\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 0,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "150831771 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 0,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "35534615 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "14372491 1609590104 609652617\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "35912865 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 1,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "151576002 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 2,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "35516838 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 2,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "14615748 1609590104 609652617\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 2,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "151349461 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 3,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "35454374 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 3,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "152337330 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 3,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "14351238 1609590104 609652617\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 4,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "153917822 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 4,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "35230226 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 4,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "14649137 1609590104 609652617\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 5,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "154796055 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 5,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "13732697 1609590104 609652617\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 5,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "35444520 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "reference",
+      "sample_index": 6,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/reference",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "14288184 1609590104 609652617\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "label": "baseline",
+      "sample_index": 6,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-promotion-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "151409292 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    },
+    {
+      "label": "candidate",
+      "sample_index": 6,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/bench-optimization-330-simd-v1/bench",
+        "disposition-dense",
+        "4096",
+        "200"
+      ],
+      "stdout": "35675387 1609590104 609652617\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "returncode": 0
+    }
+  ],
+  "quota_before": "usage_usec 157814491918\nuser_usec 148197920199\nsystem_usec 9616571718\nnice_usec 481860771\nnr_periods 1172932\nnr_throttled 42005\nthrottled_usec 1757103457\nnr_bursts 0\nburst_usec 0\n",
+  "status": "passed",
+  "quota_after": "usage_usec 157816402342\nuser_usec 148199703818\nsystem_usec 9616698524\nnice_usec 481860771\nnr_periods 1172951\nnr_throttled 42005\nthrottled_usec 1757103457\nnr_bursts 0\nburst_usec 0\n",
+  "measurement_wall_seconds": 1.9515237600135151,
+  "final_free_bytes": 364150784,
+  "input_receipts_unchanged": true
+}
