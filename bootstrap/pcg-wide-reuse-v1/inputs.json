@@ -1,0 +1,64 @@
+{
+  "scope": "Uncompiled source-only prototype; no runtime or compiler admission claim.",
+  "input_root": "/workspace/dasl-stdlib-io",
+  "input_head": "63af0ec75fc1ed1933ed74f355e38b47b3b5d420",
+  "patch_sha256": "e1ba2b17058f740d95d626f83a085c545aa4842585958a8baffdae3d072252e2",
+  "files": {
+    "compiler/src/check.rs": {
+      "base_sha256": "24650857b2f523fc19866650a14287922eef1c7cd3f99e6c0da256bb346f2b6a",
+      "target_sha256": "31c3542a2aa34d58b204f4cd89076e06f93428c9f14db47a2967e7964310739a"
+    },
+    "compiler/src/check_decls.rs": {
+      "base_sha256": "539e17176cdeee0d5ab21c1636979d955a450354d307787559289ae07b08d41f",
+      "target_sha256": "c4ca37db4789f8a0b9ed7b6f2a8e689ff56707d206a1ec93de5259f3ee307af7"
+    },
+    "compiler/src/check_terms.rs": {
+      "base_sha256": "6202fe5916e8b7eec54e021a02b14d75607181c613d353e3b8d0a4a6aa64895e",
+      "target_sha256": "42aabb86a8f87d4ab8ca17a42a3e9764a5421d3eb11c301f6c5e28beeefaa2be"
+    },
+    "compiler/src/codegen.rs": {
+      "base_sha256": "0f711a39ae50b88c56a2d9cad44c0295cefe1c848e6116278c800adde8a98152",
+      "target_sha256": "c47e507bb8dc1a87d738b48740aa5cc5eb46ed4aa00c98afd49bc494008e7ace"
+    },
+    "compiler/src/core.rs": {
+      "base_sha256": "c9ae6db1f3ec802538d32ca63e6c40ad6d002ce540817ed2a9eac4ec2bbf02ac",
+      "target_sha256": "54b7b8c2269aeba67bbc9cca44cf9839d5a29befcfb63a6c6a84c843695f5d99"
+    },
+    "compiler/src/coretext.rs": {
+      "base_sha256": "64f40c5aac60d7eee55eefe06f95d3413f24cf488534aab433c86febe5558f6d",
+      "target_sha256": "115b2680275e090925667b172c86bf20415dca336be38a4d2b648c6634017cf3"
+    },
+    "compiler/src/ifaceopt.rs": {
+      "base_sha256": "09f5b8b72467d5a425125c3701bad23ea8a6fe427c4061d03960e32a58216644",
+      "target_sha256": "cad3a6cff36dc012e78f892b6e48d7f51d4776d2abdc87bd23e8d3ab0a76fdbc"
+    },
+    "compiler/src/rc.rs": {
+      "base_sha256": "26549de7f04a996039cd7ffdfdc39b66ac23427ff28ff22cce987edc8f96a9ea",
+      "target_sha256": "2a2d8feeec674ca39dbe78bca7b252d4003d17f126e17dd04bbd950e6e2bd694"
+    },
+    "compiler/src/simplify.rs": {
+      "base_sha256": "b5f4a64ebb4dfa87345e1b38fa8a5785b769ec7583811b68afd630dddd5795aa",
+      "target_sha256": "c3dd7deba534a5a6143c3722a3f30b03d9edbe1a25e86dfa0b8bba76666ea389"
+    },
+    "compiler/tests/borrow_inference.rs": {
+      "base_sha256": "ffc8fd5e520956576dbb75789e6923207b59ca36977b5c5c9faee2af5d219d2c",
+      "target_sha256": "2882890db41d306475cb27bd1df53045be044765a4ccf8e2361e7e12f6d2fe7b"
+    },
+    "compiler/tests/inline_copy.rs": {
+      "base_sha256": "e2a343f3b6e0ead82ff3eba6787ea62bcd47b7b9e331d204a179c1d7799e60ac",
+      "target_sha256": "e5706306f9f3124d4ab9dd7847bd8cef5b91b6cad0a80ccb8c89405a06f099bf"
+    },
+    "compiler/tests/simplify.rs": {
+      "base_sha256": "66de2e4797840ec42fc6cffd9a536beb26ef773aebe0143d3049c84f1299b14e",
+      "target_sha256": "994901a7e4a3e274381d3b20e90316cb6baeea425aa04483c4f6aa3952f37ce8"
+    },
+    "compiler/tests/stack_allocation.rs": {
+      "base_sha256": "22d7435e255a290ac29ba7b846d12375150ec7da6b3148afd0abca143a3b84a9",
+      "target_sha256": "29a47c81ff44673abf814699b4a5b13d646295ff3f4d101a3f4aa22fac3f30de"
+    },
+    "compiler/tests/wide_reuse.rs": {
+      "base_sha256": null,
+      "target_sha256": "177a9e89d764b0492b2871164473dcab536a653be86da20572b0c368c6e51e3e"
+    }
+  }
+}
