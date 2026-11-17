@@ -1,0 +1,32 @@
+{
+  "status": "verified-closed-success",
+  "archive_path": "build/json-error-functional-archives/syntax-affected1494-bool-v1.tar.gz",
+  "archive_sha256": "27e188e2cb687b70e6e6e80a78864944b2e43ef8792679d377462e51d6fc9249",
+  "archive_bytes": 3718905,
+  "decompressed_tar_sha256": "43001a8875fb580ca373c5c0146f209ce25f905aab00837af22fbf77d5a6adf8",
+  "members": [
+    {
+      "path": "build/json-syntax-affected1494-bool-v1/runtime/consumer.ll",
+      "sha256": "2f96ee5566d5c92e994d899f4abe1c82f0f4c5fedaf0470fa0fefb2166c50820",
+      "bytes": 8839399,
+      "mode": 384
+    },
+    {
+      "path": "build/json-syntax-affected1494-bool-v1/runtime/consumer",
+      "sha256": "9a4e4d8216dfde60ad0642e6be73db8a87adfef753438070ce08f8d54fcb1b31",
+      "bytes": 7418024,
+      "mode": 448
+    }
+  ],
+  "execution_receipt": "bootstrap/stdlib-json-syntax-affected1494-bool-rust-v1-results.json",
+  "execution_receipt_sha256": "19d4ac361804c6cc07cb8379058d0f8a53d42d6d2270db82a23f6477c88ecce5",
+  "verified_before_unlink": true,
+  "ordering": "Archive+directory fsync and full CRC/decompressed/member SHA/size/mode verification; recovery index+parent fsync before unlink; original identity recheck; output parent fsync after. All failed artifacts/sources/frozen/benchmark inputs remain plain.",
+  "restore_command": [
+    "tar",
+    "-xzf",
+    "/workspace/dasl-stdlib-json/build/json-error-functional-archives/syntax-affected1494-bool-v1.tar.gz",
+    "-C",
+    "/workspace/dasl-stdlib-json"
+  ]
+}

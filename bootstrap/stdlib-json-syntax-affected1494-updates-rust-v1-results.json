@@ -1,0 +1,88 @@
+{
+  "status": "passed",
+  "unit": "updates",
+  "scope": "One affected historical fixture on current syntax-partial source; no Native/full92/promotion claim",
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022",
+    "Text.Json.Dynamic": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+  },
+  "fixture": "compiler/tests/fixtures/json-codec-error-updates.cinch",
+  "fixture_sha256": "39e4bf1bb0ac9f94e5729a5ede7ef552a746542de41020cacf271a6df91631ae",
+  "reference_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "oracle_regenerated_or_normalized": false,
+  "original_sdk_rendering_panic_outcomes_retained": 12,
+  "independent_rows": 54,
+  "retained_rows": 0,
+  "owner_groups": 0,
+  "qualification_plan_sha256": "607800b4243897ed4b7cf63ef024e7a2a583eeb886aae649aac62838879a884d",
+  "runner_sha256": "76d482b92ae9d78594b4bfd7ca38bb8fde9b40cfbe57e1ad65157a651165f216",
+  "free_bytes_before": 718823424,
+  "minimum_observed_free_bytes": 687280128,
+  "start_guard_bytes": 367001600,
+  "reserve_bytes": 262144000,
+  "fresh_output_limit_bytes": 31457280,
+  "ELF_IR_limit_bytes": 20971520,
+  "archive_scratch_limit_bytes": 10485760,
+  "runs": [
+    {
+      "poisoned": false,
+      "heap_limit": "32M",
+      "stack_limit": "8M",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=35450 bytes=1142876 peak=10194 header-blocks=32826 header-bytes=1116608 immortal=0 freed=32826 live=0\n"
+    },
+    {
+      "poisoned": true,
+      "heap_limit": "256M",
+      "stack_limit": "8M",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=35450 bytes=1142876 peak=1116876 header-blocks=32826 header-bytes=1116608 immortal=0 freed=32826 live=0\n"
+    }
+  ],
+  "check_command": [
+    "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-json/build/json-syntax-affected1494-updates-v1/source/Main.cinch"
+  ],
+  "check_seconds": 11.11961438698927,
+  "check_exit_code": 0,
+  "emit_command": [
+    "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+    "emit-ir",
+    "/workspace/dasl-stdlib-json/build/json-syntax-affected1494-updates-v1/source/Main.cinch",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/json-syntax-affected1494-updates-v1/runtime/consumer.ll",
+    "--rc-debug"
+  ],
+  "emit_seconds": 13.62899137599743,
+  "emit_exit_code": 0,
+  "link_command": [
+    "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "-O2",
+    "/workspace/dasl-stdlib-json/build/json-syntax-affected1494-updates-v1/runtime/consumer.ll",
+    "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+    "-ldl",
+    "-lpthread",
+    "-lm",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/json-syntax-affected1494-updates-v1/runtime/consumer"
+  ],
+  "link_seconds": 13.423846381978365,
+  "link_exit_code": 0,
+  "llvm_sha256": "48d5f6b5c27302f312937f18c5623b2ae189e129164ac816ea4713df5d2ec7b7",
+  "executable_sha256": "ddd11e05b8bcb261fb7da529d717f2f170a264d350320d364bac39f589006651",
+  "artifact_bytes": 20290662
+}
