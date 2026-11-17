@@ -1,0 +1,13 @@
+-- | An output callback and its returned capability cannot silently change the I/O region.
+module Main where
+  import Effect.Tabwriter
+  import Data.Int
+  import Data.Option
+
+  -- | Intentionally refused conversion between independently quantified region identities.
+  refused :: forall (r :: Region) (s :: Region) e. (Bytes ->{IO s} (Int, Option e, TabOutput s e)) -> TabOutput r e
+  refused step = tab-output step
+
+  -- | This negative source fixture has no runtime interpretation.
+  main :: Int
+  main = 0

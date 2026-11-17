@@ -1,0 +1,37 @@
+{
+  "scope": "Actual source-only privacy/effect/region refusals on330/d91; no runtime or new-family claim",
+  "rows": [
+    {
+      "kind": "mutation-effect",
+      "source": "MutableOutputRefusal.cinch",
+      "source_sha256": "d8bea3fa2b124ff98377f98a5cf9f48e66c1d73df6a5f93ad19b377cbebdf048",
+      "report": "mutation-effect.json",
+      "report_sha256": "ed19d50b9bbf76913157f6c08cb4439287e9e62e00a52533df02debfe3cd05ca",
+      "expected_diagnostic": "effect rows do not match"
+    },
+    {
+      "kind": "private-writer",
+      "source": "PrivateWriterRefusal.cinch",
+      "source_sha256": "736771b8cce2122c742eee5a0f6f4710fabbf00457ca0a8c43f5dc3bd275c238",
+      "report": "private-writer.json",
+      "report_sha256": "5a01a486efc3d7be2122482a4bc429af68eb7e8ddf21612922b79bb050da5de2",
+      "expected_diagnostic": "unknown constructor Tab.Writer"
+    },
+    {
+      "kind": "private-cell",
+      "source": "PrivateCellRefusal.cinch",
+      "source_sha256": "8cd87cb714a88f92ca34b06fc874bcfa1754e3ecccafbd3694db492ca63505ff",
+      "report": "private-cell.json",
+      "report_sha256": "ff4a8fb0783ebc81bbf9bc18d5ac8c75edcea24f324871075bc7cdb32b2c1bf9",
+      "expected_diagnostic": "unknown constructor Cell.StoredTabCell"
+    },
+    {
+      "kind": "region-identity",
+      "source": "RegionOutputRefusal.cinch",
+      "source_sha256": "19534dfe0c0a2333b1497f745610b6635915ad88ba611fd16df3d20d19f6df2f",
+      "report": "region-identity.json",
+      "report_sha256": "ecbc118762cac26bfedb2a504cebfc9aedcb9f93266291aeecadfb85ce714162",
+      "expected_diagnostic": "regions do not match"
+    }
+  ]
+}

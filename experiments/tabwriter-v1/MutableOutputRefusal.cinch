@@ -1,0 +1,13 @@
+-- | A genuine both-effect callback cannot be passed to an I/O-only output constructor.
+module Main where
+  import Effect.Tabwriter
+  import Data.Int
+  import Data.Option
+
+  -- | This intentionally refused declaration proves mutation cannot be erased at the callback boundary.
+  refused :: forall (r :: Region) e. (Bytes ->{IO r, Mut r} (Int, Option e, TabOutput r e)) -> TabOutput r e
+  refused step = tab-output step
+
+  -- | This source-only negative fixture is never an executable or a positive library gate.
+  main :: Int
+  main = 0
