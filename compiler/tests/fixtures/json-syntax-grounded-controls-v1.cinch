@@ -1,0 +1,315 @@
+-- | Grounded EOF corrections coexist with unchanged navigation, ownership and typed continuation controls.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Text.Json.Dynamic
+  import Data.Array
+  import Data.Machine
+
+  -- | Observe a native checkpoint without changing the original diagnostic offset.
+  positioned :: String -> Nat -> Nat -> Nat -> Bool
+  positioned text native legacy consumed =
+    let input = string-to-bytes text in
+    let precise = json-lex-read-positioned json-lex-start input 0 0 True in
+    let established = json-lex-read json-lex-start input 0 0 True in
+    (case precise of JsonLexFailure error next -> next == consumed && json-error-offset error == native && (case json-error-cause error of None -> False; Some cause -> json-error-offset cause == legacy); other -> False)
+      && (case established of JsonLexFailure error next -> next == consumed && json-error-offset error == legacy; other -> False)
+
+  -- | Preserve successful number boundaries through the additional position-aware entry point.
+  token :: Unit -> Bool
+  token unit = case json-lex-read-positioned json-lex-start (string-to-bytes "123,") 0 0 True of
+    JsonLexToken lexeme next -> next == 3 && json-lexeme-start lexeme == 0 && json-lexeme-end lexeme == 3 && (case json-lexeme-tag lexeme of JsonLexNumber -> True; other -> False)
+    other -> False
+
+  -- | Retain absolute end-of-input across a separately owned empty final chunk.
+  continued :: Unit -> Bool
+  continued unit = case json-lex-read-positioned json-lex-start (string-to-bytes "\"ab") 0 0 False of
+    JsonLexNeedInput state next -> next == 3 && (case json-lex-read-positioned state (bytes-new 0) 0 3 True of JsonLexFailure error consumed -> json-error-offset error == 3 && consumed == 0 && (case json-error-cause error of None -> False; Some cause -> json-error-offset cause == 3); other -> False)
+    other -> False
+
+  -- | Retain precise syntax context independently from the original structured diagnostic and its ownership wrappers.
+  metadata :: Unit -> Bool
+  metadata unit =
+    let error = JsonSyntacticError (json-syntactic-info 1 "/a") (JsonSyntaxError 2 "original") in
+    let retained = json-preserve-error-context error in
+    json-error-offset retained == 1 && json-error-path retained == "/a"
+      && (case json-error-syntactic retained of None -> False; Some info -> json-syntactic-offset info == 1 && json-syntactic-pointer info == "/a")
+      && (case json-error-type retained of None -> True; Some label -> False)
+      && (case json-error-cause error of None -> False; Some cause -> json-error-offset cause == 2 && json-error-message cause == "original")
+
+  -- | Retain every original error expectation while comparing exact checkpoints from the independent source outcomes.
+  lexer-status :: Int
+  lexer-status = if not (positioned "1e" 0 1 2) then 1
+    else if not (positioned "\"abc" 4 4 4) then 2
+    else if not (positioned "\"\\x\"" 1 3 3) then 3
+    else if not (positioned "\"\\u12\"" 1 6 6) then 4
+    else if not (positioned "@" 0 1 1) then 5
+    else if not (positioned "tru" 3 3 3) then 6
+    else if not (token ()) then 7
+    else if not (continued ()) then 8 else if not (metadata ()) then 9 else 0
+
+  -- | Observe an exact parser refusal independently from its original diagnostic spelling.
+  error-at :: JsonScanResult -> Nat -> String -> Bool
+  error-at scan offset pointer = case json-scan-error scan of
+    None -> False
+    Some error -> json-error-offset error == offset && json-error-path error == pointer && (case json-error-syntactic error of None -> False; Some info -> json-syntactic-offset info == offset && json-syntactic-pointer info == pointer)
+
+  -- | Require an entered incomplete child without exposing it as a validated scalar.
+  incomplete :: JsonValue -> Bool
+  incomplete value = not (json-value-complete value) && (case json-value-refusal value of None -> False; Some cause -> True)
+
+  -- | Complete child values remain independent from a later enclosing grammar failure.
+  number-one :: JsonValue -> Bool
+  number-one value = json-value-complete value && (case json-value-refusal value of None -> True; Some cause -> False) && (case json-value-number value of None -> False; Some number -> json-number-text number == "1")
+
+  -- | Empty source retains a non-value slot and its original source owner.
+  empty :: Unit -> Bool
+  empty unit = let scan = json-scan-document (bytes-new 0) in error-at scan 0 "" && incomplete (json-scan-value scan) && (case json-value-kind (json-scan-value scan) of JsonInvalidKind -> True; other -> False)
+
+  -- | Opening an array creates its first entered slot before an end-of-input refusal.
+  array-open :: Unit -> Bool
+  array-open unit =
+    let scan = json-scan-document (string-to-bytes "[") in let root = json-scan-value scan in
+    error-at scan 1 "" && incomplete root && (case json-array-length root of None -> False; Some count -> count == 1)
+      && (case json-array-get root 0 of None -> False; Some value -> incomplete value)
+
+  -- | A comma retains a complete first number and a separately entered following slot.
+  array-next :: Unit -> Bool
+  array-next unit =
+    let scan = json-scan-document (string-to-bytes "[1,") in let root = json-scan-value scan in
+    error-at scan 3 "" && (case json-array-length root of None -> False; Some count -> count == 2)
+      && (case json-array-get root 0 of None -> False; Some value -> number-one value)
+      && (case json-array-get root 1 of None -> False; Some value -> incomplete value)
+
+  -- | Completed object names select a value slot even when its token has not arrived.
+  member-next :: Unit -> Bool
+  member-next unit =
+    let scan = json-scan-document (string-to-bytes "{\"a\":1,\"b\":") in let root = json-scan-value scan in
+    error-at scan 11 "/b" && (case json-object-lookup root "a" of None -> False; Some value -> number-one value)
+      && (case json-object-lookup root "b" of None -> False; Some value -> incomplete value)
+
+  -- | A completed key retains an entered slot before a missing colon is reported.
+  colon :: Unit -> Bool
+  colon unit =
+    let scan = json-scan-document (string-to-bytes "{\"a\"") in
+    error-at scan 4 "/a" && (case json-object-lookup (json-scan-value scan) "a" of None -> False; Some value -> incomplete value)
+
+  -- | Nested arrays retain a speculative next slot while syntax position remains at their containing member.
+  nested :: Unit -> Bool
+  nested unit =
+    let scan = json-scan-document (string-to-bytes "{\"a\":[1,2") in
+    error-at scan 9 "/a" && (case json-object-lookup (json-scan-value scan) "a" of
+      None -> False
+      Some value -> incomplete value && (case json-array-length value of None -> False; Some count -> count == 3) && (case json-array-get value 0 of None -> False; Some first -> number-one first))
+
+  -- | Trailing garbage does not make the already completed root value incomplete.
+  trailing :: Unit -> Bool
+  trailing unit = let scan = json-scan-document (string-to-bytes "1x") in error-at scan 1 "" && number-one (json-scan-value scan)
+
+  -- | Incomplete scalar categories never manufacture valid number or string payloads.
+  scalar :: Unit -> Bool
+  scalar unit =
+    let number = json-scan-document (string-to-bytes "1e") in let text = json-scan-document (string-to-bytes "\"abc") in
+    error-at number 0 "" && incomplete (json-scan-value number) && (case json-value-number (json-scan-value number) of None -> True; Some value -> False)
+      && error-at text 4 "" && incomplete (json-scan-value text) && (case json-value-string (json-scan-value text) of None -> True; Some value -> False)
+
+  -- | Strict document construction continues to reject every incomplete input.
+  strict :: Unit -> Bool
+  strict unit = (case json-document (string-to-bytes "[1,") of Err error -> True; Ok document -> False) && not (json-valid (string-to-bytes "{\"a\":1,\"b\":"))
+
+  -- | Partial navigation snapshots caller bytes before retaining any views.
+  ownership :: Unit -> Bool
+  ownership unit =
+    let input = string-to-bytes "[1," in let scan = json-scan-document input in
+    if bytes-len input == 3 then
+      let changed = bytes-set input 1 57 in
+      case json-array-get (json-scan-value scan) 0 of None -> False; Some value -> number-one value
+    else False
+
+  -- | Report the first original navigation or ownership disagreement.
+  navigation-status :: Int
+  navigation-status = if not (empty ()) then 1 else if not (array-open ()) then 2 else if not (array-next ()) then 3 else if not (member-next ()) then 4 else if not (colon ()) then 5 else if not (nested ()) then 6 else if not (trailing ()) then 7 else if not (scalar ()) then 8 else if not (strict ()) then 9 else if not (ownership ()) then 10 else 0
+
+  -- | Keep source construction opaque to front-end evaluation.
+  prim runtime-width :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Snapshot input through a runtime-sized owner before parsing.
+  input-bytes :: String -> Bytes
+  input-bytes text =
+    let input = string-to-bytes text in
+    let width = u32-to-nat (runtime-width (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let output = bytes-new width in
+    if bytes-len input <= bytes-len output then let copied = bytes-copy-range output input 0 0 (bytes-len input) in output else bytes-new 0
+
+  -- | Select first-refusal reporting while retaining all other established conversion policies.
+  stopped :: JsonReadOptions
+  stopped = json-read-options False False (json-configure-policies json-default-policies [json-continue-after-type-errors False])
+
+  -- | Compare full encoded application state after an update.
+  state-is :: forall a. JsonType a -> a -> String -> Bool
+  state-is descriptor value expected = case json-marshal descriptor value of Err error -> False; Ok bytes -> eq-i64 (bytes-compare bytes (string-to-bytes expected)) 0
+
+  -- | Observe precise syntax through both the dedicated metadata and common getters.
+  syntax-is :: forall a. JsonDecoded a -> Nat -> String -> Bool
+  syntax-is decoded offset pointer = json-decoded-fatal decoded && (case json-decoded-error decoded of
+    None -> False
+    Some error -> json-error-offset error == offset && json-error-path error == pointer && (case json-error-syntactic error of None -> False; Some info -> json-syntactic-offset info == offset && json-syntactic-pointer info == pointer))
+
+  -- | Independent prior/default integer pair for record mutation observations.
+  pair-default :: Unit -> (I64,I64)
+  pair-default unit = (0,0)
+
+  -- | Classify the application pair's zero representation.
+  pair-zero :: (I64,I64) -> Bool
+  pair-zero value = case value of (left,right) -> eq-i64 left 0 && eq-i64 right 0
+
+  -- | Read the first application field.
+  pair-left :: (I64,I64) -> I64
+  pair-left value = case value of (left,right) -> left
+
+  -- | Read the second application field.
+  pair-right :: (I64,I64) -> I64
+  pair-right value = case value of (left,right) -> right
+
+  -- | Replace the first field while retaining its sibling.
+  pair-left-set :: I64 -> (I64,I64) -> (I64,I64)
+  pair-left-set next value = case value of (left,right) -> (next,right)
+
+  -- | Replace the second field while retaining its sibling.
+  pair-right-set :: I64 -> (I64,I64) -> (I64,I64)
+  pair-right-set next value = case value of (left,right) -> (left,next)
+
+  -- | Describe the independently observed object member order and scalar capabilities.
+  pair-type :: JsonType (I64,I64)
+  pair-type = json-record-type "Pair" pair-default pair-zero [json-field "a" json-int64-type pair-left pair-left-set,json-field "b" json-int64-type pair-right pair-right-set]
+
+  -- | Disabled reporting retains an earlier successful record update and its original absolute member pointer.
+  record-partial :: Unit -> Bool
+  record-partial unit =
+    let decoded = json-update-with pair-type stopped (input-bytes "{\"a\":1,\"b\":") (7,8) in
+    state-is pair-type (json-decoded-value decoded) "{\"a\":1,\"b\":8}" && syntax-is decoded 11 "/b"
+
+  -- | Established reporting prevalidates the whole malformed source before any application update.
+  record-legacy :: Unit -> Bool
+  record-legacy unit =
+    let decoded = json-update-with pair-type json-default-read-options (input-bytes "{\"a\":1,\"b\":") (7,8) in
+    state-is pair-type (json-decoded-value decoded) "{\"a\":7,\"b\":8}" && (case json-decoded-error decoded of Some (JsonSyntaxError offset text) -> offset == 11; other -> False)
+
+  -- | A pending array slot retains its old scalar while the fixed array also retains unvisited positions.
+  sequence-partial :: Unit -> Bool
+  sequence-partial unit =
+    let list-type = json-list-type json-int64-type in let fixed-type = json-fixed-array-type json-int64-type 3 in
+    let list = json-update-with list-type stopped (input-bytes "[1,") [7,8,9] in
+    let fixed = json-update-with fixed-type stopped (input-bytes "[1,") (array-from-list [7,8,9]) in
+    state-is list-type (json-decoded-value list) "[1,8]" && syntax-is list 3 "" && state-is fixed-type (json-decoded-value fixed) "[1,8,9]" && syntax-is fixed 3 ""
+
+  -- | An earlier semantic mismatch wins over later syntax and does not visit the following source slot.
+  first-error :: Unit -> Bool
+  first-error unit =
+    let descriptor = json-list-type (json-type-with-read-identity "int" "" json-int64-type) in
+    let decoded = json-update-with descriptor stopped (input-bytes "[true,@]") [7,8,9] in
+    state-is descriptor (json-decoded-value decoded) "[7]" && not (json-decoded-fatal decoded) && (case json-decoded-error decoded of
+      Some (JsonSemanticError info cause) -> json-semantic-offset info == 1 && json-semantic-pointer info == "/0" && eq-u8 (json-semantic-kind-byte info) 116 && json-semantic-type info == "int"
+      other -> False)
+
+  -- | Non-null nullable values allocate their default before an incomplete token is refused.
+  nullable-partial :: Unit -> Bool
+  nullable-partial unit =
+    let descriptor = json-nullable-type json-int64-type in
+    let allocated = json-update-with descriptor stopped (input-bytes "@") None in
+    let retained = json-update-with descriptor stopped (input-bytes "nu") (Some 9) in
+    state-is descriptor (json-decoded-value allocated) "0" && syntax-is allocated 0 "" && state-is descriptor (json-decoded-value retained) "9" && syntax-is retained 2 ""
+
+  -- | A completed map key initializes a fresh scalar even before its colon or value arrives.
+  map-partial :: Unit -> Bool
+  map-partial unit =
+    let descriptor = json-map-type json-string-key json-int64-type in
+    let prior = json-map-set "a" 9 (json-map-set "keep" 7 (json-map-empty json-string-key)) in
+    let decoded = json-update-with descriptor stopped (input-bytes "{\"a\"") prior in
+    state-is descriptor (json-decoded-value decoded) "{\"a\":0,\"keep\":7}" && syntax-is decoded 4 "/a"
+
+  -- | Dynamic containers construct entered null slots instead of retaining an unrelated prior payload.
+  dynamic-partial :: Unit -> Bool
+  dynamic-partial unit =
+    let prior = json-any-object [(string-to-bytes "old",json-any-float64 (i64-to-f64 7))] in
+    let decoded = json-update-with json-any-type stopped (input-bytes "{\"a\":[1,2") prior in
+    state-is json-any-type (json-decoded-value decoded) "{\"a\":[1,2,null]}" && syntax-is decoded 9 "/a"
+
+  -- | A complete-fragment callback records both invocation count and its exact retained source bytes.
+  hook-update :: JsonReadOptions -> JsonValue -> (Nat,Bytes) -> JsonDecoded (Nat,Bytes)
+  hook-update options source prior = case prior of (count,bytes) -> json-decoded-ok (count + 1,json-value-source source)
+
+  -- | Encode retained callback source for independent owner and callback observations.
+  hook-encode :: JsonWriteOptions -> (Nat,Bytes) -> Result JsonError Bytes
+  hook-encode options value = case value of (count,bytes) -> Ok bytes
+
+  -- | Keep callback invocation count and exact source in one immutable application value.
+  hook-type :: JsonType (Nat,Bytes)
+  hook-type = json-custom-type "Hook" (\unit -> (0,string-to-bytes "7")) (\value -> False) (\value -> False) hook-encode hook-update
+
+  -- | Incomplete values cannot invoke complete-fragment callbacks, while trailing garbage follows a completed call.
+  callbacks :: Unit -> Bool
+  callbacks unit =
+    let incomplete = json-update-with hook-type stopped (input-bytes "[1,") (0,string-to-bytes "7") in
+    let complete = json-update-with hook-type stopped (input-bytes "1x") (0,string-to-bytes "7") in
+    let raw = json-update-with json-raw-type stopped (input-bytes "[1,") (json-raw-from-bytes (string-to-bytes "7")) in
+    (case json-decoded-value incomplete of (count,bytes) -> count == 0 && eq-i64 (bytes-compare bytes (string-to-bytes "7")) 0)
+      && syntax-is incomplete 3 "" && (case json-decoded-value complete of (count,bytes) -> count == 1 && eq-i64 (bytes-compare bytes (string-to-bytes "1")) 0)
+      && syntax-is complete 1 "" && state-is json-raw-type (json-decoded-value raw) "7" && syntax-is raw 3 ""
+
+  -- | Report the first independent typed-state, error-precedence or callback disagreement.
+  typed-status :: Int
+  typed-status = if not (record-partial ()) then 1 else if not (record-legacy ()) then 2 else if not (sequence-partial ()) then 3 else if not (first-error ()) then 4 else if not (nullable-partial ()) then 5 else if not (map-partial ()) then 6 else if not (dynamic-partial ()) then 7 else if not (callbacks ()) then 8 else 0
+  -- | Read the separately owned token diagnostic after the caller's original input owner has changed.
+  token-cause-owned :: forall a. JsonDecoded a -> Bool
+  token-cause-owned decoded = case json-decoded-error decoded of
+    None -> False
+    Some error -> case json-error-cause error of
+      Some (JsonSyntaxError offset message) -> offset == 13 && message == "invalid character ',' looking for beginning of value" && json-error-message error == message
+      other -> False
+
+  -- | Token and whole-value readers retain different checkpoints without aliasing caller bytes or losing causes.
+  reader-context-ownership :: Unit -> Bool
+  reader-context-ownership unit =
+    let input = input-bytes "{\"a\":1,\"a\":2,}" in
+    let whole = json-update-with json-int64-type stopped input 7 in
+    let structured = json-update-with pair-type stopped input (7,8) in
+    let dynamic = json-update-with json-any-type stopped input json-any-null in
+    if bytes-len input == 14 then
+      let changed = bytes-set input 12 32 in
+      syntax-is whole 13 "" && syntax-is structured 12 "" && syntax-is dynamic 12 ""
+        && state-is pair-type (json-decoded-value structured) "{\"a\":2,\"b\":8}" && state-is json-any-type (json-decoded-value dynamic) "{\"a\":2}"
+        && token-cause-owned structured && token-cause-owned dynamic
+    else False
+
+  -- | Inspect one ordinary stopped semantic identity independently from nested element context.
+  semantic-is :: forall a. JsonDecoded a -> String -> Nat -> String -> Bool
+  semantic-is decoded label offset pointer = case json-decoded-error decoded of
+    Some (JsonSemanticError info cause) -> json-semantic-type info == label && json-semantic-offset info == offset && json-semantic-pointer info == pointer
+    other -> False
+
+  -- | Fixed-array root refusals honor the exact declared identity while element refusals retain their own identity.
+  array-identity :: Unit -> Bool
+  array-identity unit =
+    let element = json-type-with-read-identity "int" "" json-int64-type in
+    let original = json-fixed-array-type element 3 in
+    let named = json-type-with-read-identity "[3]int" "" original in
+    let prior = (array-from-list [7,8,9] :: Array I64) in
+    let plain = json-update-with original stopped (input-bytes "1x") prior in
+    let root = json-update-with named stopped (input-bytes "1x") prior in
+    let child = json-update-with named stopped (input-bytes "[true,@]") prior in
+    semantic-is plain (json-type-label original) 0 "" && semantic-is root "[3]int" 0 "" && semantic-is child "int" 1 "/0"
+
+  -- | Report the first grounded lexical, navigation or typed-control disagreement.
+  status :: Int
+  status = if lexer-status > 0 then 100 + lexer-status else if navigation-status > 0 then 200 + navigation-status else if typed-status > 0 then 300 + typed-status else if not (reader-context-ownership ()) then 401 else if not (array-identity ()) then 402 else 0
+
+  -- | Keep the full failing component code while successful observations remain silent.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = status in
+    if failed == 0 then 0 else let printed = ioWrite (string-to-bytes (string-concat-all ["json-grounded-controls:", int-to-string failed, "\n"])) in 1

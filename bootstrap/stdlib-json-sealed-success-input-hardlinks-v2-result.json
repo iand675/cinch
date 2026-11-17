@@ -1,0 +1,17 @@
+{
+  "status": "verified-byte-mode-identical-sealed-storage-consolidation",
+  "ledger": "bootstrap/stdlib-json-sealed-success-input-hardlinks-v2.json",
+  "ledger_sha256": "fb6259cce0f52fbe2ef98ed3ff91070ae24321d217f27d87cc5c7063153671ec",
+  "paths_verified": 802,
+  "atomic_replacements": 683,
+  "uniform_current_uid_gid": [
+    1000,
+    1000
+  ],
+  "original_uid_gid_not_retrospectively_claimed": true,
+  "original_mtimes_retained_in_v1_ledger": true,
+  "all_paths_plain_never_recompile": true,
+  "free_bytes_before": 369336320,
+  "free_bytes_after": 394186752,
+  "observed_global_free_change": 24850432
+}

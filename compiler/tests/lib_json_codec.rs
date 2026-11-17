@@ -421,3 +421,69 @@ fn json_update_error_identity_records_and_continuation_match_observations() {
 fn json_read_field_context_preserves_conventional_paths_and_precise_pointers() {
     run(include_str!("fixtures/json-codec-read-field-context.cinch"));
 }
+
+/// Partial int state and structured errors retain every independent syntax observation.
+#[test]
+fn json_partial_int_state_callbacks_and_errors_match_observations() {
+    run(include_str!("fixtures/json-syntax-partial-int-observations-v2.cinch"));
+}
+
+/// Partial record state and structured errors retain every independent syntax observation.
+#[test]
+fn json_partial_record_state_callbacks_and_errors_match_observations() {
+    run(include_str!("fixtures/json-syntax-partial-record-observations-v2.cinch"));
+}
+
+/// Partial pointer-record state and structured errors retain every independent syntax observation.
+#[test]
+fn json_partial_pointer_record_state_callbacks_and_errors_match_observations() {
+    run(include_str!("fixtures/json-syntax-partial-pointer-record-observations-v2.cinch"));
+}
+
+/// Partial slice state and structured errors retain every independent syntax observation.
+#[test]
+fn json_partial_slice_state_callbacks_and_errors_match_observations() {
+    run(include_str!("fixtures/json-syntax-partial-slice-observations-v2.cinch"));
+}
+
+/// Partial array state and structured errors retain every independent syntax observation.
+#[test]
+fn json_partial_array_state_callbacks_and_errors_match_observations() {
+    run(include_str!("fixtures/json-syntax-partial-array-observations-v2.cinch"));
+}
+
+/// Partial map state and structured errors retain every independent syntax observation.
+#[test]
+fn json_partial_map_state_callbacks_and_errors_match_observations() {
+    run(include_str!("fixtures/json-syntax-partial-map-observations-v2.cinch"));
+}
+
+/// Partial any state and structured errors retain every independent syntax observation.
+#[test]
+fn json_partial_any_state_callbacks_and_errors_match_observations() {
+    run(include_str!("fixtures/json-syntax-partial-any-observations-v2.cinch"));
+}
+
+/// Partial raw state and structured errors retain every independent syntax observation.
+#[test]
+fn json_partial_raw_state_callbacks_and_errors_match_observations() {
+    run(include_str!("fixtures/json-syntax-partial-raw-observations-v2.cinch"));
+}
+
+/// Partial json-hook state and structured errors retain every independent syntax observation.
+#[test]
+fn json_partial_json_hook_state_callbacks_and_errors_match_observations() {
+    run(include_str!("fixtures/json-syntax-partial-json-hook-observations-v2.cinch"));
+}
+
+/// Partial text-hook state and structured errors retain every independent syntax observation.
+#[test]
+fn json_partial_text_hook_state_callbacks_and_errors_match_observations() {
+    run(include_str!("fixtures/json-syntax-partial-text-hook-observations-v2.cinch"));
+}
+
+/// Lexer checkpoints, token/value contexts, cause ownership and exact array identities remain distinct.
+#[test]
+fn json_partial_checkpoint_modes_owners_and_array_identities_are_bounded() {
+    run(include_str!("fixtures/json-syntax-grounded-controls-v1.cinch"));
+}

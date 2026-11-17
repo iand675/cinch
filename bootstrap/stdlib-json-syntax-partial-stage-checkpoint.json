@@ -1,0 +1,231 @@
+{
+  "status": "passed-current-source-rust-syntax-partial-stage-only",
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022",
+    "Text.Json.Dynamic": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+  },
+  "oracle_sha256": "7257d12bb9947b25b8fc3afcc29d4a365ec94c585f12b19a9bcf657eb34c2d8d",
+  "oracle_rows": 902,
+  "units": {
+    "int": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-int-rust-v4-results.json",
+      "receipt_sha256": "0b380dee594e90dc163e7ba50bee6e13523d2fd370afcc2b29dbf88d225bedc2",
+      "rows": 68,
+      "fixture": "compiler/tests/fixtures/json-syntax-partial-int-observations-v2.cinch",
+      "fixture_sha256": "dfa1a63bc3930f9d8561a578cd68f2c6ce91ef044b75e4c7ed0536a61fdd5021",
+      "archive": {
+        "path": "bootstrap/stdlib-json-syntax-observations-int-v4-functional-archive.json",
+        "sha256": "4d420f17abfa327201de151552885e449cb923ee99867b8ff2ade0c5b0a130e8",
+        "archive_sha256": "ddce15cf36902e2d611916d68042f8be3bbf5045c8b048152398beac053702fe"
+      },
+      "memory_processes": 2
+    },
+    "record": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-record-rust-v5-results.json",
+      "receipt_sha256": "d142ac14e29a692cc052555856b2ab490122973ba320f9b89f55dca6e4660fe3",
+      "rows": 126,
+      "fixture": "compiler/tests/fixtures/json-syntax-partial-record-observations-v2.cinch",
+      "fixture_sha256": "85ee691eb58b910ccf66678753254cd2f3be618592ec53ac15ddb50c77286aac",
+      "archive": {
+        "path": "bootstrap/stdlib-json-syntax-observations-record-v5-functional-archive.json",
+        "sha256": "73070559b617722037b227ce9e377f6409e33988a66e9dc88b03c7a4c9788c19",
+        "archive_sha256": "5a1e291e2b48c377b3deef83317b1f83867f6b71409c087f1443aecc64645c64"
+      },
+      "memory_processes": 2
+    },
+    "pointer-record": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-pointer-record-rust-v5-results.json",
+      "receipt_sha256": "68e1ee5b085b4b9dbcd950fd40623b823d83faf74a2fde32dfd37b199fe6ce86",
+      "rows": 126,
+      "fixture": "compiler/tests/fixtures/json-syntax-partial-pointer-record-observations-v2.cinch",
+      "fixture_sha256": "74a84110b862a39ab2a400af1f3f2ff1eae69c8a9a8864d808157dd0025daa4f",
+      "archive": {
+        "path": "bootstrap/stdlib-json-syntax-observations-pointer-record-v5-functional-archive.json",
+        "sha256": "5c5b2a3a860cded21ddb2082270ff02a4041b081528aebb38f1e471251171192",
+        "archive_sha256": "da2d73808451712a62bff68e351ad5acdf3bee1f866650db2cd5b9ff8de0dc77"
+      },
+      "memory_processes": 2
+    },
+    "slice": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-slice-rust-v4-results.json",
+      "receipt_sha256": "7573557135afe1759a14e3d7c729625a1b0c71ebae0ebc3f275615928921fb1e",
+      "rows": 76,
+      "fixture": "compiler/tests/fixtures/json-syntax-partial-slice-observations-v2.cinch",
+      "fixture_sha256": "a32de7ba07b7fafadc0a04af9fe20c61240a98ac6af2d74188f61ee4c1f3e742",
+      "archive": {
+        "path": "bootstrap/stdlib-json-syntax-observations-slice-v4-functional-archive.json",
+        "sha256": "ec23e9585f7e7e66dacdf847ada1b532d44deee06ea1b6e7ef2d5f749e963688",
+        "archive_sha256": "b67ce926d098e6add24eaa98f87461b7ef9ecf24555cc1543d113af3c36134b3"
+      },
+      "memory_processes": 2
+    },
+    "array": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-array-rust-v4-results.json",
+      "receipt_sha256": "c28f0565d406af88adcbb552d2c102ab1202cff339f8597e532d147b65945a9f",
+      "rows": 76,
+      "fixture": "compiler/tests/fixtures/json-syntax-partial-array-observations-v2.cinch",
+      "fixture_sha256": "e8c5e4c9089ac976f3b9ffd0dda1896b9089e5991f2df1453851e973a1e20650",
+      "archive": {
+        "path": "bootstrap/stdlib-json-syntax-observations-array-v4-functional-archive.json",
+        "sha256": "6dbf0a8f5dca50fb3398d8f58d5a9f900edf81105fddcac8f7405dee809a043e",
+        "archive_sha256": "515a125cb48d197f337d5eda1ddd692501454dea4b9f48ab2d7ae40f24b7d6d8"
+      },
+      "memory_processes": 2
+    },
+    "map": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-map-rust-v4-results.json",
+      "receipt_sha256": "d2577ac63881259eda7f9b33e27c447c60e6f16590cef2ac11354daa14dbe082",
+      "rows": 88,
+      "fixture": "compiler/tests/fixtures/json-syntax-partial-map-observations-v2.cinch",
+      "fixture_sha256": "977cddd3781515eef3b76dcff156db6fa024d13167222257d340dda4fd5fa09f",
+      "archive": {
+        "path": "bootstrap/stdlib-json-syntax-observations-map-v4-functional-archive.json",
+        "sha256": "2e42d38b21283aab21fb61431700e44d837b2b9a44a798cb0374a6586717ebcd",
+        "archive_sha256": "c732f87b1891285d2169b578aaae99c1e5d67a1ddc2d0a42de9a7f68ed994530"
+      },
+      "memory_processes": 2
+    },
+    "any": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-any-rust-v4-results.json",
+      "receipt_sha256": "2a0ae9267ef942f27d178df471a2c8dbdbac2c93d070258cc320f72e3f49d37d",
+      "rows": 102,
+      "fixture": "compiler/tests/fixtures/json-syntax-partial-any-observations-v2.cinch",
+      "fixture_sha256": "90a231f788c6eeb103c5df6146d0eb1bbd3d7af0d82b923c29b276caaedf5953",
+      "archive": {
+        "path": "bootstrap/stdlib-json-syntax-observations-any-v4-functional-archive.json",
+        "sha256": "7a2fa7b2d3d02465f80842cbe91142664a2ad37b2b8016b2c10f3ce15817d071",
+        "archive_sha256": "5334610b86359b7739e0d6d2d5e6d5191e9e81cbe2dcf77583fffb191f4ca0a6"
+      },
+      "memory_processes": 2
+    },
+    "raw": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-raw-rust-v4-results.json",
+      "receipt_sha256": "d57a737173fb1e4b4f5df8ae08c9c5077c2f8fa0bac877dd973b5dc625663445",
+      "rows": 84,
+      "fixture": "compiler/tests/fixtures/json-syntax-partial-raw-observations-v2.cinch",
+      "fixture_sha256": "61e47e9daf5ff6db21fc08f5c6c02ca0c10685d6d28f5f602474659ea6733742",
+      "archive": {
+        "path": "bootstrap/stdlib-json-syntax-observations-raw-v4-functional-archive.json",
+        "sha256": "2d7c37fcd40fc69e7d781cbe7fcda442acc71ca7fd6a989735eac0fcf461728f",
+        "archive_sha256": "ad22038eb20331e672f211fffdad40a40d6c402eb8a347e70846bb39a0163fba"
+      },
+      "memory_processes": 2
+    },
+    "json-hook": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-json-hook-rust-v4-results.json",
+      "receipt_sha256": "aaa6d7053e897e61dffe3b9a570f99efb7bc27989a4b3fe507ae7e06e4093529",
+      "rows": 84,
+      "fixture": "compiler/tests/fixtures/json-syntax-partial-json-hook-observations-v2.cinch",
+      "fixture_sha256": "a05db3ec73518002ef6d49d2eb76c25f11156c604f39039f8babdfb11fcfd63d",
+      "archive": {
+        "path": "bootstrap/stdlib-json-syntax-observations-json-hook-v4-functional-archive.json",
+        "sha256": "19d31b8f3dae6fa99f87ab6a2aebebad5e6c0592bcb6e8a3e6ad47e66c7c0f0b",
+        "archive_sha256": "6b71ace4f7c0e4d0f21c0bbb3757720c25ee714ef1f6b579976d0a1a1159e9ad"
+      },
+      "memory_processes": 2
+    },
+    "text-hook": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-text-hook-rust-v4-results.json",
+      "receipt_sha256": "dd0a76b488125cc7db5cf1c6c6437ab19fbd6bbb0b7baa8bf9a4b872cb1af464",
+      "rows": 72,
+      "fixture": "compiler/tests/fixtures/json-syntax-partial-text-hook-observations-v2.cinch",
+      "fixture_sha256": "b632e40bdff6f50edbb88fcde76993b2676d8851d267e77164bb12a927aae7a9",
+      "archive": {
+        "path": "bootstrap/stdlib-json-syntax-observations-text-hook-v4-functional-archive.json",
+        "sha256": "44604da43efef533db9ace1b0a1cafa1095766f4863fa770fc7a71dbd45dd7ee",
+        "archive_sha256": "09014c17a0fd49ed970c25710cb9138c1194c36386dbfe68f22041ebb847f873"
+      },
+      "memory_processes": 2
+    }
+  },
+  "model_memory_processes": 20,
+  "focused_controls": 29,
+  "focused_receipt": "bootstrap/stdlib-json-syntax-grounded-controls-rust-v1-results.json",
+  "focused_receipt_sha256": "ae20b4c8f6273e7250263ea80d6eb3a4b6dfed027949e009d189a8926955fa1b",
+  "focused_archive": {
+    "path": "bootstrap/stdlib-json-syntax-grounded-controls-v1-functional-archive.json",
+    "sha256": "552bf45462d8bf601d52fcefa4f0cd2c1ed0d17a97d54c9a33d208ad4e401de5",
+    "archive_sha256": "c309f9ab5c9de77b1d5a2b384080b5137387a77a11825289f17862134f71dc81"
+  },
+  "focused_memory_processes": 2,
+  "canonical_changed_module_docs": 866,
+  "docs_receipt": "bootstrap/stdlib-json-syntax-feature-docs-v1.json",
+  "docs_receipt_sha256": "f7f599a6a4ee7f0d8fdf45589097ca2ba02f34de6dea7fba1669e6f0545bbd0c",
+  "canonical_doc_diagnostics": 0,
+  "canonical_doc_orphans": 0,
+  "preserved_first_failure_epochs": {
+    "int": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-int-rust-v1-results.json",
+      "receipt_sha256": "9072bb9a165ac461e34fedd8dba2b836e9570767b9b5b7263d436bf8b0d06728",
+      "source_hashes": {
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "Text.Json.Value": "1b31989157537d41aa7efc5071737db4180f26fa3281a6ab2d71b8f3fa8bb358",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Json.Codec": "17b75fa73b491bb5cf08ca3638ae4ff10f800793abf1edd735021f291c560182",
+        "Text.Json.Dynamic": "d8149a32f3328af47877b48db9c928ab844c34564a2f9fb9fae88d446c68beb6",
+        "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+      },
+      "original_failure_stdout": "json-syntax-partial:786\n",
+      "plain_failed_ELF_IR_preserved": true
+    },
+    "record": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-record-rust-v2-results.json",
+      "receipt_sha256": "3f3a277335d43242a9c288630bc119aa3377a01274a301f437fbe99a460fd9e1",
+      "source_hashes": {
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "Text.Json.Value": "5fbb36ccc28d9d4a22efcae2fc20e9ff336dafe142d615300722b7e19fba73cf",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Json.Codec": "17b75fa73b491bb5cf08ca3638ae4ff10f800793abf1edd735021f291c560182",
+        "Text.Json.Dynamic": "d8149a32f3328af47877b48db9c928ab844c34564a2f9fb9fae88d446c68beb6",
+        "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+      },
+      "original_failure_stdout": "json-syntax-partial:2898\n",
+      "plain_failed_ELF_IR_preserved": true
+    },
+    "slice": {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-slice-rust-v3-results.json",
+      "receipt_sha256": "62860457342c0e2257e8cb8a28e5556cf2021d44fed3d4c2a1f23218116a8a06",
+      "source_hashes": {
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "Text.Json.Value": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Json.Codec": "2a02c4a822d92b6f0cdd20a8fd82ef3fd8ec5699afa90d5fee21ebbee10f66de",
+        "Text.Json.Dynamic": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
+        "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+      },
+      "original_failure_stdout": "json-syntax-partial:5713\n",
+      "plain_failed_ELF_IR_preserved": true
+    }
+  },
+  "historical_selected1494_oracle_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "current1494_affected_regression": "pending-separate-current-source-gate",
+  "scope_remaining": [
+    "Additional partial Unicode and delimiter/method/interface/key corners beyond902",
+    "Affected1494 plus retained/owner source-matched regressions before production promotion",
+    "Full92 Effect.Json public IO pipelines, exact original IO causes and advanced handles",
+    "Native qualification and paired public pipeline performance gates"
+  ],
+  "no_family_native_performance_or_package_completion_claim": true
+}

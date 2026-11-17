@@ -1,0 +1,2573 @@
+{
+  "status": "durable-before-relink",
+  "authorization": "Settled explicit Root allowance: byte+mode-identical sealed SUCCESS historical input copies only; all paths plain, never recompile or mutate. Current uid/gid verified and original per-path mtime captured; shared alias mtimes are storage consolidation, not test/source-epoch relabeling.",
+  "passed_receipts": [
+    {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-slice-rust-v4-results.json",
+      "sha256": "7573557135afe1759a14e3d7c729625a1b0c71ebae0ebc3f275615928921fb1e",
+      "source": "build/json-error-syntax-observations-slice-v4/source"
+    },
+    {
+      "receipt": "bootstrap/stdlib-json-syntax-observations-pointer-record-rust-v5-results.json",
+      "sha256": "68e1ee5b085b4b9dbcd950fd40623b823d83faf74a2fde32dfd37b199fe6ce86",
+      "source": "build/json-error-syntax-observations-pointer-record-v5/source"
+    }
+  ],
+  "groups": [
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/Text.Json.Dynamic.cinch",
+        "sha256": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
+        "bytes": 24817,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794928595958375732,
+        "dev": 27,
+        "inode": 698747,
+        "nlink": 9,
+        "blocks": 56
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/Text.Json.Dynamic.cinch",
+          "sha256": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
+          "bytes": 24817,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937276071438035,
+          "dev": 27,
+          "inode": 818284,
+          "nlink": 1,
+          "blocks": 56
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/Text.Json.Codec.cinch",
+        "sha256": "75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022",
+        "bytes": 160367,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794929676890197795,
+        "dev": 27,
+        "inode": 826479,
+        "nlink": 7,
+        "blocks": 320
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/Text.Json.Codec.cinch",
+          "sha256": "75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022",
+          "bytes": 160367,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937276070409499,
+          "dev": 27,
+          "inode": 818283,
+          "nlink": 1,
+          "blocks": 320
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/Data.Unicode.Tables.cinch",
+        "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "bytes": 507869,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794895778476271033,
+        "dev": 27,
+        "inode": 962036,
+        "nlink": 41,
+        "blocks": 992
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/Data.Unicode.Tables.cinch",
+          "sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+          "bytes": 507869,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937276066707826,
+          "dev": 27,
+          "inode": 814943,
+          "nlink": 1,
+          "blocks": 992
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/Data.Array.cinch",
+        "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "bytes": 1709,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794895778475239405,
+        "dev": 27,
+        "inode": 962034,
+        "nlink": 41,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/Data.Array.cinch",
+          "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+          "bytes": 1709,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937276065616835,
+          "dev": 27,
+          "inode": 814931,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/Text.Json.Binary32.cinch",
+        "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "bytes": 12464,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794895778479439270,
+        "dev": 27,
+        "inode": 962038,
+        "nlink": 41,
+        "blocks": 32
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/Text.Json.Binary32.cinch",
+          "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+          "bytes": 12464,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937276068391354,
+          "dev": 27,
+          "inode": 814956,
+          "nlink": 1,
+          "blocks": 32
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/Data.Bytes.Utf8.cinch",
+        "sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "bytes": 32526,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794927444305015604,
+        "dev": 27,
+        "inode": 1321039,
+        "nlink": 10,
+        "blocks": 64
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/Data.Bytes.Utf8.cinch",
+          "sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "bytes": 32526,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937276071738590,
+          "dev": 27,
+          "inode": 818285,
+          "nlink": 1,
+          "blocks": 64
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/Text.Base64.Encoding.cinch",
+        "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "bytes": 40735,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794896330255180024,
+        "dev": 27,
+        "inode": 1209870,
+        "nlink": 40,
+        "blocks": 80
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/Text.Base64.Encoding.cinch",
+          "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+          "bytes": 40735,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937276069225346,
+          "dev": 27,
+          "inode": 814968,
+          "nlink": 1,
+          "blocks": 80
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/Text.Json.Value.cinch",
+        "sha256": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
+        "bytes": 154991,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794928595955702059,
+        "dev": 27,
+        "inode": 698744,
+        "nlink": 9,
+        "blocks": 304
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/Text.Json.Value.cinch",
+          "sha256": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
+          "bytes": 154991,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937276068590275,
+          "dev": 27,
+          "inode": 814967,
+          "nlink": 1,
+          "blocks": 304
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/Data.Unicode.Kernel.cinch",
+        "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "bytes": 34313,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794895778478887305,
+        "dev": 27,
+        "inode": 962037,
+        "nlink": 41,
+        "blocks": 72
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/Data.Unicode.Kernel.cinch",
+          "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "bytes": 34313,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937276068216480,
+          "dev": 27,
+          "inode": 814954,
+          "nlink": 1,
+          "blocks": 72
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/Data.Bytes.Word.cinch",
+        "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "bytes": 4243,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794895778475343304,
+        "dev": 27,
+        "inode": 962035,
+        "nlink": 41,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/Data.Bytes.Word.cinch",
+          "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "bytes": 4243,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937276065678979,
+          "dev": 27,
+          "inode": 814942,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Prim.Sys.Linux.cinchif",
+        "sha256": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085",
+        "bytes": 21362,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299917514776,
+        "dev": 27,
+        "inode": 1310996,
+        "nlink": 13,
+        "blocks": 48
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Prim.Sys.Linux.cinchif",
+          "sha256": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085",
+          "bytes": 21362,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299138136926,
+          "dev": 27,
+          "inode": 818328,
+          "nlink": 1,
+          "blocks": 48
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Prim.Sys.Portable.cinchif",
+        "sha256": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259",
+        "bytes": 13232,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299917514776,
+        "dev": 27,
+        "inode": 1310997,
+        "nlink": 13,
+        "blocks": 32
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Prim.Sys.Portable.cinchif",
+          "sha256": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259",
+          "bytes": 13232,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299138136926,
+          "dev": 27,
+          "inode": 818329,
+          "nlink": 1,
+          "blocks": 32
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Category.Foldable.cinchif",
+        "sha256": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+        "bytes": 28589,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299861513579,
+        "dev": 27,
+        "inode": 1310957,
+        "nlink": 13,
+        "blocks": 56
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Category.Foldable.cinchif",
+          "sha256": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+          "bytes": 28589,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299062136654,
+          "dev": 27,
+          "inode": 818306,
+          "nlink": 1,
+          "blocks": 56
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Algebra.Arithmetic.cinchif",
+        "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+        "bytes": 7034,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299849513322,
+        "dev": 27,
+        "inode": 1310943,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Algebra.Arithmetic.cinchif",
+          "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+          "bytes": 7034,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299050136611,
+          "dev": 27,
+          "inode": 818295,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Algebra.Semigroup.cinchif",
+        "sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+        "bytes": 5861,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299845513236,
+        "dev": 27,
+        "inode": 1310937,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Algebra.Semigroup.cinchif",
+          "sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+          "bytes": 5861,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299042136582,
+          "dev": 27,
+          "inode": 818289,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Concurrent.cinchif",
+        "sha256": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+        "bytes": 2795,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299913514691,
+        "dev": 27,
+        "inode": 1310991,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Concurrent.cinchif",
+          "sha256": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+          "bytes": 2795,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299134136912,
+          "dev": 27,
+          "inode": 818325,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Text.Json.Codec.cinchif",
+        "sha256": "39f38790a64e0a73b055ba629a1fa69f8b83eb24b8a077fd349959c37d690f45",
+        "bytes": 127792,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794929701300272696,
+        "dev": 27,
+        "inode": 826857,
+        "nlink": 7,
+        "blocks": 256
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Text.Json.Codec.cinchif",
+          "sha256": "39f38790a64e0a73b055ba629a1fa69f8b83eb24b8a077fd349959c37d690f45",
+          "bytes": 127792,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299250137327,
+          "dev": 27,
+          "inode": 814559,
+          "nlink": 1,
+          "blocks": 256
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Machine.cinchif",
+        "sha256": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e",
+        "bytes": 581879,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299909514605,
+        "dev": 27,
+        "inode": 1310981,
+        "nlink": 13,
+        "blocks": 1144
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Machine.cinchif",
+          "sha256": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e",
+          "bytes": 581879,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299122136869,
+          "dev": 27,
+          "inode": 818319,
+          "nlink": 1,
+          "blocks": 1144
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Algebra.Bits.cinchif",
+        "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+        "bytes": 9863,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299853513407,
+        "dev": 27,
+        "inode": 1310944,
+        "nlink": 13,
+        "blocks": 24
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Algebra.Bits.cinchif",
+          "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+          "bytes": 9863,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299050136611,
+          "dev": 27,
+          "inode": 818296,
+          "nlink": 1,
+          "blocks": 24
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Prim.Sys.cinchif",
+        "sha256": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38",
+        "bytes": 19276,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299921514862,
+        "dev": 27,
+        "inode": 1310998,
+        "nlink": 13,
+        "blocks": 40
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Prim.Sys.cinchif",
+          "sha256": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38",
+          "bytes": 19276,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299138136926,
+          "dev": 27,
+          "inode": 818330,
+          "nlink": 1,
+          "blocks": 40
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Compose.cinchif",
+        "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+        "bytes": 2098,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299953515547,
+        "dev": 27,
+        "inode": 1311017,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Compose.cinchif",
+          "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+          "bytes": 2098,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299186137098,
+          "dev": 27,
+          "inode": 818340,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Wide.cinchif",
+        "sha256": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8",
+        "bytes": 177190,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299965515804,
+        "dev": 27,
+        "inode": 1311024,
+        "nlink": 13,
+        "blocks": 352
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Wide.cinchif",
+          "sha256": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8",
+          "bytes": 177190,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299202137155,
+          "dev": 27,
+          "inode": 818346,
+          "nlink": 1,
+          "blocks": 352
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Stm.TQueue.cinchif",
+        "sha256": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8",
+        "bytes": 7322,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299969515889,
+        "dev": 27,
+        "inode": 1311031,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Stm.TQueue.cinchif",
+          "sha256": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8",
+          "bytes": 7322,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299206137170,
+          "dev": 27,
+          "inode": 814670,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Clock.cinchif",
+        "sha256": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+        "bytes": 5643,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299917514776,
+        "dev": 27,
+        "inode": 1310992,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Clock.cinchif",
+          "sha256": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+          "bytes": 5643,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299134136912,
+          "dev": 27,
+          "inode": 818326,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Algebra.Monoid.cinchif",
+        "sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+        "bytes": 27165,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299849513322,
+        "dev": 27,
+        "inode": 1310939,
+        "nlink": 13,
+        "blocks": 56
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Algebra.Monoid.cinchif",
+          "sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+          "bytes": 27165,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299046136596,
+          "dev": 27,
+          "inode": 818291,
+          "nlink": 1,
+          "blocks": 56
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.NonZero.cinchif",
+        "sha256": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+        "bytes": 8528,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299953515547,
+        "dev": 27,
+        "inode": 1311020,
+        "nlink": 13,
+        "blocks": 24
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.NonZero.cinchif",
+          "sha256": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+          "bytes": 8528,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299190137112,
+          "dev": 27,
+          "inode": 818343,
+          "nlink": 1,
+          "blocks": 24
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Sym.cinchif",
+        "sha256": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690",
+        "bytes": 8613,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299925514947,
+        "dev": 27,
+        "inode": 1311013,
+        "nlink": 13,
+        "blocks": 24
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Sym.cinchif",
+          "sha256": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690",
+          "bytes": 8613,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299146136955,
+          "dev": 27,
+          "inode": 818336,
+          "nlink": 1,
+          "blocks": 24
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Category.Alternative.cinchif",
+        "sha256": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+        "bytes": 2109,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299861513579,
+        "dev": 27,
+        "inode": 1310956,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Category.Alternative.cinchif",
+          "sha256": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+          "bytes": 2109,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299058136639,
+          "dev": 27,
+          "inode": 818305,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Sequencing.cinchif",
+        "sha256": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+        "bytes": 4868,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299913514691,
+        "dev": 27,
+        "inode": 1310990,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Sequencing.cinchif",
+          "sha256": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+          "bytes": 4868,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299134136912,
+          "dev": 27,
+          "inode": 818324,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Bytes.Utf8.cinchif",
+        "sha256": "cc10d46a692795b57d00e18fabe5c9a140c83c602840c9798517d051952bfe1e",
+        "bytes": 14759,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794927467096802665,
+        "dev": 27,
+        "inode": 1321182,
+        "nlink": 10,
+        "blocks": 32
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Bytes.Utf8.cinchif",
+          "sha256": "cc10d46a692795b57d00e18fabe5c9a140c83c602840c9798517d051952bfe1e",
+          "bytes": 14759,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299210137184,
+          "dev": 27,
+          "inode": 814594,
+          "nlink": 1,
+          "blocks": 32
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Enum.cinchif",
+        "sha256": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31",
+        "bytes": 4694,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299869513750,
+        "dev": 27,
+        "inode": 1310966,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Enum.cinchif",
+          "sha256": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31",
+          "bytes": 4694,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299070136682,
+          "dev": 27,
+          "inode": 818312,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Text.Show.cinchif",
+        "sha256": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397",
+        "bytes": 6568,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299925514947,
+        "dev": 27,
+        "inode": 1311012,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Text.Show.cinchif",
+          "sha256": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397",
+          "bytes": 6568,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299146136955,
+          "dev": 27,
+          "inode": 818335,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Ascii.cinchif",
+        "sha256": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93",
+        "bytes": 1575,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299953515547,
+        "dev": 27,
+        "inode": 1311021,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Ascii.cinchif",
+          "sha256": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93",
+          "bytes": 1575,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299190137112,
+          "dev": 27,
+          "inode": 818344,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Category.Traversable.cinchif",
+        "sha256": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+        "bytes": 10234,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299861513579,
+        "dev": 27,
+        "inode": 1310958,
+        "nlink": 13,
+        "blocks": 24
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Category.Traversable.cinchif",
+          "sha256": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+          "bytes": 10234,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299062136654,
+          "dev": 27,
+          "inode": 818307,
+          "nlink": 1,
+          "blocks": 24
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.FromList.cinchif",
+        "sha256": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+        "bytes": 1800,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299865513664,
+        "dev": 27,
+        "inode": 1310963,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.FromList.cinchif",
+          "sha256": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+          "bytes": 1800,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299066136668,
+          "dev": 27,
+          "inode": 818310,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Stm.cinchif",
+        "sha256": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab",
+        "bytes": 26973,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299965515804,
+        "dev": 27,
+        "inode": 1311027,
+        "nlink": 13,
+        "blocks": 56
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Stm.cinchif",
+          "sha256": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab",
+          "bytes": 26973,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299206137170,
+          "dev": 27,
+          "inode": 814758,
+          "nlink": 1,
+          "blocks": 56
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Hash.cinchif",
+        "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+        "bytes": 1284,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299853513407,
+        "dev": 27,
+        "inode": 1310948,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Hash.cinchif",
+          "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+          "bytes": 1284,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299050136611,
+          "dev": 27,
+          "inode": 818299,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Category.Applicative.cinchif",
+        "sha256": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+        "bytes": 8919,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299857513492,
+        "dev": 27,
+        "inode": 1310952,
+        "nlink": 13,
+        "blocks": 24
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Category.Applicative.cinchif",
+          "sha256": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+          "bytes": 8919,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299058136639,
+          "dev": 27,
+          "inode": 818303,
+          "nlink": 1,
+          "blocks": 24
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Text.Json.Binary32.cinchif",
+        "sha256": "30895befecfc231a331000146246a46c829debc7c3cc4b02166835c79bbeff39",
+        "bytes": 1737,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299973515975,
+        "dev": 27,
+        "inode": 1311040,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Text.Json.Binary32.cinchif",
+          "sha256": "30895befecfc231a331000146246a46c829debc7c3cc4b02166835c79bbeff39",
+          "bytes": 1737,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299210137184,
+          "dev": 27,
+          "inode": 814581,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Nat.cinchif",
+        "sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+        "bytes": 29417,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299853513407,
+        "dev": 27,
+        "inode": 1310949,
+        "nlink": 13,
+        "blocks": 64
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Nat.cinchif",
+          "sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+          "bytes": 29417,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299054136625,
+          "dev": 27,
+          "inode": 818300,
+          "nlink": 1,
+          "blocks": 64
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Json.cinchif",
+        "sha256": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5",
+        "bytes": 5424,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299873513835,
+        "dev": 27,
+        "inode": 1310970,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Json.cinchif",
+          "sha256": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5",
+          "bytes": 5424,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299078136711,
+          "dev": 27,
+          "inode": 818316,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.NonEmpty.cinchif",
+        "sha256": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+        "bytes": 13284,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299953515547,
+        "dev": 27,
+        "inode": 1311018,
+        "nlink": 13,
+        "blocks": 32
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.NonEmpty.cinchif",
+          "sha256": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+          "bytes": 13284,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299186137098,
+          "dev": 27,
+          "inode": 818341,
+          "nlink": 1,
+          "blocks": 32
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Ordering.cinchif",
+        "sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+        "bytes": 7027,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299849513322,
+        "dev": 27,
+        "inode": 1310940,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Ordering.cinchif",
+          "sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+          "bytes": 7027,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299046136596,
+          "dev": 27,
+          "inode": 818292,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Bytes.cinchif",
+        "sha256": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6",
+        "bytes": 13369,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299869513750,
+        "dev": 27,
+        "inode": 1310968,
+        "nlink": 13,
+        "blocks": 32
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Bytes.cinchif",
+          "sha256": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6",
+          "bytes": 13369,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299074136697,
+          "dev": 27,
+          "inode": 818314,
+          "nlink": 1,
+          "blocks": 32
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Text.Base64.Encoding.cinchif",
+        "sha256": "3668fcb7a27822a76f05442b6a6fc5490ec4368ae80171fdcc3c8433a9103543",
+        "bytes": 32464,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299981516146,
+        "dev": 27,
+        "inode": 1311045,
+        "nlink": 11,
+        "blocks": 64
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Text.Base64.Encoding.cinchif",
+          "sha256": "3668fcb7a27822a76f05442b6a6fc5490ec4368ae80171fdcc3c8433a9103543",
+          "bytes": 32464,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299242137298,
+          "dev": 27,
+          "inode": 814569,
+          "nlink": 1,
+          "blocks": 64
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Path.cinchif",
+        "sha256": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b",
+        "bytes": 6270,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299913514691,
+        "dev": 27,
+        "inode": 1310989,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Path.cinchif",
+          "sha256": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b",
+          "bytes": 6270,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299134136912,
+          "dev": 27,
+          "inode": 818323,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Process.cinchif",
+        "sha256": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f",
+        "bytes": 28556,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299921514862,
+        "dev": 27,
+        "inode": 1311007,
+        "nlink": 13,
+        "blocks": 56
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Process.cinchif",
+          "sha256": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f",
+          "bytes": 28556,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299142136940,
+          "dev": 27,
+          "inode": 818332,
+          "nlink": 1,
+          "blocks": 56
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.String.cinchif",
+        "sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+        "bytes": 31951,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299873513835,
+        "dev": 27,
+        "inode": 1310969,
+        "nlink": 13,
+        "blocks": 64
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.String.cinchif",
+          "sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+          "bytes": 31951,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299074136697,
+          "dev": 27,
+          "inode": 818315,
+          "nlink": 1,
+          "blocks": 64
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Bool.cinchif",
+        "sha256": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501",
+        "bytes": 19612,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299877513921,
+        "dev": 27,
+        "inode": 1310973,
+        "nlink": 13,
+        "blocks": 40
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Bool.cinchif",
+          "sha256": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501",
+          "bytes": 19612,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299078136711,
+          "dev": 27,
+          "inode": 818318,
+          "nlink": 1,
+          "blocks": 40
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Function.Combinators.cinchif",
+        "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+        "bytes": 4656,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299853513407,
+        "dev": 27,
+        "inode": 1310946,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Function.Combinators.cinchif",
+          "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+          "bytes": 4656,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299050136611,
+          "dev": 27,
+          "inode": 818297,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Stm.TMVar.cinchif",
+        "sha256": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461",
+        "bytes": 8818,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299969515889,
+        "dev": 27,
+        "inode": 1311028,
+        "nlink": 13,
+        "blocks": 24
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Stm.TMVar.cinchif",
+          "sha256": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461",
+          "bytes": 8818,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299206137170,
+          "dev": 27,
+          "inode": 814671,
+          "nlink": 1,
+          "blocks": 24
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.List.cinchif",
+        "sha256": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab",
+        "bytes": 53382,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299869513750,
+        "dev": 27,
+        "inode": 1310965,
+        "nlink": 13,
+        "blocks": 112
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.List.cinchif",
+          "sha256": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab",
+          "bytes": 53382,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299070136682,
+          "dev": 27,
+          "inode": 818311,
+          "nlink": 1,
+          "blocks": 112
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Category.Functor.cinchif",
+        "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+        "bytes": 3955,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299857513492,
+        "dev": 27,
+        "inode": 1310951,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Category.Functor.cinchif",
+          "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+          "bytes": 3955,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299058136639,
+          "dev": 27,
+          "inode": 818302,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Producer.cinchif",
+        "sha256": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+        "bytes": 8542,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299913514691,
+        "dev": 27,
+        "inode": 1310987,
+        "nlink": 13,
+        "blocks": 24
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Producer.cinchif",
+          "sha256": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+          "bytes": 8542,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299130136897,
+          "dev": 27,
+          "inode": 818321,
+          "nlink": 1,
+          "blocks": 24
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Result.cinchif",
+        "sha256": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+        "bytes": 17758,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299865513664,
+        "dev": 27,
+        "inode": 1310960,
+        "nlink": 13,
+        "blocks": 40
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Result.cinchif",
+          "sha256": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+          "bytes": 17758,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299066136668,
+          "dev": 27,
+          "inode": 818309,
+          "nlink": 1,
+          "blocks": 40
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Algebra.Group.cinchif",
+        "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+        "bytes": 2464,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299845513236,
+        "dev": 27,
+        "inode": 1310938,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Algebra.Group.cinchif",
+          "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+          "bytes": 2464,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299042136582,
+          "dev": 27,
+          "inode": 818290,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Sorted.cinchif",
+        "sha256": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+        "bytes": 2250,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299953515547,
+        "dev": 27,
+        "inode": 1311019,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Sorted.cinchif",
+          "sha256": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+          "bytes": 2250,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299190137112,
+          "dev": 27,
+          "inode": 818342,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Const.cinchif",
+        "sha256": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+        "bytes": 12479,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299953515547,
+        "dev": 27,
+        "inode": 1311016,
+        "nlink": 13,
+        "blocks": 32
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Const.cinchif",
+          "sha256": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+          "bytes": 12479,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299186137098,
+          "dev": 27,
+          "inode": 818339,
+          "nlink": 1,
+          "blocks": 32
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Text.Codec.cinchif",
+        "sha256": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a",
+        "bytes": 6572,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299873513835,
+        "dev": 27,
+        "inode": 1310972,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Text.Codec.cinchif",
+          "sha256": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a",
+          "bytes": 6572,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299078136711,
+          "dev": 27,
+          "inode": 818317,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.HashMap.cinchif",
+        "sha256": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5",
+        "bytes": 19114,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299965515804,
+        "dev": 27,
+        "inode": 1311026,
+        "nlink": 13,
+        "blocks": 40
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.HashMap.cinchif",
+          "sha256": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5",
+          "bytes": 19114,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299202137155,
+          "dev": 27,
+          "inode": 818347,
+          "nlink": 1,
+          "blocks": 40
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Int.cinchif",
+        "sha256": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+        "bytes": 29636,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299857513492,
+        "dev": 27,
+        "inode": 1310950,
+        "nlink": 13,
+        "blocks": 64
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Int.cinchif",
+          "sha256": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+          "bytes": 29636,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299058136639,
+          "dev": 27,
+          "inode": 818301,
+          "nlink": 1,
+          "blocks": 64
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Io.cinchif",
+        "sha256": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514",
+        "bytes": 4334,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299925514947,
+        "dev": 27,
+        "inode": 1311008,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Io.cinchif",
+          "sha256": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514",
+          "bytes": 4334,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299146136955,
+          "dev": 27,
+          "inode": 818333,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Map.cinchif",
+        "sha256": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e",
+        "bytes": 15135,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299913514691,
+        "dev": 27,
+        "inode": 1310985,
+        "nlink": 13,
+        "blocks": 32
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Map.cinchif",
+          "sha256": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e",
+          "bytes": 15135,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299130136897,
+          "dev": 27,
+          "inode": 818320,
+          "nlink": 1,
+          "blocks": 32
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Stm.TSem.cinchif",
+        "sha256": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4",
+        "bytes": 4558,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299969515889,
+        "dev": 27,
+        "inode": 1311035,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Stm.TSem.cinchif",
+          "sha256": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4",
+          "bytes": 4558,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299206137170,
+          "dev": 27,
+          "inode": 814637,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Prelude.cinchif",
+        "sha256": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9",
+        "bytes": 419421,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299949515461,
+        "dev": 27,
+        "inode": 1311014,
+        "nlink": 13,
+        "blocks": 824
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Prelude.cinchif",
+          "sha256": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9",
+          "bytes": 419421,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299182137084,
+          "dev": 27,
+          "inode": 818337,
+          "nlink": 1,
+          "blocks": 824
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Relation.Ord.cinchif",
+        "sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+        "bytes": 6745,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299849513322,
+        "dev": 27,
+        "inode": 1310942,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Relation.Ord.cinchif",
+          "sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+          "bytes": 6745,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299046136596,
+          "dev": 27,
+          "inode": 818294,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Set.cinchif",
+        "sha256": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+        "bytes": 15631,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299953515547,
+        "dev": 27,
+        "inode": 1311022,
+        "nlink": 13,
+        "blocks": 32
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Set.cinchif",
+          "sha256": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+          "bytes": 15631,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299190137112,
+          "dev": 27,
+          "inode": 818345,
+          "nlink": 1,
+          "blocks": 32
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Bytes.Word.cinchif",
+        "sha256": "c398bb83c01f3aa9051ae1a6c1b03d80875a99cd86ee4cf6de404bc9492985f1",
+        "bytes": 2654,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299969515889,
+        "dev": 27,
+        "inode": 1311037,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Bytes.Word.cinchif",
+          "sha256": "c398bb83c01f3aa9051ae1a6c1b03d80875a99cd86ee4cf6de404bc9492985f1",
+          "bytes": 2654,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299206137170,
+          "dev": 27,
+          "inode": 814625,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Category.Monad.cinchif",
+        "sha256": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+        "bytes": 3926,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299857513492,
+        "dev": 27,
+        "inode": 1310955,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Category.Monad.cinchif",
+          "sha256": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+          "bytes": 3926,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299058136639,
+          "dev": 27,
+          "inode": 818304,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Text.Json.Value.cinchif",
+        "sha256": "efdd2ad90f8e3208f7b3d2e617a2bfa99a69b8bda1424de5beab7c738ce2bcf6",
+        "bytes": 147042,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794928621365209048,
+        "dev": 27,
+        "inode": 699077,
+        "nlink": 9,
+        "blocks": 288
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Text.Json.Value.cinchif",
+          "sha256": "efdd2ad90f8e3208f7b3d2e617a2bfa99a69b8bda1424de5beab7c738ce2bcf6",
+          "bytes": 147042,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299238137284,
+          "dev": 27,
+          "inode": 814570,
+          "nlink": 1,
+          "blocks": 288
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Target.cinchif",
+        "sha256": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+        "bytes": 7264,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299913514691,
+        "dev": 27,
+        "inode": 1310988,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Target.cinchif",
+          "sha256": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+          "bytes": 7264,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299130136897,
+          "dev": 27,
+          "inode": 818322,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Char.cinchif",
+        "sha256": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375",
+        "bytes": 14397,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299869513750,
+        "dev": 27,
+        "inode": 1310967,
+        "nlink": 13,
+        "blocks": 32
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Char.cinchif",
+          "sha256": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375",
+          "bytes": 14397,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299070136682,
+          "dev": 27,
+          "inode": 818313,
+          "nlink": 1,
+          "blocks": 32
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Stm.TBQueue.cinchif",
+        "sha256": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6",
+        "bytes": 7822,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299969515889,
+        "dev": 27,
+        "inode": 1311034,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Stm.TBQueue.cinchif",
+          "sha256": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6",
+          "bytes": 7822,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299206137170,
+          "dev": 27,
+          "inode": 814638,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.FromMap.cinchif",
+        "sha256": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60",
+        "bytes": 2022,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299925514947,
+        "dev": 27,
+        "inode": 1311010,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.FromMap.cinchif",
+          "sha256": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60",
+          "bytes": 2022,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299146136955,
+          "dev": 27,
+          "inode": 818334,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Relation.Eq.cinchif",
+        "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+        "bytes": 1774,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299849513322,
+        "dev": 27,
+        "inode": 1310941,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Relation.Eq.cinchif",
+          "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+          "bytes": 1774,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299046136596,
+          "dev": 27,
+          "inode": 818293,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Text.Json.Dynamic.cinchif",
+        "sha256": "3447a0c446d0062014d2aa01418f1adf38bd4f18fbe639f699e3066e48fea972",
+        "bytes": 24103,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794928621377209308,
+        "dev": 27,
+        "inode": 699080,
+        "nlink": 9,
+        "blocks": 48
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Text.Json.Dynamic.cinchif",
+          "sha256": "3447a0c446d0062014d2aa01418f1adf38bd4f18fbe639f699e3066e48fea972",
+          "bytes": 24103,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299258137356,
+          "dev": 27,
+          "inode": 814558,
+          "nlink": 1,
+          "blocks": 48
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Unicode.Tables.cinchif",
+        "sha256": "590929bed104b20bc4bdf18b5d23781d4eb76e336d86138ebca8764536628941",
+        "bytes": 5072,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299969515889,
+        "dev": 27,
+        "inode": 1311038,
+        "nlink": 13,
+        "blocks": 16
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Unicode.Tables.cinchif",
+          "sha256": "590929bed104b20bc4bdf18b5d23781d4eb76e336d86138ebca8764536628941",
+          "bytes": 5072,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299210137184,
+          "dev": 27,
+          "inode": 814593,
+          "nlink": 1,
+          "blocks": 16
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Identity.cinchif",
+        "sha256": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+        "bytes": 13328,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299949515461,
+        "dev": 27,
+        "inode": 1311015,
+        "nlink": 13,
+        "blocks": 32
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Identity.cinchif",
+          "sha256": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+          "bytes": 13328,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299186137098,
+          "dev": 27,
+          "inode": 818338,
+          "nlink": 1,
+          "blocks": 32
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Unicode.Kernel.cinchif",
+        "sha256": "fc04696a8be5df03b6176c325c956ad2e5eaf86486bfedba354c102b56c7eefe",
+        "bytes": 34682,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299973515975,
+        "dev": 27,
+        "inode": 1311039,
+        "nlink": 13,
+        "blocks": 72
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Unicode.Kernel.cinchif",
+          "sha256": "fc04696a8be5df03b6176c325c956ad2e5eaf86486bfedba354c102b56c7eefe",
+          "bytes": 34682,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299210137184,
+          "dev": 27,
+          "inode": 814583,
+          "nlink": 1,
+          "blocks": 72
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Prim.Sys.Darwin.cinchif",
+        "sha256": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724",
+        "bytes": 27114,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299917514776,
+        "dev": 27,
+        "inode": 1310995,
+        "nlink": 13,
+        "blocks": 56
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Prim.Sys.Darwin.cinchif",
+          "sha256": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724",
+          "bytes": 27114,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299134136912,
+          "dev": 27,
+          "inode": 818327,
+          "nlink": 1,
+          "blocks": 56
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Algebra.Semiring.cinchif",
+        "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+        "bytes": 2642,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299853513407,
+        "dev": 27,
+        "inode": 1310947,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Algebra.Semiring.cinchif",
+          "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+          "bytes": 2642,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299050136611,
+          "dev": 27,
+          "inode": 818298,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Core.cinchif",
+        "sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+        "bytes": 3904,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299845513236,
+        "dev": 27,
+        "inode": 1310935,
+        "nlink": 13,
+        "blocks": 8
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Core.cinchif",
+          "sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+          "bytes": 3904,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299038136568,
+          "dev": 27,
+          "inode": 818288,
+          "nlink": 1,
+          "blocks": 8
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Effect.Fs.cinchif",
+        "sha256": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1",
+        "bytes": 19329,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299921514862,
+        "dev": 27,
+        "inode": 1311006,
+        "nlink": 13,
+        "blocks": 40
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Effect.Fs.cinchif",
+          "sha256": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1",
+          "bytes": 19329,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299142136940,
+          "dev": 27,
+          "inode": 818331,
+          "nlink": 1,
+          "blocks": 40
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Array.cinchif",
+        "sha256": "fa0ddd259b7a505b0b5e5c49c33bc78151fbb007db65a3d466095137203a2c11",
+        "bytes": 8797,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299969515889,
+        "dev": 27,
+        "inode": 1311036,
+        "nlink": 13,
+        "blocks": 24
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Array.cinchif",
+          "sha256": "fa0ddd259b7a505b0b5e5c49c33bc78151fbb007db65a3d466095137203a2c11",
+          "bytes": 8797,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299206137170,
+          "dev": 27,
+          "inode": 814627,
+          "nlink": 1,
+          "blocks": 24
+        }
+      ]
+    },
+    {
+      "canonical": {
+        "path": "build/json-error-syntax-observations-slice-v4/source/build/Data.Option.cinchif",
+        "sha256": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+        "bytes": 28860,
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "mtime_ns": 1794919299865513664,
+        "dev": 27,
+        "inode": 1310959,
+        "nlink": 13,
+        "blocks": 64
+      },
+      "aliases": [
+        {
+          "path": "build/json-error-syntax-observations-pointer-record-v5/source/build/Data.Option.cinchif",
+          "sha256": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+          "bytes": 28860,
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "mtime_ns": 1794937299062136654,
+          "dev": 27,
+          "inode": 818308,
+          "nlink": 1,
+          "blocks": 64
+        }
+      ]
+    }
+  ],
+  "all_files_examined": 174,
+  "free_bytes_before": 333885440,
+  "scoped_original_blocks_eligible_for_reclaim_bytes": 3473408,
+  "scratch_copied_data_bytes": 0,
+  "failed_frozen_provider_runtime_benchmark_working_inputs_excluded": true
+}

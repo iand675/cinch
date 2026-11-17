@@ -1,0 +1,3 @@
+json-syntax-partial:2898
+cinch-leak: live=0 immortal=0 leaked=0
+cinch-alloc: blocks=43421 bytes=1570049 peak=6941 header-blocks=39066 header-bytes=1542808 immortal=0 freed=39066 live=0

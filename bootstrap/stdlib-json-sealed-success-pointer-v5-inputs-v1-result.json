@@ -1,0 +1,22 @@
+{
+  "status": "verified-all-paths-plain-sealed",
+  "plan": "bootstrap/stdlib-json-sealed-success-pointer-v5-inputs-v1.json",
+  "plan_sha256": "fc4816326a0160cedaa5c9a7433a50e244bedaa3a08a8e994b2f3db463732c2d",
+  "passed_source_roots": [
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-observations-slice-v4/source",
+    "/workspace/dasl-stdlib-json/build/json-error-syntax-observations-pointer-record-v5/source"
+  ],
+  "verified_files": 174,
+  "atomic_replacements": 85,
+  "uniform_current_uid_gids": [
+    [
+      1000,
+      1000
+    ]
+  ],
+  "scoped_original_blocks_eligible_for_reclaim_bytes": 3473408,
+  "free_bytes_before": 333885440,
+  "free_bytes_after": 337276928,
+  "observed_global_free_change": 3391488,
+  "note": "Global free change may include other agents. Original per-path times recorded in durable plan; no source contents/modes/owners changed. All directories permanently sealed against compilation."
+}

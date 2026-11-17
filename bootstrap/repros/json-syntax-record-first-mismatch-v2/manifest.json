@@ -1,0 +1,57 @@
+{
+  "status": "exact-first-runtime-mismatch-preserved",
+  "original_project": "build/json-error-syntax-observations-record-v2",
+  "original_ELF_IR_remain_plain_and_unmodified": true,
+  "poison_not_run_after_first_normal_failure": true,
+  "files": {
+    "Text.Json.Dynamic.cinch": {
+      "sha256": "d8149a32f3328af47877b48db9c928ab844c34564a2f9fb9fae88d446c68beb6",
+      "bytes": 24540
+    },
+    "Text.Json.Codec.cinch": {
+      "sha256": "17b75fa73b491bb5cf08ca3638ae4ff10f800793abf1edd735021f291c560182",
+      "bytes": 159771
+    },
+    "emit.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "execution-receipt.json": {
+      "sha256": "3f3a277335d43242a9c288630bc119aa3377a01274a301f437fbe99a460fd9e1",
+      "bytes": 5194
+    },
+    "Main.cinch": {
+      "sha256": "85ee691eb58b910ccf66678753254cd2f3be618592ec53ac15ddb50c77286aac",
+      "bytes": 23566
+    },
+    "check.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "link.log": {
+      "sha256": "373b5edbee221cc2ae11ff8e102783ada28947014c077ba1fd314b32ad11e30a",
+      "bytes": 305
+    },
+    "normal.log": {
+      "sha256": "d38488c6f611ba42a272cb7a6d1dc9ce873c71a0f0d104e563276544dabab908",
+      "bytes": 185
+    },
+    "Text.Json.Value.cinch": {
+      "sha256": "5fbb36ccc28d9d4a22efcae2fc20e9ff336dafe142d615300722b7e19fba73cf",
+      "bytes": 152333
+    }
+  },
+  "other_source_module_hashes": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "5fbb36ccc28d9d4a22efcae2fc20e9ff336dafe142d615300722b7e19fba73cf",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "17b75fa73b491bb5cf08ca3638ae4ff10f800793abf1edd735021f291c560182",
+    "Text.Json.Dynamic": "d8149a32f3328af47877b48db9c928ab844c34564a2f9fb9fae88d446c68beb6",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187"
+  },
+  "oracle_sha256": "7257d12bb9947b25b8fc3afcc29d4a365ec94c585f12b19a9bcf657eb34c2d8d"
+}

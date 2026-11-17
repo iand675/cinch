@@ -1,0 +1,34 @@
+{
+  "status": "grounded-token-consumption-correction-prepared",
+  "old_sources": {
+    "Value": "5fbb36ccc28d9d4a22efcae2fc20e9ff336dafe142d615300722b7e19fba73cf",
+    "Codec": "17b75fa73b491bb5cf08ca3638ae4ff10f800793abf1edd735021f291c560182",
+    "Dynamic": "d8149a32f3328af47877b48db9c928ab844c34564a2f9fb9fae88d446c68beb6"
+  },
+  "new_sources": {
+    "Value": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
+    "Codec": "2a02c4a822d92b6f0cdd20a8fd82ef3fd8ec5699afa90d5fee21ebbee10f66de",
+    "Dynamic": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591"
+  },
+  "oracle_unchanged_sha256": "7257d12bb9947b25b8fc3afcc29d4a365ec94c585f12b19a9bcf657eb34c2d8d",
+  "failure_receipt": "bootstrap/stdlib-json-syntax-observations-record-rust-v2-results.json",
+  "first_failure_code": 2898,
+  "first_original_row": 181,
+  "rationale": "ReadValue and token traversal have different refusal checkpoints for a comma before object end. Shared parser retains both owned diagnostics and the exact active container start. Only the actual structural consumer selects that token checkpoint; skipped/wrong-kind/raw/method values retain the whole-value checkpoint. Earlier semantic/child refusals are unchanged.",
+  "counterexamples": {
+    "whole_value_rows": [
+      55,
+      733,
+      817,
+      889
+    ],
+    "token_rows": [
+      181,
+      307,
+      547,
+      649
+    ]
+  },
+  "source_basis": "Pinned SDK jsontext checkDelim restarts at previous value end plus leading whitespace; needDelim for an object end rejects the consumed comma. The whole-value scanner instead reaches the closing brace. Existing independent902 output directly captures both outcomes.",
+  "scope_limit": "Only this observed object-end delimiter alternative is introduced; additional scalar/Unicode/array delimiter corners beyond902 remain separate full-surface work."
+}

@@ -1,0 +1,85 @@
+-- | One-pass partial grammar snapshots retain complete children, entered slots and exact refusal context.
+module Main where
+  import Text.Json.Value
+
+  -- | Observe an exact parser refusal independently from its original diagnostic spelling.
+  error-at :: JsonScanResult -> Nat -> String -> Bool
+  error-at scan offset pointer = case json-scan-error scan of
+    None -> False
+    Some error -> json-error-offset error == offset && json-error-path error == pointer && (case json-error-syntactic error of None -> False; Some info -> json-syntactic-offset info == offset && json-syntactic-pointer info == pointer)
+
+  -- | Require an entered incomplete child without exposing it as a validated scalar.
+  incomplete :: JsonValue -> Bool
+  incomplete value = not (json-value-complete value) && (case json-value-refusal value of None -> False; Some cause -> True)
+
+  -- | Complete child values remain independent from a later enclosing grammar failure.
+  number-one :: JsonValue -> Bool
+  number-one value = json-value-complete value && (case json-value-refusal value of None -> True; Some cause -> False) && (case json-value-number value of None -> False; Some number -> json-number-text number == "1")
+
+  -- | Empty source retains a non-value slot and its original source owner.
+  empty :: Unit -> Bool
+  empty unit = let scan = json-scan-document (bytes-new 0) in error-at scan 0 "" && incomplete (json-scan-value scan) && (case json-value-kind (json-scan-value scan) of JsonInvalidKind -> True; other -> False)
+
+  -- | Opening an array creates its first entered slot before an end-of-input refusal.
+  array-open :: Unit -> Bool
+  array-open unit =
+    let scan = json-scan-document (string-to-bytes "[") in let root = json-scan-value scan in
+    error-at scan 1 "" && incomplete root && (case json-array-length root of None -> False; Some count -> count == 1)
+      && (case json-array-get root 0 of None -> False; Some value -> incomplete value)
+
+  -- | A comma retains a complete first number and a separately entered following slot.
+  array-next :: Unit -> Bool
+  array-next unit =
+    let scan = json-scan-document (string-to-bytes "[1,") in let root = json-scan-value scan in
+    error-at scan 3 "" && (case json-array-length root of None -> False; Some count -> count == 2)
+      && (case json-array-get root 0 of None -> False; Some value -> number-one value)
+      && (case json-array-get root 1 of None -> False; Some value -> incomplete value)
+
+  -- | Completed object names select a value slot even when its token has not arrived.
+  member-next :: Unit -> Bool
+  member-next unit =
+    let scan = json-scan-document (string-to-bytes "{\"a\":1,\"b\":") in let root = json-scan-value scan in
+    error-at scan 11 "/b" && (case json-object-lookup root "a" of None -> False; Some value -> number-one value)
+      && (case json-object-lookup root "b" of None -> False; Some value -> incomplete value)
+
+  -- | A completed key retains an entered slot before a missing colon is reported.
+  colon :: Unit -> Bool
+  colon unit =
+    let scan = json-scan-document (string-to-bytes "{\"a\"") in
+    error-at scan 4 "/a" && (case json-object-lookup (json-scan-value scan) "a" of None -> False; Some value -> incomplete value)
+
+  -- | Nested arrays retain a speculative next slot while syntax position remains at their containing member.
+  nested :: Unit -> Bool
+  nested unit =
+    let scan = json-scan-document (string-to-bytes "{\"a\":[1,2") in
+    error-at scan 9 "/a" && (case json-object-lookup (json-scan-value scan) "a" of
+      None -> False
+      Some value -> incomplete value && (case json-array-length value of None -> False; Some count -> count == 3) && (case json-array-get value 0 of None -> False; Some first -> number-one first))
+
+  -- | Trailing garbage does not make the already completed root value incomplete.
+  trailing :: Unit -> Bool
+  trailing unit = let scan = json-scan-document (string-to-bytes "1x") in error-at scan 1 "" && number-one (json-scan-value scan)
+
+  -- | Incomplete scalar categories never manufacture valid number or string payloads.
+  scalar :: Unit -> Bool
+  scalar unit =
+    let number = json-scan-document (string-to-bytes "1e") in let text = json-scan-document (string-to-bytes "\"abc") in
+    error-at number 0 "" && incomplete (json-scan-value number) && (case json-value-number (json-scan-value number) of None -> True; Some value -> False)
+      && error-at text 0 "" && incomplete (json-scan-value text) && (case json-value-string (json-scan-value text) of None -> True; Some value -> False)
+
+  -- | Strict document construction continues to reject every incomplete input.
+  strict :: Unit -> Bool
+  strict unit = (case json-document (string-to-bytes "[1,") of Err error -> True; Ok document -> False) && not (json-valid (string-to-bytes "{\"a\":1,\"b\":"))
+
+  -- | Partial navigation snapshots caller bytes before retaining any views.
+  ownership :: Unit -> Bool
+  ownership unit =
+    let input = string-to-bytes "[1," in let scan = json-scan-document input in
+    if bytes-len input == 3 then
+      let changed = bytes-set input 1 57 in
+      case json-array-get (json-scan-value scan) 0 of None -> False; Some value -> number-one value
+    else False
+
+  -- | Report the first original navigation or ownership disagreement.
+  main :: Int
+  main = if not (empty ()) then 1 else if not (array-open ()) then 2 else if not (array-next ()) then 3 else if not (member-next ()) then 4 else if not (colon ()) then 5 else if not (nested ()) then 6 else if not (trailing ()) then 7 else if not (scalar ()) then 8 else if not (strict ()) then 9 else if not (ownership ()) then 10 else 0

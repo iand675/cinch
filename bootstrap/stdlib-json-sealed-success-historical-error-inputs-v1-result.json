@@ -1,0 +1,40 @@
+{
+  "status": "verified-all-paths-plain-sealed",
+  "plan": "bootstrap/stdlib-json-sealed-success-historical-error-inputs-v1.json",
+  "plan_sha256": "ad7112f06ddc53ab957111f5eac9828d849ff037ed8b77b856d756afaa784b72",
+  "passed_source_roots": [
+    "/workspace/dasl-stdlib-json/build/json-error-bool-current-probe-v2",
+    "/workspace/dasl-stdlib-json/build/json-error-bool-final-probe-v3",
+    "/workspace/dasl-stdlib-json/build/json-error-bool-probe-v1",
+    "/workspace/dasl-stdlib-json/build/json-error-integer-current-probe-v2",
+    "/workspace/dasl-stdlib-json/build/json-error-integer-final-probe-v3",
+    "/workspace/dasl-stdlib-json/build/json-error-integer-probe-v1",
+    "/workspace/dasl-stdlib-json/build/json-error-methods-probe-v5",
+    "/workspace/dasl-stdlib-json/build/json-error-methods-probe-v6",
+    "/workspace/dasl-stdlib-json/build/json-error-methods-probe-v7",
+    "/workspace/dasl-stdlib-json/build/json-error-owner-current-probe-v2",
+    "/workspace/dasl-stdlib-json/build/json-error-owner-final-probe-v3",
+    "/workspace/dasl-stdlib-json/build/json-error-owner-probe-v1",
+    "/workspace/dasl-stdlib-json/build/json-error-pointer-current-probe-v2",
+    "/workspace/dasl-stdlib-json/build/json-error-pointer-final-probe-v3",
+    "/workspace/dasl-stdlib-json/build/json-error-pointer-probe-v5",
+    "/workspace/dasl-stdlib-json/build/json-error-string-current-probe-v2",
+    "/workspace/dasl-stdlib-json/build/json-error-string-final-probe-v3",
+    "/workspace/dasl-stdlib-json/build/json-error-string-probe-v1",
+    "/workspace/dasl-stdlib-json/build/json-error-updates-probe-v1",
+    "/workspace/dasl-stdlib-json/build/json-error-updates-probe-v2"
+  ],
+  "verified_files": 1660,
+  "atomic_replacements": 1386,
+  "uniform_current_uid_gids": [
+    [
+      1000,
+      1000
+    ]
+  ],
+  "scoped_original_blocks_eligible_for_reclaim_bytes": 18952192,
+  "free_bytes_before": 355049472,
+  "free_bytes_after": 373366784,
+  "observed_global_free_change": 18317312,
+  "note": "Global free change may include other agents. Original per-path times recorded in durable plan; no source contents/modes/owners changed. All directories permanently sealed against compilation."
+}

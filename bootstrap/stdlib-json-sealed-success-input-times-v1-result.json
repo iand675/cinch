@@ -1,0 +1,12 @@
+{
+  "status": "all-original-byte-size-mode-mtime-identities-restored",
+  "corrected_distinct_regular_files": 683,
+  "verified_paths": 802,
+  "current_uid_gids_preserved": true,
+  "original_uid_gids_not_captured_in_prior_plan": true,
+  "correction_ledger": "bootstrap/stdlib-json-sealed-success-input-times-v1.json",
+  "correction_ledger_sha256": "5723e1da97345f90fc4804ae8c2616b0b469157b13435bee09241d0808e77153",
+  "free_bytes_before": 394829824,
+  "free_bytes_after": 369344512,
+  "observed_global_free_change": -25485312
+}

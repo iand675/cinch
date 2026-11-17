@@ -1,0 +1,11 @@
+{
+  "status": "verified-all-paths-plain-sealed",
+  "plan_path": "bootstrap/stdlib-json-sealed-success-input-hardlinks-v1.json",
+  "plan_sha256": "e103de6834f16277fdbea32cb867f667931bbe120752bdb033699b52c8c743d0",
+  "original_files_verified": 830,
+  "atomic_replacements": 683,
+  "free_bytes_before": 369938432,
+  "free_bytes_after": 394838016,
+  "observed_global_free_change": 24899584,
+  "note": "Global free delta can include other agents. No source contents/modes changed, all epoch receipts retain their original byte identities; do not compile into any listed sealed root."
+}

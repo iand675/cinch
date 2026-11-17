@@ -1,0 +1,30 @@
+{
+  "status": "scoped-array-source-and-slice-fixture-corrections-prepared",
+  "before_codec_sha256": "2a02c4a822d92b6f0cdd20a8fd82ef3fd8ec5699afa90d5fee21ebbee10f66de",
+  "after_codec_sha256": "75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022",
+  "unchanged_value_sha256": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
+  "unchanged_dynamic_sha256": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
+  "array_rationale": "Factory declared Array 3 int, but root updater emitted hardcoded Array, preventing exact json-type-with-read-identity mapping to [3]int. Thread the actual factory label through only its root type/length refusals; nested element errors unchanged. No prefix/blanket normalization. Existing private fixed-byte adapter still explicitly supplies its previous Array category, with its own full-identity corners remaining in full92 scope.",
+  "slice_rationale": "Existing oracle []int has null state; generated nonnullable List model was wrong. New fixture uses Option(List), named collection layer []int, prior Some[7,8,9]. Original oracle and old fixtures/manifests unchanged.",
+  "existing_null_row": {
+    "index": 357,
+    "observation": {
+      "calls": [],
+      "case": "malformed",
+      "case_index": 10,
+      "error": {
+        "family": "*jsontext.SyntacticError",
+        "offset": 4,
+        "pointer_hex": "",
+        "text": "jsontext: invalid character 'x' after top-level value after offset 4"
+      },
+      "input_hex": "6e756c6c78",
+      "legacy_errors": false,
+      "model": "slice",
+      "state": null,
+      "state_encoding": "json"
+    }
+  },
+  "oracle_sha256": "7257d12bb9947b25b8fc3afcc29d4a365ec94c585f12b19a9bcf657eb34c2d8d",
+  "all_current_source_gates_pending_on_new_codec_hash": true
+}
