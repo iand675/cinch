@@ -57,33 +57,33 @@ module Main where
     TraceStep operation key value pairs expected auxiliary other wanted ->
       let map = var-read root in
       let applied =
-        if operation == 0 then
-          case mutable-map-collect (map-source-from-list pairs) of
-            Err error -> False
-            Ok fresh -> let saved = var-write root fresh in True
-        else if operation == 1 then succeeded (mutable-map-insert map (map-source-from-list pairs))
-        else if operation == 2 then
-          case mutable-map-collect (map-source-from-list pairs) of
-            Err error -> False
-            Ok source -> succeeded (mutable-map-copy map source)
-        else if operation == 3 then succeeded (mutable-map-delete-if map (\stored item -> nat-rem stored 4 == nat-rem key 4))
-        else if operation == 4 then
-          case mutable-map-clone map of
-            Err error -> False
-            Ok copy ->
-              let original = same-map copy expected in
-              let changed = succeeded (mutable-map-set copy key value) in
-              let missing = case mutable-map-lookup map key of None -> True; Some item -> False in
-              original && changed && same-map copy auxiliary && same-verdict missing wanted
-        else if operation == 5 then
-          case mutable-map-collect (map-source-from-list auxiliary) of
-            Err error -> False
-            Ok compared -> same-verdict (mutable-map-equal map compared) wanted
-        else if operation == 6 then
-          case mutable-map-collect (map-source-from-list other) of
-            Err error -> False
-            Ok compared -> same-verdict (mutable-map-equal-by (\number flag -> (nat-rem number 2 == 0) == flag) map compared) wanted
-        else observation map operation wanted in
+            if operation == 0 then
+              case mutable-map-collect (map-source-from-list pairs) of
+                Err error -> False
+                Ok fresh -> let saved = var-write root fresh in True
+            else if operation == 1 then succeeded (mutable-map-insert map (map-source-from-list pairs))
+            else if operation == 2 then
+              case mutable-map-collect (map-source-from-list pairs) of
+                Err error -> False
+                Ok source -> succeeded (mutable-map-copy map source)
+            else if operation == 3 then succeeded (mutable-map-delete-if map (\stored item -> nat-rem stored 4 == nat-rem key 4))
+            else if operation == 4 then
+              case mutable-map-clone map of
+                Err error -> False
+                Ok copy ->
+                  let original = same-map copy expected in
+                  let changed = succeeded (mutable-map-set copy key value) in
+                  let missing = case mutable-map-lookup map key of None -> True; Some item -> False in
+                  original && changed && same-map copy auxiliary && same-verdict missing wanted
+            else if operation == 5 then
+              case mutable-map-collect (map-source-from-list auxiliary) of
+                Err error -> False
+                Ok compared -> same-verdict (mutable-map-equal map compared) wanted
+            else if operation == 6 then
+              case mutable-map-collect (map-source-from-list other) of
+                Err error -> False
+                Ok compared -> same-verdict (mutable-map-equal-by (\number flag -> (nat-rem number 2 == 0) == flag) map compared) wanted
+            else observation map operation wanted in
       applied && same-map (var-read root) expected
 
   -- | Return the one-based first mismatching operation, preserving deterministic diagnostics.
