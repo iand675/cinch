@@ -1,0 +1,176 @@
+-- | Fixed-block component checks from independent public archive observations.
+module Main where
+  import Data.Core
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Tar
+  import Text.Tar.Block
+
+  -- | Apply only range-proved sparse byte assignments to a fresh block.
+  fill :: Bytes -> List (Nat, InRange 0 255 Nat) -> Unit
+  fill out writes = case writes of
+    Nil -> ()
+    Cons (at, value) rest ->
+      if at < bytes-len out then
+        let stored = bytes-set out at value in fill out rest
+      else ()
+
+  -- | Construct the complete 512-byte fixture from its independent nonzero bytes.
+  block-from :: List (Nat, InRange 0 255 Nat) -> Bytes
+  block-from writes =
+    let out = bytes-new 512 in
+    let filled = fill out writes in out
+
+  -- | Observe raw magic without comparing constructor representation tags.
+  format-code :: TarBlockFormat -> Nat
+  format-code value = case value of
+    TarV7Block -> 0
+    TarUstarPaxBlock -> 1
+    TarGnuBlock -> 2
+    TarStarBlock -> 3
+
+  -- | Compare the independently observed numeric success or refusal.
+  number-ok :: TarBlock -> Nat -> Nat -> Bool -> I64 -> Bool
+  number-ok block start width refused expected = case tar-block-number block start width of
+    Err TarInvalidNumber -> refused
+    Err other -> False
+    Ok actual -> if refused then False else eq-i64 actual expected
+
+  -- | Verify text tails and that neither source nor extracted buffers can mutate retained metadata.
+  ownership-ok :: Bytes -> TarBlock -> Bytes -> Bool
+  ownership-ok source block expected-name = case tar-block-text block 0 100 of
+    Err error -> False
+    Ok name ->
+      let first = tar-text-bytes name in
+      let matched = eq-i64 (bytes-compare first expected-name) 0 in
+      let source-change = if bytes-len source > 0 then bytes-set source 0 42 else () in
+      let first-change = if bytes-len first > 0 then bytes-set first 0 42 else () in
+      let exported = tar-block-bytes block in
+      let export-change = if bytes-len exported > 156 then bytes-set exported 156 0 else () in
+      let still-name = tar-text-bytes name in
+      let still-block = tar-block-bytes block in
+      matched && eq-i64 (bytes-compare still-name expected-name) 0 &&
+        (if bytes-len still-block > 156 then bytes-get still-block 156 == 48 else False)
+
+  -- | Check exact sums, checksum acceptance, raw format, numeric field and isolated text snapshots.
+  check-block :: List (Nat, InRange 0 255 Nat) -> I64 -> I64 -> Bool -> Nat -> Bool -> Nat -> Nat -> Bool -> I64 -> Bytes -> Bool
+  check-block writes expected-unsigned expected-signed valid wire numeric start width refused number name =
+    let source = block-from writes in
+    case tar-block-checksums source of
+      Err error -> False
+      Ok (unsigned, signed) ->
+        eq-i64 unsigned expected-unsigned && eq-i64 signed expected-signed &&
+        (case tar-parse-block source of
+          Err TarInvalidHeader -> if valid then False else True
+          Err other -> False
+          Ok None -> False
+          Ok (Some block) ->
+            valid && format-code (tar-block-format block) == wire &&
+            (if numeric then number-ok block start width refused number else True) &&
+            (if refused then True else ownership-ok source block name))
+
+  -- | Check exact independent writer numeric bytes and named representability refusals.
+  check-encoding :: Nat -> I64 -> Bool -> Bytes -> Bool
+  check-encoding width value refused expected = case tar-encode-number width value of
+    Err (TarFieldTooLong field) -> refused
+    Err other -> False
+    Ok actual -> if refused then False else eq-i64 (bytes-compare actual expected) 0
+
+  -- | Run each case once and return its stable first-failure index.
+  run :: List (Unit -> Bool) -> Int -> Int
+  run cases index = case cases of
+    Nil -> 0
+    Cons test rest -> if test () then run rest (index + 1) else index
+
+  -- | Independent case 0: writer-numeric.
+  row-a0 :: Unit -> Bool
+  row-a0 ignored = check-encoding 8 (-9223372036854775808) True (bytes-from-list [])
+
+  -- | Independent case 1: writer-numeric.
+  row-a1 :: Unit -> Bool
+  row-a1 ignored = check-encoding 8 (-72057594037927937) True (bytes-from-list [])
+
+  -- | Independent case 2: writer-numeric.
+  row-a2 :: Unit -> Bool
+  row-a2 ignored = check-encoding 8 (-72057594037927936) False (bytes-from-list [255, 0, 0, 0, 0, 0, 0, 0])
+
+  -- | Independent case 3: writer-numeric.
+  row-a3 :: Unit -> Bool
+  row-a3 ignored = check-encoding 8 (-1) False (bytes-from-list [255, 255, 255, 255, 255, 255, 255, 255])
+
+  -- | Independent case 4: writer-numeric.
+  row-a4 :: Unit -> Bool
+  row-a4 ignored = check-encoding 8 (0) False (bytes-from-list [48, 48, 48, 48, 48, 48, 48, 0])
+
+  -- | Independent case 5: writer-numeric.
+  row-a5 :: Unit -> Bool
+  row-a5 ignored = check-encoding 8 (1) False (bytes-from-list [48, 48, 48, 48, 48, 48, 49, 0])
+
+  -- | Independent case 6: writer-numeric.
+  row-a6 :: Unit -> Bool
+  row-a6 ignored = check-encoding 8 (2097151) False (bytes-from-list [55, 55, 55, 55, 55, 55, 55, 0])
+
+  -- | Independent case 7: writer-numeric.
+  row-a7 :: Unit -> Bool
+  row-a7 ignored = check-encoding 8 (2097152) False (bytes-from-list [128, 0, 0, 0, 0, 32, 0, 0])
+
+  -- | Independent case 8: writer-numeric.
+  row-a8 :: Unit -> Bool
+  row-a8 ignored = check-encoding 8 (72057594037927935) False (bytes-from-list [128, 255, 255, 255, 255, 255, 255, 255])
+
+  -- | Independent case 9: writer-numeric.
+  row-a9 :: Unit -> Bool
+  row-a9 ignored = check-encoding 8 (72057594037927936) True (bytes-from-list [])
+
+  -- | Independent case 10: writer-numeric.
+  row-a10 :: Unit -> Bool
+  row-a10 ignored = check-encoding 8 (9223372036854775807) True (bytes-from-list [])
+
+  -- | Independent case 11: writer-numeric.
+  row-a11 :: Unit -> Bool
+  row-a11 ignored = check-encoding 12 (-9223372036854775808) False (bytes-from-list [255, 255, 255, 255, 128, 0, 0, 0, 0, 0, 0, 0])
+
+  -- | Independent case 12: writer-numeric.
+  row-a12 :: Unit -> Bool
+  row-a12 ignored = check-encoding 12 (-72057594037927937) False (bytes-from-list [255, 255, 255, 255, 254, 255, 255, 255, 255, 255, 255, 255])
+
+  -- | Independent case 13: writer-numeric.
+  row-a13 :: Unit -> Bool
+  row-a13 ignored = check-encoding 12 (-72057594037927936) False (bytes-from-list [255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0])
+
+  -- | Independent case 14: writer-numeric.
+  row-a14 :: Unit -> Bool
+  row-a14 ignored = check-encoding 12 (-1) False (bytes-from-list [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255])
+
+  -- | Independent case 15: writer-numeric.
+  row-a15 :: Unit -> Bool
+  row-a15 ignored = check-encoding 12 (0) False (bytes-from-list [48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 0])
+
+  -- | Independent case 16: writer-numeric.
+  row-a16 :: Unit -> Bool
+  row-a16 ignored = check-encoding 12 (1) False (bytes-from-list [48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 49, 0])
+
+  -- | Independent case 17: writer-numeric.
+  row-a17 :: Unit -> Bool
+  row-a17 ignored = check-encoding 12 (2097151) False (bytes-from-list [48, 48, 48, 48, 55, 55, 55, 55, 55, 55, 55, 0])
+
+  -- | Independent case 18: writer-numeric.
+  row-a18 :: Unit -> Bool
+  row-a18 ignored = check-encoding 12 (2097152) False (bytes-from-list [48, 48, 48, 49, 48, 48, 48, 48, 48, 48, 48, 0])
+
+  -- | Independent case 19: writer-numeric.
+  row-a19 :: Unit -> Bool
+  row-a19 ignored = check-encoding 12 (72057594037927935) False (bytes-from-list [128, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255])
+
+  -- | Independent case 20: writer-numeric.
+  row-a20 :: Unit -> Bool
+  row-a20 ignored = check-encoding 12 (72057594037927936) False (bytes-from-list [128, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0])
+
+  -- | Independent case 21: writer-numeric.
+  row-a21 :: Unit -> Bool
+  row-a21 ignored = check-encoding 12 (9223372036854775807) False (bytes-from-list [128, 0, 0, 0, 127, 255, 255, 255, 255, 255, 255, 255])
+
+  -- | Return zero only when the complete selected independent unit passes.
+  main :: Int
+  main = run (Cons row-a0 (Cons row-a1 (Cons row-a2 (Cons row-a3 (Cons row-a4 (Cons row-a5 (Cons row-a6 (Cons row-a7 (Cons row-a8 (Cons row-a9 (Cons row-a10 (Cons row-a11 (Cons row-a12 (Cons row-a13 (Cons row-a14 (Cons row-a15 (Cons row-a16 (Cons row-a17 (Cons row-a18 (Cons row-a19 (Cons row-a20 (Cons row-a21 Nil)))))))))))))))))))))) 1

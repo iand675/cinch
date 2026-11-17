@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "isolated-metadata-block-source-qualified-rest-static-no-runtime",
+  "status": "isolated-partial-component-runtime-passed32-eachopt-rest-resource-paused",
   "implementation_scope": [
     "immutable archive metadata",
     "512-byte framing/checksum/field numeric codecs",
@@ -19,7 +19,10 @@
   "executed_gates": [
     "Python static85-record equality and canonical documentation structure",
     "ffb5 frozen compiler source check metadata/block only; explicit copied extension dependencies and embedded core authority",
-    "canonical doc parser metadata/block zero diagnostics/zero orphans"
+    "canonical doc parser metadata/block zero diagnostics/zero orphans",
+    "ffb5 raw-magic observer source/docs",
+    "Actual pinned offline public SDK73 block+22 writer numeric field observations, corrected derived checksum-label epoch retained",
+    "First32 block cases O0 and O2, normal32M/poison256M8M,4 zero-leak processes"
   ],
   "forbidden_claims": [
     "package parity",
@@ -30,15 +33,27 @@
   ],
   "files": {
     "audit_static.py": "3083aaf8bc903501f04ae38fd4c043eb745f69102ea2cea050c4c0da75f3fad2",
-    "design.md": "c5d44d780d9d3a23474a33ff050896204a7a42d56b2c633d57c3ff4c50885df6",
+    "build_block_reference.py": "52544628e388c87645e7a738d9e6f8a2203fbddcfda55e0dcf04b0b5d038c639",
+    "component-progress-results.json": "78a93720a7c5a0f7a573282ce4c0395345af49a040805ead5e210b26b724b74d",
+    "design.md": "073961b09828ffcdb5bd17e043573ef10b91cf8a47f19f470166084e113b4bb5",
+    "fixtures/block-vectors-original-a2.json": "04099f974584f1ac8940b61afd070da14e6032fc508a5d541e78c38f5740e911",
+    "fixtures/block-vectors.json": "f949b143eb518ab841328bcc406102e23aa47a22850fae63444949602a9ab4f5",
+    "fixtures/blocks-0000.cinch": "b9d5145b2373551794baa002c9b0008706bfa5be4b1a9c32e072cfa54df731a9",
+    "fixtures/blocks-0032.cinch": "ee3b0d2382543b4717f228ef7b24680e845b19774e2b3613f8dff38aed3f8ffe",
+    "fixtures/blocks-0064.cinch": "fe611590ed50df449b3fe5b45fb91bca983b885ebc9159b88f9e215b8c30f271",
+    "fixtures/encodings.cinch": "6076db237f185e9e71bea1de16aec3362aef521a43decfff5a260b0851f5bd31",
+    "generate_block_cases.py": "961d7ac15e33f977ed3183f0c8cdc28d6bdb7541bd1bf2275db4e9bb772053b0",
     "operation-mapping.json": "7f75835208b146b05b3a5f4541d8f5a9c90eb1c0dc8fbef352d9f1282ca07ab0",
     "operation-mapping.md": "0da3cb3f86c750125643148e12966b3e2515e0dfb1a43801b560c7a655bc0f48",
-    "qualify_source.py": "e3e1d0fd99c32442a583ccb4f81e208a651e5370390c7085a55c1a09b62d0f23",
+    "oracle-classification-correction.json": "780f9e47cf91da5ee3cf93b3a716abcce256541aedc63b86e8b7d9d2df0f263e",
+    "qualify_blocks.py": "0d1a57e6913806c6d18449499a630db6403e9459da18bb2cdcf0c459778d9f5d",
+    "qualify_source.py": "ebe26a476a283e05e5bf1be319008ea13c3c2afe9680927499d8d12e70d2c1a0",
+    "reference/blocks.go": "15d08196fd16afaecfb6db3cc949c0a2bcad88f33faf3f2ed0087218f81e04d2",
     "reference/main.go": "f5cb42efeb2dae0e000ab63cd928f1bc7ab93c131d310aef5bbdec1ef955e2bf",
     "source-qualification-results.json": "ca81e8c24e2dcb3986d70b72faa2418186722cfcbbf73389e76b620eb8c38e42",
     "sources/Data/Tar.cinch": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
     "sources/Effect/Tar/Framing.cinch": "6122b25c8dd6d4f044cf51b3b2fe103e8bc113c11e65aca318c8448da447783d",
-    "sources/Text/Tar/Block.cinch": "d46cc720409e5a48f4275d929734866b8a2f8f199475117e8b01b49e2a1cd3d0",
-    "static-audit-results.json": "d3f5613d64f33e6942088469a21bd3d60f05b7e313a1b956dcf6b6debaad6415"
+    "sources/Text/Tar/Block.cinch": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+    "static-audit-results.json": "4fe3114b5b5492e8aef0a6086fe1101c0d6bc89b10736ac60380141a5da41a95"
   }
 }

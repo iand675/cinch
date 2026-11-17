@@ -53,6 +53,7 @@ def main() -> None:
     parser.add_argument("--compiler", type=Path, required=True)
     parser.add_argument("--prelude", type=Path, required=True)
     parser.add_argument("--artifacts", type=Path, required=True)
+    parser.add_argument("--consumer", type=Path, help="Optional explicit source-only component consumer")
     parser.add_argument("--cpu", type=int, default=2)
     parser.add_argument("--dependencies", choices=("all-source", "frozen-builtins"), default="all-source",
                         help="Select explicit full source closure or producer-embedded core homes plus copied extension modules")
@@ -72,11 +73,16 @@ def main() -> None:
         (directory / (name + ".cinch")).write_bytes(path.read_bytes())
         sources[name] = {"path": str(path), "sha256": digest(path)}
     entry = directory / "Text.Tar.Block.cinch"
+    if args.consumer:
+        entry = directory / "Main.cinch"
+        entry.write_bytes(args.consumer.read_bytes())
     report = {"status": "started", "compiler": str(compiler), "compiler_sha256": digest(compiler),
               "sources": sources, "cpu": args.cpu, "runtime_executed": False,
               "scope": "metadata and physical block source only; stream framing excluded",
               "dependency_selection": args.dependencies,
               "embedded_builtin_authority": COMPILER_SHA if args.dependencies == "frozen-builtins" else None,
+              "consumer_sha256": digest(entry) if args.consumer else None,
+              "runner_sha256": digest(Path(__file__)),
               "free_before": shutil.disk_usage(HERE).free, "commands": []}
     commands = [[str(compiler), "check", str(entry)]]
     commands.extend([str(compiler), "doc", "extract", str(directory / (name + ".cinch")), "--out", str(directory / (name + ".docs.json"))]

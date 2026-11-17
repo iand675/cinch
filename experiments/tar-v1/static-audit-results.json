@@ -11,8 +11,8 @@
       "documented_declarations": 8
     },
     "sources/Text/Tar/Block.cinch": {
-      "sha256": "d46cc720409e5a48f4275d929734866b8a2f8f199475117e8b01b49e2a1cd3d0",
-      "documented_declarations": 27
+      "sha256": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+      "documented_declarations": 33
     }
   },
   "reference_generator_sha256": "f5cb42efeb2dae0e000ab63cd928f1bc7ab93c131d310aef5bbdec1ef955e2bf",

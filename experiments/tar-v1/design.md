@@ -3,10 +3,13 @@
 This is an isolated implementation draft. Metadata and block codecs pass one
 explicit frozen-compiler source check and canonical documentation extraction;
 `source-qualification-results.json` preserves all three attempts and the exact
-selected source hashes. The stream framing draft remains unchecked. No reference
-generator, runtime, portability test or benchmark has run. Nothing is installed
-into the prelude. The 85-record audit is a capability plan, not a
-completion claim. `operation-mapping.json` preserves every installed API record,
+selected source hashes. The stream framing draft remains unchecked. A separate
+independent fixed-block helper has recorded 73 block and 22 numeric writer-field observations. The first
+32 block rows pass separate O0/O2 normal and poisoned runtime profiles. The
+remaining component matrix is resource-paused, with one derived oracle-label
+correction preserved independently in `oracle-classification-correction.json`.
+No portability or benchmark has run. Nothing is installed into the prelude.
+The 85-record audit is a capability plan, not a completion claim. `operation-mapping.json` preserves every installed API record,
 including duplicate historical constant declarations, with a concrete target.
 
 ## Module boundaries
@@ -213,9 +216,11 @@ reviewed before selecting representations or advertising acceleration gains.
 `reference/main.go` uses the installed public SDK directly and emits raw archive
 bytes, decoded full headers and ordered writer/reader operation observations.
 All byte strings are hex, preserving malformed UTF-8. It also loads bounded raw
-installed fixtures for independent GNU/PAX sparse and legacy inputs. The source
-has not been compiled or executed. Its eventual receipt must identify actual
-SDK executable/source/input hashes and command, not infer observations from this
+installed fixtures for independent GNU/PAX sparse and legacy inputs. This
+full-archive source has not been compiled or executed. The separate `reference/blocks.go` fixed-block
+program has executed; its exact SDK/source/executable/output identities and all
+attempts are recorded in `component-progress-results.json`. Each receipt must
+identify actual SDK executable/source/input hashes and command, not infer observations from this
 draft. Compressed fixtures require a separately bounded decompression gate.
 
 Additional oracle cases before qualification: partial progress with simultaneous

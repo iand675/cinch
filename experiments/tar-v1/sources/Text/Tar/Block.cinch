@@ -13,11 +13,35 @@ module Text.Tar.Block where
   export TarBlock, tar-parse-block, tar-block-bytes, tar-block-checksums
   export tar-block-text, tar-block-number, tar-parse-number, tar-encode-octal, tar-encode-number
   export tar-padding, tar-seal-block
+  export TarBlockFormat, TarV7Block, TarUstarPaxBlock, TarGnuBlock, TarStarBlock, tar-block-format
 
   -- | A private immutable copy of one checksum-validated nonzero header block.
   data TarBlock where
     -- | Retain only a fresh, exactly 512-byte buffer.
     CheckedBlock :: Bytes -> TarBlock
+
+  -- | Raw magic classification before extensions and field-compliance checks refine the public format.
+  data TarBlockFormat where
+    -- | A checksum-valid legacy block without a recognized extended magic.
+    TarV7Block :: TarBlockFormat
+    -- | Shared POSIX magic; local extensions distinguish the eventual public format.
+    TarUstarPaxBlock :: TarBlockFormat
+    -- | Exact binary-format magic and version bytes.
+    TarGnuBlock :: TarBlockFormat
+    -- | POSIX magic accompanied by the distinct four-byte trailer.
+    TarStarBlock :: TarBlockFormat
+
+  -- | Classify fixed wire magic without allocating text or claiming complete header decoding.
+  tar-block-format :: TarBlock -> TarBlockFormat
+  tar-block-format block = case block of
+    CheckedBlock source ->
+      if bytes-len source == 512 then
+        let magic = bytes-read-le64 source 257 in
+        if eq-u64 (bit-and-u64 magic 281474976710655) 491261293429 then
+          if eq-u32 (bytes-read-le32 source 508) 7496052 then TarStarBlock else TarUstarPaxBlock
+        else if eq-u64 magic 9042874888123253 then TarGnuBlock
+        else TarV7Block
+      else TarV7Block
 
   -- | Return the zero padding needed after a physical byte count.
   tar-padding :: Nat -> Nat
