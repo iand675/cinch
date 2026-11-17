@@ -3,8 +3,13 @@
 This separate patch is based on the reviewed source/pin proposal3804. It is
 source-only: no new Native compiler, provider, LLVM or runtime execution has
 occurred. The qualified330/d91 checker accepts the changed Builtin module and
-its dependency closure. The complete51-source check reached its60-second
-deadline without a diagnostic or verdict; it remains open. The original
+its dependency closure; the Nominal/ExportType and Resolve closures also pass.
+The complete51-source checks reached separate60-second and180-second
+deadlines without a diagnostic or verdict; the full source gate remains open.
+The longer observation consumed179.52 sampled CPU seconds, peaked near1.13GiB
+RSS, and produced no new full51 interface set. The default check command runs
+specialization and optimization before returning, so these observations do not
+isolate source elaboration cost. The original
 RuntimeIr layout/parser failure and the corrected candidate are preserved
 separately. These checks type the compiler source; they do not execute the
 candidate MVar checker or emitter. Existing published Rust MVar qualification is not
