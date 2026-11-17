@@ -26,3 +26,22 @@ Actual historical headers remain evidence. Both frozen855 source outputs export 
 Once the qualified new producer is available, first check the full declaration closure and its pure selectors, then export genuine new interfaces and copy them byte-for-byte into a directory with no library sources. Inspect the actual defining identities and Region parameter metadata before testing closed map-size, independent-region copy, aliases and reexports. Keep the old genuine Type headers as negative/compatibility evidence: consumers must not reinterpret or rewrite them to Region. Test explicit `Type`, a concrete `Nat`, a shadowed unrelated handle and a foreign defining identity as refusals. Open-row map-all metadata admission remains a separate gate; correcting a nominal role does not itself prove that transport feature works. No metadata restamping is part of this proposal.
 
 IEEE64 preparation is independent of these role changes. The seven original reference observations retain duplicate quiet NaNs, distinct signaling/negative NaN payloads, signed-zero replacement, non-reflexive self equality, clone/copy multisets and deletion by key. The prepared consumer is byte-identical to the historically qualified fa3 fixture: SHA256 `ae7d15d9332bc9d721463a509a56400326c7390c76acfc1b817c961b480e9f1f`. It uses full-width bitcasts, checks exact key/value multiplicities without NaN lookup, and retains the high-bit patterns `0xfff8000000000017` and `0x8000000000000000`. Static preparation does not advance either pending frozen855 IEEE64 runtime verdict.
+
+## Qualified Role+Slots source job
+
+The next source-only job pins `/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch`, SHA256 `330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2`, and the adjacent runtime, SHA256 `d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf`. The qualified tuple's provenance SHA256 is `c303ec5ab34c80e19c19e659fa34ee35d1d5b73d0e2d9e81a1c9d990c7712251`.
+
+At an authorized CPU1 handoff, run:
+
+```sh
+source /workspace/.tools/cinch-env.sh
+CINCH_CLANG=/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang python3 tooling/qualify_maps_nominal_source.py --cpu 1
+```
+
+The wrapper verifies both exact tuple hashes, all proposal/original hashes, and the unchanged historical interface hashes before checking a fresh350MiB free-space guard. Below that guard it records a resource pause and invokes no compiler. The first guard observation was178,163,712 bytes free; `stdlib-maps-role-slots-source-results.json` records the pause. The job is therefore queued, without a new source verdict.
+
+Once permitted, the sole requested mode is whole-source checking of the C839 declaration-only proposal with its HashTable/Var dependency proposals. The source and interface outputs are bounded to5MiB. No emitter, linker or runtime is requested. It uses these isolated sources and the tuple's embedded modules; it selects no working Root Array implementation.
+
+On source success, the wrapper inspects actual generated `Data.Mutable.Map.MutableMap`, `Data.Mutable.HashTable.HashTable` and `Data.Mutable.Var.Var` defining headers, requiring `r :: Region` with ordinary payload parameters retained as `Type`. `MapEntry` is private: its explicit defining declaration must pass source checking, but it has no public exported type header. The report distinguishes those facts rather than manufacturing metadata or adding a test export. Source-absent transport, historical refusals, open-row capabilities, runtime behavior and Native-family admission remain separate gates.
+
+The existing mixed IO consumer is also prepared unchanged: `compiler/tests/fixtures/mutable-map-effect-control.cinch`. Its source supplies duplicate key1 bindings, yielding two live bindings and a value sum of50; both value and EqualBy callbacks retain `Mut r` and `IO r`, with two observable equality calls. `stdlib-maps-mixed-io-preparation-results.json` records the exact fixture hash and expectations. This preparation neither executes that consumer nor replaces its original source, result fingerprints or capability rows.

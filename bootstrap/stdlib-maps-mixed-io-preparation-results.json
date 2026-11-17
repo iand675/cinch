@@ -1,0 +1,22 @@
+{
+  "kind": "static-mixed-IO-fixture-preparation",
+  "compiler_invoked": false,
+  "runtime_executed": false,
+  "candidate_selected": false,
+  "fixture": "compiler/tests/fixtures/mutable-map-effect-control.cinch",
+  "fixture_sha256": "ff211c8dea51c6dd5c04fcd28668c0d907b84bbe7a0eabd8dd6ae402b9339c18",
+  "expected": {
+    "live_bindings": 2,
+    "value_sum": 50,
+    "equal_by_callback_calls": 2,
+    "result": 0
+  },
+  "contracts": [
+    "source and consumer both retain Mut r and IO r",
+    "last binding wins for key1",
+    "value callbacks perform IO and update a scoped cell",
+    "EqualBy predicate effects remain in the row",
+    "fresh clone has independent container ownership"
+  ],
+  "qualification": "Prepared unchanged fixture only; pending runtime units and tuple distinctions remain unchanged."
+}
