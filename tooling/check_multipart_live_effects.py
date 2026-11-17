@@ -141,7 +141,8 @@ def main() -> None:
                 shutil.copyfile(path, target)
                 retained[path.name] = digest(target)
             row['genuine_defining_interfaces'] = retained
-        archive_cache(work, frontend + '-live-runtime-source', row)
+        if result.returncode == 0:
+            archive_cache(work, frontend + '-live-runtime-source', row)
         report['artifact_bytes'] = sum(path.stat().st_size for path in work.rglob('*') if path.is_file())
         (work / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
         print(frontend, 'source accepted' if result.returncode == 0 else 'source refused', flush=True)
