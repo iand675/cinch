@@ -1,0 +1,30 @@
+{
+  "stage": "static-only",
+  "patch_application_check": "PASS: git apply --check against unchanged lane source at 37355b7b",
+  "syscall_number_checks": {
+    "x86_64": {
+      "number": 318,
+      "uapi": "/usr/include/x86_64-linux-gnu/asm/unistd_64.h"
+    },
+    "aarch64": {
+      "number": 278,
+      "uapi": "/usr/include/asm-generic/unistd.h"
+    },
+    "x86": {
+      "number": 355,
+      "uapi": "/usr/include/x86_64-linux-gnu/asm/unistd_32.h"
+    }
+  },
+  "asm_review": "Existing syscall helper declares no nomem/readonly option, so kernel buffer writes remain visible to the compiler. Existing per-architecture register/clobber declarations are reused unchanged; not newly execution-qualified.",
+  "baseline_platform_sha256": "f4f0e6519e526590ae2f779b9ba5b81b3c5cd685f14abf901eeeed7e9f60477b",
+  "baseline_runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "actual_runtime_built": false,
+  "deterministic_tests_executed": false,
+  "real_entropy_tests_executed": false,
+  "benchmarks_executed": false,
+  "artifacts": {
+    "proposal.patch": "3574589808cf14774b36432ae273fcd3c672601873a7e14da818e2fc19e2bcd7",
+    "manifest.json": "bd095ce9e9078728a7bce3bc907057cc88965cd33ead65f5de3f8ea0a5e23a6e",
+    "REVIEW.md": "0e1b0a979fa358f46b1e850570754b28e89c8b63a6272afb8fc9c5238a629fbb"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "status": "static proposal only; not compiled, tested, linked, or timed",
+  "base_commit": "37355b7b",
+  "public_abi": "#[unsafe(no_mangle)] pub extern \"C\" fn cinch_random_bytes(n: i64) -> i64",
+  "runtime_path": "/workspace/dasl-stdlib-io/build/stdlib-projector-release-frozen/libcinchruntime.a",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "baseline_sources": {
+    "compiler/runtime/src/lib.rs": "f7f5f47e483875ac2ee8e974edf5326d6fd7f62e06ea1f44fb92f66a520dba46",
+    "compiler/runtime/src/platform.rs": "f4f0e6519e526590ae2f779b9ba5b81b3c5cd685f14abf901eeeed7e9f60477b",
+    "compiler/runtime/src/sys/mod.rs": "40246594e7d09b697becff9332f4d4a51aa1314760a0e2385d2ab3ecc2ad2512",
+    "compiler/runtime/src/sys/linux.rs": "89b92bcb5afcee978bb3eb91112485d0213b4063f02a283c38c9b51519cc23c7",
+    "compiler/runtime/src/abi.rs": "fa327d77f1314b508131e6c00b11dd79bf6c6184003b3cf176918d7c49893809",
+    "compiler/runtime/src/bytes.rs": "65f3930d3a0cd82ba7febe1b17a25510ad3e44cad55ac56055e6bd714de91068",
+    "compiler/runtime/Cargo.toml": "2c98c293d2f26f59f422818de2a4bdaa13be24d7d342f83bfeeae3cf592bfcac"
+  },
+  "proposed_sources": {
+    "compiler/runtime/src/entropy.rs": "a9a70f3b731a01bf59f54115572214638d918789566655ed34f005e5cafbf893",
+    "compiler/runtime/src/lib.rs": "f51287cf8f6e6a7e9c63d31a6134941a72815f95b64213593c9483dc9f59a61b",
+    "compiler/runtime/src/platform.rs": "251f5638ecf3008ad465f733cfe5f76f11e652f82b9080b6e5c6c248dcf83712",
+    "compiler/runtime/src/sys/linux.rs": "70c40717c5a56feb5cdbbef0f966c081014e9c48e98b5c5a4aff33c1699f0f92",
+    "compiler/runtime/src/sys/mod.rs": "58c12896598980cb9752e5926745b0e39f58c2ea18f47a012c3c4e505b72027e"
+  }
+}
