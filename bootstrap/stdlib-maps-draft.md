@@ -40,11 +40,11 @@ establish that gate.
 - The direct core Copy worker allows Native2f to check the whole core,
   including heterogeneous EqualBy. Optional Copy's analogous direct
   implementation first exposed my reserved identifier `target`; it is
-  renamed to `destination-map`. The final complete Optional/Float check
-  has not yet run. No linked executable or runtime verdict is claimed.
-  The later session-closing guard and its retained-callback control also
-  remain unqualified; the earlier source verdict is tied to its retained
-  input hashes, not to subsequent edits.
+  renamed to `destination-map`. A later exact source-selected check now
+  accepts the complete current core/Optional/Float closure, including the
+  session-closing guard. No linked Native executable or runtime verdict
+  follows from this source check. Its exact inputs are recorded separately
+  in `stdlib-maps-native-source-results.json`.
 
 Exact inputs and diagnostics remain under `build/maps-source-probe`,
 `build/maps-region-probes` and `build/maps-native-source-probe`. The
@@ -124,7 +124,8 @@ gates; normal32M/8M and separate poison256M/8M must both report zero leaks.
 Native linking explicitly selects O0 or O2 and its exact matched provider
 object/runtime; Rust whole-source linking uses only its explicit archive.
 Source-only, control, IEEE, all general traces and actual IO callback modes
-passed on fa3/c4. Native emission/link/runtime modes remain unqualified.
+passed on fa3/c4. Native full source selection also passes admitted2f/V2/80bd; its
+emission/link/runtime modes remain unqualified.
 
 Ring selected9c and unselected storage candidate0dd remain immutable.
 Work switches back to bounded focused Ring qualification when the exact
