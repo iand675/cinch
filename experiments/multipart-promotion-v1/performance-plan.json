@@ -1,0 +1,110 @@
+{
+  "status": "Both explicit current-source variants built/source-checked,224normal/poison preflights and actualLLVM/optimizedASM gates passed. Exclusive timing slot requested from Root, no timing yet.",
+  "scope": "Matched SIMD and independently scalarized candidate, complete public pipelines and pinned SDK reference; no baseline/newNative relabel or parity assumption.",
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+    "sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf"
+  },
+  "candidate": {
+    "Effect.Multipart.cinch": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b",
+    "Text.Multipart.cinch": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2"
+  },
+  "driver": {
+    "path": "tooling/data/multipart-benchmark.cinch",
+    "sha256": "2f0025162afc7dd8b6218baa17535ed56b2b6017f6f2b9232191f2964b9c8616"
+  },
+  "independent_reference": {
+    "path": "tooling/data/multipart-benchmark.go",
+    "sha256": "201ef60b2d74e7f3c50f1fcdb4ca904d3160f8821f8d3ca025c1cb923260bdbf",
+    "sdk_executable": "/tmp/cinch-go-current/go/bin/go",
+    "sdk_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+    "version": "go version go1.27.4 linux/amd64",
+    "standard_package_sources": {
+      "src/mime/encodedword.go": "394cfb382ac4b68806b067757f6fa77ebb009392eab1d9d7a12db8e03fda838a",
+      "src/mime/grammar.go": "85d1052199201e6ad52e27db50104842295dbf10e87f3914c803c6ce533772a6",
+      "src/mime/mediatype.go": "2179fd195097a382a2ac3cdcbcbc6961f2770dbd61adfabfc60535c1acc5faa0",
+      "src/mime/type.go": "e3d0b689c0f303a88c14844d4f7ac961030abe8d1e721f8889961ee1c2e277c8",
+      "src/mime/type_dragonfly.go": "432ef2a243a523edbee081a49f2282eb39c0ecebc070a7028ee8f1b37d531722",
+      "src/mime/type_freebsd.go": "432ef2a243a523edbee081a49f2282eb39c0ecebc070a7028ee8f1b37d531722",
+      "src/mime/type_openbsd.go": "4cff9fa44108751d6e291cf59f8f4a14d8766e4e39339e3e86012a6d78ed1d64",
+      "src/mime/type_plan9.go": "9a57cdd7cb285bb7abe6f008f80d11845433eb0917fb89cc99b0e60d3124f9cc",
+      "src/mime/type_unix.go": "ecf9e4a99edf73edd2e9088ca0ba0c8ec99a094188474536e59dc0a921a850ca",
+      "src/mime/type_windows.go": "f893579a237fd8373f4b4d576af294bb12f62fdc8aac952ffadbae0906ed6cf6",
+      "src/mime/multipart/formdata.go": "cf2fc05db29dc4556ae12719c4db59b2f90b681eef5e74c5229a3c00e3a5bd92",
+      "src/mime/multipart/multipart.go": "edda61c98001eecf78e48f87c709f0a2c9a3972951a04b48d15724d9ee8df9e7",
+      "src/mime/multipart/readmimeheader.go": "395541411dd83b97939818f37053b634e9e37cf7b670b8ec2a368375922eeeb6",
+      "src/mime/multipart/writer.go": "efff79ea10e83051650936eb649416aeacb97baa94d62322f264e4cfcbe47c39",
+      "src/mime/quotedprintable/reader.go": "8caa6835cbdea786381063601d021dc775751bf39c5b8d41a965f6370648227b",
+      "src/mime/quotedprintable/writer.go": "c180dbcf62cfe6c686698b698883891703bdf93da7d27c722dac85e628683114"
+    }
+  },
+  "modes": [
+    "read",
+    "read-header",
+    "read-qp",
+    "write-body",
+    "write-sparse",
+    "write-dense",
+    "disposition-sparse",
+    "disposition-dense"
+  ],
+  "functional_preflight": {
+    "sizes": [
+      0,
+      1,
+      15,
+      16,
+      17,
+      64,
+      4096
+    ],
+    "iterations": 3,
+    "variants": [
+      "SIMD",
+      "scalar"
+    ],
+    "profiles": [
+      "normal32MiB/8MiB",
+      "poison256MiB/8MiB"
+    ],
+    "checks": "Complete output scalar digest, retained input/context digests, exact independent reference agreement and zero leaks. Elapsed fields are explicitly untimed functional observations."
+  },
+  "planned_measurement": {
+    "sizes": [
+      64,
+      4096
+    ],
+    "iterations": 20,
+    "samples": 5,
+    "warmups_per_condition": 1,
+    "programs": [
+      "SIMD",
+      "scalar",
+      "reference"
+    ],
+    "order": "Rotated and alternating interleaved triplets; all raw samples/control/quota evidence retained. No outlier removal or parity claim.",
+    "cpu": "Exclusive Root-coordinated CPU0 slot requested only after preflights and actual optimized code inspection; ownCPU1 compiler work held during timing."
+  },
+  "code_inspection": "Actual LLVM and optimized target assembly must show public paths and SIMD instructions, end clock before retained input/context traversal and teardown. Scalar baseline changes only the documented three classification/search functions.",
+  "scope_limits": [
+    "Reader transport uses borrowed C with fresh language buffers; SDK retains normal immutable string/GC/runtime policies.",
+    "Both prepare writer context outside timing and measure complete field write plus repeatable Close; input preparation excluded on both sides.",
+    "All public output bytes are consumed inside timing, while retained original input/context is traversed after the end clock.",
+    "The three richer callback factories have separate live functional qualification; this established public driver measures complete reader/writer/disposition pipelines.",
+    "Current Native family qualification and production selection remain separate."
+  ],
+  "resource_policy": {
+    "cpu": 1,
+    "serial_builds": true,
+    "start_mib": 350,
+    "pause_mib": 250,
+    "new_unarchived_cap_mib_per_variant": 30,
+    "actual_measured_inputs_remain_plain": true
+  },
+  "historical_baseline": "f0e8fc8c old855/c4 and Native2f/V2/80bd benchmarks remain immutable distinct source/compiler epochs; new330 results will not overwrite or relabel them.",
+  "preflight_receipt": "performance-preflights.json",
+  "preflight_cinch_processes": 224,
+  "actual_code_gates": 2,
+  "timing_executed": false
+}

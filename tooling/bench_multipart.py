@@ -69,6 +69,11 @@ def main() -> None:
     parser.add_argument('--samples', type=int, default=7)
     parser.add_argument('--context', default='', help='Observed shared-machine background during the exclusive timing slot')
     parser.add_argument('--compare', type=Path, help='Interleave the opposite scalar/SIMD snapshot and the same independent reference')
+    parser.add_argument('--effect-source', type=Path, help='Explicit selected Effect.Multipart candidate, preserved in both scalar and SIMD sets')
+    parser.add_argument('--text-source', type=Path, help='Explicit selected Text.Multipart basis before any documented scalar derivation')
+    parser.add_argument('--start-free-mib', type=int, default=0)
+    parser.add_argument('--pause-free-mib', type=int, default=0)
+    parser.add_argument('--unarchived-cap-mib', type=int, default=0)
     args = parser.parse_args()
     if args.build_only and args.run_only:
         parser.error('--build-only and --run-only are mutually exclusive')
@@ -84,6 +89,19 @@ def main() -> None:
     reference_source = ROOT / 'tooling/data/multipart-benchmark.go'
     exe, reference = work / 'bench', work / 'reference'
     report_path = work / 'report.json'
+    selection = {name: {'path': str(path.resolve()), 'sha256': digest(path)} for name, path in
+                 (('Effect.Multipart', args.effect_source), ('Text.Multipart', args.text_source)) if path is not None}
+    policy = {'start_free_mib': args.start_free_mib, 'pause_free_mib': args.pause_free_mib,
+              'unarchived_cap_mib': args.unarchived_cap_mib}
+
+    def guard(phase: str, minimum: int) -> None:
+        """Keep measured inputs plain while bounding each functional build/preflight epoch."""
+        free = shutil.disk_usage(work).free
+        plain = sum(path.stat().st_size for path in work.rglob('*') if path.is_file())
+        if free < minimum or (args.unarchived_cap_mib and plain > args.unarchived_cap_mib * 1024 * 1024):
+            raise RuntimeError('resource pause before ' + phase + '; preserve all current inputs')
+
+    guard('start', args.start_free_mib * 1024 * 1024)
     if not args.run_only:
         if report_path.exists():
             raise RuntimeError('preserve existing benchmark epoch; select --run-only or a fresh work directory')
@@ -91,7 +109,8 @@ def main() -> None:
         frozen_endpoint = work / 'endpoint.c'
         shutil.copyfile(reference_source, frozen_reference)
         shutil.copyfile(ROOT / 'tooling/data/multipart-benchmark.c', frozen_endpoint)
-        closure = source_closure(driver.read_text())
+        overrides = {name: Path(row['path']) for name, row in selection.items()}
+        closure = source_closure(driver.read_text(), overrides)
         ordered, visited = [], set()
         def visit(name: str) -> None:
             """Preserve dependency order for source-distributed Native modules."""
@@ -128,6 +147,19 @@ def main() -> None:
             source.write_text(contents)
         shutil.copyfile(driver, work / 'Main.cinch')
         report = {'format': 1, 'scalar_snapshot': args.scalar, 'compile_rc_debug': False, 'runner_sha256': digest(Path(__file__)), 'compiler': str(compiler), 'compiler_sha256': digest(compiler), 'runtime': str(runtime), 'runtime_sha256': digest(runtime), 'driver_sha256': digest(driver), 'reference_source_sha256': digest(reference_source), 'source_sha256': {name: digest(work / (name + '.cinch')) for name in ordered}, 'compiler_host_stack_bytes': 64 * 1024 * 1024, 'compiler_environment': {'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'}, 'allocation_policy': 'Cinch returns fresh mutable byte/header snapshots; the reference uses immutable strings and may keep local state or buffers on its stack. Both consume every output byte inside the clock and traverse retained inputs afterward.', 'writer_context_scope': 'Both prepare one validated-boundary writer outside the clock, then benchmark complete WriteField plus repeatable Close operations on the reused context; entropy and root-context initialization are excluded on both sides.', 'transport_scope': 'Cinch uses a borrowed C source with fresh language-owned read buffers and a scalar C observing sink; the reference uses bytes.Reader, one reusable body buffer and an equivalent scalar observing writer.', 'profile_scope': 'Cinch executable only; the public reference retains its normal GC, heap and goroutine-stack policies.', 'profile': {'heap': '32M', 'stack': '8M', 'poison': False, 'leak_check': True}, 'scope': __doc__, 'results': []}
+        report.update(source_selection=selection, resource_policy=policy,
+                      sdk_executable_sha256=digest(args.go), sdk_executable=str(args.go.resolve()))
+        report_path.write_text(json.dumps(report, indent=2) + '\n')
+
+        def execute(command: list, timeout: int = 300, env: dict | None = None):
+            """Preserve the exact first failed build command and its plain source/diagnostic artifacts."""
+            guard('process', args.pause_free_mib * 1024 * 1024)
+            try:
+                return run(command, work, timeout, env)
+            except Exception as error:
+                report.setdefault('failures', []).append({'command': list(map(str, command)), 'diagnostic': str(error)})
+                report_path.write_text(json.dumps(report, indent=2) + '\n')
+                raise
         ir = work / 'bench.ll'
         if args.native:
             snap = args.native.resolve()
@@ -141,27 +173,39 @@ def main() -> None:
             command = [str(compiler), 'emit-ir', str(work / 'Main.cinch'), '-o', str(ir)]
         endpoint = frozen_endpoint
         endpoint_object = work / 'endpoint.o'
-        run([clang, '-O2', '-fno-vectorize', '-fno-slp-vectorize', '-c', str(endpoint), '-o', str(endpoint_object)], work)
+        if not args.native:
+            checked = execute([str(compiler), 'check', str(work / 'Main.cinch')], env={**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})
+            report['source_check'] = {'stdout': checked.stdout, 'stderr': checked.stderr, 'accepted': True}
+        execute([clang, '-O2', '-fno-vectorize', '-fno-slp-vectorize', '-c', str(endpoint), '-o', str(endpoint_object)])
         report['endpoint_source_sha256'] = digest(endpoint)
         report['endpoint_object_sha256'] = digest(endpoint_object)
         report['endpoint_vectorization'] = False
-        result = run(command, work, 300, {**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})
+        result = execute(command, env={**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})
         report['compile'] = {'command': command, 'stdout': result.stdout, 'stderr': result.stderr}
         target = re.search(r'target triple = "([^"]+)"', ir.read_text())
         triple = target.group(1) if target else config['target']
         link = [clang, '-O2', '--target=' + triple, str(ir), str(endpoint_object)]
         if args.native:
             link.append(str(provider))
-        run(link + [str(runtime), '-ldl', '-lpthread', '-lm', '-o', str(exe)], work)
-        run([clang, '-O2', '-S', str(ir), '-o', str(work / 'bench.s')], work)
+        execute(link + [str(runtime), '-ldl', '-lpthread', '-lm', '-o', str(exe)])
+        execute([clang, '-O2', '-S', str(ir), '-o', str(work / 'bench.s')])
         env = {**os.environ, 'GOMAXPROCS': '1', 'GOTELEMETRY': 'off', 'GOCACHE': '/tmp/cinch-mime-go-cache'}
         reference_command = [str(args.go), 'build', '-trimpath', '-o', str(reference), str(frozen_reference)]
-        run(reference_command, work, 180, env)
+        execute(reference_command, 180, env)
         report['reference_command'] = reference_command
         report.update(executable_sha256=digest(exe), reference_executable_sha256=digest(reference), llvm_sha256=digest(ir), assembly_sha256=digest(work / 'bench.s'), target_triple=triple, sdk=run([str(args.go), 'version'], work, env=env).stdout.strip(), platform=platform.platform(), cpu=next(line.split(':', 1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines() if line.startswith('model name')), clang=run([clang, '--version'], work).stdout.splitlines()[0])
+        sdk_root = Path(run([str(args.go), 'env', 'GOROOT'], work, env=env).stdout.strip())
+        report['sdk_package_sources'] = {str(path.relative_to(sdk_root)): digest(path)
+            for package in ('mime', 'mime/multipart', 'mime/quotedprintable')
+            for path in sorted((sdk_root / 'src' / package).glob('*.go')) if not path.name.endswith('_test.go')}
+        guard('completed build', args.pause_free_mib * 1024 * 1024)
         report_path.write_text(json.dumps(report, indent=2) + '\n')
     else:
         report = json.loads(report_path.read_text())
+        if report.get('source_selection', {}) != selection:
+            raise RuntimeError('changed explicit current-candidate selection')
+        if report.get('sdk_executable_sha256', digest(args.go)) != digest(args.go):
+            raise RuntimeError('changed pinned SDK executable')
         if report['scalar_snapshot'] != args.scalar:
             raise RuntimeError('changed scalar/SIMD benchmark selection')
         for key, path in [('compiler_sha256', compiler), ('runtime_sha256', runtime), ('driver_sha256', driver), ('reference_source_sha256', reference_source), ('endpoint_source_sha256', ROOT / 'tooling/data/multipart-benchmark.c'), ('endpoint_object_sha256', work / 'endpoint.o'), ('executable_sha256', exe), ('reference_executable_sha256', reference)]:
@@ -179,6 +223,7 @@ def main() -> None:
     if args.build_only:
         return
     if args.smoke_only:
+        guard('functional preflight', args.pause_free_mib * 1024 * 1024)
         functional_smoke(exe, reference, args.sizes, args.iterations, work)
         return
     report['quota_before'] = Path('/sys/fs/cgroup/cpu.stat').read_text()
@@ -190,6 +235,8 @@ def main() -> None:
         for key in ('compiler_sha256', 'runtime_sha256', 'driver_sha256', 'reference_source_sha256', 'endpoint_source_sha256', 'sdk'):
             if report[key] != other[key]:
                 raise RuntimeError('changed companion benchmark identity: ' + key)
+        if report.get('source_selection', {}) != other.get('source_selection', {}):
+            raise RuntimeError('companion changes the selected candidate basis')
         if other['scalar_snapshot'] == args.scalar:
             raise RuntimeError('companion must be the opposite scalar/SIMD implementation')
         if digest(companion / 'bench') != other['executable_sha256']:
