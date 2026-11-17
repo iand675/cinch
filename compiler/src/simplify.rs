@@ -3657,8 +3657,8 @@ struct Admitted {
     benefit: usize,
     /// Whether the benefit model may credit a fold at the site: the same
     /// condition as [`Admitted::fold`], restated because the two models
-    /// treat a non-folding decision differently (the threshold model copies
-    /// it anyway when it is small, the benefit model never does).
+    /// treat other non-folding decisions differently. A single-arm field
+    /// projector keeps its check and receives no fold credit in either case.
     folds: bool,
     /// The callee is in a recursive group, so no copy may be made. The
     /// threshold model refuses it at admission; the benefit model admits the
@@ -3666,6 +3666,23 @@ struct Admitted {
     recursive: bool,
     /// The callee is used as a value somewhere in the program.
     valued: bool,
+}
+
+/// Recognize a single constructor-field read without calls, computed
+/// scrutinees, alternative branches or other work. Copying this body keeps
+/// its case check intact: it does not assume the argument's constructor or
+/// move a field computation. Normal admission and copy budgets still apply,
+/// and the ownership pass derives the selected field's reference count at
+/// its new site.
+fn constructor_field_projector(f: &FnDef) -> bool {
+    let Core::Case { scrut, alts } = &f.body else { return false };
+    let Core::Var(parameter) = &**scrut else { return false };
+    if parameter.0 >= f.arity() || alts.len() != 1 {
+        return false;
+    }
+    let CPat::Con { fields, .. } = &alts[0].pat else { return false };
+    let Core::Var(selected) = &*alts[0].body else { return false };
+    fields.contains(selected)
 }
 
 fn candidate(
@@ -3819,14 +3836,18 @@ fn candidate(
             }
             let mut cases = Vec::new();
             case_scrutinee_params(&f.body, &mut cases);
-            let folds = !cases.is_empty();
+            // A pure one-arm field read has no alternative branches to
+            // duplicate. Keep its case rather than requiring a known
+            // constructor at each call; later product-return lowering can
+            // then see the caller taking apart that product directly.
+            let folds = !cases.is_empty() && !constructor_field_projector(f);
             Ok(Admitted {
                 params: params(),
                 cases,
-                // The benefit model never copies a decision it cannot fold:
-                // a duplicated branch is exactly what the benefit term
-                // cannot pay for, because the copy would add arms and remove
-                // no call from inside them.
+                // Other decision-bearing bodies still require a fold:
+                // duplicating alternatives adds arms without removing a
+                // call inside them. The narrow field-read exception above
+                // retains its one case and receives no fold credit.
                 fold: folds,
                 charge: true,
                 certain: size <= opts.inline_small_size,

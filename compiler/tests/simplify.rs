@@ -902,6 +902,76 @@ fn benefit_inlines_a_small_body_at_every_site() {
     assert!(!text.contains("Data.Machine.Eq_I64.=="), "a call survived: {text}");
 }
 
+/// A getter with real alternatives still needs a known constructor at
+/// duplicated sites, even when its body meets the small-function floor.
+#[test]
+fn benefit_field_projector_exception_keeps_multi_alternative_fold_gate() {
+    let getter = unit("Main.pick", vec![Class::Obj], Core::Case {
+        scrut: Box::new(Core::Var(LocalId(0))),
+        alts: vec![
+            CAlt::new(con(0, &[1]), Core::Var(LocalId(1))),
+            CAlt::new(con(1, &[2]), Core::Var(LocalId(2))),
+        ],
+    });
+    let body = Core::Let(LocalId(2), Class::Obj,
+        Box::new(call("Main.pick", vec![Core::Var(LocalId(0))])),
+        Box::new(call("Main.pick", vec![Core::Var(LocalId(1))])));
+    let mut p = program(vec![ctor_unit("A", 0, 1), ctor_unit("B", 1, 1), getter,
+        unit("Main.f", vec![Class::Obj, Class::Obj], body)]);
+    let opts = SimplifyOptions { max_iterations: 1, ..benefit_options() };
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &opts, &mut report);
+    assert_eq!(report.benefit.refused_fold, 2);
+    assert_eq!(report.inlined, 0);
+}
+
+/// A one-arm case that computes with its field is not the pure field-read
+/// exception; it retains the existing unknown-constructor refusal.
+#[test]
+fn benefit_field_projector_exception_refuses_computed_body() {
+    let mut constructor = ctor_unit("Flag", 0, 1);
+    constructor.repr.params = vec![Class::Raw];
+    let getter = unit("Main.invert", vec![Class::Obj], Core::Case {
+        scrut: Box::new(Core::Var(LocalId(0))),
+        alts: vec![CAlt::new(
+            CPat::Con { tag: 0, fields: vec![LocalId(1)], classes: vec![Class::Raw] },
+            prim(cinch::core::PrimOp::NotBool, vec![Core::Var(LocalId(1))]),
+        )],
+    });
+    let body = prim(cinch::core::PrimOp::AndBool, vec![
+        call("Main.invert", vec![Core::Var(LocalId(0))]),
+        call("Main.invert", vec![Core::Var(LocalId(1))]),
+    ]);
+    let mut p = program(vec![constructor, getter, unit("Main.f", vec![Class::Obj, Class::Obj], body)]);
+    let opts = SimplifyOptions { max_iterations: 1, ..benefit_options() };
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &opts, &mut report);
+    assert_eq!(report.benefit.refused_fold, 2);
+    assert_eq!(report.inlined, 0);
+}
+
+/// Projector admission bypasses only the fold precondition: a configured
+/// size allowance can still refuse the same otherwise eligible getter.
+#[test]
+fn benefit_field_projector_exception_keeps_size_gate() {
+    let getter = unit("Main.pick", vec![Class::Obj], Core::Case {
+        scrut: Box::new(Core::Var(LocalId(0))),
+        alts: vec![CAlt::new(con(0, &[1]), Core::Var(LocalId(1)))],
+    });
+    let body = Core::Let(LocalId(2), Class::Obj,
+        Box::new(call("Main.pick", vec![Core::Var(LocalId(0))])),
+        Box::new(call("Main.pick", vec![Core::Var(LocalId(1))])));
+    let mut p = program(vec![ctor_unit("Box", 0, 1), getter,
+        unit("Main.f", vec![Class::Obj, Class::Obj], body)]);
+    let opts = SimplifyOptions { max_iterations: 1, inline_small_size: 0, inline_size_threshold: 0,
+        ..benefit_options() };
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &opts, &mut report);
+    assert_eq!(report.benefit.refused_fold, 0);
+    assert_eq!(report.benefit.refused_size, 2);
+    assert_eq!(report.inlined, 0);
+}
+
 /// A body whose duplication removes only the call and adds more instructions
 /// than the call was worth is refused: the model's size test, which the
 /// threshold model also refuses but for a different reason.

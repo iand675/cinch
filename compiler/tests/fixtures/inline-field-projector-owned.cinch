@@ -1,0 +1,48 @@
+-- | Escaped owned fields and strict unused arguments across several opaque product observations.
+module Main where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Nat
+
+  -- | Retain both a mutable byte owner and a dynamically boxed natural.
+  data Payload where
+    -- | Store two independently counted fields in one ordinary product.
+    Payload :: Bytes -> Nat -> Payload
+
+  -- | Keep the producer opaque while allowing its constructed product return convention.
+  #[inline(never)]
+  make-payload :: Bytes -> Nat -> Payload
+  make-payload source number = Payload source number
+
+  -- | Observe the byte owner after evaluating the caller's strict extra argument.
+  payload-bytes :: Payload -> Unit -> Bytes
+  payload-bytes input ignored = case input of Payload source number -> source
+
+  -- | Observe the counted natural without taking ownership from another alias.
+  payload-number :: Payload -> Nat
+  payload-number input = case input of Payload source number -> number
+
+  -- | Return selected fields after their original product and local aliases expire.
+  #[inline(never)]
+  escaped :: Nat -> (Bytes, Nat, Bool)
+  escaped index = let source = bytes-new 17 in
+    let product = make-payload source (18446744073709551616 + index) in
+    let first = payload-bytes product (if bytes-len source > 0 then bytes-set source 0 75 else ()) in
+    let number = payload-number product in
+    let second = payload-bytes product (if bytes-len source > 0 then bytes-set source 0 76 else ()) in
+    let again = payload-number product in
+    let accepted = number == again && bytes-len second == 17
+      && (if bytes-len first > 0 then bytes-get first 0 == 76 else False) in
+    (first, number, accepted)
+
+  -- | Churn fresh owners and boxed fields while observing them after the producer returns.
+  check :: Nat -> Bool
+  check remaining = if remaining > 0 then case escaped remaining of
+    (source, number, accepted) -> accepted && number == 18446744073709551616 + remaining
+      && (if bytes-len source > 0 then bytes-get source 0 == 76 else False)
+      && check (remaining - 1)
+    else True
+
+  -- | Require every strict argument effect and every escaped counted field to survive.
+  main :: Int
+  main = if check 256 then 0 else 1
