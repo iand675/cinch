@@ -468,6 +468,76 @@
         }
       ],
       "executable_sha256": "622e175450fa03ca86b2e3542f2cc5455b605057a1be4a5abe2e7abd15e36511"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0000",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-corpus-o2-v1/rust-readers-0000.ll"
+      ],
+      "compile_seconds": 11.884895427006995,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "4fb03c6e20c347b0adeef035b857ac7767059189964e08031e2afce57be98405",
+      "ir_sha256": "478f73ddd55aad555de31e2f046cde90fe281e5e387229c1af0eca83b24c2032",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "c91719c662a4b8cefa6e48afa56a6c4718f638a099b24116929224f16aa16e6a"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0064",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-corpus-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-corpus-o2-v1/rust-readers-0064.ll"
+      ],
+      "compile_seconds": 12.830383991007693,
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": "48940b2a9c2ec3d02a4b15ca86ac24412c44b1d17e802c19b1c6a29d0cd5bd76",
+      "ir_sha256": "b26e197127fa7e725b689693ddf6715a9c3aef1161195e44e1363cdbdf679a83",
+      "target": "x86_64-unknown-linux-gnu",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "c53c17ef8027aa8110654454b21e628db08a13fb3c58a8a9936940e7377fcbc8"
     }
   ],
   "kernel_ir_sha256": "1eff2f91b049efee708ac3d9173391c8194eb8c89c7ae611af54ce5b941ee848",
@@ -531,6 +601,62 @@
       "free_bytes": 435486720,
       "pause_free_mib": 250,
       "new_unarchived_bytes": 17123745,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-readers-0000",
+      "free_bytes": 502087680,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3799656,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-readers-0000",
+      "free_bytes": 494977024,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 10865861,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0000-0",
+      "free_bytes": 488161280,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17676588,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0000-1",
+      "free_bytes": 488161280,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17676873,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "emit-rust-readers-0064",
+      "free_bytes": 482324480,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 3742505,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "link-rust-readers-0064",
+      "free_bytes": 507539456,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 10425142,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0064-0",
+      "free_bytes": 498831360,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17165317,
+      "unarchived_cap_mib": 30
+    },
+    {
+      "phase": "profile-rust-readers-0064-1",
+      "free_bytes": 498827264,
+      "pause_free_mib": 250,
+      "new_unarchived_bytes": 17165602,
       "unarchived_cap_mib": 30
     }
   ]

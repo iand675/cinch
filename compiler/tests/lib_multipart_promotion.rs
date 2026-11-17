@@ -1,5 +1,29 @@
 //! SDK-free gates for the isolated Region-carrier and both-effect candidate.
 
+/// Keep the complete generated project plain when a qualification assertion fails.
+struct QualificationDirectory(Option<tempfile::TempDir>);
+
+impl QualificationDirectory {
+    /// Locate the owned project without transferring cleanup responsibility.
+    fn path(&self) -> &std::path::Path {
+        self.0.as_ref().unwrap().path()
+    }
+}
+
+impl Drop for QualificationDirectory {
+    /// Preserve sources, interfaces, diagnostics and generated artifacts during unwinding.
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            if let Some(directory) = self.0.take() {
+                eprintln!(
+                    "retained failed multipart qualification: {}",
+                    directory.keep().display()
+                );
+            }
+        }
+    }
+}
+
 /// The review candidate keeps canonical documentation on every declaration.
 #[test]
 fn isolated_multipart_candidate_has_canonical_documentation() {
@@ -47,7 +71,7 @@ fn rust_cli_executes_isolated_multipart_factories_with_region_metadata() {
     let compiler_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let repository = compiler_root.parent().unwrap();
     let runtime = compiler_root.join("runtime/target/release/libcinchruntime.a");
-    let work = tempfile::tempdir().unwrap();
+    let work = QualificationDirectory(Some(tempfile::tempdir().unwrap()));
     let output = std::process::Command::new("python3")
         .arg(repository.join("tooling/qualify_multipart_promotion.py"))
         .arg("--work")

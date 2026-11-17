@@ -1,11 +1,13 @@
 {
   "scope": "Incremental new330/d91 combined-source qualification; historicalNative and old855 corpus not relabeled.",
   "compiler_epoch": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2/d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
-  "completed_unique_observations": 44,
+  "completed_unique_observations": 172,
   "required_unique_observations": 1128,
   "completed_groups": [
     "writers-0000",
-    "ownership-0000"
+    "ownership-0000",
+    "readers-0000",
+    "readers-0064"
   ],
   "optimization": 2,
   "profiles": [
@@ -20,11 +22,19 @@
     "start_mib": 350,
     "pause_mib": 250,
     "new_unarchived_cap_mib": 30,
-    "peak_recorded_new_plain_bytes": 17123745,
+    "peak_recorded_new_plain_bytes": 17676873,
     "root_reserved_headroom_mib": 60
   },
   "reports": [
     "corpus-o2-gate.json"
   ],
-  "remaining": "1084 distinct observations, additional duplicates and optimization scope remain separate gates."
+  "remaining": "956 distinct observations, additional duplicates and optimization scope remain separate gates.",
+  "parent_ci": {
+    "commit": "c2441661",
+    "epoch": "current Rust f9/d91, separately recorded on Root",
+    "target": "lib_multipart_promotion",
+    "tests_passed": 2,
+    "seconds": 48.96,
+    "own_cargo_run": false
+  }
 }
