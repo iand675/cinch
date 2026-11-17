@@ -1,0 +1,91 @@
+-- | Construct immutable fixed color palettes in their exact published order.
+module Image.Color.Palette where
+  export color-palette-plan9, color-palette-web-safe
+
+  import Image.Color
+  import Data.Core
+  import Data.List
+  import Data.Machine
+
+  -- | Return all256 Plan9 colors as opaque RGBA8 values in palette order.
+  color-palette-plan9 :: Unit -> ColorPalette
+  color-palette-plan9 unit = color-palette (plan9-colors ())
+
+  -- | Return all216 web-safe colors as opaque RGBA8 values in palette order.
+  color-palette-web-safe :: Unit -> ColorPalette
+  color-palette-web-safe unit = color-palette (web-safe-colors ())
+
+  -- | Extract bounded byte channels from one packed RGB entry and supply opaque alpha.
+  packed-color :: U32 -> Color
+  packed-color value = color-rgba8 (wrapping-u32-to-u8 (wrapping-shr-u32 value 16)) (wrapping-u32-to-u8 (wrapping-shr-u32 value 8)) (wrapping-u32-to-u8 value) 255
+
+  -- | Construct exact packed table entries in published order without mutable shared state.
+  plan9-colors :: Unit -> List Color
+  plan9-colors unit =
+    let end = Nil in
+    let block31 = Cons (packed-color 16755200) (Cons (packed-color 16755285) (Cons (packed-color 16755370) (Cons (packed-color 16755455) (Cons (packed-color 16776960) (Cons (packed-color 16777045) (Cons (packed-color 16777130) (Cons (packed-color 16777215) (end)))))))) in
+    let block30 = Cons (packed-color 16711680) (Cons (packed-color 16711765) (Cons (packed-color 16711850) (Cons (packed-color 16711935) (Cons (packed-color 16733440) (Cons (packed-color 16733525) (Cons (packed-color 16733610) (Cons (packed-color 16733695) (block31)))))))) in
+    let block29 = Cons (packed-color 15638095) (Cons (packed-color 15638174) (Cons (packed-color 15638254) (Cons (packed-color 15658496) (Cons (packed-color 15658575) (Cons (packed-color 15658654) (Cons (packed-color 15658734) (Cons (packed-color 15597568) (block30)))))))) in
+    let block28 = Cons (packed-color 15597647) (Cons (packed-color 15597726) (Cons (packed-color 15597806) (Cons (packed-color 15617792) (Cons (packed-color 15617871) (Cons (packed-color 15617950) (Cons (packed-color 15618030) (Cons (packed-color 15638016) (block29)))))))) in
+    let block27 = Cons (packed-color 14521235) (Cons (packed-color 14521309) (Cons (packed-color 14540032) (Cons (packed-color 14540105) (Cons (packed-color 14540179) (Cons (packed-color 14540253) (Cons (packed-color 14483456) (Cons (packed-color 14483529) (block28)))))))) in
+    let block26 = Cons (packed-color 14483603) (Cons (packed-color 14483677) (Cons (packed-color 14502144) (Cons (packed-color 14502217) (Cons (packed-color 14502291) (Cons (packed-color 14502365) (Cons (packed-color 14521088) (Cons (packed-color 14521161) (block27)))))))) in
+    let block25 = Cons (packed-color 13404364) (Cons (packed-color 13421568) (Cons (packed-color 13421636) (Cons (packed-color 13421704) (Cons (packed-color 13421772) (Cons (packed-color 13369344) (Cons (packed-color 13369412) (Cons (packed-color 13369480) (block26)))))))) in
+    let block24 = Cons (packed-color 13369548) (Cons (packed-color 13386752) (Cons (packed-color 13386820) (Cons (packed-color 13386888) (Cons (packed-color 13386956) (Cons (packed-color 13404160) (Cons (packed-color 13404228) (Cons (packed-color 13404296) (block25)))))))) in
+    let block23 = Cons (packed-color 11163135) (Cons (packed-color 12303104) (Cons (packed-color 12303197) (Cons (packed-color 12303291) (Cons (packed-color 11184895) (Cons (packed-color 11206400) (Cons (packed-color 11206485) (Cons (packed-color 11206570) (block24)))))))) in
+    let block22 = Cons (packed-color 11206655) (Cons (packed-color 12255232) (Cons (packed-color 12255325) (Cons (packed-color 12255419) (Cons (packed-color 11141375) (Cons (packed-color 12279040) (Cons (packed-color 12279133) (Cons (packed-color 12279227) (block23)))))))) in
+    let block21 = Cons (packed-color 11184640) (Cons (packed-color 11184725) (Cons (packed-color 11184810) (Cons (packed-color 10395374) (Cons (packed-color 10415616) (Cons (packed-color 10415695) (Cons (packed-color 10415774) (Cons (packed-color 10415854) (block22)))))))) in
+    let block20 = Cons (packed-color 11141120) (Cons (packed-color 11141205) (Cons (packed-color 11141290) (Cons (packed-color 10354926) (Cons (packed-color 11162880) (Cons (packed-color 11162965) (Cons (packed-color 11163050) (Cons (packed-color 10375150) (block21)))))))) in
+    let block19 = Cons (packed-color 10066252) (Cons (packed-color 10066329) (Cons (packed-color 9671645) (Cons (packed-color 9690368) (Cons (packed-color 9690441) (Cons (packed-color 9690515) (Cons (packed-color 9690589) (Cons (packed-color 10027008) (block20)))))))) in
+    let block18 = Cons (packed-color 10027084) (Cons (packed-color 10027161) (Cons (packed-color 9634013) (Cons (packed-color 10046464) (Cons (packed-color 10046540) (Cons (packed-color 10046617) (Cons (packed-color 9652701) (Cons (packed-color 10066176) (block19)))))))) in
+    let block17 = Cons (packed-color 8947848) (Cons (packed-color 8947916) (Cons (packed-color 8965120) (Cons (packed-color 8965188) (Cons (packed-color 8965256) (Cons (packed-color 8965324) (Cons (packed-color 8912896) (Cons (packed-color 8912964) (block18)))))))) in
+    let block16 = Cons (packed-color 8913032) (Cons (packed-color 8913100) (Cons (packed-color 8930304) (Cons (packed-color 8930372) (Cons (packed-color 8930440) (Cons (packed-color 8930508) (Cons (packed-color 8947712) (Cons (packed-color 8947780) (block17)))))))) in
+    let block15 = Cons (packed-color 6118843) (Cons (packed-color 5592575) (Cons (packed-color 6142720) (Cons (packed-color 6142813) (Cons (packed-color 6142907) (Cons (packed-color 5614335) (Cons (packed-color 5635840) (Cons (packed-color 5635925) (block16)))))))) in
+    let block14 = Cons (packed-color 5636010) (Cons (packed-color 5636095) (Cons (packed-color 7798784) (Cons (packed-color 7798903) (Cons (packed-color 6095035) (Cons (packed-color 5570815) (Cons (packed-color 7829248) (Cons (packed-color 7829367) (block15)))))))) in
+    let block13 = Cons (packed-color 5197806) (Cons (packed-color 5614080) (Cons (packed-color 5614165) (Cons (packed-color 5614250) (Cons (packed-color 5218030) (Cons (packed-color 5238272) (Cons (packed-color 5238351) (Cons (packed-color 5238430) (block14)))))))) in
+    let block12 = Cons (packed-color 5238510) (Cons (packed-color 6684672) (Cons (packed-color 6684774) (Cons (packed-color 5570730) (Cons (packed-color 5177582) (Cons (packed-color 6710784) (Cons (packed-color 6710886) (Cons (packed-color 5592490) (block13)))))))) in
+    let block11 = Cons (packed-color 5019904) (Cons (packed-color 5019980) (Cons (packed-color 5020057) (Cons (packed-color 4821981) (Cons (packed-color 4840704) (Cons (packed-color 4840777) (Cons (packed-color 4840851) (Cons (packed-color 4840925) (block12)))))))) in
+    let block10 = Cons (packed-color 5570560) (Cons (packed-color 5570645) (Cons (packed-color 4980889) (Cons (packed-color 4784349) (Cons (packed-color 5592320) (Cons (packed-color 5592405) (Cons (packed-color 5000345) (Cons (packed-color 4803037) (block11)))))))) in
+    let block9 = Cons (packed-color 4491332) (Cons (packed-color 4491400) (Cons (packed-color 4491468) (Cons (packed-color 4508672) (Cons (packed-color 4508740) (Cons (packed-color 4508808) (Cons (packed-color 4508876) (Cons (packed-color 4456448) (block10)))))))) in
+    let block8 = Cons (packed-color 4456516) (Cons (packed-color 4456584) (Cons (packed-color 4456652) (Cons (packed-color 4473856) (Cons (packed-color 4473924) (Cons (packed-color 4473992) (Cons (packed-color 4474060) (Cons (packed-color 4491264) (block9)))))))) in
+    let block7 = Cons (packed-color 30583) (Cons (packed-color 23995) (Cons (packed-color 22015) (Cons (packed-color 47872) (Cons (packed-color 47965) (Cons (packed-color 48059) (Cons (packed-color 43775) (Cons (packed-color 65280) (block8)))))))) in
+    let block6 = Cons (packed-color 65365) (Cons (packed-color 65450) (Cons (packed-color 65535) (Cons (packed-color 3355443) (Cons (packed-color 119) (Cons (packed-color 187) (Cons (packed-color 255) (Cons (packed-color 30464) (block7)))))))) in
+    let block5 = Cons (packed-color 21930) (Cons (packed-color 20462) (Cons (packed-color 43520) (Cons (packed-color 43605) (Cons (packed-color 43690) (Cons (packed-color 40686) (Cons (packed-color 60928) (Cons (packed-color 61007) (block6)))))))) in
+    let block4 = Cons (packed-color 61086) (Cons (packed-color 61166) (Cons (packed-color 2236962) (Cons (packed-color 102) (Cons (packed-color 170) (Cons (packed-color 238) (Cons (packed-color 26112) (Cons (packed-color 26214) (block5)))))))) in
+    let block3 = Cons (packed-color 18909) (Cons (packed-color 39168) (Cons (packed-color 39244) (Cons (packed-color 39321) (Cons (packed-color 37853) (Cons (packed-color 56576) (Cons (packed-color 56649) (Cons (packed-color 56723) (block4)))))))) in
+    let block2 = Cons (packed-color 56797) (Cons (packed-color 1118481) (Cons (packed-color 85) (Cons (packed-color 153) (Cons (packed-color 221) (Cons (packed-color 21760) (Cons (packed-color 21845) (Cons (packed-color 19609) (block3)))))))) in
+    let block1 = Cons (packed-color 34816) (Cons (packed-color 34884) (Cons (packed-color 34952) (Cons (packed-color 35020) (Cons (packed-color 52224) (Cons (packed-color 52292) (Cons (packed-color 52360) (Cons (packed-color 52428) (block2)))))))) in
+    let block0 = Cons (packed-color 0) (Cons (packed-color 68) (Cons (packed-color 136) (Cons (packed-color 204) (Cons (packed-color 17408) (Cons (packed-color 17476) (Cons (packed-color 17544) (Cons (packed-color 17612) (block1)))))))) in
+    block0
+
+  -- | Construct exact packed table entries in published order without mutable shared state.
+  web-safe-colors :: Unit -> List Color
+  web-safe-colors unit =
+    let end = Nil in
+    let block26 = Cons (packed-color 16764108) (Cons (packed-color 16764159) (Cons (packed-color 16776960) (Cons (packed-color 16777011) (Cons (packed-color 16777062) (Cons (packed-color 16777113) (Cons (packed-color 16777164) (Cons (packed-color 16777215) (end)))))))) in
+    let block25 = Cons (packed-color 16750950) (Cons (packed-color 16751001) (Cons (packed-color 16751052) (Cons (packed-color 16751103) (Cons (packed-color 16763904) (Cons (packed-color 16763955) (Cons (packed-color 16764006) (Cons (packed-color 16764057) (block26)))))))) in
+    let block24 = Cons (packed-color 16737792) (Cons (packed-color 16737843) (Cons (packed-color 16737894) (Cons (packed-color 16737945) (Cons (packed-color 16737996) (Cons (packed-color 16738047) (Cons (packed-color 16750848) (Cons (packed-color 16750899) (block25)))))))) in
+    let block23 = Cons (packed-color 16711884) (Cons (packed-color 16711935) (Cons (packed-color 16724736) (Cons (packed-color 16724787) (Cons (packed-color 16724838) (Cons (packed-color 16724889) (Cons (packed-color 16724940) (Cons (packed-color 16724991) (block24)))))))) in
+    let block22 = Cons (packed-color 13434726) (Cons (packed-color 13434777) (Cons (packed-color 13434828) (Cons (packed-color 13434879) (Cons (packed-color 16711680) (Cons (packed-color 16711731) (Cons (packed-color 16711782) (Cons (packed-color 16711833) (block23)))))))) in
+    let block21 = Cons (packed-color 13421568) (Cons (packed-color 13421619) (Cons (packed-color 13421670) (Cons (packed-color 13421721) (Cons (packed-color 13421772) (Cons (packed-color 13421823) (Cons (packed-color 13434624) (Cons (packed-color 13434675) (block22)))))))) in
+    let block20 = Cons (packed-color 13395660) (Cons (packed-color 13395711) (Cons (packed-color 13408512) (Cons (packed-color 13408563) (Cons (packed-color 13408614) (Cons (packed-color 13408665) (Cons (packed-color 13408716) (Cons (packed-color 13408767) (block21)))))))) in
+    let block19 = Cons (packed-color 13382502) (Cons (packed-color 13382553) (Cons (packed-color 13382604) (Cons (packed-color 13382655) (Cons (packed-color 13395456) (Cons (packed-color 13395507) (Cons (packed-color 13395558) (Cons (packed-color 13395609) (block20)))))))) in
+    let block18 = Cons (packed-color 13369344) (Cons (packed-color 13369395) (Cons (packed-color 13369446) (Cons (packed-color 13369497) (Cons (packed-color 13369548) (Cons (packed-color 13369599) (Cons (packed-color 13382400) (Cons (packed-color 13382451) (block19)))))))) in
+    let block17 = Cons (packed-color 10079436) (Cons (packed-color 10079487) (Cons (packed-color 10092288) (Cons (packed-color 10092339) (Cons (packed-color 10092390) (Cons (packed-color 10092441) (Cons (packed-color 10092492) (Cons (packed-color 10092543) (block18)))))))) in
+    let block16 = Cons (packed-color 10066278) (Cons (packed-color 10066329) (Cons (packed-color 10066380) (Cons (packed-color 10066431) (Cons (packed-color 10079232) (Cons (packed-color 10079283) (Cons (packed-color 10079334) (Cons (packed-color 10079385) (block17)))))))) in
+    let block15 = Cons (packed-color 10053120) (Cons (packed-color 10053171) (Cons (packed-color 10053222) (Cons (packed-color 10053273) (Cons (packed-color 10053324) (Cons (packed-color 10053375) (Cons (packed-color 10066176) (Cons (packed-color 10066227) (block16)))))))) in
+    let block14 = Cons (packed-color 10027212) (Cons (packed-color 10027263) (Cons (packed-color 10040064) (Cons (packed-color 10040115) (Cons (packed-color 10040166) (Cons (packed-color 10040217) (Cons (packed-color 10040268) (Cons (packed-color 10040319) (block15)))))))) in
+    let block13 = Cons (packed-color 6750054) (Cons (packed-color 6750105) (Cons (packed-color 6750156) (Cons (packed-color 6750207) (Cons (packed-color 10027008) (Cons (packed-color 10027059) (Cons (packed-color 10027110) (Cons (packed-color 10027161) (block14)))))))) in
+    let block12 = Cons (packed-color 6736896) (Cons (packed-color 6736947) (Cons (packed-color 6736998) (Cons (packed-color 6737049) (Cons (packed-color 6737100) (Cons (packed-color 6737151) (Cons (packed-color 6749952) (Cons (packed-color 6750003) (block13)))))))) in
+    let block11 = Cons (packed-color 6710988) (Cons (packed-color 6711039) (Cons (packed-color 6723840) (Cons (packed-color 6723891) (Cons (packed-color 6723942) (Cons (packed-color 6723993) (Cons (packed-color 6724044) (Cons (packed-color 6724095) (block12)))))))) in
+    let block10 = Cons (packed-color 6697830) (Cons (packed-color 6697881) (Cons (packed-color 6697932) (Cons (packed-color 6697983) (Cons (packed-color 6710784) (Cons (packed-color 6710835) (Cons (packed-color 6710886) (Cons (packed-color 6710937) (block11)))))))) in
+    let block9 = Cons (packed-color 6684672) (Cons (packed-color 6684723) (Cons (packed-color 6684774) (Cons (packed-color 6684825) (Cons (packed-color 6684876) (Cons (packed-color 6684927) (Cons (packed-color 6697728) (Cons (packed-color 6697779) (block10)))))))) in
+    let block8 = Cons (packed-color 3394764) (Cons (packed-color 3394815) (Cons (packed-color 3407616) (Cons (packed-color 3407667) (Cons (packed-color 3407718) (Cons (packed-color 3407769) (Cons (packed-color 3407820) (Cons (packed-color 3407871) (block9)))))))) in
+    let block7 = Cons (packed-color 3381606) (Cons (packed-color 3381657) (Cons (packed-color 3381708) (Cons (packed-color 3381759) (Cons (packed-color 3394560) (Cons (packed-color 3394611) (Cons (packed-color 3394662) (Cons (packed-color 3394713) (block8)))))))) in
+    let block6 = Cons (packed-color 3368448) (Cons (packed-color 3368499) (Cons (packed-color 3368550) (Cons (packed-color 3368601) (Cons (packed-color 3368652) (Cons (packed-color 3368703) (Cons (packed-color 3381504) (Cons (packed-color 3381555) (block7)))))))) in
+    let block5 = Cons (packed-color 3342540) (Cons (packed-color 3342591) (Cons (packed-color 3355392) (Cons (packed-color 3355443) (Cons (packed-color 3355494) (Cons (packed-color 3355545) (Cons (packed-color 3355596) (Cons (packed-color 3355647) (block6)))))))) in
+    let block4 = Cons (packed-color 65382) (Cons (packed-color 65433) (Cons (packed-color 65484) (Cons (packed-color 65535) (Cons (packed-color 3342336) (Cons (packed-color 3342387) (Cons (packed-color 3342438) (Cons (packed-color 3342489) (block5)))))))) in
+    let block3 = Cons (packed-color 52224) (Cons (packed-color 52275) (Cons (packed-color 52326) (Cons (packed-color 52377) (Cons (packed-color 52428) (Cons (packed-color 52479) (Cons (packed-color 65280) (Cons (packed-color 65331) (block4)))))))) in
+    let block2 = Cons (packed-color 26316) (Cons (packed-color 26367) (Cons (packed-color 39168) (Cons (packed-color 39219) (Cons (packed-color 39270) (Cons (packed-color 39321) (Cons (packed-color 39372) (Cons (packed-color 39423) (block3)))))))) in
+    let block1 = Cons (packed-color 13158) (Cons (packed-color 13209) (Cons (packed-color 13260) (Cons (packed-color 13311) (Cons (packed-color 26112) (Cons (packed-color 26163) (Cons (packed-color 26214) (Cons (packed-color 26265) (block2)))))))) in
+    let block0 = Cons (packed-color 0) (Cons (packed-color 51) (Cons (packed-color 102) (Cons (packed-color 153) (Cons (packed-color 204) (Cons (packed-color 255) (Cons (packed-color 13056) (Cons (packed-color 13107) (block1)))))))) in
+    block0

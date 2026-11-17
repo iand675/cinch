@@ -1,0 +1,14 @@
+{
+  "scope": "Cross-check actual fixed-palette observations with independent scalar generation and distance rules.",
+  "status": "passed",
+  "vectors_sha256": "27ad7d7d7e7318499eaf51ed2ed70c42a856dbb2fadbe01ce1e614c7d1fb0310",
+  "runner_sha256": "6bd738b17759617fd245b03f2882a3c2055bdbc47c01eafa7222382263063e8c",
+  "exact_table_entries": 472,
+  "palette_use_queries": 1024,
+  "query_operations": [
+    "Index",
+    "Convert",
+    "Model.Convert"
+  ],
+  "limits": "Independent scalar/reference agreement only; no Cinch source/runtime or elapsed claim."
+}

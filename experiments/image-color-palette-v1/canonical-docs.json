@@ -1,0 +1,11 @@
+{
+  "scope": "Actual3dae canonical source documentation extraction; no runtime/codegen claim",
+  "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+  "source_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+  "declarations": 5,
+  "all_canonical": true,
+  "diagnostics": [],
+  "orphans": [],
+  "actual_docs_path": "/workspace/dasl-stdlib-multipart/build/image-color-palette/source-3dae-v3/docs.json",
+  "actual_docs_sha256": "75de7b42855fbad0cfa75627afb2e287489327a06f8aeec4a317b1934e2b1235"
+}

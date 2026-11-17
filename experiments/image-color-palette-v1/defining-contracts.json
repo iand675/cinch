@@ -1,0 +1,57 @@
+{
+  "scope": "Genuine defining public metadata from the isolated source gate, retained plain with no header rewriting",
+  "source_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+  "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+  "interface_path": "/workspace/dasl-stdlib-multipart/build/image-color-palette/source-3dae-v3/build/Image.Color.Palette.cinchif",
+  "interface_sha256": "17ac0262675c01f67f033e0ac9816a5dfdf004a807d9e31048361297a29425d0",
+  "exported_values": [
+    {
+      "arity": 1,
+      "name": "color-palette-plan9",
+      "resolved": {
+        "measures": [],
+        "nominals": [
+          {
+            "constructors": [
+              "Image.Color.Palette"
+            ],
+            "identity": "Image.Color.ColorPalette",
+            "kind": "data",
+            "parameters": [],
+            "params": [],
+            "refinement": null
+          }
+        ],
+        "scheme": "(Unit -> Image.Color.ColorPalette)"
+      },
+      "scheme": "(Unit -> Image.Color.ColorPalette)",
+      "symbol": "Image.Color.Palette.color-palette-plan9",
+      "total_body": null
+    },
+    {
+      "arity": 1,
+      "name": "color-palette-web-safe",
+      "resolved": {
+        "measures": [],
+        "nominals": [
+          {
+            "constructors": [
+              "Image.Color.Palette"
+            ],
+            "identity": "Image.Color.ColorPalette",
+            "kind": "data",
+            "parameters": [],
+            "params": [],
+            "refinement": null
+          }
+        ],
+        "scheme": "(Unit -> Image.Color.ColorPalette)"
+      },
+      "scheme": "(Unit -> Image.Color.ColorPalette)",
+      "symbol": "Image.Color.Palette.color-palette-web-safe",
+      "total_body": null
+    }
+  ],
+  "no_additional_public_types": true,
+  "runtime_or_source_absent_claim": false
+}
