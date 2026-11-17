@@ -1,0 +1,128 @@
+{
+  "scope": "Source-qualified isolated3-record candidate and prepared unexecuted reference/runtime tooling; no SDK/runtime/performance completion claim",
+  "compiler_started": true,
+  "runtime_started": false,
+  "sdk_program_started": false,
+  "timing_started": false,
+  "total_bytes": 189085,
+  "files": [
+    {
+      "path": "experiments/hkdf-v1/README.md",
+      "bytes": 6244,
+      "sha256": "3c451fe2b50475e56847d847dc41d43aa7b5216cd310e120e18e08a42581d26b"
+    },
+    {
+      "path": "experiments/hkdf-v1/REFERENCE-LICENSE",
+      "bytes": 1622,
+      "sha256": "62e23cdad6dd77779e9471e5d897d7cdf005b5d3151d79dd867af9b2c6f65f2e"
+    },
+    {
+      "path": "experiments/hkdf-v1/first-unit-plan.json",
+      "bytes": 2533,
+      "sha256": "ce904b56309bdeed451fa1456e095a73497942c1121e671171c467b2fd3efc59"
+    },
+    {
+      "path": "experiments/hkdf-v1/operation-map.json",
+      "bytes": 7209,
+      "sha256": "ac94cfa4c7ec3bef4a54d59ca4eab3ae609bf2d7b1be1b2a2da4e43f4011395b"
+    },
+    {
+      "path": "experiments/hkdf-v1/performance-plan.json",
+      "bytes": 2695,
+      "sha256": "12317973b0916d66d0e89ea5eca8b4ca9c6991f9ae09ecb29bc2e9ef202a9196"
+    },
+    {
+      "path": "experiments/hkdf-v1/qualification-plan.json",
+      "bytes": 2498,
+      "sha256": "26461dad1202af50ca12452f8a3492927c745203253e01f27dce73150ce87892"
+    },
+    {
+      "path": "experiments/hkdf-v1/reference.go",
+      "bytes": 9005,
+      "sha256": "a5b608e1446c58ca4d9d53a44ee279d588a5e64b247ce298a69db4f4bc18da34"
+    },
+    {
+      "path": "experiments/hkdf-v1/rfc-consumer.cinch",
+      "bytes": 7968,
+      "sha256": "e275b45ba3c796d0d964fe3a0fcb4378e5f1cf421a768066895c0e2a58e4dcb3"
+    },
+    {
+      "path": "experiments/hkdf-v1/rfc5869-vectors.json",
+      "bytes": 4626,
+      "sha256": "b08c9ad3925c3e5757d3b3d6bd86942a091274ca133b2812c5e51a79fd9a14bb"
+    },
+    {
+      "path": "experiments/hkdf-v1/sdk-surface.json",
+      "bytes": 2343,
+      "sha256": "863a2efb427d69a9e7ee03111bcfaa6cbfb67de3a9a399eabf286162b3f739af"
+    },
+    {
+      "path": "experiments/hkdf-v1/source-gates.json",
+      "bytes": 66753,
+      "sha256": "3fcb01edf208c5c3ef40e55cd280d7b0d095822c2609eb6cc4385ddb4e90b28c"
+    },
+    {
+      "path": "experiments/hkdf-v1/source-proofs/LiveRows.cinch",
+      "bytes": 1812,
+      "sha256": "7130f8ac52a5cf5098d4a7200aaf64f79f9785e5e5a1144fdd6ff39794825390"
+    },
+    {
+      "path": "experiments/hkdf-v1/source-proofs/RefusePrivate.cinch",
+      "bytes": 372,
+      "sha256": "89b78de6e98b581d60da53ec750eb5c2586dbc81ba65c887470aea61fbf47ad9"
+    },
+    {
+      "path": "experiments/hkdf-v1/source-proofs/RefusePure.cinch",
+      "bytes": 619,
+      "sha256": "337dffd08fb059f23bdeacd45da6533a070b7e86e8b1f36b0169219584481f71"
+    },
+    {
+      "path": "experiments/hkdf-v1/source-proofs/Rows.cinch",
+      "bytes": 1586,
+      "sha256": "cb5f05839ba374b1a5c17cd225dd3e9f10b7a251360757032c08cf746bc10884"
+    },
+    {
+      "path": "experiments/hkdf-v1/sources/Crypto.Hkdf.cinch",
+      "bytes": 24255,
+      "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+    },
+    {
+      "path": "experiments/hkdf-v1/static-review.json",
+      "bytes": 11378,
+      "sha256": "5fdcc7658ad712dba966865b19d44c29cd32296a24a5156f7b196d2392340875"
+    },
+    {
+      "path": "tooling/capture_hkdf_reference.py",
+      "bytes": 6978,
+      "sha256": "6b1e3a89c9806b21cfb206c67417c104c533bdd59e88977508bca0eec8d26c4f"
+    },
+    {
+      "path": "tooling/check_hkdf_rfc.py",
+      "bytes": 8067,
+      "sha256": "100ab944cc0ce549dbfebe773452fbf27b9c2494bae2675a9a12228c38a9b4a7"
+    },
+    {
+      "path": "tooling/check_hkdf_source.py",
+      "bytes": 8863,
+      "sha256": "51c9a46b49b795fab7c2262ce88bddea6800ba75eea5e02442b6502911a54657"
+    },
+    {
+      "path": "tooling/prepare_hkdf_rfc_consumer.py",
+      "bytes": 5393,
+      "sha256": "f821b02e58c3d861199e1af624b1c4c71eddf09c5932196a3e2d22bdd051beac"
+    },
+    {
+      "path": "tooling/validate_hkdf_reference.py",
+      "bytes": 6266,
+      "sha256": "f14804c7f3c0e09916a54b6369c91c112c4e63dc8cc47b613a98c0a2cff2273e"
+    }
+  ],
+  "immutable_prior_sources": {
+    "experiments/image-color-v1/sources/Image.Color.cinch": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+    "experiments/image-color-palette-v1/sources/Image.Color.Palette.cinch": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd"
+  },
+  "source_gate_pending": false,
+  "root_inventory_pins_changed": false,
+  "source_gates": "experiments/hkdf-v1/source-gates.json",
+  "execution_hold": "Explicit new Root grant required after parent45; normal350/250 guards do not by themselves release hold"
+}

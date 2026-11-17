@@ -1,0 +1,11 @@
+-- | Require a checker refusal for constructing an unchecked private width capability.
+module Main where
+  import Crypto.Hkdf
+
+  -- | This intentionally invalid declaration cannot name the module-private constructor.
+  forged-size :: HkdfSize
+  forged-size = OutputSize 32
+
+  -- | Keep the authority refusal fixture complete without executing it.
+  main :: Int
+  main = 0

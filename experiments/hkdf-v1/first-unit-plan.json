@@ -1,0 +1,89 @@
+{
+  "scope": "Prepared fixed first-reference and first-functional matrices; execution explicitly held for Root parent45 completion",
+  "candidate_sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213",
+  "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "sdk_executed": false,
+  "candidate_runtime_executed": false,
+  "reference_source_sha256": "a5b608e1446c58ca4d9d53a44ee279d588a5e64b247ce298a69db4f4bc18da34",
+  "unchanged_rfc_sha256": "b08c9ad3925c3e5757d3b3d6bd86942a091274ca133b2812c5e51a79fd9a14bb",
+  "unchanged_independent_validator_sha256": "f14804c7f3c0e09916a54b6369c91c112c4e63dc8cc47b613a98c0a2cff2273e",
+  "reference_matrix": {
+    "normal_families": {
+      "rfc_fixed": 8,
+      "standard_four_hashes_twelve_lengths": 48,
+      "custom_six_shapes_six_lengths": 36,
+      "salt_five_hashes_three_forms": 15
+    },
+    "normal_rows": 107,
+    "explicit_fips_only_policy_rows": 20,
+    "operations_per_row": 3,
+    "operations": 381,
+    "custom_shapes": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        3
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        7,
+        17
+      ],
+      [
+        16,
+        65
+      ]
+    ],
+    "all_complete_outputs_errors_panics_inputs_preserved": true
+  },
+  "first_sdk_free_functional_matrix": {
+    "fixed_rows": 8,
+    "native_convenience_operations": 24,
+    "generic_digest_operations": 24,
+    "direct_hmac_sha256_operations": 12,
+    "complete_outputs": 60,
+    "consumer_sha256": "e275b45ba3c796d0d964fe3a0fcb4378e5f1cf421a768066895c0e2a58e4dcb3",
+    "profiles": [
+      {
+        "heap": "32M",
+        "poison": false,
+        "stack": "8M"
+      },
+      {
+        "heap": "256M",
+        "poison": true,
+        "stack": "8M"
+      }
+    ],
+    "optimization": 2,
+    "compiler_stack": "64M",
+    "scope_limitation": "Only fixed RFC SHA256/SHA1 subset initially; standard SHA512/MD5, custom shape, ownership/callback/error/kernel/portable/full matrices remain separately pending."
+  },
+  "source_gate_resource_override": {
+    "start_mib": 320,
+    "reserve_mib": 250,
+    "fresh_mib": 5,
+    "seconds": 15,
+    "cpu": 1,
+    "runtime_or_sdk_authority": false
+  },
+  "future_runtime_sdk_guards": {
+    "start_mib": 350,
+    "reserve_mib": 250,
+    "fresh_mib": 30,
+    "archive_scratch_mib": 10,
+    "cpu": 1,
+    "explicit_grant_required": true
+  }
+}

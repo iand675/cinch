@@ -1,0 +1,66 @@
+{
+  "scope": "Static public HKDF pipeline benchmark plan, no driver build/preflight or elapsed claim",
+  "source_sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213",
+  "public_modes": [
+    "Extract with empty/short/over-block salt",
+    "Expand from supplied PRK",
+    "Combined Key",
+    "Generic digest callback versus existing digest convenience/native HMAC-SHA256",
+    "Caller-provided direct HMAC provider",
+    "Unchanged digest/HMAC control"
+  ],
+  "algorithms": [
+    "SHA256",
+    "SHA512",
+    "SHA1",
+    "MD5"
+  ],
+  "sizes": {
+    "ikm": [
+      0,
+      14,
+      22,
+      80,
+      1024
+    ],
+    "salt": [
+      "None",
+      "Some empty",
+      "short",
+      "block",
+      "block+1"
+    ],
+    "info": [
+      0,
+      10,
+      128,
+      4096
+    ],
+    "output": [
+      "0",
+      "1",
+      "hashWidth",
+      "hashWidth+1",
+      "2*hashWidth",
+      "255*hashWidth"
+    ]
+  },
+  "reference": "Actual pinned SDK hkdf.Extract/Expand/Key with the same constructors, exact byte inputs and operation boundaries; no replacement HKDF, disabled optimization, fixed output or altered policy",
+  "paired_cinch_variants": [
+    "Checked eight-byte SWAR pad candidate",
+    "Identical source with only pad filling replaced by independent scalar byte XOR; same native backend and allocation policies"
+  ],
+  "preflight": [
+    "RFC5869 cases1\u20137 plus explicit nil/empty variation",
+    "Actual SDK boundary/custom-shape/error observations versus independent scalar HMAC/HKDF",
+    "Full result bytes or every output octet in dependent checksums plus original/retained alias checks",
+    "Normal32MiB/8MiB and separate poison256MiB/8MiB zero leaks",
+    "All callback/error/effect/ownership controls",
+    "Actual optimized IR/ASM checked word accesses and pure packed XOR, scalar control and input lifetimes; actual target objects"
+  ],
+  "clock_boundary": "Prepare inputs, descriptor/callback/policy context before start; include complete advertised public call, ownership snapshots, output traversal and checksum inside; retain and observe original inputs/context after end before teardown",
+  "measurement": "Only after explicit Root resource and exclusive CPU grant: paired rotated samples+warmups, all raw ranges/regressions, exact pre/post cpu.stat, counters off; no algorithm-parity assumption",
+  "allocation_review": "Separate counter-enabled correctness runs at zero/one/many repetitions; distinguish one-shot runtime hashing/native HMAC costs from pad/output/message snapshots and algorithm/state caching differences",
+  "resource_handoff_required": true,
+  "status": "static first phase; compiler/runtime/SDK build/timing have not run"
+}

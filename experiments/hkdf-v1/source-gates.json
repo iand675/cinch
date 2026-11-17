@@ -1,0 +1,1675 @@
+{
+  "scope": "First actual source/type/proof and canonical-doc qualification only; no SDK/IR/link/runtime/performance evidence",
+  "candidate_sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213",
+  "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "future_runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "runtime_executed": false,
+  "sdk_executed": false,
+  "reports": {
+    "source": {
+      "path": "build/hkdf/source-ffb5-v1/report.json",
+      "sha256": "eead3a3134616cbc0473bf4cc0afb1ccee350cf96c49a067ce9915dd54064a30",
+      "report": {
+        "scope": "Source/type/proof only",
+        "sdk_executed": false,
+        "runtime_executed": false,
+        "ir_emitted": false,
+        "stage": "source",
+        "compiler": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+          "sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9"
+        },
+        "future_runtime_only": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/libcinchruntime.a",
+          "sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3"
+        },
+        "cpu": 1,
+        "compiler_host_stack_bytes": 67108864,
+        "scoped_source_only_start_mib": 320,
+        "reserve_mib": 250,
+        "cap_bytes": 5242880,
+        "seconds": 15,
+        "runner_sha256": "170baee5f8bdfa11414f6a5bc3cf3c78e4ee9944ad4cd09d4b5246a8289f9ab1",
+        "candidate_sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213",
+        "selected_nonembedded_sources": {
+          "Crypto.Hkdf": {
+            "original": "/workspace/dasl-stdlib-multipart/experiments/hkdf-v1/sources/Crypto.Hkdf.cinch",
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          "Data.Bytes.Word": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Data/Bytes/Word.cinch",
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          "Text.Digest": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Text/Digest.cinch",
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          }
+        },
+        "embedded_Data_Bytes_override": false,
+        "resolver_builtin_manifest_sha256": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
+        "result": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "check",
+            "/workspace/dasl-stdlib-multipart/build/hkdf/source-ffb5-v1/Main.cinch"
+          ],
+          "returncode": 0,
+          "resource_stop": null,
+          "source_wall_seconds": 1.0165096300188452,
+          "free_before": 525234176,
+          "free_after": 522518528,
+          "stdout": "",
+          "stderr": ""
+        },
+        "files": [
+          {
+            "path": "Crypto.Hkdf.cinch",
+            "bytes": 24255,
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          {
+            "path": "Data.Bytes.Word.cinch",
+            "bytes": 4243,
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          {
+            "path": "Main.cinch",
+            "bytes": 643,
+            "sha256": "bf033595c5eb7ef23a9db46417cf2a9a6db99f8404254c9a36697c9cbf41e005"
+          },
+          {
+            "path": "Text.Digest.cinch",
+            "bytes": 7351,
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          },
+          {
+            "path": "build/Algebra.Arithmetic.cinchif",
+            "bytes": 7034,
+            "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8"
+          },
+          {
+            "path": "build/Algebra.Bits.cinchif",
+            "bytes": 9863,
+            "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8"
+          },
+          {
+            "path": "build/Algebra.Group.cinchif",
+            "bytes": 2464,
+            "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274"
+          },
+          {
+            "path": "build/Algebra.Monoid.cinchif",
+            "bytes": 30233,
+            "sha256": "a29802f9291998d90aa1efa944a7885f694bd5632f3a4730752ef9c7a6784a39"
+          },
+          {
+            "path": "build/Algebra.Semigroup.cinchif",
+            "bytes": 6022,
+            "sha256": "4c59bfa1465a6215048169120bc61219c7941830f01578c8c1a8e05918ebfddc"
+          },
+          {
+            "path": "build/Algebra.Semiring.cinchif",
+            "bytes": 2642,
+            "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e"
+          },
+          {
+            "path": "build/Category.Alternative.cinchif",
+            "bytes": 2109,
+            "sha256": "5c6fae8e8fa7fc3025a9430de85b1916cc716635b7fe0aeb2fa5103ad62314c5"
+          },
+          {
+            "path": "build/Category.Applicative.cinchif",
+            "bytes": 8919,
+            "sha256": "a993c1078cc20eb27bc7ce76efc3eaddca0d7394988ebcc51b9c89ecf5616278"
+          },
+          {
+            "path": "build/Category.Foldable.cinchif",
+            "bytes": 30852,
+            "sha256": "034f6fbfa6f95468b649d936524ebe85b640a3f22933545cafe75716d3f11912"
+          },
+          {
+            "path": "build/Category.Functor.cinchif",
+            "bytes": 3955,
+            "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0"
+          },
+          {
+            "path": "build/Category.Monad.cinchif",
+            "bytes": 3926,
+            "sha256": "8c78b566d9719fbe9c1940e75120256995b8694462a06f479096f7db95a09158"
+          },
+          {
+            "path": "build/Category.Traversable.cinchif",
+            "bytes": 10235,
+            "sha256": "6bc5b69abeead5481148a433b7eb85dd247ae61e79e367c0be056a64615ae6e3"
+          },
+          {
+            "path": "build/Crypto.Hkdf.cinchif",
+            "bytes": 40021,
+            "sha256": "bf77756ba5ff60d6502c1bdadb80060eb4652c2dae6fc28c3653c3480fccbfb9"
+          },
+          {
+            "path": "build/Data.Ascii.cinchif",
+            "bytes": 1573,
+            "sha256": "0647dee755011378cbf1d528f54562d3ab01fe9ef9d4d10cbb0b97ec27785473"
+          },
+          {
+            "path": "build/Data.Bool.cinchif",
+            "bytes": 19940,
+            "sha256": "a750b904562a351e758601a85a2d98a3c9f82b8a0791bfe7d00eeaa1aa2dd632"
+          },
+          {
+            "path": "build/Data.Bytes.Word.cinchif",
+            "bytes": 2654,
+            "sha256": "a994931c6afe8ccbd9a50c010ba09c4998d32c13651439d7826b73eea3effb63"
+          },
+          {
+            "path": "build/Data.Bytes.cinchif",
+            "bytes": 13369,
+            "sha256": "50b46b033998206bf2f39b70a5a1be5b546f834f0d334db713d513ebda32275e"
+          },
+          {
+            "path": "build/Data.Char.cinchif",
+            "bytes": 15043,
+            "sha256": "2dc7da4b446ff99145fcf1f7133aecaa03bfdcdb3d63c08909e62bcf263043a9"
+          },
+          {
+            "path": "build/Data.Compose.cinchif",
+            "bytes": 2098,
+            "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8"
+          },
+          {
+            "path": "build/Data.Const.cinchif",
+            "bytes": 13257,
+            "sha256": "8ba7d4cb8471ccf8c59103fd43d1a3d77cbd6c855e66829d3bdd5e0c87a36090"
+          },
+          {
+            "path": "build/Data.Core.cinchif",
+            "bytes": 5329,
+            "sha256": "456e466db445fe324b0fb09ca6deeff59bf2192d54a7777216f6ba402b298d44"
+          },
+          {
+            "path": "build/Data.Enum.cinchif",
+            "bytes": 5017,
+            "sha256": "81bbaed45187bd36db1c3d5b00e40003a378b966cdc0a1c8158ccc857144cce3"
+          },
+          {
+            "path": "build/Data.FromList.cinchif",
+            "bytes": 1800,
+            "sha256": "58a3a797caacd038392623639a4c7df021b9694b3bce7150e6775717646b893b"
+          },
+          {
+            "path": "build/Data.FromMap.cinchif",
+            "bytes": 2022,
+            "sha256": "68a0d5bb3b91b16909bd9e29224b808284ac34662ce98a0c79e3f41231770d9f"
+          },
+          {
+            "path": "build/Data.Hash.cinchif",
+            "bytes": 1284,
+            "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e"
+          },
+          {
+            "path": "build/Data.HashMap.cinchif",
+            "bytes": 19275,
+            "sha256": "4968e9c766928eeab4c3d33d33fe7af52cc63143a90f9e818ae8f71bcd664fe4"
+          },
+          {
+            "path": "build/Data.Identity.cinchif",
+            "bytes": 14739,
+            "sha256": "aa8d40c6230e13a448e4c5da979715be06aca3401093d367afdfac657a773f62"
+          },
+          {
+            "path": "build/Data.Int.cinchif",
+            "bytes": 29798,
+            "sha256": "676aaa79a5d32f6f7a48b065e16c0b061584e1b4c192353ca793602b306db45e"
+          },
+          {
+            "path": "build/Data.Json.cinchif",
+            "bytes": 5609,
+            "sha256": "83c9aa67f6ce91c7d9a8f27158dd2a2e67453b100c894b99cf394f4d01256a55"
+          },
+          {
+            "path": "build/Data.List.cinchif",
+            "bytes": 55557,
+            "sha256": "cb3186ce824c0adc5b766e1bcdbb8c761c762b0fde12b92461421a43a4d0c04c"
+          },
+          {
+            "path": "build/Data.Machine.cinchif",
+            "bytes": 614896,
+            "sha256": "6e09f1a52e00bc9b6fdb3bd1b1329931e571c3a4f908b8c71db257728efbd89d"
+          },
+          {
+            "path": "build/Data.Map.cinchif",
+            "bytes": 15298,
+            "sha256": "dd9fc690f7444f124e0d116416e71f9d1c99c27865caa8adbc096e797760a7dc"
+          },
+          {
+            "path": "build/Data.Nat.cinchif",
+            "bytes": 30223,
+            "sha256": "2fa35d5558e80a90d06be2467532b03c9f9ebc81c0387c829601a816c42b2602"
+          },
+          {
+            "path": "build/Data.NonEmpty.cinchif",
+            "bytes": 13442,
+            "sha256": "598ffe6070d91b5dc09d262e0c156986c10480937590b745fb15b35c0d052b3d"
+          },
+          {
+            "path": "build/Data.NonZero.cinchif",
+            "bytes": 8848,
+            "sha256": "3408b83c58f90fa40d6fcc392c0ef1c4f72111fb61eb74621e0fab18c6fe615c"
+          },
+          {
+            "path": "build/Data.Option.cinchif",
+            "bytes": 32279,
+            "sha256": "f59bcdf5b108f39c0dc588490f1e3ba54fcbf60046740b557415d0564abeea58"
+          },
+          {
+            "path": "build/Data.Ordering.cinchif",
+            "bytes": 8673,
+            "sha256": "76b6b4b2dd1e53c7f6b045183ca6cdb1ffde278e74b32e051967783654185b26"
+          },
+          {
+            "path": "build/Data.Path.cinchif",
+            "bytes": 6922,
+            "sha256": "0d69a188b40bf922d4173ff950638e9bc2651c997097ba1d697b51be1e6b487f"
+          },
+          {
+            "path": "build/Data.Producer.cinchif",
+            "bytes": 11298,
+            "sha256": "c9f217c1c4ef94d699d63721e963d8927fc80c08ca7f4d0ae36cdfde005ac4e7"
+          },
+          {
+            "path": "build/Data.Result.cinchif",
+            "bytes": 21132,
+            "sha256": "96fc58ed104b93e8973d7735dec1a82585b795bd448ac7001ff9515b7fce5a60"
+          },
+          {
+            "path": "build/Data.Set.cinchif",
+            "bytes": 15632,
+            "sha256": "890ade94f388f45477726572bd8fa3a559abebd5bd143f64ebd9047e4fcc44e9"
+          },
+          {
+            "path": "build/Data.Sorted.cinchif",
+            "bytes": 2249,
+            "sha256": "53208e265433e3f46a9e95b29e1d0985d3402ea27bd35298de2ebef549c14128"
+          },
+          {
+            "path": "build/Data.String.cinchif",
+            "bytes": 35524,
+            "sha256": "850ca234bc62b8cf4b746379512082ba8ab54692ba3fd1d0ebc469df4c385c07"
+          },
+          {
+            "path": "build/Data.Sym.cinchif",
+            "bytes": 8892,
+            "sha256": "182997a4008315d25be3f86d195998c7fd002e422ab8a12085e3c23001e66237"
+          },
+          {
+            "path": "build/Data.Target.cinchif",
+            "bytes": 8995,
+            "sha256": "be5fb1e3021691e6b1a5c99657bdeb2c5e220c6e7419b12e8336151069423803"
+          },
+          {
+            "path": "build/Data.Wide.cinchif",
+            "bytes": 188231,
+            "sha256": "3f3d9baf5b31c63ce7c7389597cf914528b2caa03016df29ff76cc89b6ecd7a5"
+          },
+          {
+            "path": "build/Effect.Clock.cinchif",
+            "bytes": 7046,
+            "sha256": "4411fbf55c3cde0f4021988adca4439debfa636343c377bc71989dfc27b6f3f2"
+          },
+          {
+            "path": "build/Effect.Concurrent.MVar.cinchif",
+            "bytes": 18493,
+            "sha256": "1413af09d8e16d79493665ede7b3f2e97d6c85be0ee3df606de1c2072fdff276"
+          },
+          {
+            "path": "build/Effect.Concurrent.cinchif",
+            "bytes": 3922,
+            "sha256": "ae3eb93fc2d05b7882b4ff502c358b5490930e81e3d9e82fa671a5f84ac2b697"
+          },
+          {
+            "path": "build/Effect.Fs.cinchif",
+            "bytes": 29507,
+            "sha256": "b53758fa24604b6f3097af34b519e3d5451feecf602255ca5e36c515f0ae0b3f"
+          },
+          {
+            "path": "build/Effect.Io.cinchif",
+            "bytes": 5673,
+            "sha256": "55a35f37b29b3f1ecd0f6de7efc103c010a4f749fab2078eda713a3e034228b0"
+          },
+          {
+            "path": "build/Effect.Process.cinchif",
+            "bytes": 38010,
+            "sha256": "352bd9ca82d0f75c278d04544626c820cc0d756f33c6fc70e660da103901068e"
+          },
+          {
+            "path": "build/Effect.Sequencing.cinchif",
+            "bytes": 5195,
+            "sha256": "5d0bf50a778d638b8aba5b26738e3595b3ef05b66bddef2b338ff4df33c3412b"
+          },
+          {
+            "path": "build/Effect.Stm.TBQueue.cinchif",
+            "bytes": 7983,
+            "sha256": "1135dba8c934b7d2f1d9260c9c8c30abc3d64ed8a1f7d6a92d5818e53e1b6e72"
+          },
+          {
+            "path": "build/Effect.Stm.TMVar.cinchif",
+            "bytes": 9140,
+            "sha256": "7cc06ee21d6183f411cdcf748238619db80c7456e465c4e02d240f7d2cd328b8"
+          },
+          {
+            "path": "build/Effect.Stm.TQueue.cinchif",
+            "bytes": 7483,
+            "sha256": "508fa841ad821ce78c81662313f1a88f22dc73d671f38379ea8fb56a17920c1d"
+          },
+          {
+            "path": "build/Effect.Stm.TSem.cinchif",
+            "bytes": 4558,
+            "sha256": "ff466033aeb3adc97b16b6a6c0b3af16521770145f092beac8dddf7e0ed253bc"
+          },
+          {
+            "path": "build/Effect.Stm.cinchif",
+            "bytes": 26976,
+            "sha256": "8bf61ee9faa7817e9a054a73065613e80b9a3db0bbe3ab60a5c252d790dc7e7c"
+          },
+          {
+            "path": "build/Function.Combinators.cinchif",
+            "bytes": 4656,
+            "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03"
+          },
+          {
+            "path": "build/Main.cinchif",
+            "bytes": 2818,
+            "sha256": "35b1cfcfb14e8abd7f53059b58b6d11804e542fc070f0725419d50376a8e7d0e"
+          },
+          {
+            "path": "build/Main.manifest.json",
+            "bytes": 359438,
+            "sha256": "41a9b000f76b3d6a11e2782b68fd64795857e078aa686c70af92328f325ccf71"
+          },
+          {
+            "path": "build/Main.stage.snap",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build/Prelude.cinchif",
+            "bytes": 474199,
+            "sha256": "a7299d0fa71de14674efbb2bef52366d84c0e9c882996f238d61e537d4467a81"
+          },
+          {
+            "path": "build/Prim.Sys.Darwin.cinchif",
+            "bytes": 43269,
+            "sha256": "04e6ded640cd2faa5b3c292842c706ce64a9236b82bb47b47348d1cbd050cad0"
+          },
+          {
+            "path": "build/Prim.Sys.Linux.cinchif",
+            "bytes": 37322,
+            "sha256": "63e729476c40cfb015065317fae003f19d3dbc1bd531c716c58afb889b1cc57a"
+          },
+          {
+            "path": "build/Prim.Sys.Portable.cinchif",
+            "bytes": 25271,
+            "sha256": "3086a42ed7fd77622080e345c680b29ef31068da1a330bd0fd57cc006c0792ef"
+          },
+          {
+            "path": "build/Prim.Sys.cinchif",
+            "bytes": 35234,
+            "sha256": "1391398462afb859147a7a397983f36e8944a66abcdc034a4cb65eb7b81f799e"
+          },
+          {
+            "path": "build/Relation.Eq.cinchif",
+            "bytes": 1774,
+            "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58"
+          },
+          {
+            "path": "build/Relation.Ord.cinchif",
+            "bytes": 7541,
+            "sha256": "b02ef4dcdb861e67be15ca864080fea29737a5295d8d8afcae31219125176cfb"
+          },
+          {
+            "path": "build/Text.Codec.cinchif",
+            "bytes": 7177,
+            "sha256": "de86014e4d2dad0a4229671b11ebb58e39c5cfa486acee224f22963b342e7b76"
+          },
+          {
+            "path": "build/Text.Digest.cinchif",
+            "bytes": 11793,
+            "sha256": "ddca45b453e2cd785c8eeaa88ed1acf6b1fe5dc3bd71ddab8d9c91589eade11c"
+          },
+          {
+            "path": "build/Text.Show.cinchif",
+            "bytes": 7277,
+            "sha256": "44b9634e652cc07352c9fc97e997c257576dde9d04eccaac4e9e019518e0cce1"
+          },
+          {
+            "path": "stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "artifact_bytes_before_report": 2607420,
+        "passed": true
+      }
+    },
+    "docs": {
+      "path": "build/hkdf/docs-ffb5-v1/report.json",
+      "sha256": "920c790e18fe955eae6c153a30e29ed7e0b16c18d231cd7c3311ee84467ab7d9",
+      "report": {
+        "scope": "Canonical documentation parser only",
+        "sdk_executed": false,
+        "runtime_executed": false,
+        "ir_emitted": false,
+        "stage": "docs",
+        "compiler": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+          "sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9"
+        },
+        "future_runtime_only": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/libcinchruntime.a",
+          "sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3"
+        },
+        "cpu": 1,
+        "compiler_host_stack_bytes": 67108864,
+        "scoped_source_only_start_mib": 320,
+        "reserve_mib": 250,
+        "cap_bytes": 5242880,
+        "seconds": 15,
+        "runner_sha256": "170baee5f8bdfa11414f6a5bc3cf3c78e4ee9944ad4cd09d4b5246a8289f9ab1",
+        "candidate_sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213",
+        "selected_nonembedded_sources": {
+          "Crypto.Hkdf": {
+            "original": "/workspace/dasl-stdlib-multipart/experiments/hkdf-v1/sources/Crypto.Hkdf.cinch",
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          "Data.Bytes.Word": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Data/Bytes/Word.cinch",
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          "Text.Digest": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Text/Digest.cinch",
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          }
+        },
+        "embedded_Data_Bytes_override": false,
+        "resolver_builtin_manifest_sha256": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
+        "result": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "doc",
+            "extract",
+            "/workspace/dasl-stdlib-multipart/build/hkdf/docs-ffb5-v1/Crypto.Hkdf.cinch",
+            "--module",
+            "Crypto.Hkdf",
+            "--out",
+            "/workspace/dasl-stdlib-multipart/build/hkdf/docs-ffb5-v1/docs.json"
+          ],
+          "returncode": 0,
+          "resource_stop": null,
+          "source_wall_seconds": 0.051585099019575864,
+          "free_before": 522190848,
+          "free_after": 522133504,
+          "stdout": "",
+          "stderr": ""
+        },
+        "canonical_docs": {
+          "diagnostics": [],
+          "orphans": [],
+          "module": "Crypto.Hkdf"
+        },
+        "files": [
+          {
+            "path": "Crypto.Hkdf.cinch",
+            "bytes": 24255,
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          {
+            "path": "Data.Bytes.Word.cinch",
+            "bytes": 4243,
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          {
+            "path": "Main.cinch",
+            "bytes": 643,
+            "sha256": "bf033595c5eb7ef23a9db46417cf2a9a6db99f8404254c9a36697c9cbf41e005"
+          },
+          {
+            "path": "Text.Digest.cinch",
+            "bytes": 7351,
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          },
+          {
+            "path": "docs.json",
+            "bytes": 54927,
+            "sha256": "3ec5a1b0666805eb38fa535d0dafb570ccc9af8c29adeb24a8976ce921ebc1ba"
+          },
+          {
+            "path": "stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "artifact_bytes_before_report": 91419,
+        "passed": true
+      }
+    },
+    "rows": {
+      "path": "build/hkdf/rows-ffb5-v1/report.json",
+      "sha256": "5c93807e76aff7ca91fdb09e50fdc581a2f5fb94998c92c127e14f96ec444ee8",
+      "report": {
+        "scope": "Source/type/proof only",
+        "sdk_executed": false,
+        "runtime_executed": false,
+        "ir_emitted": false,
+        "stage": "source",
+        "compiler": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+          "sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9"
+        },
+        "future_runtime_only": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/libcinchruntime.a",
+          "sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3"
+        },
+        "cpu": 1,
+        "compiler_host_stack_bytes": 67108864,
+        "scoped_source_only_start_mib": 320,
+        "reserve_mib": 250,
+        "cap_bytes": 5242880,
+        "seconds": 15,
+        "runner_sha256": "51c9a46b49b795fab7c2262ce88bddea6800ba75eea5e02442b6502911a54657",
+        "candidate_sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213",
+        "selected_nonembedded_sources": {
+          "Crypto.Hkdf": {
+            "original": "/workspace/dasl-stdlib-multipart/experiments/hkdf-v1/sources/Crypto.Hkdf.cinch",
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          "Data.Bytes.Word": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Data/Bytes/Word.cinch",
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          "Text.Digest": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Text/Digest.cinch",
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          }
+        },
+        "consumer": "/workspace/dasl-stdlib-multipart/experiments/hkdf-v1/source-proofs/Rows.cinch",
+        "expected_refusal": null,
+        "embedded_Data_Bytes_override": false,
+        "resolver_builtin_manifest_sha256": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
+        "result": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "check",
+            "/workspace/dasl-stdlib-multipart/build/hkdf/rows-ffb5-v1/Main.cinch"
+          ],
+          "returncode": 0,
+          "resource_stop": null,
+          "source_wall_seconds": 1.0825024569930974,
+          "free_before": 458584064,
+          "free_after": 446844928,
+          "stdout": "",
+          "stderr": ""
+        },
+        "files": [
+          {
+            "path": "Crypto.Hkdf.cinch",
+            "bytes": 24255,
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          {
+            "path": "Data.Bytes.Word.cinch",
+            "bytes": 4243,
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          {
+            "path": "Main.cinch",
+            "bytes": 1586,
+            "sha256": "cb5f05839ba374b1a5c17cd225dd3e9f10b7a251360757032c08cf746bc10884"
+          },
+          {
+            "path": "Text.Digest.cinch",
+            "bytes": 7351,
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          },
+          {
+            "path": "build/Algebra.Arithmetic.cinchif",
+            "bytes": 7034,
+            "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8"
+          },
+          {
+            "path": "build/Algebra.Bits.cinchif",
+            "bytes": 9863,
+            "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8"
+          },
+          {
+            "path": "build/Algebra.Group.cinchif",
+            "bytes": 2464,
+            "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274"
+          },
+          {
+            "path": "build/Algebra.Monoid.cinchif",
+            "bytes": 30233,
+            "sha256": "a29802f9291998d90aa1efa944a7885f694bd5632f3a4730752ef9c7a6784a39"
+          },
+          {
+            "path": "build/Algebra.Semigroup.cinchif",
+            "bytes": 6022,
+            "sha256": "4c59bfa1465a6215048169120bc61219c7941830f01578c8c1a8e05918ebfddc"
+          },
+          {
+            "path": "build/Algebra.Semiring.cinchif",
+            "bytes": 2642,
+            "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e"
+          },
+          {
+            "path": "build/Category.Alternative.cinchif",
+            "bytes": 2109,
+            "sha256": "5c6fae8e8fa7fc3025a9430de85b1916cc716635b7fe0aeb2fa5103ad62314c5"
+          },
+          {
+            "path": "build/Category.Applicative.cinchif",
+            "bytes": 8919,
+            "sha256": "a993c1078cc20eb27bc7ce76efc3eaddca0d7394988ebcc51b9c89ecf5616278"
+          },
+          {
+            "path": "build/Category.Foldable.cinchif",
+            "bytes": 30852,
+            "sha256": "034f6fbfa6f95468b649d936524ebe85b640a3f22933545cafe75716d3f11912"
+          },
+          {
+            "path": "build/Category.Functor.cinchif",
+            "bytes": 3955,
+            "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0"
+          },
+          {
+            "path": "build/Category.Monad.cinchif",
+            "bytes": 3926,
+            "sha256": "8c78b566d9719fbe9c1940e75120256995b8694462a06f479096f7db95a09158"
+          },
+          {
+            "path": "build/Category.Traversable.cinchif",
+            "bytes": 10235,
+            "sha256": "6bc5b69abeead5481148a433b7eb85dd247ae61e79e367c0be056a64615ae6e3"
+          },
+          {
+            "path": "build/Crypto.Hkdf.cinchif",
+            "bytes": 40021,
+            "sha256": "bf77756ba5ff60d6502c1bdadb80060eb4652c2dae6fc28c3653c3480fccbfb9"
+          },
+          {
+            "path": "build/Data.Ascii.cinchif",
+            "bytes": 1573,
+            "sha256": "0647dee755011378cbf1d528f54562d3ab01fe9ef9d4d10cbb0b97ec27785473"
+          },
+          {
+            "path": "build/Data.Bool.cinchif",
+            "bytes": 19940,
+            "sha256": "a750b904562a351e758601a85a2d98a3c9f82b8a0791bfe7d00eeaa1aa2dd632"
+          },
+          {
+            "path": "build/Data.Bytes.Word.cinchif",
+            "bytes": 2654,
+            "sha256": "a994931c6afe8ccbd9a50c010ba09c4998d32c13651439d7826b73eea3effb63"
+          },
+          {
+            "path": "build/Data.Bytes.cinchif",
+            "bytes": 13369,
+            "sha256": "50b46b033998206bf2f39b70a5a1be5b546f834f0d334db713d513ebda32275e"
+          },
+          {
+            "path": "build/Data.Char.cinchif",
+            "bytes": 15043,
+            "sha256": "2dc7da4b446ff99145fcf1f7133aecaa03bfdcdb3d63c08909e62bcf263043a9"
+          },
+          {
+            "path": "build/Data.Compose.cinchif",
+            "bytes": 2098,
+            "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8"
+          },
+          {
+            "path": "build/Data.Const.cinchif",
+            "bytes": 13257,
+            "sha256": "8ba7d4cb8471ccf8c59103fd43d1a3d77cbd6c855e66829d3bdd5e0c87a36090"
+          },
+          {
+            "path": "build/Data.Core.cinchif",
+            "bytes": 5329,
+            "sha256": "456e466db445fe324b0fb09ca6deeff59bf2192d54a7777216f6ba402b298d44"
+          },
+          {
+            "path": "build/Data.Enum.cinchif",
+            "bytes": 5017,
+            "sha256": "81bbaed45187bd36db1c3d5b00e40003a378b966cdc0a1c8158ccc857144cce3"
+          },
+          {
+            "path": "build/Data.FromList.cinchif",
+            "bytes": 1800,
+            "sha256": "58a3a797caacd038392623639a4c7df021b9694b3bce7150e6775717646b893b"
+          },
+          {
+            "path": "build/Data.FromMap.cinchif",
+            "bytes": 2022,
+            "sha256": "68a0d5bb3b91b16909bd9e29224b808284ac34662ce98a0c79e3f41231770d9f"
+          },
+          {
+            "path": "build/Data.Hash.cinchif",
+            "bytes": 1284,
+            "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e"
+          },
+          {
+            "path": "build/Data.HashMap.cinchif",
+            "bytes": 19275,
+            "sha256": "4968e9c766928eeab4c3d33d33fe7af52cc63143a90f9e818ae8f71bcd664fe4"
+          },
+          {
+            "path": "build/Data.Identity.cinchif",
+            "bytes": 14739,
+            "sha256": "aa8d40c6230e13a448e4c5da979715be06aca3401093d367afdfac657a773f62"
+          },
+          {
+            "path": "build/Data.Int.cinchif",
+            "bytes": 29798,
+            "sha256": "676aaa79a5d32f6f7a48b065e16c0b061584e1b4c192353ca793602b306db45e"
+          },
+          {
+            "path": "build/Data.Json.cinchif",
+            "bytes": 5609,
+            "sha256": "83c9aa67f6ce91c7d9a8f27158dd2a2e67453b100c894b99cf394f4d01256a55"
+          },
+          {
+            "path": "build/Data.List.cinchif",
+            "bytes": 55557,
+            "sha256": "cb3186ce824c0adc5b766e1bcdbb8c761c762b0fde12b92461421a43a4d0c04c"
+          },
+          {
+            "path": "build/Data.Machine.cinchif",
+            "bytes": 614896,
+            "sha256": "6e09f1a52e00bc9b6fdb3bd1b1329931e571c3a4f908b8c71db257728efbd89d"
+          },
+          {
+            "path": "build/Data.Map.cinchif",
+            "bytes": 15298,
+            "sha256": "dd9fc690f7444f124e0d116416e71f9d1c99c27865caa8adbc096e797760a7dc"
+          },
+          {
+            "path": "build/Data.Nat.cinchif",
+            "bytes": 30223,
+            "sha256": "2fa35d5558e80a90d06be2467532b03c9f9ebc81c0387c829601a816c42b2602"
+          },
+          {
+            "path": "build/Data.NonEmpty.cinchif",
+            "bytes": 13442,
+            "sha256": "598ffe6070d91b5dc09d262e0c156986c10480937590b745fb15b35c0d052b3d"
+          },
+          {
+            "path": "build/Data.NonZero.cinchif",
+            "bytes": 8848,
+            "sha256": "3408b83c58f90fa40d6fcc392c0ef1c4f72111fb61eb74621e0fab18c6fe615c"
+          },
+          {
+            "path": "build/Data.Option.cinchif",
+            "bytes": 32279,
+            "sha256": "f59bcdf5b108f39c0dc588490f1e3ba54fcbf60046740b557415d0564abeea58"
+          },
+          {
+            "path": "build/Data.Ordering.cinchif",
+            "bytes": 8673,
+            "sha256": "76b6b4b2dd1e53c7f6b045183ca6cdb1ffde278e74b32e051967783654185b26"
+          },
+          {
+            "path": "build/Data.Path.cinchif",
+            "bytes": 6922,
+            "sha256": "0d69a188b40bf922d4173ff950638e9bc2651c997097ba1d697b51be1e6b487f"
+          },
+          {
+            "path": "build/Data.Producer.cinchif",
+            "bytes": 11298,
+            "sha256": "c9f217c1c4ef94d699d63721e963d8927fc80c08ca7f4d0ae36cdfde005ac4e7"
+          },
+          {
+            "path": "build/Data.Result.cinchif",
+            "bytes": 21132,
+            "sha256": "96fc58ed104b93e8973d7735dec1a82585b795bd448ac7001ff9515b7fce5a60"
+          },
+          {
+            "path": "build/Data.Set.cinchif",
+            "bytes": 15632,
+            "sha256": "890ade94f388f45477726572bd8fa3a559abebd5bd143f64ebd9047e4fcc44e9"
+          },
+          {
+            "path": "build/Data.Sorted.cinchif",
+            "bytes": 2249,
+            "sha256": "53208e265433e3f46a9e95b29e1d0985d3402ea27bd35298de2ebef549c14128"
+          },
+          {
+            "path": "build/Data.String.cinchif",
+            "bytes": 35524,
+            "sha256": "850ca234bc62b8cf4b746379512082ba8ab54692ba3fd1d0ebc469df4c385c07"
+          },
+          {
+            "path": "build/Data.Sym.cinchif",
+            "bytes": 8892,
+            "sha256": "182997a4008315d25be3f86d195998c7fd002e422ab8a12085e3c23001e66237"
+          },
+          {
+            "path": "build/Data.Target.cinchif",
+            "bytes": 8995,
+            "sha256": "be5fb1e3021691e6b1a5c99657bdeb2c5e220c6e7419b12e8336151069423803"
+          },
+          {
+            "path": "build/Data.Wide.cinchif",
+            "bytes": 188231,
+            "sha256": "3f3d9baf5b31c63ce7c7389597cf914528b2caa03016df29ff76cc89b6ecd7a5"
+          },
+          {
+            "path": "build/Effect.Clock.cinchif",
+            "bytes": 7046,
+            "sha256": "4411fbf55c3cde0f4021988adca4439debfa636343c377bc71989dfc27b6f3f2"
+          },
+          {
+            "path": "build/Effect.Concurrent.MVar.cinchif",
+            "bytes": 18493,
+            "sha256": "1413af09d8e16d79493665ede7b3f2e97d6c85be0ee3df606de1c2072fdff276"
+          },
+          {
+            "path": "build/Effect.Concurrent.cinchif",
+            "bytes": 3922,
+            "sha256": "ae3eb93fc2d05b7882b4ff502c358b5490930e81e3d9e82fa671a5f84ac2b697"
+          },
+          {
+            "path": "build/Effect.Fs.cinchif",
+            "bytes": 29507,
+            "sha256": "b53758fa24604b6f3097af34b519e3d5451feecf602255ca5e36c515f0ae0b3f"
+          },
+          {
+            "path": "build/Effect.Io.cinchif",
+            "bytes": 5673,
+            "sha256": "55a35f37b29b3f1ecd0f6de7efc103c010a4f749fab2078eda713a3e034228b0"
+          },
+          {
+            "path": "build/Effect.Process.cinchif",
+            "bytes": 38010,
+            "sha256": "352bd9ca82d0f75c278d04544626c820cc0d756f33c6fc70e660da103901068e"
+          },
+          {
+            "path": "build/Effect.Sequencing.cinchif",
+            "bytes": 5195,
+            "sha256": "5d0bf50a778d638b8aba5b26738e3595b3ef05b66bddef2b338ff4df33c3412b"
+          },
+          {
+            "path": "build/Effect.Stm.TBQueue.cinchif",
+            "bytes": 7983,
+            "sha256": "1135dba8c934b7d2f1d9260c9c8c30abc3d64ed8a1f7d6a92d5818e53e1b6e72"
+          },
+          {
+            "path": "build/Effect.Stm.TMVar.cinchif",
+            "bytes": 9140,
+            "sha256": "7cc06ee21d6183f411cdcf748238619db80c7456e465c4e02d240f7d2cd328b8"
+          },
+          {
+            "path": "build/Effect.Stm.TQueue.cinchif",
+            "bytes": 7483,
+            "sha256": "508fa841ad821ce78c81662313f1a88f22dc73d671f38379ea8fb56a17920c1d"
+          },
+          {
+            "path": "build/Effect.Stm.TSem.cinchif",
+            "bytes": 4558,
+            "sha256": "ff466033aeb3adc97b16b6a6c0b3af16521770145f092beac8dddf7e0ed253bc"
+          },
+          {
+            "path": "build/Effect.Stm.cinchif",
+            "bytes": 26976,
+            "sha256": "8bf61ee9faa7817e9a054a73065613e80b9a3db0bbe3ab60a5c252d790dc7e7c"
+          },
+          {
+            "path": "build/Function.Combinators.cinchif",
+            "bytes": 4656,
+            "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03"
+          },
+          {
+            "path": "build/Main.cinchif",
+            "bytes": 7918,
+            "sha256": "4d2b6bf450777d310b1acec94f45cfcd7848b92d4d9c848a21554701df95a787"
+          },
+          {
+            "path": "build/Main.manifest.json",
+            "bytes": 359540,
+            "sha256": "f5c5350234663b6ebf241a612a9af22a71b13ab6eeaab07c2651304afab34e8d"
+          },
+          {
+            "path": "build/Main.stage.snap",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build/Prelude.cinchif",
+            "bytes": 474199,
+            "sha256": "a7299d0fa71de14674efbb2bef52366d84c0e9c882996f238d61e537d4467a81"
+          },
+          {
+            "path": "build/Prim.Sys.Darwin.cinchif",
+            "bytes": 43269,
+            "sha256": "04e6ded640cd2faa5b3c292842c706ce64a9236b82bb47b47348d1cbd050cad0"
+          },
+          {
+            "path": "build/Prim.Sys.Linux.cinchif",
+            "bytes": 37322,
+            "sha256": "63e729476c40cfb015065317fae003f19d3dbc1bd531c716c58afb889b1cc57a"
+          },
+          {
+            "path": "build/Prim.Sys.Portable.cinchif",
+            "bytes": 25271,
+            "sha256": "3086a42ed7fd77622080e345c680b29ef31068da1a330bd0fd57cc006c0792ef"
+          },
+          {
+            "path": "build/Prim.Sys.cinchif",
+            "bytes": 35234,
+            "sha256": "1391398462afb859147a7a397983f36e8944a66abcdc034a4cb65eb7b81f799e"
+          },
+          {
+            "path": "build/Relation.Eq.cinchif",
+            "bytes": 1774,
+            "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58"
+          },
+          {
+            "path": "build/Relation.Ord.cinchif",
+            "bytes": 7541,
+            "sha256": "b02ef4dcdb861e67be15ca864080fea29737a5295d8d8afcae31219125176cfb"
+          },
+          {
+            "path": "build/Text.Codec.cinchif",
+            "bytes": 7177,
+            "sha256": "de86014e4d2dad0a4229671b11ebb58e39c5cfa486acee224f22963b342e7b76"
+          },
+          {
+            "path": "build/Text.Digest.cinchif",
+            "bytes": 11793,
+            "sha256": "ddca45b453e2cd785c8eeaa88ed1acf6b1fe5dc3bd71ddab8d9c91589eade11c"
+          },
+          {
+            "path": "build/Text.Show.cinchif",
+            "bytes": 7277,
+            "sha256": "44b9634e652cc07352c9fc97e997c257576dde9d04eccaac4e9e019518e0cce1"
+          },
+          {
+            "path": "stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "artifact_bytes_before_report": 2613565,
+        "passed": true
+      }
+    },
+    "live-rows": {
+      "path": "build/hkdf/live-rows-ffb5-v1/report.json",
+      "sha256": "e9b91f1a647a6749c38e712d2899e6879febbdbf71bb995c70e74eb9f6728cde",
+      "report": {
+        "scope": "Source/type/proof only",
+        "sdk_executed": false,
+        "runtime_executed": false,
+        "ir_emitted": false,
+        "stage": "source",
+        "compiler": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+          "sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9"
+        },
+        "future_runtime_only": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/libcinchruntime.a",
+          "sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3"
+        },
+        "cpu": 1,
+        "compiler_host_stack_bytes": 67108864,
+        "scoped_source_only_start_mib": 320,
+        "reserve_mib": 250,
+        "cap_bytes": 5242880,
+        "seconds": 15,
+        "runner_sha256": "51c9a46b49b795fab7c2262ce88bddea6800ba75eea5e02442b6502911a54657",
+        "candidate_sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213",
+        "selected_nonembedded_sources": {
+          "Crypto.Hkdf": {
+            "original": "/workspace/dasl-stdlib-multipart/experiments/hkdf-v1/sources/Crypto.Hkdf.cinch",
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          "Data.Bytes.Word": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Data/Bytes/Word.cinch",
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          "Text.Digest": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Text/Digest.cinch",
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          },
+          "Data.Mutable.Var": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Data/Mutable/Var.cinch",
+            "sha256": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+          }
+        },
+        "consumer": "/workspace/dasl-stdlib-multipart/experiments/hkdf-v1/source-proofs/LiveRows.cinch",
+        "expected_refusal": null,
+        "embedded_Data_Bytes_override": false,
+        "resolver_builtin_manifest_sha256": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
+        "result": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "check",
+            "/workspace/dasl-stdlib-multipart/build/hkdf/live-rows-ffb5-v1/Main.cinch"
+          ],
+          "returncode": 0,
+          "resource_stop": null,
+          "source_wall_seconds": 0.8641096729843412,
+          "free_before": 428732416,
+          "free_after": 426000384,
+          "stdout": "",
+          "stderr": ""
+        },
+        "files": [
+          {
+            "path": "Crypto.Hkdf.cinch",
+            "bytes": 24255,
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          {
+            "path": "Data.Bytes.Word.cinch",
+            "bytes": 4243,
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          {
+            "path": "Data.Mutable.Var.cinch",
+            "bytes": 1973,
+            "sha256": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+          },
+          {
+            "path": "Main.cinch",
+            "bytes": 1812,
+            "sha256": "7130f8ac52a5cf5098d4a7200aaf64f79f9785e5e5a1144fdd6ff39794825390"
+          },
+          {
+            "path": "Text.Digest.cinch",
+            "bytes": 7351,
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          },
+          {
+            "path": "build/Algebra.Arithmetic.cinchif",
+            "bytes": 7034,
+            "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8"
+          },
+          {
+            "path": "build/Algebra.Bits.cinchif",
+            "bytes": 9863,
+            "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8"
+          },
+          {
+            "path": "build/Algebra.Group.cinchif",
+            "bytes": 2464,
+            "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274"
+          },
+          {
+            "path": "build/Algebra.Monoid.cinchif",
+            "bytes": 30233,
+            "sha256": "a29802f9291998d90aa1efa944a7885f694bd5632f3a4730752ef9c7a6784a39"
+          },
+          {
+            "path": "build/Algebra.Semigroup.cinchif",
+            "bytes": 6022,
+            "sha256": "4c59bfa1465a6215048169120bc61219c7941830f01578c8c1a8e05918ebfddc"
+          },
+          {
+            "path": "build/Algebra.Semiring.cinchif",
+            "bytes": 2642,
+            "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e"
+          },
+          {
+            "path": "build/Category.Alternative.cinchif",
+            "bytes": 2109,
+            "sha256": "5c6fae8e8fa7fc3025a9430de85b1916cc716635b7fe0aeb2fa5103ad62314c5"
+          },
+          {
+            "path": "build/Category.Applicative.cinchif",
+            "bytes": 8919,
+            "sha256": "a993c1078cc20eb27bc7ce76efc3eaddca0d7394988ebcc51b9c89ecf5616278"
+          },
+          {
+            "path": "build/Category.Foldable.cinchif",
+            "bytes": 30852,
+            "sha256": "034f6fbfa6f95468b649d936524ebe85b640a3f22933545cafe75716d3f11912"
+          },
+          {
+            "path": "build/Category.Functor.cinchif",
+            "bytes": 3955,
+            "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0"
+          },
+          {
+            "path": "build/Category.Monad.cinchif",
+            "bytes": 3926,
+            "sha256": "8c78b566d9719fbe9c1940e75120256995b8694462a06f479096f7db95a09158"
+          },
+          {
+            "path": "build/Category.Traversable.cinchif",
+            "bytes": 10235,
+            "sha256": "6bc5b69abeead5481148a433b7eb85dd247ae61e79e367c0be056a64615ae6e3"
+          },
+          {
+            "path": "build/Crypto.Hkdf.cinchif",
+            "bytes": 40021,
+            "sha256": "bf77756ba5ff60d6502c1bdadb80060eb4652c2dae6fc28c3653c3480fccbfb9"
+          },
+          {
+            "path": "build/Data.Ascii.cinchif",
+            "bytes": 1573,
+            "sha256": "0647dee755011378cbf1d528f54562d3ab01fe9ef9d4d10cbb0b97ec27785473"
+          },
+          {
+            "path": "build/Data.Bool.cinchif",
+            "bytes": 19940,
+            "sha256": "a750b904562a351e758601a85a2d98a3c9f82b8a0791bfe7d00eeaa1aa2dd632"
+          },
+          {
+            "path": "build/Data.Bytes.Word.cinchif",
+            "bytes": 2654,
+            "sha256": "a994931c6afe8ccbd9a50c010ba09c4998d32c13651439d7826b73eea3effb63"
+          },
+          {
+            "path": "build/Data.Bytes.cinchif",
+            "bytes": 13369,
+            "sha256": "50b46b033998206bf2f39b70a5a1be5b546f834f0d334db713d513ebda32275e"
+          },
+          {
+            "path": "build/Data.Char.cinchif",
+            "bytes": 15043,
+            "sha256": "2dc7da4b446ff99145fcf1f7133aecaa03bfdcdb3d63c08909e62bcf263043a9"
+          },
+          {
+            "path": "build/Data.Compose.cinchif",
+            "bytes": 2098,
+            "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8"
+          },
+          {
+            "path": "build/Data.Const.cinchif",
+            "bytes": 13257,
+            "sha256": "8ba7d4cb8471ccf8c59103fd43d1a3d77cbd6c855e66829d3bdd5e0c87a36090"
+          },
+          {
+            "path": "build/Data.Core.cinchif",
+            "bytes": 5329,
+            "sha256": "456e466db445fe324b0fb09ca6deeff59bf2192d54a7777216f6ba402b298d44"
+          },
+          {
+            "path": "build/Data.Enum.cinchif",
+            "bytes": 5017,
+            "sha256": "81bbaed45187bd36db1c3d5b00e40003a378b966cdc0a1c8158ccc857144cce3"
+          },
+          {
+            "path": "build/Data.FromList.cinchif",
+            "bytes": 1800,
+            "sha256": "58a3a797caacd038392623639a4c7df021b9694b3bce7150e6775717646b893b"
+          },
+          {
+            "path": "build/Data.FromMap.cinchif",
+            "bytes": 2022,
+            "sha256": "68a0d5bb3b91b16909bd9e29224b808284ac34662ce98a0c79e3f41231770d9f"
+          },
+          {
+            "path": "build/Data.Hash.cinchif",
+            "bytes": 1284,
+            "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e"
+          },
+          {
+            "path": "build/Data.HashMap.cinchif",
+            "bytes": 19275,
+            "sha256": "4968e9c766928eeab4c3d33d33fe7af52cc63143a90f9e818ae8f71bcd664fe4"
+          },
+          {
+            "path": "build/Data.Identity.cinchif",
+            "bytes": 14739,
+            "sha256": "aa8d40c6230e13a448e4c5da979715be06aca3401093d367afdfac657a773f62"
+          },
+          {
+            "path": "build/Data.Int.cinchif",
+            "bytes": 29798,
+            "sha256": "676aaa79a5d32f6f7a48b065e16c0b061584e1b4c192353ca793602b306db45e"
+          },
+          {
+            "path": "build/Data.Json.cinchif",
+            "bytes": 5609,
+            "sha256": "83c9aa67f6ce91c7d9a8f27158dd2a2e67453b100c894b99cf394f4d01256a55"
+          },
+          {
+            "path": "build/Data.List.cinchif",
+            "bytes": 55557,
+            "sha256": "cb3186ce824c0adc5b766e1bcdbb8c761c762b0fde12b92461421a43a4d0c04c"
+          },
+          {
+            "path": "build/Data.Machine.cinchif",
+            "bytes": 614896,
+            "sha256": "6e09f1a52e00bc9b6fdb3bd1b1329931e571c3a4f908b8c71db257728efbd89d"
+          },
+          {
+            "path": "build/Data.Map.cinchif",
+            "bytes": 15298,
+            "sha256": "dd9fc690f7444f124e0d116416e71f9d1c99c27865caa8adbc096e797760a7dc"
+          },
+          {
+            "path": "build/Data.Mutable.Var.cinchif",
+            "bytes": 5202,
+            "sha256": "518b52d76b54beab5adbda209e25e16194567ad701172522cc13b594a8b4b757"
+          },
+          {
+            "path": "build/Data.Nat.cinchif",
+            "bytes": 30223,
+            "sha256": "2fa35d5558e80a90d06be2467532b03c9f9ebc81c0387c829601a816c42b2602"
+          },
+          {
+            "path": "build/Data.NonEmpty.cinchif",
+            "bytes": 13442,
+            "sha256": "598ffe6070d91b5dc09d262e0c156986c10480937590b745fb15b35c0d052b3d"
+          },
+          {
+            "path": "build/Data.NonZero.cinchif",
+            "bytes": 8848,
+            "sha256": "3408b83c58f90fa40d6fcc392c0ef1c4f72111fb61eb74621e0fab18c6fe615c"
+          },
+          {
+            "path": "build/Data.Option.cinchif",
+            "bytes": 32279,
+            "sha256": "f59bcdf5b108f39c0dc588490f1e3ba54fcbf60046740b557415d0564abeea58"
+          },
+          {
+            "path": "build/Data.Ordering.cinchif",
+            "bytes": 8673,
+            "sha256": "76b6b4b2dd1e53c7f6b045183ca6cdb1ffde278e74b32e051967783654185b26"
+          },
+          {
+            "path": "build/Data.Path.cinchif",
+            "bytes": 6922,
+            "sha256": "0d69a188b40bf922d4173ff950638e9bc2651c997097ba1d697b51be1e6b487f"
+          },
+          {
+            "path": "build/Data.Producer.cinchif",
+            "bytes": 11298,
+            "sha256": "c9f217c1c4ef94d699d63721e963d8927fc80c08ca7f4d0ae36cdfde005ac4e7"
+          },
+          {
+            "path": "build/Data.Result.cinchif",
+            "bytes": 21132,
+            "sha256": "96fc58ed104b93e8973d7735dec1a82585b795bd448ac7001ff9515b7fce5a60"
+          },
+          {
+            "path": "build/Data.Set.cinchif",
+            "bytes": 15632,
+            "sha256": "890ade94f388f45477726572bd8fa3a559abebd5bd143f64ebd9047e4fcc44e9"
+          },
+          {
+            "path": "build/Data.Sorted.cinchif",
+            "bytes": 2249,
+            "sha256": "53208e265433e3f46a9e95b29e1d0985d3402ea27bd35298de2ebef549c14128"
+          },
+          {
+            "path": "build/Data.String.cinchif",
+            "bytes": 35524,
+            "sha256": "850ca234bc62b8cf4b746379512082ba8ab54692ba3fd1d0ebc469df4c385c07"
+          },
+          {
+            "path": "build/Data.Sym.cinchif",
+            "bytes": 8892,
+            "sha256": "182997a4008315d25be3f86d195998c7fd002e422ab8a12085e3c23001e66237"
+          },
+          {
+            "path": "build/Data.Target.cinchif",
+            "bytes": 8995,
+            "sha256": "be5fb1e3021691e6b1a5c99657bdeb2c5e220c6e7419b12e8336151069423803"
+          },
+          {
+            "path": "build/Data.Wide.cinchif",
+            "bytes": 188231,
+            "sha256": "3f3d9baf5b31c63ce7c7389597cf914528b2caa03016df29ff76cc89b6ecd7a5"
+          },
+          {
+            "path": "build/Effect.Clock.cinchif",
+            "bytes": 7046,
+            "sha256": "4411fbf55c3cde0f4021988adca4439debfa636343c377bc71989dfc27b6f3f2"
+          },
+          {
+            "path": "build/Effect.Concurrent.MVar.cinchif",
+            "bytes": 18493,
+            "sha256": "1413af09d8e16d79493665ede7b3f2e97d6c85be0ee3df606de1c2072fdff276"
+          },
+          {
+            "path": "build/Effect.Concurrent.cinchif",
+            "bytes": 3922,
+            "sha256": "ae3eb93fc2d05b7882b4ff502c358b5490930e81e3d9e82fa671a5f84ac2b697"
+          },
+          {
+            "path": "build/Effect.Fs.cinchif",
+            "bytes": 29507,
+            "sha256": "b53758fa24604b6f3097af34b519e3d5451feecf602255ca5e36c515f0ae0b3f"
+          },
+          {
+            "path": "build/Effect.Io.cinchif",
+            "bytes": 5673,
+            "sha256": "55a35f37b29b3f1ecd0f6de7efc103c010a4f749fab2078eda713a3e034228b0"
+          },
+          {
+            "path": "build/Effect.Process.cinchif",
+            "bytes": 38010,
+            "sha256": "352bd9ca82d0f75c278d04544626c820cc0d756f33c6fc70e660da103901068e"
+          },
+          {
+            "path": "build/Effect.Sequencing.cinchif",
+            "bytes": 5195,
+            "sha256": "5d0bf50a778d638b8aba5b26738e3595b3ef05b66bddef2b338ff4df33c3412b"
+          },
+          {
+            "path": "build/Effect.Stm.TBQueue.cinchif",
+            "bytes": 7983,
+            "sha256": "1135dba8c934b7d2f1d9260c9c8c30abc3d64ed8a1f7d6a92d5818e53e1b6e72"
+          },
+          {
+            "path": "build/Effect.Stm.TMVar.cinchif",
+            "bytes": 9140,
+            "sha256": "7cc06ee21d6183f411cdcf748238619db80c7456e465c4e02d240f7d2cd328b8"
+          },
+          {
+            "path": "build/Effect.Stm.TQueue.cinchif",
+            "bytes": 7483,
+            "sha256": "508fa841ad821ce78c81662313f1a88f22dc73d671f38379ea8fb56a17920c1d"
+          },
+          {
+            "path": "build/Effect.Stm.TSem.cinchif",
+            "bytes": 4558,
+            "sha256": "ff466033aeb3adc97b16b6a6c0b3af16521770145f092beac8dddf7e0ed253bc"
+          },
+          {
+            "path": "build/Effect.Stm.cinchif",
+            "bytes": 26976,
+            "sha256": "8bf61ee9faa7817e9a054a73065613e80b9a3db0bbe3ab60a5c252d790dc7e7c"
+          },
+          {
+            "path": "build/Function.Combinators.cinchif",
+            "bytes": 4656,
+            "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03"
+          },
+          {
+            "path": "build/Main.cinchif",
+            "bytes": 5780,
+            "sha256": "569235693b7db08697edcf5cfe7622eefa7fa70ba810802b8304a7a2283b936c"
+          },
+          {
+            "path": "build/Main.manifest.json",
+            "bytes": 360658,
+            "sha256": "6d2da4c24fc8e8ba79907e780991fb6b5b40091341ae67ebb0b64cad71c46c44"
+          },
+          {
+            "path": "build/Main.stage.snap",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build/Prelude.cinchif",
+            "bytes": 474199,
+            "sha256": "a7299d0fa71de14674efbb2bef52366d84c0e9c882996f238d61e537d4467a81"
+          },
+          {
+            "path": "build/Prim.Sys.Darwin.cinchif",
+            "bytes": 43269,
+            "sha256": "04e6ded640cd2faa5b3c292842c706ce64a9236b82bb47b47348d1cbd050cad0"
+          },
+          {
+            "path": "build/Prim.Sys.Linux.cinchif",
+            "bytes": 37322,
+            "sha256": "63e729476c40cfb015065317fae003f19d3dbc1bd531c716c58afb889b1cc57a"
+          },
+          {
+            "path": "build/Prim.Sys.Portable.cinchif",
+            "bytes": 25271,
+            "sha256": "3086a42ed7fd77622080e345c680b29ef31068da1a330bd0fd57cc006c0792ef"
+          },
+          {
+            "path": "build/Prim.Sys.cinchif",
+            "bytes": 35234,
+            "sha256": "1391398462afb859147a7a397983f36e8944a66abcdc034a4cb65eb7b81f799e"
+          },
+          {
+            "path": "build/Relation.Eq.cinchif",
+            "bytes": 1774,
+            "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58"
+          },
+          {
+            "path": "build/Relation.Ord.cinchif",
+            "bytes": 7541,
+            "sha256": "b02ef4dcdb861e67be15ca864080fea29737a5295d8d8afcae31219125176cfb"
+          },
+          {
+            "path": "build/Text.Codec.cinchif",
+            "bytes": 7177,
+            "sha256": "de86014e4d2dad0a4229671b11ebb58e39c5cfa486acee224f22963b342e7b76"
+          },
+          {
+            "path": "build/Text.Digest.cinchif",
+            "bytes": 11793,
+            "sha256": "ddca45b453e2cd785c8eeaa88ed1acf6b1fe5dc3bd71ddab8d9c91589eade11c"
+          },
+          {
+            "path": "build/Text.Show.cinchif",
+            "bytes": 7277,
+            "sha256": "44b9634e652cc07352c9fc97e997c257576dde9d04eccaac4e9e019518e0cce1"
+          },
+          {
+            "path": "stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "artifact_bytes_before_report": 2619946,
+        "passed": true
+      }
+    },
+    "refuse-pure": {
+      "path": "build/hkdf/refuse-pure-ffb5-v1/report.json",
+      "sha256": "4f9e83ab86821619e91fbecb4a61625a4e0f298da6857e3d669083fd09e24393",
+      "report": {
+        "scope": "Source/type/proof only",
+        "sdk_executed": false,
+        "runtime_executed": false,
+        "ir_emitted": false,
+        "stage": "source",
+        "compiler": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+          "sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9"
+        },
+        "future_runtime_only": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/libcinchruntime.a",
+          "sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3"
+        },
+        "cpu": 1,
+        "compiler_host_stack_bytes": 67108864,
+        "scoped_source_only_start_mib": 320,
+        "reserve_mib": 250,
+        "cap_bytes": 5242880,
+        "seconds": 15,
+        "runner_sha256": "51c9a46b49b795fab7c2262ce88bddea6800ba75eea5e02442b6502911a54657",
+        "candidate_sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213",
+        "selected_nonembedded_sources": {
+          "Crypto.Hkdf": {
+            "original": "/workspace/dasl-stdlib-multipart/experiments/hkdf-v1/sources/Crypto.Hkdf.cinch",
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          "Data.Bytes.Word": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Data/Bytes/Word.cinch",
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          "Text.Digest": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Text/Digest.cinch",
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          }
+        },
+        "consumer": "/workspace/dasl-stdlib-multipart/experiments/hkdf-v1/source-proofs/RefusePure.cinch",
+        "expected_refusal": "effect rows do not match",
+        "embedded_Data_Bytes_override": false,
+        "resolver_builtin_manifest_sha256": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
+        "result": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "check",
+            "/workspace/dasl-stdlib-multipart/build/hkdf/refuse-pure-ffb5-v1/Main.cinch"
+          ],
+          "returncode": 1,
+          "resource_stop": null,
+          "source_wall_seconds": 0.35692177899181843,
+          "free_before": 415199232,
+          "free_after": 415195136,
+          "stdout": "",
+          "stderr": "cinch: 10:3: effect rows do not match: {} vs {IO r#1100, Mut s#1101 | ?r1314} (in /workspace/dasl-stdlib-multipart/build/hkdf/refuse-pure-ffb5-v1/Main.cinch)\n"
+        },
+        "files": [
+          {
+            "path": "Crypto.Hkdf.cinch",
+            "bytes": 24255,
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          {
+            "path": "Data.Bytes.Word.cinch",
+            "bytes": 4243,
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          {
+            "path": "Main.cinch",
+            "bytes": 619,
+            "sha256": "337dffd08fb059f23bdeacd45da6533a070b7e86e8b1f36b0169219584481f71"
+          },
+          {
+            "path": "Text.Digest.cinch",
+            "bytes": 7351,
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          },
+          {
+            "path": "stderr.log",
+            "bytes": 158,
+            "sha256": "02683c944792ab21e3ae95fb564f4a974efb92b7ee43c64440a8c059545d82fa"
+          },
+          {
+            "path": "stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "artifact_bytes_before_report": 36626,
+        "passed": true
+      }
+    },
+    "refuse-private": {
+      "path": "build/hkdf/refuse-private-ffb5-v1/report.json",
+      "sha256": "e2122cadb22ed274340f4e614ecb341d232d3bc0538f880405591ea78ac0811f",
+      "report": {
+        "scope": "Source/type/proof only",
+        "sdk_executed": false,
+        "runtime_executed": false,
+        "ir_emitted": false,
+        "stage": "source",
+        "compiler": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+          "sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9"
+        },
+        "future_runtime_only": {
+          "path": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/libcinchruntime.a",
+          "sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3"
+        },
+        "cpu": 1,
+        "compiler_host_stack_bytes": 67108864,
+        "scoped_source_only_start_mib": 320,
+        "reserve_mib": 250,
+        "cap_bytes": 5242880,
+        "seconds": 15,
+        "runner_sha256": "51c9a46b49b795fab7c2262ce88bddea6800ba75eea5e02442b6502911a54657",
+        "candidate_sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213",
+        "selected_nonembedded_sources": {
+          "Crypto.Hkdf": {
+            "original": "/workspace/dasl-stdlib-multipart/experiments/hkdf-v1/sources/Crypto.Hkdf.cinch",
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          "Data.Bytes.Word": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Data/Bytes/Word.cinch",
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          "Text.Digest": {
+            "original": "/workspace/dasl-stdlib-multipart/compiler/prelude/Text/Digest.cinch",
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          }
+        },
+        "consumer": "/workspace/dasl-stdlib-multipart/experiments/hkdf-v1/source-proofs/RefusePrivate.cinch",
+        "expected_refusal": "OutputSize",
+        "embedded_Data_Bytes_override": false,
+        "resolver_builtin_manifest_sha256": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
+        "result": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "check",
+            "/workspace/dasl-stdlib-multipart/build/hkdf/refuse-private-ffb5-v1/Main.cinch"
+          ],
+          "returncode": 1,
+          "resource_stop": null,
+          "source_wall_seconds": 0.45638133902684785,
+          "free_before": 388345856,
+          "free_after": 388341760,
+          "stdout": "",
+          "stderr": "cinch: 7:17: constructor OutputSize is not exported by Crypto.Hkdf (in /workspace/dasl-stdlib-multipart/build/hkdf/refuse-private-ffb5-v1/Main.cinch)\n"
+        },
+        "files": [
+          {
+            "path": "Crypto.Hkdf.cinch",
+            "bytes": 24255,
+            "sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213"
+          },
+          {
+            "path": "Data.Bytes.Word.cinch",
+            "bytes": 4243,
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          },
+          {
+            "path": "Main.cinch",
+            "bytes": 372,
+            "sha256": "89b78de6e98b581d60da53ec750eb5c2586dbc81ba65c887470aea61fbf47ad9"
+          },
+          {
+            "path": "Text.Digest.cinch",
+            "bytes": 7351,
+            "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+          },
+          {
+            "path": "stderr.log",
+            "bytes": 150,
+            "sha256": "2b1cbd3a831d381379334ed88f0061462107139b2aaa0cc8ab2bfc312c86f2c5"
+          },
+          {
+            "path": "stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "artifact_bytes_before_report": 36371,
+        "passed": true
+      }
+    }
+  },
+  "private_refusal_exact": "cinch: 7:17: constructor OutputSize is not exported by Crypto.Hkdf (in /workspace/dasl-stdlib-multipart/build/hkdf/refuse-private-ffb5-v1/Main.cinch)\n",
+  "superseded_uncompiled_pointer_store_source_sha256": "0dedbc0578fc4881c73bd077829d40edb5a3e1faa8bb48c778e7ecd8f436138f"
+}

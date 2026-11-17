@@ -1,0 +1,100 @@
+{
+  "scope": "Complete pinned3-record operation-level mapping and isolated static capability proposal",
+  "package": "crypto/hkdf",
+  "records": [
+    {
+      "reference_declaration": "func Expand[$0 hash.Hash](func() $0, []uint8, string, int) ([]uint8, error)",
+      "capability_mapping": {
+        "generic_hash": "hkdf-expand-with; opaque validated block/output shape plus explicit one-shot Result callback under its full effect row",
+        "direct_hmac": "hkdf-expand-hmac; checked exact output width plus explicit Result HMAC callback",
+        "existing_digest": "hkdf-expand; every existing Digest selector, with the existing dedicated runtime HMAC-SHA256 when selected",
+        "caller_policy": "hkdf-expand-with-policy / hkdf-expand-hmac-with-policy"
+      },
+      "salt": "No salt argument; supplied pseudorandom key used directly",
+      "context": "Raw Bytes preserve every string octet; separate text wrappers explicitly encodeUTF8",
+      "length": "Nat accepts exactly nonnegative requests; enforce requested<=255*outputWidth before MAC work; buffer representability errors are explicit",
+      "error_mapping": "Typed Result preserves caller hash/policy errors; width mismatch and buffer failures are named. SDK FIPS-only errors map to an explicitly selected caller policy, never ambient environment lookup.",
+      "negative_sdk_lengths": "SDK panics are captured by the oracle; primary Nat API makes negative lengths unrepresentable",
+      "qualification": "Static candidate only; no parser/type/runtime/SDK execution claim"
+    },
+    {
+      "reference_declaration": "func Extract[$0 hash.Hash](func() $0, []uint8, []uint8) ([]uint8, error)",
+      "capability_mapping": {
+        "generic_hash": "hkdf-extract-with; opaque validated block/output shape plus explicit one-shot Result callback under its full effect row",
+        "direct_hmac": "hkdf-extract-hmac; checked exact output width plus explicit Result HMAC callback",
+        "existing_digest": "hkdf-extract; every existing Digest selector, with the existing dedicated runtime HMAC-SHA256 when selected",
+        "caller_policy": "hkdf-extract-with-policy / hkdf-extract-hmac-with-policy"
+      },
+      "salt": "Option Bytes: None is an implicit output-width zero salt, Some empty is a supplied empty HMAC key",
+      "context": "No context or requested length",
+      "length": "Exactly the advertised digest width, including zero",
+      "error_mapping": "Typed Result preserves caller hash/policy errors; width mismatch and buffer failures are named. SDK FIPS-only errors map to an explicitly selected caller policy, never ambient environment lookup.",
+      "negative_sdk_lengths": "Not applicable",
+      "qualification": "Static candidate only; no parser/type/runtime/SDK execution claim"
+    },
+    {
+      "reference_declaration": "func Key[$0 hash.Hash](func() $0, []uint8, []uint8, string, int) ([]uint8, error)",
+      "capability_mapping": {
+        "generic_hash": "hkdf-key-with; opaque validated block/output shape plus explicit one-shot Result callback under its full effect row",
+        "direct_hmac": "hkdf-key-hmac; checked exact output width plus explicit Result HMAC callback",
+        "existing_digest": "hkdf-key; every existing Digest selector, with the existing dedicated runtime HMAC-SHA256 when selected",
+        "caller_policy": "hkdf-key-with-policy / hkdf-key-hmac-with-policy"
+      },
+      "salt": "Option Bytes: None is an implicit output-width zero salt, Some empty is a supplied empty HMAC key",
+      "context": "Raw Bytes preserve every string octet; separate text wrappers explicitly encodeUTF8",
+      "length": "Nat accepts exactly nonnegative requests; enforce requested<=255*outputWidth before MAC work; buffer representability errors are explicit",
+      "error_mapping": "Typed Result preserves caller hash/policy errors; width mismatch and buffer failures are named. SDK FIPS-only errors map to an explicitly selected caller policy, never ambient environment lookup.",
+      "negative_sdk_lengths": "SDK panics are captured by the oracle; primary Nat API makes negative lengths unrepresentable",
+      "qualification": "Static candidate only; no parser/type/runtime/SDK execution claim"
+    }
+  ],
+  "actual_surface_sha256": "863a2efb427d69a9e7ee03111bcfaa6cbfb67de3a9a399eabf286162b3f739af",
+  "source_sha256": "0dedbc0578fc4881c73bd077829d40edb5a3e1faa8bb48c778e7ecd8f436138f",
+  "module": "Crypto.Hkdf",
+  "generic_contract": "Fixed-width mathematical hash/HMAC bytes with all declared callback effects, explicit caller errors and checked widths. Hash object identity, constructor/write/reset invocation counts and ambient service-indicator state are not copied into a different language object model.",
+  "no_arbitrary_algorithm_bans": {
+    "existing_adapters": [
+      "SHA256",
+      "SHA512",
+      "SHA1",
+      "MD5"
+    ],
+    "arbitrary_callbacks": true,
+    "zero_block_width": true,
+    "zero_output_width": true,
+    "digest_wider_than_block": true,
+    "only_descriptor_refusals": "Widths outside the byte-buffer length domain; output requests outside protocol/buffer bounds; actual callback width mismatches"
+  },
+  "ownership": [
+    "Snapshot original secret/salt/context before any caller callback",
+    "Caller policy gets its own copy and runs before output length validation",
+    "Prepared generic pads are private and reused without exposure to digest callbacks",
+    "Each digest/HMAC input is a fresh owned message; direct HMAC keys are copied per invocation",
+    "Validate and snapshot returned callback bytes before reuse, including aliasing/reused callback outputs",
+    "One final mutable output buffer, immutable copied previous digest, bounded tail-recursive expansion",
+    "No partial key is exposed on any typed error"
+  ],
+  "simd": "Eight packed bytes share pure value-only LLVM XOR operations; checked Data.Bytes.Word reads/writes prove each full window and scalar tails handle fringes. No memory-writing pure LLVM primitive is introduced. Bulk concatenation/prefix/output copies use the checked existing memmove operation.",
+  "input_nil_mapping": "Only absent salt is semantically distinct from supplied empty for unrestricted metadata. Nil/empty IKM, PRK and info are equal byte sequences; successful nil/empty output slices map to Ok empty Bytes, errors to Err.",
+  "policy_precedence": "Extract validates original IKM; Expand original PRK; combined Key original IKM once, before length errors, without a second derived-PRK policy check.",
+  "dependencies": [
+    {
+      "path": "/workspace/dasl-stdlib-io/compiler/prelude/Text/Digest.cinch",
+      "bytes": 7351,
+      "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-io/compiler/runtime/src/text.rs",
+      "bytes": 26124,
+      "sha256": "d15576b5ea28533f9f39af9f5a849c0aebe33917b4e13c79b53530038abe7c01"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-io/compiler/runtime/src/bytes.rs",
+      "bytes": 8081,
+      "sha256": "65f3930d3a0cd82ba7febe1b17a25510ad3e44cad55ac56055e6bd714de91068"
+    }
+  ],
+  "shared_files_changed": false,
+  "compiled": false,
+  "runtime_or_sdk_executed": false
+}

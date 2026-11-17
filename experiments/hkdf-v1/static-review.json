@@ -1,0 +1,287 @@
+{
+  "scope": "Static lexical documentation/structure review only; no parser/type/compiler/runtime/SDK validation claim",
+  "source_sha256": "401c215a903b74574c0d88605f1259e5e1236621422d548ebb658c3f2148d213",
+  "declarations": [
+    {
+      "line": 27,
+      "declaration": "data HkdfSize where"
+    },
+    {
+      "line": 29,
+      "declaration": "OutputSize :: InRange 0 9223372036854775807 Nat -> HkdfSize"
+    },
+    {
+      "line": 32,
+      "declaration": "data HkdfHash where"
+    },
+    {
+      "line": 34,
+      "declaration": "HashShape :: InRange 0 9223372036854775807 Nat -> HkdfSize -> HkdfHash"
+    },
+    {
+      "line": 37,
+      "declaration": "data HkdfDescriptorError where"
+    },
+    {
+      "line": 39,
+      "declaration": "HkdfBlockWidthOutOfRange :: Nat -> HkdfDescriptorError"
+    },
+    {
+      "line": 41,
+      "declaration": "HkdfDigestWidthOutOfRange :: Nat -> HkdfDescriptorError"
+    },
+    {
+      "line": 44,
+      "declaration": "data HkdfOperation where"
+    },
+    {
+      "line": 46,
+      "declaration": "HkdfExtract :: HkdfOperation"
+    },
+    {
+      "line": 48,
+      "declaration": "HkdfExpand :: HkdfOperation"
+    },
+    {
+      "line": 50,
+      "declaration": "HkdfKey :: HkdfOperation"
+    },
+    {
+      "line": 53,
+      "declaration": "data HkdfError e where"
+    },
+    {
+      "line": 55,
+      "declaration": "HkdfLengthTooLarge :: Nat -> Nat -> HkdfError e"
+    },
+    {
+      "line": 57,
+      "declaration": "HkdfBufferTooLarge :: Nat -> HkdfError e"
+    },
+    {
+      "line": 59,
+      "declaration": "HkdfDigestLengthMismatch :: Nat -> Nat -> HkdfError e"
+    },
+    {
+      "line": 61,
+      "declaration": "HkdfHashFailure :: e -> HkdfError e"
+    },
+    {
+      "line": 63,
+      "declaration": "HkdfPolicyFailure :: e -> HkdfError e"
+    },
+    {
+      "line": 65,
+      "declaration": "HkdfCounterLimit :: HkdfError e"
+    },
+    {
+      "line": 68,
+      "declaration": "hkdf-size :: Nat -> Result HkdfDescriptorError HkdfSize"
+    },
+    {
+      "line": 72,
+      "declaration": "hkdf-size-value :: HkdfSize -> Nat"
+    },
+    {
+      "line": 76,
+      "declaration": "hkdf-hash :: Nat -> Nat -> Result HkdfDescriptorError HkdfHash"
+    },
+    {
+      "line": 85,
+      "declaration": "hkdf-hash-block-size :: HkdfHash -> Nat"
+    },
+    {
+      "line": 89,
+      "declaration": "hkdf-hash-output-size :: HkdfHash -> HkdfSize"
+    },
+    {
+      "line": 93,
+      "declaration": "hkdf-digest-hash :: Digest -> HkdfHash"
+    },
+    {
+      "line": 101,
+      "declaration": "hkdf-digest-size :: Digest -> HkdfSize"
+    },
+    {
+      "line": 105,
+      "declaration": "snapshot :: Bytes -> Bytes"
+    },
+    {
+      "line": 110,
+      "declaration": "snapshot-salt :: HkdfSize -> Option Bytes -> Bytes"
+    },
+    {
+      "line": 116,
+      "declaration": "copy-prefix :: Bytes -> Bytes -> Unit"
+    },
+    {
+      "line": 121,
+      "declaration": "fill-pads :: Bytes -> Bytes -> Bytes -> Nat -> Unit"
+    },
+    {
+      "line": 137,
+      "declaration": "prim pad-inner-word :: U64 -> U64 where"
+    },
+    {
+      "line": 144,
+      "declaration": "prim pad-outer-word :: U64 -> U64 where"
+    },
+    {
+      "line": 151,
+      "declaration": "join :: forall e. Bytes -> Bytes -> Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 160,
+      "declaration": "checked-result :: forall e. HkdfSize -> Bytes -> Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 165,
+      "declaration": "checked-digest :: forall e (fx :: Row). HkdfSize -> (Bytes ->{|fx} Result e Bytes) -> Bytes ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 171,
+      "declaration": "hash-mac :: forall e (fx :: Row). HkdfSize -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> Bytes -> Bytes ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 181,
+      "declaration": "use-key :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 192,
+      "declaration": "prepare-hash :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 200,
+      "declaration": "direct-mac :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> Bytes -> Bytes ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 206,
+      "declaration": "prepare-direct :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 210,
+      "declaration": "allow :: forall e (fx :: Row). HkdfOperation -> Bytes ->{|fx} Result e Unit"
+    },
+    {
+      "line": 214,
+      "declaration": "policy-check :: forall e (fx :: Row). (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> HkdfOperation -> Bytes ->{|fx} Result (HkdfError e) Unit"
+    },
+    {
+      "line": 220,
+      "declaration": "length-check :: forall e. HkdfSize -> Nat -> Result (HkdfError e) Unit"
+    },
+    {
+      "line": 226,
+      "declaration": "block-message :: forall e. Bytes -> Bytes -> InRange 0 255 Nat -> Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 237,
+      "declaration": "write-block :: using (position <= bytes-len out) => (out :: Bytes) -> (position :: Nat) -> Bytes -> Nat"
+    },
+    {
+      "line": 245,
+      "declaration": "fill-output :: forall e (fx :: Row). (Bytes ->{|fx} Result (HkdfError e) Bytes) -> Bytes -> Bytes -> Bytes -> Nat -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 258,
+      "declaration": "expand-output :: forall e (fx :: Row). Bytes -> Nat -> (Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 262,
+      "declaration": "extract-core :: forall e (fx :: Row). HkdfSize -> (Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 271,
+      "declaration": "expand-core :: forall e (fx :: Row). HkdfSize -> (Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 282,
+      "declaration": "key-core :: forall e (fx :: Row). HkdfSize -> (Bytes -> ((Bytes ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) ->{|fx} Result (HkdfError e) Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 296,
+      "declaration": "hkdf-extract-with :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> Option Bytes ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 300,
+      "declaration": "hkdf-expand-with :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 304,
+      "declaration": "hkdf-key-with :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> Bytes -> Option Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 308,
+      "declaration": "hkdf-extract-with-policy :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 312,
+      "declaration": "hkdf-expand-with-policy :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 316,
+      "declaration": "hkdf-key-with-policy :: forall e (fx :: Row). HkdfHash -> (Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 320,
+      "declaration": "hkdf-extract-hmac :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> Bytes -> Option Bytes ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 324,
+      "declaration": "hkdf-expand-hmac :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 328,
+      "declaration": "hkdf-key-hmac :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> Bytes -> Option Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 332,
+      "declaration": "hkdf-extract-hmac-with-policy :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 336,
+      "declaration": "hkdf-expand-hmac-with-policy :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 340,
+      "declaration": "hkdf-key-hmac-with-policy :: forall e (fx :: Row). HkdfSize -> (Bytes -> Bytes ->{|fx} Result e Bytes) -> (HkdfOperation -> Bytes ->{|fx} Result e Unit) -> Bytes -> Option Bytes -> Bytes -> Nat ->{|fx} Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 344,
+      "declaration": "native-digest :: forall e. Digest -> Bytes -> Result e Bytes"
+    },
+    {
+      "line": 348,
+      "declaration": "native-hmac256 :: forall e. Bytes -> Bytes -> Result e Bytes"
+    },
+    {
+      "line": 352,
+      "declaration": "hkdf-extract :: forall e. Digest -> Bytes -> Option Bytes -> Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 358,
+      "declaration": "hkdf-expand :: forall e. Digest -> Bytes -> Bytes -> Nat -> Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 364,
+      "declaration": "hkdf-key :: forall e. Digest -> Bytes -> Option Bytes -> Bytes -> Nat -> Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 370,
+      "declaration": "hkdf-expand-text :: forall e. Digest -> Bytes -> String -> Nat -> Result (HkdfError e) Bytes"
+    },
+    {
+      "line": 374,
+      "declaration": "hkdf-key-text :: forall e. Digest -> Bytes -> Option Bytes -> String -> Nat -> Result (HkdfError e) Bytes"
+    }
+  ],
+  "all_new_source_declarations_have_canonical_comment_markers": true,
+  "python_ast_syntax_valid": true,
+  "no_public_reference_language_comments": true,
+  "sdk_compiler_runtime_executed": false,
+  "superseded_uncompiled_source": {
+    "sha256": "0dedbc0578fc4881c73bd077829d40edb5a3e1faa8bb48c778e7ecd8f436138f",
+    "path": "build/hkdf/static-0ded/sources/Crypto.Hkdf.cinch",
+    "reason": "Pure pointer-writing LLVM contract is invalid; replaced with pure value XOR plus existing checked word operations before first actual source gate"
+  }
+}
