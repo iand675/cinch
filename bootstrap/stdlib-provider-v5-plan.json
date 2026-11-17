@@ -101,7 +101,7 @@
   "pins_changed": false,
   "existing_snapshot_builder": "tooling/build_base_artifact_from_snapshot.py",
   "builder_prerequisite": {
-    "status": "required before V5 admission",
+    "status": "Strict legacy/current schema support implemented;31 source/provenance controls passed. V5 object emission remains resource-held.",
     "new_provenance_fields": [
       "rust_source_sha256",
       "rust_source_manifest_sha256",
@@ -125,7 +125,8 @@
       "manifest digest",
       "empty/malformed claim maps",
       "changed embedded package/module"
-    ]
+    ],
+    "gate_receipt": "bootstrap/stdlib-provider-snapshot-schema-results.json"
   },
   "actual_roots": {
     "path": "/workspace/dasl-stdlib-source-body-closure/bootstrap/library-object-roots.json",

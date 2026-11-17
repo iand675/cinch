@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -42,6 +43,53 @@ def committed_sources(repository: Path, checkpoint: str) -> tuple[str, dict[str,
     return revision, files
 
 
+def verify_source_claims(provenance: dict, files: dict[str, bytes]) -> dict:
+    """Verify every legacy/current claim map against committed bytes without changing the trusted receipt."""
+    merged: dict[str, str] = {}
+    fields = []
+    for key in ('source_sha256', 'rust_source_sha256'):
+        if key not in provenance:
+            continue
+        claims = provenance[key]
+        if not isinstance(claims, dict) or not claims:
+            raise bootstrap.BootstrapError('qualified snapshot has an empty or malformed source claim map: ' + key)
+        fields.append(key)
+        for name, expected in claims.items():
+            if not isinstance(name, str) or not name or not isinstance(expected, str) or len(expected) != 64:
+                raise bootstrap.BootstrapError('qualified snapshot has a malformed source claim: ' + key)
+            if name in merged and merged[name] != expected:
+                raise bootstrap.BootstrapError('conflicting qualified snapshot source claims: ' + name)
+            merged[name] = expected
+    if not fields:
+        raise bootstrap.BootstrapError('qualified snapshot has no committed source claims')
+    for name, expected in merged.items():
+        if name not in files or bootstrap.digest(files[name]) != expected:
+            raise bootstrap.BootstrapError('qualified snapshot source claim mismatch: ' + name)
+    manifest_verified = False
+    if 'rust_source_manifest_sha256' in provenance:
+        if 'rust_source_sha256' not in provenance:
+            raise bootstrap.BootstrapError('qualified Rust manifest has no corresponding source claim map')
+        manifest = json.dumps(provenance['rust_source_sha256'], sort_keys=True, separators=(',', ':')).encode()
+        if bootstrap.digest(manifest) != provenance['rust_source_manifest_sha256']:
+            raise bootstrap.BootstrapError('qualified Rust source manifest digest mismatch')
+        manifest_verified = True
+    library_count = 0
+    if 'library_source_sha256' in provenance:
+        claims = provenance['library_source_sha256']
+        if not isinstance(claims, dict) or not claims:
+            raise bootstrap.BootstrapError('qualified snapshot has an empty or malformed library source claim map')
+        for module, expected in claims.items():
+            if (not isinstance(module, str) or not module or '/' in module or '\\' in module
+                    or any(not part for part in module.split('.')) or not isinstance(expected, str) or len(expected) != 64):
+                raise bootstrap.BootstrapError('qualified snapshot has a malformed library source claim')
+            name = 'compiler/prelude/' + module.replace('.', '/') + '.cinch'
+            if name not in files or bootstrap.digest(files[name]) != expected:
+                raise bootstrap.BootstrapError('qualified library source claim mismatch: ' + module)
+        library_count = len(claims)
+    return {'source_claim_fields': fields, 'source_claim_count': len(merged),
+            'rust_manifest_verified': manifest_verified, 'library_source_claim_count': library_count}
+
+
 def verify_snapshot(snapshot: Path, provenance_path: Path, repository: Path, checkpoint: str) -> tuple[dict, dict[str, bytes]]:
     """Require certified binary/runtime identities and every embedded module to match the committed epoch."""
     provenance = bootstrap.read_json(provenance_path)
@@ -53,12 +101,7 @@ def verify_snapshot(snapshot: Path, provenance_path: Path, repository: Path, che
     for name, key in [('cinch', 'compiler_sha256'), ('libcinchruntime.a', 'runtime_sha256')]:
         if bootstrap.file_hash(snapshot / name) != provenance[key]:
             raise bootstrap.BootstrapError('qualified snapshot digest mismatch: ' + name)
-    claims = provenance.get('source_sha256', {})
-    if not claims:
-        raise bootstrap.BootstrapError('qualified snapshot has no committed source claims')
-    for name, expected in claims.items():
-        if name not in files or bootstrap.digest(files[name]) != expected:
-            raise bootstrap.BootstrapError('qualified snapshot source claim mismatch: ' + name)
+    claim_verification = verify_source_claims(provenance, files)
     package_name = 'compiler/prelude/cinch-base.cinchpkg'
     package_path = bootstrap.ROOT / package_name
     if files[package_name] != package_path.read_bytes():
@@ -79,6 +122,7 @@ def verify_snapshot(snapshot: Path, provenance_path: Path, repository: Path, che
                 'runtime_source_sha256': bootstrap.source_hash({name: data for name, data in files.items()
                                                                if name.startswith('compiler/runtime/')}),
                 'provenance_sha256': bootstrap.file_hash(provenance_path), 'provenance': provenance,
+                'claim_verification': claim_verification,
                 'embedded_sources': modules, 'new_compiler_build_performed': False,
                 'native_family_admission': False,
                 'source_files': {name: bootstrap.digest(data) for name, data in sorted(files.items())}}
