@@ -31,10 +31,12 @@ def quota() -> dict:
     return result
 
 
-def prepare() -> dict:
+def prepare(reassociated: bool = False) -> dict:
     """Freeze exact already-green binaries and independent observations before obtaining a timing lease."""
     variants = []
-    for name in ['rust706-simd', 'rust706-scalar', 'native-v4-simd', 'native-v4-scalar', 'reference']:
+    names = (['rust706-simd', 'rust706-reassociated'] if reassociated else
+             ['rust706-simd', 'rust706-scalar', 'native-v4-simd', 'native-v4-scalar', 'reference'])
+    for name in names:
         directory = ROOT/'build'/('byte-fields-bench-'+name)
         receipt = directory.with_suffix('.json')
         r = json.loads(receipt.read_text())
@@ -51,14 +53,32 @@ def prepare() -> dict:
                              compiler_sha256=r.get('compiler_sha256'), runtime_sha256=r.get('runtime_sha256'),
                              entry_sha256=r.get('entry_sha256'), llvm_sha256=r.get('llvm_sha256'),
                              dependencies=r.get('dependencies')))
+    if reassociated:
+        baseline, candidate = variants
+        for key in ['compiler_sha256', 'runtime_sha256', 'entry_sha256']:
+            assert baseline[key] == candidate[key], key
+        old = baseline['dependencies']
+        new = candidate['dependencies']
+        assert old.keys() == new.keys()
+        assert [name for name in old if old[name] != new[name]] == ['Data.Bytes.Utf8']
+        source = (ROOT/'compiler/prelude/Data/Bytes/Utf8.cinch').read_text()
+        experimental = ROOT/'benchmarks/stdlib/byte-fields-utf8-reassociated.cinch'
+        before = 'hold-source source (packed-step (decode-raw base size offset))'
+        after = 'packed-step (hold-source source (decode-raw base size offset))'
+        assert source.count(before) == 1 and experimental.read_text() == source.replace(before, after)
+        assert digest(ROOT/'compiler/prelude/Data/Bytes/Utf8.cinch') == old['Data.Bytes.Utf8']
+        assert digest(experimental) == new['Data.Bytes.Utf8']
     conditions = [dict(kind=kind, pattern=pattern, size=size, iterations=4,
                        expected=expected(kind, pattern, size, 4)) for kind,pattern,size in CONDITIONS]
-    return dict(scope='Paired public fields SIMD/scalar/reference comparison; no production candidate selection',
+    return dict(scope=('Paired public fields baseline/reassociated UTF8 comparison; no production candidate selection'
+                       if reassociated else 'Paired public fields SIMD/scalar/reference comparison; no production candidate selection'),
                 variants=variants, conditions=conditions, samples=3, excluded_warmups=1,
                 normal_heap='32M', program_stack='8M', compiled_rc_debug=False,
-                reference_memory_model='standard tracing GC; no Cinch RC assertion',
+                reference_memory_model=(None if reassociated else 'standard tracing GC; no Cinch RC assertion'),
                 timed_pipeline='Changed input, complete field consumption and ordinary reclamation; input preparation/retention hashing excluded',
-                neutral_controls=['predicate', 'effect'], generator_sha256=digest(Path(__file__)),
+                neutral_controls=[] if reassociated else ['predicate', 'effect'],
+                generic_callback_controls=['predicate', 'effect'] if reassociated else [],
+                generator_sha256=digest(Path(__file__)),
                 raw_variation_must_be_retained=True)
 
 
@@ -67,11 +87,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--plan', type=Path, required=True)
     parser.add_argument('--prepare', action='store_true')
+    parser.add_argument('--reassociated-control', action='store_true')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--budget-seconds', type=float, default=30)
     args = parser.parse_args()
     if args.prepare:
-        args.plan.write_text(json.dumps(prepare(), indent=2)+'\n')
+        args.plan.write_text(json.dumps(prepare(args.reassociated_control), indent=2)+'\n')
         print(args.plan)
         return
     assert args.output and os.sched_getaffinity(0) == {0}, 'timed processes require the granted exclusive CPU0 affinity'
@@ -134,6 +155,8 @@ def main() -> None:
                   if family+'-scalar' in medians and family+'-simd' in medians and medians[family+'-simd'] > 0}
         summaries.append(dict(condition=condition, median_ns_per_operation=medians,
                               scalar_over_simd=ratios, raw_ns_per_operation=raw))
+        if 'rust706-simd' in medians and medians.get('rust706-reassociated', 0) > 0:
+            summaries[-1]['baseline_over_reassociated'] = medians['rust706-simd']/medians['rust706-reassociated']
     result['summaries'] = summaries
     save()
     print(json.dumps(dict(status=result['status'], wall_seconds=result['wall_seconds'], samples=len(result['rows']))))

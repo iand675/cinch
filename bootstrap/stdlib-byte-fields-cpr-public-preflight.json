@@ -1,0 +1,72 @@
+{
+  "scope": "Separate UTF8 reassociation public-pipeline preflight, performance pending",
+  "status": "passed",
+  "profiles": 650,
+  "normal_profiles": 325,
+  "poison_profiles": 325,
+  "all_complete_outputs_and_retained_owner_hashes_match": true,
+  "all_zero_leaks": true,
+  "compiled_rc_debug": false,
+  "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "entry_sha256": "84d6c81162e56648f54b115d568a99b3d0ad4e51f389d7183ce66777a8bb5f2b",
+  "dependencies": {
+    "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+    "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Bytes.Utf8": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+    "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+    "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+  },
+  "baseline_preflight_sha256": "22edc06c7881761fb2c0af34452c09c3c10f15151e87e77dec9d29d78b7480b7",
+  "candidate_preflight_sha256": "2c2f50f106c425608da76ca001dce910a0b9edf8841f779249f82ea1c1c4cfee",
+  "candidate_llvm_sha256": "bcac282a4bfe11019dbfcc23472611950a32ea4eb0ce5b4f1c370d316e936607",
+  "candidate_executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+  "session": {
+    "scope": "One currentRust706/d91 candidate public pipeline build and650-profile functional preflight; no timing",
+    "command": [
+      "python3",
+      "tooling/validate_byte_fields_benchmark.py",
+      "--compiler",
+      "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/cinch",
+      "--runtime-archive",
+      "/workspace/dasl-stdlib-io/build/stdlib-fields-release-frozen/libcinchruntime.a",
+      "--utf8-source",
+      "/workspace/dasl-stdlib-byte-split/benchmarks/stdlib/byte-fields-utf8-reassociated.cinch",
+      "--artifacts",
+      "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-rust706-reassociated",
+      "--output",
+      "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-rust706-reassociated.json"
+    ],
+    "before_free_bytes": 1024778240,
+    "new_output_limit_bytes": 31457280,
+    "reserve_bytes": 262144000,
+    "status": "passed",
+    "exit_code": 0,
+    "seconds": 14.989597068022704,
+    "after_free_bytes": 1011814400,
+    "own_output_bytes": 12499588
+  },
+  "actual_built_decoder_owner_sequence": {
+    "last_raw_load_or_decode": [
+      193,
+      "%t120 = call i64 @\"Data.Bytes.Utf8.decode-word\"(i64 %t118, i64 %t119)"
+    ],
+    "last_owner_touch": [
+      200,
+      "%t124 = call i64 @\"cinch.runtime.bytesLen\"(i64 %t123)"
+    ],
+    "copied_scalar_materialization": [
+      206,
+      "%t129 = call { i64, i64, i64 } @\"Data.Bytes.Utf8.packed-step#cc\"(i32 %t128)"
+    ]
+  },
+  "paired_plan_sha256": "5ce66edcd009960ef47aee6ba6dd349617794f81c965d2c7355f24c88c11ce12",
+  "limitations": [
+    "No timing or production selection in this receipt.",
+    "No historical Native candidate claim; same currentRust706/d91 baseline and candidate only.",
+    "CLI compiled checked-RC instrumentation remains false; poisoned runtime enabled independently."
+  ]
+}
