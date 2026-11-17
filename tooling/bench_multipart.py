@@ -71,6 +71,7 @@ def main() -> None:
     parser.add_argument('--compare', type=Path, help='Interleave the opposite scalar/SIMD snapshot and the same independent reference')
     parser.add_argument('--effect-source', type=Path, help='Explicit selected Effect.Multipart candidate, preserved in both scalar and SIMD sets')
     parser.add_argument('--text-source', type=Path, help='Explicit selected Text.Multipart basis before any documented scalar derivation')
+    parser.add_argument('--qp-source', type=Path, help='Explicit current shared codec source candidate')
     parser.add_argument('--start-free-mib', type=int, default=0)
     parser.add_argument('--pause-free-mib', type=int, default=0)
     parser.add_argument('--unarchived-cap-mib', type=int, default=0)
@@ -90,7 +91,7 @@ def main() -> None:
     exe, reference = work / 'bench', work / 'reference'
     report_path = work / 'report.json'
     selection = {name: {'path': str(path.resolve()), 'sha256': digest(path)} for name, path in
-                 (('Effect.Multipart', args.effect_source), ('Text.Multipart', args.text_source)) if path is not None}
+                 (('Effect.Multipart', args.effect_source), ('Text.Multipart', args.text_source), ('Text.QuotedPrintable', args.qp_source)) if path is not None}
     policy = {'start_free_mib': args.start_free_mib, 'pause_free_mib': args.pause_free_mib,
               'unarchived_cap_mib': args.unarchived_cap_mib}
 
@@ -142,7 +143,11 @@ def main() -> None:
     else True
 """)]
             for begin, end, replacement in replacements:
-                first = contents.index(begin); last = contents.index(end, first)
+                first = contents.index(begin)
+                following = re.search(r'\n  -- \|', contents[first:])
+                if following is None:
+                    raise RuntimeError('missing canonical next declaration for scalar derivation')
+                last = first + following.start()
                 contents = contents[:first] + replacement + contents[last:]
             source.write_text(contents)
         shutil.copyfile(driver, work / 'Main.cinch')

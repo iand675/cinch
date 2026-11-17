@@ -46,7 +46,7 @@ def expected_sink() -> dict:
     return {'trace': trace, 'output': output, 'size': size, 'calls': 4}
 
 
-def prepare(work: Path, effect_source: Path | None = None, text_source: Path | None = None) -> dict:
+def prepare(work: Path, effect_source: Path | None = None, text_source: Path | None = None, qp_source: Path | None = None) -> dict:
     """Freeze the candidate, all actual source dependencies and one complete executable fixture."""
     experiment = ROOT / 'experiments/multipart-both-effects-v1/sources'
     source = (ROOT / 'tooling/data/multipart-consumer.cinchpart').read_text().replace(
@@ -66,6 +66,8 @@ def prepare(work: Path, effect_source: Path | None = None, text_source: Path | N
 '''
     overrides = {'Text.Multipart': text_source or experiment / 'Text.Multipart.cinch',
                  'Effect.Multipart': effect_source or experiment / 'Effect.Multipart.cinch'}
+    if qp_source is not None:
+        overrides['Text.QuotedPrintable'] = qp_source
     closure = source_closure(source, overrides)
     ordered, seen = [], set()
 
@@ -103,13 +105,14 @@ def main() -> None:
     parser.add_argument('--prepare-only', action='store_true')
     parser.add_argument('--effect-source', type=Path, help='Explicit isolated candidate, without changing the historical default')
     parser.add_argument('--text-source', type=Path, help='Explicit isolated pure-module candidate')
+    parser.add_argument('--qp-source', type=Path, help='Explicit shared codec candidate; no prelude or implicit source substitution')
     parser.add_argument('--retain-interfaces', action='store_true', help='Keep the complete genuine defining closure and original manifest plain')
     parser.add_argument('--source-cap-mib', type=int, choices=(5, 6), default=5, help='Explicit authorized source-only epoch bound; historical default is unchanged')
     args = parser.parse_args()
     os.sched_setaffinity(0, {args.cpu})
     resource.setrlimit(resource.RLIMIT_STACK, (67108864, resource.getrlimit(resource.RLIMIT_STACK)[1]))
     work = args.work.resolve(); work.mkdir(parents=True, exist_ok=True)
-    report = prepare(work, args.effect_source, args.text_source)
+    report = prepare(work, args.effect_source, args.text_source, args.qp_source)
     report['source_cap_bytes'] = args.source_cap_mib * 1024 * 1024
     if args.rust_runtime:
         report['future_rust_runtime'] = {'path': str(args.rust_runtime.resolve()), 'sha256': digest(args.rust_runtime)}

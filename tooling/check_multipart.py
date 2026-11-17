@@ -269,7 +269,7 @@ def generated_cases(data: dict, width: int, form_width: int = 1) -> dict[str, tu
     return cases
 
 
-def prepare(work: Path, vectors: Path, width: int, effect_source: Path | None = None, text_source: Path | None = None, form_width: int = 1) -> tuple[dict, dict]:
+def prepare(work: Path, vectors: Path, width: int, effect_source: Path | None = None, text_source: Path | None = None, form_width: int = 1, qp_source: Path | None = None) -> tuple[dict, dict]:
     """Freeze the exact reachable source closure in dependency order."""
     cases = generated_cases(json.loads(vectors.read_text()), width, form_width)
     per_case = {}
@@ -278,6 +278,9 @@ def prepare(work: Path, vectors: Path, width: int, effect_source: Path | None = 
         if text_source is not None:
             overrides["Text.Multipart"] = text_source
         closure = source_closure(source, overrides)
+        if qp_source is not None and 'Text.QuotedPrintable' in closure:
+            overrides['Text.QuotedPrintable'] = qp_source
+            closure = source_closure(source, overrides)
         ordered, seen = [], set()
 
         def visit(module: str) -> None:
@@ -334,6 +337,7 @@ def main() -> None:
     parser.add_argument("--opt", type=int, choices=(0, 2), default=2, help="Explicit consumer optimization; use distinct work directories for each epoch")
     parser.add_argument("--effect-source", type=Path, help="Explicit immutable Effect.Multipart source candidate; its path and exact hash are recorded")
     parser.add_argument("--text-source", type=Path, help="Explicit immutable Text.Multipart source candidate; its path and exact hash are recorded")
+    parser.add_argument("--qp-source", type=Path, help="Explicit reachable shared codec candidate; all source hashes remain recorded")
     parser.add_argument("--start-free-mib", type=int, default=0, help="Explicit coordinated initial disk guard; zero preserves historical invocation policy")
     parser.add_argument("--pause-free-mib", type=int, default=0, help="Explicit disk reserve checked at every compiler/link/profile boundary")
     parser.add_argument("--unarchived-cap-mib", type=int, default=0, help="Bound newly generated plain outputs in this work directory")
@@ -349,7 +353,7 @@ def main() -> None:
         raise RuntimeError("resource pause before preparation; no compiler or runtime started")
     if not args.resume:
         shutil.copyfile(Path(__file__), work / "runner.py")
-    counts, per_case_modules = prepare(work, args.vectors, args.group_size, args.effect_source, args.text_source, args.form_group_size)
+    counts, per_case_modules = prepare(work, args.vectors, args.group_size, args.effect_source, args.text_source, args.form_group_size, args.qp_source)
     if args.only and any(name not in counts for name in args.only):
         parser.error("unknown fixture group; prepared groups: " + ", ".join(counts))
     modules = sorted({module for closure in per_case_modules.values() for module in closure})
@@ -366,7 +370,7 @@ def main() -> None:
               "compiler_host_stack_bytes": 67108864,
               "consumer_optimization": args.opt,
               "compiler_environment": {"RUST_MIN_STACK": "67108864", "CINCH_STACK_SIZE": "64M"},
-              "source_selection": {module: {"path": str(path.resolve()), "sha256": digest(path)} for module, path in (("Effect.Multipart", args.effect_source), ("Text.Multipart", args.text_source)) if path is not None},
+              "source_selection": {module: {"path": str(path.resolve()), "sha256": digest(path)} for module, path in (("Effect.Multipart", args.effect_source), ("Text.Multipart", args.text_source), ("Text.QuotedPrintable", args.qp_source)) if path is not None},
               "sources": {name: digest(work / (name + ".cinch")) for name in modules},
               "consumers": {name: digest(work / (name + ".source")) for name in counts},
               "counts": counts, "case_modules": per_case_modules, "frontends": {}, "runs": [], **build_fixture(work, clang)}

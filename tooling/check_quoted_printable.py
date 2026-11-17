@@ -15,6 +15,7 @@ import resource
 import shutil
 import time
 from bench_stdlib import source_closure
+from multipart_qualification_support import archive_completed
 from check_compare import digest, initialize_runtime, list_of, run
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,11 +74,14 @@ def generated_cases(data: dict) -> dict[str, tuple[str, int]]:
     return cases
 
 
-def prepare(work: Path, vectors: Path, stream_source: Path | None = None) -> tuple[dict[str, int], list[str]]:
+def prepare(work: Path, vectors: Path, stream_source: Path | None = None, text_source: Path | None = None) -> tuple[dict[str, int], list[str]]:
     """Snapshot source dependencies in postorder for both public frontend import paths."""
     cases = generated_cases(json.loads(vectors.read_text()))
     entry = next(iter(cases.values()))[0]
-    closure = source_closure(entry, {'Effect.Stream': stream_source} if stream_source else None)
+    overrides = {'Effect.Stream': stream_source} if stream_source else {}
+    if text_source is not None:
+        overrides['Text.QuotedPrintable'] = text_source
+    closure = source_closure(entry, overrides)
     ordered = []
     visited = set()
     def visit(name: str) -> None:
@@ -117,6 +121,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--stream-source', type=Path, help='Explicit separately gated stable-API stream helper source snapshot')
+    parser.add_argument('--text-source', type=Path, help='Explicit isolated shared-codec source candidate')
+    parser.add_argument('--archive-completed', action='store_true')
+    parser.add_argument('--start-free-mib', type=int, default=0)
+    parser.add_argument('--pause-free-mib', type=int, default=0)
+    parser.add_argument('--unarchived-cap-mib', type=int, default=0)
     parser.add_argument('--vectors', type=Path, default=ROOT / 'compiler/tests/fixtures/quoted-printable-vectors.json')
     parser.add_argument('--prepare-only', action='store_true')
     parser.add_argument('--resume', action='store_true')
@@ -135,7 +144,9 @@ def main() -> None:
         parser.error('runtime initialization requires an explicit Rust-only invocation')
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=True)
-    counts, modules = prepare(work, args.vectors, args.stream_source)
+    if shutil.disk_usage(work).free < args.start_free_mib * 1024 * 1024:
+        raise RuntimeError('resource pause before preparation')
+    counts, modules = prepare(work, args.vectors, args.stream_source, args.text_source)
     if args.prepare_only:
         print(json.dumps(counts))
         return
@@ -152,6 +163,12 @@ def main() -> None:
         report = previous
     def execute(argv: list[str], timeout: int = 180, env: dict | None = None):
         """Retain failed command diagnostics in the same immutable-source epoch report."""
+        free = shutil.disk_usage(work).free
+        plain = sum(path.stat().st_size for path in work.rglob('*') if path.is_file() and not path.name.endswith('.gz'))
+        report.setdefault('resource_boundaries', []).append({'free_bytes': free, 'plain_bytes': plain, 'command': list(map(str, argv))})
+        (work / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+        if free < args.pause_free_mib * 1024 * 1024 or (args.unarchived_cap_mib and plain > args.unarchived_cap_mib * 1024 * 1024):
+            raise RuntimeError('resource pause before process')
         try:
             return run(argv, work, timeout, env)
         except Exception as failure:
@@ -202,6 +219,8 @@ def main() -> None:
                     raise RuntimeError('missing zero-leak evidence: ' + result.stderr)
                 entry['profiles'].append({'poison': poison, 'heap': heap, 'stack': '8M', 'stdout': result.stdout, 'stderr': result.stderr})
             (work / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+            if args.archive_completed:
+                archive_completed(work, label, name, report)
             print(label, name, counts[name], flush=True)
     (work / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
 

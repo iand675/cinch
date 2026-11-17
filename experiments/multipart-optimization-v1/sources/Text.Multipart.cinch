@@ -1,0 +1,571 @@
+-- | Multipart wire primitives over arbitrary bytes, exact multi-value headers and
+-- explicit delimiter observations. Retained values and returned byte views are
+-- independently owned snapshots. Boundary scans never read outside a checked span.
+module Text.Multipart where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Data.String (String, string-to-bytes, string-concat)
+  import Text.Mime (mime-quote-bytes)
+
+  export MultipartHeaders, multipart-headers, multipart-header-pairs
+  export multipart-header-get, multipart-header-values, multipart-header-set, multipart-header-append, multipart-header-drop
+  export multipart-header-set-raw, multipart-header-append-raw, multipart-header-drop-raw
+  export multipart-header-key, multipart-header-size, multipart-header-wire
+  export MultipartSyntax, MultipartBoundaryLength, MultipartBoundaryCharacter, MultipartHeaderInitial
+  export MultipartHeaderMissingColon, MultipartHeaderMalformed, MultipartMessageTooLarge
+  export MultipartEmptyBoundary, MultipartUnexpectedLine, MultipartExpectedPart, MultipartBufferFull, MultipartUnexpectedEnd
+  export MultipartInputEnd, MultipartNoProgress
+  export multipart-syntax-message, multipart-check-boundary, multipart-form-content-type
+  export multipart-file-disposition, multipart-field-disposition
+  export multipart-trim-header-line, multipart-parse-header-line, multipart-posix-filename
+  export MultipartDelimiter, MultipartNoDelimiter, MultipartNextDelimiter, MultipartFinalDelimiter, multipart-delimiter-line
+  export multipart-find-byte, multipart-prefix, multipart-body-scan, MultipartBodyScan, MultipartBodyPrefix, MultipartBodyNeedMore, MultipartBodyEnd
+
+  -- | Named protocol refusals retain the original offending wire bytes.
+  data MultipartSyntax where
+    -- | Writer boundaries contain between one and seventy bytes.
+    MultipartBoundaryLength :: MultipartSyntax
+    -- | A writer boundary contains a forbidden byte or trailing space.
+    MultipartBoundaryCharacter :: MultipartSyntax
+    -- | A header block begins with a continuation line.
+    MultipartHeaderInitial :: Bytes -> MultipartSyntax
+    -- | The first physical header line lacks its field-name colon.
+    MultipartHeaderMissingColon :: Bytes -> MultipartSyntax
+    -- | A field key or value contains a refused wire byte.
+    MultipartHeaderMalformed :: Bytes -> MultipartSyntax
+    -- | A configured part, header or form-memory limit was exceeded.
+    MultipartMessageTooLarge :: MultipartSyntax
+    -- | A reader has an empty boundary.
+    MultipartEmptyBoundary :: MultipartSyntax
+    -- | A post-part line is neither a separator nor a delimiter.
+    MultipartUnexpectedLine :: Bytes -> MultipartSyntax
+    -- | A separator was followed by an unexpected next-part line.
+    MultipartExpectedPart :: Bytes -> MultipartSyntax
+    -- | A bounded lookahead cannot contain the pending line or delimiter.
+    MultipartBufferFull :: MultipartSyntax
+    -- | Input ended before a terminating multipart delimiter.
+    MultipartUnexpectedEnd :: MultipartSyntax
+    -- | Ordinary EOF, retained distinctly when a higher-level operation wraps it.
+    MultipartInputEnd :: MultipartSyntax
+    -- | A buffered source returned one hundred consecutive empty successful reads.
+    MultipartNoProgress :: MultipartSyntax
+
+  -- | Render exact wire diagnostics while retaining the typed refusal.
+  multipart-syntax-message :: MultipartSyntax -> String
+  multipart-syntax-message error = case error of
+    MultipartBoundaryLength -> "mime: invalid boundary length"
+    MultipartBoundaryCharacter -> "mime: invalid boundary character"
+    MultipartHeaderInitial line -> string-concat "malformed MIME header initial line: " (mime-quote-bytes line)
+    MultipartHeaderMissingColon line -> string-concat "malformed MIME header: missing colon: " (mime-quote-bytes line)
+    MultipartHeaderMalformed line -> string-concat "malformed MIME header line: " (mime-quote-bytes line)
+    MultipartMessageTooLarge -> "multipart: message too large"
+    MultipartEmptyBoundary -> "multipart: boundary is empty"
+    MultipartUnexpectedLine line -> string-concat "multipart: unexpected line in Next(): " (mime-quote-bytes line)
+    MultipartExpectedPart line -> string-concat "multipart: expecting a new Part; got line " (mime-quote-bytes line)
+    MultipartBufferFull -> "bufio: buffer full"
+    MultipartUnexpectedEnd -> "unexpected EOF"
+    MultipartInputEnd -> "EOF"
+    MultipartNoProgress -> "multiple Read calls return no data or error"
+
+  -- | Copy one explicit checked span into fresh mutable storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 at count in out
+    else bytes-new 0
+
+  -- | Copy every caller byte before retaining a buffer.
+  snapshot :: Bytes -> Bytes
+  snapshot input = part input 0 (bytes-len input)
+
+  -- | Total independently retained pieces before one aggregate allocation.
+  total :: List Bytes -> Nat -> Nat
+  total pieces size = case pieces of Nil -> size; Cons piece rest -> total rest (size + bytes-len piece)
+
+  -- | Fill a precisely sized output through checked bulk copies.
+  fill :: Bytes -> Nat -> List Bytes -> Unit
+  fill out at pieces = case pieces of
+    Nil -> ()
+    Cons piece rest -> if at + bytes-len piece <= bytes-len out then
+      let copied = bytes-copy-range out piece at 0 (bytes-len piece) in
+      fill out (at + bytes-len piece) rest
+      else ()
+
+  -- | Concatenate independently owned pieces with one allocation.
+  join :: List Bytes -> Bytes
+  join pieces = let out = bytes-new (total pieces 0) in let copied = fill out 0 pieces in out
+
+  -- | Compare raw byte contents without imposing equality on mutable buffers.
+  same :: Bytes -> Bytes -> Bool
+  same first second = eq-i64 (bytes-compare first second) 0
+
+  -- | Snapshot a complete ordered multi-value list.
+  copy-values :: List Bytes -> List Bytes
+  copy-values values = case values of Nil -> Nil; Cons value rest -> Cons (snapshot value) (copy-values rest)
+
+  -- | Privately retained exact keys and ordered values.
+  data MultipartHeaders where
+    -- | Private list storage; each exact key occurs at most once.
+    Headers :: List (Bytes, List Bytes) -> MultipartHeaders
+
+  -- | Replace one raw key while retaining every other exact spelling.
+  set-entry :: Bytes -> List Bytes -> List (Bytes, List Bytes) -> List (Bytes, List Bytes)
+  set-entry key values entries = case entries of
+    Nil -> Cons (key, values) Nil
+    Cons entry rest -> case entry of
+      (old, previous) -> if same key old then Cons (key, values) rest else Cons entry (set-entry key values rest)
+
+  -- | Drop one exact key without canonicalizing raw map spelling.
+  drop-entry :: Bytes -> List (Bytes, List Bytes) -> List (Bytes, List Bytes)
+  drop-entry key entries = case entries of
+    Nil -> Nil
+    Cons entry rest -> case entry of (old, values) -> if same key old then rest else Cons entry (drop-entry key rest)
+
+  -- | Observe an internally owned exact-key list.
+  get-entry :: Bytes -> List (Bytes, List Bytes) -> List Bytes
+  get-entry key entries = case entries of
+    Nil -> Nil
+    Cons entry rest -> case entry of (old, values) -> if same key old then values else get-entry key rest
+
+  -- | Append one value to the end of its existing per-key list.
+  append-value :: List Bytes -> Bytes -> List Bytes
+  append-value values value = case values of Nil -> Cons value Nil; Cons first rest -> Cons first (append-value rest value)
+
+  -- | Copy input entries, merging repeated exact keys by replacement.
+  own-entries :: List (Bytes, List Bytes) -> List (Bytes, List Bytes) -> List (Bytes, List Bytes)
+  own-entries entries owned = case entries of
+    Nil -> owned
+    Cons entry rest -> case entry of (key, values) -> own-entries rest (set-entry (snapshot key) (copy-values values) owned)
+
+  -- | Construct exact-key headers, including empty lists and arbitrary raw keys.
+  multipart-headers :: List (Bytes, List Bytes) -> MultipartHeaders
+  multipart-headers entries = Headers (own-entries entries Nil)
+
+  -- | Compare complete original keys in ascending wire order.
+  compare-entry :: (Bytes, List Bytes) -> (Bytes, List Bytes) -> Ordering
+  compare-entry first second = case first of
+    (a, av) -> case second of (b, bv) -> let order = bytes-compare a b in if lt-i64 order 0 then LT else if gt-i64 order 0 then GT else EQ
+
+  -- | Return fully independent key/value observations.
+  copy-entries :: List (Bytes, List Bytes) -> List (Bytes, List Bytes)
+  copy-entries entries = case entries of Nil -> Nil; Cons entry rest -> case entry of (key, values) -> Cons (snapshot key, copy-values values) (copy-entries rest)
+
+  -- | Observe sorted raw keys and original per-key value order in fresh storage.
+  multipart-header-pairs :: MultipartHeaders -> List (Bytes, List Bytes)
+  multipart-header-pairs headers = case headers of Headers entries -> copy-entries (sort-by compare-entry entries)
+
+  -- | Recognize one RFC token byte.
+  token-byte :: Nat -> Bool
+  token-byte byte = (byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) ||
+    byte == 33 || byte == 35 || byte == 36 || byte == 37 || byte == 38 || byte == 39 || byte == 42 || byte == 43 ||
+    byte == 45 || byte == 46 || byte == 94 || byte == 95 || byte == 96 || byte == 124 || byte == 126
+
+  -- | Check whether a key can be canonicalized without altering invalid raw spelling.
+  key-valid :: Bytes -> Nat -> Bool
+  key-valid key at = if at < bytes-len key then token-byte (bytes-get key at) && key-valid key (at + 1) else True
+
+  -- | Canonicalize one proved byte while preserving the full byte bound.
+  canonical-byte :: Bool -> InRange 0 255 Nat -> InRange 0 255 Nat
+  canonical-byte upper byte = if upper && byte >= 97 && byte <= 122 then byte - 32
+    else if not upper && byte >= 65 && byte <= 90 then byte + 32 else byte
+
+  -- | Canonicalize ASCII letters after proving each destination byte index.
+  canonical-fill :: Bytes -> Bytes -> Nat -> Bool -> Unit
+  canonical-fill out input at upper = if at < bytes-len input && at < bytes-len out then
+    let byte = bytes-get input at in
+    let written = bytes-set out at (canonical-byte upper byte) in
+    canonical-fill out input (at + 1) (byte == 45)
+    else ()
+
+  -- | Canonicalize token keys; invalid and space-containing raw keys stay exact.
+  multipart-header-key :: Bytes -> Bytes
+  multipart-header-key key = if key-valid key 0 then
+    let out = bytes-new (bytes-len key) in let written = canonical-fill out key 0 True in out
+    else snapshot key
+
+  -- | Read every value for a canonicalized lookup key into fresh snapshots.
+  multipart-header-values :: Bytes -> MultipartHeaders -> List Bytes
+  multipart-header-values key headers = case headers of Headers entries -> copy-values (get-entry (multipart-header-key key) entries)
+
+  -- | Read the first canonical-key value, using an empty buffer for absent/empty lists.
+  multipart-header-get :: Bytes -> MultipartHeaders -> Bytes
+  multipart-header-get key headers = case multipart-header-values key headers of Nil -> bytes-new 0; Cons first rest -> first
+
+  -- | Replace an exact raw key with privately owned values.
+  multipart-header-set-raw :: Bytes -> List Bytes -> MultipartHeaders -> MultipartHeaders
+  multipart-header-set-raw key values headers = case headers of Headers entries -> Headers (set-entry (snapshot key) (copy-values values) entries)
+
+  -- | Append an independently retained raw-key value without changing key spelling.
+  multipart-header-append-raw :: Bytes -> Bytes -> MultipartHeaders -> MultipartHeaders
+  multipart-header-append-raw key value headers = case headers of Headers entries -> Headers (set-entry (snapshot key) (append-value (get-entry key entries) (snapshot value)) entries)
+
+  -- | Delete only the exact raw-key entry.
+  multipart-header-drop-raw :: Bytes -> MultipartHeaders -> MultipartHeaders
+  multipart-header-drop-raw key headers = case headers of Headers entries -> Headers (drop-entry key entries)
+
+  -- | Replace the values under a canonicalized lookup key.
+  multipart-header-set :: Bytes -> List Bytes -> MultipartHeaders -> MultipartHeaders
+  multipart-header-set key values headers = multipart-header-set-raw (multipart-header-key key) values headers
+
+  -- | Append a value under a canonicalized lookup key.
+  multipart-header-append :: Bytes -> Bytes -> MultipartHeaders -> MultipartHeaders
+  multipart-header-append key value headers = multipart-header-append-raw (multipart-header-key key) value headers
+
+  -- | Delete a canonicalized lookup key without touching differently spelled raw keys.
+  multipart-header-drop :: Bytes -> MultipartHeaders -> MultipartHeaders
+  multipart-header-drop key headers = multipart-header-drop-raw (multipart-header-key key) headers
+
+  -- | Sum value payload lengths without charging list representation details.
+  value-size :: List Bytes -> Nat -> Nat
+  value-size values size = case values of Nil -> size; Cons value rest -> value-size rest (size + bytes-len value)
+
+  -- | Charge the fixed header metadata and each original key exactly once.
+  entries-size :: List (Bytes, List Bytes) -> Nat -> Nat
+  entries-size entries size = case entries of Nil -> size; Cons entry rest -> case entry of (key, values) -> entries-size rest (value-size values (size + bytes-len key + 200))
+
+  -- | Exact form-budget charge: four hundred plus per-key and value overhead.
+  multipart-header-size :: MultipartHeaders -> Nat
+  multipart-header-size headers = case headers of Headers entries -> entries-size entries 400
+
+  -- | Serialize values without validation, preserving raw keys, bytes and list order.
+  value-wire :: Bytes -> List Bytes -> List Bytes
+  value-wire key values = case values of Nil -> Nil; Cons value rest -> Cons key (Cons (string-to-bytes ": ") (Cons value (Cons (string-to-bytes "\r\n") (value-wire key rest))))
+
+  -- | Serialize already sorted raw entries, including empty keys and omitted empty lists.
+  entries-wire :: List (Bytes, List Bytes) -> List Bytes
+  entries-wire entries = case entries of
+    Nil -> Cons (string-to-bytes "\r\n") Nil
+    Cons entry rest -> case entry of (key, values) -> append-pieces (value-wire key values) (entries-wire rest)
+
+  -- | Join ordered piece spines without copying their retained byte payloads.
+  append-pieces :: List Bytes -> List Bytes -> List Bytes
+  append-pieces first second = case first of Nil -> second; Cons piece rest -> Cons piece (append-pieces rest second)
+
+  -- | Serialize a complete header block with sorted raw keys and a final blank line.
+  multipart-header-wire :: MultipartHeaders -> Bytes
+  multipart-header-wire headers = case headers of Headers entries -> join (entries-wire (sort-by compare-entry entries))
+
+  -- | Recognize one byte permitted inside a writer boundary.
+  boundary-byte :: Nat -> Bool
+  boundary-byte byte = (byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) ||
+    byte == 39 || byte == 40 || byte == 41 || byte == 43 || byte == 95 || byte == 44 || byte == 45 || byte == 46 ||
+    byte == 47 || byte == 58 || byte == 61 || byte == 63 || byte == 32
+
+  -- | Check every byte after length validation, retaining the trailing-space rule.
+  boundary-valid :: Bytes -> Nat -> Bool
+  boundary-valid boundary at = if at < bytes-len boundary then
+    let byte = bytes-get boundary at in boundary-byte byte && (byte /= 32 || at + 1 < bytes-len boundary) && boundary-valid boundary (at + 1)
+    else True
+
+  -- | Validate a writer boundary without imposing this restriction on readers.
+  multipart-check-boundary :: Bytes -> Result MultipartSyntax Unit
+  multipart-check-boundary boundary = if bytes-len boundary == 0 || bytes-len boundary > 70 then Err MultipartBoundaryLength
+    else if boundary-valid boundary 0 then Ok () else Err MultipartBoundaryCharacter
+
+  -- | Recognize a boundary byte that needs quoted media-parameter syntax.
+  special-byte :: Nat -> Bool
+  special-byte byte = byte == 40 || byte == 41 || byte == 60 || byte == 62 || byte == 64 || byte == 44 || byte == 59 ||
+    byte == 58 || byte == 92 || byte == 34 || byte == 47 || byte == 91 || byte == 93 || byte == 63 || byte == 61 || byte == 32
+
+  -- | Detect media-parameter quoting without altering any boundary byte.
+  has-special :: Bytes -> Nat -> Bool
+  has-special input at = if at < bytes-len input then special-byte (bytes-get input at) || has-special input (at + 1) else False
+
+  -- | Render a form content type with exactly the required boundary quoting.
+  multipart-form-content-type :: Bytes -> Bytes
+  multipart-form-content-type boundary = join (Cons (string-to-bytes "multipart/form-data; boundary=")
+    (if has-special boundary 0 then Cons (string-to-bytes "\"") (Cons boundary (Cons (string-to-bytes "\"") Nil)) else Cons boundary Nil))
+
+  -- | Scan complete ordinary windows after the leading byte was classified.
+  escape-scan :: using (at <= bytes-len input) => (input :: Bytes) -> (at :: Nat) -> refined (at <= r && r <= bytes-len input) Nat
+  escape-scan input at = if at + 16 <= bytes-len input then
+    let low = bytes-read-le64 input at in
+    let high = bytes-read-le64 input (at + 8) in
+    let mask = bit-or-u32 (bit-or-u32 (equal-sixteen low high 13) (equal-sixteen low high 10)) (bit-or-u32 (equal-sixteen low high 34) (equal-sixteen low high 92)) in
+    let count = if eq-u32 mask 0 then (16 :: Nat) else u32-to-nat (trailing-zeros-u32 mask) in
+    if count < 16 then at + count else escape-scan input (at + 16)
+    else if at < bytes-len input then
+      let byte = bytes-get input at in
+      if byte == 13 || byte == 10 || byte == 34 || byte == 92 then at else escape-scan input (at + 1)
+      else at
+
+  -- | Stop immediately at an exceptional byte, otherwise advance maximal ordinary runs.
+  escape-end :: using (at <= bytes-len input) => (input :: Bytes) -> (at :: Nat) -> refined (at <= r && r <= bytes-len input) Nat
+  escape-end input at = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte == 13 || byte == 10 || byte == 34 || byte == 92 then at else escape-scan input (at + 1)
+    else at
+
+  -- | Count exact escaped bytes without materializing pieces or wrapping the length.
+  escaped-size :: Bytes -> Nat -> Nat -> Nat
+  escaped-size input at size = if at < bytes-len input then
+    let end = escape-end input at in
+    if end > at && end <= bytes-len input then escaped-size input end (size + (end - at))
+    else
+      let byte = bytes-get input at in
+      escaped-size input (at + 1) (size + (if byte == 13 || byte == 10 then 3 else 2))
+    else size
+
+  -- | Copy ordinary runs and emit exceptional bytes into one fresh checked output.
+  escaped-fill :: Bytes -> Nat -> Bytes -> Nat -> Nat
+  escaped-fill input at output written = if at < bytes-len input then
+    let end = escape-end input at in
+    if end > at && end <= bytes-len input then
+      let count = end - at in
+      if written + count <= bytes-len output then
+        let copied = bytes-copy-range output input written at count in
+        escaped-fill input end output (written + count)
+      else written
+    else
+      let byte = bytes-get input at in
+      if byte == 13 || byte == 10 then
+        if written + 3 <= bytes-len output then
+          let percent = bytes-set output written 37 in
+          let zero = bytes-set output (written + 1) 48 in
+          let suffix = bytes-set output (written + 2) (if byte == 13 then 68 else 65) in
+          escaped-fill input (at + 1) output (written + 3)
+        else written
+      else if written + 2 <= bytes-len output then
+        let slash = bytes-set output written 92 in
+        let quoted = bytes-set output (written + 1) byte in
+        escaped-fill input (at + 1) output (written + 2)
+      else written
+    else written
+
+  -- | Escape arbitrary bytes into a fresh exactly sized buffer without per-byte pieces.
+  escaped :: Bytes -> Bytes
+  escaped input =
+    let output = bytes-new (escaped-size input 0 0) in
+    let written = escaped-fill input 0 output 0 in
+    output
+
+  -- | Render the exact disposition for a named value field.
+  multipart-field-disposition :: Bytes -> Bytes
+  multipart-field-disposition name = join (Cons (string-to-bytes "form-data; name=\"") (Cons (escaped name) (Cons (string-to-bytes "\"") Nil)))
+
+  -- | Render the exact disposition for a named file field.
+  multipart-file-disposition :: Bytes -> Bytes -> Bytes
+  multipart-file-disposition name filename = join (Cons (multipart-field-disposition name) (Cons (string-to-bytes "; filename=\"") (Cons (escaped filename) (Cons (string-to-bytes "\"") Nil))))
+
+  -- | Find exact target-byte lanes; mask bit zero always denotes the first wire byte.
+  prim equal-sixteen :: U64 -> U64 -> U8 -> U32 where
+    llvm {
+      %lo = bitcast i64 %0 to <8 x i8>
+      %hi = bitcast i64 %1 to <8 x i8>
+      %bytes = shufflevector <8 x i8> %lo, <8 x i8> %hi, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+      %one = insertelement <16 x i8> poison, i8 %2, i64 0
+      %needle = shufflevector <16 x i8> %one, <16 x i8> poison, <16 x i32> zeroinitializer
+      %same = icmp eq <16 x i8> %bytes, %needle
+      %mask = bitcast <16 x i1> %same to i16
+      %wide = zext i16 %mask to i32
+      ret i32 %wide
+    } when endian little
+    llvm {
+      %swapped0 = call i64 @llvm.bswap.i64(i64 %0)
+      %swapped1 = call i64 @llvm.bswap.i64(i64 %1)
+      %lo = bitcast i64 %swapped0 to <8 x i8>
+      %hi = bitcast i64 %swapped1 to <8 x i8>
+      %bytes = shufflevector <8 x i8> %lo, <8 x i8> %hi, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+      %one = insertelement <16 x i8> poison, i8 %2, i64 0
+      %needle = shufflevector <16 x i8> %one, <16 x i8> poison, <16 x i32> zeroinitializer
+      %same = icmp eq <16 x i8> %bytes, %needle
+      %reversed = shufflevector <16 x i1> %same, <16 x i1> %same, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %mask = bitcast <16 x i1> %reversed to i16
+      %wide = zext i16 %mask to i32
+      ret i32 %wide
+    } when endian big
+
+  -- | Scan complete proved windows and then the exact scalar fringe.
+  find-byte :: using (at <= bytes-len input) => (input :: Bytes) -> (at :: Nat) -> U8 -> refined (at <= r && r <= bytes-len input) Nat
+  find-byte input at needle = if at + 16 <= bytes-len input then
+    let mask = equal-sixteen (bytes-read-le64 input at) (bytes-read-le64 input (at + 8)) needle in
+    let count = if eq-u32 mask 0 then (16 :: Nat) else u32-to-nat (trailing-zeros-u32 mask) in
+    if count < 16 then at + count else find-byte input (at + 16) needle
+    else if at < bytes-len input then
+      if bytes-get input at == u8-to-nat needle then at else find-byte input (at + 1) needle
+      else at
+
+  -- | Return the first target byte at or after start, or the input length.
+  multipart-find-byte :: Bytes -> Nat -> U8 -> Nat
+  multipart-find-byte input start needle = if start <= bytes-len input then find-byte input start needle else bytes-len input
+
+  -- | Compare proved eight-byte words before the exact scalar prefix fringe.
+  prefix-at :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  prefix-at input at prefix index =
+    if at + index + 8 <= bytes-len input && index + 8 <= bytes-len prefix then
+      eq-u64 (bytes-read-le64 input (at + index)) (bytes-read-le64 prefix index) && prefix-at input at prefix (index + 8)
+    else if index < bytes-len prefix then
+      if at + index < bytes-len input then bytes-get input (at + index) == bytes-get prefix index && prefix-at input at prefix (index + 1) else False
+    else True
+
+  -- | Test a complete raw prefix without exposing retained bytes.
+  multipart-prefix :: Bytes -> Bytes -> Bool
+  multipart-prefix input prefix = prefix-at input 0 prefix 0
+
+  -- | A body scan separates confirmed payload from incomplete delimiters and end.
+  data MultipartBodyScan where
+    -- | Emit the confirmed payload prefix before rescanning additional input.
+    MultipartBodyPrefix :: Nat -> MultipartBodyScan
+    -- | Retain the entire span until additional bytes or terminal status arrive.
+    MultipartBodyNeedMore :: MultipartBodyScan
+    -- | A valid delimiter begins after this exact payload prefix.
+    MultipartBodyEnd :: Nat -> MultipartBodyScan
+
+  -- | Classify a fully matched boundary's suffix as match, mismatch or incomplete.
+  after-prefix :: Bytes -> Nat -> Bool -> Int
+  after-prefix input at ended = if at == bytes-len input then if ended then 1 else 0
+    else if at < bytes-len input then
+      let byte = bytes-get input at in
+      if byte == 32 || byte == 9 || byte == 13 || byte == 10 then 1
+      else if byte == 45 then
+        if at + 1 < bytes-len input then if bytes-get input (at + 1) == 45 then 1 else -1
+        else if ended then -1 else 0
+      else -1
+    else -1
+
+  -- | Compare an unfinished suffix without allocating a copy at each candidate.
+  suffix-prefix :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  suffix-prefix input at delimiter index = if at + index < bytes-len input then
+    if index < bytes-len delimiter then bytes-get input (at + index) == bytes-get delimiter index && suffix-prefix input at delimiter (index + 1) else False
+    else True
+
+  -- | Find the first complete delimiter using SIMD candidates and checked word prefixes.
+  complete-delimiter :: Bytes -> Bytes -> Nat -> Nat
+  complete-delimiter input delimiter at = if at < bytes-len input then
+    if prefix-at input at delimiter 0 then at
+    else
+      let next = multipart-find-byte input (at + 1) (if bytes-len delimiter > 0 then wrapping-i64-to-u8 (nat-to-i64 (bytes-get delimiter 0)) else 10) in
+      complete-delimiter input delimiter next
+    else bytes-len input
+
+  -- | Remember the final candidate byte, preserving arbitrary reader-boundary semantics.
+  last-candidate :: Bytes -> U8 -> Nat -> Nat -> Nat
+  last-candidate input needle at previous =
+    let next = multipart-find-byte input at needle in
+    if next < bytes-len input then last-candidate input needle (next + 1) next else previous
+
+  -- | Inspect one complete match, then exactly the final pending delimiter candidate.
+  scan-candidates :: Bytes -> Bytes -> Bool -> MultipartBodyScan
+  scan-candidates input delimiter ended =
+    let found = complete-delimiter input delimiter 0 in
+    if found < bytes-len input then
+      let status = after-prefix input (found + bytes-len delimiter) ended in
+      if status == 1 then MultipartBodyEnd found
+      else if status == 0 then if found == 0 then MultipartBodyNeedMore else MultipartBodyPrefix found
+      else MultipartBodyPrefix (found + bytes-len delimiter)
+    else if multipart-prefix delimiter input then MultipartBodyNeedMore
+    else
+      let last = last-candidate input (if bytes-len delimiter > 0 then wrapping-i64-to-u8 (nat-to-i64 (bytes-get delimiter 0)) else 10) 0 (bytes-len input) in
+      if last < bytes-len input && suffix-prefix input last delimiter 0 then
+        if last == 0 then MultipartBodyNeedMore else MultipartBodyPrefix last
+      else MultipartBodyPrefix (bytes-len input)
+
+  -- | Observe one bounded raw-body span; terminal status decides ambiguous suffixes.
+  multipart-body-scan :: using (bytes-len input <= 4096) => (input :: Bytes) -> Bytes -> Bool -> Bool -> Bool -> MultipartBodyScan
+  multipart-body-scan input boundary lf first ended =
+    let dash = join (Cons (string-to-bytes "--") (Cons boundary Nil)) in
+    let delimiter = join (Cons (string-to-bytes (if lf then "\n" else "\r\n")) (Cons dash Nil)) in
+    if first && multipart-prefix input dash then
+      let status = after-prefix input (bytes-len dash) ended in
+      if status == 1 then MultipartBodyEnd 0 else if status == 0 then MultipartBodyNeedMore else MultipartBodyPrefix (bytes-len dash)
+    else if first && multipart-prefix dash input then MultipartBodyNeedMore
+    else scan-candidates input delimiter ended
+
+  -- | Find the first non-horizontal-space byte inside a proved interval.
+  trim-start :: Bytes -> Nat -> Nat
+  trim-start input at = if at < bytes-len input then
+    let byte = bytes-get input at in if byte == 32 || byte == 9 then trim-start input (at + 1) else at
+    else at
+
+  -- | Find an exclusive content end without subtracting from an empty interval.
+  trim-end :: using (limit <= bytes-len input) => (input :: Bytes) -> (limit :: Nat) -> refined (r <= limit) Nat
+  trim-end input limit = if limit > 0 then
+    let byte = bytes-get input (limit - 1) in if byte == 32 || byte == 9 then trim-end input (limit - 1) else limit
+    else 0
+
+  -- | Trim only header space and tab, never Unicode whitespace or body bytes.
+  multipart-trim-header-line :: Bytes -> Bytes
+  multipart-trim-header-line input =
+    let start = trim-start input 0 in
+    let end = trim-end input (bytes-len input) in
+    if start <= end then part input start (end - start) else bytes-new 0
+
+  -- | Accept token keys and space-containing raw keys while refusing every other byte.
+  parse-key-valid :: Bytes -> Nat -> Bool
+  parse-key-valid key at = if at < bytes-len key then
+    let byte = bytes-get key at in (token-byte byte || byte == 32) && parse-key-valid key (at + 1)
+    else bytes-len key > 0
+
+  -- | Validate header values without rejecting arbitrary high bytes.
+  parse-value-valid :: Bytes -> Nat -> Bool
+  parse-value-valid value at = if at < bytes-len value then
+    let byte = bytes-get value at in ((byte >= 32 && byte /= 127) || byte == 9) && parse-value-valid value (at + 1)
+    else True
+
+  -- | Parse one unfolded logical header line, preserving exact refused bytes.
+  multipart-parse-header-line :: Bytes -> Result MultipartSyntax (Bytes, Bytes)
+  multipart-parse-header-line input =
+    let colon = multipart-find-byte input 0 58 in
+    if colon < bytes-len input then
+      let key = part input 0 colon in
+      let value = multipart-trim-header-line (part input (colon + 1) (bytes-len input - (colon + 1))) in
+      if parse-key-valid key 0 && parse-value-valid value 0 then Ok (multipart-header-key key, value)
+      else Err (MultipartHeaderMalformed (snapshot input))
+    else Err (MultipartHeaderMissingColon (snapshot input))
+
+  -- | Drop trailing POSIX separators before choosing the final component.
+  filename-end :: Bytes -> Nat -> Nat
+  filename-end input end = if end > 0 && end <= bytes-len input then
+    if bytes-get input (end - 1) == 47 then filename-end input (end - 1) else end
+    else 0
+
+  -- | Find the final component start without interpreting backslash as a separator.
+  filename-start :: Bytes -> Nat -> Nat
+  filename-start input end = if end > 0 && end <= bytes-len input then
+    if bytes-get input (end - 1) == 47 then end else filename-start input (end - 1)
+    else 0
+
+  -- | Apply the POSIX basename byte policy, including empty and all-separator cases.
+  multipart-posix-filename :: Bytes -> Bytes
+  multipart-posix-filename input = if bytes-len input == 0 then string-to-bytes "."
+    else
+      let end = filename-end input (bytes-len input) in
+      if end == 0 then string-to-bytes "/"
+      else let start = filename-start input end in if start <= end then part input start (end - start) else bytes-new 0
+
+  -- | Delimiter recognition retains the first ordinary line's newline policy.
+  data MultipartDelimiter where
+    -- | The complete supplied line is neither an ordinary nor a final delimiter.
+    MultipartNoDelimiter :: MultipartDelimiter
+    -- | An ordinary delimiter selects this LF-only versus CRLF policy.
+    MultipartNextDelimiter :: Bool -> MultipartDelimiter
+    -- | A final delimiter terminates the multipart message.
+    MultipartFinalDelimiter :: MultipartDelimiter
+
+  -- | Check optional horizontal whitespace followed by exactly the selected newline.
+  delimiter-ending :: Bytes -> Nat -> Bool -> Bool -> Bool
+  delimiter-ending input at lf final = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte == 32 || byte == 9 then delimiter-ending input (at + 1) lf final
+    else if lf then at + 1 == bytes-len input && byte == 10
+    else at + 2 == bytes-len input && byte == 13 && (if at + 1 < bytes-len input then bytes-get input (at + 1) == 10 else False)
+    else final && at == bytes-len input
+
+  -- | Classify a complete line without validating a reader's arbitrary boundary.
+  multipart-delimiter-line :: Bytes -> Bytes -> Bool -> Bool -> MultipartDelimiter
+  multipart-delimiter-line input boundary lf first =
+    let dash = join (Cons (string-to-bytes "--") (Cons boundary Nil)) in
+    if multipart-prefix input dash then
+      let at = bytes-len dash in
+      if delimiter-ending input at lf False then MultipartNextDelimiter lf
+      else if first && not lf && delimiter-ending input at True False then MultipartNextDelimiter True
+      else if at + 2 <= bytes-len input then
+        if bytes-get input at == 45 && bytes-get input (at + 1) == 45 && delimiter-ending input (at + 2) lf True then MultipartFinalDelimiter else MultipartNoDelimiter
+        else MultipartNoDelimiter
+    else MultipartNoDelimiter
