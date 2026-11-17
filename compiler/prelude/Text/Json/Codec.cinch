@@ -35,6 +35,7 @@ module Text.Json.Codec where
   export json-type-with-encoder, json-type-with-decoder, json-type-with-text-encoder, json-type-with-text-decoder
   export JsonMethods, json-methods, json-no-methods, json-type-with-methods
   export JsonDecoded, json-decoded-value, json-decoded-error, json-decoded-fatal, json-decoded-result
+  export JsonEncoded, json-encoded-bytes, json-encoded-error, json-encoded-result, json-marshal-attempt
   export json-decoded-ok, json-decoded-failure, json-decoded-with-error
   export json-marshal, json-marshal-with, json-marshal-indent, json-unmarshal, json-unmarshal-with, json-update, json-update-with, json-update-value, json-marshal-value
   export JsonFieldMatch, JsonFieldDefaultMatch, JsonFieldExactMatch, JsonFieldFoldMatch
@@ -322,18 +323,87 @@ module Text.Json.Codec where
   json-type-is-empty :: forall a. JsonType a -> a -> Bool
   json-type-is-empty descriptor value = case descriptor of Type label write-category read-category initial zero empty encode update -> empty value
 
-  -- | Encode one compact fragment for use inside another descriptor.
+  -- | Retain error-only output transport between library-owned descriptor boundaries.
+  marshal-fragment :: forall a. JsonType a -> JsonWriteOptions -> a -> Result JsonError Bytes
+  marshal-fragment descriptor options value = case descriptor of Type label write-category read-category initial zero empty encode update -> encode options value
+
+  -- | Encode one compact fragment with a directly inspectable original error family.
+  -- Complete-fragment callbacks return their own refusal without exposing the
+  -- private partial-output transport used between ordinary containers.
   json-marshal-value :: forall a. JsonType a -> JsonWriteOptions -> a -> Result JsonError Bytes
-  json-marshal-value descriptor options value = case descriptor of Type label write-category read-category initial zero empty encode update -> encode options value
+  json-marshal-value descriptor options value = case marshal-fragment descriptor options value of
+    Ok output -> Ok output
+    Err error ->
+      let compact = json-write-options (json-write-html options) False "" "" (json-write-policies options) in
+      case write-final-error compact error of JsonWrittenError info cause -> Err cause; other -> Err other
 
   -- | Apply one already validated source value through an immutable descriptor.
   json-update-value :: forall a. JsonType a -> JsonReadOptions -> JsonValue -> a -> JsonDecoded a
   json-update-value descriptor options source prior = case descriptor of Type label write-category read-category initial zero empty encode update -> update options source prior
 
+  -- | Compose already written container fragments with a failing child's retained output only on an error path.
+  write-next-error :: List Bytes -> Bytes -> JsonError -> JsonError
+  write-next-error reversed delimiter error =
+    let before = join-fragments (reverse reversed) in
+    case error of
+      JsonWrittenError info cause ->
+        let written = json-write-written-bytes info in
+        let actual = if bytes-len written > 0 then join-fragments [before, delimiter, written] else before in
+        let logical = join-fragments [before, delimiter, json-write-logical-prefix info] in
+        JsonWrittenError (json-write-info actual logical) cause
+      other -> JsonWrittenError (json-write-info before (join-fragments [before, delimiter])) error
+
+  -- | Add formatted next-value context only to semantic errors created for the current encoding operation.
+  write-error-position :: Nat -> JsonError -> JsonError
+  write-error-position offset error = case error of
+    JsonSemanticError info cause -> JsonSemanticError (json-semantic-with-offset info (offset + json-semantic-offset info)) cause
+    other -> error
+
+  -- | Format a retained prefix once at the public boundary while preserving its original diagnostic and logical context.
+  write-final-error :: JsonWriteOptions -> JsonError -> JsonError
+  write-final-error options error = case error of
+    JsonWrittenError info cause ->
+      let written = json-write-written-bytes info in let logical = json-write-logical-prefix info in
+      case json-prefix-next-offset logical (json-write-pretty options) (json-write-prefix options) (json-write-step options) of
+        Err ignored -> error
+        Ok offset ->
+          let formatted = if json-write-pretty options then json-indent-prefix written (json-write-prefix options) (json-write-step options) else Ok written in
+          case formatted of
+            Err ignored -> error
+            Ok output -> JsonWrittenError (json-write-info output logical) (write-error-position offset cause)
+    other -> error
+
+  -- | An encoding outcome retains successful output or the exact prefix emitted before its first refusal.
+  data JsonEncoded where
+    -- | Private immutable output bytes and an optional original structured diagnostic.
+    Encoded :: Bytes -> Option JsonError -> JsonEncoded
+
+  -- | Export an independent copy of successful output or the retained partial prefix.
+  json-encoded-bytes :: JsonEncoded -> Bytes
+  json-encoded-bytes encoded = case encoded of Encoded output error -> codec-part output 0 (bytes-len output)
+
+  -- | Inspect the original diagnostic without exposing internal output-transport wrappers.
+  json-encoded-error :: JsonEncoded -> Option JsonError
+  json-encoded-error encoded = case encoded of Encoded output error -> error
+
+  -- | Require successful encoding when a partial output prefix is not useful.
+  json-encoded-result :: JsonEncoded -> Result JsonError Bytes
+  json-encoded-result encoded = case encoded of Encoded output error -> case error of None -> Ok (codec-part output 0 (bytes-len output)); Some cause -> Err cause
+
+  -- | Marshal while retaining exact partial output and the original error family on failure.
+  json-marshal-attempt :: forall a. JsonType a -> JsonWriteOptions -> a -> JsonEncoded
+  json-marshal-attempt descriptor options value = case marshal-fragment descriptor options value of
+    Err error -> case write-final-error options error of
+      JsonWrittenError info cause -> Encoded (json-write-written-bytes info) (Some cause)
+      other -> Encoded (bytes-new 0) (Some other)
+    Ok output ->
+      let formatted = if json-write-pretty options then json-indent output (json-write-prefix options) (json-write-step options) else Ok output in
+      case formatted of Err error -> Encoded (bytes-new 0) (Some error); Ok bytes -> Encoded bytes None
+
   -- | Marshal one complete value using explicit HTML, indentation and conversion policies.
   json-marshal-with :: forall a. JsonType a -> JsonWriteOptions -> a -> Result JsonError Bytes
-  json-marshal-with descriptor options value = case json-marshal-value descriptor options value of
-    Err error -> Err error
+  json-marshal-with descriptor options value = case marshal-fragment descriptor options value of
+    Err error -> case write-final-error options error of JsonWrittenError info cause -> Err cause; other -> Err other
     Ok output -> if json-write-pretty options then json-indent output (json-write-prefix options) (json-write-step options) else Ok output
 
   -- | Marshal one complete compact value with established defaults.
@@ -698,7 +768,7 @@ module Text.Json.Codec where
 
   -- | Encode an explicit absent/present value without fabricating mutable pointers.
   nullable-encode :: forall a. JsonType a -> JsonWriteOptions -> Option a -> Result JsonError Bytes
-  nullable-encode descriptor options value = case value of None -> Ok (string-to-bytes "null"); Some present -> json-marshal-value descriptor (json-write-with-addressability options True) present
+  nullable-encode descriptor options value = case value of None -> Ok (string-to-bytes "null"); Some present -> marshal-fragment descriptor (json-write-with-addressability options True) present
 
   -- | Null clears an optional value; a non-null value updates its previous pointee when present.
   nullable-update :: forall a. JsonType a -> JsonReadOptions -> JsonValue -> Option a -> JsonDecoded (Option a)
@@ -753,6 +823,7 @@ module Text.Json.Codec where
   -- | Preserve returned method errors and use numeric pointer components for semantic sequence failures.
   index-cause :: Nat -> JsonError -> JsonError
   index-cause at error = case error of
+    JsonWrittenError info cause -> JsonWrittenError info (index-cause at cause)
     JsonSemanticError info cause -> semantic-member-cause (nat-to-string at) info cause
     other -> case json-error-returned error of Some cause -> error; None -> record-member-path (string-concat-all ["[", nat-to-string at, "]"]) error
 
@@ -764,8 +835,8 @@ module Text.Json.Codec where
   list-encode-from :: forall a. JsonType a -> JsonWriteOptions -> List a -> Nat -> List Bytes -> Result JsonError Bytes
   list-encode-from descriptor options values at pieces = case values of
     Nil -> Ok (join-fragments (reverse (Cons (string-to-bytes "]") pieces)))
-    Cons first rest -> case json-marshal-value descriptor options first of
-      Err error -> Err (index-cause at error)
+    Cons first rest -> case marshal-fragment descriptor options first of
+      Err error -> Err (write-next-error pieces (string-to-bytes (if at > 0 then "," else "")) (index-cause at error))
       Ok output -> list-encode-from descriptor options rest (at + 1) (Cons output (if at > 0 then Cons (string-to-bytes ",") pieces else pieces))
 
   -- | Begin a non-null JSON array using the supplied element capability.
@@ -1123,20 +1194,27 @@ module Text.Json.Codec where
     Field name bytes options zero empty encode update -> case options of
       FieldOptions omit-empty omit-zero quoted depth named matching -> case matching of JsonFieldExactMatch -> False; other -> True
 
-  -- | Encode one field value, applying scalar quoting only to supported declared categories.
+  -- | Encode a field with declared quoting semantics and refuse incompatible tags under stopped reporting.
   field-encode-value :: forall b. JsonType b -> Bool -> JsonWriteOptions -> b -> Result JsonError Bytes
   field-encode-value descriptor quoted options value =
-    if quoted && json-policy-enabled (json-write-policies options) JsonQuoteScalarFields then
-      case json-type-write-kind-with descriptor options of
-        JsonNumberKind -> scalar-quote-value descriptor options value
-        JsonBooleanKind -> scalar-quote-value descriptor options value
-        JsonStringKind -> scalar-quote-value descriptor options value
-        other -> json-marshal-value descriptor options value
-    else json-marshal-value descriptor (if quoted then json-write-with-stringify-numbers options True else options) value
+    if not quoted then marshal-fragment descriptor options value
+    else
+      let legacy-quote = json-policy-enabled (json-write-policies options) JsonQuoteScalarFields in
+      let reject = not (json-policy-enabled (json-write-policies options) JsonContinueAfterTypeErrors) in
+      let category = json-type-write-kind-with descriptor options in
+      let invalid = case category of JsonBooleanKind -> not legacy-quote; JsonStringKind -> not legacy-quote; JsonArrayKind -> True; JsonObjectKind -> True; other -> False in
+      if reject && invalid then Err (JsonSemanticError (json-semantic-info-with-value "marshal" 0 "" (bytes-new 0) (json-type-label descriptor) 0 (bytes-new 0)) (JsonEncodingError 0 "invalid use of `string` tag option"))
+      else if legacy-quote then
+        case category of
+          JsonNumberKind -> scalar-quote-value descriptor options value
+          JsonBooleanKind -> scalar-quote-value descriptor options value
+          JsonStringKind -> scalar-quote-value descriptor options value
+          other -> marshal-fragment descriptor options value
+      else marshal-fragment descriptor (json-write-with-stringify-numbers options True) value
 
   -- | Wrap an ordinary scalar's complete lexical spelling as text while keeping null unquoted.
   scalar-quote-value :: forall b. JsonType b -> JsonWriteOptions -> b -> Result JsonError Bytes
-  scalar-quote-value descriptor options value = case json-marshal-value descriptor (json-write-with-stringify-numbers options False) value of
+  scalar-quote-value descriptor options value = case marshal-fragment descriptor (json-write-with-stringify-numbers options False) value of
     Err error -> Err error
     Ok output -> if bytes-len output > 0 && bytes-get output 0 == 110 then Ok output else Ok (json-quote-bytes output (json-write-html options))
 
@@ -1252,7 +1330,11 @@ module Text.Json.Codec where
   record-encode-from fields options value count pieces = case fields of
     Nil -> Ok (join-fragments (reverse (Cons (string-to-bytes "}") pieces)))
     Cons first rest -> case record-field-output first options value of
-      Err error -> Err error
+      Err error -> case first of
+        Field name name-bytes field-options zero empty encode update ->
+          let prefix = if count > 0 then Cons (string-to-bytes ",") pieces else pieces in
+          let key = json-quote-bytes name-bytes (json-write-html options) in
+          Err (write-next-error (Cons key prefix) (string-to-bytes ":") error)
       Ok absent -> case absent of
         None -> record-encode-from rest options value count pieces
         Some output -> case first of
@@ -1354,6 +1436,7 @@ module Text.Json.Codec where
   -- | Combine nested member/index path context without discarding an existing conversion cause.
   record-member-path :: String -> JsonError -> JsonError
   record-member-path name error = case error of
+    JsonWrittenError info cause -> JsonWrittenError info (record-member-path name cause)
     JsonSemanticError info cause -> semantic-member-cause name info cause
     other -> case json-error-returned error of
       Some cause -> error
@@ -1797,7 +1880,7 @@ module Text.Json.Codec where
 
   -- | Encode a typed key as JSON, requiring the resulting token to be a member-name string.
   key-encode-json :: forall k. JsonType k -> JsonWriteOptions -> k -> Result JsonError JsonKeyName
-  key-encode-json descriptor options key = case json-marshal-value descriptor (json-write-with-stringify-numbers options True) key of
+  key-encode-json descriptor options key = case marshal-fragment descriptor (json-write-with-stringify-numbers options True) key of
     Err error -> Ok (InvalidKeyName error)
     Ok output -> case json-document output of
       Err error -> Ok (InvalidKeyName error)
@@ -1941,8 +2024,12 @@ module Text.Json.Codec where
     Nil -> Ok (join-fragments (reverse (Cons (string-to-bytes "}") pieces)))
     Cons first rest -> case first of
       (key, value) -> case key of
-        NameKey name ordinal -> case json-marshal-value descriptor (json-write-with-addressability options False) value of
-          Err error -> Err error
+        NameKey name ordinal -> case marshal-fragment descriptor (json-write-with-addressability options False) value of
+          Err error ->
+            let before = if count == 0 then pieces else Cons (string-to-bytes ",") pieces in
+            let key = json-quote-bytes name (json-write-html options) in
+            let label = case string-from-bytes name of Some text -> text; None -> "" in
+            Err (write-next-error (Cons key before) (string-to-bytes ":") (record-member-path label error))
           Ok output -> let before = if count == 0 then pieces else Cons (string-to-bytes ",") pieces in
             map-encode-entries descriptor options rest (count + 1) (Cons output (Cons (string-to-bytes ":") (Cons (json-quote-bytes name (json-write-html options)) before)))
 

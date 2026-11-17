@@ -345,3 +345,33 @@ fn rust_json_field_kernel_compiles_for_wasm_arm_and_big_endian_targets() {
         );
     }
 }
+
+/// Ordinary bool fields retain every quoted policy, partial-prefix and formatting observation.
+#[test]
+fn json_quoted_bool_errors_and_prefixes_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-error-bool.cinch"));
+}
+
+/// Addressable methods preserve callback counts and the original reporting-disabled descriptor refusal.
+#[test]
+fn json_quoted_pointer_methods_and_retained_refusal_match_observations() {
+    run(include_str!("fixtures/json-codec-error-pointer.cinch"));
+}
+
+/// Quoted strings retain scalar policy, exact escaped output and semantic context.
+#[test]
+fn json_quoted_string_errors_and_prefixes_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-error-string.cinch"));
+}
+
+/// Quoted integral fields retain all policy and formatting combinations.
+#[test]
+fn json_quoted_integer_outputs_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-error-integer.cinch"));
+}
+
+/// Public encoding outcomes retain independent bytes and directly inspectable error families.
+#[test]
+fn json_encoding_outcome_owners_and_error_families_are_bounded() {
+    run(include_str!("fixtures/json-codec-error-owner-control.cinch"));
+}

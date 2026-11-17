@@ -1,0 +1,19 @@
+{
+  "description": "Exact source/check/runtime helpers and final recovery/doc utilities; no new run or promotion",
+  "files": {
+    "probe_pointer_v1.py": "8377df044ec8f052a2299e771cd92ef1c0a030030353bade9193b2440f0ba8b5",
+    "probe_pointer_v2.py": "63f493d8222e90234c48b879e40f1c13a2a3ca0667452d025f13cb4db363f909",
+    "probe_pointer_v3.py": "23c5426d5893d74dc3bbbeb6a5ca40440fc7a366a6074aa5c17cadea1f6e5589",
+    "probe_pointer_v4.py": "f35ed05a86fa78aa8bf13fc9c0ac1d2e2709bc7ed1b8159343ff383fe053b75f",
+    "probe_pointer_v5.py": "74b83be965af5d7d02d8b02605e1116210d1b6307decd5d6d1d920c2bba95696",
+    "probe_prefix_v1.py": "3b63fe8d21c2987bce9cc996eeeb6cf40bdd31f139589eceada7a63f93b03cc9",
+    "qualify_pointer_rust_v1.py": "be75653827037e781ac79575b5f9fcefa30975f7ee75b0c0e4f80bb729a5fd84",
+    "pipeline_common.py": "c9673c75385524e7406584555d18b091e8c9bd320c6e6550ded41832fa7f1fab",
+    "probe_pipeline.py": "aba5abc556ebe6d21320e0a916c585e621498ae6987b4220b11e6a8b917f602d",
+    "qualify_pipeline.py": "41237de9fdb925ed840e2a02257ad26e0c932653f47f3354d11a55646b362d07",
+    "archive_success.py": "08b6e7b5c3e7a50e72cb04b4c77efbe2508719d31800745fca6a1c429fd5ca3e",
+    "archive_closed765.py": "d428c1c7997bef889565c115126ba8454793e2f2ff7397bf25123f362355d28c",
+    "dedup_closed_caches.py": "95a31e28b2c2a24a57af42a297eeba9ed9f4ec72bb35d255225df18ae517e3a6",
+    "docs_quoted_v1.py": "687fece57f959ac8176f5d6ca1e021d0f932b77d5346244acf67b5b1d7fdea6f"
+  }
+}

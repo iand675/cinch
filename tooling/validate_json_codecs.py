@@ -115,7 +115,7 @@ def main() -> None:
         modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
         modules["Data.Bytes.Utf8"] = ROOT / "compiler/prelude/Data/Bytes/Utf8.cinch"
         modules["Text.Json.Dynamic"] = ROOT / "compiler/prelude/Text/Json/Dynamic.cinch"
-    if any(suite in {"method-categories", "method-owner-control", "method-protocol", "addressability"} for suite in args.suites):
+    if any(suite in {"method-categories", "method-owner-control", "method-protocol", "addressability", "error-bool", "error-pointer", "error-string", "error-integer", "error-owner-control"} for suite in args.suites):
         modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
         modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
     if "dynamic-control" in args.suites:
@@ -128,6 +128,8 @@ def main() -> None:
     reference_paths = {suite: ROOT / (f"compiler/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "float32", "raw-number", "raw-number-edge", "raw-number-kernel", "field", "integer", "binary", "map", "map-encode", "dynamic", "dynamic-edge"} else "compiler/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
     for method_suite in {"method-categories", "addressability", "method-metadata", "method-owner-control", "method-protocol"}.intersection(args.suites):
         reference_paths[method_suite] = ROOT / ("compiler/tests/fixtures/json-codec-methods-vectors.json" if method_suite in {"method-categories", "addressability"} else "compiler/tests/fixtures/json-codec-methods-vectors-v2.json")
+    for error_suite in {"error-bool", "error-pointer", "error-string", "error-integer", "error-owner-control"}.intersection(args.suites):
+        reference_paths[error_suite] = ROOT / "compiler/tests/fixtures/json-codec-error-context-vectors.json"
     report = {
         "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
         "frontend": args.frontend, "opt_level": args.opt_level if args.frontend in {"rust", "native-raw"} else 0,

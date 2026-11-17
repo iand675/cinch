@@ -1,0 +1,10 @@
+{
+  "description": "First fixture refusal; no production admission or execution",
+  "files": {
+    "Main.cinch": "5870c85d164ceec3656b66cfb9e1be48940b3e2c0499766626daa9239ce4e61c",
+    "Text.Json.Value.cinch": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+    "Text.Json.Codec.cinch": "0fad67f733eaca0217a5a9f381599978d2a3a4f85789f35f14f23d4117569159",
+    "check.log": "6935e05870c3996f4d472b3e313e262f71be66bdb50b2353cebddd54fbafeadf",
+    "report.json": "8f7671d2284cd68b2ed108663d3b8fdfcf4f887f849e25ba6239d2b9a7f57d39"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "status": "independent-reference-observations",
+  "observer_sha256": "c516ff273a6c7da5a2f464ca8a50fee9c772795039081c61e452d806d32d68aa",
+  "vectors_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "command": [
+    "taskset",
+    "-c",
+    "2",
+    "/tmp/cinch-go-current/go/bin/go",
+    "run",
+    "build/json-next-error-context/go_json_error_context_vectors.go"
+  ],
+  "sdk": "go1.27.4",
+  "environment": {
+    "GOMAXPROCS": "1",
+    "GOMEMLIMIT": "256MiB",
+    "GOTOOLCHAIN": "local",
+    "GOCACHE": "/tmp/cinch-go-surface-cache",
+    "GOEXPERIMENT": "",
+    "GOTELEMETRY": "off"
+  },
+  "elapsed_seconds": 0.6115801089908928,
+  "counts": {
+    "method_errors": 288,
+    "tagged": 1152,
+    "updates": 54
+  },
+  "bytes": 738646,
+  "captured_error_render_panics": 12,
+  "cinch_execution": false,
+  "prior_failures_preserved": [
+    "prefix-option-refusal-v1.json",
+    "nil-type-panic-v1.json"
+  ]
+}

@@ -1,0 +1,1 @@
+cinch: 102:73: type mismatch: expected (Bool -> Bool), got Bool (in /workspace/dasl-stdlib-json/build/json-error-pointer-probe-v4/Main.cinch)
