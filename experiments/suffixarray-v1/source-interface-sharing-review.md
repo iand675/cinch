@@ -1,7 +1,8 @@
 # Sealed source/interface duplicate review
 
-This is a proposal only. No sealed source or interface path has been linked,
-renamed, compressed or removed.
+The approved exact plan has now completed. All source/interface paths remain
+plain; the selected aliases share canonical inodes and visible metadata. Every
+original path's metadata is durably restorable from the independent ledger.
 
 The read-only inventory of 20 passing O0 and four passing O2 literal workdirs is
 `build/suffixarray-v1-source-interface-duplicate-inventory.json`. Their plain
@@ -28,7 +29,9 @@ files, 812 excluded existing files within the allowed directories, and excludes
 every path outside those directories by default. There are no uid/gid conflicts
 or preexisting hardlinks in its eligible groups. The logical redundant size is
 48,694,541 bytes; allocated blocks estimate 52,236,288 bytes recoverable.
-The exact execution handoff is pending; this document has not changed any file.
+The approved execution completed all 82 groups and 1,710 aliases.
+`source-interface-sharing-receipt.json` records its immutable ledger/journal
+hashes, full protected-file verification and observed space changes.
 
 1. Restrict candidates to report-linked, fully passed, closed functional
    workdirs. Require both normal and poison profiles and immutable file usage.
@@ -54,6 +57,6 @@ The exact execution handoff is pending; this document has not changed any file.
    hardlink could otherwise corrupt every linked epoch. Future tool runs must
    not treat these sealed workdirs as writable caches.
 
-Until the exact execution handoff, retain the current plain copies. Once
-shared, keep all source and interface paths plain and never write or compile in
-those closed workdirs. Qualification still pauses at the normal phase guard.
+All source and interface paths remain plain. Never write or compile in the
+shared closed workdirs; restore independent files or make a fresh epoch first.
+Qualification still pauses at the normal phase guard.
