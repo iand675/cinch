@@ -447,6 +447,20 @@ fn accounted_effect(head: &str) -> bool {
     )
 }
 
+/// Keep declaration-owned effects distinct from kernel labels in every source path.
+///
+/// Ordinary unowned effects retain their legacy global identity. A spelling used by
+/// a kernel effect instead needs its defining module, just like an owned declaration;
+/// it remains a legal, independently handleable source effect, never kernel authority.
+fn declared_effect_head(module: &str, name: &ast::Name) -> String {
+    if name.declaration_binding().is_some() || accounted_effect(&name.text)
+        || matches!(name.text.as_str(), "Async" | "Cancel" | "Eval" | "Mut" | "MVar") {
+        format!("{module}.{}", name.text)
+    } else {
+        name.text.clone()
+    }
+}
+
 /// The arrow count of a (possibly curried) function type.
 fn arity_of_arrows(ty: &Ty) -> usize {
     let mut n = 0;
@@ -3383,7 +3397,7 @@ impl Checker {
                 if !effect_sites.insert(site.clone()) || self.effect_bindings.get(&site).is_some_and(|head| self.effects.contains_key(head)) {
                     return Err(Error::at(effect.name.span, format!("duplicate effect {}", effect.name.text)));
                 }
-                let head = if effect.name.declaration_binding().is_some() { format!("{module}.{}", effect.name.text) } else { effect.name.text.clone() };
+                let head = declared_effect_head(&module, &effect.name);
                 if self.effects.contains_key(&head) {
                     return Err(Error::at(effect.name.span, format!("duplicate effect {}", effect.name.text)));
                 }
@@ -5177,8 +5191,7 @@ impl Checker {
                     }
                 }
                 ast::Decl::Effect(eff) => {
-                    let owned = eff.name.declaration_binding().is_some();
-                    let head = if owned { format!("{module}.{}", eff.name.text) } else { eff.name.text.clone() };
+                    let head = declared_effect_head(&module, &eff.name);
                     let site = (module.clone(), eff.name.text.clone());
                     if self.effects.contains_key(&head) {
                         return Err(Error::at(eff.name.span, format!("duplicate effect {}", eff.name.text)));

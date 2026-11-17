@@ -6319,6 +6319,8 @@ impl Checker {
 
     /// A module's own declaration identity, independent of its previous
     /// public surface. Surface rebuilding must be able to add new outputs.
+    /// Actual effect bindings are members too; symbolic kernel labels without
+    /// a declaration cannot become export/import authority through this lookup.
     fn declared_surface_def(&self, module: &str, name: &str) -> Option<SurfaceName> {
         let declared = self
             .values
@@ -6335,6 +6337,7 @@ impl Checker {
                 .get(name)
                 .map(|ss| ss.iter().any(|s| s.module == module))
                 .unwrap_or(false)
+            || self.effect_bindings.contains_key(&(module.to_string(), name.to_string()))
             || self.instance_defs_pending.iter().any(|(m, i)| m == module && i.name.text == name)
             || self.instance_list.iter().any(|i| i.module == module && i.name == name)
             || self.deferred_headers.contains_key(&(module.to_string(), name.to_string()));
