@@ -1,0 +1,63 @@
+-- | Observe exact ASCII run endpoints, invalid bounds and retained mutable owners.
+module Main where
+  import Data.Bytes.View
+  import Data.Bytes
+  import Data.Bool
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Hex
+  import Effect.Process
+
+  -- | Combine independent Boolean observations without introducing an unrelated collection dependency.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons value rest -> value && all rest
+
+  -- | Compare a total optional endpoint with an independent expected coordinate.
+  endpoint-is :: ByteView -> Nat -> Bool -> Nat -> Bool
+  endpoint-is view position spaces expected = case byte-view-ascii-space-run-end view position spaces of
+    None -> False
+    Some found -> found == expected
+
+  -- | Verify both ASCII classes for every byte position in a fixed span, including its end.
+  positions-is :: ByteView -> Nat -> Bool -> Bool -> Bool
+  positions-is view position white nonwhite = if position <= byte-view-length view then
+    let end = byte-view-length view in
+    let a = endpoint-is view position True (if white then end else position) in
+    let b = endpoint-is view position False (if nonwhite then end else position) in
+    let next = position + 1 in a && b && positions-is view next white nonwhite
+    else case byte-view-ascii-space-run-end view position True of None -> True; Some found -> False
+
+  -- | Check all sixteen owner alignments while keeping a logical 33-byte span independent of its surroundings.
+  alignments-is :: Bytes -> Nat -> Bool -> Bool -> Bool
+  alignments-is raw start white nonwhite = if start < 16 then
+    let end = start + 33 in case bytes-view-range raw start end of
+      Err error -> False
+      Ok view -> positions-is view 0 white nonwhite && alignments-is raw (start + 1) white nonwhite
+    else True
+
+  -- | Check every byte value using independently encoded matching-class expectations.
+  uniform-case :: String -> Bool -> Bool -> Bool
+  uniform-case encoded white nonwhite = case hex-decode encoded of
+    Err error -> False
+    Ok raw -> alignments-is raw 0 white nonwhite
+
+  -- | Stop exactly at a packed-lane mismatch and do not inspect bytes beyond the selected span.
+  mismatch-case :: String -> Nat -> Bool -> Nat -> Nat -> Bool
+  mismatch-case encoded stop spaces begin end = case hex-decode encoded of
+    Err error -> False
+    Ok raw -> case bytes-view-range raw begin end of
+      Err error -> False
+      Ok view -> endpoint-is view 0 spaces stop
+
+  -- | Retain a temporary owner, observe alias mutation and reject both ordinary and boxed out-of-range coordinates.
+  ownership-case :: Unit -> Bool
+  ownership-case unit = let view = byte-view-drop 1 (bytes-view (bytes-from-u8s [255,32,32,32,255])) in
+    let bounded = byte-view-take 3 view in let first = endpoint-is bounded 0 True 3 in
+    let mutation = byte-view-set bounded 1 97 in
+    let second = endpoint-is bounded 0 True 1 in let last = endpoint-is bounded 2 True 3 in
+    let outside = (case byte-view-ascii-space-run-end bounded 4 True of None -> True; Some value -> False) in
+    let huge = (case byte-view-ascii-space-run-end bounded 18446744073709551616 False of None -> True; Some value -> False) in
+    first && mutation && second && last && outside && huge

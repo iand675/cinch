@@ -1,0 +1,25 @@
+-- | Root sealed ASCII whitespace and non-whitespace observations in complete portable object code.
+module Main where
+  import Data.Bytes
+  import Data.Bytes.View
+  import Data.Bool
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  -- | Require an exact owner-relative run boundary.
+  endpoint :: ByteView -> Nat -> Bool -> Nat -> Bool
+  endpoint input at spaces expected = case byte-view-ascii-space-run-end input at spaces of
+    None -> False
+    Some found -> found == expected
+
+  -- | Force complete SIMD blocks, scalar tails, non-ASCII stops and invalid bounds through the public adapter.
+  main :: Int
+  main = let raw = bytes-new 65 in
+    let first = if 32 < bytes-len raw then bytes-set raw 32 255 else () in
+    let last = if 64 < bytes-len raw then bytes-set raw 64 32 else () in
+    case bytes-view-range raw 1 65 of
+      Err error -> 1
+      Ok view -> let invalid = (case byte-view-ascii-space-run-end view 65 True of None -> True; Some value -> False) in
+        if endpoint view 0 False 31 && endpoint view 32 False 63 && endpoint view 63 True 64
+          && endpoint view 0 True 0 && endpoint view 64 False 64 && invalid then 0 else 1
