@@ -1734,8 +1734,8 @@ module Bootstrap.RuntimeIr where
     else
       let (one, output) = fresh w "%ptr" in let (two, status) = fresh one "%v" in
       let value = if mvar-arity operation == 2 then "%arg1" else "0" in
-      let accessed = line (line two (cat ["  ", output, " = alloca i64, align 8"]))
-        (cat ["  ", status, " = call i64 @cinch_mvar_access(i64 %arg0, i64 ", value, ", i64 ", nat-to-string (mvar-runtime-operation operation), ", i64 ", nat-to-string (mvar-runtime-mode operation), ", ptr ", output, ")"]) in
+      let access-line = cat ["  ", status, " = call i64 @cinch_mvar_access(i64 %arg0, i64 ", value, ", i64 ", nat-to-string (mvar-runtime-operation operation), ", i64 ", nat-to-string (mvar-runtime-mode operation), ", ptr ", output, ")"] in
+      let accessed = line (line two (cat ["  ", output, " = alloca i64, align 8"])) access-line in
       if mvar-optional operation then mvar-option accessed element status output
       else if operation == 7 || operation == 9 || operation == 11 then (accessed, status)
       else if operation == 3 then (accessed, "0") else

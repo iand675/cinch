@@ -2,6 +2,17 @@
   "all14_signatures_match_published_source_ignoring_whitespace": true,
   "base_commit": "3804cca7396e7c71c2547db7452970cb95f3f544",
   "canonical_contract_count": 14,
+  "first_source_gate": {
+    "candidate": "1d4415dd",
+    "compiler": "330adb/d91",
+    "diagnostic": "Bootstrap.RuntimeIr.cinch:1738:225: in has no matching implicit let block",
+    "elapsed_seconds": 1.4114263980009127,
+    "log_sha256": "da3831635c4c4be935b4b0c87a56fd75b0092f2108b71c0638a9dc481a31fc3a",
+    "preserved_inputs": "build/native-mvar-source-check-v1/sources",
+    "preserved_receipt": "build/native-mvar-source-check-v1/receipt.json",
+    "source51_sha256": "131b2fa851431622d0bd2737218c354e967b3568f8267ae19ec641db8553648d",
+    "status": "parser failure; no type/emitter/runtime verdict"
+  },
   "full_gate_pending": true,
   "modified_source_claims": {
     "bootstrap/Bootstrap.Builtin.cinch": "61b8a3e2fef66d26d3e23b5fb976fc5747346763457282b364edc8a0a1601a2e",
@@ -29,6 +40,8 @@
   "static_delimiter_scan_is_not_parser_or_typecheck": true,
   "static_delimiter_scan_passed": true,
   "status": "static source-only candidate; no parser/type/emitter/runtime gate executed for modified Native compiler",
+  "v2_parser_fix": "Give the multiline call-string a complete local RHS before the accessed let; the prior continuation was outside the implicit let binding column.",
+  "v2_status": "prepared parser grouping correction only; retry not launched yet",
   "wide_payloads": "explicit named MVar I128/U128 boxed-wide-bridge refusal before worker emission; support remains open",
   "word_payloads": "raw, object and tagged/counted classes0/1/2; actual future semantic/ownership gates required"
 }
