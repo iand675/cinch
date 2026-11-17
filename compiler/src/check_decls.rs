@@ -18430,6 +18430,31 @@ fn in_named_module(
     in_module(&where_, e)
 }
 
+/// Create an optional checker clock without changing the checked program.
+fn checker_phase_clock() -> Option<std::time::Instant> {
+    std::env::var_os("CINCH_TRACE_DRIVER_PHASES").map(|_| std::time::Instant::now())
+}
+
+/// Report a checker boundary to stderr; scope identifies its clock and module contains only a name.
+///
+/// Write failures are ignored, and no timestamp enters an artifact.
+fn trace_checker_phase(
+    started: Option<std::time::Instant>,
+    scope: &str,
+    phase: &str,
+    module: Option<&str>,
+) {
+    if let Some(started) = started {
+        use std::io::Write;
+        let module = module.unwrap_or("-");
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "cinch.checker.phase scope={scope} phase={phase} module={module} elapsed_seconds={:.6}",
+            started.elapsed().as_secs_f64()
+        );
+    }
+}
+
 /// [`check_program_multi_full_probe`]'s body; the plain entry delegates
 /// with no probe. Returning the checker before [`Checker::finish`] is what
 /// lets a front end reuse the checked prelude and session across probes.
@@ -18450,6 +18475,8 @@ fn check_program_multi_full_prepared_impl(
     Vec<Diagnostic>,
     Option<ProbeResult>,
 )> {
+    let phase_trace = checker_phase_clock();
+    trace_checker_phase(phase_trace, "prepare", "begin", None);
     // The target's view of the program (modules specification section 11):
     // a conditional import or declaration that does not hold for this
     // profile is gone before anything reads the syntax, so no scope, no
@@ -18578,6 +18605,7 @@ fn check_program_multi_full_prepared_impl(
         c.collecting_declarations = false;
         Ok(family)
     };
+    trace_checker_phase(phase_trace, "prepare", "headers.begin", None);
     let mut c = make_checker()?;
     let family = match collect_headers(&mut c) {
         Ok(family) => family,
@@ -18625,6 +18653,8 @@ fn check_program_multi_full_prepared_impl(
             family
         }
     };
+    trace_checker_phase(phase_trace, "prepare", "headers.end", None);
+    trace_checker_phase(phase_trace, "prepare", "initial_layout.begin", None);
     if c.defer_generated_headers { c.finish_deferred_headers(false)?; }
     // Module parameter types convert once every name is collected (module
     // parameters as module arguments).
@@ -18638,12 +18668,16 @@ fn check_program_multi_full_prepared_impl(
     // section 2).
     c.build_foreign_contracts()?;
     c.prepare_task_forwarders();
+    trace_checker_phase(phase_trace, "prepare", "initial_layout.end", None);
+    trace_checker_phase(phase_trace, "prepare", "embedded_bodies.begin", None);
     // The prelude family compiles first: its functions and instances run
     // during compile-time evaluation.
     for p in &family {
         c.check_bodies(&p.name.text, &prelude_name)
             .map_err(|e| in_named_module(&c.module_files, &p.name.text, e))?;
     }
+    trace_checker_phase(phase_trace, "prepare", "embedded_bodies.end", None);
+    trace_checker_phase(phase_trace, "prepare", "staging.begin", None);
     // The staging phase (modules specification sections 7-10): compile
     // the compile-time fragment, schedule and run generators, expand macro
     // calls, and collect generated declarations under ordinary rules.
@@ -18661,6 +18695,8 @@ fn check_program_multi_full_prepared_impl(
             temporal: Vec::new(),
         }
     };
+    trace_checker_phase(phase_trace, "prepare", "staging.end", None);
+    trace_checker_phase(phase_trace, "prepare", "generated_layout.begin", None);
     if c.defer_generated_headers { c.finish_deferred_headers(true)?; }
     // Generated declarations may declare instances: their heads convert
     // now that their modules are collected.
@@ -18669,10 +18705,16 @@ fn check_program_multi_full_prepared_impl(
     c.compute_layouts()?;
     c.build_foreign_contracts()?;
     c.prepare_task_forwarders();
+    trace_checker_phase(phase_trace, "prepare", "generated_layout.end", None);
+    trace_checker_phase(phase_trace, "prepare", "source_bodies.begin", None);
     for m in modules {
+        trace_checker_phase(phase_trace, "prepare", "source_body.begin", Some(&m.name.text));
         c.check_bodies(&m.name.text, &prelude_name)
             .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;
+        trace_checker_phase(phase_trace, "prepare", "source_body.end", Some(&m.name.text));
     }
+    trace_checker_phase(phase_trace, "prepare", "source_bodies.end", None);
+    trace_checker_phase(phase_trace, "prepare", "post_body.begin", None);
     // The guarded-letrec rule over the top-level value bindings (the
     // D302 compiler defect): an eager reference cycle among them would
     // re-enter its own thunk and crash the compiled binary at run time,
@@ -18683,7 +18725,10 @@ fn check_program_multi_full_prepared_impl(
     // declarations (primitive operations and inline target IR
     // specification sections 5-6: justification, tiering and body
     // selection need the whole program's names and the target profile).
+    trace_checker_phase(phase_trace, "prepare", "prims.begin", None);
     c.check_prims()?;
+    trace_checker_phase(phase_trace, "prepare", "prims.end", None);
+    trace_checker_phase(phase_trace, "prepare", "laws.begin", None);
     // The law tier evaluates the instances' real method code over
     // sample values whose shapes follow the predicate's bounds (a
     // preservation witness at `length xs <= 200` is a 200-element
@@ -18704,9 +18749,12 @@ fn check_program_multi_full_prepared_impl(
             ))
         }
     }
+    trace_checker_phase(phase_trace, "prepare", "laws.end", None);
+    trace_checker_phase(phase_trace, "prepare", "rewrites.begin", None);
     // Rewrite rules are checked after every module's declarations (their
     // `match`, `replace` and `justify` terms reference them).
     c.check_rewrites()?;
+    trace_checker_phase(phase_trace, "prepare", "rewrites.end", None);
     // Upgrade declarations are checked after every module's records and
     // functions (runtime evolution specification section 3: migration
     // field checking over the two records' field tables).
@@ -18719,6 +18767,7 @@ fn check_program_multi_full_prepared_impl(
     // released by its matching deallocator (foreign function interface
     // specification section 4).
     c.check_deallocators()?;
+    trace_checker_phase(phase_trace, "prepare", "post_body.end", None);
     // The collection literals' fold boundary (surface grammar local
     // amendments section 10) accumulates through every unit's check.
     report.literal_folds = std::mem::take(&mut c.literal_folds);
@@ -18731,6 +18780,7 @@ fn check_program_multi_full_prepared_impl(
     // verify against the checked program's D104 groups before any
     // interface is emitted (decisions D112-D114).
     let safety_records = std::mem::take(&mut c.safety_records);
+    trace_checker_phase(phase_trace, "prepare", "interfaces.begin", None);
     // Body-dependent contracts are finalized only after all checked bodies.
     c.interface_checked_bodies = Some(c.checked_total_bodies());
     // Interfaces in dependency order: imports are known when built.
@@ -18770,6 +18820,7 @@ fn check_program_multi_full_prepared_impl(
     for (module, imports) in interface_module_order(&c, prelude, modules, &prelude_name)? {
         emit(&c, &module.name.text, &imports)?;
     }
+    trace_checker_phase(phase_trace, "prepare", "interfaces.end", None);
     let diags = std::mem::take(&mut c.diags);
     // P21's probe (the REPL is backed by the analysis layer): evaluate
     // the session's expression now that every module's code exists, just
@@ -18788,6 +18839,7 @@ fn check_program_multi_full_prepared_impl(
         safety_records,
         instance_searches,
     };
+    trace_checker_phase(phase_trace, "prepare", "end", None);
     Ok((prepared, ifaces, report, diags, probe_out))
 }
 
@@ -18847,6 +18899,8 @@ fn check_program_multi_full_impl(
     probe: Option<&ProbeTerm<'_>>, reference_sink: Option<&mut Vec<CheckedReference>>,
     module_preludes: &HashMap<String, String>,
 ) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
+    let phase_trace = checker_phase_clock();
+    trace_checker_phase(phase_trace, "full", "begin", None);
     // The preparation only needs to know whether editor references are
     // requested; the actual references travel back inside the prepared
     // state and are appended after the checker is finished.
@@ -18857,7 +18911,10 @@ fn check_program_multi_full_impl(
     )?;
     // `finish` consumes the checker; the preparation captured the safety
     // records and checked references that the final program needs.
+    trace_checker_phase(phase_trace, "full", "prepared_finish.begin", None);
     let (mut program, checked_references, safety_records) = prepared.finish()?;
+    trace_checker_phase(phase_trace, "full", "prepared_finish.end", None);
+    trace_checker_phase(phase_trace, "full", "safety.begin", None);
     // P20: the group-level safety claims verify over the finished
     // program's D104 groups; the report says which proof method
     // established each `bounded(n)` bound (decision D113).
@@ -18866,6 +18923,8 @@ fn check_program_multi_full_impl(
     // on their definitions (design/llvm-contract-attributes.md).
     contract_facts(&safety_records, &mut program);
     if let Some(sink) = reference_sink { sink.extend(checked_references); }
+    trace_checker_phase(phase_trace, "full", "safety.end", None);
+    trace_checker_phase(phase_trace, "full", "end", None);
     Ok((program, ifaces, report, diags, probe_out))
 }
 
