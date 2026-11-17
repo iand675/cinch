@@ -26,15 +26,21 @@
       "poison": true
     }
   ],
-  "completed_zero_leak_processes": 6,
+  "completed_zero_leak_processes": 24,
   "reports": {
     "build/maps-region-safe/control-region-tied-results.json": "e35493fdf8a7971d3a5df5597e047d0e9fed2f91fdc00c53d60e5a8c7d9b2a58",
-    "build/maps-region-safe/ieee-results.json": "34f0965d61dd529ec763f97deab63b39827cfa13ce358647059235cafdfdb08f"
+    "build/maps-region-safe/ieee-results.json": "34f0965d61dd529ec763f97deab63b39827cfa13ce358647059235cafdfdb08f",
+    "build/maps-region-safe/trace-0-layout-results.json": "f0b513fdffbb74ca1fdf13af95fb7b21822dde52ef9be168db3b185bb2ab3396",
+    "build/maps-region-safe/traces-1-3-results.json": "51f6a00e856018cbaf3b95720a2da93ebe49bf3957689730fa42e5dba3b1ca72",
+    "build/maps-region-safe/traces-4-6-results.json": "2d8825779099d4adc5610232257edecf0b4e74bbbeea14d083d64dfd3c329b68",
+    "build/maps-region-safe/trace-7-results.json": "17d629ffd34cd47a78e553077778757cd86d52f44b987ba1811f2ca6b352bfed",
+    "build/maps-region-safe/effect-results.json": "ade772539b336c461ac1cc6e8895985932f951cdf012d68c37aab3bd3f213b5e"
   },
   "remaining": [
-    "800 independent general steps",
     "Native source/emission/runtime qualification",
     "Source-absent interface transport",
     "Public pipeline benchmarks and allocation/assembly review"
-  ]
+  ],
+  "independent_general_steps": 800,
+  "effect_control": "Actual IO+Mut source, values and equality callbacks"
 }
