@@ -1,0 +1,52 @@
+-- | Check complete parse acceptance, trusted extraction and failure-preserving receiver replacement.
+module Main where
+  import Data.Core
+  import Data.Uuid
+  import Data.String
+  import Text.Hex
+
+  -- | One independent arbitrary-byte input and its complete public observations.
+  data ParseCase where
+    -- | Retain input bytes separately from expected canonical and receiver strings.
+    ParseCase :: String -> Bool -> String -> String -> Bool -> ParseCase
+
+  -- | Check the optional text error without weakening a successful receiver observation.
+  same-error :: Bool -> Option UuidError -> Bool
+  same-error valid error = case error of None -> valid; Some problem -> not valid
+
+  -- | Check a successful parse or its exact required refusal.
+  parse-matches :: Bool -> String -> Result UuidError Uuid -> Bool
+  parse-matches valid canonical result = case result of Ok value -> valid && uuid-format value == canonical; Err error -> not valid
+
+  -- | Preserve byte-parser behavior even for inputs that are not valid UTF-8 strings.
+  check-text :: Bytes -> Bool -> String -> Bool
+  check-text bytes valid canonical = case string-from-bytes bytes of
+    None -> not valid
+    Some text ->
+      let ordinary = parse-matches valid canonical (uuid-parse text) in
+      let checked = case uuid-validate-text text of Ok witness -> valid && uuid-format (uuid-required witness) == canonical; Err error -> not valid in
+      ordinary && checked
+
+  -- | Compare all observed fields without mutating either expected or actual input bytes.
+  check-case :: ParseCase -> Bool
+  check-case row = case row of
+    ParseCase input valid canonical receiver must-panic -> case hex-decode input of
+      Err error -> False
+      Ok bytes -> case uuid-parse "aabbccdd-eeff-0011-2233-445566778899" of
+        Err error -> False
+        Ok previous -> case uuid-unmarshal-text previous bytes of
+          (next, error) ->
+            let parsed = parse-matches valid canonical (uuid-parse-bytes bytes) in
+            parsed && check-text bytes valid canonical && uuid-format next == receiver && same-error valid error && must-panic == (not valid)
+
+  -- | Return the first failed reference observation for reproducible diagnostics.
+  run :: List ParseCase -> Int -> Int
+  run rows index = case rows of Nil -> 0; Cons row rest -> if check-case row then run rest (index + 1) else index
+
+  -- | Independent reference observations, embedded without recomputing their expected results.
+  rows :: List ParseCase
+  rows = @CASES@
+
+  -- | Exercise every byte-preserving and text-level parsing contract in this bounded group.
+  main :: Int
+  main = run rows 1

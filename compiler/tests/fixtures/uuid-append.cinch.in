@@ -1,0 +1,47 @@
+-- | Check canonical text, prefix preservation and immutable identifier ownership.
+module Main where
+  import Data.Core
+  import Data.Uuid
+  import Data.Bytes
+  import Data.String
+  import Text.Hex
+
+  -- | One arbitrary prefix, identifier and independently observed complete output.
+  data AppendCase where
+    -- | Store arbitrary prefix/output bytes as independent hexadecimal text.
+    AppendCase :: String -> String -> String -> AppendCase
+
+  -- | Compare bytes through their complete representation without text-decoding arbitrary prefixes.
+  same-bytes :: Bytes -> Bytes -> Bool
+  same-bytes first second = hex-encode first == hex-encode second
+
+  -- | Check both ownership directions after successful formatting and appending.
+  check-case :: AppendCase -> Bool
+  check-case row = case row of
+    AppendCase prefix-text canonical expected-text -> case hex-decode prefix-text of
+      Err error -> False
+      Ok prefix -> case uuid-parse canonical of
+        Err error -> False
+        Ok value -> case hex-decode expected-text of
+          Err error -> False
+          Ok expected -> case uuid-append-text prefix value of
+            Err error -> False
+            Ok appended ->
+              let exact = same-bytes appended expected in
+              let rendered = uuid-format value == canonical && uuid-marshal-text value == string-to-bytes canonical in
+              let raw = uuid-to-bytes value in
+              let changed = if bytes-len raw == 16 then let edited = bytes-set raw 0 255 in uuid-format value == canonical else False in
+              let alias = if bytes-len prefix > 0 then let edited = bytes-set prefix 0 0 in same-bytes appended expected else True in
+              exact && rendered && changed && alias
+
+  -- | Return the first failed output/owner observation.
+  run :: List AppendCase -> Int -> Int
+  run rows index = case rows of Nil -> 0; Cons row rest -> if check-case row then run rest (index + 1) else index
+
+  -- | Independent complete output bytes for arbitrary prefixes.
+  rows :: List AppendCase
+  rows = @CASES@
+
+  -- | Exercise canonical rendering and both mutable-input ownership boundaries.
+  main :: Int
+  main = run rows 1
