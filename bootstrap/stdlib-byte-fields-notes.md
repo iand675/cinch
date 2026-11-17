@@ -3,8 +3,9 @@
 `Data.Bytes.Fields` implements the four audited field operations with concrete
 state and callback traversal. This checkpoint claims source/type validation and
 the complete Rust and historical Native O0/O2 functional scope below, plus real
-host/wasm/ARM portable consumers. Parent checked-RC/PPC API tests and performance
-review remain pending.
+host/wasm/ARM portable consumers. The parent checked-RC/PPC API gate also passes
+in its separately identified current-release epoch. Performance review remains
+pending.
 
 | Audited declaration | Primary whole-buffer operation | Bounded-view counterpart |
 | --- | --- | --- |
@@ -98,7 +99,10 @@ causes `collect-with.sp0`; only a numeric specialization of that exact collector
 may satisfy its graph assertion, and a real direct call path is still required.
 The initial fixture-only Nat annotation and graph-assertion failures remain
 plain alongside their input/IR/executable evidence. Raw CLI PowerPC support is
-not claimed; the maintained parent API gate emits the complete PPC object.
+not claimed. The parent current-release API gate passes all ten tests, including
+the complete actual PPC object and checked-RC functional/capability matrices.
+Its compiler706/runtime d91 epoch is separate from child855/c4 and Native2f/V4/c4;
+`stdlib-byte-fields-parent-results.json` records the exact receipt.
 
 Both frontends accept the actual mixed IO/Mut API/factory proof, and both
 negative proofs reach the specific `effect rows do not match` rejection. Earlier test-only

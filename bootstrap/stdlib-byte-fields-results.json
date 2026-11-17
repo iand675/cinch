@@ -1,5 +1,5 @@
 {
-  "scope": "Source, complete Rust and historical Native O0/O2 functional checkpoint plus actual host/wasm/ARM portable consumer; parent checked-RC/PPC and performance pending",
+  "scope": "Complete functional and actual host/wasm/ARM/PPC object checkpoint across explicitly separated child and parent epochs; public performance pending",
   "source_sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
   "ascii_dependency_commit": "ed70e1bc525ffe3ae8dfdb71233e7d5ed6b7296a",
   "namespace": "Data.Bytes.Fields",
@@ -141,8 +141,7 @@
     "increased_program_limit": false
   },
   "pending": [
-    "Parent checked-RC Rust API fullmatrix/capability/actualPPCobject gate (lib_byte_fields,10tests including3commonprofile contracts)",
-    "Public pipeline functional preflights and paired benchmarks/codegen review",
+    "Public pipeline paired benchmarks and codegen review (all4Cinch functionalpreflights2600zero-leak+SDKreference325observations alreadygreen)",
     "Full strings/bytes inventory integration"
   ],
   "no_production_optimization_selected": true,
@@ -831,11 +830,21 @@
         "foreign_runtime_executed": false
       }
     ],
-    "parent_ppc_pending": true,
+    "parent_ppc_pending": false,
     "raw_cli_ppc_not_claimed": true,
     "first_fixture_failure": "build/byte-fields-portable-host.json (fixture conditional expected-length Int vs Nat; explicitly annotated Nat)",
     "first_graph_assertion_failure": "build/byte-fields-portable-host-nat.json (actual reachable collect-with.sp0 specialization; IR/exe preserved plain; no production change)"
   },
   "total_child_runtime_memory_profiles": 1370,
-  "no_new_native_or_root66_family_claim": true
+  "parent_release_gate": {
+    "receipt": "bootstrap/stdlib-byte-fields-parent-results.json",
+    "sha256": "30318df3b9395702d7a69dfe959dfc4981fa155d198573230af458587f7b4559",
+    "tests": 10,
+    "failed": 0,
+    "runtime_epoch": "706/d91",
+    "actual_ppc_object": true,
+    "checked_rc_api_compilation": true
+  },
+  "no_new_native_family_adoption": true,
+  "parent_current_rust_epoch_separate": true
 }
