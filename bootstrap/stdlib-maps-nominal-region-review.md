@@ -45,3 +45,13 @@ Once permitted, the sole requested mode is whole-source checking of the C839 dec
 On source success, the wrapper inspects actual generated `Data.Mutable.Map.MutableMap`, `Data.Mutable.HashTable.HashTable` and `Data.Mutable.Var.Var` defining headers, requiring `r :: Region` with ordinary payload parameters retained as `Type`. `MapEntry` is private: its explicit defining declaration must pass source checking, but it has no public exported type header. The report distinguishes those facts rather than manufacturing metadata or adding a test export. Source-absent transport, historical refusals, open-row capabilities, runtime behavior and Native-family admission remain separate gates.
 
 The existing mixed IO consumer is also prepared unchanged: `compiler/tests/fixtures/mutable-map-effect-control.cinch`. Its source supplies duplicate key1 bindings, yielding two live bindings and a value sum of50; both value and EqualBy callbacks retain `Mut r` and `IO r`, with two observable equality calls. `stdlib-maps-mixed-io-preparation-results.json` records the exact fixture hash and expectations. This preparation neither executes that consumer nor replaces its original source, result fingerprints or capability rows.
+
+The subsequently authorized source-only200MiB start/180MiB reserve exception completed successfully on CPU1. The actual check took3.058 seconds, started with358,834,176 bytes free and finished with356,139,008 bytes free, producing2,532,025 bytes including the runner receipt. `stdlib-maps-role-slots-source-qualification-results.json` preserves the exact330/d91 tuple and genuine emitted headers. All three actual defining headers have `r :: Region`; key/value payload parameters remain `Type`. Private `MapEntry` was accepted as an explicit Region declaration and remains absent from public exported type headers. Historical Type-interface hashes were rechecked unchanged. The initial350MiB resource pause remains preserved independently.
+
+The narrow exception command was:
+
+```sh
+CINCH_CLANG=/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang python3 tooling/qualify_maps_nominal_source.py --cpu 1 --minimum-free-mib 200 --minimum-reserve-mib 180 --artifacts build/maps-role-slots-source-a2 --output build/maps-role-slots-source-a2-results.json
+```
+
+That source-only exception does not reduce runtime or emission guards. The accepted source is the isolated declaration-only proposal (`7085aebe4c10dcd0cf27be6ffc0348a239398b07d54f60cb098722802b244c65`), not a replacement of historical C839. It does not qualify source-absent consumers, runtime behavior, a Native family, candidate selection or package completion.

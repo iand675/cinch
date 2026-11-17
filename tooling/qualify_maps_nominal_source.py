@@ -32,9 +32,15 @@ def main() -> int:
     """Stop before compiler launch when the fresh guard fails; otherwise inspect actual defining headers."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cpu', type=int, required=True)
+    parser.add_argument('--minimum-free-mib', type=int, choices=(200, 350), default=350,
+                        help='Use200 only for the explicitly authorized bounded source-only exception')
+    parser.add_argument('--minimum-reserve-mib', type=int, default=180,
+                        help='Retain the source-only minimum disk reserve after checking')
     parser.add_argument('--artifacts', type=Path, default=ROOT / 'build/maps-role-slots-source')
     parser.add_argument('--output', type=Path, default=ROOT / 'bootstrap/stdlib-maps-role-slots-source-results.json')
     args = parser.parse_args()
+    if not 180 <= args.minimum_reserve_mib <= args.minimum_free_mib:
+        parser.error('source reserve must remain at least180MiB and at most the fresh-start guard')
     os.sched_setaffinity(0, {args.cpu})
     compiler, runtime = FROZEN / 'cinch', FROZEN / 'libcinchruntime.a'
     assert digest(compiler) == COMPILER_SHA and digest(runtime) == RUNTIME_SHA
@@ -51,13 +57,16 @@ def main() -> int:
               'review_sha256': digest(review_path), 'runtime_executed': False,
               'native_family_relabelled': False, 'candidate_selected': False, 'package_complete': False,
               'production_sources_modified': False, 'historical_interfaces_modified': False,
-              'fresh_start_minimum_bytes': 350 * 1024 * 1024, 'maximum_source_output_bytes': 5 * 1024 * 1024}
+              'fresh_start_minimum_bytes': args.minimum_free_mib * 1024 * 1024,
+              'minimum_reserve_bytes': args.minimum_reserve_mib * 1024 * 1024,
+              'maximum_source_output_bytes': 5 * 1024 * 1024,
+              'scope_of_resource_exception': 'Source-only; runtime and emission guards remain unchanged.'}
     free = shutil.disk_usage(ROOT).free
     report['free_bytes_before'] = free
     if free < report['fresh_start_minimum_bytes']:
         report.update(status='resource-paused-before-compiler', compiler_invoked=False)
         save(args.output, report)
-        print(f'Resource pause: {free} bytes free, less than fresh350MiB guard; no compiler invoked')
+        print(f'Resource pause: {free} bytes free, less than fresh{args.minimum_free_mib}MiB guard; no compiler invoked')
         return 2
     assert not args.artifacts.exists(), 'Preserve any previous attempt; choose a fresh --artifacts and --output pair'
     overrides = {name: ROOT / path for name, path in (
@@ -68,7 +77,8 @@ def main() -> int:
     assert not runner_report.exists()
     command = [sys.executable, str(ROOT / 'tooling/validate_maps.py'), '--frontend', 'rust',
                '--compiler', str(compiler), '--runtime', str(runtime), '--cpu', str(args.cpu),
-               '--modes', 'source', '--minimum-free-mib', '350', '--maximum-unit-mib', '5',
+               '--modes', 'source', '--minimum-free-mib', str(args.minimum_free_mib),
+               '--minimum-reserve-mib', str(args.minimum_reserve_mib), '--maximum-unit-mib', '5',
                '--artifacts', str(args.artifacts), '--output', str(runner_report)]
     for name, path in overrides.items():
         command += ['--source-override', name + '=' + str(path)]
