@@ -1,0 +1,28 @@
+-- | Independent byte-level multipart fixtures, isolated from effectful session gates.
+module Main where
+  import Text.Multipart
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String (String, string-to-bytes)
+
+  -- | Compare raw output without imposing equality on mutable buffers.
+  same :: Bytes -> Bytes -> Bool
+  same first second = eq-i64 (bytes-compare first second) 0
+
+  -- | Compare the exact boundary refusal and media-type serialization.
+  boundary-is :: Bytes -> String -> Bytes -> Bool
+  boundary-is input message content = case multipart-check-boundary input of
+    Err error -> multipart-syntax-message error == message && bytes-len content == 0
+    Ok unit -> message == "" && same (multipart-form-content-type input) content
+
+  -- | Compare all raw disposition bytes against the independent public oracle.
+  disposition-is :: Bytes -> Bytes -> Bytes -> Bool
+  disposition-is name filename expected = same (multipart-file-disposition name filename) expected
+
+  -- | Execute the actual emitted matcher against a real independent scalar object.
+  foreign import ccall "multipart_fixture_kernels" raw-kernels :: forall r. I64 ->{IO r} I32

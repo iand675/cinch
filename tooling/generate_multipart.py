@@ -171,10 +171,36 @@ def verify(data: dict) -> dict:
     assert interrupted[0]["interrupted_close_count"] == 1 and interrupted[0]["form_present"]
     assert interrupted[0]["error"] == "close <scratch>: bad file descriptor"
     assert all(error == "open <scratch>: no such file or directory" for error in interrupted[0]["reopened"])
+    for row in data.get("entropy", []):
+        payload, collected, empty = bytes.fromhex(row["input"]), bytearray(), row["empty"]
+        expected_error = ""
+        for at, event in enumerate(row["source_trace"]):
+            output = bytes.fromhex(event["output"])
+            assert event["request"] == 30 - len(collected)
+            assert output == payload[len(collected):len(collected) + len(output)]
+            if empty:
+                assert not output and not event["error"]
+                empty -= 1
+            else:
+                assert len(output) == min(7, event["request"], len(payload) - len(collected))
+            collected.extend(output)
+            if len(collected) == 30:
+                break
+            if event["error"]:
+                expected_error = ("unexpected EOF" if collected else "EOF") if event["error"] == "EOF" else event["error"]
+                break
+        assert at + 1 == len(row["source_trace"]) and not empty and row["error"] == expected_error
+        assert row["boundary"] == (bytes(collected).hex().encode().hex() if len(collected) == 30 else "")
+    if "writer_retention" in data:
+        first = b'--b\r\nContent-Disposition: ' + disposition(b"x") + b"\r\n\r\n"
+        second = b'\r\n--b\r\nContent-Disposition: ' + disposition(b"y") + b"\r\n\r\n"
+        footer = b"\r\n--b--\r\n"
+        assert data["writer_retention"] == [piece.hex() for piece in (first, b"one", second, b"two", footer, footer)]
     return {"boundary": len(data["boundaries"]), "disposition": len(data["dispositions"]),
             "writer_scenarios": len(data["writers"]), "reader_observations": len(data["readers"]),
             "form_observations": len(data["forms"]), "cache_controls": 1,
-            "independent_scalar_scope": "all boundaries/dispositions/writer callback traces, reader prefix accounting, lazy-cache and final-close form/error observations"}
+            "entropy_controls": len(data.get("entropy", [])), "retained_writer_offers": len(data.get("writer_retention", [])),
+            "independent_scalar_scope": "all boundaries/dispositions/writer callback traces, reader prefix accounting, lazy-cache/final-close form outcomes, exact entropy traces and retained writer offers"}
 
 
 def main() -> None:

@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -89,6 +90,8 @@ type sourceScript struct {
 	at int
 	// chunk bounds positive reads.
 	chunk int
+	// empty counts explicit zero-byte nonterminal callbacks before payload progress.
+	empty int
 	// terminal chooses EOF or a caller failure.
 	terminal string
 	// trace records actual callbacks.
@@ -101,6 +104,11 @@ type sourceScript struct {
 
 // Read returns prefixes without suppressing repeated post-terminal callbacks.
 func (s *sourceScript) Read(out []byte) (int, error) {
+	if s.empty > 0 {
+		s.empty--
+		s.trace = append(s.trace, map[string]any{"request": len(out), "output": "", "error": ""})
+		return 0, nil
+	}
 	n := len(out)
 	if s.chunk > 0 && n > s.chunk {
 		n = s.chunk
@@ -118,7 +126,7 @@ func (s *sourceScript) Read(out []byte) (int, error) {
 	if s.at == len(s.data) {
 		if s.terminal == "failure" {
 			err = errors.New("fixture source failure")
-		} else {
+		} else if s.terminal != "late-eof" || n == 0 {
 			err = io.EOF
 		}
 	}
@@ -391,7 +399,49 @@ func cacheCase() map[string]any {
 	second, e := reader.NextPart()
 	old, oldErr := io.ReadAll(first)
 	body, bodyErr := io.ReadAll(second)
-	return map[string]any{"name": wireHex([]byte(name)), "filename": wireHex([]byte(filename)), "late_name": wireHex([]byte(first.FormName())), "next_error": errorText(e), "old_body": wireHex(old), "old_error": errorText(oldErr), "next_body": wireHex(body), "next_body_error": errorText(bodyErr), "headers": headerRows(first.Header)}
+	return map[string]any{"input": wireHex(input), "name": wireHex([]byte(name)), "filename": wireHex([]byte(filename)), "late_name": wireHex([]byte(first.FormName())), "next_error": errorText(e), "old_body": wireHex(old), "old_error": errorText(oldErr), "next_body": wireHex(body), "next_body_error": errorText(bodyErr), "headers": headerRows(first.Header)}
+}
+
+// entropyCase observes the public constructor's exact draw and recovered caller failure.
+func entropyCase(input []byte, terminal string, empty int) (row map[string]any) {
+	source := &sourceScript{data: input, chunk: 7, empty: empty, terminal: terminal, trace: []any{}}
+	row = map[string]any{"input": wireHex(input), "terminal": terminal, "empty": empty, "boundary": "", "error": ""}
+	previous := rand.Reader
+	rand.Reader = source
+	defer func() { rand.Reader = previous }()
+	defer func() {
+		if failure := recover(); failure != nil {
+			row["error"] = fmt.Sprint(failure)
+		}
+		row["source_trace"] = source.trace
+	}()
+	writer := multipart.NewWriter(io.Discard)
+	row["boundary"] = wireHex([]byte(writer.Boundary()))
+	return
+}
+
+// retainedWriterCase records every fresh header/body/footer offer before later alias reuse.
+func retainedWriterCase() []string {
+	sink := &sinkScript{trace: []any{}}
+	writer := multipart.NewWriter(sink)
+	if err := writer.SetBoundary("b"); err != nil {
+		panic(err)
+	}
+	for _, field := range [][2]string{{"x", "one"}, {"y", "two"}} {
+		if err := writer.WriteField(field[0], field[1]); err != nil {
+			panic(err)
+		}
+	}
+	for count := 0; count < 2; count++ {
+		if err := writer.Close(); err != nil {
+			panic(err)
+		}
+	}
+	offers := []string{}
+	for _, event := range sink.trace {
+		offers = append(offers, event.(map[string]any)["offer"].(string))
+	}
+	return offers
 }
 
 // boundaryCase stabilizes random construction by observing only explicit-boundary success.
@@ -408,7 +458,7 @@ func boundaryCase(value string) map[string]any {
 
 // main emits exact deterministic protocol, callback and resource observations.
 func main() {
-	root := map[string]any{"format": 1, "package": "mime/multipart", "records": 37}
+	root := map[string]any{"format": 1, "package": "mime/multipart", "records": 37, "form_input": wireHex(sampleForm())}
 	boundaries, dispositions := []any{}, []any{}
 	for number := 0; number < 256; number++ {
 		value := string([]byte{'a', byte(number), 'z'})
@@ -417,6 +467,19 @@ func main() {
 	}
 	for _, value := range []string{"", "x", strings.Repeat("b", 70), strings.Repeat("b", 71), "a ", " ", " x", "a\tb"} {
 		boundaries = append(boundaries, boundaryCase(value))
+	}
+	for _, length := range []int{0, 1, 15, 16, 17, 31, 32, 33, 127, 128, 129, 4096} {
+		for _, mode := range []string{"ordinary", "sparse", "dense"} {
+			input := make([]byte, length)
+			for at := range input {
+				input[at] = byte('a' + at%26)
+				if mode == "dense" || mode == "sparse" && at%31 == 0 {
+					input[at] = []byte{'\r', '\n', '"', '\\'}[at%4]
+				}
+			}
+			value := string(input)
+			dispositions = append(dispositions, map[string]any{"name": wireHex(input), "filename": wireHex(input), "output": wireHex([]byte(multipart.FileContentDisposition(value, value)))})
+		}
 	}
 	root["boundaries"], root["dispositions"] = boundaries, dispositions
 	writers := []any{}
@@ -450,6 +513,37 @@ func main() {
 		readers = append(readers, readerCase(wire, "b", true, 3, "eof"))
 	}
 	readers = append(readers, readerCase([]byte("anything"), "", true, 1, "eof"))
+	readers = append(readers, readerCase(sampleForm(), "form-boundary", false, 7, "eof"))
+	// Long physical lines exercise retained CR, exact-buffer EOF and folded fragments.
+	for _, header := range []string{
+		"X: " + strings.Repeat("a", 4092) + "\r\n",
+		"X: " + strings.Repeat("a", 4092) + "\rZ\n",
+		"X: " + strings.Repeat("a", 8192) + "\r\n\t" + strings.Repeat("b", 4097) + "\r\n",
+		"X: a\r\n" + strings.Repeat(" ", 8193) + "b\r\n",
+		"X: " + strings.Repeat("a", 4093),
+	} {
+		for _, chunk := range []int{7, 4096} {
+			for _, terminal := range []string{"eof", "failure"} {
+				wire := "--b\r\n" + header
+				if strings.HasSuffix(header, "\n") {
+					wire += "\r\nx\r\n--b--\r\n"
+				}
+				readers = append(readers, readerCase([]byte(wire), "b", true, chunk, terminal))
+			}
+		}
+	}
+	// Reader boundaries remain arbitrary byte strings, independently of writer validation.
+	for _, boundary := range []string{"x\ry", "x\ny", "x y", "\"", "♥", "\x00", strings.Repeat("b", 4095), strings.Repeat("b", 4096), strings.Repeat("b", 4097)} {
+		for _, chunk := range []int{1, 4096} {
+			wire := []byte("preamble\r\n--" + boundary + "\r\n\r\npayload\r\n--" + boundary + "--\r\n")
+			readers = append(readers, readerCase(wire, boundary, true, chunk, "eof"))
+		}
+	}
+	for _, header := range []string{"X: " + strings.Repeat("a", 4093), strings.Repeat("X", 4096)} {
+		for _, chunk := range []int{7, 4096} {
+			readers = append(readers, readerCase([]byte("--b\r\n"+header), "b", true, chunk, "late-eof"))
+		}
+	}
 	root["readers"] = readers
 	forms := []any{}
 	for _, memory := range []int64{-1, 0, 1, 5, 6, 9, 16, 17, 100, math.MaxInt64} {
@@ -462,6 +556,19 @@ func main() {
 	}
 	forms = append(forms, formCase(0, false, "", true))
 	root["forms"], root["cache"] = forms, cacheCase()
+	entropy := []any{}
+	for _, length := range []int{0, 1, 29, 30} {
+		input := make([]byte, length)
+		for at := range input {
+			input[at] = byte(at)
+		}
+		for _, terminal := range []string{"eof", "failure"} {
+			for _, empty := range []int{0, 1, 100} {
+				entropy = append(entropy, entropyCase(input, terminal, empty))
+			}
+		}
+	}
+	root["entropy"], root["writer_retention"] = entropy, retainedWriterCase()
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(root); err != nil {
