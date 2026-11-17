@@ -1490,10 +1490,32 @@
     },
     {
       "reference_package": "mime/multipart",
-      "status": "unreviewed",
+      "status": "partial",
       "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 37
+      "remaining": [
+        "Full current-candidate O0 corpus",
+        "Current Native family qualification",
+        "Public pipeline benchmarks and performance review",
+        "Production module selection and generated reference"
+      ],
+      "reference_declarations": 37,
+      "candidate_modules": [
+        {
+          "module": "Text.Multipart",
+          "path": "experiments/multipart-promotion-v1/sources/Text.Multipart.cinch",
+          "availability": "Isolated review candidate; absent from production prelude"
+        },
+        {
+          "module": "Effect.Multipart",
+          "path": "experiments/multipart-promotion-v1/sources/Effect.Multipart.cinch",
+          "availability": "Isolated review candidate; absent from production prelude"
+        }
+      ],
+      "capability_mapping": "experiments/multipart-promotion-v1/capability-mapping.json",
+      "tests": [
+        "lib_multipart_promotion"
+      ],
+      "review": "All37 reference declarations have explicit candidate mappings. Combined Rust330/d91 O2 corpus passes1128 independent observations in46 normal/poison processes with zero leaks; current f9/d91 maintained parent gate passes2/2 with genuine19 defining Region contracts. Source/metadata/runtime epochs remain distinct. Production selection and benchmarks remain pending; no package completion claimed."
     },
     {
       "reference_package": "mime/quotedprintable",

@@ -1,0 +1,57 @@
+{
+  "scope": "Operation-level review of the isolated source candidate; no production availability or package completion implied.",
+  "reference_sdk": "go1.27.4",
+  "declarations": {
+    "func FileContentDisposition(string, string) string": "Text.Multipart.multipart-file-disposition",
+    "func NewReader(io.Reader, string) *Reader": "Effect.Multipart.multipart-reader",
+    "func NewWriter(io.Writer) *Writer": "Effect.Multipart.multipart-writer-random",
+    "method (*FileHeader) Open() (File, error)": "Effect.Multipart.multipart-file-open",
+    "method (*Form) RemoveAll() error": "Effect.Multipart.multipart-form-remove-all",
+    "method (*Part) Close() error": "Effect.Multipart.multipart-part-close",
+    "method (*Part) FileName() string": "Effect.Multipart.multipart-part-filename",
+    "method (*Part) FormName() string": "Effect.Multipart.multipart-part-form-name",
+    "method (*Part) Read([]uint8) (int, error)": "Effect.Multipart.multipart-part-read",
+    "method (*Reader) NextPart() (*Part, error)": "Effect.Multipart.multipart-next-part",
+    "method (*Reader) NextRawPart() (*Part, error)": "Effect.Multipart.multipart-next-raw-part",
+    "method (*Reader) ReadForm(int64) (*Form, error)": "Effect.Multipart.multipart-read-form",
+    "method (*Writer) Boundary() string": "Effect.Multipart.multipart-writer-get-boundary",
+    "method (*Writer) Close() error": "Effect.Multipart.multipart-writer-finish",
+    "method (*Writer) CreateFormField(string) (io.Writer, error)": "Effect.Multipart.multipart-create-field",
+    "method (*Writer) CreateFormFile(string, string) (io.Writer, error)": "Effect.Multipart.multipart-create-file",
+    "method (*Writer) CreatePart(textproto.MIMEHeader) (io.Writer, error)": "Effect.Multipart.multipart-create-part",
+    "method (*Writer) FormDataContentType() string": "Effect.Multipart.multipart-writer-content-type",
+    "method (*Writer) SetBoundary(string) error": "Effect.Multipart.multipart-writer-set-boundary",
+    "method (*Writer) WriteField(string, string) error": "Effect.Multipart.multipart-write-field",
+    "type File interface { Close, Read, ReadAt, Seek }": "Effect.Multipart.MultipartFile with explicit owned read/read-at/seek/close operations",
+    "type File interface, Close() error": "Effect.Multipart.multipart-file-close",
+    "type File interface, Read([]uint8) (int, error)": "Effect.Multipart.multipart-file-read",
+    "type File interface, ReadAt([]uint8, int64) (int, error)": "Effect.Multipart.multipart-file-read-at",
+    "type File interface, Seek(int64, int) (int64, error)": "Effect.Multipart.multipart-file-seek",
+    "type FileHeader struct": "Effect.Multipart.MultipartFileHeader",
+    "type FileHeader struct, Filename string": "Effect.Multipart.multipart-file-filename / multipart-file-set-filename",
+    "type FileHeader struct, Header textproto.MIMEHeader": "Effect.Multipart.multipart-file-headers / multipart-file-set-headers",
+    "type FileHeader struct, Size int64": "Effect.Multipart.multipart-file-size / multipart-file-set-size",
+    "type Form struct": "Effect.Multipart.MultipartForm",
+    "type Form struct, File map[string][]*FileHeader": "Effect.Multipart.multipart-form-files / multipart-form-set-files",
+    "type Form struct, Value map[string][]string": "Effect.Multipart.multipart-form-values / multipart-form-set-values",
+    "type Part struct": "Effect.Multipart.MultipartPart",
+    "type Part struct, Header textproto.MIMEHeader": "Effect.Multipart.multipart-part-headers / multipart-part-set-headers",
+    "type Reader struct": "Effect.Multipart.MultipartReader",
+    "type Writer struct": "Effect.Multipart.MultipartWriter",
+    "var ErrMessageTooLarge error": "Text.Multipart.MultipartMessageTooLarge under MultipartProtocolFailure"
+  },
+  "candidate_sources": {
+    "experiments/multipart-promotion-v1/sources/Effect.Multipart.cinch": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b",
+    "experiments/multipart-promotion-v1/sources/Text.Multipart.cinch": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2"
+  },
+  "proofs": [
+    "bootstrap/stdlib-multipart-parent-results.json",
+    "experiments/multipart-promotion-v1/corpus-o2-gate.json"
+  ],
+  "pending": [
+    "Full current-candidate O0 corpus",
+    "Current Native family qualification",
+    "Public pipeline benchmarks and performance review",
+    "Production module selection and generated reference"
+  ]
+}
