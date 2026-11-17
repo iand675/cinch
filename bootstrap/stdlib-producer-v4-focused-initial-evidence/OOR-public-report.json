@@ -1,0 +1,1640 @@
+{
+  "status": "passed",
+  "pair_sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d",
+  "wrapper_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+  "bundle_sha256": "1a73cff87d53115dd979655200e35b1383bef7d6c4d1c9c88f58ffacc93368e0",
+  "expected_initial_sources": {
+    "Data.Bytes.Split": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+    "Data.Bytes.View": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+    "compatible_driver_Main": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573",
+    "owner_Main": "48f79ed534c601823b338171915f3b8a98de3a723a78a9c4d7ecd7aecad4639f"
+  },
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "interfaces": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json",
+    "sha256": "f10d002f5d4d4be4fcfc08648306e8bbd368fcce579ec47c25b9a56cda321f0b"
+  },
+  "objects": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json",
+    "sha256": "87aa9ec8c8ec6d2802638f00239277b0f76b2a07c3920afb14b4a1d47c072fbd"
+  },
+  "object": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.o",
+    "sha256": "b02e2e0e19b3f09a69ee821a16b3c975ac28d443b4a10126acada470fa152214"
+  },
+  "compiler_host_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "consumer_runtime": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/libcinchruntime.a",
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+  },
+  "full_family_admission": false,
+  "source_override": false,
+  "opt_level": 2,
+  "preflight_only": true,
+  "profiles": [
+    {
+      "pipeline": "list",
+      "pattern": "dense",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 5825618177131021172,
+      "input_sha256": "6ad5df9fa46f2c8229a4d6072bf8949157ae20b81072668de120a0611a1d0f62",
+      "retained_input_sha256": "70ae01f6d2c6da83b34178135f479422e60d393cdff87918b7b2416da84cf0ee",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "dense",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 5825618177131021172,
+      "input_sha256": "6ad5df9fa46f2c8229a4d6072bf8949157ae20b81072668de120a0611a1d0f62",
+      "retained_input_sha256": "70ae01f6d2c6da83b34178135f479422e60d393cdff87918b7b2416da84cf0ee",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "dense",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 7193164332954288561,
+      "input_sha256": "6971b7bee54ace4767c7a1b3be747de92414e7074deef3748fd5261e55bd797a",
+      "retained_input_sha256": "a21fcb3ec314cb06f79a0660c628bd36a244759f2e2bc755f724ef9404b15f3a",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "dense",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 7193164332954288561,
+      "input_sha256": "6971b7bee54ace4767c7a1b3be747de92414e7074deef3748fd5261e55bd797a",
+      "retained_input_sha256": "a21fcb3ec314cb06f79a0660c628bd36a244759f2e2bc755f724ef9404b15f3a",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "sparse",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 138358590045,
+      "input_sha256": "2c9ccf695825a75b42d592c2c2fd19e778f5a91a1ba2273aef3899b2c9997285",
+      "retained_input_sha256": "fb32024e6cb49703e39c6107576a75b9b5f8cf9bec598fef0c4bacba6fa586a7",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "sparse",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 138358590045,
+      "input_sha256": "2c9ccf695825a75b42d592c2c2fd19e778f5a91a1ba2273aef3899b2c9997285",
+      "retained_input_sha256": "fb32024e6cb49703e39c6107576a75b9b5f8cf9bec598fef0c4bacba6fa586a7",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "sparse",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1104992195351,
+      "input_sha256": "48e4b76fde20275a7cb35205c47cd6211b229e0cefdf3bd8cd5178943b31cc30",
+      "retained_input_sha256": "b5e6a2974fd93bb350eb269db416b16baf06fbb689a428dafa4febc34284b3cf",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "sparse",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1104992195351,
+      "input_sha256": "48e4b76fde20275a7cb35205c47cd6211b229e0cefdf3bd8cd5178943b31cc30",
+      "retained_input_sha256": "b5e6a2974fd93bb350eb269db416b16baf06fbb689a428dafa4febc34284b3cf",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "prefix",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 129726811229,
+      "input_sha256": "316d8c6afcd2fa71e45792616fbcec7567b6769449d66625931c162fbcd91266",
+      "retained_input_sha256": "bbe6e446f69fa53596716a2d3641cd02674a3ec9faf55824c264d5eb93762021",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "prefix",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 129726811229,
+      "input_sha256": "316d8c6afcd2fa71e45792616fbcec7567b6769449d66625931c162fbcd91266",
+      "retained_input_sha256": "bbe6e446f69fa53596716a2d3641cd02674a3ec9faf55824c264d5eb93762021",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "prefix",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1100676305943,
+      "input_sha256": "daa52f7cd7cfb42355ad9e6ee312f197f96fbabf15ebf96317122156282be694",
+      "retained_input_sha256": "0e78cc8f80ee2af3ed89dd98c53069f5ed4f38f313bfd149cce60eb1dba84356",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "prefix",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1100676305943,
+      "input_sha256": "daa52f7cd7cfb42355ad9e6ee312f197f96fbabf15ebf96317122156282be694",
+      "retained_input_sha256": "0e78cc8f80ee2af3ed89dd98c53069f5ed4f38f313bfd149cce60eb1dba84356",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "utf8",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 7403111050208954382,
+      "input_sha256": "d44bf502078696828097cf3b2813e1fdb959e692455ef11c947a161d1bf690d4",
+      "retained_input_sha256": "83d152ed38cc7962d467b9214f3e2f5358b691f1d7b8402af067cdf428ab2d73",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "utf8",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 7403111050208954382,
+      "input_sha256": "d44bf502078696828097cf3b2813e1fdb959e692455ef11c947a161d1bf690d4",
+      "retained_input_sha256": "83d152ed38cc7962d467b9214f3e2f5358b691f1d7b8402af067cdf428ab2d73",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "utf8",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1055507147517776464,
+      "input_sha256": "89f8080afd354df4b51a6dc3a1d7120ec7065ac9c700a15d1b0c0b462510bb15",
+      "retained_input_sha256": "481e71e3797d3daad28729fc9be8acc434b684255fed35ac1d9183f499047f96",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "list",
+      "pattern": "utf8",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1055507147517776464,
+      "input_sha256": "89f8080afd354df4b51a6dc3a1d7120ec7065ac9c700a15d1b0c0b462510bb15",
+      "retained_input_sha256": "481e71e3797d3daad28729fc9be8acc434b684255fed35ac1d9183f499047f96",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "dense",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 5825618177131021172,
+      "input_sha256": "6ad5df9fa46f2c8229a4d6072bf8949157ae20b81072668de120a0611a1d0f62",
+      "retained_input_sha256": "70ae01f6d2c6da83b34178135f479422e60d393cdff87918b7b2416da84cf0ee",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "dense",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 5825618177131021172,
+      "input_sha256": "6ad5df9fa46f2c8229a4d6072bf8949157ae20b81072668de120a0611a1d0f62",
+      "retained_input_sha256": "70ae01f6d2c6da83b34178135f479422e60d393cdff87918b7b2416da84cf0ee",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "dense",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 7193164332954288561,
+      "input_sha256": "6971b7bee54ace4767c7a1b3be747de92414e7074deef3748fd5261e55bd797a",
+      "retained_input_sha256": "a21fcb3ec314cb06f79a0660c628bd36a244759f2e2bc755f724ef9404b15f3a",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "dense",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 7193164332954288561,
+      "input_sha256": "6971b7bee54ace4767c7a1b3be747de92414e7074deef3748fd5261e55bd797a",
+      "retained_input_sha256": "a21fcb3ec314cb06f79a0660c628bd36a244759f2e2bc755f724ef9404b15f3a",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "sparse",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 138358590045,
+      "input_sha256": "2c9ccf695825a75b42d592c2c2fd19e778f5a91a1ba2273aef3899b2c9997285",
+      "retained_input_sha256": "fb32024e6cb49703e39c6107576a75b9b5f8cf9bec598fef0c4bacba6fa586a7",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "sparse",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 138358590045,
+      "input_sha256": "2c9ccf695825a75b42d592c2c2fd19e778f5a91a1ba2273aef3899b2c9997285",
+      "retained_input_sha256": "fb32024e6cb49703e39c6107576a75b9b5f8cf9bec598fef0c4bacba6fa586a7",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "sparse",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1104992195351,
+      "input_sha256": "48e4b76fde20275a7cb35205c47cd6211b229e0cefdf3bd8cd5178943b31cc30",
+      "retained_input_sha256": "b5e6a2974fd93bb350eb269db416b16baf06fbb689a428dafa4febc34284b3cf",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "sparse",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1104992195351,
+      "input_sha256": "48e4b76fde20275a7cb35205c47cd6211b229e0cefdf3bd8cd5178943b31cc30",
+      "retained_input_sha256": "b5e6a2974fd93bb350eb269db416b16baf06fbb689a428dafa4febc34284b3cf",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "prefix",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 129726811229,
+      "input_sha256": "316d8c6afcd2fa71e45792616fbcec7567b6769449d66625931c162fbcd91266",
+      "retained_input_sha256": "bbe6e446f69fa53596716a2d3641cd02674a3ec9faf55824c264d5eb93762021",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "prefix",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 129726811229,
+      "input_sha256": "316d8c6afcd2fa71e45792616fbcec7567b6769449d66625931c162fbcd91266",
+      "retained_input_sha256": "bbe6e446f69fa53596716a2d3641cd02674a3ec9faf55824c264d5eb93762021",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "prefix",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1100676305943,
+      "input_sha256": "daa52f7cd7cfb42355ad9e6ee312f197f96fbabf15ebf96317122156282be694",
+      "retained_input_sha256": "0e78cc8f80ee2af3ed89dd98c53069f5ed4f38f313bfd149cce60eb1dba84356",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "prefix",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1100676305943,
+      "input_sha256": "daa52f7cd7cfb42355ad9e6ee312f197f96fbabf15ebf96317122156282be694",
+      "retained_input_sha256": "0e78cc8f80ee2af3ed89dd98c53069f5ed4f38f313bfd149cce60eb1dba84356",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "utf8",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 7403111050208954382,
+      "input_sha256": "d44bf502078696828097cf3b2813e1fdb959e692455ef11c947a161d1bf690d4",
+      "retained_input_sha256": "83d152ed38cc7962d467b9214f3e2f5358b691f1d7b8402af067cdf428ab2d73",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "utf8",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 7403111050208954382,
+      "input_sha256": "d44bf502078696828097cf3b2813e1fdb959e692455ef11c947a161d1bf690d4",
+      "retained_input_sha256": "83d152ed38cc7962d467b9214f3e2f5358b691f1d7b8402af067cdf428ab2d73",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "utf8",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1055507147517776464,
+      "input_sha256": "89f8080afd354df4b51a6dc3a1d7120ec7065ac9c700a15d1b0c0b462510bb15",
+      "retained_input_sha256": "481e71e3797d3daad28729fc9be8acc434b684255fed35ac1d9183f499047f96",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "utf8",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1055507147517776464,
+      "input_sha256": "89f8080afd354df4b51a6dc3a1d7120ec7065ac9c700a15d1b0c0b462510bb15",
+      "retained_input_sha256": "481e71e3797d3daad28729fc9be8acc434b684255fed35ac1d9183f499047f96",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "lines",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 13953018064089156233,
+      "input_sha256": "24ce6ecd9ff70debb5a991b937cb857bf1c368d39bb8aadca51051d8bc749271",
+      "retained_input_sha256": "d34d3bc2c1d2ce55dff25102c6ea8be53acc903609363b9b20e97bc1c7cd492d",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "lines",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 13953018064089156233,
+      "input_sha256": "24ce6ecd9ff70debb5a991b937cb857bf1c368d39bb8aadca51051d8bc749271",
+      "retained_input_sha256": "d34d3bc2c1d2ce55dff25102c6ea8be53acc903609363b9b20e97bc1c7cd492d",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "lines",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 8606707420400150012,
+      "input_sha256": "bfca3cc661ff0d9bde07dce715610459f6959a7ce3a7e174f203f7dc8aa452da",
+      "retained_input_sha256": "c43535a5c105d48cd09b9a8b441d7dd9dfe631c42317dd1f100a38cfbf4d0ac8",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "producer",
+      "pattern": "lines",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 8606707420400150012,
+      "input_sha256": "bfca3cc661ff0d9bde07dce715610459f6959a7ce3a7e174f203f7dc8aa452da",
+      "retained_input_sha256": "c43535a5c105d48cd09b9a8b441d7dd9dfe631c42317dd1f100a38cfbf4d0ac8",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "dense",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 5825618177131021172,
+      "input_sha256": "6ad5df9fa46f2c8229a4d6072bf8949157ae20b81072668de120a0611a1d0f62",
+      "retained_input_sha256": "70ae01f6d2c6da83b34178135f479422e60d393cdff87918b7b2416da84cf0ee",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "dense",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 5825618177131021172,
+      "input_sha256": "6ad5df9fa46f2c8229a4d6072bf8949157ae20b81072668de120a0611a1d0f62",
+      "retained_input_sha256": "70ae01f6d2c6da83b34178135f479422e60d393cdff87918b7b2416da84cf0ee",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "dense",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 7193164332954288561,
+      "input_sha256": "6971b7bee54ace4767c7a1b3be747de92414e7074deef3748fd5261e55bd797a",
+      "retained_input_sha256": "a21fcb3ec314cb06f79a0660c628bd36a244759f2e2bc755f724ef9404b15f3a",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "dense",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 7193164332954288561,
+      "input_sha256": "6971b7bee54ace4767c7a1b3be747de92414e7074deef3748fd5261e55bd797a",
+      "retained_input_sha256": "a21fcb3ec314cb06f79a0660c628bd36a244759f2e2bc755f724ef9404b15f3a",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "sparse",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 138358590045,
+      "input_sha256": "2c9ccf695825a75b42d592c2c2fd19e778f5a91a1ba2273aef3899b2c9997285",
+      "retained_input_sha256": "fb32024e6cb49703e39c6107576a75b9b5f8cf9bec598fef0c4bacba6fa586a7",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "sparse",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 138358590045,
+      "input_sha256": "2c9ccf695825a75b42d592c2c2fd19e778f5a91a1ba2273aef3899b2c9997285",
+      "retained_input_sha256": "fb32024e6cb49703e39c6107576a75b9b5f8cf9bec598fef0c4bacba6fa586a7",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "sparse",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1104992195351,
+      "input_sha256": "48e4b76fde20275a7cb35205c47cd6211b229e0cefdf3bd8cd5178943b31cc30",
+      "retained_input_sha256": "b5e6a2974fd93bb350eb269db416b16baf06fbb689a428dafa4febc34284b3cf",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "sparse",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1104992195351,
+      "input_sha256": "48e4b76fde20275a7cb35205c47cd6211b229e0cefdf3bd8cd5178943b31cc30",
+      "retained_input_sha256": "b5e6a2974fd93bb350eb269db416b16baf06fbb689a428dafa4febc34284b3cf",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "prefix",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 129726811229,
+      "input_sha256": "316d8c6afcd2fa71e45792616fbcec7567b6769449d66625931c162fbcd91266",
+      "retained_input_sha256": "bbe6e446f69fa53596716a2d3641cd02674a3ec9faf55824c264d5eb93762021",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "prefix",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 129726811229,
+      "input_sha256": "316d8c6afcd2fa71e45792616fbcec7567b6769449d66625931c162fbcd91266",
+      "retained_input_sha256": "bbe6e446f69fa53596716a2d3641cd02674a3ec9faf55824c264d5eb93762021",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "prefix",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1100676305943,
+      "input_sha256": "daa52f7cd7cfb42355ad9e6ee312f197f96fbabf15ebf96317122156282be694",
+      "retained_input_sha256": "0e78cc8f80ee2af3ed89dd98c53069f5ed4f38f313bfd149cce60eb1dba84356",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "prefix",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1100676305943,
+      "input_sha256": "daa52f7cd7cfb42355ad9e6ee312f197f96fbabf15ebf96317122156282be694",
+      "retained_input_sha256": "0e78cc8f80ee2af3ed89dd98c53069f5ed4f38f313bfd149cce60eb1dba84356",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "utf8",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 7403111050208954382,
+      "input_sha256": "d44bf502078696828097cf3b2813e1fdb959e692455ef11c947a161d1bf690d4",
+      "retained_input_sha256": "83d152ed38cc7962d467b9214f3e2f5358b691f1d7b8402af067cdf428ab2d73",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "utf8",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 7403111050208954382,
+      "input_sha256": "d44bf502078696828097cf3b2813e1fdb959e692455ef11c947a161d1bf690d4",
+      "retained_input_sha256": "83d152ed38cc7962d467b9214f3e2f5358b691f1d7b8402af067cdf428ab2d73",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "utf8",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1055507147517776464,
+      "input_sha256": "89f8080afd354df4b51a6dc3a1d7120ec7065ac9c700a15d1b0c0b462510bb15",
+      "retained_input_sha256": "481e71e3797d3daad28729fc9be8acc434b684255fed35ac1d9183f499047f96",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "cursor",
+      "pattern": "utf8",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1055507147517776464,
+      "input_sha256": "89f8080afd354df4b51a6dc3a1d7120ec7065ac9c700a15d1b0c0b462510bb15",
+      "retained_input_sha256": "481e71e3797d3daad28729fc9be8acc434b684255fed35ac1d9183f499047f96",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "dense",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 5825618177131021172,
+      "input_sha256": "6ad5df9fa46f2c8229a4d6072bf8949157ae20b81072668de120a0611a1d0f62",
+      "retained_input_sha256": "70ae01f6d2c6da83b34178135f479422e60d393cdff87918b7b2416da84cf0ee",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "dense",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 5825618177131021172,
+      "input_sha256": "6ad5df9fa46f2c8229a4d6072bf8949157ae20b81072668de120a0611a1d0f62",
+      "retained_input_sha256": "70ae01f6d2c6da83b34178135f479422e60d393cdff87918b7b2416da84cf0ee",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "dense",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 7193164332954288561,
+      "input_sha256": "6971b7bee54ace4767c7a1b3be747de92414e7074deef3748fd5261e55bd797a",
+      "retained_input_sha256": "a21fcb3ec314cb06f79a0660c628bd36a244759f2e2bc755f724ef9404b15f3a",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "dense",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 7193164332954288561,
+      "input_sha256": "6971b7bee54ace4767c7a1b3be747de92414e7074deef3748fd5261e55bd797a",
+      "retained_input_sha256": "a21fcb3ec314cb06f79a0660c628bd36a244759f2e2bc755f724ef9404b15f3a",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "sparse",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 138358590045,
+      "input_sha256": "2c9ccf695825a75b42d592c2c2fd19e778f5a91a1ba2273aef3899b2c9997285",
+      "retained_input_sha256": "fb32024e6cb49703e39c6107576a75b9b5f8cf9bec598fef0c4bacba6fa586a7",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "sparse",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 138358590045,
+      "input_sha256": "2c9ccf695825a75b42d592c2c2fd19e778f5a91a1ba2273aef3899b2c9997285",
+      "retained_input_sha256": "fb32024e6cb49703e39c6107576a75b9b5f8cf9bec598fef0c4bacba6fa586a7",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "sparse",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1104992195351,
+      "input_sha256": "48e4b76fde20275a7cb35205c47cd6211b229e0cefdf3bd8cd5178943b31cc30",
+      "retained_input_sha256": "b5e6a2974fd93bb350eb269db416b16baf06fbb689a428dafa4febc34284b3cf",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "sparse",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1104992195351,
+      "input_sha256": "48e4b76fde20275a7cb35205c47cd6211b229e0cefdf3bd8cd5178943b31cc30",
+      "retained_input_sha256": "b5e6a2974fd93bb350eb269db416b16baf06fbb689a428dafa4febc34284b3cf",
+      "separator_sha256": "d03502c43d74a30b936740a9517dc4ea2b2ad7168caa0a774cefe793ce0b33e7",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "prefix",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 129726811229,
+      "input_sha256": "316d8c6afcd2fa71e45792616fbcec7567b6769449d66625931c162fbcd91266",
+      "retained_input_sha256": "bbe6e446f69fa53596716a2d3641cd02674a3ec9faf55824c264d5eb93762021",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "prefix",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 129726811229,
+      "input_sha256": "316d8c6afcd2fa71e45792616fbcec7567b6769449d66625931c162fbcd91266",
+      "retained_input_sha256": "bbe6e446f69fa53596716a2d3641cd02674a3ec9faf55824c264d5eb93762021",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "prefix",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1100676305943,
+      "input_sha256": "daa52f7cd7cfb42355ad9e6ee312f197f96fbabf15ebf96317122156282be694",
+      "retained_input_sha256": "0e78cc8f80ee2af3ed89dd98c53069f5ed4f38f313bfd149cce60eb1dba84356",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "prefix",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1100676305943,
+      "input_sha256": "daa52f7cd7cfb42355ad9e6ee312f197f96fbabf15ebf96317122156282be694",
+      "retained_input_sha256": "0e78cc8f80ee2af3ed89dd98c53069f5ed4f38f313bfd149cce60eb1dba84356",
+      "separator_sha256": "3dc0aae8fc4eda1fde368fbd878a01aa607b604737af868e7a44e5105bfe99cb",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "utf8",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 0,
+      "checksum": 7403111050208954382,
+      "input_sha256": "d44bf502078696828097cf3b2813e1fdb959e692455ef11c947a161d1bf690d4",
+      "retained_input_sha256": "83d152ed38cc7962d467b9214f3e2f5358b691f1d7b8402af067cdf428ab2d73",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "utf8",
+      "bytes": 4096,
+      "iterations": 2,
+      "debug": 1,
+      "checksum": 7403111050208954382,
+      "input_sha256": "d44bf502078696828097cf3b2813e1fdb959e692455ef11c947a161d1bf690d4",
+      "retained_input_sha256": "83d152ed38cc7962d467b9214f3e2f5358b691f1d7b8402af067cdf428ab2d73",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "utf8",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 0,
+      "checksum": 1055507147517776464,
+      "input_sha256": "89f8080afd354df4b51a6dc3a1d7120ec7065ac9c700a15d1b0c0b462510bb15",
+      "retained_input_sha256": "481e71e3797d3daad28729fc9be8acc434b684255fed35ac1d9183f499047f96",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    },
+    {
+      "pipeline": "stable",
+      "pattern": "utf8",
+      "bytes": 65536,
+      "iterations": 1,
+      "debug": 1,
+      "checksum": 1055507147517776464,
+      "input_sha256": "89f8080afd354df4b51a6dc3a1d7120ec7065ac9c700a15d1b0c0b462510bb15",
+      "retained_input_sha256": "481e71e3797d3daad28729fc9be8acc434b684255fed35ac1d9183f499047f96",
+      "separator_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zero_leaks": true
+    }
+  ],
+  "emit": {
+    "command": [
+      "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/frontend.py",
+      "--emit-ir",
+      "--rc-debug",
+      "--interfaces",
+      "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json",
+      "--objects",
+      "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json",
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/Bundle.cinch",
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer.ll"
+    ],
+    "exit": 0,
+    "seconds": 13.571071402999223
+  },
+  "link": {
+    "command": [
+      "clang",
+      "-O2",
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer.ll",
+      "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.o",
+      "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/libcinchruntime.a",
+      "-o",
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "-ldl",
+      "-lpthread",
+      "-lm"
+    ],
+    "exit": 0,
+    "seconds": 0.41424000800179783
+  },
+  "run-list-dense-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "dense",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.009106265002628788
+  },
+  "run-list-dense-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "dense",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.009694342996226624
+  },
+  "run-list-dense-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "dense",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.05104294100601692
+  },
+  "run-list-dense-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "dense",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.05871419901086483
+  },
+  "run-list-sparse-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "sparse",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.003926998993847519
+  },
+  "run-list-sparse-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "sparse",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.0033044009906006977
+  },
+  "run-list-sparse-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "sparse",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.00915956700919196
+  },
+  "run-list-sparse-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "sparse",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.009131615006481297
+  },
+  "run-list-prefix-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "prefix",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.0037018600123701617
+  },
+  "run-list-prefix-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "prefix",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.003546314997947775
+  },
+  "run-list-prefix-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "prefix",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.011504290989250876
+  },
+  "run-list-prefix-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "prefix",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.01052600699767936
+  },
+  "run-list-utf8-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "utf8",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.007505974004743621
+  },
+  "run-list-utf8-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "utf8",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.007602479992783628
+  },
+  "run-list-utf8-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "utf8",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.04464730099425651
+  },
+  "run-list-utf8-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "list",
+      "utf8",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.0497322649898706
+  },
+  "run-producer-dense-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "dense",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.009056982002221048
+  },
+  "run-producer-dense-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "dense",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.00960090100124944
+  },
+  "run-producer-dense-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "dense",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.050672552999458276
+  },
+  "run-producer-dense-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "dense",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.05893974499485921
+  },
+  "run-producer-sparse-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "sparse",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.003609300998505205
+  },
+  "run-producer-sparse-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "sparse",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.0028507480019470677
+  },
+  "run-producer-sparse-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "sparse",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.00910521499463357
+  },
+  "run-producer-sparse-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "sparse",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.00900305199320428
+  },
+  "run-producer-prefix-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "prefix",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.003467176007688977
+  },
+  "run-producer-prefix-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "prefix",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.003340445997309871
+  },
+  "run-producer-prefix-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "prefix",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.01020413100195583
+  },
+  "run-producer-prefix-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "prefix",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.010256750989356078
+  },
+  "run-producer-utf8-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "utf8",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.0067405809968477115
+  },
+  "run-producer-utf8-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "utf8",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.010023119000834413
+  },
+  "run-producer-utf8-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "utf8",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.04313569200166967
+  },
+  "run-producer-utf8-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "utf8",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.04642259700631257
+  },
+  "run-producer-lines-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "lines",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.006466598002589308
+  },
+  "run-producer-lines-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "lines",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.006375911005306989
+  },
+  "run-producer-lines-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "lines",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.03690091300813947
+  },
+  "run-producer-lines-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "producer",
+      "lines",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.03880767698865384
+  },
+  "run-cursor-dense-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "dense",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.009940174000803381
+  },
+  "run-cursor-dense-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "dense",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.010612747995764948
+  },
+  "run-cursor-dense-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "dense",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.06700784500571899
+  },
+  "run-cursor-dense-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "dense",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.07215230198926292
+  },
+  "run-cursor-sparse-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "sparse",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.003325754005345516
+  },
+  "run-cursor-sparse-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "sparse",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.0030372389883268625
+  },
+  "run-cursor-sparse-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "sparse",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.008852804006892256
+  },
+  "run-cursor-sparse-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "sparse",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.008759953998378478
+  },
+  "run-cursor-prefix-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "prefix",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.0031911499972920865
+  },
+  "run-cursor-prefix-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "prefix",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.0032735040003899485
+  },
+  "run-cursor-prefix-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "prefix",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.009967926001991145
+  },
+  "run-cursor-prefix-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "prefix",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.010277442008373328
+  },
+  "run-cursor-utf8-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "utf8",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.008775028007221408
+  },
+  "run-cursor-utf8-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "utf8",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.009464155999012291
+  },
+  "run-cursor-utf8-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "utf8",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.05740140599664301
+  },
+  "run-cursor-utf8-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "cursor",
+      "utf8",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.0647876000002725
+  },
+  "run-stable-dense-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "dense",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.007189878000644967
+  },
+  "run-stable-dense-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "dense",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.006880832996102981
+  },
+  "run-stable-dense-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "dense",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.03960170500795357
+  },
+  "run-stable-dense-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "dense",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.04686565400334075
+  },
+  "run-stable-sparse-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "sparse",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.0033758679928723723
+  },
+  "run-stable-sparse-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "sparse",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.003316037997137755
+  },
+  "run-stable-sparse-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "sparse",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.010008956989622675
+  },
+  "run-stable-sparse-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "sparse",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.010511433996725827
+  },
+  "run-stable-prefix-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "prefix",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.004045477995532565
+  },
+  "run-stable-prefix-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "prefix",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.003554087001248263
+  },
+  "run-stable-prefix-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "prefix",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.010449892011820339
+  },
+  "run-stable-prefix-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "prefix",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.017918149998877198
+  },
+  "run-stable-utf8-4096-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "utf8",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.007272771996213123
+  },
+  "run-stable-utf8-4096-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "utf8",
+      "4096",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.007351061009103432
+  },
+  "run-stable-utf8-65536-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "utf8",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.04020314599620178
+  },
+  "run-stable-utf8-65536-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-public/consumer",
+      "stable",
+      "utf8",
+      "65536",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.04640302799816709
+  },
+  "llvm_sha256": "140103e6a89cda20513e015125d4f85217aa996a977c51b60baf10c398618ce3",
+  "exe_sha256": "7003bb3d219cce96447412368899fdf5bb27447748e59b5a3ad19acfd8e1e2a2"
+}
