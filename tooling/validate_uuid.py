@@ -37,7 +37,7 @@ def main() -> None:
     parser.add_argument('--runtime',type=Path,required=True)
     parser.add_argument('--clang',type=Path,required=True)
     parser.add_argument('--cpu',type=int,required=True)
-    parser.add_argument('--mode',choices=('source','parse','append','compare','v7','control','io'),required=True)
+    parser.add_argument('--mode',choices=('source','parse','append','compare','v7','generated','control','io'),required=True)
     parser.add_argument('--start',type=int,default=0)
     parser.add_argument('--count',type=int,default=128)
     parser.add_argument('--opt-level',choices=('0','2'),default='2')

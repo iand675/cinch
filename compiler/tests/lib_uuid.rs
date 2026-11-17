@@ -73,7 +73,13 @@ fn uuid_matches_all_independent_public_observations() {
         .unwrap();
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("fixtures/uuid-vectors.json")).unwrap();
-    for (mode, expected) in [("parse", 660), ("append", 204), ("compare", 370), ("v7", 9)] {
+    for (mode, expected) in [
+        ("parse", 660),
+        ("append", 204),
+        ("compare", 370),
+        ("v7", 9),
+        ("generated", 48),
+    ] {
         let count = fixture[mode].as_array().unwrap().len();
         assert_eq!(count, expected);
         for start in (0..count).step_by(128) {

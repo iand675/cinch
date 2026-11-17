@@ -23,6 +23,8 @@ def source(mode: str, start: int = 0, count: int = 128) -> str:
             values.append('CompareCase ' + ' '.join((quote(row['first']), quote(row['second']), '('+str(row['order'])+')')))
         elif mode == 'append':
             values.append('AppendCase ' + ' '.join((quote(row['prefix']), quote(row['value']), quote(row['output']))))
+        elif mode == 'generated':
+            values.append('GeneratedCase ' + ' '.join((quote(row['algorithm']), quote(row['canonical']), str(row['version']), str(row['variant']))))
         elif mode == 'v7':
             values.append('ClockCase ' + ' '.join((str(row['unix_nanos']), str(row['repeat']), quote(row['entropy']), quote(row['canonical']))))
         else:
@@ -34,7 +36,7 @@ def source(mode: str, start: int = 0, count: int = 128) -> str:
 def main() -> None:
     """Write exactly one bounded consumer selected by the caller's runtime budget."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--mode', choices=('parse','compare','append','v7'), required=True)
+    parser.add_argument('--mode', choices=('parse','compare','append','v7','generated'), required=True)
     parser.add_argument('--start', type=int, default=0)
     parser.add_argument('--count', type=int, default=128)
     parser.add_argument('--output', type=Path, required=True)

@@ -5,6 +5,7 @@ module Main where
   import Data.Machine
   import Data.Bytes
   import Data.Uuid
+  import Data.Hash
 
   -- | Require a complete formatted result for a supplied-entropy construction.
   matches :: String -> Result UuidError Uuid -> Bool
@@ -62,7 +63,7 @@ module Main where
   -- | Check sentinels and arbitrary bit patterns without imposing generation-time version restrictions.
   sentinels :: Unit -> Bool
   sentinels unit =
-    uuid-format uuid-nil == "00000000-0000-0000-0000-000000000000" && uuid-format uuid-max == "ffffffff-ffff-ffff-ffff-ffffffffffff" && uuid-equal (uuid-from-words 0 0) uuid-nil
+    hash uuid-nil == hash (uuid-from-words 0 0) && hash uuid-max == hash (uuid-from-words 18446744073709551615 18446744073709551615) && uuid-format uuid-nil == "00000000-0000-0000-0000-000000000000" && uuid-format uuid-max == "ffffffff-ffff-ffff-ffff-ffffffffffff" && uuid-equal (uuid-from-words 0 0) uuid-nil
 
   -- | Return the first failed independent boundary contract.
   main :: Int
