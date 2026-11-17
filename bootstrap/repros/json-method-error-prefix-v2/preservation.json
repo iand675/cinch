@@ -1,0 +1,79 @@
+{
+  "status": "preserved-first-v2-genuine-failure",
+  "code": 961,
+  "zero_based_row": 24,
+  "property": "partial outcome bytes",
+  "expected_prefix_hex": "",
+  "diagnosis": "Pinned Marshal returns nil buffer for every failed legacy-reporting call. The private container prefix is useful for semantic offset composition, but public marshal-attempt must honor the reporting policy when exporting failed output. Current attempt exports it unconditionally.",
+  "files": {
+    "Main.cinch": {
+      "original_path": "build/json-error-methods-probe-v2/Main.cinch",
+      "sha256": "ad2bd787ce84f32eb2f7f664471bc8042564fd443b05353067b953941d18c972",
+      "bytes": 47530
+    },
+    "Codec.cinch": {
+      "original_path": "build/json-error-methods-probe-v2/Text.Json.Codec.cinch",
+      "sha256": "a6b1e9e89ff1286eee16790a63d643b1f44f339337a3d4ec6ea1cdacc6465c44",
+      "bytes": 148429
+    },
+    "Value.cinch": {
+      "original_path": "build/json-error-methods-probe-v2/Text.Json.Value.cinch",
+      "sha256": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "bytes": 126682
+    },
+    "source-report.json": {
+      "original_path": "build/json-error-methods-probe-v2/report.json",
+      "sha256": "e1b4134c1ea064ef371ff8530f986d718d56ae0bf7237786b217e639f64503f3",
+      "bytes": 9839
+    },
+    "runtime-report.json": {
+      "original_path": "bootstrap/stdlib-json-error-methods-rust-v2-results.json",
+      "sha256": "bc9bf881d205a20078328e427116f3c900dace877f43cfb4b4ac6361cf7ec5b3",
+      "bytes": 11759
+    },
+    "runtime.log": {
+      "original_path": "build/json-error-methods-rust-v2/ordinary.log",
+      "sha256": "51a5c9105e97080d2d78b2921dd34eaec7a2ae90aae25597596a8dcb1b1cca78",
+      "bytes": 177
+    },
+    "generate_method_errors.py": {
+      "original_path": "build/json-next-error-context/generate_method_errors.py",
+      "sha256": "0c62ae6cde0f967aa95afa66de1d2205dc901bc86448469be53c89c7dd34c59b",
+      "bytes": 14164
+    },
+    "probe_remaining.py": {
+      "original_path": "build/json-next-error-context/probe_remaining.py",
+      "sha256": "0bc14dc446f289723eacc1beb7ea901ae7eae5c6f185a1e7d3787865e5612154",
+      "bytes": 3349
+    },
+    "qualify_remaining.py": {
+      "original_path": "build/json-next-error-context/qualify_remaining.py",
+      "sha256": "1553bce05d74495c598f822a027c55a8cbf5f33d4ba3f035cf2c81f7701270a5",
+      "bytes": 6465
+    },
+    "pipeline_v2.py": {
+      "original_path": "build/json-next-error-context/pipeline_v2.py",
+      "sha256": "66048512783bdff03ff336b8d2dc8b6e9e974d62d20dc0a4ad5c8345b428eba0",
+      "bytes": 1400
+    }
+  },
+  "plain_failed_artifacts": {
+    "build/json-error-methods-rust-v2/consumer": {
+      "sha256": "512bce7c3e7e93f20596f8d9b5fd0d75b9066855d1ce5e24c3c7878ec1bd2e9a",
+      "bytes": 7627032,
+      "mode": 448
+    },
+    "build/json-error-methods-rust-v2/consumer.ll": {
+      "sha256": "9fb526f26a0d9a76a6052f9780bc7e7b964cd3619a90099966d970c334297bc2",
+      "bytes": 9696331,
+      "mode": 384
+    }
+  },
+  "source_authority": {
+    "path": "/tmp/cinch-go-current/go/src/encoding/json/v2/arshal.go",
+    "sha256": "54dc9704a72fe6836422f3ca4a216d32c55e5ffdf964c84ccb868e171997d5eb",
+    "lines": "163-173"
+  },
+  "poison_pending": true,
+  "updates_pending": true
+}

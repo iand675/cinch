@@ -1,0 +1,226 @@
+{
+  "status": "passed-rust-error-context-stage-only",
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "current_sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+  },
+  "current_source_reference_rows": 1494,
+  "current_source_bounded_memory_processes": 14,
+  "additional_original_pending_row": 1,
+  "additional_owner_groups": 4,
+  "current_receipts": {
+    "methods": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-methods-rust-v6-results.json",
+      "runtime_receipt_sha256": "a3845f21c15f4a912027bd4ddabb6d27ac4f85b9586d27da9c5b0f8e83287c64",
+      "source_receipt_sha256": "482cf15faf81d1a25bed8f9ee06c1c03982b03da8dbc4f789a970185763b9366",
+      "sources": {
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "Text.Json.Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+      },
+      "fixture_sha256": "067ace595f5e039b08258ff2271f0ad453115b72770e67cfdb7125c25fb821d4",
+      "rows": 288,
+      "bounded_memory_processes": 2,
+      "archive_index": "bootstrap/stdlib-json-error-methods-rust-v6-functional-archive.json",
+      "archive_index_sha256": "d4bb5874e623e57adb0673ace068ed7cd3386d4b50114fd4c96837bb361d0ebd"
+    },
+    "updates": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-updates-rust-v1-results.json",
+      "runtime_receipt_sha256": "141d794d69294f6401c8c3ed9c3a9794e7566c5b0004498322bd1863ccd7c5b9",
+      "source_receipt_sha256": "1d7d1ae209f56a0de2783f200f8212368b4f930a19f13afaf757fb5c23bfa7e6",
+      "sources": {
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "Text.Json.Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+      },
+      "fixture_sha256": "39e4bf1bb0ac9f94e5729a5ede7ef552a746542de41020cacf271a6df91631ae",
+      "rows": 54,
+      "bounded_memory_processes": 2,
+      "archive_index": "bootstrap/stdlib-json-error-updates-rust-v1-functional-archive.json",
+      "archive_index_sha256": "f9434b9928d443d80f1cbb1e5e0b988c8bd17a1cd1917d59376c1154b107c01a"
+    },
+    "pointer": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-pointer-current-rust-v2-results.json",
+      "runtime_receipt_sha256": "528ad1454b1be11bbc20844cd830c5937278fb5808222d53dff05a1301b39e5e",
+      "source_receipt_sha256": "86dc0e24ebe9b010288821a01b24be3a2df81e1809665b65fef67b814346ec5b",
+      "sources": {
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "Text.Json.Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+      },
+      "fixture_sha256": "b3bbca26eca6b0f93a12681ad8ca0892f1e32e6666e174c1fda7bd09e4d49d69",
+      "rows": 288,
+      "bounded_memory_processes": 2,
+      "archive_index": "bootstrap/stdlib-json-error-pointer-current-rust-v2-functional-archive.json",
+      "archive_index_sha256": "d7b2c45a1c4ecfcf59067e4a7da1ece155e6bbd03051aa831ee8d30520fbc2d1"
+    },
+    "owner": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-owner-current-rust-v2-results.json",
+      "runtime_receipt_sha256": "7f06d9503207d847da370827be3406bbb487db1d42b8ad0bc1aae055db4a64b7",
+      "source_receipt_sha256": "e7af85dd40a9cd2c6865de2bcd00cdfaa7abf2fbbd853391778db8dfb2a29b3e",
+      "sources": {
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "Text.Json.Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+      },
+      "fixture_sha256": "130289ba144caa43c494d8cddac9b663d4f74e01cc82b0ca63bebbe4a049d736",
+      "rows": null,
+      "bounded_memory_processes": 2,
+      "archive_index": "bootstrap/stdlib-json-error-owner-current-rust-v2-functional-archive.json",
+      "archive_index_sha256": "3f68f54006ad13870314c07dd1f6a3aaa2c06b1aecb796ad9e4bf54e6bdf5be4"
+    },
+    "bool": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-bool-current-rust-v2-results.json",
+      "runtime_receipt_sha256": "8dc0b39cc20f0cdc13f2ff60ad6f9c38b3f1288a116c25bc1ab7828e282b4499",
+      "source_receipt_sha256": "917d5c34ce53fc8371e921f9cf45cbc32a2d999cd073baa43a6395401064ffe6",
+      "sources": {
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "Text.Json.Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+      },
+      "fixture_sha256": "8daa94232b5ffe1876a0e11da9eb41af9df1aa6f5d63c482d334391b517ce93b",
+      "rows": 288,
+      "bounded_memory_processes": 2,
+      "archive_index": "bootstrap/stdlib-json-error-bool-current-rust-v2-functional-archive.json",
+      "archive_index_sha256": "7e14abd55e5e68ca351a35047200fd2dd99130abb6bf6ef46840a15e1b45d8fd"
+    },
+    "string": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-string-current-rust-v2-results.json",
+      "runtime_receipt_sha256": "28f0324434d7009917d96d8a7f3e04d3d9f914b9787456861d21572a63f01fb4",
+      "source_receipt_sha256": "38a57583a84040bea450f8b2f7bbbc852a06d766ea02752a48b4de97245c94b3",
+      "sources": {
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "Text.Json.Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+      },
+      "fixture_sha256": "8dc85df3d1aa8cb16fef71b91c17a9685c2ffc62dbb1bfee86786327d3fe8634",
+      "rows": 288,
+      "bounded_memory_processes": 2,
+      "archive_index": "bootstrap/stdlib-json-error-string-current-rust-v2-functional-archive.json",
+      "archive_index_sha256": "9a504601951cf0da0c37f5bc4cae3146f0f3fe1fa417e4ae99bf1ef9e1a4ccdb"
+    },
+    "integer": {
+      "runtime_receipt": "bootstrap/stdlib-json-error-integer-current-rust-v2-results.json",
+      "runtime_receipt_sha256": "8e67dde7d979eeb5891b2ebfe5fc9e74d570ba1a323f5d13d4bf941c9975106b",
+      "source_receipt_sha256": "4372e82ddf4b8b1dbb786c61ba8d73a180f21594b00e85014d7a1e046d54d655",
+      "sources": {
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+        "Text.Json.Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+        "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+        "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+      },
+      "fixture_sha256": "04964c2eeab2081fc7fdfee461d1dd62d3ed89babf5cdb9cb6fe6bfa07198358",
+      "rows": 288,
+      "bounded_memory_processes": 2,
+      "archive_index": "bootstrap/stdlib-json-error-integer-current-rust-v2-functional-archive.json",
+      "archive_index_sha256": "89eaba113417a726189cb75df467f95737625fb36f393bcdf8ddbe880c8d8013"
+    }
+  },
+  "canonical_docs": {
+    "Value": {
+      "canonical_declarations": 363,
+      "source_sha256": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+      "docs_sha256": "398ad8e097389fd63b18cef18cf7f4292c72bb0244f559608d88be002e90cdce"
+    },
+    "Codec": {
+      "canonical_declarations": 372,
+      "source_sha256": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595",
+      "docs_sha256": "f1345ab69208026ac877430ae1ddb8a46cf8186e31ed7a9096021c2a05817705"
+    },
+    "Dynamic": {
+      "canonical_declarations": 73,
+      "source_sha256": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93",
+      "docs_sha256": "1259f5d7d9447f8f4096e36059f7d74fcbef9f9515b4d8e84f3f7747ff763e80"
+    },
+    "Binary32": {
+      "canonical_declarations": 25,
+      "source_sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "docs_sha256": "fd84ca33ba38a978b50d7f44146e732c1a3b620f756b3cef2c0d6eff793b6891"
+    },
+    "Legacy": {
+      "canonical_declarations": 21,
+      "source_sha256": "c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826",
+      "docs_sha256": "ea4651b5c45676a75cd82aec29ea1fa4f7e995aa73cd03a2106e49b253614a91"
+    }
+  },
+  "canonical_json_declarations": 854,
+  "earlier_quoted_epoch": {
+    "checkpoint": "c5a8c0ecef7b5b50a3be0abb2390900da7fdbc95",
+    "receipt": "bootstrap/stdlib-json-quoted-rust-stage-checkpoint.json",
+    "receipt_sha256": "515b8f014ea6c08556f00ee8ceab4af93c6b3d0e5a800fa8b0abf261cc0f83dc",
+    "sources": {
+      "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "Text.Json.Value": "bcb0702439d3520158155418fb35e41e9378b5d7bea602d620b24351cb5e5daa",
+      "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "Text.Json.Codec": "379ad24bb14efdf22fbbe4c776131fa521ceec770c7bd8667995272f8c44e881"
+    },
+    "reference_rows": 1152,
+    "additional_original_pending_row": 1,
+    "additional_owner_groups": 4,
+    "bounded_memory_processes": 10
+  },
+  "all_reference_rows_accounted_by_actual_epoch": 1494,
+  "matched_current_source_full1494_claim": true,
+  "sdk_render_panic_outcomes_retained": 12,
+  "panic_adaptation": "Observe literal absent type and original error metadata; reference panic strings are preserved. No panic/prose equality or deliberate Cinch crash is claimed.",
+  "first_failure_epochs_preserved_plain": 4,
+  "failed_plain_files_verified": 413,
+  "historical_methods_v5_receipt_preserved": "bootstrap/stdlib-json-error-methods-rust-v5-results.json",
+  "native_executed": false,
+  "production_promoted": false,
+  "full92_complete": false,
+  "performance_claim": null,
+  "remaining": [
+    "Value-sensitive nullable, interface and key method semantics",
+    "Reporting-disabled malformed-syntax partial updates remain unimplemented",
+    "Bounded Effect.Json source/decoder/encoder/token/More/Buffered and original IO causes",
+    "Actual public pipeline qualification and paired benchmarking",
+    "Native qualification and full92 reconciliation"
+  ]
+}

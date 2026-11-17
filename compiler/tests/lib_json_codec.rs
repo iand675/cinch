@@ -375,3 +375,15 @@ fn json_quoted_integer_outputs_match_independent_observations() {
 fn json_encoding_outcome_owners_and_error_families_are_bounded() {
     run(include_str!("fixtures/json-codec-error-owner-control.cinch"));
 }
+
+/// JSON and text methods retain independent receiver identity and exact original semantic context.
+#[test]
+fn json_method_error_families_prefixes_and_context_match_observations() {
+    run(include_str!("fixtures/json-codec-error-methods.cinch"));
+}
+
+/// Named reads retain optional type metadata, root records, partial values and callback input bytes.
+#[test]
+fn json_update_error_identity_records_and_continuation_match_observations() {
+    run(include_str!("fixtures/json-codec-error-updates.cinch"));
+}

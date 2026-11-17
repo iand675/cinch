@@ -1,0 +1,17 @@
+{
+  "status": "prepared-not-qualified",
+  "source_sha256": "4401f69a9a3c2bde705e37da231fb629432eef9d036941a57c51368ad4ef2c37",
+  "oracle_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "rows": 288,
+  "public_entries": [
+    "json-marshal-attempt",
+    "json-marshal-with",
+    "json-marshal-value"
+  ],
+  "comparison": "Literal original optional type metadata, public family, semantic offset/pointer/kind/reported bytes, original refusal, partial prefix and per-entry callback counts; no pointer-label/absence normalization or prose equivalence",
+  "status_encoding": "zero=success; zero-based row*40 + property, where1=prefix,2=callbacks,11/21/31=family,12/22/32=optional type,13/23/33=original cause,14/24/34=semantic metadata. Process exit may truncate later nonzero statuses; preserve exact program for diagnosis.",
+  "original_total_rows_retained": 1494,
+  "sdk_panic_rows_retained": 12,
+  "updates54_status": "pending independent generator; no row dropped",
+  "production_sources_changed": false
+}

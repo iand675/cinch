@@ -1,0 +1,81 @@
+{
+  "base_candidate_commit": "c5a8c0ecef7b5b50a3be0abb2390900da7fdbc95",
+  "candidate_commit": "containing commit of this manifest on lane/stdlib-json",
+  "promotion_status": "qualified Rust source candidate; no Native ABI/family/package/production promotion",
+  "changed_production": {
+    "compiler/prelude/Text/Json/Value.cinch": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+    "compiler/prelude/Text/Json/Codec.cinch": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+  },
+  "new_compiler_runtime_intrinsics": false,
+  "new_production_llvm": false,
+  "source_representation_note": "JsonType adds a private root read-name field; JsonSemanticInfo preserves Option String identity; JsonError adds exact typed metadata and a private immutable context barrier. Source consumers compile together; no frozen Native representation equivalence is claimed.",
+  "maintained_test_file": "compiler/tests/lib_json_codec.rs",
+  "maintained_test_file_sha256": "c3c28b19ca9e8f442b186081f7ba8613a091ff132b7178c36cf7eb40107869eb",
+  "new_sdk_free_tests_relative_to_base": {
+    "json_method_error_families_prefixes_and_context_match_observations": {
+      "fixture": "compiler/tests/fixtures/json-codec-error-methods.cinch",
+      "sha256": "067ace595f5e039b08258ff2271f0ad453115b72770e67cfdb7125c25fb821d4"
+    },
+    "json_update_error_identity_records_and_continuation_match_observations": {
+      "fixture": "compiler/tests/fixtures/json-codec-error-updates.cinch",
+      "sha256": "39e4bf1bb0ac9f94e5729a5ede7ef552a746542de41020cacf271a6df91631ae"
+    }
+  },
+  "inherited_sdk_free_tests": {
+    "json_quoted_bool_errors_and_prefixes_match_independent_observations": {
+      "fixture": "compiler/tests/fixtures/json-codec-error-bool.cinch",
+      "sha256": "8daa94232b5ffe1876a0e11da9eb41af9df1aa6f5d63c482d334391b517ce93b"
+    },
+    "json_quoted_pointer_methods_and_retained_refusal_match_observations": {
+      "fixture": "compiler/tests/fixtures/json-codec-error-pointer.cinch",
+      "sha256": "b3bbca26eca6b0f93a12681ad8ca0892f1e32e6666e174c1fda7bd09e4d49d69"
+    },
+    "json_quoted_string_errors_and_prefixes_match_independent_observations": {
+      "fixture": "compiler/tests/fixtures/json-codec-error-string.cinch",
+      "sha256": "8dc85df3d1aa8cb16fef71b91c17a9685c2ffc62dbb1bfee86786327d3fe8634"
+    },
+    "json_quoted_integer_outputs_match_independent_observations": {
+      "fixture": "compiler/tests/fixtures/json-codec-error-integer.cinch",
+      "sha256": "04964c2eeab2081fc7fdfee461d1dd62d3ed89babf5cdb9cb6fe6bfa07198358"
+    },
+    "json_encoding_outcome_owners_and_error_families_are_bounded": {
+      "fixture": "compiler/tests/fixtures/json-codec-error-owner-control.cinch",
+      "sha256": "130289ba144caa43c494d8cddac9b663d4f74e01cc82b0ca63bebbe4a049d736"
+    }
+  },
+  "qualified_source_dependency_context": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+  },
+  "root_dependency_handling": "Change only Value/Codec, the two new literal consumers and additive test wiring. Preserve Root Array/Word/Binary32/other dependency source epochs. The exact6 dependency hashes describe qualification inputs, not requested replacements. Root may independently qualify its current compiler/runtime and parent sources.",
+  "current_qualification": {
+    "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "reference_rows": 1494,
+    "additional_retained_descriptor_rows": 1,
+    "owner_groups": 4,
+    "memory_processes": 14,
+    "proof": "bootstrap/stdlib-json-error-context-stage-checkpoint.json",
+    "proof_sha256": "71a16438e084bfeb8212975fdbcfa47d140636bac59fd7c5c9e41d591e9ada65",
+    "canonical_declarations": 854,
+    "SDK_required_for_tests": false,
+    "local_Cargo_run": false
+  },
+  "source_epoch_split": "All7 selected consumer units now match current Value/Codec exactly. Earlier c5a8 quoted, historical v5 methods and four failed method epochs stay immutable with original identities; no historical receipt was relabeled.",
+  "reference_render_panic_outcomes": 12,
+  "reference_panic_adaptation": "The12 original panic outcomes remain in the unchanged oracle and literal update rows as nil-type observations. No panic/prose equivalence or deliberate renderer crash is claimed.",
+  "remaining_full92": [
+    "Value-sensitive nullable/interface/key semantics",
+    "Method-returned type/syntax/custom-error corners outside the current error samples",
+    "Reporting-disabled malformed-syntax partial updates",
+    "Bounded Effect.Json and exact original IO causes/advanced handles",
+    "Actual public pipelines and paired performance/lowering/ownership evidence",
+    "Native qualification and final92 reconciliation"
+  ]
+}

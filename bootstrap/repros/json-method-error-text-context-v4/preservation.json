@@ -1,0 +1,70 @@
+{
+  "status": "preserved-first-v4-genuine-failure",
+  "code": 9854,
+  "zero_based_row": 246,
+  "property": "returned text semantic context",
+  "expected_offset": 2,
+  "expected_pointer": "/inner~0",
+  "diagnosis": "Pinned text method path directly preserves a returned semantic error; JSON method path wraps/collapses operation context. Common helper currently exposes the text semantic error to library container decoration.",
+  "files": {
+    "Main.cinch": {
+      "original_path": "build/json-error-methods-probe-v4/Main.cinch",
+      "sha256": "067ace595f5e039b08258ff2271f0ad453115b72770e67cfdb7125c25fb821d4",
+      "bytes": 47540
+    },
+    "Value.cinch": {
+      "original_path": "build/json-error-methods-probe-v4/Text.Json.Value.cinch",
+      "sha256": "d912638c037bd2ec203127f654bf4fed9ad3f5ac8495a95d9c5fd7cf3bf5af36",
+      "bytes": 127481
+    },
+    "Codec.cinch": {
+      "original_path": "build/json-error-methods-probe-v4/Text.Json.Codec.cinch",
+      "sha256": "7c7baf97991c086536363a860be81095542e76240e4b0a999d0e7c05eb0c85f8",
+      "bytes": 148531
+    },
+    "source-report.json": {
+      "original_path": "build/json-error-methods-probe-v4/report.json",
+      "sha256": "2c8e371b9313cba3ee5f80db45ecd759bb6fd374760fb21c2ba0b161c3250d69",
+      "bytes": 9841
+    },
+    "runtime-report.json": {
+      "original_path": "bootstrap/stdlib-json-error-methods-rust-v4-results.json",
+      "sha256": "71d7173187edc1c09ea684f777ad761b3d38cdd63a2311a5a72e39b055dd955c",
+      "bytes": 12100
+    },
+    "runtime.log": {
+      "original_path": "build/json-error-methods-rust-v4/ordinary.log",
+      "sha256": "e4cefd947b678283d27c876f208fba7174bcafc8381557f7620e93342eb6b2e6",
+      "bytes": 184
+    },
+    "generate_method_errors.py": {
+      "original_path": "build/json-next-error-context/generate_method_errors.py",
+      "sha256": "2d8ba79561d3dfa4f5c6410921400d4c41f63d0d83ac4763c5b2057f542f5e56",
+      "bytes": 14174
+    },
+    "probe_remaining.py": {
+      "original_path": "build/json-next-error-context/probe_remaining.py",
+      "sha256": "b90895a7d09226af371cf9c9045e802a02547397d42e5f88a0641dc57f0a79c1",
+      "bytes": 3735
+    },
+    "qualify_remaining.py": {
+      "original_path": "build/json-next-error-context/qualify_remaining.py",
+      "sha256": "5d90163c04b68397eef0f3954dce2ec679c6c42d5c401fca41f253831d3b73b2",
+      "bytes": 7046
+    }
+  },
+  "plain_failed_artifacts": {
+    "build/json-error-methods-rust-v4/consumer": {
+      "sha256": "07b8682fdbeba8fe09fc5f38378c8480a30ac0490c7db04260f8cf3718929d96",
+      "bytes": 7626992,
+      "mode": 448
+    },
+    "build/json-error-methods-rust-v4/consumer.ll": {
+      "sha256": "efa1e090ee8b754816e23169e530a58990bd503a5a36b3d8992136eb6fc74f57",
+      "bytes": 9702726,
+      "mode": 384
+    }
+  },
+  "poison_pending": true,
+  "updates_pending": true
+}
