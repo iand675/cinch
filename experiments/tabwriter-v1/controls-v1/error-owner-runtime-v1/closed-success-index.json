@@ -1,0 +1,46 @@
+{
+  "scope": "Recover only a completed zero-leak control's ELF/IR after exact durable archive verification.",
+  "report": "/workspace/dasl-stdlib-buffered-io/build/tabwriter-error-owner-runtime-v1/report.json",
+  "report_sha256": "15c216c0c8e88bff55033ba307f8cb152c360f4885a2211d716f54c195f53ea0",
+  "archive": "/workspace/dasl-stdlib-buffered-io/build/tabwriter-error-owner-runtime-v1/closed-success.tar.gz",
+  "compressed_sha256": "50b23ae06dac4428cac8ca1311da72de0b2cb658b499058a6f100bf5edb991a5",
+  "compressed_bytes": 1868240,
+  "decompressed_tar_sha256": "287187c722282121c2329c22536f08fb978afe87ba09584f6a3db48485da068f",
+  "decompressed_tar_bytes": 7147520,
+  "entries": [
+    {
+      "path": "/workspace/dasl-stdlib-buffered-io/build/tabwriter-error-owner-runtime-v1/consumer",
+      "member": "consumer",
+      "report_hash_field": "executable_sha256",
+      "sha256": "aa705228c27fa437025d47b7b0467e64d446a556af68647c19514bbbaf5873a0",
+      "bytes": 6144824,
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794940996678130352,
+      "device": 27,
+      "inode": 1329257
+    },
+    {
+      "path": "/workspace/dasl-stdlib-buffered-io/build/tabwriter-error-owner-runtime-v1/consumer.ll",
+      "member": "consumer.ll",
+      "report_hash_field": "llvm_sha256",
+      "sha256": "a0c12688e58f17be8b2c5bc2780d39877ea92d8163afbf6103105a78e3ec04ec",
+      "bytes": 997782,
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794940993814073333,
+      "device": 27,
+      "inode": 1329254
+    }
+  ],
+  "originals_removed": true,
+  "resource_policy": {
+    "start_free_mib": 350,
+    "reserve_mib": 250,
+    "free_at_start_bytes": 478380032,
+    "explicit_scope": null
+  },
+  "net_logical_recovered_bytes": 5274366
+}
