@@ -1,0 +1,345 @@
+{
+  "scope": "Check complete multipart session contracts through genuine source-absent artifacts.\n\nThe original compiler manifest supplies every interface hash. Interface bytes\nare copied without rewriting schemes, nominal roles, capabilities or identities.\nThis check does not claim a runtime provider contains new multipart units.\n",
+  "runtime_claim": false,
+  "source_manifest": "/workspace/dasl-stdlib-multipart/build/multipart/full-forms-rust-855-v1/build/Main.manifest.json",
+  "source_manifest_sha256": "b30b777a7c142432648f5356b418af15c49d537940b401fcb21ceaa33e7cc018",
+  "artifact_sha256": {
+    "Algebra.Arithmetic": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+    "Algebra.Bits": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+    "Algebra.Group": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+    "Algebra.Monoid": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+    "Algebra.Semigroup": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+    "Algebra.Semiring": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+    "Category.Alternative": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+    "Category.Applicative": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+    "Category.Foldable": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+    "Category.Functor": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+    "Category.Monad": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+    "Category.Traversable": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+    "Data.Ascii": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93",
+    "Data.Bool": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501",
+    "Data.Bytes": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6",
+    "Data.Bytes.Utf8": "cc10d46a692795b57d00e18fabe5c9a140c83c602840c9798517d051952bfe1e",
+    "Data.Bytes.Word": "c398bb83c01f3aa9051ae1a6c1b03d80875a99cd86ee4cf6de404bc9492985f1",
+    "Data.Char": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375",
+    "Data.Compose": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+    "Data.Const": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+    "Data.Core": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+    "Data.Enum": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31",
+    "Data.FromList": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+    "Data.FromMap": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60",
+    "Data.Hash": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+    "Data.HashMap": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5",
+    "Data.Identity": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+    "Data.Int": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+    "Data.Json": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5",
+    "Data.List": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab",
+    "Data.Machine": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e",
+    "Data.Map": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e",
+    "Data.Mutable.Var": "7c2c85e1acfbaafdf1bb91a569d4a5022aabe292eb99540254459dcb1558b6e4",
+    "Data.Nat": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+    "Data.NonEmpty": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+    "Data.NonZero": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+    "Data.Option": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+    "Data.Ordering": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+    "Data.Path": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b",
+    "Data.Producer": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+    "Data.Result": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+    "Data.Set": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+    "Data.Sorted": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+    "Data.String": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+    "Data.Sym": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690",
+    "Data.Target": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+    "Data.Unicode.Kernel": "a637388276505c8ccb3cbebf4f7e00cd88c8e1558d78158b5b4eccbd81e3aa21",
+    "Data.Unicode.Tables": "8ff2e79161c143b924781e478624b1d81795cde52d19d642d2d07ef2c02d61e5",
+    "Data.Wide": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8",
+    "Effect.Clock": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+    "Effect.Concurrent": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+    "Effect.Fs": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1",
+    "Effect.Io": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514",
+    "Effect.Multipart": "bf31f1db8e01ff1ac326e23710987011e4123141c3803092281285b541ec2bb7",
+    "Effect.Process": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f",
+    "Effect.Sequencing": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+    "Effect.Stm": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab",
+    "Effect.Stm.TBQueue": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6",
+    "Effect.Stm.TMVar": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461",
+    "Effect.Stm.TQueue": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8",
+    "Effect.Stm.TSem": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4",
+    "Effect.Stream": "7ed03fa1ac85ec928a74faacdeaef8ee580651af15bce42bc78c28a1a9c4c552",
+    "Function.Combinators": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+    "Prelude": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9",
+    "Prim.Sys": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38",
+    "Prim.Sys.Darwin": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724",
+    "Prim.Sys.Linux": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085",
+    "Prim.Sys.Portable": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259",
+    "Relation.Eq": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+    "Relation.Ord": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+    "Text.Base64.Encoding": "3668fcb7a27822a76f05442b6a6fc5490ec4368ae80171fdcc3c8433a9103543",
+    "Text.Codec": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a",
+    "Text.Mime": "6f3d22d1b43cf96e283e68e23ff1cdd3eda42ee47091ce6ea7cb9b3a81cc4e3a",
+    "Text.Multipart": "66a57c33efd10325b7a59e448934bf98f14cb6ad2e6eeeceb293502c38a0cdca",
+    "Text.QuotedPrintable": "4930b93c3234356394d116544b214c18100471d368004e7db410000616e533ac",
+    "Text.Show": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397"
+  },
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "client_sha256": "ec5b7fe8fdffc2b31e5c08715dfd3ea8bac0d8059410fb28d091ab38a035f551",
+  "manifest_sha256": "1ddbb95b5716786ad208b5e2fc53ec035f378b6673374c39af058e084f152783",
+  "command": [
+    "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+    "--check",
+    "--interfaces",
+    "/workspace/dasl-stdlib-multipart/build/multipart/source-absent-native-2f-v3/interfaces.json",
+    "/workspace/dasl-stdlib-multipart/build/multipart/source-absent-native-2f-v3/Main.cinch",
+    "/workspace/dasl-stdlib-multipart/build/multipart/source-absent-native-2f-v3/check.output"
+  ],
+  "returncode": 4,
+  "seconds": 1.5833222230139654,
+  "stdout": "",
+  "stderr": "",
+  "diagnostics": {
+    "/workspace/dasl-stdlib-multipart/build/multipart/source-absent-native-2f-v3/check.output.diagnostics": "bootstrap.check:1:92: kind mismatch in type inference\nbootstrap.check:1:92: kind mismatch in type inference\nbootstrap.check:1:92: kind mismatch in type inference\nbootstrap.check:1:190: kind mismatch in type inference\nbootstrap.check:1:38: kind mismatch in type inference\nbootstrap.check:1:104: kind mismatch in type inference\nbootstrap.check:1:150: kind mismatch in type inference\nbootstrap.check:9:43: kind mismatch in type inference\nbootstrap.check:13:64: kind mismatch in type inference\nbootstrap.check:17:92: kind mismatch in type inference\nbootstrap.check:17:117: kind mismatch in type inference\nbootstrap.check:21:64: kind mismatch in type inference\nbootstrap.check:21:126: kind mismatch in type inference\n"
+  },
+  "status": "Retained actual Native kind refusal; not a passing source-absent or runtime gate",
+  "prior_fixture_errors": [
+    "v1 omitted schema:1 in the new manifest; v2 used reserved handle as a client type variable. Both original failures retained; v3 corrects only those fixture errors."
+  ],
+  "actual_report_sha256": "cc9260ebd3261fba39c4b1ff50f3119352e63caad85aabde49fb814d4977e2f4",
+  "actual_report_path": "/workspace/dasl-stdlib-multipart/build/multipart/source-absent-native-2f-v3/report.json",
+  "library_contract_unchanged": true,
+  "original_nominal_parameters": {
+    "Effect.Multipart.MultipartCleanup": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      }
+    ],
+    "Effect.Multipart.MultipartError": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      }
+    ],
+    "Effect.Multipart.MultipartFile": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "key"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "fileHandle"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "state"
+      }
+    ],
+    "Effect.Multipart.MultipartFileHeader": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "key"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "fileHandle"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "state"
+      }
+    ],
+    "Effect.Multipart.MultipartForm": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "key"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "fileHandle"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "state"
+      }
+    ],
+    "Effect.Multipart.MultipartFormReadOutcome": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "key"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "fileHandle"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "state"
+      }
+    ],
+    "Effect.Multipart.MultipartOutputPart": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      }
+    ],
+    "Effect.Multipart.MultipartPart": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      }
+    ],
+    "Effect.Multipart.MultipartPolicy": [],
+    "Effect.Multipart.MultipartReadStatus": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      }
+    ],
+    "Effect.Multipart.MultipartReader": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      }
+    ],
+    "Effect.Multipart.MultipartSink": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      }
+    ],
+    "Effect.Multipart.MultipartSource": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      }
+    ],
+    "Effect.Multipart.MultipartStorage": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "key"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "fileHandle"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "state"
+      }
+    ],
+    "Effect.Multipart.MultipartWriter": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "e"
+      }
+    ]
+  }
+}

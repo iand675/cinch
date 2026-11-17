@@ -698,7 +698,7 @@ module Effect.Multipart where
                     if prefix > 0 && prefix <= bytes-len buffer then raw-span reader cell total prefix (if prefix == bytes-len buffer then readError else MultipartMore) readError wanted
                     else raw-lookahead reader cell input buffer total readError wanted
                   MultipartBodyNeedMore -> raw-lookahead reader cell input buffer total readError wanted
-  
+
               else (bytes-new 0, MultipartReadFailure (MultipartInvalidCount 4096 (bytes-len buffer)))
   -- | Fetch one additional lookahead byte only while no earlier terminal status exists.
   raw-lookahead :: forall (r :: Region) e. Var r (ReaderState r e) -> Var r (PartState e) -> Var r (InputState r e) -> Bytes -> Nat -> MultipartReadStatus (MultipartError e) -> Nat ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))

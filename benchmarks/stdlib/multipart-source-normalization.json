@@ -1,0 +1,109 @@
+{
+  "scope": "Whitespace-only normalization after tested source checkpoint f65063a520433f6985251f4406d483f94ac86701",
+  "path": "compiler/prelude/Effect/Multipart.cinch",
+  "line": 701,
+  "old_sha256": "7d2164120023d2760f4a51f96f4f2160423b88f82610e2903831cbbf3d2657ef",
+  "new_sha256": "1969a6077e1aafb84226e9f4457ceb0b17395bdd9ad82a3a8256ec02e22a8044",
+  "change": "Remove two spaces from an otherwise empty line; no declaration, token or API changed.",
+  "same_whitespace_separated_tokens": true,
+  "historical_evidence": "multipart-source-checkpoint.json retains exact original full-matrix source hashes.",
+  "final_source_checks": {
+    "report_path": "/workspace/dasl-stdlib-multipart/build/multipart/normalized-source-smoke-v1/report.json",
+    "report_sha256": "476dad8f359f85f1ac89d57af99c72cd6a77052adb4c19fca8192d81ddb6e5ed",
+    "frontends": {
+      "rust": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "native": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      }
+    },
+    "runs": [
+      {
+        "frontend": "rust",
+        "case": "late-headers-0000",
+        "count": 4,
+        "command": [
+          "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-multipart/build/multipart/normalized-source-smoke-v1/Main.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-multipart/build/multipart/normalized-source-smoke-v1/rust-late-headers-0000.ll"
+        ],
+        "compile_seconds": 10.171079677005764,
+        "stdout": "",
+        "stderr": "",
+        "source_sha256": "27d8507704bb1849e94d001b5de1f58eccd1b4b1b93a163025ea716785052ffc",
+        "ir_sha256": "91bfd5bd5b78fda5ce5a3e6f84d87e075afc9592f698eb177c247adf51744a5b",
+        "target": "x86_64-unknown-linux-gnu",
+        "profiles": [
+          {
+            "poison": "0",
+            "heap": "32M",
+            "stack": "8M",
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+          },
+          {
+            "poison": "1",
+            "heap": "256M",
+            "stack": "8M",
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+          }
+        ],
+        "executable_sha256": "389956d6a04869b513cdfc2eaf9996252f1d1a51c70542e1c2240e48faee04c0"
+      },
+      {
+        "frontend": "native",
+        "case": "late-headers-0000",
+        "count": 4,
+        "command": [
+          "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+          "--emit-ir",
+          "--rc-debug",
+          "--interfaces",
+          "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/base-interfaces.json",
+          "--objects",
+          "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/objects.json",
+          "/workspace/dasl-stdlib-multipart/build/multipart/normalized-source-smoke-v1/bundle.source",
+          "/workspace/dasl-stdlib-multipart/build/multipart/normalized-source-smoke-v1/native-late-headers-0000.ll"
+        ],
+        "compile_seconds": 49.01428576599574,
+        "stdout": "",
+        "stderr": "",
+        "source_sha256": "27d8507704bb1849e94d001b5de1f58eccd1b4b1b93a163025ea716785052ffc",
+        "ir_sha256": "42b318c67740a44ffcba0e40f7345c18623fd5ecf571988035fccea6472725b4",
+        "target": "x86_64-unknown-linux-gnu",
+        "profiles": [
+          {
+            "poison": "0",
+            "heap": "32M",
+            "stack": "8M",
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+          },
+          {
+            "poison": "1",
+            "heap": "256M",
+            "stack": "8M",
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+          }
+        ],
+        "executable_sha256": "bb95ac863393715fe27457d5c089bab875f3914239c90284ccfce42401426357"
+      }
+    ]
+  }
+}
