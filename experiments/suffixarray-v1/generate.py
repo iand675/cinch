@@ -51,7 +51,7 @@ def main() -> None:
         raise RuntimeError(result.stderr)
     observed=[json.loads(line) for line in result.stdout.splitlines()]
     assert len(observed)==len(payload['data'])
-    encoded=json.dumps(dict(reference=version,go_binary_sha256=digest(args.go),oracle_sha256=digest(HERE/'oracle.go'),generator_sha256=digest(Path(__file__)),package_source_sha256=digest(SDK/'src/index/suffixarray/suffixarray.go'),cases=observed),indent=2)+'\n'
+    encoded=json.dumps(dict(reference=version,go_binary_sha256=digest(args.go),oracle_sha256=digest(HERE/'oracle.go'),generator_sha256=digest(Path(__file__)),package_source_sha256=digest(SDK/'src/index/suffixarray/suffixarray.go'),cases=observed),separators=(',',':'))+'\n'
     assert len(encoded.encode())<4*1024*1024,'bounded fixture budget exceeded'
     args.output.write_text(encoded)
 

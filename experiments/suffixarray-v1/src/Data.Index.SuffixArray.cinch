@@ -65,7 +65,7 @@ module Data.Index.SuffixArray where
   slot table index = let offset = index * 8 in
     if offset + 8 <= bytes-len table then
       let word = bytes-read-le64 table offset in let signed = wrapping-u64-to-i64 word in
-      if ge-i64 signed 0 then nat-from-i64 signed else 0
+      if signed >= 0 then nat-from-i64 signed else 0
     else 0
 
   -- | Store only within a checked packed buffer and the signed address range.
@@ -122,15 +122,18 @@ module Data.Index.SuffixArray where
     let c = prefix counts 0 (maximum + 1) 0 in
     scatter ranks input output counts shift 0 size
 
+  -- | Compare both complete rank components without changing their source table.
+  same-ranks :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bool
+  same-ranks ranks first second width size =
+    let a = key ranks first 0 size in let b = key ranks second 0 size in
+    let c = key ranks first width size in let d = key ranks second width size in
+    a == b && c == d
+
   -- | Assign the next equivalence classes after sorting both prefix components.
   classify :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat
   classify order ranks next width at classes size = if at < size then
     let position = slot order at in
-    let same = if at > 0 then
-      let previous = slot order (at - 1) in
-      key ranks position 0 size == key ranks previous 0 size
-        && key ranks position width size == key ranks previous width size
-      else False in
+    let same = if at > 0 then (let previous = slot order (at - 1) in same-ranks ranks position previous width size) else False in
     let number = if same then classes else classes + 1 in
     let written = store next position number in
     classify order ranks next width (at + 1) number size
@@ -205,7 +208,9 @@ module Data.Index.SuffixArray where
     Index source order size -> if limited limit size == 0 then Nil else
       let first = bound source order needle False 0 size in
       let end = bound source order needle True first size in
-      let count = limited limit (end - first) in gather order first (first + count) Nil
+      if first <= end then
+        let count = limited limit (end - first) in gather order first (first + count) Nil
+      else Nil
 
   -- | Construct a checked half-open range against this immutable snapshot.
   suffix-match :: SuffixIndex -> Nat -> Nat -> Result SuffixIndexError SuffixMatch
@@ -215,17 +220,18 @@ module Data.Index.SuffixArray where
 
   -- | Return the included start offset of a match.
   suffix-match-start :: SuffixMatch -> Nat
-  suffix-match-start match = case match of Match start end -> start
+  suffix-match-start found = case found of Match start end -> start
 
   -- | Return the excluded end offset of a match.
   suffix-match-end :: SuffixMatch -> Nat
-  suffix-match-end match = case match of Match start end -> end
+  suffix-match-end found = case found of Match start end -> end
 
   -- | Advance an empty match by one decoded scalar, with one-byte replacement progress for malformed input.
   empty-next :: SuffixIndex -> Nat -> Nat
-  empty-next index at = case index of Index source order size ->
-    let step = Utf8.utf8-decode-at source at in
-    let width = Utf8.utf8-step-width step in at + (if width > 0 then width else 1)
+  empty-next index at = case index of
+    Index source order size ->
+      let step = Utf8.utf8-decode-at source at in
+      let width = Utf8.utf8-step-width step in at + (if width > 0 then width else 1)
 
   -- | Search left to right through a genuine effectful search-from callback, preserving its typed failure.
   scan :: forall (e :: Row) error. SuffixIndex -> (SuffixIndex -> Nat ->{|e} Result error (Option SuffixMatch)) -> Nat -> Nat -> Option Nat -> List SuffixMatch ->{|e} Result (SuffixScanError error) (List SuffixMatch)
@@ -234,14 +240,14 @@ module Data.Index.SuffixArray where
       case search index cursor of
         Err error -> Err (SuffixCallbackFailed error (reverse reversed))
         Ok None -> Ok (reverse reversed)
-        Ok (Some match) -> case match of
+        Ok (Some found) -> case found of
           Match start end -> if start < cursor then Err (SuffixMatchBeforeCursor cursor start (reverse reversed))
             else if start > end then Err (SuffixInvalidMatch (SuffixSpanReversed start end) (reverse reversed))
             else if end > suffix-index-length index then Err (SuffixInvalidMatch (SuffixSpanPastEnd end (suffix-index-length index)) (reverse reversed))
             else let suppressed = start == end && (case previous of None -> False; Some before -> before == start) in
               let next = if start == end then empty-next index start else end in
               if suppressed then scan index search next remaining (Some end) reversed
-              else scan index search next (remaining - 1) (Some end) (Cons match reversed)
+              else scan index search next (remaining - 1) (Some end) (Cons found reversed)
 
   -- | Collect sorted non-overlapping search-from results. The callback must return its leftmost match at or after the cursor.
   -- Empty matches immediately after another match are suppressed; an empty match advances by one UTF8 scalar.

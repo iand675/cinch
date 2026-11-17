@@ -1,9 +1,20 @@
 # Immutable suffix-index experiment, phase one
 
-This is an isolated, untyped source candidate. It is outside the registered
-prelude and does not change any library inventory or sealed Fields input.
-No Cinch runtime, compiler build or timing has run for this experiment. The
-SDK oracle generator is prepared but has not been executed.
+This isolated candidate is outside the registered prelude and does not change
+any library inventory or sealed Fields input. Public source checking and
+interface-backed documentation extraction pass on frozen C2. Its first small
+O0 public consumer passes normal/poison memory profiles with zero leaks. Full
+corpus, adversarial ownership, effectful callbacks and portable gates remain
+pending; no performance or complete-package claim is made. No Cargo build has
+run in this lane.
+
+The pinned SDK oracle now has 153 inputs, 10,710 literal observations, 9,945
+regexp observations and 1,375 persistence observations. Every unrestricted
+literal position set is independently crosschecked against a naive scan.
+`vectors.json` preserves the actual values. The initial pretty JSON output
+exceeded the 4 MiB fixture cap after generation; changing JSON whitespace alone
+produces the same semantic data in 1,990,439 bytes. The failed generator epoch
+and every failed source project remain plain under `build/`.
 
 The pinned cumulative package surface has seven declarations. `surface.json`
 records each exact declaration, its proposed mapping and its remaining gaps.
