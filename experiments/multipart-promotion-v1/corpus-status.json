@@ -48,7 +48,7 @@
     "corpus-o2-gate.json",
     "corpus-o0-gate.json"
   ],
-  "remaining": "Performance, current Native family, production selection and package-complete promotion remain pending. Three duplicate regression consumers have not been rerun in the newepoch.",
+  "remaining": "Current Native family and production selection remain pending. Three duplicate regression consumers are outside the1128distinct newepoch corpus; no package-complete claim.",
   "parent_ci": {
     "commit": "c2441661",
     "epoch": "current Rust f9/d91, separately recorded on Root",
@@ -90,5 +90,9 @@
       "method": "Exact original accepted Rust330 LLVM restored through verified archive, linked clangO0; source/compiler/runtime/foreign objects and oracle checked. No compiler re-emission claimed.",
       "peak_plain_scratch_bytes": 16868565
     }
+  },
+  "performance": {
+    "status": "Fresh330/d91 candidate pair224functional preflights+16conditions/288 warmup/sample processes passed, exact current source/code and pinned reference; all raw samples/regressions retained.",
+    "receipt": "performance-results.json"
   }
 }

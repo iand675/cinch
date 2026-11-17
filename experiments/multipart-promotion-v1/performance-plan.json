@@ -1,5 +1,5 @@
 {
-  "status": "Both explicit current-source variants built/source-checked,224normal/poison preflights and actualLLVM/optimizedASM gates passed. Exclusive timing slot requested from Root, no timing yet.",
+  "status": "Current-source source/build,224functional normal/poison preflights,2actual optimized code gates and authorized exclusiveCPU0 three-way timing all complete; currentNative/production remain pending.",
   "scope": "Matched SIMD and independently scalarized candidate, complete public pipelines and pinned SDK reference; no baseline/newNative relabel or parity assumption.",
   "compiler": {
     "path": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
@@ -106,5 +106,7 @@
   "preflight_receipt": "performance-preflights.json",
   "preflight_cinch_processes": 224,
   "actual_code_gates": 2,
-  "timing_executed": false
+  "timing_executed": true,
+  "timing_receipt": "performance-results.json",
+  "timing_authorization": "Root explicitly paused its release process group and peerCPU2/4 activity; ownCPU1 builds held, automatic resume fail-safe; immediate completion/release sent."
 }
