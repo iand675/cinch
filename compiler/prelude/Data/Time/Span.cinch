@@ -70,12 +70,21 @@
 --     month, year) the two candidates are the anchor plus the span's
 --     value truncated to the increment and that plus one increment
 --     (NudgeToCalendarUnit), and a result that fills a larger unit is
---     carried up (BubbleRelativeDuration).
+--     carried up (BubbleRelativeDuration). When that window does not
+--     hold the point the span reaches, the two candidates are taken
+--     one increment further (ComputeNudgeWindow's additionalShift):
+--     from 2024-01-31T12:00, 1 year 28 days 23 hours reaches
+--     2025-03-01T11:00, past the anchor plus 1 year 1 month
+--     (2025-02-28T12:00, the day constrained), so the candidates are
+--     1 year 1 month and 1 year 2 months and `Ceil` answers the
+--     latter. A rounding up therefore never lands before the point
+--     and a rounding down never after it.
 --   - `span-total unit` is the exact length in `unit` as a reduced
 --     rational `(numerator, denominator)` with a positive denominator.
 --     For a calendar unit it is the whole units plus the fraction of
 --     the next one, measured on the anchor's own calendar (24 hours is
---     1/30 of a month from 1 June and 1/31 from 1 July).
+--     1/30 of a month from 1 June and 1/31 from 1 July), in the same
+--     window the rounding uses (the span above is 13 + 23/744 months).
 --   - `span-compare` orders spans by length; anchored, by where they
 --     land from the anchor.
 --   - The anchored forms are all one construction, Temporal's: add the
@@ -141,6 +150,19 @@
 --   - Temporal's refusal of Duration.round with neither unit given: not
 --     ported. `span-round-default` rounds to nanoseconds, which only
 --     rebalances up to the span's own largest unit.
+--   - the 0.5.1 reference polyfill as the last word on calendar
+--     rounding: the current specification text (read 2026-11-17) moves
+--     a year or month rounding window one increment on when it does
+--     not hold the destination, and that is followed here (`settled`),
+--     as it is in Data.Time.Zoned.Arithmetic. That polyfill measures
+--     in the first window regardless (progress above 1), so in that
+--     one corner (a month or year window whose end had its day
+--     constrained, and a destination less than a day past it) its
+--     answers differ from these.
+--   - rounding at the very end of the range: the further candidate of
+--     the window is always read, shifted or not, and when it lies
+--     outside the range the answer is `SpanOutOfRange` even if the
+--     mode would not have chosen it.
 --   - text: no printer or parser lives here (Text.Time.Duration).
 module Data.Time.Span where
 
@@ -875,16 +897,21 @@ module Data.Time.Span where
   -- truncated. (The `Day` arm is the specification's too. A civil
   -- anchor never reaches it, because a civil day is 24 hours and goes
   -- through `nudge-day-time`; it is the arm a zoned anchor needs.)
-  window :: I64 -> Parts -> DateTime -> I64 -> TimeUnit -> Result SpanError Window
-  window sign p origin inc unit = case p of
+  --
+  -- `shift` is the specification's additionalShift (ComputeNudgeWindow):
+  -- when set, a year or month window starts one increment further from
+  -- zero; weeks and days ignore it. `settled` decides when to set it.
+  window :: I64 -> Parts -> DateTime -> I64 -> TimeUnit -> Bool -> Result SpanError Window
+  window sign p origin inc unit shift = case p of
     MkParts y mo w d _ ->
       let step = times inc sign in
+      let extra = if shift then step else 0 in
       case unit of
         Year ->
-          let r1 = trunc-to inc y in
+          let r1 = plus (trunc-to inc y) extra in
           window-at origin r1 (plus r1 step) (date-only r1 0 0 0) (date-only (plus r1 step) 0 0 0)
         Month ->
-          let r1 = trunc-to inc mo in
+          let r1 = plus (trunc-to inc mo) extra in
           window-at origin r1 (plus r1 step) (date-only y r1 0 0) (date-only y (plus r1 step) 0 0)
         Week ->
           let r1 = trunc-to inc (plus w (quot d 7)) in
@@ -898,6 +925,43 @@ module Data.Time.Span where
         Millisecond -> Err SpanBadUnits
         Microsecond -> Err SpanBadUnits
         Nanosecond -> Err SpanBadUnits
+
+  -- Whether the destination lies in the window, either end included,
+  -- whichever way the window runs.
+  inside :: I128 -> Window -> Bool
+  inside dest win = case win of
+    MkWindow _ _ _ _ sn en ->
+      (le-i128 sn dest && le-i128 dest en) || (le-i128 en dest && le-i128 dest sn)
+
+  -- The window the destination is measured in, and whether it had to
+  -- be shifted: the first steps of NudgeToCalendarUnit in the current
+  -- specification text (read 2026-11-17; the 0.5.1 reference polyfill
+  -- predates them). My reading of the step: compute the window with
+  -- additionalShift false; if the destination is not between its start
+  -- and its end (ends included, in the duration's direction), compute
+  -- it again with additionalShift true, which holds the destination,
+  -- and count the nudge as an expansion whichever candidate is then
+  -- chosen (didExpandCalendarUnit), so that the carry into larger
+  -- units is tried (11 months shifted to 12 become 1 year).
+  --
+  -- The destination can lie beyond the first window only because the
+  -- window's end has its day constrained and the difference that
+  -- produced the duration compares days unconstrained: 2024-01-31T12:00
+  -- until 2025-03-01T11:00 is 1 year 28 days 23 hours (a further month
+  -- would be "2025-02-31"), yet the month window after the year ends
+  -- at 2025-02-28T12:00, 23 hours before the destination. The window
+  -- one month on, 2025-02-28T12:00 to 2025-03-31T12:00, holds it. The
+  -- overshoot is always less than one day, forward only (going
+  -- backward, constraining lengthens the window), and only for years
+  -- and months.
+  settled :: I64 -> Parts -> I128 -> DateTime -> I64 -> TimeUnit -> Result SpanError (Window, Bool)
+  settled sign p dest origin inc unit = case window sign p origin inc unit False of
+    Err e -> Err e
+    Ok win ->
+      if inside dest win then Ok (win, False)
+      else case window sign p origin inc unit True of
+        Err e -> Err e
+        Ok again -> Ok (again, True)
 
   -- What a nudge produced: the rounded duration, where it lands on the
   -- line, and whether it moved to the further candidate.
@@ -914,23 +978,29 @@ module Data.Time.Span where
   -- already exact, and its half-even case reads the parity of r1 / inc,
   -- as the specification does).
   --
+  -- The window is the one `settled` picks, so the destination is in it
+  -- and `num` is at most `den`: the rounded value is the window's
+  -- start or its end, never beyond. A shifted window counts as an
+  -- expansion even when its start is chosen (see `settled`).
+  --
   -- Overflow: `den` and `num` are below 6.4e20 (the whole line), `inc`
-  -- is at most 1e9 and |r1| at most about 1e9, so `v` and `inc * den`
-  -- are below 1.3e30.
+  -- is at most 1e9 and |r1| at most about 1e9 (one increment more when
+  -- shifted), so `v` and `inc * den` are below 1.3e30.
   nudge-calendar :: I64 -> Parts -> I128 -> DateTime -> I64 -> TimeUnit -> RoundMode -> Result SpanError Nudge
-  nudge-calendar sign p dest origin inc unit mode = case window sign p origin inc unit of
+  nudge-calendar sign p dest origin inc unit mode = case settled sign p dest origin inc unit of
     Err e -> Err e
-    Ok win -> case win of
-      MkWindow r1 _ sp ep sn en ->
-        let den = abs128 (sub128 en sn) in
-        let num = abs128 (sub128 dest sn) in
-        let base = mul128 (wide r1) den in
-        let v = add128 base (mul128 (wide (times sign inc)) num) in
-        case round-i128 mode (mul128 (wide inc) den) v of
-          None -> Err SpanUnitLimit
-          Some rounded ->
-            if eq-i128 rounded base then Ok (MkNudge sp sn False)
-            else Ok (MkNudge ep en True)
+    Ok pair -> case pair of
+      (win, shifted) -> case win of
+        MkWindow r1 _ sp ep sn en ->
+          let den = abs128 (sub128 en sn) in
+          let num = abs128 (sub128 dest sn) in
+          let base = mul128 (wide r1) den in
+          let v = add128 base (mul128 (wide (times sign inc)) num) in
+          case round-i128 mode (mul128 (wide inc) den) v of
+            None -> Err SpanUnitLimit
+            Some rounded ->
+              if eq-i128 rounded base then Ok (MkNudge sp sn shifted)
+              else Ok (MkNudge ep en True)
 
   -- NudgeToDayOrTime: the days join the clock nanoseconds as 24-hour
   -- days, the sum is rounded to the increment, and with a calendar
@@ -1246,13 +1316,14 @@ module Data.Time.Span where
     let p = datetime-diff unit origin goal in
     if unit-rank unit >= 7 then
       let sign = dir (parts-sign p) in
-      case window sign p origin 1 unit of
+      case settled sign p (line goal) origin 1 unit of
         Err e -> Err e
-        Ok win -> case win of
-          MkWindow r1 _ _ _ sn en ->
-            let den = abs128 (sub128 en sn) in
-            let num = abs128 (sub128 (line goal) sn) in
-            Ok (reduce (add128 (mul128 (wide r1) den) (mul128 (wide sign) num)) den)
+        Ok pair -> case pair of
+          (win, _) -> case win of
+            MkWindow r1 _ _ _ sn en ->
+              let den = abs128 (sub128 en sn) in
+              let num = abs128 (sub128 (line goal) sn) in
+              Ok (reduce (add128 (mul128 (wide r1) den) (mul128 (wide sign) num)) den)
     else case p of
       MkParts _ _ _ d t ->
         let len = case unit-nanos unit of

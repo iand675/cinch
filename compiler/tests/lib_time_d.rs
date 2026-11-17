@@ -73,6 +73,7 @@ const FIX_UNTIL_SINCE: &str = include_str!("fixtures/time/d/until_since.cinch");
 const FIX_DIFFERENCE_OPTIONS: &str = include_str!("fixtures/time/d/difference_options.cinch");
 const FIX_ROUND_VALUES: &str = include_str!("fixtures/time/d/round_values.cinch");
 const FIX_TEMPORAL_VECTORS: &str = include_str!("fixtures/time/d/temporal_vectors.cinch");
+const FIX_WINDOW_SHIFT: &str = include_str!("fixtures/time/d/window_shift.cinch");
 
 /// Compile and run a multi-module project (the lane D modules, the
 /// lane A and lane B modules they import, plus `Main`), returning the
@@ -160,6 +161,11 @@ fn rounding_times_datetimes_and_timestamps() {
 #[test]
 fn temporal_reference_polyfill_vectors() {
     expect_ok("temporal-vectors", FIX_TEMPORAL_VECTORS);
+}
+
+#[test]
+fn calendar_rounding_window_shifted_to_hold_the_destination() {
+    expect_ok("window-shift", FIX_WINDOW_SHIFT);
 }
 
 #[test]

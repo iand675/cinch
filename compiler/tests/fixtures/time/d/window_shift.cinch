@@ -1,0 +1,228 @@
+-- Lane D: the shifted rounding window (the current Temporal
+-- specification's ComputeNudgeWindow with additionalShift, reached
+-- from NudgeToCalendarUnit). Every vector is derived by hand below;
+-- none comes from the 0.5.1 reference polyfill, which predates the
+-- step.
+--
+-- The readings. A = 2024-01-31T12:00 and B = 2025-03-01T11:00. The
+-- difference from A to B is 1 year 28 days 23 hours: one year reaches
+-- 2025-01-31T12:00; a further month would be "2025-02-31", past B, so
+-- there are no whole months; 28 days reach 2025-02-28T12:00 and 23
+-- hours remain. Rounding to months, the window after the year runs
+-- from A + 1 year = 2025-01-31T12:00 to A + 1 year 1 month =
+-- 2025-02-28T12:00 (the day constrained to February's length), and B
+-- lies 23 hours BEYOND its end. The specification then measures in
+-- the window one month on: from A + 1 year 1 month = 2025-02-28T12:00
+-- to A + 1 year 2 months = 2025-03-31T12:00, which is 31 days = 744
+-- hours long, and B is 23 hours into it. So B is 1 year 1 month plus
+-- 23/744 of a month from A: the modes that round down give 1 year 1
+-- month and the modes that round up give 1 year 2 months. (Before the
+-- shift every mode gave 1 year 1 month here, `Ceil` and `Expand`
+-- included: a rounding up that landed before the destination.)
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  -- Values from plain fields; a refusal reads as a value no vector
+  -- below expects.
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  tod :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  tod h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (tod h mi s ns)
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- A result that is exactly these years and months and nothing else.
+  ym-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> Bool
+  ym-is r y mo = case r of
+    Err _ -> False
+    Ok x -> fields x y mo 0 0 0 0 0 0 0 0
+
+  -- An exact total: the reduced numerator and denominator.
+  ratio-is :: Result SpanError (I128, I128) -> I64 -> I64 -> Bool
+  ratio-is r n d = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (a, b) -> eq-i128 a (i64-to-i128 n) && eq-i128 b (i64-to-i128 d)
+
+  df :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> Difference
+  df l s i m = with-largest l (with-smallest s (with-increment i (with-mode m difference-default)))
+
+  sr :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+  sr l s i m = with-largest l (with-smallest s (with-increment i (with-mode m span-round-default)))
+
+  -- A and B of the header.
+  from-a :: DateTime
+  from-a = at 2024 1 31 12 0 0 0
+
+  to-b :: DateTime
+  to-b = at 2025 3 1 11 0 0 0
+
+  -- 1: `Trunc`. 23/744 of the shifted window truncates to its start,
+  -- A + 1 year 1 month. With `Month` as the largest unit the
+  -- difference is 12 months 28 days 23 hours, the window after 12
+  -- months is the same one, and the answer is 13 months.
+  check-trunc :: Int
+  check-trunc =
+    if ym-is (datetime-until-with (df Year Month 1 Trunc) from-a to-b) 1 1
+       && ym-is (datetime-until-with (df Month Month 1 Trunc) from-a to-b) 0 13
+    then 0 else 1
+
+  -- 2: `Ceil`. A positive span rounds up to the shifted window's end,
+  -- A + 1 year 2 months = 2025-03-31T12:00, the first whole month
+  -- count at or after B. (A + 1 year 1 month is 23 hours before B, so
+  -- it cannot be a ceiling.) 14 months with `Month` largest.
+  check-ceil :: Int
+  check-ceil =
+    if ym-is (datetime-until-with (df Year Month 1 Ceil) from-a to-b) 1 2
+       && ym-is (datetime-until-with (df Month Month 1 Ceil) from-a to-b) 0 14
+    then 0 else 2
+
+  -- 4: `Expand` rounds away from zero: the shifted window's end again,
+  -- 1 year 2 months.
+  check-expand :: Int
+  check-expand =
+    if ym-is (datetime-until-with (df Year Month 1 Expand) from-a to-b) 1 2
+       && ym-is (datetime-until-with (df Month Month 1 Expand) from-a to-b) 0 14
+    then 0 else 4
+
+  -- 8: `Floor` on a positive span rounds down: the shifted window's
+  -- start, 1 year 1 month.
+  check-floor :: Int
+  check-floor =
+    if ym-is (datetime-until-with (df Year Month 1 Floor) from-a to-b) 1 1
+       && ym-is (datetime-until-with (df Month Month 1 Floor) from-a to-b) 0 13
+    then 0 else 8
+
+  -- 16: the half modes. 23/744 is far below one half, so every one of
+  -- them takes the shifted window's start: 1 year 1 month. (The
+  -- overshoot past the first window is always less than one day, and
+  -- the shifted window is at least 28 days, so a half mode can never
+  -- round up from a shifted window.)
+  check-half :: Int
+  check-half =
+    if ym-is (datetime-until-with (df Year Month 1 HalfExpand) from-a to-b) 1 1
+       && ym-is (datetime-until-with (df Year Month 1 HalfTrunc) from-a to-b) 1 1
+       && ym-is (datetime-until-with (df Year Month 1 HalfCeil) from-a to-b) 1 1
+       && ym-is (datetime-until-with (df Year Month 1 HalfFloor) from-a to-b) 1 1
+       && ym-is (datetime-until-with (df Year Month 1 HalfEven) from-a to-b) 1 1
+    then 0 else 16
+
+  -- 32: years, from a leap day. 2024-02-29T12:00 until
+  -- 2027-03-01T11:00 is 2 years 11 months 30 days 23 hours (a third
+  -- year would be "2027-02-29", past the end; 2 years 11 months reach
+  -- 2027-01-29T12:00, 30 days reach 2027-02-28T12:00). The year window
+  -- runs from the anchor + 2 years = 2026-02-28T12:00 to the anchor +
+  -- 3 years = 2027-02-28T12:00 (constrained), 23 hours before the
+  -- destination. Shifted, it runs from there to the anchor + 4 years =
+  -- 2028-02-29T12:00 (366 days = 8784 hours), and the destination is
+  -- 23/8784 of the way in: 3 years rounding down, 4 years rounding up.
+  check-year :: Int
+  check-year =
+    let a = at 2024 2 29 12 0 0 0 in
+    let b = at 2027 3 1 11 0 0 0 in
+    if ym-is (datetime-until-with (df Year Year 1 Trunc) a b) 3 0
+       && ym-is (datetime-until-with (df Year Year 1 Floor) a b) 3 0
+       && ym-is (datetime-until-with (df Year Year 1 HalfExpand) a b) 3 0
+       && ym-is (datetime-until-with (df Year Year 1 Ceil) a b) 4 0
+       && ym-is (datetime-until-with (df Year Year 1 Expand) a b) 4 0
+    then 0 else 32
+
+  -- 64: negative results. `datetime-since-with o A B` is the span
+  -- since B to A: the difference from A to B taken under the negated
+  -- mode, then negated. So `Floor` (toward negative infinity for the
+  -- span returned) measures A to B under `Ceil`, 1 year 2 months, and
+  -- answers -1 year -2 months; `Ceil` measures under `Floor` and
+  -- answers -1 year -1 month; `Expand` and `Trunc` are their own
+  -- negations and answer -1 year -2 months and -1 year -1 month.
+  --   Going backward no shift arises, because constraining the day
+  --   then lengthens the window instead of shortening it:
+  --   2025-03-31T12:00 until 2024-02-29T13:00 is -1 year -30 days -23
+  --   hours ("2024-02-31" would pass the end, so no month), the month
+  --   window runs from 2024-03-31T12:00 back to 2024-02-29T12:00 (31
+  --   days) and holds the destination, 30 days 23 hours in. `Trunc`
+  --   and `Ceil` answer -1 year, `Floor` and `Expand` -1 year -1
+  --   month, as before the shift existed.
+  check-negative :: Int
+  check-negative =
+    let c = at 2025 3 31 12 0 0 0 in
+    let d = at 2024 2 29 13 0 0 0 in
+    if ym-is (datetime-since-with (df Year Month 1 Floor) from-a to-b) (-1) (-2)
+       && ym-is (datetime-since-with (df Year Month 1 Ceil) from-a to-b) (-1) (-1)
+       && ym-is (datetime-since-with (df Year Month 1 Expand) from-a to-b) (-1) (-2)
+       && ym-is (datetime-since-with (df Year Month 1 Trunc) from-a to-b) (-1) (-1)
+       && ym-is (datetime-until-with (df Year Month 1 Trunc) c d) (-1) 0
+       && ym-is (datetime-until-with (df Year Month 1 Ceil) c d) (-1) 0
+       && ym-is (datetime-until-with (df Year Month 1 Floor) c d) (-1) (-1)
+       && ym-is (datetime-until-with (df Year Month 1 Expand) c d) (-1) (-1)
+    then 0 else 64
+
+  -- 128: the same window through the span operations, and its
+  -- neighbours where no shift applies.
+  --   The span 1 year 28 days 23 hours from A lands on B, so rounding
+  --   it to months relative to A is the difference above (1 year 1
+  --   month truncated, 1 year 2 months under `Ceil`), and its total in
+  --   months is 13 + 23/744 = 9695/744 (already reduced: 9695 = 13 *
+  --   744 + 23, and 744 = 32 * 23 + 8 shares no factor with 23).
+  --   From the date 2024-01-31 (read at midnight) the span 1 year 28
+  --   days 1 hour lands on 2025-02-28T01:00, one hour past the first
+  --   window's end 2025-02-28T00:00, so it shifts as well.
+  --   A until 2025-02-28T12:00 is 1 year 28 days: exactly the first
+  --   window's end, so no shift, and 1 year 1 month under every mode.
+  --   A until 2025-03-01T12:00 is 1 year 1 month 1 day ("2025-02-31"
+  --   does not pass March 1): the window after 1 year 1 month is the
+  --   same 2025-02-28T12:00 to 2025-03-31T12:00, found without a
+  --   shift, and holds the destination 24 hours in.
+  check-spans-and-neighbours :: Int
+  check-spans-and-neighbours =
+    let s = sp 1 0 0 28 23 0 0 0 0 0 in
+    let rel = RelativeDateTime from-a in
+    let day = RelativeDate (ymd 2024 1 31) in
+    let e = at 2025 2 28 12 0 0 0 in
+    let f = at 2025 3 1 12 0 0 0 in
+    if ym-is (span-round-relative (sr Year Month 1 Trunc) rel s) 1 1
+       && ym-is (span-round-relative (sr Year Month 1 Ceil) rel s) 1 2
+       && ratio-is (span-total-relative Month rel s) 9695 744
+       && ym-is (span-round-relative (sr Year Month 1 Trunc) day (sp 1 0 0 28 1 0 0 0 0 0)) 1 1
+       && ym-is (span-round-relative (sr Year Month 1 Ceil) day (sp 1 0 0 28 1 0 0 0 0 0)) 1 2
+       && ym-is (datetime-until-with (df Year Month 1 Trunc) from-a e) 1 1
+       && ym-is (datetime-until-with (df Year Month 1 Ceil) from-a e) 1 1
+       && ym-is (datetime-until-with (df Year Month 1 Trunc) from-a f) 1 1
+       && ym-is (datetime-until-with (df Year Month 1 Ceil) from-a f) 1 2
+    then 0 else 128
+
+  main :: Int
+  main =
+    check-trunc + check-ceil + check-expand + check-floor
+    + check-half + check-year + check-negative + check-spans-and-neighbours

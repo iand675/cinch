@@ -98,6 +98,7 @@ const FIX_DIFFERENCE_OPTIONS: &str = include_str!("fixtures/time/f/difference_op
 const FIX_ROUND: &str = include_str!("fixtures/time/f/round.cinch");
 const FIX_WITH_FIELDS: &str = include_str!("fixtures/time/f/with_fields.cinch");
 const FIX_SPAN_ZONED: &str = include_str!("fixtures/time/f/span_zoned.cinch");
+const FIX_CIVIL_AGREEMENT: &str = include_str!("fixtures/time/f/civil_agreement.cinch");
 
 /// Compile and run a multi-module project (the lane F module, the lane
 /// A to D modules it and the fixtures import, plus `Main`), returning
@@ -185,6 +186,11 @@ fn replacing_date_or_time_prefers_the_current_offset() {
 #[test]
 fn spans_balanced_rounded_totalled_compared_and_summed_from_a_zoned_anchor() {
     expect_ok("span-zoned", FIX_SPAN_ZONED);
+}
+
+#[test]
+fn civil_and_zoned_engines_agree_in_fixed_offset_zones() {
+    expect_ok("civil-agreement", FIX_CIVIL_AGREEMENT);
 }
 
 #[test]
