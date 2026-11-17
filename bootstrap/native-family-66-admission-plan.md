@@ -1,10 +1,9 @@
 # Current-source Native family preparation
 
-This is a static candidate on `d3ab8ad0` (explicit nominal Region plus lexical
-scope correction, rebased on `33e25dba`). No compiler, provider, interface set,
-Stage1 or self-built family has been produced from it. The separate Slots
-`f118027f` and generic-array `e0331d3d` patches are not copied into this source
-curation. The exact source and embedded module claims are in
+This is a static candidate curated from `d3ab8ad0` and now rebased onto the
+published `75b4bab7` Role+Slots checkpoint, above upstream `33e25dba`. No compiler, provider, interface set,
+Stage1 or self-built family has been produced from it. The qualified Slots fix is inherited from that checkpoint. The separate
+generic-array `e0331d3d` candidate is not copied into this source curation. The exact source and embedded module claims are in
 `native-family-66-source-plan.json`.
 
 ## Curated source changes
@@ -31,21 +30,34 @@ copying a tested verifier does not validate a new producer or source set.
 
 ## Seed and runtime boundary
 
-Both current locks still name revision `3768281841e029cde89156e8d925a0652619e4c3`,
-source envelope `03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3`,
-ABI10. They are deliberately unchanged in this candidate. That seed still
-marks `cinch_nat_cmp` readnone, so an O2-linked Stage1 built by it can contain
-the demonstrated boxed-Nat use-after-free even when later consumer headers are
-conservative. A fresh provider cannot repair an already-built compiler host.
+The inherited locks named revision `3768281841e029cde89156e8d925a0652619e4c3`,
+source envelope `03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3`.
+That seed marks `cinch_nat_cmp` readnone, so an O2-linked Stage1 built by it can
+contain the demonstrated boxed-Nat use-after-free even when later consumer
+headers are conservative. A fresh provider cannot repair that compiler host.
 
-The planned producer/seed is the forthcoming published and qualified explicit
-Role checkpoint, with the Slots repair separately validated and incorporated
-as the parent decides. Its exact source envelope, compiler hash, runtime hash,
-build profile and 66 embedded bytes must be verified after publication. A
-65-module seed must never be renamed as the new 66-module family, and ABI10 by
-itself admits neither MVar nor a repaired boxed reader. No override flag or
-pin edit is included here. A proper coordinated pin change must qualify both
-seed and provider against that published source/runtime envelope.
+The **proposed** locks now name the published qualified Role+Slots source
+`75b4bab70d18ed3dd66bf6b8c5153943764dabf3`, with exact trusted snapshot hash
+`cc28b29e5f948966ad8a79df46fe1c1b386eaa451e2c1fedcb3b14f041598b1e`.
+This is the unmodified `tooling/bootstrap.py` seed_sources/source_hash result:
+309 files, 11,691,340 bytes. All303 published provenance claims match that Git
+revision; the root Cargo config is outside the existing seed hash selection
+and was verified separately, without changing the hash rule. The frozen
+compiler330adb and runtime d91 were rehashed, all66 embedded module bytes
+verified, and the current Nat comparison declaration has no readnone.
+
+Published receipts establish nominal-focused7, post-Slots full-unit339,
+existing-wide18 and MVar-regression12 gates plus8 checked-RC Slots processes
+at O0/O2. They do not establish a new Native provider object or self-built
+family. The exact source/envelope and qualification hashes are preserved in
+`native-family-66-trusted-envelope-results.json`.
+
+The curation lane is rebased onto that published source checkpoint. Its51
+Bootstrap source hash remains unchanged because the intervening qualification
+and Slots commits do not alter those compiler sources or the library source
+bytes. No seed build, provider build, override or main-branch adoption is
+performed by this pin proposal. A65-module seed must never be renamed as the
+new66 family, and ABI10 alone admits neither MVar nor generic wide arrays.
 
 Current runtime adds MVar kind18 and its destructor/parking behavior. Historical
 c4/80bd runtimes remain valid only for their own artifacts and lack this new

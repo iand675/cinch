@@ -1,6 +1,6 @@
 {
   "adoption": false,
-  "base_commit": "d3ab8ad088ed656638ca55352b0649f96d9a7e93",
+  "base_commit": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
   "compiler_source_claims": {
     "Bootstrap.Ast.cinch": {
       "bytes": 63990,
@@ -218,6 +218,7 @@
     "bootstrap/Bootstrap.Object.cinch",
     "bootstrap/Bootstrap.RuntimeIr.cinch"
   ],
+  "curation_merge_base_commit": "d3ab8ad088ed656638ca55352b0649f96d9a7e93",
   "embedded_module_count": 66,
   "embedded_source_claims": {
     "Algebra.Arithmetic": {
@@ -489,27 +490,56 @@
   "native_mvar_status": "not implemented; Rust/runtime66 does not imply Native66 admission",
   "native_wide_array_status": "separate existing refusal/lowering limits; Rust Slots or Array patches are not Native lowering",
   "pins": {
-    "blocker": "Pinned producer still marks boxed Nat comparison readnone and predates explicit nominal Region. Await the published qualified Role plus Slots checkpoint and exact source envelope before proposing a coherent pin pair; ABI10 is not a compatibility grant.",
-    "changed": false,
+    "blocker": "The published Rust Role+Slots envelope is now independently hashed. Full Native MVar, generic wide arrays, provider-object admission and fresh current-source family gates remain open.",
+    "changed": true,
+    "previous_pins": {
+      "library-provider": {
+        "description": "ABI 10 coherent native borrow hardening and reuse optimization snapshot, including current main MVar runtime and library sources.",
+        "revision": "3768281841e029cde89156e8d925a0652619e4c3",
+        "runtime_abi": 10,
+        "schema": 1,
+        "source_sha256": "03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3"
+      },
+      "stage0": {
+        "description": "ABI 10 coherent native borrow hardening and reuse optimization snapshot, including current main MVar runtime and library sources.",
+        "patch": "bootstrap/seed/stage0.patch",
+        "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "revision": "3768281841e029cde89156e8d925a0652619e4c3",
+        "runtime_abi": 10,
+        "schema": 1,
+        "source_sha256": "03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3"
+      }
+    },
     "provider": {
-      "description": "ABI 10 coherent native borrow hardening and reuse optimization snapshot, including current main MVar runtime and library sources.",
-      "revision": "3768281841e029cde89156e8d925a0652619e4c3",
+      "description": "ABI 10 qualified Rust explicit Region and boxed-wide Slots snapshot, retaining boxed-Nat and heap-callback repairs; Native MVar and generic wide-array admission remain open.",
+      "revision": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
       "runtime_abi": 10,
       "schema": 1,
-      "source_sha256": "03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3"
+      "source_sha256": "cc28b29e5f948966ad8a79df46fe1c1b386eaa451e2c1fedcb3b14f041598b1e"
     },
     "stage0": {
-      "description": "ABI 10 coherent native borrow hardening and reuse optimization snapshot, including current main MVar runtime and library sources.",
+      "description": "ABI 10 qualified Rust explicit Region and boxed-wide Slots snapshot, retaining boxed-Nat and heap-callback repairs; Native MVar and generic wide-array admission remain open.",
       "patch": "bootstrap/seed/stage0.patch",
       "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "revision": "3768281841e029cde89156e8d925a0652619e4c3",
+      "revision": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
       "runtime_abi": 10,
       "schema": 1,
-      "source_sha256": "03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3"
-    }
+      "source_sha256": "cc28b29e5f948966ad8a79df46fe1c1b386eaa451e2c1fedcb3b14f041598b1e"
+    },
+    "status": "proposed for review; no seed/provider build or adoption"
   },
-  "planned_producer": null,
-  "planned_runtime": null,
+  "planned_producer": {
+    "frozen_compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+    "provenance_commit": "4d946629391e38d09e97d7d71f4751ce4f653265",
+    "seed_source_sha256": "cc28b29e5f948966ad8a79df46fe1c1b386eaa451e2c1fedcb3b14f041598b1e",
+    "source_revision": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+    "status": "published qualified Rust snapshot and source envelope verified; no new provider object built"
+  },
+  "planned_runtime": {
+    "runtime_abi": 10,
+    "sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "status": "matching published runtime rehashed; no consumer runtime or provider object built here"
+  },
   "retained_source_body_checkpoint": "dcc3e2f91c856a4327cbcfe35517cf49e0d4d552",
   "roots": {
     "dictionaries": 51,
