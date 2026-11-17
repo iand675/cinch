@@ -1,0 +1,267 @@
+-- | Bounded 512-byte archive framing and numeric field codecs.
+-- Word loads never cross a proved buffer boundary. Checksum reduction uses
+-- widened SIMD lanes; NUL search uses an eight-byte SWAR prefix followed by
+-- an exact scalar tail. Parsed blocks snapshot mutable input before retention.
+module Text.Tar.Block where
+  import Data.Core
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Tar
+
+  export TarBlock, tar-parse-block, tar-block-bytes, tar-block-checksums
+  export tar-block-text, tar-block-number, tar-parse-number, tar-encode-octal, tar-encode-number
+  export tar-padding, tar-seal-block
+
+  -- | A private immutable copy of one checksum-validated nonzero header block.
+  data TarBlock where
+    -- | Retain only a fresh, exactly 512-byte buffer.
+    CheckedBlock :: Bytes -> TarBlock
+
+  -- | Return the zero padding needed after a physical byte count.
+  tar-padding :: Nat -> Nat
+  tar-padding size =
+    let residue = nat-rem size 512 in
+    if residue == 0 then 0 else 512 - residue
+
+  -- | Snapshot a proved subrange through the existing overlap-safe bulk copy.
+  copy-range :: using (start + count <= bytes-len source) => (source :: Bytes) -> (start :: Nat) -> (count :: Nat) -> Bytes
+  copy-range source start count =
+    let out = bytes-new count in
+    let copied = bytes-copy-range out source 0 start count in
+    out
+
+  -- | Sum eight unsigned bytes after widening, so no narrow lane can overflow.
+  prim sum-unsigned8 :: U64 -> I64 where
+    llvm {
+      %bytes = bitcast i64 %0 to <8 x i8>
+      %wide = zext <8 x i8> %bytes to <8 x i16>
+      %sum = call i16 @llvm.vector.reduce.add.v8i16(<8 x i16> %wide)
+      %result = zext i16 %sum to i64
+      ret i64 %result
+    }
+
+  -- | Sum eight signed bytes for legacy checksum acceptance without signed casts in source loops.
+  prim sum-signed8 :: U64 -> I64 where
+    llvm {
+      %bytes = bitcast i64 %0 to <8 x i8>
+      %wide = sext <8 x i8> %bytes to <8 x i16>
+      %sum = call i16 @llvm.vector.reduce.add.v8i16(<8 x i16> %wide)
+      %result = sext i16 %sum to i64
+      ret i64 %result
+    }
+
+  -- | Count nonzero leading bytes in a normalized little-endian word, returning eight when none is zero.
+  prim nonzero-prefix8 :: U64 -> I64 where
+    llvm {
+      %minus = sub i64 %0, 72340172838076673
+      %inverse = xor i64 %0, -1
+      %candidates = and i64 %minus, %inverse
+      %mask = and i64 %candidates, -9187201950435737472
+      %bits = call i64 @llvm.cttz.i64(i64 %mask, i1 false)
+      %bytes = lshr i64 %bits, 3
+      ret i64 %bytes
+    }
+
+  -- | Reduce a bounded span, switching to scalar bytes only for its exact tail.
+  checksum-span :: Bytes -> Nat -> Nat -> I64 -> I64 -> (I64, I64)
+  checksum-span source pos end unsigned signed =
+    if pos + 8 <= end && end <= bytes-len source then
+      let word = bytes-read-le64 source pos in
+      checksum-span source (pos + 8) end
+        (wrapping-add-i64 unsigned (sum-unsigned8 word))
+        (wrapping-add-i64 signed (sum-signed8 word))
+    else if pos < end && pos < bytes-len source then
+      let byte = nat-to-i64 (bytes-get source pos) in
+      let signed-byte = if ge-i64 byte 128 then wrapping-sub-i64 byte 256 else byte in
+      checksum-span source (pos + 1) end
+        (wrapping-add-i64 unsigned byte) (wrapping-add-i64 signed signed-byte)
+    else (unsigned, signed)
+
+  -- | Compute both accepted checksum conventions with the checksum field treated as eight spaces.
+  tar-block-checksums :: Bytes -> Result TarError (I64, I64)
+  tar-block-checksums source =
+    if bytes-len source == 512 then
+      case checksum-span source 0 148 256 256 of
+        (unsigned, signed) -> Ok (checksum-span source 156 512 unsigned signed)
+    else Err (TarInvalidBlockLength (bytes-len source))
+
+  -- | Test exactly one block for zero without reading a following byte.
+  zero-block-from :: Bytes -> Nat -> Bool
+  zero-block-from source pos =
+    if pos + 8 <= bytes-len source then
+      if eq-u64 (bytes-read-le64 source pos) 0 then zero-block-from source (pos + 8) else False
+    else pos == bytes-len source
+
+  -- | Locate the first NUL inside a proved field, retaining an exact scalar tail.
+  text-end :: Bytes -> Nat -> Nat -> Nat
+  text-end source pos end =
+    if pos + 8 <= end && end <= bytes-len source then
+      let prefix = nonzero-prefix8 (bytes-read-le64 source pos) in
+      if 0 <= prefix && prefix < 8 then pos + nat-from-i64 prefix
+      else text-end source (pos + 8) end
+    else if pos < end && pos < bytes-len source then
+      if bytes-get source pos == 0 then pos else text-end source (pos + 1) end
+    else pos
+
+  -- | Return an immutable snapshot of the NUL-terminated bytes in a checked field.
+  tar-block-text :: TarBlock -> Nat -> Nat -> Result TarError TarText
+  tar-block-text block start count = case block of
+    CheckedBlock source ->
+      if start + count <= bytes-len source then
+        let end = text-end source start (start + count) in
+        if start <= end && end <= bytes-len source then
+          Ok (tar-text-from-range source start (end - start))
+        else Err TarInvalidHeader
+      else Err TarInvalidHeader
+
+  -- | Ignore leading space and NUL padding in an octal field.
+  octal-start :: Bytes -> Nat -> Nat
+  octal-start source pos =
+    if pos < bytes-len source then
+      let byte = bytes-get source pos in
+      if byte == 0 || byte == 32 then octal-start source (pos + 1) else pos
+    else pos
+
+  -- | Ignore trailing space and NUL padding without underflowing an empty field.
+  octal-end :: Bytes -> Nat -> Nat
+  octal-end source end =
+    if end > 0 && end <= bytes-len source then
+      let byte = bytes-get source (end - 1) in
+      if byte == 0 || byte == 32 then octal-end source (end - 1) else end
+    else end
+
+  -- | Parse at most 64 payload bits; historical high-bit octal values retain their signed carrier bits.
+  octal-digits :: Bytes -> Nat -> Nat -> U64 -> Result TarError I64
+  octal-digits source pos end value =
+    if pos < end && pos < bytes-len source then
+      let byte = bytes-get source pos in
+      if byte == 0 then Ok (wrapping-u64-to-i64 value)
+      else if byte < 48 || byte > 55 || gt-u64 value 2305843009213693951 then Err TarInvalidNumber
+      else octal-digits source (pos + 1) end
+        (bit-or-u64 (wrapping-shl-u64 value 3) (wrapping-i64-to-u64 (nat-to-i64 (byte - 48))))
+    else Ok (wrapping-u64-to-i64 value)
+
+  -- | Parse a padded octal field independently of binary numeric signaling.
+  parse-octal :: Bytes -> Result TarError I64
+  parse-octal source = octal-digits source (octal-start source 0) (octal-end source (bytes-len source)) 0
+
+  -- | Invert negative base-256 bytes and accumulate only a representable signed magnitude.
+  binary-digits :: Bytes -> Nat -> Bool -> U64 -> Result TarError I64
+  binary-digits source pos negative value =
+    if pos < bytes-len source then
+      let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get source pos)) in
+      let inverted = if negative then bit-xor-u64 byte 255 else byte in
+      let digit = if pos == 0 then bit-and-u64 inverted 127 else inverted in
+      if ne-u64 (wrapping-shr-u64 value 56) 0 then Err TarInvalidNumber
+      else binary-digits source (pos + 1) negative
+        (bit-or-u64 (wrapping-shl-u64 value 8) digit)
+    else if ne-u64 (wrapping-shr-u64 value 63) 0 then Err TarInvalidNumber
+    else
+      let signed = wrapping-u64-to-i64 value in
+      Ok (if negative then bit-not-i64 signed else signed)
+
+  -- | Parse padded octal or signed binary fields, rejecting overflow and malformed digits.
+  tar-parse-number :: Bytes -> Result TarError I64
+  tar-parse-number source =
+    if bytes-len source > 0 then
+      let first = bytes-get source 0 in
+      if first >= 128 then binary-digits source 0 (first >= 192) 0 else parse-octal source
+    else Ok 0
+
+  -- | Parse one exact field from an immutable checked block.
+  tar-block-number :: TarBlock -> Nat -> Nat -> Result TarError I64
+  tar-block-number block start count = case block of
+    CheckedBlock source ->
+      if start + count <= bytes-len source then tar-parse-number (copy-range source start count)
+      else Err TarInvalidHeader
+
+  -- | Check block size, terminal zero framing and either historical checksum convention.
+  tar-parse-block :: Bytes -> Result TarError (Option TarBlock)
+  tar-parse-block source =
+    if bytes-len source == 512 then
+      if zero-block-from source 0 then Ok None
+      else case parse-octal (copy-range source 148 8) of
+        Err error -> Err TarInvalidHeader
+        Ok stored -> case tar-block-checksums source of
+          Err error -> Err error
+          Ok (unsigned, signed) ->
+            if eq-i64 stored unsigned || eq-i64 stored signed then
+              Ok (Some (CheckedBlock (copy-range source 0 512)))
+            else Err TarInvalidHeader
+    else Err (TarInvalidBlockLength (bytes-len source))
+
+  -- | Return a fresh full-block copy rather than the private validated backing.
+  tar-block-bytes :: TarBlock -> Bytes
+  tar-block-bytes block = case block of CheckedBlock source -> copy-range source 0 (bytes-len source)
+
+  -- | Fill octal digits right-to-left, leaving the last byte as NUL.
+  encode-octal-digits :: Bytes -> Nat -> U64 -> Bool
+  encode-octal-digits out remaining value =
+    if remaining > 0 && remaining <= bytes-len out then
+      let digit = u8-to-nat (wrapping-u64-to-u8 (bit-or-u64 (bit-and-u64 value 7) 48)) in
+      let stored = bytes-set out (remaining - 1) digit in
+      encode-octal-digits out (remaining - 1) (wrapping-shr-u64 value 3)
+    else eq-u64 value 0
+
+  -- | Encode a nonnegative value as zero-padded octal plus NUL, refusing a field that cannot hold it.
+  tar-encode-octal :: Nat -> I64 -> Result TarError Bytes
+  tar-encode-octal width value =
+    if width == 0 || lt-i64 value 0 then Err (TarFieldTooLong "numeric")
+    else if width > 512 then Err (TarFieldTooLong "numeric")
+    else
+      let out = bytes-new width in
+      if encode-octal-digits out (width - 1) (wrapping-i64-to-u64 value) then Ok out
+      else Err (TarFieldTooLong "numeric")
+
+  -- | Check the strict signed binary range without overflowing a machine shift.
+  fits-binary :: Nat -> I64 -> Bool
+  fits-binary width value =
+    if width >= 9 then True
+    else if width > 0 then
+      let bits = nat-to-i64 ((width - 1) * 8) in
+      let limit = wrapping-shl-i64 1 (wrapping-i64-to-u32 bits) in
+      le-i64 (wrapping-neg-i64 limit) value && lt-i64 value limit
+    else False
+
+  -- | Write big-endian two's-complement bytes using sign-extending right shifts.
+  encode-binary-digits :: Bytes -> Nat -> I64 -> Unit
+  encode-binary-digits out remaining value =
+    if remaining > 0 && remaining <= bytes-len out then
+      let digit = u8-to-nat (wrapping-i64-to-u8 value) in
+      let stored = bytes-set out (remaining - 1) digit in
+      encode-binary-digits out (remaining - 1) (wrapping-shr-i64 value 8)
+    else ()
+
+  -- | Prefer portable octal, otherwise encode a representable signed binary field.
+  tar-encode-number :: Nat -> I64 -> Result TarError Bytes
+  tar-encode-number width value =
+    if width == 0 || width > 512 then Err (TarFieldTooLong "numeric")
+    else case tar-encode-octal width value of
+      Ok out -> Ok out
+      Err error ->
+        if fits-binary width value then
+          let out = bytes-new width in
+          let filled = encode-binary-digits out width value in
+          if bytes-len out > 0 then
+            let first = wrapping-i64-to-u8 (nat-to-i64 (bytes-get out 0)) in
+            let tagged = bytes-set out 0 (u8-to-nat (bit-or-u8 first 128)) in
+            Ok out
+          else Err (TarFieldTooLong "numeric")
+        else Err (TarFieldTooLong "numeric")
+
+  -- | Snapshot a full header and write its standard six-digit checksum, NUL and space.
+  tar-seal-block :: Bytes -> Result TarError Bytes
+  tar-seal-block source =
+    if bytes-len source == 512 then
+      case tar-block-checksums source of
+        Err error -> Err error
+        Ok (unsigned, signed) -> case tar-encode-octal 7 unsigned of
+          Err error -> Err error
+          Ok checksum ->
+            let out = copy-range source 0 512 in
+            let copied = bytes-copy-range out checksum 148 0 7 in
+            let terminated = bytes-set out 155 32 in
+            Ok out
+    else Err (TarInvalidBlockLength (bytes-len source))

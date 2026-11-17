@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "status": "isolated-static-draft-unchecked-not-installed",
+  "implementation_scope": [
+    "immutable archive metadata",
+    "512-byte framing/checksum/field numeric codecs",
+    "lossless physical transport block events"
+  ],
+  "required_remaining": [
+    "header materialization and full encoding",
+    "PAX",
+    "GNU long metadata and sparse formats",
+    "owned reader/writer controller",
+    "metadata/tree capability adapters",
+    "executed independent vectors",
+    "maintained checked-ownership and portability gates",
+    "public pipeline benchmark review"
+  ],
+  "executed_gates": [
+    "Python static 85-record equality and canonical doc structure only"
+  ],
+  "forbidden_claims": [
+    "package parity",
+    "source compilation",
+    "runtime correctness",
+    "SIMD performance gain",
+    "Native family admission"
+  ],
+  "files": {
+    "audit_static.py": "3083aaf8bc903501f04ae38fd4c043eb745f69102ea2cea050c4c0da75f3fad2",
+    "design.md": "6030f6015a4e1bfd6f67f91013dbff46fd95134e0e86f2d56b5375d0aafa8bc8",
+    "operation-mapping.json": "7f75835208b146b05b3a5f4541d8f5a9c90eb1c0dc8fbef352d9f1282ca07ab0",
+    "operation-mapping.md": "0da3cb3f86c750125643148e12966b3e2515e0dfb1a43801b560c7a655bc0f48",
+    "reference/main.go": "f5cb42efeb2dae0e000ab63cd928f1bc7ab93c131d310aef5bbdec1ef955e2bf",
+    "sources/Data/Tar.cinch": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+    "sources/Effect/Tar/Framing.cinch": "6122b25c8dd6d4f044cf51b3b2fe103e8bc113c11e65aca318c8448da447783d",
+    "sources/Text/Tar/Block.cinch": "98531796438dc0fd8aa7b32414a70229af9aa042a56519461f380a26765ed577",
+    "static-audit-results.json": "c1f4260bde66d68b083b2fdd20d3a9be1dabf639f4ff10258f326bcc197f1e9b"
+  }
+}
