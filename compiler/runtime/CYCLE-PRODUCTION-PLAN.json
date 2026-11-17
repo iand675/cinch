@@ -5,7 +5,7 @@
   "prototype_receipt_sha256": "9c3f2d24314d3070e49eafb2e5b8d6df3cf6f6760f5db55133e8571c8a6103c6",
   "current_buffered_checkpoint": "bbbea08e34f530cc47c1ec50b3ea72141e27a3ac",
   "current_buffered_runtime_gates_sha256": "399681db55ce4f0691d5d1f1777ff0239c3bf20fe132e4402d719a582c33963b",
-  "plan_sha256": "94f468f97858ca2050b0114fb88cbf4a2d3f0a0fd99b3b17a4065d3334e4048b",
+  "plan_sha256": "fa163fd1acf2dbda93355e49b6009b4660ed25942ff9bf3d278729046903c565",
   "source_files": {
     "compiler/runtime/src/cycle.rs": {
       "status": "not in production source; test-only prototype module exists at5a0586ea"
