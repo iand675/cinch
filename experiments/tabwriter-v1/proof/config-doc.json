@@ -1,0 +1,690 @@
+{
+  "declarations": [
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 21,
+        "links": [],
+        "markdown": "Ignore tag widths and count an entity segment as one scalar unit.",
+        "math": [],
+        "summary": "Ignore tag widths and count an entity segment as one scalar unit.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-filter-html",
+      "kind": "value",
+      "name": "tab-filter-html",
+      "parameters": [],
+      "signature": "tab-filter-html :: U64",
+      "source": {
+        "line": 22
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 25,
+        "links": [],
+        "markdown": "Remove raw escape delimiter bytes while retaining their escaped contents.",
+        "math": [],
+        "summary": "Remove raw escape delimiter bytes while retaining their escaped contents.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-strip-escape",
+      "kind": "value",
+      "name": "tab-strip-escape",
+      "parameters": [],
+      "signature": "tab-strip-escape :: U64",
+      "source": {
+        "line": 26
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 29,
+        "links": [],
+        "markdown": "Pad before cell contents unless tab padding requires left alignment.",
+        "math": [],
+        "summary": "Pad before cell contents unless tab padding requires left alignment.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-align-right",
+      "kind": "value",
+      "name": "tab-align-right",
+      "parameters": [],
+      "signature": "tab-align-right :: U64",
+      "source": {
+        "line": 30
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 33,
+        "links": [],
+        "markdown": "Give an entirely empty soft-tab column zero width.",
+        "math": [],
+        "summary": "Give an entirely empty soft-tab column zero width.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-discard-empty-columns",
+      "kind": "value",
+      "name": "tab-discard-empty-columns",
+      "parameters": [],
+      "signature": "tab-discard-empty-columns :: U64",
+      "source": {
+        "line": 34
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 37,
+        "links": [],
+        "markdown": "Use tab padding for leading byte-empty cells regardless of the padding byte.",
+        "math": [],
+        "summary": "Use tab padding for leading byte-empty cells regardless of the padding byte.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-indent",
+      "kind": "value",
+      "name": "tab-indent",
+      "parameters": [],
+      "signature": "tab-indent :: U64",
+      "source": {
+        "line": 38
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 41,
+        "links": [],
+        "markdown": "Emit visible column and section boundary markers.",
+        "math": [],
+        "summary": "Emit visible column and section boundary markers.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-debug",
+      "kind": "value",
+      "name": "tab-debug",
+      "parameters": [],
+      "signature": "tab-debug :: U64",
+      "source": {
+        "line": 42
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 45,
+        "links": [],
+        "markdown": "Raw delimiter byte 255, distinct from a Unicode scalar's UTF-8 encoding.",
+        "math": [],
+        "summary": "Raw delimiter byte 255, distinct from a Unicode scalar's UTF-8 encoding.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-escape-byte",
+      "kind": "value",
+      "name": "tab-escape-byte",
+      "parameters": [],
+      "signature": "tab-escape-byte :: U8",
+      "source": {
+        "line": 46
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "doc": {
+            "legacy": false,
+            "line": 51,
+            "links": [],
+            "markdown": "Minimum aligned cell width, including padding.",
+            "math": [],
+            "summary": "Minimum aligned cell width, including padding.",
+            "tags": {},
+            "tests": []
+          },
+          "fields": [],
+          "id": "Text.Tabwriter.Config.TabDimension.TabMinimumWidth",
+          "kind": "constructor",
+          "name": "TabMinimumWidth",
+          "parameters": [],
+          "signature": "TabMinimumWidth :: TabDimension",
+          "source": {
+            "line": 52
+          },
+          "typeParameters": []
+        },
+        {
+          "children": [],
+          "doc": {
+            "legacy": false,
+            "line": 53,
+            "links": [],
+            "markdown": "Width represented by one emitted padding tab; zero disables tab padding.",
+            "math": [],
+            "summary": "Width represented by one emitted padding tab; zero disables tab padding.",
+            "tags": {},
+            "tests": []
+          },
+          "fields": [],
+          "id": "Text.Tabwriter.Config.TabDimension.TabTabWidth",
+          "kind": "constructor",
+          "name": "TabTabWidth",
+          "parameters": [],
+          "signature": "TabTabWidth :: TabDimension",
+          "source": {
+            "line": 54
+          },
+          "typeParameters": []
+        },
+        {
+          "children": [],
+          "doc": {
+            "legacy": false,
+            "line": 55,
+            "links": [],
+            "markdown": "Width added before choosing a column's maximum.",
+            "math": [],
+            "summary": "Width added before choosing a column's maximum.",
+            "tags": {},
+            "tests": []
+          },
+          "fields": [],
+          "id": "Text.Tabwriter.Config.TabDimension.TabPadding",
+          "kind": "constructor",
+          "name": "TabPadding",
+          "parameters": [],
+          "signature": "TabPadding :: TabDimension",
+          "source": {
+            "line": 56
+          },
+          "typeParameters": []
+        }
+      ],
+      "doc": {
+        "legacy": false,
+        "line": 49,
+        "links": [],
+        "markdown": "One independently validated numeric configuration coordinate.",
+        "math": [],
+        "summary": "One independently validated numeric configuration coordinate.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.TabDimension",
+      "kind": "data",
+      "name": "TabDimension",
+      "parameters": [],
+      "signature": "data TabDimension where",
+      "source": {
+        "line": 50
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "doc": {
+            "legacy": false,
+            "line": 60,
+            "links": [],
+            "markdown": "A dimension is negative and cannot form a layout coordinate.",
+            "math": [],
+            "summary": "A dimension is negative and cannot form a layout coordinate.",
+            "tags": {},
+            "tests": []
+          },
+          "fields": [],
+          "id": "Text.Tabwriter.Config.TabConfigError.TabConfigNegative",
+          "kind": "constructor",
+          "name": "TabConfigNegative",
+          "parameters": [],
+          "signature": "TabConfigNegative :: TabDimension -> Int -> TabConfigError",
+          "source": {
+            "line": 61
+          },
+          "typeParameters": []
+        },
+        {
+          "children": [],
+          "doc": {
+            "legacy": false,
+            "line": 62,
+            "links": [],
+            "markdown": "A dimension exceeds the supported signed 64-bit layout interval.",
+            "math": [],
+            "summary": "A dimension exceeds the supported signed 64-bit layout interval.",
+            "tags": {},
+            "tests": []
+          },
+          "fields": [],
+          "id": "Text.Tabwriter.Config.TabConfigError.TabConfigTooLarge",
+          "kind": "constructor",
+          "name": "TabConfigTooLarge",
+          "parameters": [],
+          "signature": "TabConfigTooLarge :: TabDimension -> Int -> TabConfigError",
+          "source": {
+            "line": 63
+          },
+          "typeParameters": []
+        }
+      ],
+      "doc": {
+        "legacy": false,
+        "line": 58,
+        "links": [],
+        "markdown": "A refused dimension retains its identity and original mathematical value.",
+        "math": [],
+        "summary": "A refused dimension retains its identity and original mathematical value.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.TabConfigError",
+      "kind": "data",
+      "name": "TabConfigError",
+      "parameters": [],
+      "signature": "data TabConfigError where",
+      "source": {
+        "line": 59
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "doc": {
+            "legacy": false,
+            "line": 67,
+            "links": [],
+            "markdown": "Store nonnegative dimensions, an arbitrary padding byte and all requested flag bits.",
+            "math": [],
+            "summary": "Store nonnegative dimensions, an arbitrary padding byte and all requested flag bits.",
+            "tags": {},
+            "tests": []
+          },
+          "fields": [],
+          "id": "Text.Tabwriter.Config.TabConfig.Config",
+          "kind": "constructor",
+          "name": "Config",
+          "parameters": [],
+          "signature": "Config :: Nat -> Nat -> Nat -> U8 -> U64 -> TabConfig",
+          "source": {
+            "line": 68
+          },
+          "typeParameters": []
+        }
+      ],
+      "doc": {
+        "legacy": false,
+        "line": 65,
+        "links": [],
+        "markdown": "Validated immutable configuration; constructor representation stays private.",
+        "math": [],
+        "summary": "Validated immutable configuration; constructor representation stays private.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.TabConfig",
+      "kind": "data",
+      "name": "TabConfig",
+      "parameters": [],
+      "signature": "data TabConfig where",
+      "source": {
+        "line": 66
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 70,
+        "links": [],
+        "markdown": "Validate dimensions before constructing a configuration; unknown flag bits have no formatting effect.",
+        "math": [],
+        "summary": "Validate dimensions before constructing a configuration; unknown flag bits have no formatting effect.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config",
+      "kind": "value",
+      "name": "tab-config",
+      "parameters": [],
+      "signature": "tab-config :: Int -> Int -> Int -> U8 -> U64 -> Result TabConfigError TabConfig",
+      "source": {
+        "line": 71
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 90,
+        "links": [],
+        "markdown": "Observe the minimum aligned cell width without exposing configuration storage.",
+        "math": [],
+        "summary": "Observe the minimum aligned cell width without exposing configuration storage.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-min-width",
+      "kind": "value",
+      "name": "tab-config-min-width",
+      "parameters": [],
+      "signature": "tab-config-min-width :: TabConfig -> Nat",
+      "source": {
+        "line": 91
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 94,
+        "links": [],
+        "markdown": "Observe the emitted padding tab width, including the explicit zero-width policy.",
+        "math": [],
+        "summary": "Observe the emitted padding tab width, including the explicit zero-width policy.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-tab-width",
+      "kind": "value",
+      "name": "tab-config-tab-width",
+      "parameters": [],
+      "signature": "tab-config-tab-width :: TabConfig -> Nat",
+      "source": {
+        "line": 95
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 98,
+        "links": [],
+        "markdown": "Observe the width added before selecting an aligned column width.",
+        "math": [],
+        "summary": "Observe the width added before selecting an aligned column width.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-padding",
+      "kind": "value",
+      "name": "tab-config-padding",
+      "parameters": [],
+      "signature": "tab-config-padding :: TabConfig -> Nat",
+      "source": {
+        "line": 99
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 102,
+        "links": [],
+        "markdown": "Observe the exact arbitrary padding byte.",
+        "math": [],
+        "summary": "Observe the exact arbitrary padding byte.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-pad-byte",
+      "kind": "value",
+      "name": "tab-config-pad-byte",
+      "parameters": [],
+      "signature": "tab-config-pad-byte :: TabConfig -> U8",
+      "source": {
+        "line": 103
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 106,
+        "links": [],
+        "markdown": "Observe requested bits, including unknown bits; effective right alignment has a separate predicate.",
+        "math": [],
+        "summary": "Observe requested bits, including unknown bits; effective right alignment has a separate predicate.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-flags",
+      "kind": "value",
+      "name": "tab-config-flags",
+      "parameters": [],
+      "signature": "tab-config-flags :: TabConfig -> U64",
+      "source": {
+        "line": 107
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 110,
+        "links": [],
+        "markdown": "Test one configuration bit through the established fixed-width machine primitive.",
+        "math": [],
+        "summary": "Test one configuration bit through the established fixed-width machine primitive.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.flag",
+      "kind": "value",
+      "name": "flag",
+      "parameters": [],
+      "signature": "flag :: TabConfig -> U64 -> Bool",
+      "source": {
+        "line": 111
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 116,
+        "links": [],
+        "markdown": "Test whether tags and entities use their special formatting widths.",
+        "math": [],
+        "summary": "Test whether tags and entities use their special formatting widths.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-filter-html",
+      "kind": "value",
+      "name": "tab-config-filter-html",
+      "parameters": [],
+      "signature": "tab-config-filter-html :: TabConfig -> Bool",
+      "source": {
+        "line": 117
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 120,
+        "links": [],
+        "markdown": "Test whether escaped-segment delimiters are stripped from output.",
+        "math": [],
+        "summary": "Test whether escaped-segment delimiters are stripped from output.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-strip-escape",
+      "kind": "value",
+      "name": "tab-config-strip-escape",
+      "parameters": [],
+      "signature": "tab-config-strip-escape :: TabConfig -> Bool",
+      "source": {
+        "line": 121
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 124,
+        "links": [],
+        "markdown": "Test effective alignment; padding with tab bytes always selects left alignment.",
+        "math": [],
+        "summary": "Test effective alignment; padding with tab bytes always selects left alignment.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-align-right",
+      "kind": "value",
+      "name": "tab-config-align-right",
+      "parameters": [],
+      "signature": "tab-config-align-right :: TabConfig -> Bool",
+      "source": {
+        "line": 125
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 131,
+        "links": [],
+        "markdown": "Test whether byte-empty, zero-width soft-tab columns may be discarded.",
+        "math": [],
+        "summary": "Test whether byte-empty, zero-width soft-tab columns may be discarded.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-discard-empty-columns",
+      "kind": "value",
+      "name": "tab-config-discard-empty-columns",
+      "parameters": [],
+      "signature": "tab-config-discard-empty-columns :: TabConfig -> Bool",
+      "source": {
+        "line": 132
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 135,
+        "links": [],
+        "markdown": "Test whether leading byte-empty cells request tab indentation.",
+        "math": [],
+        "summary": "Test whether leading byte-empty cells request tab indentation.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-indent",
+      "kind": "value",
+      "name": "tab-config-indent",
+      "parameters": [],
+      "signature": "tab-config-indent :: TabConfig -> Bool",
+      "source": {
+        "line": 136
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 139,
+        "links": [],
+        "markdown": "Test whether visible column and section boundary markers are enabled.",
+        "math": [],
+        "summary": "Test whether visible column and section boundary markers are enabled.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Text.Tabwriter.Config.tab-config-debug",
+      "kind": "value",
+      "name": "tab-config-debug",
+      "parameters": [],
+      "signature": "tab-config-debug :: TabConfig -> Bool",
+      "source": {
+        "line": 140
+      },
+      "typeParameters": []
+    }
+  ],
+  "diagnostics": [],
+  "doc": {
+    "legacy": false,
+    "line": 1,
+    "links": [],
+    "markdown": "Checked dimensions and byte-level controls for aligned tabular output.\nWidth counts decoded scalar units, rather than terminal display columns.\nPadding accepts every byte value; byte output may therefore be non-UTF-8.",
+    "math": [],
+    "summary": "Checked dimensions and byte-level controls for aligned tabular output. Width counts decoded scalar units, rather than terminal display columns. Padding accepts every byte value; byte output may therefore be non-UTF-8.",
+    "tags": {},
+    "tests": []
+  },
+  "module": "Text.Tabwriter.Config",
+  "orphans": [],
+  "schema": 1,
+  "source": "experiments/tabwriter-v1/sources/Text.Tabwriter.Config.cinch",
+  "sourceSha256": "9020b996bf0cdce7c9444558fe2b15bbffee0344715758f2f04d46f4ce8afd08"
+}

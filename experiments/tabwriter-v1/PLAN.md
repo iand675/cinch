@@ -1,6 +1,6 @@
 # Tabwriter package plan
 
-Status: independent static candidate. No Cinch implementation, captured vector set, compiler gate, runtime result or package completion is claimed. This directory is separate from the frozen buffered and cycle experiments; it adds no provider, inventory, website or production collector change.
+Status: independent partial candidate. The actual SDK protocol fixture and checked configuration source are now captured in `OBSERVATIONS.md` and `reference-gates.json`. The formatter, streaming API, full operation qualification and public performance review remain open. This directory is separate from the frozen buffered and cycle experiments; it adds no provider, inventory, website or production collector change.
 
 ## Actual declaration map
 
