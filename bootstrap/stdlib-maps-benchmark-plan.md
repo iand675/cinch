@@ -52,8 +52,18 @@ with eight iterations now pass independent scalar fingerprints in normal
 and poison profiles:60 zero-leak processes. The initial Nat-literal
 branch and nested-case layout fixture diagnostics are retained separately.
 The exact receipts and normal allocation profiles are recorded in
-`stdlib-maps-benchmark-results.json`. No measurements have run, and no
-throughput, allocation reduction or Native adoption claim follows.
+`stdlib-maps-benchmark-results.json`. A subsequent parent-granted CPU0 comparison completed one warmup and
+five rotating samples per variant:180 processes matched their independent
+fingerprints and zero-leak guards, with allocation counters disabled. The
+shared four-CPU cgroup recorded no new throttled periods or microseconds.
+Other assigned CPUs were not isolated; the full background snapshot and
+cgroup before/after are retained in the measurement report. The façade
+pipeline at4096 entries/eight iterations is4.42 times the public HashTable
+baseline median (30.675ms versus6.938ms), while complete traversal is1.16
+times (4.537ms versus3.924ms). Immediate-stop is0.78 times (2.886ms versus
+3.723ms), with both public snapshot setup costs included. This is a
+baseline of differing representations/capabilities, not a Native or
+candidate improvement claim.
 Source-selected Native execution and genuine source-absent interface
 admission remain separately reported gates. The latter currently exposes
 the genuine Region-scheme/Type-header contradiction and open-row transport

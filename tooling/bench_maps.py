@@ -18,6 +18,12 @@ MODULES = ("Data.Mutable.Map", "Data.Mutable.HashTable", "Data.Mutable.LinkedLis
 VARIANTS = ("hash-table", "stable-map")
 
 
+def cpu_budget() -> dict[str, str]:
+    """Record shared cgroup limits/throttling without treating them as process-local measurements."""
+    root = Path("/sys/fs/cgroup")
+    return {name: (root / name).read_text() for name in ("cpu.max", "cpu.stat") if (root / name).exists()}
+
+
 def main() -> None:
     """Use one caller-granted CPU token and preserve exact source/compiler/runtime artifacts."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -111,6 +117,7 @@ def main() -> None:
         for variant, build in builds.items():
             assert preflight["builds"][variant] == build, "preflight belongs to different artifacts"
     report = {"kind": "public-map-benchmark-" + args.action, "builds": builds, "cpu_affinity": [args.cpu],
+              "runner_sha256": digest(Path(__file__)),
               "workloads": WORKLOADS, "iterations": args.iterations, "sizes": args.sizes, "results": [],
               "started_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
               "contract": "Identical Nat inputs without callback mutation; HashTable traversal materializes its public value snapshot, MutableMap captures stable identities. No equivalence under callback mutation is claimed.",
@@ -118,6 +125,7 @@ def main() -> None:
               "status": "running"}
     if args.action == "measure":
         report["preflight_sha256"] = digest(preflight_path)
+        report["shared_cgroup_before"] = cpu_budget()
         report["background_process_snapshot"] = subprocess.run(["ps", "-eo", "pid,psr,pcpu,comm"], capture_output=True, text=True, check=True).stdout
     output = artifacts / (args.action + ".json")
     try:
@@ -153,6 +161,8 @@ def main() -> None:
         report.update(status="failed", failure=str(error))
         raise
     finally:
+        if args.action == "measure":
+            report["shared_cgroup_after"] = cpu_budget()
         output.write_text(json.dumps(report, indent=2) + "\n")
 
 
