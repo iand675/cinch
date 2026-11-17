@@ -5,7 +5,7 @@ explicit frozen-compiler source check and canonical documentation extraction;
 `source-qualification-results.json` preserves all three attempts and the exact
 selected source hashes. The stream framing draft remains unchecked. A separate
 independent fixed-block helper has recorded 73 block and 22 numeric writer-field observations. The first
-32 block rows pass separate O0/O2 normal and poisoned runtime profiles. The
+64 block rows pass separate O0/O2 normal and poisoned runtime profiles. The
 remaining component matrix is resource-paused, with one derived oracle-label
 correction preserved independently in `oracle-classification-correction.json`.
 No portability or benchmark has run. Nothing is installed into the prelude.

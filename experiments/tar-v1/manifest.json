@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "isolated-partial-component-runtime-passed32-eachopt-rest-resource-paused",
+  "status": "isolated-partial-component-runtime-passed64-eachopt-rest-resource-paused",
   "implementation_scope": [
     "immutable archive metadata",
     "512-byte framing/checksum/field numeric codecs",
@@ -22,7 +22,8 @@
     "canonical doc parser metadata/block zero diagnostics/zero orphans",
     "ffb5 raw-magic observer source/docs",
     "Actual pinned offline public SDK73 block+22 writer numeric field observations, corrected derived checksum-label epoch retained",
-    "First32 block cases O0 and O2, normal32M/poison256M8M,4 zero-leak processes"
+    "First32 block cases O0 and O2, normal32M/poison256M8M,4 zero-leak processes",
+    "Corrected independent rows32\u201363 O0/O2 normal+poison,4 additional zero-leak processes; sampled reserve telemetry and verified closed-output archives"
   ],
   "forbidden_claims": [
     "package parity",
@@ -34,8 +35,8 @@
   "files": {
     "audit_static.py": "3083aaf8bc903501f04ae38fd4c043eb745f69102ea2cea050c4c0da75f3fad2",
     "build_block_reference.py": "52544628e388c87645e7a738d9e6f8a2203fbddcfda55e0dcf04b0b5d038c639",
-    "component-progress-results.json": "78a93720a7c5a0f7a573282ce4c0395345af49a040805ead5e210b26b724b74d",
-    "design.md": "073961b09828ffcdb5bd17e043573ef10b91cf8a47f19f470166084e113b4bb5",
+    "component-progress-results.json": "a62e84497b75b4f17397318dd1eb5cb1e6dd28156348fe943a3014e8b3d625da",
+    "design.md": "a93746add3574feff37e05a2aa5f1ff2bce89a9c83f0b4f3d8b9ad5fe3d989da",
     "fixtures/block-vectors-original-a2.json": "04099f974584f1ac8940b61afd070da14e6032fc508a5d541e78c38f5740e911",
     "fixtures/block-vectors.json": "f949b143eb518ab841328bcc406102e23aa47a22850fae63444949602a9ab4f5",
     "fixtures/blocks-0000.cinch": "b9d5145b2373551794baa002c9b0008706bfa5be4b1a9c32e072cfa54df731a9",
@@ -46,7 +47,7 @@
     "operation-mapping.json": "7f75835208b146b05b3a5f4541d8f5a9c90eb1c0dc8fbef352d9f1282ca07ab0",
     "operation-mapping.md": "0da3cb3f86c750125643148e12966b3e2515e0dfb1a43801b560c7a655bc0f48",
     "oracle-classification-correction.json": "780f9e47cf91da5ee3cf93b3a716abcce256541aedc63b86e8b7d9d2df0f263e",
-    "qualify_blocks.py": "0d1a57e6913806c6d18449499a630db6403e9459da18bb2cdcf0c459778d9f5d",
+    "qualify_blocks.py": "57c35958fb2bb9c4acd70db4d283e115ba1e29ff123397c861b8172d691e1de9",
     "qualify_source.py": "ebe26a476a283e05e5bf1be319008ea13c3c2afe9680927499d8d12e70d2c1a0",
     "reference/blocks.go": "15d08196fd16afaecfb6db3cc949c0a2bcad88f33faf3f2ed0087218f81e04d2",
     "reference/main.go": "f5cb42efeb2dae0e000ab63cd928f1bc7ab93c131d310aef5bbdec1ef955e2bf",

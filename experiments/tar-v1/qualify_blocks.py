@@ -30,6 +30,13 @@ def directory_size(path: Path) -> int:
     return sum(p.stat().st_size for p in path.rglob("*") if p.is_file())
 
 
+def sample_free(report: dict) -> int:
+    """Retain the minimum observed free-space sample without claiming continuous global telemetry."""
+    free = shutil.disk_usage(HERE).free
+    report["minimum_sampled_free_bytes"] = min(report.get("minimum_sampled_free_bytes", free), free)
+    return free
+
+
 def fsync_directory(path: Path) -> None:
     """Make directory updates durable after archive/index creation and original unlink."""
     fd = os.open(path, os.O_DIRECTORY)
@@ -77,6 +84,7 @@ def archive_closed(directory: Path, report: dict) -> dict:
         raw.flush()
         os.fsync(raw.fileno())
     assert archive.stat().st_size <= 10 * 1024**2
+    sample_free(report)
     with tarfile.open(archive, "r:gz") as tar:
         members = tar.getmembers()
         assert len(members) == len(entries)
@@ -126,10 +134,12 @@ def main() -> None:
         (directory / (name + ".cinch")).write_bytes(path.read_bytes())
     (directory / "Main.cinch").write_bytes(args.consumer.read_bytes())
     report = {"status": "started", "compiler_sha256": digest(compiler), "runtime_sha256": digest(runtime),
+              "runner_sha256": digest(Path(__file__)),
               "clang_sha256": digest(clang), "consumer_sha256": digest(args.consumer), "opt_level": args.opt_level,
               "sources": {name: digest(path) for name, path in modules.items()},
               "embedded_core_authority": COMPILER_SHA, "free_before": shutil.disk_usage(HERE).free,
               "scope": "fixed-block/numeric component only; no full header/stream/archive parity", "runs": []}
+    sample_free(report)
     env = {**os.environ, "LD_LIBRARY_PATH": "/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu" + (":" + os.environ["LD_LIBRARY_PATH"] if os.environ.get("LD_LIBRARY_PATH") else ""),
            "CINCH_CLANG": str(clang), "RUST_MIN_STACK": "67108864"}
     command = [str(compiler), "build", str(directory / "Main.cinch"), "--opt-level", args.opt_level,
@@ -142,7 +152,7 @@ def main() -> None:
             try:
                 while child.poll() is None:
                     assert directory_size(directory) <= 29 * 1024**2, "Runtime unit output allowance reached"
-                    assert shutil.disk_usage(HERE).free >= 250 * 1024**2, "Runtime unit reserve reached"
+                    assert sample_free(report) >= 250 * 1024**2, "Runtime unit reserve reached"
                     assert time.monotonic() - started < 60, "Runtime unit compiler deadline reached"
                     time.sleep(.1)
             finally:
@@ -154,6 +164,7 @@ def main() -> None:
         report["executable_sha256"] = digest(directory / "consumer")
         report["llvm_sha256"] = digest(directory / "consumer.ll")
         for poison in (False, True):
+            assert sample_free(report) >= 250 * 1024**2
             profile = {**env, "CINCH_HEAP_LIMIT": "256M" if poison else "32M", "CINCH_STACK_SIZE": "8M",
                        "CINCH_RC_DEBUG": "1" if poison else "0", "CINCH_LEAK_CHECK": "1", "CINCH_ALLOC_STATS": "1"}
             run = subprocess.run([str(directory / "consumer")], cwd=directory, env=profile,
@@ -161,6 +172,7 @@ def main() -> None:
             item = {"poison": poison, "heap": profile["CINCH_HEAP_LIMIT"], "stack": "8M", "exit": run.returncode,
                     "stdout": run.stdout, "stderr": run.stderr}
             report["runs"].append(item)
+            sample_free(report)
             (directory / ("poison.log" if poison else "normal.log")).write_text(run.stdout + run.stderr)
             assert run.returncode == 0 and run.stdout == "", item
             assert "cinch-leak: live=0 immortal=0 leaked=0" in run.stderr, item
@@ -169,6 +181,7 @@ def main() -> None:
         report["status"] = "normal-and-poison-component-passed"
         atomic_json(directory / "completed-report.json", report)
         report["archive"] = archive_closed(directory, report)
+        sample_free(report)
     except BaseException as error:
         report["status"] = "failed-preserved-plain"
         report["failure"] = repr(error)
