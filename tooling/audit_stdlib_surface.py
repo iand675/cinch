@@ -48,7 +48,7 @@ HOMES = {
     "regexp": ["Text.Regex"], "regexp/syntax": ["Text.Regex"],
     "slices": ["Data.List", "Data.Array", "Data.Mutable.Vec"], "sort": ["Data.List", "Data.Sorted", "Data.Mutable.Vec"],
     "strconv": ["Text.Show", "Text.Scan", "Data.Machine"], "strings": ["Data.String", "Text.Scan", "Text.Builder"],
-    "sync": ["Effect.Stm"], "sync/atomic": ["Effect.Stm"], "syscall": ["Prim.Sys"],
+    "sync": ["Effect.Stm", "Effect.Concurrent.MVar"], "sync/atomic": ["Effect.Stm"], "syscall": ["Prim.Sys"],
     "testing": ["Effect.Test", "Effect.Benchmark", "Effect.Coverage"],
     "text/scanner": ["Text.Lex", "Text.Scan"], "time": ["Data.Date", "Data.Time", "Effect.Clock"],
     "unicode": ["Data.Char", "Data.Unicode", "Data.Unicode.Kernel", "Data.Unicode.Tables", "Data.Unicode.Range", "Data.Unicode.Names"], "unicode/utf16": ["Text.Utf16"], "unicode/utf8": ["Data.Char", "Data.String", "Data.Bytes.Utf8", "Text.Utf8"],

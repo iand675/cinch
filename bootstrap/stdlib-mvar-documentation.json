@@ -1,0 +1,10 @@
+{
+  "source": "compiler/prelude/Effect/Concurrent/MVar.cinch",
+  "before_commit": "29ce9cf41649a086d60dbe58ad723a09a659e034",
+  "before_sha256": "ae0fdb5a7b2b398681d7598c2a606e536c739e98e4a8188a1169092b49f68de6",
+  "after_sha256": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e",
+  "noncomment_lines_sha256": "918d229104818d32cd2e1aa48773f86fbcbb8665fe73dd0cf1de10c0fe5c81ef",
+  "noncomment_lines_identical": true,
+  "canonical_comments_added": 31,
+  "scope": "Documentation only: module, private runtime bridge, constructors and every public operation retain exactly the same noncomment source lines."
+}

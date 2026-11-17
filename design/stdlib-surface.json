@@ -1955,10 +1955,12 @@
       "reference_package": "sync",
       "status": "partial",
       "cinch_modules": [
-        "Effect.Stm"
+        "Effect.Stm",
+        "Effect.Concurrent.MVar"
       ],
       "remaining": [],
-      "reference_declarations": 46
+      "reference_declarations": 46,
+      "review": "Native single-place variables provide blocking/nonblocking take/read/put/swap, cancellation and checked stored-value ownership. Other synchronization contracts still require operation-level review; module presence is partial coverage."
     },
     {
       "reference_package": "sync/atomic",
