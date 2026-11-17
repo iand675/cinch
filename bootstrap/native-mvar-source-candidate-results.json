@@ -2,6 +2,19 @@
   "all14_signatures_match_published_source_ignoring_whitespace": true,
   "base_commit": "3804cca7396e7c71c2547db7452970cb95f3f544",
   "canonical_contract_count": 14,
+  "current_release_full_source_gate": {
+    "compiler_sha256": "08929f8db0ff3d6be9e50b3c066f9cdc269deaa923b14ada8607dd3e5ee667bc",
+    "compiler_source_revision": "2a558db0",
+    "elapsed_seconds": 37.046832854975946,
+    "exit_code": 0,
+    "interface_count": 117,
+    "native_mvar_emission_runtime_family_adoption": false,
+    "report": "bootstrap/native-mvar-current-release-source-results.json",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "source51_sha256": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465",
+    "source_body_count": 51,
+    "status": "complete default source check passed"
+  },
   "first_source_gate": {
     "candidate": "1d4415dd",
     "compiler": "330adb/d91",
@@ -423,7 +436,7 @@
   "source_owned_effect_identity": "plain source effect MVar remains distinct from internal kernel #kernel.MVar; custom effect resolved transport remains ungranted",
   "static_delimiter_scan_is_not_parser_or_typecheck": true,
   "static_delimiter_scan_passed": true,
-  "status": "source-only candidate; four smaller changed-module dependency closures pass qualified source checking; full51 has no verdict after bounded resource observations; emitter/runtime/admission gates pending",
+  "status": "complete51-source default check passed under qualified current release089/d91; Native MVar emitter/runtime/interface and family gates remain pending",
   "v2_modified_source_claims": {
     "bootstrap/Bootstrap.Builtin.cinch": "61b8a3e2fef66d26d3e23b5fb976fc5747346763457282b364edc8a0a1601a2e",
     "bootstrap/Bootstrap.Export.cinch": "1d53cf52d044ff9d2d69c8dacb183e4ab17a6812afb6b83ba33c7753fea10571",

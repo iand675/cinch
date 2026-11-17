@@ -1,26 +1,24 @@
 # Native MVar source candidate
 
-This separate patch is based on the reviewed source/pin proposal3804. It is
-source-only: no new Native compiler, provider, LLVM or runtime execution has
-occurred. The qualified330/d91 checker accepts the changed Builtin module and
-its dependency closure; the Nominal/ExportType, Resolve and larger
-ExportNominal closures also pass.
-The complete51-source checks reached separate60-second and180-second
-deadlines without a diagnostic or verdict; the full source gate remains open.
-The longer observation consumed179.52 sampled CPU seconds, peaked near1.13GiB
-RSS, and produced no new full51 interface set. The default check command runs
-specialization and optimization before returning, so these observations do not
-isolate source elaboration cost. A separately frozen diagnostic compiler75c/d91 then recorded source loading
-ending at3.297528s and the multi-module checker still active at its separate
-60-second deadline. Driver optimization and artifact serialization had not
-started. The checker itself includes interface construction and Core
-verification, so this does not yet isolate an elaboration bottleneck. The
-original
-RuntimeIr layout/parser failure and the corrected candidate are preserved
-separately. These checks type the compiler source; they do not execute the
-candidate MVar checker or emitter. Existing published Rust MVar qualification is not
-relabelled as evidence for this candidate. The pin proposal is inherited and
-unchanged; no Rust metadata allowlist or runtime source is edited here.
+This separate patch is based on the reviewed source/pin proposal3804. The
+complete51-source default check passes under qualified current release089/d91
+in37.047s. This is still a source-only candidate: no new Native compiler,
+provider, LLVM emission or runtime execution has occurred. Existing published
+Rust MVar qualification is not relabelled as Native MVar evidence. The pin
+proposal is inherited and unchanged; no Rust metadata allowlist or runtime
+source is edited here.
+
+Earlier qualified330/d91 checks passed the Builtin, Nominal/ExportType,
+Resolve and ExportNominal dependency closures. Complete source checks under
+that debug compiler reached separate60s and180s deadlines without a verdict.
+The longer observation sampled179.52 CPU seconds and1.13GiB peak RSS. A
+separate frozen75c/d91 trace then reached its60s deadline inside the
+multi-module checker after source loading ended at3.297528s; driver
+optimization and serialization had not started. Those original resource
+outcomes remain preserved, along with the first RuntimeIr parser failure and
+its grouping correction. They are not relabelled as semantic refusals or
+regressions after the current release source gate passes. These checks type
+the compiler source; they do not execute the candidate MVar checker/emitter.
 
 The candidate adds one14-op canonical registry, MVarCell's sealed Type→Type
 kind and word representation, full source/imported intrinsic contract checks,
@@ -53,6 +51,17 @@ payload; zero remains valid data. Optional paths never load uninitialized out
 on failure. Some uses the genuine defining Option family and element scan
 class. New runtime declarations deliberately have no memory/purity,
 willreturn or norecurse claims.
+
+## Complete release source gate
+
+The unchanged51-source candidate now passes a complete default check under
+qualified release08929f8d/d91, source checkpoint2a558db0, in37.047s with exit0.
+All51 source-body checks complete,117 genuine interfaces remain plain, and
+no IR/runtime program is emitted. Fine phase timings are14.920s checking,
+17.918s optimization and1.168s artifact serialization. The separate original
+330/75c debug timeout epochs remain preserved; no algorithm change or check
+bypass was needed. This closes compiler-source typing only. It does not
+execute this candidate's Native MVar checker, worker lowering or runtime.
 
 ## Explicitly open boundaries
 

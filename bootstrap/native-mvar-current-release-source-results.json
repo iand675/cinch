@@ -1,0 +1,717 @@
+{
+  "algorithm_or_source_changes_for_this_pass": false,
+  "artifacts": [
+    {
+      "bytes": 7034,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Algebra.Arithmetic.cinchif",
+      "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8"
+    },
+    {
+      "bytes": 9863,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Algebra.Bits.cinchif",
+      "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8"
+    },
+    {
+      "bytes": 2464,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Algebra.Group.cinchif",
+      "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274"
+    },
+    {
+      "bytes": 27165,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Algebra.Monoid.cinchif",
+      "sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d"
+    },
+    {
+      "bytes": 5861,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Algebra.Semigroup.cinchif",
+      "sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70"
+    },
+    {
+      "bytes": 2642,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Algebra.Semiring.cinchif",
+      "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e"
+    },
+    {
+      "bytes": 363865,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Ast.cinchif",
+      "sha256": "56ef9ffeac5d9e6ae59f4fdbd76248b73ec4a5ad09f98d3e6eedbbbf5f94c7a6"
+    },
+    {
+      "bytes": 28196,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.BodyContract.cinchif",
+      "sha256": "994c5d9d74fd4d89a486e44bc1457703e639042f173922b13a0371ae7affecd6"
+    },
+    {
+      "bytes": 25998,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Builtin.cinchif",
+      "sha256": "9dbbacd634897a75f5bdfdde2fcbec9281677a28c18c11bc4c0bb6b7c9dedd1d"
+    },
+    {
+      "bytes": 4742,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Check.cinchif",
+      "sha256": "e41fa4987fa2b706370fefea5aed60db145ac0b0b14dc6d306a0eaa2bbd70d30"
+    },
+    {
+      "bytes": 15555,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Contracts.cinchif",
+      "sha256": "5838fb3de5aa59975f3db483e927bf7a46419167c513bf8124a22a18fa2a227e"
+    },
+    {
+      "bytes": 503366,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Core.cinchif",
+      "sha256": "bb9f958c3aeeb7bef414f2f375247c3471203fd3c0d52a5a113c723e169eaa74"
+    },
+    {
+      "bytes": 7190,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.CoreBody.cinchif",
+      "sha256": "edf37fa07571c482d5169e393bff8a029b8cb4318f2558bc4182949eaaa32195"
+    },
+    {
+      "bytes": 19768,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Dictionary.cinchif",
+      "sha256": "2d28e5070aadd52abb2ddda982584417a92f75d55fec26d95bab7e6396223aea"
+    },
+    {
+      "bytes": 23464,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Driver.cinchif",
+      "sha256": "928bfb4480a2c295cdd7b4ecb1bdd74525fa247ffc6894f3b577eaa2056f672a"
+    },
+    {
+      "bytes": 22760,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Eval.cinchif",
+      "sha256": "9b9c0e0d5a0b3694be7aff9f82b8f51c8a9674c41d130e908f7c6ac7ef3d4728"
+    },
+    {
+      "bytes": 16671,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Expand.cinchif",
+      "sha256": "17c3fac039121980f2ddab938eba120dd16fef7a4e9deec6b8232f5551e8b36c"
+    },
+    {
+      "bytes": 5832,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Export.cinchif",
+      "sha256": "a2dea4e8fb88fd264c18f7652f2304f3e919bf7f7f08d8c8a5e68fddaed5eda6"
+    },
+    {
+      "bytes": 19483,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.ExportNominal.cinchif",
+      "sha256": "76afa62450e4111761e7173503066b3b6c45d4a2b8769bba4fb22c10bda82cfc"
+    },
+    {
+      "bytes": 17372,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.ExportType.cinchif",
+      "sha256": "76e3c6f5571189b46870b3a35f2571add26a5a31952963aad0f9816767a29315"
+    },
+    {
+      "bytes": 22490,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Foreign.cinchif",
+      "sha256": "d8469fee75d9074c90f5ae7ab273cd9d7b240fa5e3da585ff38b18c561aa7965"
+    },
+    {
+      "bytes": 21643,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Global.cinchif",
+      "sha256": "ad58ec7aa809bc9ce0a2c918e09d153c92e1ada12ca4c57a494cd2cd3338bf3e"
+    },
+    {
+      "bytes": 12009,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Guarded.cinchif",
+      "sha256": "b34ea15833512fe512bd79011190bdf0737dff9f2c53712050229156ca8faa01"
+    },
+    {
+      "bytes": 17647,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Index.cinchif",
+      "sha256": "6019285be7d366056c7bd3cdc1ae0df7be1b156753f4746103df045387a1ff94"
+    },
+    {
+      "bytes": 42168,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Infer.cinchif",
+      "sha256": "0fb2d453c7bfd1ba753d5c13d442ee39c99290a8d62a02a038cd96c899abcf70"
+    },
+    {
+      "bytes": 5348,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Inputs.cinchif",
+      "sha256": "d9485b5bf372675781b3ea05ba786d08817189bf37b30dcea26d43dca3dc8947"
+    },
+    {
+      "bytes": 42904,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Instance.cinchif",
+      "sha256": "5ec92034bd4167f6165463a14d13c8189e6309992a315838ca5d6203b93b7a3a"
+    },
+    {
+      "bytes": 16428,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Interface.cinchif",
+      "sha256": "212992c64837e5ba2008f15c2289267e38e9cf46bea80c0283d7301261bb5879"
+    },
+    {
+      "bytes": 4190,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Ir.cinchif",
+      "sha256": "5d0a8659d8cbea62b7d956b61e99f9e33389149b39e120806258d62a7340418e"
+    },
+    {
+      "bytes": 24856,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Kinds.cinchif",
+      "sha256": "b9a1d26e63e0b5b6a7b30fd1b5f876a6ab2cea5497a2ed60820896238c49505f"
+    },
+    {
+      "bytes": 32741,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Load.cinchif",
+      "sha256": "5e11d8e479fd88566c36690eac2c8bead1dc7fa296d2de5745e7902f4635cbe4"
+    },
+    {
+      "bytes": 8590,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Manifest.cinchif",
+      "sha256": "9a509c928457e8d0499bf34e0e616aab7ac4e68a2c5b5a8219d9ddc2fbd2e387"
+    },
+    {
+      "bytes": 18757,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Nominal.cinchif",
+      "sha256": "c78880de8fc8142f47225dd6dd21dcf5dcfbf78ce18bcb3e1eac2f650c695993"
+    },
+    {
+      "bytes": 26100,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Object.cinchif",
+      "sha256": "d86e2ed6100f465f636501aa5b4a014fce91b1a3310bc5c18dbcdb161573b00d"
+    },
+    {
+      "bytes": 15230,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Parse.cinchif",
+      "sha256": "47e568e7cf0f92ca5d38b1ec24cde16f6caa1fa7053779dcba67c933628f997c"
+    },
+    {
+      "bytes": 98220,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Pipeline.cinchif",
+      "sha256": "66271de715f905a42dc946bf6840b52473ca54b3d7ff689a019451a8c1b20f7d"
+    },
+    {
+      "bytes": 23736,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Proof.cinchif",
+      "sha256": "d1a44eb48be4f263fb8ab181a8f029a3545d5d303b200a30aaaaae20056b9464"
+    },
+    {
+      "bytes": 12181,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Report.cinchif",
+      "sha256": "2e8af0c1940a3c0a39ca1c55f547406e544bf28ce69a4d7df976fd01b74ebdb8"
+    },
+    {
+      "bytes": 5790,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Resolve.cinchif",
+      "sha256": "191160e619090f42bb1781102056b89c453f3cd5ca9b15a7cfc46b155b54759e"
+    },
+    {
+      "bytes": 1305,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.RuntimeAbi.cinchif",
+      "sha256": "85941172b53e9e1ec8e665e4b165e64fb944bb8aa2f50703e4e211395ab652ac"
+    },
+    {
+      "bytes": 29222,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.RuntimeIr.cinchif",
+      "sha256": "e8a978ca924bdac7565811c62dc9ec6bbf5bd8e6e803dd7b3d2ae62129043621"
+    },
+    {
+      "bytes": 2820,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Stage.cinchif",
+      "sha256": "1c2e08931cc1be0924c49ed9b89024933977e37a5858e6156d4f32d2ccacf7db"
+    },
+    {
+      "bytes": 12446,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.StageEval.cinchif",
+      "sha256": "d1bad296161aa7488060cc775338c7bddcf60dc4b004a7609b5ac0ea592740ae"
+    },
+    {
+      "bytes": 17985,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Temporal.cinchif",
+      "sha256": "dc15ba5691f0f73980f7f69ae7dce2d07c84be25174ec10d497e8ba86565810c"
+    },
+    {
+      "bytes": 37741,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.TemporalCheck.cinchif",
+      "sha256": "16bd2a2e72ac6c34158e7e84263f749c46f3588b8834ba9c8f0e00cbc1839286"
+    },
+    {
+      "bytes": 11280,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Test.cinchif",
+      "sha256": "81ce207399bcb19b9328a9a680de20e3b3007425e6b9fd7b70142e34a496bdc2"
+    },
+    {
+      "bytes": 18515,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Total.cinchif",
+      "sha256": "72f9b5203069ac9246b14ac02e2ce4161f64fe320a780e7d22685d53dd677eb0"
+    },
+    {
+      "bytes": 7956,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.TotalSemantics.cinchif",
+      "sha256": "5a950555157b4b32a526f0e679bc7c6a15d50087f6b0250a49c1d3fdcfde696a"
+    },
+    {
+      "bytes": 232962,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Type.cinchif",
+      "sha256": "699b11bcddff3fc70622b2dff19c158fc055cd45e0f39801de172a0736d1beb3"
+    },
+    {
+      "bytes": 25927,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Bootstrap.Typing.cinchif",
+      "sha256": "ed56f959180726fd0578a6a1ec1fd9c6eb2d910f9e812a10fb8251912c0e4a4a"
+    },
+    {
+      "bytes": 2109,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Category.Alternative.cinchif",
+      "sha256": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8"
+    },
+    {
+      "bytes": 8919,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Category.Applicative.cinchif",
+      "sha256": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d"
+    },
+    {
+      "bytes": 28589,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Category.Foldable.cinchif",
+      "sha256": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636"
+    },
+    {
+      "bytes": 3955,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Category.Functor.cinchif",
+      "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0"
+    },
+    {
+      "bytes": 3926,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Category.Monad.cinchif",
+      "sha256": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa"
+    },
+    {
+      "bytes": 10234,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Category.Traversable.cinchif",
+      "sha256": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3"
+    },
+    {
+      "bytes": 8797,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Array.cinchif",
+      "sha256": "fa0ddd259b7a505b0b5e5c49c33bc78151fbb007db65a3d466095137203a2c11"
+    },
+    {
+      "bytes": 1575,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Ascii.cinchif",
+      "sha256": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93"
+    },
+    {
+      "bytes": 19612,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Bool.cinchif",
+      "sha256": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501"
+    },
+    {
+      "bytes": 13369,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Bytes.cinchif",
+      "sha256": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6"
+    },
+    {
+      "bytes": 14397,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Char.cinchif",
+      "sha256": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375"
+    },
+    {
+      "bytes": 2098,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Compose.cinchif",
+      "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8"
+    },
+    {
+      "bytes": 12479,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Const.cinchif",
+      "sha256": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247"
+    },
+    {
+      "bytes": 3904,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Core.cinchif",
+      "sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7"
+    },
+    {
+      "bytes": 4694,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Enum.cinchif",
+      "sha256": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31"
+    },
+    {
+      "bytes": 1800,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.FromList.cinchif",
+      "sha256": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18"
+    },
+    {
+      "bytes": 2022,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.FromMap.cinchif",
+      "sha256": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60"
+    },
+    {
+      "bytes": 1284,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Hash.cinchif",
+      "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e"
+    },
+    {
+      "bytes": 19114,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.HashMap.cinchif",
+      "sha256": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5"
+    },
+    {
+      "bytes": 13328,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Identity.cinchif",
+      "sha256": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb"
+    },
+    {
+      "bytes": 29636,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Int.cinchif",
+      "sha256": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6"
+    },
+    {
+      "bytes": 5424,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Json.cinchif",
+      "sha256": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5"
+    },
+    {
+      "bytes": 53382,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.List.cinchif",
+      "sha256": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab"
+    },
+    {
+      "bytes": 581879,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Machine.cinchif",
+      "sha256": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e"
+    },
+    {
+      "bytes": 15135,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Map.cinchif",
+      "sha256": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e"
+    },
+    {
+      "bytes": 29417,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Nat.cinchif",
+      "sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41"
+    },
+    {
+      "bytes": 13284,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.NonEmpty.cinchif",
+      "sha256": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54"
+    },
+    {
+      "bytes": 8528,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.NonZero.cinchif",
+      "sha256": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548"
+    },
+    {
+      "bytes": 28860,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Option.cinchif",
+      "sha256": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13"
+    },
+    {
+      "bytes": 7027,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Ordering.cinchif",
+      "sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb"
+    },
+    {
+      "bytes": 6270,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Path.cinchif",
+      "sha256": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b"
+    },
+    {
+      "bytes": 8542,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Producer.cinchif",
+      "sha256": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd"
+    },
+    {
+      "bytes": 17758,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Result.cinchif",
+      "sha256": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da"
+    },
+    {
+      "bytes": 15631,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Set.cinchif",
+      "sha256": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44"
+    },
+    {
+      "bytes": 2250,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Sorted.cinchif",
+      "sha256": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e"
+    },
+    {
+      "bytes": 31951,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.String.cinchif",
+      "sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712"
+    },
+    {
+      "bytes": 8613,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Sym.cinchif",
+      "sha256": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690"
+    },
+    {
+      "bytes": 7264,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Target.cinchif",
+      "sha256": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe"
+    },
+    {
+      "bytes": 177190,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Data.Wide.cinchif",
+      "sha256": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8"
+    },
+    {
+      "bytes": 5643,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Clock.cinchif",
+      "sha256": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14"
+    },
+    {
+      "bytes": 9828,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Concurrent.MVar.cinchif",
+      "sha256": "0c775f6830acd991024c046af87b8adaa203257293828adcb42ef1986f64c428"
+    },
+    {
+      "bytes": 2795,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Concurrent.cinchif",
+      "sha256": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff"
+    },
+    {
+      "bytes": 19329,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Fs.cinchif",
+      "sha256": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1"
+    },
+    {
+      "bytes": 4334,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Io.cinchif",
+      "sha256": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514"
+    },
+    {
+      "bytes": 28556,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Process.cinchif",
+      "sha256": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f"
+    },
+    {
+      "bytes": 4868,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Sequencing.cinchif",
+      "sha256": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101"
+    },
+    {
+      "bytes": 7822,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Stm.TBQueue.cinchif",
+      "sha256": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6"
+    },
+    {
+      "bytes": 8818,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Stm.TMVar.cinchif",
+      "sha256": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461"
+    },
+    {
+      "bytes": 7322,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Stm.TQueue.cinchif",
+      "sha256": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8"
+    },
+    {
+      "bytes": 4558,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Stm.TSem.cinchif",
+      "sha256": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4"
+    },
+    {
+      "bytes": 26973,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Effect.Stm.cinchif",
+      "sha256": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab"
+    },
+    {
+      "bytes": 4656,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Function.Combinators.cinchif",
+      "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03"
+    },
+    {
+      "bytes": 11224,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Main.cinchif",
+      "sha256": "da5468a504584be0fb333edb9770b2a2af610570c130c4c4c14b0c24eb4d36f9"
+    },
+    {
+      "bytes": 5114399,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Main.manifest.json",
+      "sha256": "d6cfa05a18f392e379cb7bde159e107d7e14f8665cbaa8567185069e80d7cd3d"
+    },
+    {
+      "bytes": 0,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Main.stage.snap",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 419421,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Prelude.cinchif",
+      "sha256": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9"
+    },
+    {
+      "bytes": 27114,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Prim.Sys.Darwin.cinchif",
+      "sha256": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724"
+    },
+    {
+      "bytes": 21362,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Prim.Sys.Linux.cinchif",
+      "sha256": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085"
+    },
+    {
+      "bytes": 13232,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Prim.Sys.Portable.cinchif",
+      "sha256": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259"
+    },
+    {
+      "bytes": 19276,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Prim.Sys.cinchif",
+      "sha256": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38"
+    },
+    {
+      "bytes": 1774,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Relation.Eq.cinchif",
+      "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58"
+    },
+    {
+      "bytes": 6745,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Relation.Ord.cinchif",
+      "sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42"
+    },
+    {
+      "bytes": 6782,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Text.Builder.cinchif",
+      "sha256": "cdd4482030c7ac76c22e1692802e7333353828ed75ee4f9d720ed1efbcec82b9"
+    },
+    {
+      "bytes": 6572,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Text.Codec.cinchif",
+      "sha256": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a"
+    },
+    {
+      "bytes": 25440,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Text.Json.cinchif",
+      "sha256": "40720858afd9d3b43229d5952d991a705cd9ccc1d01d7f047abc800f7c7377c8"
+    },
+    {
+      "bytes": 36814,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Text.Lex.cinchif",
+      "sha256": "a8d8d25b5f455b5560288de1f22ae03bf4ed067f42eb6985ca0c07de5fc400c6"
+    },
+    {
+      "bytes": 41828,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Text.Parse.cinchif",
+      "sha256": "8c3fd8c907ad7d1e53f52900c7f924ec0ca2f3a8db76d19724c6fb3cb343ec57"
+    },
+    {
+      "bytes": 18445,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Text.Scan.cinchif",
+      "sha256": "f960c5a36b3ee0dbe8f2e8f97ea512caa9d9699eb7be1fad8e8a2e37efdfbd48"
+    },
+    {
+      "bytes": 6568,
+      "path": "build/native-mvar-release-source-check-v1/sources/build/Text.Show.cinchif",
+      "sha256": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397"
+    }
+  ],
+  "interface_bytes": 4000823,
+  "interface_count": 117,
+  "marker_count": 144,
+  "native_mvar_emission_runtime_and_family_gates_pending": true,
+  "old330_and75c_timeouts_unchanged": true,
+  "parent_release_qualification": {
+    "debug_release_trace_invariance_artifacts": 70,
+    "native_admission": false,
+    "release_units": 339,
+    "release_units_runtime_seconds": 105.91,
+    "scope": "reported by Parent, completed after this source diagnostic launched",
+    "source_revision": "2a558db0"
+  },
+  "peak_sampled_rss_bytes": 1313116160,
+  "phase_durations_seconds": {
+    "driver.artifacts": 1.1683749999999975,
+    "driver.check": 14.919993999999999,
+    "driver.contracts": 0.22294099999999872,
+    "driver.interface_bodies": 4.9999999980343546e-06,
+    "driver.optimization": 17.917621999999998,
+    "full.prepared_finish": 0.9255049999999994,
+    "full.safety": 0.30393699999999946,
+    "prepare.embedded_bodies": 0.2186300000000001,
+    "prepare.generated_layout": 0.0006479999999999819,
+    "prepare.headers": 1.198438,
+    "prepare.initial_layout": 0.0010729999999998796,
+    "prepare.interfaces": 0.12664000000000009,
+    "prepare.laws": 0.044206000000000856,
+    "prepare.post_body": 0.07081099999999907,
+    "prepare.prims": 0.0006780000000006225,
+    "prepare.rewrites": 4.999999999810711e-06,
+    "prepare.source_bodies": 11.318345,
+    "prepare.staging": 0.012693000000000065
+  },
+  "phase_markers_monotonic_within_each_scope": true,
+  "receipt": {
+    "CINCH_STORE": "/workspace/dasl-stdlib-native-mvar/build/native-mvar-release-source-check-v1/store",
+    "command": [
+      "taskset",
+      "-c",
+      "1",
+      "/workspace/dasl-stdlib-io/build/stdlib-current-release-frozen/cinch",
+      "check",
+      "/workspace/dasl-stdlib-native-mvar/build/native-mvar-release-source-check-v1/sources/Main.cinch"
+    ],
+    "compiler_parent_release_units_gate_pending_at_launch": true,
+    "compiler_sha256": "08929f8db0ff3d6be9e50b3c066f9cdc269deaa923b14ada8607dd3e5ee667bc",
+    "compiler_source_revision": "2a558db0",
+    "elapsed_seconds": 37.046832854975946,
+    "end_free_bytes": 996913152,
+    "exit_code": 0,
+    "input_receipt_sha256": "2a7cb78d2121529ba07f156f70d6657deb6aa97caedc2e135e464ca6fc8ff8f8",
+    "ir_or_runtime": false,
+    "limit_reason": null,
+    "log_sha256": "f31d2b44c67d98fcb7cc9e65470a17b00f291f808f711b3cc37cf15b1a6c3c14",
+    "native_mvar_adoption": false,
+    "new_retained_bytes": 14279415,
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "samples_sha256": "ad2a83847eb7f7359494288d2003111f5c3e0627df585e52f24012bf155381d3",
+    "schema": 1,
+    "source51_sha256": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465",
+    "start_free_bytes": 973205504,
+    "status": "passed default source check"
+  },
+  "schema": 1,
+  "slowest_source_body_modules": [
+    {
+      "module": "Bootstrap.Infer",
+      "phase": "source_body",
+      "scope": "prepare",
+      "seconds": 3.5560229999999997
+    },
+    {
+      "module": "Bootstrap.RuntimeIr",
+      "phase": "source_body",
+      "scope": "prepare",
+      "seconds": 2.111573
+    },
+    {
+      "module": "Bootstrap.Core",
+      "phase": "source_body",
+      "scope": "prepare",
+      "seconds": 1.1552629999999997
+    },
+    {
+      "module": "Bootstrap.Type",
+      "phase": "source_body",
+      "scope": "prepare",
+      "seconds": 1.0345180000000003
+    },
+    {
+      "module": "Bootstrap.Typing",
+      "phase": "source_body",
+      "scope": "prepare",
+      "seconds": 1.0028129999999997
+    },
+    {
+      "module": "Bootstrap.Parse",
+      "phase": "source_body",
+      "scope": "prepare",
+      "seconds": 0.3105340000000001
+    },
+    {
+      "module": "Bootstrap.Ast",
+      "phase": "source_body",
+      "scope": "prepare",
+      "seconds": 0.14993899999999982
+    },
+    {
+      "module": "Bootstrap.ExportType",
+      "phase": "source_body",
+      "scope": "prepare",
+      "seconds": 0.12766900000000003
+    }
+  ],
+  "source_body_count": 51,
+  "status": "qualified current release compiler passed complete unchanged51-source default check; Native MVar behavior remains unqualified"
+}

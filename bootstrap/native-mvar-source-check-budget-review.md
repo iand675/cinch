@@ -65,3 +65,14 @@ observations and resource coordination. Existing bootstrap policy permits a
 multi-minute workload, but provides no evidence for a specific debug-host
 upper bound. No algorithm or metadata-contract change is justified solely by
 the bounded timeouts.
+
+## Current release measurement
+
+The exact current release08929f8d/d91 compiler, source2a558db0, passed the
+unchanged complete51-source set in37.047s with default flags. Checking took
+14.920s, optimization17.918s and serialization1.168s; all51 source bodies and
+117 interface files completed. The separately retained debug timeouts remain
+incomplete resource observations, not regressions. Parent also completed
+339 release units in105.91s and70-artifact debug/release/trace invariance.
+No compiler-source algorithm change was needed to close this source gate.
+See `native-mvar-current-release-source-results.json` for exact identities.
