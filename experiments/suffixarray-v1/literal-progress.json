@@ -3,10 +3,10 @@
   "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78",
   "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
   "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
-  "inputs_passed": 48,
+  "inputs_passed": 56,
   "inputs_total": 153,
-  "observations_passed": 3360,
-  "zero_leak_profiles": 96,
+  "observations_passed": 3920,
+  "zero_leak_profiles": 112,
   "reports": [
     {
       "path": "build/suffixarray-v1-runtime-literals-o0-0000-v2.json",
@@ -61,12 +61,22 @@
       "observations": 560,
       "profiles": 16,
       "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78"
+    },
+    {
+      "path": "build/suffixarray-v1-runtime-literals-o0-0048.json",
+      "sha256": "c284a0208252ae830a4a0e093f4a8112c4f1b3a4a21ed8bf0547a4ef8c9bd441",
+      "start": 48,
+      "inputs": 8,
+      "observations": 560,
+      "profiles": 16,
+      "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78"
     }
   ],
-  "next_input": 48,
-  "resource_paused_before_next_compiler": true,
+  "next_input": 56,
+  "resource_paused_before_next_compiler": false,
   "recovery_index": "build/suffixarray-v1-functional-recovery/index.json",
   "recovery_scope": "Only passed matching consumer ELF/LLVM, complete hash/size/mode/uid/gid/nsmtime, compressed+decoded verification and archive/index fsync before unlink; sources/interfaces/oracle/frozen/failed inputs plain",
   "controls_source_sha256": "7fb3447275fc5fbb7b033467237b9e1d954ed33684e138875f890af555aa8104",
-  "controls_status": "prepared-static-untyped-not-run"
+  "controls_status": "prepared-static-untyped-not-run",
+  "extension_pending_parent_boundary": true
 }

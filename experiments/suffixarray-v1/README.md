@@ -4,8 +4,8 @@ This isolated candidate is outside the registered prelude and does not change
 any library inventory or sealed Fields input. Public source checking and
 interface-backed documentation extraction pass on frozen C2. Its first small
 O0 public consumer passes normal/poison memory profiles with zero leaks. The
-literal corpus currently passes inputs 0–47, including 3,360 complete ordered
-lookup results and 96 normal/poison processes. `literal-progress.json` records
+literal corpus currently passes inputs 0–55, including 3,920 complete ordered
+lookup results and 112 normal/poison processes. `literal-progress.json` records
 the exact reports; this is a partial slice, not the full 153-input gate. Full
 corpus, adversarial ownership, effectful callbacks and portable gates remain
 pending; no performance or complete-package claim is made. No Cargo build has
