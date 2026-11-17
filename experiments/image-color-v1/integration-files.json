@@ -137,8 +137,8 @@
     {
       "from": "experiments/image-color-v1/performance-plan.json",
       "to": "experiments/image-color-v1/performance-plan.json",
-      "bytes": 7717,
-      "sha256": "589c4b2bbec642ddf6ddeddee70a4f5f3fc94c607fc5d20c59f067e1581f4136"
+      "bytes": 7925,
+      "sha256": "f36c4a609bd5893cf1d0e09bddcce0f443d9beab4d46baa3af1278bc4b12bf1b"
     }
   ],
   "optional_reproduction_imports": [
@@ -296,7 +296,7 @@
     "756 sealed public timing observations, all complete output/owner checks match,504 Cinch zero-leak runs, raw regressions and actual quota facts retained"
   ],
   "pending": [
-    "Root-granted longer-count paired confirmation of observed control regressions",
+    "Review persistent identical-path RGBA16 control discrepancy and avoidable public allocation costs before any separate optimization",
     "Full Native qualification and genuine source-absent client gate",
     "Production selection/shared inventory/docs integration"
   ],
@@ -376,8 +376,20 @@
     {
       "from": "experiments/image-color-v1/confirmation-plan.json",
       "to": "experiments/image-color-v1/confirmation-plan.json",
-      "bytes": 1271,
-      "sha256": "697cadf16654a04a81363968edd24f68c00dcd9aeeb4654f5718cf22ada09186"
+      "bytes": 1441,
+      "sha256": "7651d4454f8a001a9bb8432bcccc638f51f05ac63553a86b50147e42edbd982e"
+    },
+    {
+      "from": "experiments/image-color-v1/confirmation-results.json",
+      "to": "experiments/image-color-v1/confirmation-results.json",
+      "bytes": 35720,
+      "sha256": "6adcea95f56c7a93f363efa5f7a0ce81feadfcf771fa48820a5a2b85a7b72c0b"
+    },
+    {
+      "from": "experiments/image-color-v1/confirmation-results.md",
+      "to": "experiments/image-color-v1/confirmation-results.md",
+      "bytes": 3414,
+      "sha256": "48a64be1e35d4e23956eb2883918220ac607e502410fed364d493d50e88f2a7e"
     }
   ]
 }

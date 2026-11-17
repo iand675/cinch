@@ -1,6 +1,6 @@
 {
   "scope": "Focused existing-binary repeatability confirmation; no source or binary changes",
-  "status": "functional-count-preflight-passed; awaiting explicit Root exclusive START",
+  "status": "completed under Root explicit exclusive START; all72 observations passed",
   "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
   "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
   "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
@@ -26,5 +26,7 @@
   "report_cap_mib": 5,
   "preflight_receipt": "experiments/image-color-v1/confirmation-count-preflight.json",
   "preflight_sha256": "bdb6114550177b08e3aff864023d47f03eb2b745163a9382ae2ba62ebf362c13",
-  "required_context": "Root final START after every peer and ownCPU1 child inactive; exact pre/post cpu.stat and all rotated raw samples/checksums; preserve initial window regardless of confirmation outcome"
+  "required_context": "Root final START after every peer and ownCPU1 child inactive; exact pre/post cpu.stat and all rotated raw samples/checksums; preserve initial window regardless of confirmation outcome",
+  "actual_results": "experiments/image-color-v1/confirmation-results.json",
+  "actual_results_sha256": "6adcea95f56c7a93f363efa5f7a0ce81feadfcf771fa48820a5a2b85a7b72c0b"
 }

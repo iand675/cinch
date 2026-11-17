@@ -1,5 +1,5 @@
 {
-  "status": "Sealed three-way public timing complete; raw regressions and SDK gaps retained, static control review complete, allocation/confirmation scopes separate.",
+  "status": "Initial756 observations, allocation census189 and longer-count confirmation72 complete; all raw results/regressions retained, persistent unchanged-path control discrepancy remains open.",
   "scope": "Complete public conversion and nearest-palette pipelines with observed output/representation and retained inputs",
   "source_basis": {
     "path": "experiments/image-color-v1/sources/Image.Color.cinch",
@@ -193,5 +193,7 @@
   "actual_timing_receipt": "experiments/image-color-v1/performance-results.json",
   "actual_timing_sha256": "e33f0def32c9cae2bef1e0cefa9d2b354a44b5a64e323a1b30156c6514a89437",
   "timing_observations": 756,
-  "control_review": "experiments/image-color-v1/control-code-review.json"
+  "control_review": "experiments/image-color-v1/control-code-review.json",
+  "confirmation_receipt": "experiments/image-color-v1/confirmation-results.json",
+  "confirmation_sha256": "6adcea95f56c7a93f363efa5f7a0ce81feadfcf771fa48820a5a2b85a7b72c0b"
 }
