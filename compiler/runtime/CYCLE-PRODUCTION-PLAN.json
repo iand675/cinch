@@ -1,0 +1,169 @@
+{
+  "status": "static review only; no production implementation or safepoint selected",
+  "audit_source_checkpoint": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+  "prototype_checkpoint": "5a0586eaf2a130214cb904b1c91f4d84092dee29",
+  "prototype_receipt_sha256": "9c3f2d24314d3070e49eafb2e5b8d6df3cf6f6760f5db55133e8571c8a6103c6",
+  "current_buffered_checkpoint": "bbbea08e34f530cc47c1ec50b3ea72141e27a3ac",
+  "current_buffered_runtime_gates_sha256": "399681db55ce4f0691d5d1f1777ff0239c3bf20fe132e4402d719a582c33963b",
+  "plan_sha256": "94f468f97858ca2050b0114fb88cbf4a2d3f0a0fd99b3b17a4065d3334e4048b",
+  "source_files": {
+    "compiler/runtime/src/cycle.rs": {
+      "status": "not in production source; test-only prototype module exists at5a0586ea"
+    },
+    "compiler/runtime/src/arrays.rs": {
+      "sha256": "eb3349adc0b15a950b376e0441bbe1501e05525914224c16362cb8c8818d5e96",
+      "bytes": 26833
+    },
+    "compiler/runtime/src/slots.rs": {
+      "sha256": "ab5fa3c40ec4bb43b0ade9ecc187152ba0a91d1352f844f24f6e780b70060d88",
+      "bytes": 8164
+    },
+    "compiler/runtime/src/block.rs": {
+      "sha256": "d8eda2f09ad37eb293634bd104f9425aa650c3ce440958037bc2536d4fc2843b",
+      "bytes": 32390
+    },
+    "compiler/runtime/src/rc.rs": {
+      "sha256": "b7aaf03ecafa8896f2d13018639c77b22bfcccc2326d4bc5ca26c9ad9a2cec8a",
+      "bytes": 55460
+    },
+    "compiler/runtime/src/task.rs": {
+      "sha256": "f10b885069e9e7a16289cc3cbb88e0771b2e81f75d431a3dcb24335e24088c47",
+      "bytes": 21115
+    },
+    "compiler/runtime/src/sched.rs": {
+      "sha256": "b823eef6f83b5fa9cdc6b184c77c1b63fa8ccf7ff2868ffac5b8e7e8f73e742e",
+      "bytes": 12949
+    },
+    "compiler/runtime/src/park.rs": {
+      "sha256": "3dc49cb8155e1ab5cc3aefacc88465d3650a9eaa7c5f62f7d72a9718486e9ca3",
+      "bytes": 4376
+    },
+    "compiler/runtime/src/coop.rs": {
+      "sha256": "29e4ee7cabc12b84fd937626a7d204603b995a447fa4314bac7e736e69fa82e1",
+      "bytes": 23467
+    },
+    "compiler/runtime/src/par.rs": {
+      "sha256": "3aa54b0f98de3143e5a67c26465e72291290b3863c5f518a44a9fb6f80891825",
+      "bytes": 39097
+    },
+    "compiler/runtime/src/stm.rs": {
+      "sha256": "0951fa89eb2be8dede88d028a578a41ce55d11923d107d557a9a823fac72ce23",
+      "bytes": 17574
+    },
+    "compiler/runtime/src/mvar.rs": {
+      "sha256": "0f60ab4761d28e549bdac8393a9e1135bf995aa548df639e6eec45434a8b5e9c",
+      "bytes": 15469
+    },
+    "compiler/runtime/src/platform.rs": {
+      "sha256": "f4f0e6519e526590ae2f779b9ba5b81b3c5cd685f14abf901eeeed7e9f60477b",
+      "bytes": 62305
+    },
+    "compiler/runtime/src/small.rs": {
+      "sha256": "2a0cfc2c2c5dcc0a18058412668800699598a8369522c04ff3aa043f17a748b2",
+      "bytes": 32861
+    },
+    "compiler/runtime/src/heap.rs": {
+      "sha256": "1b3d8964924b7fe7e206de6afa1d78bbdcbbfc037b9d423a734f8b477d3baec0",
+      "bytes": 27456
+    },
+    "compiler/runtime/src/arena.rs": {
+      "sha256": "88da7e5de38b7f80b7cfbabf755fc30a40797f3fd989f8b06a3851dc60458c52",
+      "bytes": 21587
+    },
+    "compiler/runtime/src/abi.rs": {
+      "sha256": "fa327d77f1314b508131e6c00b11dd79bf6c6184003b3cf176918d7c49893809",
+      "bytes": 61115
+    },
+    "compiler/runtime/src/block_kinds.rs": {
+      "sha256": "d8306c49f0b9a1c3a20201ee422f7ce8bee682d0145698a3a6438385946054cd",
+      "bytes": 17451
+    },
+    "compiler/src/check.rs": {
+      "sha256": "e48dbedfca4f27c1ccd6080f8ad0b3963d176197fe2432a99ccb56e5503c59c5",
+      "bytes": 604489
+    },
+    "compiler/src/check_decls.rs": {
+      "sha256": "d33cc95da7736c06e83d1743a9c0adbeca4a8e3c2ab5a845fe573ebeddbfbb77",
+      "bytes": 1110363
+    },
+    "compiler/src/check_terms.rs": {
+      "sha256": "6202fe5916e8b7eec54e021a02b14d75607181c613d353e3b8d0a4a6aa64895e",
+      "bytes": 608395
+    },
+    "compiler/src/rc.rs": {
+      "sha256": "26549de7f04a996039cd7ffdfdc39b66ac23427ff28ff22cce987edc8f96a9ea",
+      "bytes": 116259
+    },
+    "compiler/src/analysis.rs": {
+      "sha256": "8b1fc7348493dbbea1759643c35d17ddccaabf44b2dd190b95909d6fd39b6743",
+      "bytes": 79567
+    },
+    "compiler/src/codegen.rs": {
+      "sha256": "56f47089d61976ce3139c3a526bc1ad4ee738c12ced868c3b9bc3a2e19437cb0",
+      "bytes": 666923
+    },
+    "compiler/src/core.rs": {
+      "sha256": "b68682bdca59528b280ff019f820ae4a95e3123b3c9c7ca29a846af7f5e8e3e8",
+      "bytes": 396890
+    },
+    "compiler/src/slots_codegen.rs": {
+      "sha256": "10fa9bb9388fd419eccebf49cb8216319e1885a0c35625f5fc2fbb0f69fb496e",
+      "bytes": 6645
+    },
+    "compiler/src/cabi.rs": {
+      "sha256": "69a0a2b8fc6277d6d2ae8a6e7b65bfa19abd206e7cd680dc822b007f754ed0ba",
+      "bytes": 24722
+    },
+    "bootstrap/Bootstrap.RuntimeIr.cinch": {
+      "sha256": "b599bb58d3cde4beb608bbe044ced9ec12facd98889ac71910953604f88e26b5",
+      "bytes": 405444
+    },
+    "bootstrap/Bootstrap.RuntimeAbi.cinch": {
+      "sha256": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e",
+      "bytes": 311
+    },
+    "compiler/runtime/src/sched/fiber.rs": {
+      "sha256": "c338237021c0c6710b0c17e58e28d3c95f9f950713d9f1b93fd6d741a000035b",
+      "bytes": 30672
+    },
+    "compiler/runtime/src/sched/thread.rs": {
+      "sha256": "d864b03a8adf4bd53cf062c84a088328da808a3c565c1c8eac10ee59c46b5171",
+      "bytes": 2480
+    },
+    "compiler/runtime/src/sched/switch.rs": {
+      "sha256": "0ca5cfcb407e3792c942fb0fef455e2fec08774c7e85522cc997ebd635ec2356",
+      "bytes": 6401
+    },
+    "compiler/runtime/src/eval.rs": {
+      "sha256": "3014624f1dae85148d652af2bb1b1b6f8c6b7dc21ffd43ec2d2977076eaefae2",
+      "bytes": 46173
+    },
+    "compiler/src/types.rs": {
+      "sha256": "bdaeecf64bb114e1206255f005a310d813bd589b81d4b95fddd23d1a418cc6e6",
+      "bytes": 269522
+    },
+    "bootstrap/Bootstrap.Foreign.cinch": {
+      "sha256": "08a1d9777383b643de478d247f9bd46be815ef2bc0d98301154c6fbec351546a",
+      "bytes": 31939
+    }
+  },
+  "current_observed_failure": {
+    "normal": {
+      "exit": 74,
+      "completion_marker": "retained-cycle-ready\n",
+      "live": 22,
+      "leaked": 22
+    },
+    "poison": {
+      "exit": 74,
+      "completion_marker": "retained-cycle-ready\n",
+      "live": 22,
+      "leaked": 22
+    }
+  },
+  "implementation_selection_blockers": [
+    "actual global/context/foreign quiescence and owned-backing proof",
+    "coverage or a justified alternative for legally atomic/shared callback cycles",
+    "new concurrency/FFI/budget/diagnostic/portability/performance gates; original9localunits are insufficient"
+  ]
+}
