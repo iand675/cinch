@@ -1,0 +1,7 @@
+
+running 1 test
+test par_tabulate_over_sixty_four_expensive_items_scales ... parTabulate over 64 expensive items: N = 1: 0.630s (1.00x), N = 2: 0.327s (1.93x), N = 4: 0.174s (3.61x), N = 8: 0.154s (4.09x)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 35 filtered out; finished in 6.68s
+

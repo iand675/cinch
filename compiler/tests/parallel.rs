@@ -16,6 +16,146 @@ use std::time::{Duration, Instant};
 
 const ARRAY_SOURCE: &str = include_str!("../prelude/Data/Array.cinch");
 
+/// Participant configuration is a pure source hint with the ordinary Unit result.
+const WORKERS_PROGRAM: &str = r#"-- | Configure participant budgets without changing program results.
+module Main where
+  -- | Forward a checked natural count directly to the scheduling hint.
+  configure :: Nat -> Unit
+  configure count = parWorkers count
+  -- | Observe the ordinary Unit result after default, sequential and pooled budgets.
+  main :: Int
+  main = case configure 0 of
+    () -> case configure 4611686018427387904 of
+      () -> case configure 1 of
+        () -> case configure 2 of
+          () -> 0
+"#;
+
+/// The Native and cooperative profiles use their matched existing runtime setter.
+#[test]
+fn par_workers_has_a_pure_source_contract_and_matched_runtime_entries() {
+    use cinch::check::StageMode;
+    use cinch::core::{ArtifactProfile, TargetProfile};
+    use cinch::driver::Mode;
+    let dir = project("parallel_workers_contract", WORKERS_PROGRAM);
+    common::check(&dir, "Main.cinch").expect("Nat -> Unit participant configuration is pure source");
+    for (profile, expected, forbidden) in [
+        (TargetProfile::native(), "cinch_par_set_workers", "cinch_coop_par_set_workers"),
+        (TargetProfile::wasm32(ArtifactProfile::CoreWasm), "cinch_coop_par_set_workers", "cinch_par_set_workers"),
+    ] {
+        let output = dir.join(format!("{expected}.ll"));
+        common::drive_with_profile(Mode::EmitIr, StageMode::Refresh, &dir, "Main.cinch", Some(output.clone()), &profile)
+            .expect("emit the selected participant configuration backend");
+        let ir = std::fs::read_to_string(output).unwrap();
+        assert!(ir.contains("call i64 @cinch_nat_to_len("), "count must cross the checked Nat length bridge");
+        assert!(ir.contains(&format!("call i64 @{expected}(")), "missing {expected}");
+        assert!(!ir.contains(&format!("call i64 @{forbidden}(")), "mixed scheduling backends");
+    }
+    common::cleanup(&dir);
+}
+
+/// Full application remains mandatory and the participant count keeps its Nat carrier.
+#[test]
+fn par_workers_refuses_wrong_arity_carrier_and_first_class_uses() {
+    for (label, body, expected) in [
+        ("oversaturated", "bad :: Unit\n  bad = parWorkers 1 2", "parWorkers takes exactly one participant count"),
+        ("wrong carrier", "bad :: Unit\n  bad = parWorkers True", "Nat"),
+        ("first-class alias", "bad :: Nat -> Unit\n  bad = parWorkers", "parWorkers must be applied directly to its participant count"),
+        ("higher-order argument", "apply :: (Nat -> Unit) -> Unit\n  apply callback = callback 1\n  bad :: Unit\n  bad = apply parWorkers", "parWorkers must be applied directly to its participant count"),
+    ] {
+        let body = body.lines().map(|line| {
+            let line = line.strip_prefix("  ").unwrap_or(line);
+            if line.contains(" :: ") {
+                let indentation = &line[..line.len() - line.trim_start().len()];
+                format!("{indentation}-- | Exercise a participant configuration boundary.\n{line}")
+            } else { line.to_owned() }
+        }).collect::<Vec<_>>().join("\n");
+        let body = body.lines().map(|line| format!("  {line}")).collect::<Vec<_>>().join("\n");
+        let source = format!("-- | Refuse an invalid participant scheduling hint.\nmodule Main where\n{body}\n");
+        let dir = project("parallel_workers_refusal", &source);
+        let error = common::check(&dir, "Main.cinch").expect_err(label);
+        assert!(error.contains(expected), "{label}: {error}");
+        common::cleanup(&dir);
+    }
+}
+
+/// A matching display name does not turn local or qualified ordinary functions into intrinsics.
+#[test]
+fn par_workers_shadowing_preserves_local_and_defining_bindings() {
+    let source = r#"-- | An ordinary source function may use the same public spelling.
+module WorkerNames where
+  export parWorkers
+  -- | Keep this two-argument function independent of scheduling configuration.
+  parWorkers :: Nat -> Nat -> Nat
+  parWorkers first second = first
+-- | Qualified and local bindings keep their checked defining identities.
+module Main where
+  import WorkerNames as Local
+  -- | A local function parameter remains an ordinary first-class function.
+  apply :: (Nat -> Nat) -> Nat
+  apply parWorkers = parWorkers 3
+  -- | A qualified ordinary function retains its two checked arguments.
+  qualified :: Nat
+  qualified = Local.parWorkers 7 8
+  -- | A local parameter retains its ordinary function result.
+  local :: Nat
+  local = apply (\count -> count)
+  -- | Both uses observe their ordinary source function contracts.
+  main :: Int
+  main = 0
+"#;
+    let dir = project("parallel_workers_shadowing", source);
+    common::check(&dir, "Main.cinch").expect("ordinary source names retain their arity and first-class contract");
+    common::cleanup(&dir);
+}
+
+/// Counted Nat arguments follow the primitive's ordinary checked ownership convention.
+#[test]
+fn par_workers_runs_with_checked_count_ownership() {
+    use cinch::check::StageMode;
+    use cinch::core::TargetProfile;
+    use cinch::driver::Mode;
+    let source = r#"-- | Configure a freshly allocated count obtained from a runtime argument.
+module Main where
+  import Data.Bytes
+  import Data.List
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Effect.Process (process-args)
+  -- | Pass the actual counted natural through the checked participant bridge.
+  configure :: Nat -> Unit
+  configure count = parWorkers count
+  -- | Force runtime addition above the immediate range before resetting the budget.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Err error -> 1
+    Ok arguments -> case arguments of
+      Cons input Nil ->
+        let count = bytes-len (string-to-bytes input) + 18446744073709551616 in
+        case configure count of
+          () -> case configure 1 of
+            () -> 0
+      other -> 2
+"#;
+    let directory = project("parallel_workers_owned_count", source);
+    let executable = directory.join("workers");
+    let profile = TargetProfile { reclaim: true, rc_debug: true, ..TargetProfile::native() };
+    common::drive_with_profile(Mode::Build, StageMode::Refresh, &directory, "Main.cinch", Some(executable.clone()), &profile)
+        .expect("build participant configuration with checked ownership");
+    for poison in [false, true] {
+        let output = Command::new(&executable)
+            .arg("fresh")
+            .env("CINCH_HEAP_LIMIT", if poison { "256M" } else { "32M" })
+            .env("CINCH_STACK_SIZE", "8M").env("CINCH_LEAK_CHECK", "1")
+            .env("CINCH_RC_DEBUG", if poison { "1" } else { "0" }).output().unwrap();
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(0), "{error}");
+        assert!(error.contains("cinch-leak: live=0 immortal=0 leaked=0"), "{error}");
+    }
+    common::cleanup(&directory);
+}
+
 /// `Data.Array` is a source module a program ships beside its entry (it is
 /// not in the embedded base package), and `parMap` lowers through its two
 /// conversions, so every program here carries it.
@@ -974,6 +1114,35 @@ module Main where
 
   main :: Int
   main = if nat-to-int (sumTree (Cons 1 (Cons 2 (Cons 3 Nil)))) == 6 then 0 else 1
+"#,
+        0,
+    );
+}
+
+/// Repeated borrowed callbacks keep their captured owner through every consuming apply.
+#[test]
+fn par_tabulate_keeps_a_counted_capture_alive_for_every_invocation() {
+    expect_ok(
+        "parallel_repeated_counted_capture",
+        r#"-- | Exercise repeated callbacks with a separately allocated list owner.
+module Main where
+  import Data.Array
+  import Data.List
+  import Data.Nat
+  -- | Keep construction outside the callback and prevent static list expansion.
+  #[noinline]
+  descending :: Nat -> List Nat
+  descending count = if count > 0 then Cons (count - 1) (descending (count - 1)) else Nil
+  -- | Read the captured owner on each callback invocation.
+  sum-nats :: List Nat -> Nat
+  sum-nats values = case values of
+    Nil -> 0
+    Cons first rest -> first + sum-nats rest
+  -- | Observe all callback outputs after the runtime has completed its work.
+  main :: Int
+  main = let captured = descending 512 in
+    let output = parTabulate 64 (\index -> sum-nats captured + index) in
+    if nat-to-int (sum-nats (array-to-list output)) == 8374240 then 0 else 1
 "#,
         0,
     );

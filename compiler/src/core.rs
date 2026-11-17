@@ -957,11 +957,13 @@ impl ConcOp {
 ///
 /// The callbacks are borrowed: the caller keeps them alive across the call
 /// and drops them afterwards, and the runtime duplicates one reference per
-/// invocation. The checker installs the three as compiler-known values with
+/// invocation. The checker installs the callback forms as compiler-known values with
 /// their capture and effect obligations (`install_parallel_api`), because
 /// their callbacks are read literally at the call site.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ParOp {
+    /// `parWorkers n`: set the runtime participant budget without changing results.
+    Workers,
     /// `parBoth f g`: both branches, joined into the pair.
     Both,
     /// `parTabulate n f`: index `i` is one unit of work.
@@ -979,16 +981,18 @@ impl ParOp {
             ParOp::Both => "parBoth",
             ParOp::Tabulate => "parTabulate",
             ParOp::MapArray => "parMapArray",
+            ParOp::Workers => "parWorkers",
         }
     }
 
     /// How many element classes the unit is parameterized by: the pair's
     /// two component classes for `parBoth`, and the result array's element
-    /// class for the other two.
+    /// class for the array forms. Participant configuration has no payload class.
     pub fn class_count(self) -> usize {
         match self {
             ParOp::Both => 2,
             ParOp::Tabulate | ParOp::MapArray => 1,
+            ParOp::Workers => 0,
         }
     }
 }
@@ -1397,9 +1401,11 @@ impl PrimOp {
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
             | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | ApplyErased | NotBool | Eval => 1,
             Conc(k) => k.arity(),
-            // Two runtime words each (`n` and the callback, two callbacks,
+            // The participant hint takes one count; callback forms take two
+            // runtime words each (`n` and the callback, two callbacks,
             // or the callback and the input array). The element classes are
             // immediates in the body, not parameters.
+            Par { op: ParOp::Workers, .. } => 1,
             Par { .. } => 2,
             _ => 2,
         }
@@ -1568,7 +1574,8 @@ impl PrimOp {
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),
             Conc(_) => unreachable!("concurrency and runtime I/O builtins are not foreign imports"),
-            Par { .. } => unreachable!("the parallel builtins are not foreign imports"),
+            Par { op: ParOp::Workers, .. } => (vec![Ty::Nat], Ty::Unit),
+            Par { .. } => unreachable!("the parallel callback builtins are not foreign imports"),
             Conv { from, to, mode } => {
                 let res = if mode == ConvMode::Checked { opt(prim(to)) } else { prim(to) };
                 (vec![prim(from)], res)

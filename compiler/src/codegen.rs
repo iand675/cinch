@@ -2256,13 +2256,14 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
         }
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Eval => vec![Class::Obj],
         // The parallel units' parameters: two closures, or the callback and
-        // the count / input array. The element classes are immediates in
+        // the count / input array, or a participant count alone. The element classes are immediates in
         // the body, not parameters.
         PrimOp::Par { op, .. } => match op {
             crate::core::ParOp::Both | crate::core::ParOp::MapArray => {
                 vec![Class::Obj, Class::Obj]
             }
             crate::core::ParOp::Tabulate => vec![Class::TObj, Class::Obj],
+            crate::core::ParOp::Workers => vec![Class::TObj],
         },
         PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
         PrimOp::Conc(IoRead | IoSleep) => vec![Class::Raw, Class::TObj],
@@ -3007,7 +3008,7 @@ struct UnitClass {
     /// through it.
     externs: bool,
     /// `norecurse`: the unit is in no cycle of the call graph and reaches
-    /// no indirect application. Computed from the same `scan.callees`
+    /// no indirect application or opaque callback-capable call. Computed from the same `scan.callees`
     /// edges the other classes follow, by finding the strongly connected
     /// components once.
     ///
@@ -3148,6 +3149,9 @@ fn classify_callee(sym: &str, units: &HashSet<String>, extra: Option<&str>) -> C
 /// carry no boundary signature.
 fn prim_sig(op: PrimOp) -> Option<(Vec<crate::types::Ty>, crate::types::Ty)> {
     use PrimOp::*;
+    if matches!(op, Par { op: crate::core::ParOp::Workers, .. }) {
+        return Some(op.sig());
+    }
     if matches!(op, Delay | Force | ApplyErased | Eval | Conc(_) | PrimOp::Par { .. }) {
         return None;
     }
@@ -3495,7 +3499,7 @@ fn body_never_returns(text: &str) -> bool {
 
 /// The units that may call themselves back, for `norecurse`.
 ///
-/// Two edge kinds make a unit recursive, and both have to be followed:
+/// Direct cycles and unknown callback edges both prevent a nonrecursion claim:
 ///
 /// * a direct call to a unit that reaches it back (a cycle of the call
 ///   graph), which is the strongly connected component test, and
@@ -3506,6 +3510,9 @@ fn body_never_returns(text: &str) -> bool {
 ///   words at the result through `__apply`. A unit that reaches an
 ///   indirect call therefore may re-enter itself with nothing in the edge
 ///   set saying so.
+/// * An opaque external call can also invoke the current unit through an
+///   apply stub or exported entry. Its implementation is unavailable, so
+///   absence from the local direct-call graph is not nonrecursion evidence.
 ///
 /// The answer is the transitive closure of both, computed once. Every
 /// other class in [`UnitClass`] is a "must hold everywhere" property and
@@ -3513,8 +3520,8 @@ fn body_never_returns(text: &str) -> bool {
 /// happen anywhere" property, so a cycle (or an invisible edge) anywhere
 /// below the unit is what makes it false.
 fn recursive_units(units: &[EmittedUnit]) -> HashSet<String> {
-    // The direct edges, restricted to units this module defines: a call
-    // to a symbol outside the set cannot reach back into it.
+    // Follow local edges explicitly; opaque external edges seed the
+    // callback-capable set below rather than disappearing from the proof.
     let defined: HashSet<&str> = units.iter().map(|u| u.name.as_str()).collect();
     let edges: HashMap<&str, Vec<&str>> = units
         .iter()
@@ -3532,7 +3539,7 @@ fn recursive_units(units: &[EmittedUnit]) -> HashSet<String> {
         .collect();
     let indirect: HashSet<&str> = units
         .iter()
-        .filter(|u| u.scan.indirect)
+        .filter(|u| u.scan.indirect || u.scan.externs)
         .map(|u| u.name.as_str())
         .collect();
     // A unit is recursive when it reaches itself, or when it reaches a
@@ -3563,7 +3570,7 @@ fn recursive_units(units: &[EmittedUnit]) -> HashSet<String> {
                 stack.extend(next.iter().copied());
             }
         }
-        if recursive {
+        if recursive || indirect.contains(start) {
             out.insert(u.name.clone());
         }
     }
@@ -7673,6 +7680,11 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             // Every class here is an immediate baked into the body.
             use crate::core::ParOp::*;
             match par_op {
+                Workers => {
+                    let n = rt_call(b, "cinch_nat_to_len", &["i64 %p0".to_string()]);
+                    let _ = rt_call(b, &task_rt(cx, "par_set_workers"), &[format!("i64 {n}")]);
+                    ret(b, "0");
+                }
                 Both => {
                     // `out[0]`, `out[1]` are owned result words; the pair
                     // takes the two component classes' exact pointer map, so

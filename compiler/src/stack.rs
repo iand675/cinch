@@ -750,7 +750,7 @@ impl Facts {
           for (name, modes) in modes_by_name {
             if let Some(op) = authority.get(name) {
                 for (position, mode) in modes.iter_mut().enumerate() {
-                    *mode &= !primitive_retains_frame_argument(*op, position);
+                    *mode &= !primitive_requires_heap_argument(*op, position);
                 }
             }
           }
@@ -776,7 +776,11 @@ impl Facts {
                 scan.go(&f.body, Role::Return, None, false);
                 current.iter().enumerate().map(|(position, mode)| *mode
                     && position < f.arity()
-                    && scan.uses.get(&position).is_none_or(|uses| uses.escapes() == 0)).collect::<Vec<_>>()
+                    // An ARC loan may create temporary owned aliases or
+                    // invoke a closure through consuming apply. A frame
+                    // marker cannot provide those additional references.
+                    && scan.uses.get(&position).is_none_or(|uses| uses.escapes() == 0
+                        && uses.duplicated == 0 && uses.applied == 0)).collect::<Vec<_>>()
             };
             if &next == current { continue; }
             self.borrowed.insert(f.id.0.clone(), next);
@@ -832,9 +836,10 @@ fn frame_body_available(
         && !matches!(lent_entries.get(&f.id.0), Some(crate::core::LentEntry::Imported { .. }))
 }
 
-/// Whether a typed primitive may retain an argument, return its identity or
-/// expose its address beyond the call. ARC borrowing does not forbid these.
-fn primitive_retains_frame_argument(op: PrimOp, position: usize) -> bool {
+/// Whether a typed primitive needs a heap owner despite borrowing its argument.
+/// Retention, escaping addresses, and callback invocation through a consuming
+/// apply stub all need reference duplication that a frame marker cannot supply.
+fn primitive_requires_heap_argument(op: PrimOp, position: usize) -> bool {
     use crate::arrays::ArrayOp;
     match op {
         PrimOp::Array { op, .. } => match op {
@@ -857,6 +862,16 @@ fn primitive_retains_frame_argument(op: PrimOp, position: usize) -> bool {
         PrimOp::Slots { op: crate::slots::SlotOp::Write, .. } => position == 2,
         PrimOp::Delay | PrimOp::Bytes(crate::core::BytesOp::Data) => position == 0,
         PrimOp::Conc(crate::core::ConcOp::Spawn) => true,
+        // The runtime lends the caller's closure but duplicates an owned
+        // reference for each consuming apply invocation. Frame duplication
+        // is a no-op, so its captures would be released while the caller
+        // still owns the closure (and before a repeated callback invocation).
+        PrimOp::Par { op, .. } => match op {
+            crate::core::ParOp::Workers => false,
+            crate::core::ParOp::Both => position < 2,
+            crate::core::ParOp::Tabulate => position == 1,
+            crate::core::ParOp::MapArray => position == 0,
+        },
         _ => false,
     }
 }
@@ -1811,18 +1826,18 @@ mod frame_capture_tests {
         for (op, positions) in [(ArrayOp::Replicate, vec![1]), (ArrayOp::Set, vec![0, 2]),
             (ArrayOp::TensorSet, vec![2]), (ArrayOp::Reshape, vec![0, 1]),
             (ArrayOp::Column, vec![0]), (ArrayOp::Zip, vec![0, 1])] {
-            for position in positions { assert!(primitive_retains_frame_argument(array(op), position)); }
+            for position in positions { assert!(primitive_requires_heap_argument(array(op), position)); }
         }
         for op in [ArrayOp::FromList, ArrayOp::Get, ArrayOp::Len, ArrayOp::Append, ArrayOp::Slice] {
-            assert!(!primitive_retains_frame_argument(array(op), 0));
+            assert!(!primitive_requires_heap_argument(array(op), 0));
         }
         for op in [crate::stm::StmOp::CellNew, crate::stm::StmOp::CellCast, crate::stm::StmOp::CellAddr] {
-            assert!(primitive_retains_frame_argument(PrimOp::Stm { op, classes: [Class::Obj; 2] }, 0));
+            assert!(primitive_requires_heap_argument(PrimOp::Stm { op, classes: [Class::Obj; 2] }, 0));
         }
-        assert!(primitive_retains_frame_argument(PrimOp::Slots { op: crate::slots::SlotOp::Write, classes: [Class::Obj; 2] }, 2));
-        assert!(primitive_retains_frame_argument(PrimOp::Delay, 0));
-        assert!(primitive_retains_frame_argument(PrimOp::Bytes(crate::core::BytesOp::Data), 0));
-        assert!(!primitive_retains_frame_argument(PrimOp::Bytes(crate::core::BytesOp::Len), 0));
+        assert!(primitive_requires_heap_argument(PrimOp::Slots { op: crate::slots::SlotOp::Write, classes: [Class::Obj; 2] }, 2));
+        assert!(primitive_requires_heap_argument(PrimOp::Delay, 0));
+        assert!(primitive_requires_heap_argument(PrimOp::Bytes(crate::core::BytesOp::Data), 0));
+        assert!(!primitive_requires_heap_argument(PrimOp::Bytes(crate::core::BytesOp::Len), 0));
     }
 
     /// Capturing typed primitives taint direct callers and every ordinary forwarding layer.
@@ -1840,6 +1855,21 @@ mod frame_capture_tests {
         for name in ["Direct", "First", "Second"] { assert!(!frame_safe(&facts, name, 0)); }
         assert_eq!(facts.lent[&op.symbol()], vec![true, false]);
         assert_eq!(p.borrowed, original); assert_eq!(p.lent, original_lent);
+    }
+
+    /// Source forwarding cannot hide consuming closure application behind an ARC loan.
+    #[test]
+    fn borrowed_apply_and_forwarding_require_a_heap_closure_owner() {
+        let apply = unit("Apply", vec![Class::Obj], Core::App(
+            Box::new(Core::Var(LocalId(0))), vec![Core::Unit],
+        ));
+        let mut p = program(vec![unit("Forward", vec![Class::Obj], forward("Apply")), apply]);
+        for name in ["Apply", "Forward"] { p.borrowed.insert(name.into(), vec![true]); }
+        let original = p.borrowed.clone();
+        let facts = Facts::of(&p, Widen::default());
+        assert!(!frame_safe(&facts, "Apply", 0));
+        assert!(!frame_safe(&facts, "Forward", 0));
+        assert_eq!(p.borrowed, original, "private frame eligibility must not change the public ARC convention");
     }
 
     /// A Global primitive wrapper needs the same typed capture mask as a direct Core primitive.

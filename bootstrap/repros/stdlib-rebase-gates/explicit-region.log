@@ -1,0 +1,18 @@
+
+running 13 tests
+test capability_arguments_require_region_variables ... ok
+test capability_regions_cannot_be_value_types ... ok
+test common::external_frontend::profile_tests::a_foreign_triple_must_match_its_own_profile_including_the_name ... ok
+test common::external_frontend::profile_tests::a_native_request_is_accepted_for_the_hosts_own_triple ... ok
+test common::external_frontend::profile_tests::a_profile_that_does_not_reclaim_asks_for_the_word ... ok
+test explicit_regions_cannot_be_numeric_indices ... ok
+test explicit_regions_cannot_be_relabelled ... ok
+test explicit_regions_cannot_be_row_tails ... ok
+test explicit_regions_cannot_be_value_types ... ok
+test nested_explicit_regions_cannot_be_numeric_indices ... ok
+test nested_explicit_regions_cannot_be_row_tails ... ok
+test nested_universal_region_cannot_capture_a_specific_identity ... ok
+test pure_factories_and_nested_region_quantifiers_execute ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.56s
+

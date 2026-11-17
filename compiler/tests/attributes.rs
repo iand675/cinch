@@ -545,6 +545,27 @@ fn definition_attributes<'a>(ir: &'a str, name: &str) -> &'a str {
     ir.lines().find_map(|line| line.strip_prefix(&prefix)).unwrap()
 }
 
+/// An opaque foreign implementation may call back through the current unit.
+#[test]
+fn opaque_callbacks_prevent_norecurse_on_direct_and_transitive_callers() {
+    let ir = ir_of("opaque-reentry", r#"-- | Keep reentry possible across an opaque foreign boundary.
+module Main where
+  import Data.Machine
+  -- | The foreign implementation may call an exported entry before returning.
+  foreign import ccall "opaque_reentry" callback :: forall r. I64 ->{IO r} I64
+  -- | Preserve a direct caller independently of source inlining heuristics.
+  #[noinline]
+  forward :: forall r. I64 ->{IO r} I64
+  forward value = callback value
+  -- | An ordinary caller inherits the same possible callback path.
+  main :: Unit ->{IO r} Int
+  main unit = let observed = forward 0 in 0
+"#);
+    for name in ["Main.callback", "Main.forward", "Main.main"] {
+        assert!(!definition_attributes(&ir, name).contains("norecurse"), "{name}: opaque reentry was excluded\n{ir}");
+    }
+}
+
 /// User hints remain attached to each requested function even when primitive
 /// wrappers independently use the same LLVM attribute vocabulary.
 #[test]

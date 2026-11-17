@@ -1162,7 +1162,7 @@ impl Checker {
     }
 
     /// Deterministic pure parallelism (`design/parallel-evaluation.md`
-    /// sections 2.1 and 4.1): three compiler-known values whose meaning is
+    /// sections 2.1 and 4.1): compiler-known values whose meaning is
     /// their sequential defining equation, so no result depends on the
     /// participant count or the schedule. Each carries a full scheme here
     /// (they are builtins, not prelude foreign imports), and the
@@ -1294,6 +1294,9 @@ impl Checker {
             },
             ParOp::MapArray,
         );
+        // Participant budgets are hints: their Unit result and pure source
+        // row do not depend on the configured execution schedule.
+        reg(self, "parWorkers", Scheme::mono(Ty::fun(Ty::Nat, Ty::Unit)), ParOp::Workers);
     }
 
     /// Staging (P9): the builtin compile-time types and the capability API
@@ -22579,6 +22582,9 @@ impl Checker {
                 let pair = self.global_value(cx, "Tuple.2")?;
                 self.apply_value(cx, pair, vec![a, b])
             }
+            PrimOp::Par { op: crate::core::ParOp::Workers, .. } => Err(Error::plain(
+                "`parWorkers` configures the runtime participant budget and is not available at compile time",
+            )),
             PrimOp::Par { op, .. } => Err(Error::plain(format!(
                 "`{}` is not available at compile time in this slice: the compile-time evaluator has no array values (its array primitives are unavailable for the same reason)",
                 op.name()
