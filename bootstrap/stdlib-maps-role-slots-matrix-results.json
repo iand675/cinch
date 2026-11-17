@@ -1,5 +1,6 @@
 {
-  "kind": "qualified-tuple-annotated-map-runtime-matrix-progress",
+  "kind": "qualified-tuple-annotated-map-runtime-matrix",
+  "status": "requested-independent800-and-control12-passed",
   "package_complete": false,
   "candidate_selected": false,
   "native_family_relabelled": false,
@@ -27,14 +28,81 @@
         "report_sha256": "0c83f0f128372246620922433a9dcb33cb58d709b3de1315f72e9d5158863fa0",
         "trace_observations": 100,
         "ownership_control_groups": 0
+      },
+      "trace-1": {
+        "status": "passed",
+        "exit": 0,
+        "report": "build/maps-role-slots-matrix-trace-1-a1-results.json",
+        "report_sha256": "f3d52dc3668a0ae0e374527a0b01e06d69626f96d27447f8cdd570e2636518e8",
+        "trace_observations": 100,
+        "ownership_control_groups": 0
+      },
+      "trace-2": {
+        "status": "passed",
+        "exit": 0,
+        "report": "build/maps-role-slots-matrix-trace-2-a1-results.json",
+        "report_sha256": "13881b8ef04d2c63da7aac9d637b38e922b25f12052185a0e9a1f929e8c9e72a",
+        "trace_observations": 100,
+        "ownership_control_groups": 0
+      },
+      "trace-3": {
+        "status": "passed",
+        "exit": 0,
+        "report": "build/maps-role-slots-matrix-trace-3-a1-results.json",
+        "report_sha256": "45719330ddb5e5e88fdfdede271be94c11ccdea061d312b6c197aadd92f090df",
+        "trace_observations": 100,
+        "ownership_control_groups": 0
+      },
+      "trace-4": {
+        "status": "passed",
+        "exit": 0,
+        "report": "build/maps-role-slots-matrix-trace-4-a1-results.json",
+        "report_sha256": "72326f50145b27899399e2f28127006ce201191a494c71e38083ebded8e8355b",
+        "trace_observations": 100,
+        "ownership_control_groups": 0
+      },
+      "trace-5": {
+        "status": "passed",
+        "exit": 0,
+        "report": "build/maps-role-slots-matrix-trace-5-a1-results.json",
+        "report_sha256": "786b9179ba204e5b02f34b53ade09588fe5ded31260844b373ddd38535c38fb2",
+        "trace_observations": 100,
+        "ownership_control_groups": 0
+      },
+      "trace-6": {
+        "status": "passed",
+        "exit": 0,
+        "report": "build/maps-role-slots-matrix-trace-6-a1-results.json",
+        "report_sha256": "a535dfb737c93a7ac7e9d518f53a2ec79627b46c82422de44476710094903d00",
+        "trace_observations": 100,
+        "ownership_control_groups": 0
+      },
+      "trace-7": {
+        "status": "passed",
+        "exit": 0,
+        "report": "build/maps-role-slots-matrix-trace-7-a1-results.json",
+        "report_sha256": "d339c7f9dfbb813b711e4ff4f7238c3be98219c3b99dc1e0c16da9fdc1abd84c",
+        "trace_observations": 100,
+        "ownership_control_groups": 0
       }
     }
   },
-  "trace_observations": 100,
+  "progress_sha256": "9e118dbafbfdccb87884367190472e89933ea65d369f0fcc1be18416b02be891",
+  "trace_observations": 800,
   "ownership_control_groups": 12,
-  "normal_poison_processes": 4,
-  "full_independent800_complete": false,
+  "normal_poison_processes": 18,
+  "full_independent800_complete": true,
+  "maximum_unit_output_bytes": 10387871,
+  "total_build_seconds": 67.15699669200694,
   "archive_index": "build/maps-role-slots-closed-unit-archive/index.json",
-  "archive_index_sha256": "e8ca372f9315d87b91e79cf721b3aa03264e715eb285fa708d8f4c2e9b0318fd",
-  "pending": "Remaining trace1\u20137; source-absent capability transport, Native qualification, matched performance and candidate selection stay separate."
+  "archive_index_sha256": "7364b3485313b53c4ed051151fc92b025102bcf85a5ffafe78c225bb7840597a",
+  "archived_original_bytes": 89575083,
+  "archive_bytes": 22124307,
+  "net_recovered_bytes": 67450776,
+  "separate_edge_ieee64_mixed_io_receipt": {
+    "path": "bootstrap/stdlib-maps-role-slots-runtime-results.json",
+    "sha256": "446824333b8ba55e6086c7949839ed30cf6b72645303cdc46be2a2690f1824bf",
+    "normal_poison_processes": 2
+  },
+  "pending": "Source-absent/open-row capability transport, actual Native qualification, matched performance and candidate selection stay separate; old855 and330 epochs are not merged."
 }
