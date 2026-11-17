@@ -1,0 +1,253 @@
+{
+  "scope": "Functional source-distributed dependency checkpoint; performance and parent PPC/checked-RC gate remain pending",
+  "source_sha256": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+  "public_api": "byte-view-ascii-space-run-end :: ByteView -> Nat -> Bool -> Option Nat",
+  "semantics": {
+    "whitespace_bytes": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      32
+    ],
+    "nonascii_stops_both_classes": true,
+    "positions_relative": true,
+    "at_end": "Some end",
+    "past_end": "None",
+    "whole_owner_retained": true,
+    "current_alias_mutations_observable": true
+  },
+  "vector": {
+    "bytes": 16,
+    "alignment": 1,
+    "all_matching_lanes_required": true,
+    "mask_all_ones_test_endian_independent": true,
+    "scalar_mismatch_and_final_fringe": true,
+    "hidden_stores_or_branches_in_llvm": false
+  },
+  "cases_per_optimization_per_frontend": 1607,
+  "memory_profiles": 1614,
+  "normal_heap": "32M",
+  "poison_heap": "256M",
+  "program_stack": "8M",
+  "compiler_main_stack": "64MiB",
+  "leaked": 0,
+  "rust": {
+    "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "compiled_rc_debug": false,
+    "dynamic_poison_checked": true
+  },
+  "native": {
+    "raw_compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+    "compiler_source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+    "pair_sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d",
+    "object_sha256": "b02e2e0e19b3f09a69ee821a16b3c975ac28d443b4a10126acada470fa152214",
+    "compiler_host_runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "consumer_runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "compiled_rc_debug": true,
+    "root66_adoption": false
+  },
+  "functional_receipts": [
+    {
+      "path": "build/byte-ascii-run-first-runtime.json",
+      "sha256": "7f847b6b6e87600e5844a69b40ded678f09998a3afd1a873486787b092dc1dd3",
+      "cases": 257,
+      "memory_profiles": 66,
+      "opt_level": "0",
+      "compiled_rc_debug": false,
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "entry_sha256": "91c2c4f6cb5c3c6f97a486739f9c814cef1ee66087fcbba9795122a37542fee8",
+      "llvm_sha256": "30bb23db78fb036a0d885f9c4ca343f3e64edb56039ba1bf9dd11ae89193f713",
+      "executable_sha256": "41aadbfb1b4989be0fae92dff3f55d403f92dc294791ad40bc832f7b76c10f28"
+    },
+    {
+      "path": "build/byte-ascii-run-fringes-rust-o0.json",
+      "sha256": "065190e2d13b61eb790767f4f170150a18076a936baa6d65ae8ecc30d623bf35",
+      "cases": 1350,
+      "memory_profiles": 338,
+      "opt_level": "0",
+      "compiled_rc_debug": false,
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "entry_sha256": "75d888efd64fe9ae5098caf7937529944af766aa4ad34f0429e444bb2714194e",
+      "llvm_sha256": "b6ee06ad5a7d9c8a26b9be7c0ed6f952b29ac7f39d62f08a512b10c1474a6ce0",
+      "executable_sha256": "14e11735a74f69627d13cc51f14ed323de4325c4b6bebee99082d343a90f0a2f"
+    },
+    {
+      "path": "build/byte-ascii-run-full-rust-o2.json",
+      "sha256": "4d2df677f0c1c3d8392f8dc3b8782ffb0e45198621614680fb1452437da1a970",
+      "cases": 1607,
+      "memory_profiles": 402,
+      "opt_level": "2",
+      "compiled_rc_debug": false,
+      "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "entry_sha256": "54b77238554a933c10f4512c678e10d1a1378310dd625992f3da5703453912c1",
+      "llvm_sha256": "33c5615c1b3fccc1415a15ded7a613980091248ebce304b268633608fc27f707",
+      "executable_sha256": "291b89f1be96228f904ccff9e003c4178e48936cceda6e9383a79a22c39adbae"
+    },
+    {
+      "path": "build/byte-ascii-run-first-native-v4-o0.json",
+      "sha256": "52c8e75f4c305745bfffdc7a69ce19a8f6e44006cbf5f105defc75d887adfd12",
+      "cases": 257,
+      "memory_profiles": 66,
+      "opt_level": "0",
+      "compiled_rc_debug": true,
+      "compiler_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "entry_sha256": "91c2c4f6cb5c3c6f97a486739f9c814cef1ee66087fcbba9795122a37542fee8",
+      "llvm_sha256": "6d59a495742f88e93ab0f6c89310db2b9c30b6155ac93dcc443b2a3b0d9c6d1c",
+      "executable_sha256": "0e8bf7c6118af69f78921218170695769be41104ef2a706f06bddda84799c675"
+    },
+    {
+      "path": "build/byte-ascii-run-native-v4-fringes-o0.json",
+      "sha256": "3228976900f32ca531e0f9f81dd5ce9ff27199bec2b02675f9f7d3728d27f97b",
+      "cases": 1350,
+      "memory_profiles": 338,
+      "opt_level": "0",
+      "compiled_rc_debug": true,
+      "compiler_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "entry_sha256": "75d888efd64fe9ae5098caf7937529944af766aa4ad34f0429e444bb2714194e",
+      "llvm_sha256": "7d689a3ac0b2d025a1659b7a666e98b99650538bb889988fd46b64d1b0b1d4e3",
+      "executable_sha256": "a1891263dab151714bb95cdc56ce3ea1798efec77f54ac95f0a6f9c6bc6aef66"
+    },
+    {
+      "path": "build/byte-ascii-run-native-v4-full-o2.json",
+      "sha256": "2c06ddbccc8ffe04f40a4f3ff409d5c45497b3dee88359a2efb9c91f3bccb2aa",
+      "cases": 1607,
+      "memory_profiles": 402,
+      "opt_level": "2",
+      "compiled_rc_debug": true,
+      "compiler_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "entry_sha256": "54b77238554a933c10f4512c678e10d1a1378310dd625992f3da5703453912c1",
+      "llvm_sha256": "1fe90121468eac9537b2b0153d48852e1c445a64ab5f622f3f920d64b4cf85d5",
+      "executable_sha256": "48945ac2d18a25ca208cf0bb181cbb494a69c06765a5206e386fbb9161861194"
+    }
+  ],
+  "portable_receipts": [
+    {
+      "path": "build/byte-ascii-portable-host.json",
+      "sha256": "282a2a002e359bef9c39af5c063a778177e9b3f72882a76ac17dea080ad678b8",
+      "target": "host",
+      "llvm_sha256": "b75c02d101744d7c1b5b1714bd38eaeb6a5f0f86e443724812ae0f77b9cc66ae",
+      "object_sha256": null,
+      "memory_profiles": 2,
+      "actual_paths": {
+        "ascii-space-sixteen.llvm": [
+          "Main.main",
+          "Main.endpoint",
+          "Data.Bytes.View.byte-view-ascii-space-run-end",
+          "Data.Bytes.View.ascii-space-blocks",
+          "Data.Bytes.View.ascii-space-sixteen",
+          "Data.Bytes.View.ascii-space-sixteen.llvm"
+        ],
+        "ascii-space-byte.llvm": [
+          "Main.main",
+          "Main.endpoint",
+          "Data.Bytes.View.byte-view-ascii-space-run-end",
+          "Data.Bytes.View.ascii-space-tail",
+          "Data.Bytes.View.ascii-space-byte",
+          "Data.Bytes.View.ascii-space-byte.llvm"
+        ],
+        "load-byte.llvm": [
+          "Main.main",
+          "Main.endpoint",
+          "Data.Bytes.View.byte-view-ascii-space-run-end",
+          "Data.Bytes.View.ascii-space-tail",
+          "Data.Bytes.View.load-byte",
+          "Data.Bytes.View.load-byte.llvm"
+        ]
+      }
+    },
+    {
+      "path": "build/byte-ascii-portable-wasm.json",
+      "sha256": "61336f32bd3bbd17c60e89a91171c4fe08fb1d96ff75616a5602cd634f1cb6f3",
+      "target": "wasm32-unknown-unknown",
+      "llvm_sha256": "d7db411f1356380dbfde4070949e103a3ddacf13c8c7bfbe60d849f608bc698e",
+      "object_sha256": "45b0fdf45bed0d018a9c2dcfc6fcbf5dc6a771ba95419ca78131b46bef701fda",
+      "memory_profiles": 0,
+      "actual_paths": {
+        "ascii-space-sixteen.llvm": [
+          "Main.main",
+          "Main.endpoint",
+          "Data.Bytes.View.byte-view-ascii-space-run-end",
+          "Data.Bytes.View.ascii-space-blocks",
+          "Data.Bytes.View.ascii-space-sixteen",
+          "Data.Bytes.View.ascii-space-sixteen.llvm"
+        ],
+        "ascii-space-byte.llvm": [
+          "Main.main",
+          "Main.endpoint",
+          "Data.Bytes.View.byte-view-ascii-space-run-end",
+          "Data.Bytes.View.ascii-space-tail",
+          "Data.Bytes.View.ascii-space-byte",
+          "Data.Bytes.View.ascii-space-byte.llvm"
+        ],
+        "load-byte.llvm": [
+          "Main.main",
+          "Main.endpoint",
+          "Data.Bytes.View.byte-view-ascii-space-run-end",
+          "Data.Bytes.View.ascii-space-tail",
+          "Data.Bytes.View.load-byte",
+          "Data.Bytes.View.load-byte.llvm"
+        ]
+      }
+    },
+    {
+      "path": "build/byte-ascii-portable-aarch64.json",
+      "sha256": "276d78779c5b9c810e82b82f9ca44e071f457bea619e85dfe8fa8b7556712f5c",
+      "target": "aarch64-unknown-linux-gnu",
+      "llvm_sha256": "4b7870d8b53dd02230d9a3750bc19e9eb5578807901fda9ec086ffa8ead8889f",
+      "object_sha256": "c6a756d9a14f846fc37857fb226e4838c46297b894ea3afe5fb74165848bb1e5",
+      "memory_profiles": 0,
+      "actual_paths": {
+        "ascii-space-sixteen.llvm": [
+          "Main.main",
+          "Main.endpoint",
+          "Data.Bytes.View.byte-view-ascii-space-run-end",
+          "Data.Bytes.View.ascii-space-blocks",
+          "Data.Bytes.View.ascii-space-sixteen",
+          "Data.Bytes.View.ascii-space-sixteen.llvm"
+        ],
+        "ascii-space-byte.llvm": [
+          "Main.main",
+          "Main.endpoint",
+          "Data.Bytes.View.byte-view-ascii-space-run-end",
+          "Data.Bytes.View.ascii-space-tail",
+          "Data.Bytes.View.ascii-space-byte",
+          "Data.Bytes.View.ascii-space-byte.llvm"
+        ],
+        "load-byte.llvm": [
+          "Main.main",
+          "Main.endpoint",
+          "Data.Bytes.View.byte-view-ascii-space-run-end",
+          "Data.Bytes.View.ascii-space-tail",
+          "Data.Bytes.View.load-byte",
+          "Data.Bytes.View.load-byte.llvm"
+        ]
+      }
+    }
+  ],
+  "canonical_new_declarations": [
+    "ascii-space-sixteen",
+    "ascii-space-byte",
+    "ascii-space-tail",
+    "ascii-space-blocks",
+    "byte-view-ascii-space-run-end"
+  ],
+  "pending": [
+    "Parent lib_byte_view_ascii_run checked-RC API gate including actual big-endian PPC object",
+    "Changed-input public pipeline comparison and codegen review",
+    "Any production adoption/optimization selection"
+  ],
+  "unchanged_split_sha256": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+  "fields_runtime_qualified": false,
+  "recovery_indexes": [
+    "build/byte-ascii-functional-recovery/index.json",
+    "build/old-functional-recovery/index.json"
+  ]
+}
