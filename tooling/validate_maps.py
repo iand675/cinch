@@ -59,6 +59,7 @@ def main() -> None:
     parser.add_argument("--opt-level", choices=("0", "2"), default="2")
     parser.add_argument("--modes", nargs="+", choices=("source", "region", "negative", "control", "edge", "effect", "trace", "float"), default=["negative", "control", "edge", "effect", "trace", "float"])
     parser.add_argument("--cases", nargs="+", type=int, choices=range(8), default=list(range(8)))
+    parser.add_argument("--float-widths", nargs="+", type=int, choices=(32, 64), default=[32, 64], help="Select one bounded floating-key consumer when disk units must be serialized")
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -112,7 +113,7 @@ def main() -> None:
     if "trace" in args.modes:
         jobs.update({f"trace-{index}": source(index) for index in args.cases})
     if "float" in args.modes:
-        jobs.update({f"float-{width}": float_source(width) for width in (32, 64)})
+        jobs.update({f"float-{width}": float_source(width) for width in args.float_widths})
     args.artifacts.mkdir(parents=True, exist_ok=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     (args.artifacts / "runner.py").write_bytes(Path(__file__).read_bytes())
