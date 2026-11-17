@@ -99,6 +99,14 @@
       "public_methods": 2
     },
     {
+      "module": "Crypto.ConstantTime",
+      "path": "compiler/prelude/Crypto/ConstantTime.cinch",
+      "sha256": "f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7",
+      "embedded": false,
+      "values": 7,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Array.Packed",
       "path": "compiler/prelude/Data/Array/Packed.cinch",
       "sha256": "799f936d2712685f6ade99dd777c79c7c039c1e7ca28b8988700fde0f104b364",

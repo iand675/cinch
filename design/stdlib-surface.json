@@ -457,10 +457,19 @@
     },
     {
       "reference_package": "crypto/subtle",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 8
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.ConstantTime"
+      ],
+      "remaining": [
+        "Data-independent timing runtime scope, inherited task state and foreign-call restoration"
+      ],
+      "reference_declarations": 8,
+      "capability_mapping": "tooling/data/constant-time-capabilities.json",
+      "tests": [
+        "lib_constant_time"
+      ],
+      "review": "Seven public operations are implemented with typed dimensions, exact alias/error tests, independent references, host machine-code/bounds audits and public pipeline benchmarks. The timing scope remains open; package is partial."
     },
     {
       "reference_package": "crypto/tls",

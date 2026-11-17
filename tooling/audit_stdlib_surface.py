@@ -25,6 +25,7 @@ HOMES = {
     "container/heap": ["Data.Mutable.Heap", "Data.Mutable.HeapView"], "container/list": ["Data.List", "Data.Mutable.LinkedList"], "container/ring": ["Data.Mutable.Ring"], "context": ["Effect.Concurrent", "Effect.Clock"],
     "crypto/hmac": ["Text.Digest"], "crypto/md5": ["Text.Digest"], "crypto/rand": ["Effect.Random"],
     "crypto/sha1": ["Text.Digest"], "crypto/sha256": ["Text.Digest", "Text.Sha256", "Effect.Sha256"], "crypto/sha512": ["Text.Digest"],
+    "crypto/subtle": ["Crypto.ConstantTime"],
     "encoding/ascii85": ["Text.Ascii85", "Effect.Ascii85"],
     "encoding/base32": ["Text.Base32", "Effect.Base32"], "encoding/base64": ["Text.Base64", "Text.Base64.Encoding", "Effect.Base64"],
     "encoding/binary": ["Text.Binary", "Text.Binary.Layout", "Effect.Binary"], "encoding/csv": ["Text.Csv", "Text.Csv.Record", "Effect.Csv"], "encoding/hex": ["Text.Hex", "Effect.Hex"],
@@ -54,6 +55,7 @@ HOMES = {
 }
 
 EVIDENCE = {
+    "crypto/subtle": (["lib_constant_time"], ["constant-time-equality", "constant-time-copy", "constant-time-xor"]),
     "container/list": (["lib_linked_list"], ["append-drain", "prepend-drain", "move-front", "remove-reuse", "self-copy"]),
     "encoding/json": (["lib_json_value"], []),
     "bytes": (["lib_byte_search", "lib_byte_build"], []),

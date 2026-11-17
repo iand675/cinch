@@ -1,0 +1,81 @@
+{
+  "pinned_sdk": "go1.27.4",
+  "package": "crypto/subtle",
+  "declaration_count": 8,
+  "package_status": "partial",
+  "rows": [
+    {
+      "declaration": "func ConstantTimeByteEq(uint8, uint8) int",
+      "status": "implemented",
+      "capabilities": [
+        "Crypto.ConstantTime.constant-byte-equal"
+      ],
+      "notes": "Bool replaces the numeric zero/one result; byte arguments are U8."
+    },
+    {
+      "declaration": "func ConstantTimeCompare([]uint8, []uint8) int",
+      "status": "implemented",
+      "capabilities": [
+        "Crypto.ConstantTime.constant-bytes-equal"
+      ],
+      "notes": "Length is public; every byte in equal-length inputs is read, with SIMD blocks and an exact fringe."
+    },
+    {
+      "declaration": "func ConstantTimeCopy(int, []uint8, []uint8)",
+      "status": "implemented",
+      "capabilities": [
+        "Crypto.ConstantTime.constant-copy"
+      ],
+      "notes": "A Bool selects a full equal-length copy; mismatched dimensions return an atomic named error."
+    },
+    {
+      "declaration": "func ConstantTimeEq(int32, int32) int",
+      "status": "implemented",
+      "capabilities": [
+        "Crypto.ConstantTime.constant-i32-equal"
+      ],
+      "notes": "Signed 32-bit equality returns Bool."
+    },
+    {
+      "declaration": "func ConstantTimeLessOrEq(int, int) int",
+      "status": "implemented",
+      "capabilities": [
+        "Crypto.ConstantTime.constant-less-or-equal"
+      ],
+      "notes": "InRange 0..2147483647 I64 arguments make the required domain explicit."
+    },
+    {
+      "declaration": "func ConstantTimeSelect(int, int, int) int",
+      "status": "implemented",
+      "capabilities": [
+        "Crypto.ConstantTime.constant-select"
+      ],
+      "notes": "Bool selects explicit I64 words independently of target-sized pointer width."
+    },
+    {
+      "declaration": "func WithDataIndependentTiming(func())",
+      "status": "open",
+      "capabilities": [],
+      "remaining": "Nested architecture-specific timing scope, descendant task inheritance, and foreign-call state restoration need runtime/scheduler support. ARM FEAT_DIT cannot be represented by a universal no-op."
+    },
+    {
+      "declaration": "func XORBytes([]uint8, []uint8, []uint8) int",
+      "status": "implemented",
+      "capabilities": [
+        "Crypto.ConstantTime.xor-bytes"
+      ],
+      "notes": "The shorter complete input is written; exact aliases work and a short destination fails before mutation."
+    }
+  ],
+  "tests": [
+    "lib_constant_time"
+  ],
+  "evidence": "bootstrap/stdlib-constant-time-results.json",
+  "benchmarks": [
+    "benchmarks/stdlib/constant-time-equality-results.json",
+    "benchmarks/stdlib/constant-time-buffers-results.json"
+  ],
+  "limitations": [
+    "Concrete host instruction/dataflow auditing and actual foreign object emission are distinct from cross-architecture execution or a formal timing proof."
+  ]
+}

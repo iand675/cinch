@@ -1,0 +1,81 @@
+-- | Prepared conditional-copy and XOR pipelines with complete final output consumption.
+module Main where
+  import Crypto.ConstantTime
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Effect.Process
+  -- | Keep each operation dependent on an opaque runtime iteration token.
+  foreign import ccall "constant_time_tick" tick :: forall r. U32 ->{IO r} U32
+  -- | Read the monotonic clock outside the measured operation loop.
+  foreign import ccall "constant_time_now" now :: forall r. Unit ->{IO r} I64
+  -- | Report elapsed time, complete public progress, and every final output byte.
+  foreign import ccall "constant_time_buffer_report" report :: forall r. I64 -> U64 -> U64 ->{IO r} Unit
+  -- | Initialize prepared buffers without calling either operation under test.
+  fill :: Bytes -> Nat -> Nat -> Unit
+  fill buffer index salt = if index < bytes-len buffer then
+    let byte = (index * 73 + salt * 37 + index / 7) % 256 in
+    let written = if byte <= 255 then bytes-set buffer index byte else () in
+    fill buffer (index + 1) salt
+    else ()
+  -- | Allocate an independent prepared input before starting the clock.
+  prepared :: Nat -> Nat -> Bytes
+  prepared size salt = let buffer = bytes-new size in let filled = fill buffer 0 salt in buffer
+  -- | Consume every final byte after measurement without using a tested operation.
+  fingerprint :: Bytes -> Nat -> U64 -> U64
+  fingerprint buffer index hash = if index < bytes-len buffer then
+    let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get buffer index)) in
+    fingerprint buffer (index + 1) (wrapping-mul-u64 (bit-xor-u64 hash byte) 1099511628211)
+    else hash
+  -- | Parse validated public decimal dimensions from the host harness.
+  decimal-from :: Bytes -> Nat -> Nat -> Nat
+  decimal-from input index value = if index < bytes-len input then
+    let byte = bytes-get input index in
+    if 48 <= byte && byte <= 57 then decimal-from input (index + 1) (value * 10 + byte - 48) else value
+    else value
+  -- | Read a complete public decimal argument.
+  decimal :: String -> Nat
+  decimal value = decimal-from (string-to-bytes value) 0 0
+  -- | Invoke the selected public operation and observe its exact success progress.
+  operation :: U32 -> Bytes -> Bytes -> Bytes -> Nat
+  operation mode destination input right =
+    if mode == 0 then bytes-len destination
+    else if mode <= 3 then
+      case constant-copy (mode /= 2) destination (if mode == 3 then destination else input) of
+        Ok unit -> bytes-len destination
+        Err error -> 0
+    else case xor-bytes destination (if mode == 5 || mode == 7 then destination else input) (if mode == 6 || mode == 7 then destination else right) of
+      Ok count -> count
+      Err error -> 0
+  -- | Alternate prepared owners while consuming all reported operation progress.
+  repeat :: forall r. U32 -> U32 -> Bytes -> Bytes -> Bytes -> Bytes -> U64 ->{IO r} U64
+  repeat remaining mode destination left alternate right consumed = if remaining > 0 then
+    let token = tick remaining in
+    let input = if bit-and-u32 token 1 == 0 then left else alternate in
+    let count = operation mode destination input right in
+    let progress = if count <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 count) else 0 in
+    repeat (wrapping-sub-u32 remaining 1) mode destination left alternate right
+      (wrapping-add-u64 consumed progress)
+    else consumed
+  -- | Keep preparation and complete-output hashing outside the operation interval.
+  run :: forall r. Nat -> U32 -> U32 ->{IO r} Int
+  run size count mode =
+    let destination = prepared size 3 in let left = prepared size 1 in
+    let alternate = prepared size 4 in let right = prepared size 2 in
+    let start = now () in
+    let consumed = repeat count mode destination left alternate right 0 in
+    let finish = now () in
+    let hash = fingerprint destination 0 14695981039346656037 in
+    let printed = report (wrapping-sub-i64 finish start) consumed hash in
+    if size <= 9223372036854775807 then
+      if consumed == wrapping-mul-u64 (u32-to-u64 count) (wrapping-i64-to-u64 (nat-to-i64 size)) then 0 else 1
+    else 2
+  -- | Select public sizes, iteration counts, and alias scenarios at runtime.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons size (Cons count (Cons mode Nil))) ->
+      let requested = decimal count in let selected = decimal mode in
+      if requested <= 4294967295 && selected <= 7 then
+        run (decimal size) (wrapping-i64-to-u32 (nat-to-i64 requested)) (wrapping-i64-to-u32 (nat-to-i64 selected))
+      else 2
+    other -> 2

@@ -1,0 +1,7 @@
+{
+  "scope": "A preserved Native branch-fact refusal; explicit nested guards establish the same public bounds. The general checker gap remains separate.",
+  "before_source_sha256": "b5c13203352a7d7aa805dc72464852dee0b6eca18e1415c4fa4d7ef79fac1eac",
+  "diagnostics_sha256": "1b4d9aff48c233624ef427a13af31b89d8ccc21cfcb9e7c4aa69a719c5b8d805",
+  "selected_module_sha256": "f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7",
+  "native_compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+}
