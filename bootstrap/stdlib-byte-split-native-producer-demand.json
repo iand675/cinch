@@ -1,0 +1,68 @@
+{
+  "purpose": "Preserved Native demanded-provider failure, not a successful Native Split gate",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "entry_sha256": "f88e4bf58f9f396db894db051979dc85945040858feb5cf12e59139833c91d05",
+  "bundle_sha256": "c2890ef74cd232b1b0d23cb16201f25db7e89de7197d3e554aea0a0305a2eee1",
+  "diagnostics": "bootstrap.runtime-ir:2533:20: checked external variant is absent from the runtime object: i.Data$2eProducer$2eprod$2dfold [OOO]\nbootstrap.runtime-ir:2337:26: checked external variant is absent from the runtime object: i.Data$2eProducer$2eprod$2dfold [OOO]\n",
+  "exit_code": 5,
+  "consumer_executed": false,
+  "compiler_stack_bytes": 67108864,
+  "missing_variant": "Data.Producer.prod-fold[OOO]",
+  "existing_fold_units": [
+    {
+      "arity": 4,
+      "closure_entry": "Data.Producer.prod-fold-go@ORR.object-closure",
+      "params": [
+        "O",
+        "O",
+        "R",
+        "O"
+      ],
+      "result": "R",
+      "symbol": "Data.Producer.prod-fold-go@ORR"
+    },
+    {
+      "arity": 4,
+      "closure_entry": "Data.Producer.prod-fold-go@ORR.shared0.object-closure",
+      "params": [
+        "O",
+        "O",
+        "R",
+        "O"
+      ],
+      "result": null,
+      "symbol": "Data.Producer.prod-fold-go@ORR.shared0"
+    },
+    {
+      "arity": 4,
+      "closure_entry": "Data.Producer.prod-fold-go@ORR.sp2.object-closure",
+      "params": [
+        "R",
+        "O",
+        "R",
+        "O"
+      ],
+      "result": "R",
+      "symbol": "Data.Producer.prod-fold-go@ORR.sp2"
+    },
+    {
+      "arity": 4,
+      "closure_entry": "Data.Producer.prod-fold-go@ORR.sp2.shared0.object-closure",
+      "params": [
+        "O",
+        "O",
+        "R",
+        "O"
+      ],
+      "result": null,
+      "symbol": "Data.Producer.prod-fold-go@ORR.sp2.shared0"
+    }
+  ],
+  "policy": "No Data.Producer source override. Parent coordinates separately typed/admitted V3 demand root; frozen V2 artifacts remain unchanged.",
+  "retained_bundle": "/workspace/dasl-stdlib-byte-split/build/byte-split-smoke-native-o0/rows/Bundle.cinch",
+  "retained_diagnostics": "/workspace/dasl-stdlib-byte-split/build/byte-split-smoke-native-o0/rows/consumer.ll.diagnostics"
+}

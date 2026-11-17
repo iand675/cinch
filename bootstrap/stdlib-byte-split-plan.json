@@ -1,0 +1,63 @@
+{
+  "description": "Initial source-distributed byte splitting capability checkpoint; broad strings/bytes goal remains open",
+  "reference_sdk": "go1.27.4",
+  "full_strings_bytes_goal_complete": false,
+  "sdk_declarations": [
+    "func Split([]uint8, []uint8) [][]uint8",
+    "func SplitAfter([]uint8, []uint8) [][]uint8",
+    "func SplitN([]uint8, []uint8, int) [][]uint8",
+    "func SplitAfterN([]uint8, []uint8, int) [][]uint8",
+    "func SplitSeq([]uint8, []uint8) iter.Seq[[]uint8]",
+    "func SplitAfterSeq([]uint8, []uint8) iter.Seq[[]uint8]",
+    "func Lines([]uint8) iter.Seq[[]uint8]"
+  ],
+  "namespace_proposal": "Data.Bytes.Split source-distributed; no new embedded-base dependencies",
+  "concrete_types": [
+    "opaque ByteSplitFactory retains fixed input/separator endpoints, raw-vs-compiled separator policy, Option Nat limit and mode",
+    "opaque ByteSplitState carries immutable explicit producer position, emitted count and completion",
+    "opaque ByteSplitCursor owns private checked progress bytes and retains its factory; copied handles share progress without changing Producer semantics"
+  ],
+  "invariants": [
+    "all coordinates relative to a checked ByteView; outputs retain whole owner and share mutations",
+    "None limit is unlimited; Some0 yields nothing; Some1 returns unsplit remainder; last limited chunk retains all remaining bytes",
+    "nonempty-separator splitting preserves leading/trailing empty chunks; empty input yields one empty chunk",
+    "empty separator yields one bounded UTF8 sequence per chunk, malformed bytes advance one; empty input yields no chunks",
+    "line iteration includes LF and any preceding CR, preserves unterminated final line, omits extra empty chunk after trailing LF",
+    "pure Producer values carry explicit resumable state and can be folded afresh; do not claim mutable single-use iterator semantics",
+    "list collectors use a tail accumulator then tail reversal, not allocation during recursive unwinding",
+    "raw separator views retain live mutable contents and are read at each explicit step; explicitly named compiled variants alone snapshot separators",
+    "preserve Data.Producer explicit advance/replay semantics; fresh traversal factory and separately named pull cursor distinguish callback single-use behavior"
+  ],
+  "backing_safety_proposal": "Consumes checked byte-view-utf8-at from separately tested ByteView dependency; no backing or address access",
+  "fixture_plan": [
+    "independent pinned SDK and Python complete chunk hex/digests for both list and sequence forms",
+    "empty/missing/overlap separators, all limit boundaries, invalid/truncated UTF8 views, NUL, CRLF, bare CR, LF tails",
+    "early producer stop via prod-take, complete fold and repeated fold, mutation between steps, fresh pattern stability and retained temporary owners",
+    "deep chunk lists O0/8MiB, bounded normal32MiB and per-assertion poison256MiB, zero leaks both frontends",
+    "public split/list/fold pipelines with existing SIMD/SWAR search kernels and assembly review"
+  ],
+  "status": "Tested initial source-distributed checkpoint: fullRust/qualifiedNative O0/O2 corpus/owner/deep4232 +privateprotocol8 +Nativepublic68 profiles; actualwasm/ARM publicobjects/host4 pass; parentCargo/PPC remains",
+  "capability_mapping": {
+    "Split": "bytes-split / byte-view-split -> List ByteView retained aliases",
+    "SplitAfter": "bytes-split-after / byte-view-split-after -> List ByteView including separators",
+    "SplitN": "bytes-split-limit / byte-view-split-limit; None maps any negative/unlimited, Some Nat is concrete nonnegative maximum",
+    "SplitAfterN": "bytes-split-after-limit / byte-view-split-after-limit with the same explicit limit policy",
+    "SplitSeq": "bytes-split-seq / byte-view-split-seq -> persistent Producer ByteSplitState ByteView; explicit factory -> fresh byte-split-cursor maps shared single-use pull state",
+    "SplitAfterSeq": "bytes-split-after-seq / byte-view-split-after-seq with included delimiter aliases; same explicit cursor lifecycle",
+    "Lines": "bytes-lines / byte-view-lines -> concrete Producer; byte-view-lines-factory -> fresh cursor; LF included, CR preserved, trailingempty omitted"
+  },
+  "public_state_contract": "Factory retains immutable endpoints/live raw owners. Producer carries immutable explicit progress and preserves replay. Separately named Cursor is sequential shared progress; copied handles share it, independent factories/cursors do not; close/exhaustion remains None.",
+  "errors_and_edge_policies": [
+    "Negative limits cannot inhabit Nat: explicit None means unlimited; Some0 is empty and Some1 preserves the final unsplit remainder.",
+    "No numeric raw range API is introduced: callers provide sealed ByteView values whose construction returns existing checked range errors.",
+    "Raw bytes remain arbitrary, including NUL and malformed/truncated UTF8. Empty separator consumes one valid bounded sequence or one malformed byte.",
+    "Fixed compiled separator ownership is explicit. Raw input/separator mutations, including overlap with yielded fragments, remain observable between advances."
+  ],
+  "standalone_dependency": "Relative UTF8 observation2691 and exact-byte query91c3 with parent actual wasm/ARM/PPC coverage; initial Split does not yet select the exact-byte optimization",
+  "source_epochs": {
+    "initial_split": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+    "original_driver": "c511a74451fea8919b60d6102e03492cc95888c8289826d36354127609115c41",
+    "separate_counter": "b68124de2856063194928a587eab26043a160f8e4e603dd1c141bdb38b98ecfd",
+    "separate_native_fixture": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573"
+  }
+}
