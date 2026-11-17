@@ -13,6 +13,25 @@
   "cwd": "/workspace/dasl-stdlib-wide-arrays/build/wide-array-followups-source-v1",
   "elapsed_seconds": 2.910828312014928,
   "exit_code": 0,
+  "first_parent_runtime_object_attempt": {
+    "diagnostic": "Main.parallel-arrays holds I128/U128 in a parallel task payload; not lowered yet (phase1)",
+    "full_fixture_sha256": "04b65b981fbeb821d18ee5ff0b1f6233558eb05bf7146c8bd0014c779d94e913",
+    "log": "/tmp/cinch-stdlib-wide-array-followups-first-gate.log",
+    "log_sha256": "6b476a957957875c76745c8b4488d54d4c2fbc0e6f3473b4fcf8629736c56647",
+    "retained_projects": [
+      "/tmp/cinch_boot_wide_array_followups_772942_0",
+      "/tmp/cinch_boot_wide_array_followups_772942_1"
+    ],
+    "status": "both tests stopped at existing named wide-Par refusal before runtime/object execution"
+  },
+  "followup_split": {
+    "dynamic_fixture": "compiler/tests/fixtures/wide-array-dynamic.cinch",
+    "dynamic_fixture_sha256": "8c2558099a21e6dea17b4ce5f5d6a5df6eceb07d14f67fe18f6e2830033fba93",
+    "guards_removed": false,
+    "parallel_fixture": "unchanged original full fixture retained as named-refusal test; full wide-Par bridge/admission remains open",
+    "runtime_profiles": "consumer O0/O2 \u00d7normal32M/poison256M, stack8M; checked-RC; partial saturation and known-argument specialization disabled",
+    "status": "static split only; dynamic source preflight and new runtime/object tests not run"
+  },
   "known_open_boundaries": [
     "direct-wide columnar zip",
     "packed-wide storage and Vec interoperability",

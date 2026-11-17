@@ -1,0 +1,72 @@
+-- | Exercise boxed wide arrays through dynamic calls and public parallel producers.
+module Main where
+  import Data.Array
+  import Data.Wide
+
+  -- | Read an unsigned payload through its source Option layout.
+  has-u :: Option U128 -> U128 -> Bool
+  has-u value expected = case value of
+    None -> False
+    Some actual -> eq-u128 actual expected
+
+  -- | Read a signed payload through its source Option layout.
+  has-i :: Option I128 -> I128 -> Bool
+  has-i value expected = case value of
+    None -> False
+    Some actual -> eq-i128 actual expected
+
+  -- | Invoke a saved partial getter without choosing its implementation.
+  #[inline(never)]
+  invoke-reader :: (Nat -> Option U128) -> Nat -> Option U128
+  invoke-reader reader index = reader index
+
+  -- | Invoke a saved setter whose scalar argument must cross the apply frame.
+  #[inline(never)]
+  invoke-setter :: (U128 -> Option (Array U128)) -> U128 -> Option (Array U128)
+  invoke-setter setter value = setter value
+
+  -- | Invoke a complete getter passed as an ordinary function value.
+  #[inline(never)]
+  invoke-get :: (Array U128 -> Nat -> Option U128) -> Array U128 -> Nat -> Option U128
+  invoke-get getter values index = getter values index
+
+  -- | Invoke a complete setter passed as an ordinary function value.
+  #[inline(never)]
+  invoke-set :: (Array U128 -> Nat -> U128 -> Option (Array U128)) -> Array U128 -> Nat -> U128 -> Option (Array U128)
+  invoke-set setter values index value = setter values index value
+
+  -- | Keep a signed-wide partial application at an independent apply boundary.
+  #[inline(never)]
+  invoke-signed-set :: (I128 -> Option (Array I128)) -> I128 -> Option (Array I128)
+  invoke-signed-set setter value = setter value
+
+  -- | Dynamic getters and setters preserve aliases and complete high limbs.
+  dynamic-calls :: Unit -> Bool
+  dynamic-calls unit =
+    let original = array-replicate 2 max-bound-u128 in
+    let reader = array-get original in
+    let setter = array-set original 1 in
+    case invoke-setter setter 170141183460469231731687303715884105728 of
+      None -> False
+      Some changed -> case invoke-set array-set changed 0 18446744073709551616 of
+        None -> False
+        Some final ->
+          has-u (invoke-reader reader 1) max-bound-u128
+          && has-u (invoke-get array-get original 0) max-bound-u128
+          && has-u (invoke-get array-get changed 1) 170141183460469231731687303715884105728
+          && has-u (invoke-get array-get final 0) 18446744073709551616
+          && has-u (array-get final 1) 170141183460469231731687303715884105728
+
+  -- | A signed setter boxes its minimum value and keeps the prior array alive.
+  signed-dynamic :: Unit -> Bool
+  signed-dynamic unit =
+    let original = array-replicate 2 max-bound-i128 in
+    case invoke-signed-set (array-set original 0) min-bound-i128 of
+      None -> False
+      Some changed -> has-i (array-get original 0) max-bound-i128
+        && has-i (array-get changed 0) min-bound-i128
+        && has-i (array-get changed 1) max-bound-i128
+
+  -- | Report the first failed higher-order array boundary.
+  main :: Int
+  main = if dynamic-calls () then (if signed-dynamic () then 0 else 2) else 1

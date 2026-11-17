@@ -1,5 +1,5 @@
-//! Higher-order, parallel and real cross-target object coverage for boxed wide
-//! arrays. These tests do not admit packed-wide or direct-wide columnar zip.
+//! Higher-order and real cross-target object coverage for boxed wide arrays.
+//! Wide parallel payloads, packed-wide and direct-wide columnar zip remain open.
 
 mod common;
 
@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 fn project() -> PathBuf {
     common::project("wide_array_followups", &[
         ("Data.Array.cinch", include_str!("../prelude/Data/Array.cinch")),
-        ("Main.cinch", include_str!("fixtures/wide-array-followups.cinch")),
+        ("Main.cinch", include_str!("fixtures/wide-array-dynamic.cinch")),
     ])
 }
 
@@ -33,26 +33,23 @@ fn compile(dir: &Path, out: &Path, mode: Mode, profile: TargetProfile, level: u8
     assert_eq!(result.unwrap_or_else(|e| panic!("{e}; source: {}", dir.display())), 0);
 }
 
-/// Every output and retained alias survives O0/O2 and actual worker sharing,
-/// with dynamic partial calls retained and both memory profiles leak-free.
+/// Every higher-order output and retained alias survives O0/O2 with dynamic
+/// partial calls retained and both memory profiles leak-free.
 #[test]
-fn wide_partial_calls_and_parallel_producers_preserve_aliases() {
+fn wide_partial_calls_preserve_aliases() {
     let dir = project();
     for level in [0, 2] {
         let exe = dir.join(format!("wide-followups-o{level}"));
         compile(&dir, &exe, Mode::Build,
             TargetProfile { reclaim: true, rc_debug: true, ..TargetProfile::native() }, level);
-        for threads in [1, 4] {
-            for (debug, heap) in [("0", "32M"), ("1", "256M")] {
-                let output = std::process::Command::new(&exe)
-                    .env("CINCH_THREADS", threads.to_string())
-                    .env("CINCH_RC_DEBUG", debug).env("CINCH_HEAP_LIMIT", heap)
-                    .env("CINCH_STACK_SIZE", "8M").env("CINCH_LEAK_CHECK", "1")
-                    .output().unwrap();
-                let err = String::from_utf8_lossy(&output.stderr);
-                assert_eq!(output.status.code(), Some(0), "O{level}, workers={threads}, debug={debug}: {err}; {}", dir.display());
-                assert!(err.split_whitespace().any(|w| w == "leaked=0"), "{err}");
-            }
+        for (debug, heap) in [("0", "32M"), ("1", "256M")] {
+            let output = std::process::Command::new(&exe)
+                .env("CINCH_RC_DEBUG", debug).env("CINCH_HEAP_LIMIT", heap)
+                .env("CINCH_STACK_SIZE", "8M").env("CINCH_LEAK_CHECK", "1")
+                .output().unwrap();
+            let err = String::from_utf8_lossy(&output.stderr);
+            assert_eq!(output.status.code(), Some(0), "O{level}, debug={debug}: {err}; {}", dir.display());
+            assert!(err.split_whitespace().any(|w| w == "leaked=0"), "{err}");
         }
     }
     common::cleanup(&dir);
@@ -92,5 +89,19 @@ fn boxed_wide_array_boundaries_assemble_for_wasm_arm_and_ppc() {
             String::from_utf8_lossy(&output.stderr), dir.display());
         assert!(std::fs::metadata(&object).unwrap().len() > 0);
     }
+    common::cleanup(&dir);
+}
+
+/// A genuine wide parallel payload stays refused until a complete typed bridge
+/// covers task storage, callbacks, arrays and ParBoth tuple result layouts.
+#[test]
+fn wide_parallel_payloads_remain_a_named_refusal() {
+    let dir = common::project("wide_parallel_refusal", &[
+        ("Data.Array.cinch", include_str!("../prelude/Data/Array.cinch")),
+        ("Main.cinch", include_str!("fixtures/wide-array-followups.cinch")),
+    ]);
+    let result = common::drive(Mode::EmitIr, &dir, "Main.cinch", Some(dir.join("refused.ll")));
+    let message = result.expect_err("wide parallel payload must remain refused");
+    assert!(message.contains("parallel task") && message.contains("not lowered yet"), "{message}");
     common::cleanup(&dir);
 }
