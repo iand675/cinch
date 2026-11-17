@@ -34,8 +34,9 @@ The focused target `interface_nominal_regions` prepares genuine header,
 resolved-contract and qualified reexport checks for data, phantom, record,
 codata and opaque carriers. It also prepares nine source refusal cases and an
 actual compiled Native checker that reads those produced contracts after the
-producer source is deleted. Its forged-header control keeps dependency hashes
-coherent while requiring the loader to reject contradictory nominal roles.
+producer source is deleted. Its public-header control keeps dependency hashes coherent and requires a kind
+refusal during elaboration. A separate conflicting private nominal mention
+requires loader-stage refusal before elaboration reporting.
 These tests are not claimed passed until their actual execution receipts exist.
 
 Required next gates are the focused target,
@@ -64,3 +65,21 @@ latent Mut row classifies only that function's quantifier as Region. Neither the
 datatype's checked parameter vector nor either exported nominal header changes.
 The source-absent consumer still reads the recorded Type header and refuses the
 inconsistent Region application.
+
+The first integrated focused run caught an invalid uppercase binder in the
+positive fixture; it is now an ordinary lowercase explicit identity. The next
+run passed all seven genuine source-absent consumers, then correctly rejected a
+public-header mutation at elaboration status 4 rather than the assumed loader
+status 90. Both complete failed epochs and the exact kind diagnostics are
+preserved under `bootstrap/repros/nominal-region-*`. The maintained test now
+distinguishes this header-authority refusal from contradictory private nominal
+mentions; no compiler or loader check was relaxed. The corrected complete
+focused target passed all seven tests in 272.31 seconds, including both distinct
+refusal stages. All339 integrated unit tests and existing interface/rank/Region targets subsequently
+passed. An aggregate qualified-import project also accepts124 shipped source
+modules alongside66 embedded modules. See `stdlib-nominal-region-focused-results.json`.
+The payload execution test then exposed an independent pre-existing Wide Slots
+ABI mismatch; both explicit-Role and legacy pre-Role controls failed identically.
+The separate Slots repair and bounded payload/ownership gates are recorded in
+`stdlib-wide-slots-focused-results.json`. Generic Wide Array interoperability
+remains outside that Slots claim.

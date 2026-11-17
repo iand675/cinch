@@ -1,0 +1,2 @@
+imported-preconditions:5:35: kind mismatch in type inference
+imported-preconditions:5:49: kind mismatch in type inference

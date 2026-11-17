@@ -1,0 +1,81 @@
+-- | Exercise wide mutable payloads through public cells and overlapping vector moves.
+module Main where
+  import Data.Wide
+  import Data.Nat
+  import Data.Option
+  import Data.Mutable.Var
+  import Data.Mutable.Vec
+  -- | Compare a complete optional unsigned payload without truncating its high limb.
+  same-u :: Option U128 -> U128 -> Bool
+  same-u value expected = case value of None -> False; Some actual -> actual == expected
+  -- | Compare a complete optional signed payload without truncating its high limb.
+  same-i :: Option I128 -> I128 -> Bool
+  same-i value expected = case value of None -> False; Some actual -> actual == expected
+  -- | Fix an unsigned cell's actual representation before testing generic operations.
+  cell-u :: forall r. U128 ->{Mut r} Var r U128
+  cell-u value = var-new value
+  -- | Fix a signed cell's actual representation before testing generic operations.
+  cell-i :: forall r. I128 ->{Mut r} Var r I128
+  cell-i value = var-new value
+  -- | Grow across multiple capacities while preserving each complete unsigned value.
+  fill-u :: forall r. Vec r U128 -> U128 -> Nat ->{Mut r} Unit
+  fill-u vector value remaining = if remaining > 0 then
+    let pushed = vec-push vector value in
+    fill-u vector (wrapping-add-u128 value 1) (remaining - 1)
+    else ()
+  -- | Grow across multiple capacities while preserving each complete signed value.
+  fill-i :: forall r. Vec r I128 -> I128 -> Nat ->{Mut r} Unit
+  fill-i vector value remaining = if remaining > 0 then
+    let pushed = vec-push vector value in
+    fill-i vector (wrapping-add-i128 value 1) (remaining - 1)
+    else ()
+  -- | Observe allocation, read, take, replacement and both overlapping bulk directions.
+  unsigned :: forall r. Unit ->{Mut r} Bool
+  unsigned unit =
+    let cell = cell-u 340282366920938463463374607431768211408 in
+    let prior = var-swap cell 340282366920938463463374607431768211409 in
+    let modified = var-modify cell (\value -> wrapping-add-u128 value 1) in
+    let cell-ok = prior == 340282366920938463463374607431768211408 && var-read cell == 340282366920938463463374607431768211410 in
+    let vector = vec-with-capacity 0 in
+    let filled = fill-u vector 340282366920938463463374607431768211408 10 in
+    let grown = vec-capacity vector >= 10 in
+    let inserted = vec-insert vector 3 340282366920938463463374607431768211455 in
+    let removed = vec-remove vector 5 in
+    let replaced = vec-set vector 0 340282366920938463463374607431768211454 in
+    let first = vec-get vector 0 in
+    let middle = vec-get vector 3 in
+    let last = vec-pop vector in
+    let outputs-ok = cell-ok && grown && inserted && replaced
+      && same-u removed 340282366920938463463374607431768211412 && same-u first 340282366920938463463374607431768211454 && same-u middle 340282366920938463463374607431768211455
+      && same-u last 340282366920938463463374607431768211417 && vec-length vector == 9 in
+    let truncated = vec-truncate vector 4 in
+    let truncated-ok = vec-length vector == 4 && same-u (vec-last vector) 340282366920938463463374607431768211455 in
+    let cleared = vec-clear vector in
+    outputs-ok && truncated-ok && vec-is-empty vector
+  -- | Observe the same storage and ownership paths with a negative high limb.
+  signed :: forall r. Unit ->{Mut r} Bool
+  signed unit =
+    let cell = cell-i -170141183460469231731687303715884105700 in
+    let prior = var-swap cell -170141183460469231731687303715884105699 in
+    let modified = var-modify cell (\value -> wrapping-add-i128 value 1) in
+    let cell-ok = prior == -170141183460469231731687303715884105700 && var-read cell == -170141183460469231731687303715884105698 in
+    let vector = vec-with-capacity 0 in
+    let filled = fill-i vector -170141183460469231731687303715884105700 10 in
+    let grown = vec-capacity vector >= 10 in
+    let inserted = vec-insert vector 3 -170141183460469231731687303715884105728 in
+    let removed = vec-remove vector 5 in
+    let replaced = vec-set vector 0 -170141183460469231731687303715884105727 in
+    let first = vec-get vector 0 in
+    let middle = vec-get vector 3 in
+    let last = vec-pop vector in
+    let outputs-ok = cell-ok && grown && inserted && replaced
+      && same-i removed -170141183460469231731687303715884105696 && same-i first -170141183460469231731687303715884105727 && same-i middle -170141183460469231731687303715884105728
+      && same-i last -170141183460469231731687303715884105691 && vec-length vector == 9 in
+    let truncated = vec-truncate vector 4 in
+    let truncated-ok = vec-length vector == 4 && same-i (vec-last vector) -170141183460469231731687303715884105728 in
+    let cleared = vec-clear vector in
+    outputs-ok && truncated-ok && vec-is-empty vector
+  -- | Separate signed and unsigned failures while reclaiming every owner.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in
+    if unsigned () then (if signed () then 0 else 12) else 11

@@ -2,7 +2,7 @@
 module RegionOwner where
   export Carrier, Phantom, Envelope, Observed, Mark, Legacy
   export run, keep-phantom, keep-envelope, keep-observed, keep-mark, legacy-use, open-run
-  export keep-uppercase, keep-io
+  export keep-runtime-identity, keep-io
 
   -- | Retain a callback tied to one erased runtime identity.
   data Carrier (r :: Region) a where
@@ -13,9 +13,9 @@ module RegionOwner where
   run :: forall (r :: Region) a. Carrier r a ->{Mut r} a
   run value = case value of Held callback -> callback ()
 
-  -- | Region roles depend on lexical binding rather than identifier capitalization.
-  keep-uppercase :: forall (R :: Region) a. Carrier R a -> Carrier R a
-  keep-uppercase value = value
+  -- | Region roles follow the explicitly bound runtime identity.
+  keep-runtime-identity :: forall (runtime :: Region) a. Carrier runtime a -> Carrier runtime a
+  keep-runtime-identity value = value
 
   -- | Existing explicit capability identities remain valid alongside nominal roles.
   keep-io :: forall (r :: Region). using (io :: Io r) => Io r -> Io r

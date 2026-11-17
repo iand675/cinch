@@ -1,0 +1,6 @@
+{
+  "exit": 15,
+  "stdout": "",
+  "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+  "executable_sha256": "8bdc3758e3ee1733d7596746cc68ea6d9311b9e9f1a2bef83f30479040577ee2"
+}

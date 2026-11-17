@@ -51,7 +51,7 @@ fn explicit_nominal_region_headers_and_resolved_reexports_agree() {
     assert!(legacy_use.scheme.contains("r :: Region") && legacy_use.scheme.contains("Mut r"), "{}", legacy_use.scheme);
     assert_eq!(legacy_use.nominals.iter().find(|row| row.identity == "RegionOwner.Legacy").unwrap().parameters,
         legacy.parameters, "the function's latent identity cannot rewrite its defining nominal header");
-    for (name, binder) in [("keep-uppercase", "R :: Region"), ("keep-io", "r :: Region")] {
+    for (name, binder) in [("keep-runtime-identity", "runtime :: Region"), ("keep-io", "r :: Region")] {
         let resolved = owner.exports.values.iter().find(|row| row.name == name).unwrap().resolved.as_ref().expect(name);
         assert!(resolved.scheme.contains(binder), "{}", resolved.scheme);
     }
@@ -147,6 +147,17 @@ fn manifest(directory: &Path, interfaces: &[Iface]) {
     std::fs::write(directory.join("interfaces.json"), serde_json::json!({"schema":1,"interfaces":rows}).to_string()).unwrap();
 }
 
+/// Keep mutated test contracts hash-coherent so refusal measures their actual meaning.
+fn rehash(interfaces: &mut [Iface]) {
+    for _ in 0..3 {
+        let hashes: BTreeMap<_, _> = interfaces.iter().map(|row| (row.module.clone(), row.iface_hash())).collect();
+        for interface in interfaces.iter_mut() {
+            for dependency in &mut interface.imports { dependency.iface_hash = hashes[&dependency.module].clone(); }
+        }
+    }
+    cinch::interface::verify_chain(interfaces).expect("mutated tests retain a coherent dependency hash closure");
+}
+
 /// Recheck genuine source-absent metadata, including the historical inconsistent-header refusal.
 #[test]
 fn compiled_native_checker_reads_source_absent_nominal_region_roles() {
@@ -183,17 +194,27 @@ fn compiled_native_checker_reads_source_absent_nominal_region_roles() {
     let mut changed = interfaces.clone();
     let owner = changed.iter_mut().find(|row| row.module == "RegionOwner").unwrap();
     owner.exports.types.iter_mut().find(|row| row.name == "Carrier").unwrap().parameters[0].kind = "Type".into();
-    for _ in 0..3 {
-        let hashes: BTreeMap<_, _> = changed.iter().map(|row| (row.module.clone(), row.iface_hash())).collect();
-        for interface in &mut changed {
-            for dependency in &mut interface.imports { dependency.iface_hash = hashes[&dependency.module].clone(); }
-        }
-    }
-    cinch::interface::verify_chain(&changed).expect("forged test keeps the complete hash closure coherent");
+    rehash(&mut changed);
     manifest(&consumer, &changed);
     std::fs::write(consumer.join("source.cinch"), "-- | A mismatched header must be rejected.\nmodule Main where\n  import RegionFacade\n  -- | Retain the claimed identity without executing it.\n  safe :: forall (s :: Region) a. Handle s a -> Handle s a\n  safe value = value\n").unwrap();
     let output = std::process::Command::new(&executable).current_dir(&consumer).output().unwrap();
-    assert_eq!(output.status.code(), Some(90), "the loader must refuse contradictory defining nominal contracts before elaboration");
+    assert_eq!(output.status.code(), Some(4), "the defining public Type role must refuse a Region argument during elaboration");
+    let report = common::read_output(&consumer, "imported-report.txt");
+    assert!(report.contains("kind mismatch"), "public-header role refusal: {report}");
+
+    // Contradictory private mentions are a distinct loader-stage boundary.
+    let mut inconsistent = interfaces.clone();
+    let owner = inconsistent.iter_mut().find(|row| row.module == "RegionOwner").unwrap();
+    let run = owner.exports.values.iter_mut().find(|row| row.name == "run").unwrap();
+    let carrier = run.resolved.as_mut().unwrap().nominals.iter_mut()
+        .find(|row| row.identity == "RegionOwner.Carrier").unwrap();
+    carrier.parameters[0].kind = "Type".into();
+    rehash(&mut inconsistent);
+    manifest(&consumer, &inconsistent);
+    std::fs::remove_file(consumer.join("imported-report.txt")).unwrap();
+    let output = std::process::Command::new(&executable).current_dir(&consumer).output().unwrap();
+    assert_eq!(output.status.code(), Some(90), "the loader must refuse contradictory private nominal contracts before elaboration");
+    assert!(!consumer.join("imported-report.txt").exists(), "loader refusal must precede elaboration reporting");
     common::cleanup(&source);
     common::cleanup(&consumer);
 }
