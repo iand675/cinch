@@ -3,10 +3,10 @@
   "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78",
   "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
   "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
-  "inputs_passed": 32,
+  "inputs_passed": 48,
   "inputs_total": 153,
-  "observations_passed": 2240,
-  "zero_leak_profiles": 64,
+  "observations_passed": 3360,
+  "zero_leak_profiles": 96,
   "reports": [
     {
       "path": "build/suffixarray-v1-runtime-literals-o0-0000-v2.json",
@@ -43,9 +43,27 @@
       "observations": 560,
       "profiles": 16,
       "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78"
+    },
+    {
+      "path": "build/suffixarray-v1-runtime-literals-o0-0032.json",
+      "sha256": "e659d14177eb0294547ea67ec2b382844d4b3eed98ae5ffefc26e1e4e79c828a",
+      "start": 32,
+      "inputs": 8,
+      "observations": 560,
+      "profiles": 16,
+      "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78"
+    },
+    {
+      "path": "build/suffixarray-v1-runtime-literals-o0-0040.json",
+      "sha256": "8e912593b5349c214a9996033bce6bdee444e63d35902fbbf78adf7e8e13a2f2",
+      "start": 40,
+      "inputs": 8,
+      "observations": 560,
+      "profiles": 16,
+      "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78"
     }
   ],
-  "next_input": 32,
+  "next_input": 48,
   "resource_paused_before_next_compiler": true,
   "recovery_index": "build/suffixarray-v1-functional-recovery/index.json",
   "recovery_scope": "Only passed matching consumer ELF/LLVM, complete hash/size/mode/uid/gid/nsmtime, compressed+decoded verification and archive/index fsync before unlink; sources/interfaces/oracle/frozen/failed inputs plain",
