@@ -258,6 +258,18 @@ fn byte_view_index_byte_full_adapter_compiles_for_wasm_arm_and_big_endian() {
                 "retained intermediary must be reachable; retained {}",
                 file.display()
             );
+            for worker in ["index-forward-blocks", "index-forward-tail"] {
+                assert!(
+                    call_path(
+                        &ir,
+                        "Data.Bytes.View.index-forward",
+                        &format!("Data.Bytes.View.{worker}")
+                    )
+                    .is_some(),
+                    "retained intermediary must reach {worker}; retained {}",
+                    file.display()
+                );
+            }
         }
         assert!(definition(&ir, "Data.Bytes.View.load-word.llvm")
             .contains("load i64, ptr %at, align 1"));
