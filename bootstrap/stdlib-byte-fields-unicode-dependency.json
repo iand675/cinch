@@ -1,0 +1,19 @@
+{
+  "scope": "Exact existing Unicode foundation dependency sync for reproducible Fields source closure",
+  "modules": {
+    "Data.Unicode.Kernel": {
+      "path": "compiler/prelude/Data/Unicode/Kernel.cinch",
+      "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "unchanged_from_already_integrated_parent": true
+    },
+    "Data.Unicode.Tables": {
+      "path": "compiler/prelude/Data/Unicode/Tables.cinch",
+      "sha256": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+      "unchanged_from_already_integrated_parent": true
+    }
+  },
+  "unicode_edits": false,
+  "table_regeneration": false,
+  "shared_inventory_edits": false,
+  "validation": "Previously exhaustively qualified parent foundation; hashes match the explicit successful Fields checker snapshot. No duplicate exhaustive gate claimed."
+}
