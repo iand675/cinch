@@ -1,0 +1,7 @@
+{
+  "description": "Closed Mut extension before checking the actual definition-site effect identity; an owned effect with the same spelling was incorrectly exported as kernel Mut.",
+  "compiler_sha256": "ff00bcc49f62232ca09187a391ce38c7910bb4f3d2a0a537ee6d1da52b634339",
+  "base_checkpoint": "ce82be05",
+  "patch_sha256": "141e35453c29fc5f9832d525bcaab05363655f58b66c88c43118d3be8d81e197",
+  "log_sha256": "b393ab4fbf15e7194ba215e8b11b67b7c3cd42c9432cd51500aa3b12c67e3a75"
+}

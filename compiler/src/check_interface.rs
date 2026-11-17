@@ -612,8 +612,11 @@ impl Checker {
         for (path, arguments) in &row.labels {
             let parts = path.parts();
             let [name] = parts.as_slice() else { return None };
+            // A declaration-owned label can share a kernel spelling. Only
+            // the actual checked kernel identity has this portable encoding.
+            if self.effect_head(path, false).ok()?.as_str() != *name { return None }
             match (*name, arguments.as_slice()) {
-                ("IO" | "Async" | "Cancel" | "Eval", [region])
+                ("IO" | "Mut" | "Async" | "Cancel" | "Eval", [region])
                     if vars.contains(&region.text) && scheme.region_params.contains(&region.text) => {
                     labels.push(format!("{name} {}", region.text));
                 }
