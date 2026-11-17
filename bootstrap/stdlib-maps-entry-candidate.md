@@ -49,7 +49,11 @@ capability is reduced to accommodate either compiler.
 Required gates are source selection, all800 independent steps, all12 live
 mutation/owner/policy/late-callback groups,14 IEEE observations, actual mixed
 IO callbacks and independent-region source composition, in bounded normal
-and separate poisoned profiles. Only after those pass may a new immutable
+and separate poisoned profiles. The supplemental edge consumer also pins
+value-NaN comparisons, deletion of callback-reinserted current keys and
+current right-side lookups after an equality callback clears that map;
+that new consumer is not yet runtime qualified on either representation.
+Only after those pass may a new immutable
 workload artifact be compared with the preserved baseline. No Native gain
 or general source-absent interface admission follows from this candidate.
 The actual Region-header/open-row transport gaps and the older Native

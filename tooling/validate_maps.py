@@ -53,7 +53,7 @@ def main() -> None:
     parser.add_argument("--source-override", action="append", default=[], metavar="MODULE=PATH", help="Select a separate candidate without changing the production library")
     parser.add_argument("--cpu", type=int, default=0)
     parser.add_argument("--opt-level", choices=("0", "2"), default="2")
-    parser.add_argument("--modes", nargs="+", choices=("source", "region", "control", "effect", "trace", "float"), default=["control", "effect", "trace", "float"])
+    parser.add_argument("--modes", nargs="+", choices=("source", "region", "negative", "control", "edge", "effect", "trace", "float"), default=["negative", "control", "edge", "effect", "trace", "float"])
     parser.add_argument("--cases", nargs="+", type=int, choices=range(8), default=list(range(8)))
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -93,8 +93,12 @@ def main() -> None:
     if "region" in args.modes:
         jobs["region"] = (ROOT / "compiler/tests/fixtures/maps-region-pair.cinch").read_text()
         jobs["region-source"] = (ROOT / "compiler/tests/fixtures/maps-region-source.cinch").read_text()
+    if "negative" in args.modes:
+        jobs["negative-pure-read"] = (ROOT / "compiler/tests/fixtures/mutable-map-negative-pure-read.cinch").read_text()
     if "control" in args.modes:
         jobs["control"] = (ROOT / "compiler/tests/fixtures/mutable-map-control.cinch").read_text()
+    if "edge" in args.modes:
+        jobs["edge"] = (ROOT / "compiler/tests/fixtures/mutable-map-edge-control.cinch").read_text()
     if "effect" in args.modes:
         jobs["effect"] = (ROOT / "compiler/tests/fixtures/mutable-map-effect-control.cinch").read_text()
     if "trace" in args.modes:
@@ -115,7 +119,7 @@ def main() -> None:
             executable, llvm = directory / "consumer", directory / "consumer.ll"
             suite = {"name": label, "consumer_sha256": digest(entry), "runs": []}
             report["suites"].append(suite)
-            check_only = label in ("source", "region", "region-source")
+            check_only = label in ("source", "region", "region-source", "negative-pure-read")
             if args.frontend == "rust":
                 command = [str(compiler), "check" if check_only else "build", str(entry)]
                 if not check_only:
@@ -128,6 +132,16 @@ def main() -> None:
                     command.insert(2, "--rc-debug")
             suite["compile"] = execute(command, directory, environment, host=True)
             (directory / "build.log").write_text(suite["compile"]["stdout"] + suite["compile"]["stderr"])
+            if label == "negative-pure-read":
+                diagnostic_file = llvm.with_suffix(".ll.diagnostics")
+                diagnostics = suite["compile"]["stderr"] + (diagnostic_file.read_text() if diagnostic_file.exists() else "")
+                suite["diagnostics"] = diagnostics
+                assert suite["compile"]["exit"] != 0 and "effect" in diagnostics.lower(), (label, suite)
+                assert not executable.exists() and not llvm.exists(), "a refused consumer must not produce executable code"
+                suite.update(status="passed", expected_refusal=True)
+                args.output.write_text(json.dumps(report, indent=2) + "\n")
+                print(f"{args.frontend} {label}: required effect refusal passed", flush=True)
+                continue
             assert suite["compile"]["exit"] == 0, (label, suite["compile"], llvm.with_suffix(".ll.diagnostics").read_text() if llvm.with_suffix(".ll.diagnostics").exists() else "")
             if not check_only:
                 if args.frontend == "native":

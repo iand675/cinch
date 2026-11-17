@@ -123,6 +123,12 @@ fn live_mutation_owners_and_late_producer_callbacks_are_safe() {
     run(include_str!("fixtures/mutable-map-control.cinch"));
 }
 
+/// Preserve non-reflexive values, predicate replacements and current right-side equality lookups.
+#[test]
+fn value_nan_and_predicate_mutation_contracts_remain_explicit() {
+    run(include_str!("fixtures/mutable-map-edge-control.cinch"));
+}
+
 /// Require actual IO-capable sources and callbacks without reducing the API's effect row.
 #[test]
 fn map_sources_and_callbacks_compose_with_io_effects() {
@@ -139,4 +145,14 @@ fn independent_regions_compose_without_implicit_identity_unification() {
         let directory = project(consumer);
         common::drive(Mode::Check, directory.path(), "Main.cinch", None).unwrap();
     }
+}
+
+/// Keep mutable observations behind their declared region capability even from a pure caller.
+#[test]
+fn a_pure_function_cannot_observe_mutable_map_state() {
+    let directory = project(include_str!(
+        "fixtures/mutable-map-negative-pure-read.cinch"
+    ));
+    let error = common::drive(Mode::Check, directory.path(), "Main.cinch", None).unwrap_err();
+    assert!(error.to_lowercase().contains("effect"), "{error}");
 }
