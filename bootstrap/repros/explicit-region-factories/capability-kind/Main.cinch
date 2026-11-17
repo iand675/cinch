@@ -1,0 +1,8 @@
+-- | Classify a builtin I/O capability parameter independently of stream heads.
+module Main where
+  -- | A pure factory may mention its explicitly declared region in an I/O capability.
+  control :: forall (r :: Region). using (io :: Io r) => Unit -> Unit
+  control unit = ()
+  -- | Source-only gate without effect execution.
+  main :: Int
+  main = 0

@@ -5,7 +5,7 @@ mod common;
 const ACTIONS: &str = r#"-- | Store a mixed-effect action without performing it during construction.
 module Actions where
   import Data.Mutable.Var
-  export Work, prepare, prepare-eta, run, identity, apply-maker, prepare-extra, apply-maker-flat
+  export Work, prepare, prepare-eta, run, identity, apply-maker, prepare-extra, apply-maker-flat, prepare-with-io
   -- | An action belongs to exactly one runtime identity.
   data Work r where
     -- | A private callback preserves both I/O and mutation identity.
@@ -16,6 +16,9 @@ module Actions where
   -- | State the identity kind even though construction performs no effect.
   prepare :: forall (r :: Region). Var r Int -> Work r
   prepare cell = Stored (action cell)
+  -- | A runtime capability constraint preserves the same explicitly quantified identity.
+  prepare-with-io :: forall (r :: Region). using (io :: Io r) => Var r Int -> Work r
+  prepare-with-io cell = prepare cell
   -- | An ordinary eta closure preserves the same pure construction contract.
   prepare-eta :: forall (r :: Region). Var r Int -> Work r
   prepare-eta cell = Stored (\unit -> action cell unit)
@@ -54,10 +57,11 @@ module Main where
   import Data.Mutable.Var
   -- | Every factory returns the original cell's value.
   main :: Unit ->{IO r, Mut r} Int
-  main unit =
+  main unit = with (io = newIO ()) in
     let cell = var-new (41 :: Int) in
     if run (identity (prepare cell)) () == 41
       && run (prepare-eta cell) () == 41
+      && run (prepare-with-io cell) () == 41
       && run (apply-maker prepare cell) () == 41
       && run (apply-maker-flat prepare-extra cell) () == 41
     then 0 else 1
@@ -116,4 +120,16 @@ fn explicit_regions_cannot_be_value_types() {
 #[test]
 fn nested_explicit_regions_cannot_be_row_tails() {
     reject("  -- | An identity kind cannot supply a callback row.\n  bad :: (forall (r :: Region). (Unit ->{|r} Int) -> Int) -> Int\n  bad callback = 0");
+}
+
+/// A capability constraint cannot turn a runtime identity into an inhabited type.
+#[test]
+fn capability_regions_cannot_be_value_types() {
+    reject("  -- | The capability fixes identity kind and cannot authorize a value domain.\n  bad :: forall (r :: Region). using (io :: Io r) => r -> r\n  bad value = value");
+}
+
+/// A concrete type cannot manufacture a kernel capability identity.
+#[test]
+fn capability_arguments_require_region_variables() {
+    reject("  -- | Mathematical naturals are not runtime capability identities.\n  bad :: using (io :: Io Nat) => Unit -> Unit\n  bad unit = unit");
 }

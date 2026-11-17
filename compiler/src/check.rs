@@ -7107,12 +7107,19 @@ impl Checker {
         // Class arguments check against the parameter kinds: `Functor
         // List` and `Functor ((->) r)` take a partially applied type
         // constructor, `Eq a` a fully applied one.
+        let class = self.signature_key(&sig.module, &sig.name);
+        let capability = is_capability_class(&class);
         let mut args = Vec::new();
         for (i, a) in c.args.iter().enumerate() {
-            args.push(self.conv_kind(a, vars, sig.param_kinds.get(i))?);
+            // Kernel capability arguments are runtime identities, so recording
+            // a proper-type constraint before converting them to regions would
+            // contradict an explicit Region binder. Validation below still
+            // requires an in-scope variable for every capability argument.
+            let expected = if capability { None } else { sig.param_kinds.get(i) };
+            args.push(self.conv_kind(a, vars, expected)?);
         }
-        let mut app = ClassApp { class: self.signature_key(&sig.module, &sig.name), args };
-        if is_capability_class(&app.class) {
+        let mut app = ClassApp { class, args };
+        if capability {
             // A capability's argument is a runtime identity (decision D21).
             for (a, src) in app.args.iter_mut().zip(&c.args) {
                 match a {
