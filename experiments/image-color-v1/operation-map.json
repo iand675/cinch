@@ -1,0 +1,771 @@
+{
+  "scope": "Full pinned image/color cumulative surface operation mapping; source-only design, no implementation qualification claimed.",
+  "sdk_version": "go version go1.27.4 linux/amd64",
+  "sdk_executable_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "sdk_sources": {
+    "src/image/color/color.go": "03511ed250d0b4dd20605d5dc3465164e559033a6ff7e5cd8ac89d2e19c3ab6c",
+    "src/image/color/ycbcr.go": "7afc91f21cb8eb68027f54180a862137bdef26cfd59389ecb609c0f87923de0c"
+  },
+  "record_count": 78,
+  "records": [
+    {
+      "sdk_record": "func CMYKToRGB(uint8, uint8, uint8, uint8) (uint8, uint8, uint8)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-cmyk-to-rgb"
+      ],
+      "contract": "Exact fixed-width integer coefficients, division/truncation and saturated channels.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "func ModelFunc(func(Color) Color) Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-model",
+        "color-model-total"
+      ],
+      "contract": "Pure model callback retains caller closure and optional result.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "func RGBToCMYK(uint8, uint8, uint8) (uint8, uint8, uint8, uint8)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgb-to-cmyk"
+      ],
+      "contract": "Exact fixed-width integer coefficients, division/truncation and saturated channels.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "func RGBToYCbCr(uint8, uint8, uint8) (uint8, uint8, uint8)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgb-to-ycbcr"
+      ],
+      "contract": "Exact fixed-width integer coefficients, division/truncation and saturated channels.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "func YCbCrToRGB(uint8, uint8, uint8) (uint8, uint8, uint8)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-ycbcr-to-rgb"
+      ],
+      "contract": "Exact fixed-width integer coefficients, division/truncation and saturated channels.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (Alpha) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (Alpha16) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (CMYK) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (Gray) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (Gray16) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (NRGBA) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (NRGBA64) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (NYCbCrA) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (Palette) Convert(Color) Color",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-palette-convert"
+      ],
+      "contract": "RGBA squared distance; each term shifted2; first tie; emptyIndex0/ConvertNone.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (Palette) Index(Color) int",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-palette-index"
+      ],
+      "contract": "RGBA squared distance; each term shifted2; first tie; emptyIndex0/ConvertNone.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (RGBA) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (RGBA64) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "method (YCbCr) RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba"
+      ],
+      "contract": "Premultiplied16-bit channels with exact source-model precision.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Alpha struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-alpha8",
+        "color-alpha8-components"
+      ],
+      "contract": "Opaque Color preservesalpha8 model identity and rawU8 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Alpha struct, A uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-alpha8",
+        "color-alpha8-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position0 (A), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Alpha16 struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-alpha16",
+        "color-alpha16-components"
+      ],
+      "contract": "Opaque Color preservesalpha16 model identity and rawU16 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Alpha16 struct, A uint16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-alpha16",
+        "color-alpha16-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position0 (A), exactU16; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type CMYK struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-cmyk",
+        "color-cmyk-components"
+      ],
+      "contract": "Opaque Color preservescmyk model identity and rawU8 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type CMYK struct, C uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-cmyk",
+        "color-cmyk-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position0 (C), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type CMYK struct, K uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-cmyk",
+        "color-cmyk-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position3 (K), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type CMYK struct, M uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-cmyk",
+        "color-cmyk-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position1 (M), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type CMYK struct, Y uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-cmyk",
+        "color-cmyk-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position2 (Y), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Color interface { RGBA }",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "Color",
+        "color-source",
+        "color-rgba"
+      ],
+      "contract": "Opaque pure color capability; custom callback returns four bounded16-bit channels without erasing its retained closure.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Color interface, RGBA() (uint32, uint32, uint32, uint32)",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "Color",
+        "color-source",
+        "color-rgba"
+      ],
+      "contract": "Opaque pure color capability; custom callback returns four bounded16-bit channels without erasing its retained closure.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Gray struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-gray8",
+        "color-gray8-components"
+      ],
+      "contract": "Opaque Color preservesgray8 model identity and rawU8 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Gray struct, Y uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-gray8",
+        "color-gray8-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position0 (Y), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Gray16 struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-gray16",
+        "color-gray16-components"
+      ],
+      "contract": "Opaque Color preservesgray16 model identity and rawU16 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Gray16 struct, Y uint16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-gray16",
+        "color-gray16-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position0 (Y), exactU16; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Model interface { Convert }",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "ColorModel",
+        "color-model",
+        "color-convert"
+      ],
+      "contract": "Pure explicit model callback; optional result preserves absent conversions; no global mutation.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Model interface, Convert(Color) Color",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "ColorModel",
+        "color-model",
+        "color-convert"
+      ],
+      "contract": "Pure explicit model callback; optional result preserves absent conversions; no global mutation.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NRGBA struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba8",
+        "color-nrgba8-components"
+      ],
+      "contract": "Opaque Color preservesnrgba8 model identity and rawU8 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NRGBA struct, A uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba8",
+        "color-nrgba8-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position3 (A), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NRGBA struct, B uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba8",
+        "color-nrgba8-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position2 (B), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NRGBA struct, G uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba8",
+        "color-nrgba8-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position1 (G), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NRGBA struct, R uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba8",
+        "color-nrgba8-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position0 (R), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NRGBA64 struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba16",
+        "color-nrgba16-components"
+      ],
+      "contract": "Opaque Color preservesnrgba16 model identity and rawU16 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NRGBA64 struct, A uint16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba16",
+        "color-nrgba16-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position3 (A), exactU16; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NRGBA64 struct, B uint16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba16",
+        "color-nrgba16-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position2 (B), exactU16; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NRGBA64 struct, G uint16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba16",
+        "color-nrgba16-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position1 (G), exactU16; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NRGBA64 struct, R uint16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba16",
+        "color-nrgba16-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position0 (R), exactU16; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NYCbCrA struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-ycbcra",
+        "color-ycbcra-components"
+      ],
+      "contract": "Opaque Color preservesycbcra model identity and rawU8 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NYCbCrA struct, A uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-ycbcra",
+        "color-ycbcra-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position3 (A), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type NYCbCrA struct, embedded YCbCr",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-ycbcra",
+        "color-ycbcra-components",
+        "color-ycbcra-base"
+      ],
+      "contract": "Embedded Y/Cb/Cr triple is observed separately; A remains independent.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type Palette []Color",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "ColorPalette",
+        "color-palette",
+        "color-palette-colors"
+      ],
+      "contract": "Immutable color sequence; conversion returns the actual selected element.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type RGBA struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba8",
+        "color-rgba8-components"
+      ],
+      "contract": "Opaque Color preservesrgba8 model identity and rawU8 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type RGBA struct, A uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba8",
+        "color-rgba8-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position3 (A), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type RGBA struct, B uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba8",
+        "color-rgba8-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position2 (B), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type RGBA struct, G uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba8",
+        "color-rgba8-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position1 (G), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type RGBA struct, R uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba8",
+        "color-rgba8-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position0 (R), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type RGBA64 struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba16",
+        "color-rgba16-components"
+      ],
+      "contract": "Opaque Color preservesrgba16 model identity and rawU16 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type RGBA64 struct, A uint16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba16",
+        "color-rgba16-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position3 (A), exactU16; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type RGBA64 struct, B uint16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba16",
+        "color-rgba16-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position2 (B), exactU16; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type RGBA64 struct, G uint16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba16",
+        "color-rgba16-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position1 (G), exactU16; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type RGBA64 struct, R uint16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba16",
+        "color-rgba16-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position0 (R), exactU16; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type YCbCr struct",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-ycbcr",
+        "color-ycbcr-components"
+      ],
+      "contract": "Opaque Color preservesycbcr model identity and rawU8 components, including representable components exceeding alpha.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type YCbCr struct, Cb uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-ycbcr",
+        "color-ycbcr-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position1 (Cb), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type YCbCr struct, Cr uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-ycbcr",
+        "color-ycbcr-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position2 (Cr), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "type YCbCr struct, Y uint8",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-ycbcr",
+        "color-ycbcr-components"
+      ],
+      "contract": "Immutable constructor argument and typed component observer position0 (Y), exactU8; reconstruct to update.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var Alpha16Model Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-alpha16-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var AlphaModel Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-alpha8-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var Black Gray16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-black"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var CMYKModel Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-cmyk-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var Gray16Model Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-gray16-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var GrayModel Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-gray8-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var NRGBA64Model Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba16-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var NRGBAModel Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-nrgba8-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var NYCbCrAModel Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-ycbcra-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var Opaque Alpha16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-opaque"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var RGBA64Model Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba16-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var RGBAModel Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-rgba8-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var Transparent Alpha16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-transparent"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var White Gray16",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-white"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    },
+    {
+      "sdk_record": "var YCbCrModel Model",
+      "cinch_module": "Image.Color",
+      "planned_symbols": [
+        "color-ycbcr-model"
+      ],
+      "contract": "Pure immutable named value; standard color representation and builtin model identity preserved.",
+      "status": "implemented; current Rust O0/O2 normal/poison qualified; no Native/performance claim"
+    }
+  ],
+  "candidate_root": "experiments/image-color-v1/sources",
+  "production_selected": false,
+  "external_runtime_dependencies": [],
+  "status": "All78 capabilities implemented and current3dae Rust public O2/exact-IR O0 normal+poison qualified; independent actual-kernel/portable objects and callback refusal gates passed; Native/performance pending.",
+  "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707"
+}

@@ -1,0 +1,266 @@
+{
+  "scope": "Dependency-minimal additive Root experiment/SDK-free test import proposal; production and Native/performance selection remain unclaimed.",
+  "review_base": "40ae975bb96136760064578b42af54e7fa15fca4",
+  "required_imports": [
+    {
+      "from": "experiments/image-color-v1/sources/Image.Color.cinch",
+      "to": "experiments/image-color-v1/sources/Image.Color.cinch",
+      "bytes": 33121,
+      "sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707"
+    },
+    {
+      "from": "experiments/image-color-v1/consumer.cinch",
+      "to": "experiments/image-color-v1/consumer.cinch",
+      "bytes": 23851,
+      "sha256": "b0f104d68d8d0e132f1dc7b026c65ad56cf63741e9a2490969b6383d610fc27f"
+    },
+    {
+      "from": "experiments/image-color-v1/vectors.json",
+      "to": "experiments/image-color-v1/vectors.json",
+      "bytes": 1758525,
+      "sha256": "0a7932a4b6d0cf1bd7f29e04077df3c834745b84c6ddd16946f0693d088ce5b6"
+    },
+    {
+      "from": "tooling/check_color.py",
+      "to": "tooling/check_color.py",
+      "bytes": 7042,
+      "sha256": "1f014d093a0f3cd0f7e91c31988b7e1840ff4966993b8de3c13652b568451404"
+    },
+    {
+      "from": "tooling/prepare_color_fixtures.py",
+      "to": "tooling/prepare_color_fixtures.py",
+      "bytes": 9020,
+      "sha256": "67704d49fbba83d3386eda537bff4faaa45a67973ae641a1d9eadfc1dd99f1a6"
+    },
+    {
+      "from": "tooling/check_color_ci.py",
+      "to": "tooling/check_color_ci.py",
+      "bytes": 3228,
+      "sha256": "0f7ee3ba22162b7cf2eb5a15531633d5557ae5dbd84ae284da88f14f857fc8ae"
+    },
+    {
+      "from": "compiler/tests/lib_image_color.rs",
+      "to": "compiler/tests/lib_image_color.rs",
+      "bytes": 5022,
+      "sha256": "cf6086d6f3072b117afcb5f22872a9f0ec6472cbddd83ff6de9abe2eddfed92a"
+    },
+    {
+      "from": "experiments/image-color-v1/README.md",
+      "to": "experiments/image-color-v1/README.md",
+      "bytes": 7790,
+      "sha256": "9edef31d1d3674dc82e6fa3d4f3ca06b35c7175d430ed66efc4ebb63152f2d23"
+    },
+    {
+      "from": "experiments/image-color-v1/operation-map.json",
+      "to": "experiments/image-color-v1/operation-map.json",
+      "bytes": 32766,
+      "sha256": "73261b17b56b1a1f811e87833ad6b56531b0484187c8046b8cf8c3bd9261e64a"
+    },
+    {
+      "from": "experiments/image-color-v1/sdk-surface.json",
+      "to": "experiments/image-color-v1/sdk-surface.json",
+      "bytes": 3088,
+      "sha256": "d3115f2b92359c0b6d4fa234f495ab651ceeb9aca862180bae2455ed42ef77ad"
+    },
+    {
+      "from": "experiments/image-color-v1/canonical-docs.json",
+      "to": "experiments/image-color-v1/canonical-docs.json",
+      "bytes": 758,
+      "sha256": "48e5ed787c0617b39c1573f77d2f6123774ae8ff5e22670a232182d686f2dfd3"
+    },
+    {
+      "from": "experiments/image-color-v1/source-gate.json",
+      "to": "experiments/image-color-v1/source-gate.json",
+      "bytes": 7921,
+      "sha256": "632e4bdc800d8ebbdcf1cb05c0bb124670b8ee2e95042b6c986d325380bc181c"
+    },
+    {
+      "from": "experiments/image-color-v1/consumer-source-gate.json",
+      "to": "experiments/image-color-v1/consumer-source-gate.json",
+      "bytes": 7930,
+      "sha256": "a39e848fc4a2b90e4624ae6d03d7baadef514e3bcf09712e3882590c5aeafc2c"
+    },
+    {
+      "from": "experiments/image-color-v1/runtime-o2.json",
+      "to": "experiments/image-color-v1/runtime-o2.json",
+      "bytes": 11692,
+      "sha256": "d28fdffb8fb31aa75bc8f02a74cb92edad5f4cdf8350a5654f3771381feb189e"
+    },
+    {
+      "from": "experiments/image-color-v1/runtime-o0.json",
+      "to": "experiments/image-color-v1/runtime-o0.json",
+      "bytes": 3374,
+      "sha256": "3ec85cafab572dde9f1b0a359b937e6cc984703527d37b33bdb979786f805bff"
+    },
+    {
+      "from": "experiments/image-color-v1/kernel-gate.json",
+      "to": "experiments/image-color-v1/kernel-gate.json",
+      "bytes": 5538,
+      "sha256": "816ba311a9ed22ec33e435a0badeabbdf3a6e7db94a48a3675247cc3227baaed"
+    },
+    {
+      "from": "experiments/image-color-v1/code-inspection.json",
+      "to": "experiments/image-color-v1/code-inspection.json",
+      "bytes": 14022,
+      "sha256": "a65a470aecec23d6535c31625dc39341c4c8e3b023b5c960d89f319fb7b5de5a"
+    },
+    {
+      "from": "experiments/image-color-v1/effect-refusals.json",
+      "to": "experiments/image-color-v1/effect-refusals.json",
+      "bytes": 5157,
+      "sha256": "4fd8e00bbbd378efc76b6f5eac2e5cfc72cd3089481edefc6615060d3837d6fc"
+    },
+    {
+      "from": "experiments/image-color-v1/sdk-generation.json",
+      "to": "experiments/image-color-v1/sdk-generation.json",
+      "bytes": 1108,
+      "sha256": "630f84fb1712814192fea504a9fc5cd869c52433a7fb8cb748319e5feed018b3"
+    },
+    {
+      "from": "experiments/image-color-v1/scalar-validation.json",
+      "to": "experiments/image-color-v1/scalar-validation.json",
+      "bytes": 484,
+      "sha256": "aea528c0d4f89958c08312e95a729036caf78ae719e881449ed55017f041e9ae"
+    },
+    {
+      "from": "experiments/image-color-v1/sdk-live-observations.json",
+      "to": "experiments/image-color-v1/sdk-live-observations.json",
+      "bytes": 1558,
+      "sha256": "f39801c3a91da7a8e1dd613e97ae4cabfe6b33eb82a29335b9a5e4caa7fd3cd9"
+    },
+    {
+      "from": "experiments/image-color-v1/defining-contracts.json",
+      "to": "experiments/image-color-v1/defining-contracts.json",
+      "bytes": 1909,
+      "sha256": "9f9593a2dc24920afcf00b20e1d3793176575aae5b5b14bb7c6daa4fe4a0e171"
+    },
+    {
+      "from": "experiments/image-color-v1/performance-plan.json",
+      "to": "experiments/image-color-v1/performance-plan.json",
+      "bytes": 5880,
+      "sha256": "41eb245110feaf1ec50dfd51e840707eedc3cfcfe36e9a64f0196b396c7b8329"
+    }
+  ],
+  "optional_reproduction_imports": [
+    {
+      "from": "tooling/check_color_source.py",
+      "to": "tooling/check_color_source.py",
+      "bytes": 3955,
+      "sha256": "e03b0a2547439a62dc1ac2959977c634b2576d298c56cc0eeb64efab72551484"
+    },
+    {
+      "from": "tooling/relink_color.py",
+      "to": "tooling/relink_color.py",
+      "bytes": 5643,
+      "sha256": "ec5d516be79d9d916c76f538d2182f89ddd4b9b338b75246310290609f2662d0"
+    },
+    {
+      "from": "tooling/check_color_kernels.py",
+      "to": "tooling/check_color_kernels.py",
+      "bytes": 6525,
+      "sha256": "cb5f4eaa2699e38fc5e16cdb792a652c0ee5c8ccf671173f30db5c976aec2ae8"
+    },
+    {
+      "from": "tooling/inspect_color_code.py",
+      "to": "tooling/inspect_color_code.py",
+      "bytes": 4989,
+      "sha256": "a834bc2d4ecf035b7a6eeebc5f686a1b9adc265d07557ad1e5359195834c9648"
+    },
+    {
+      "from": "tooling/validate_color_reference.py",
+      "to": "tooling/validate_color_reference.py",
+      "bytes": 7805,
+      "sha256": "bfe688be501059154040c34151849cd56161f91b0be5ff3a68035f47b5b05de1"
+    },
+    {
+      "from": "experiments/image-color-v1/kernel-reference.c",
+      "to": "experiments/image-color-v1/kernel-reference.c",
+      "bytes": 5414,
+      "sha256": "d8ad65863c5e89e4fc9d3d4544556aeb2c270a4752ac8c57ab0c2cf32a06dbfc"
+    },
+    {
+      "from": "experiments/image-color-v1/reference.go",
+      "to": "experiments/image-color-v1/reference.go",
+      "bytes": 8673,
+      "sha256": "16230909806eb6b360607f2eefad18050eba7b76e2433f725bbd35e630f51eb6"
+    },
+    {
+      "from": "experiments/image-color-v1/live-reference.go",
+      "to": "experiments/image-color-v1/live-reference.go",
+      "bytes": 1894,
+      "sha256": "4299fdce631bd63c275bb91511124512061da6cde967646be5949f9d7941ce51"
+    },
+    {
+      "from": "experiments/image-color-v1/negative-color-source-io.cinch",
+      "to": "experiments/image-color-v1/negative-color-source-io.cinch",
+      "bytes": 706,
+      "sha256": "9efd5113621322120ab04bf8e552420ce6fb4e2db4848bcc8f24d02f97643a1f"
+    },
+    {
+      "from": "experiments/image-color-v1/negative-color-model-io.cinch",
+      "to": "experiments/image-color-v1/negative-color-model-io.cinch",
+      "bytes": 728,
+      "sha256": "93280b9bb9946cc472ae932987f82fcce8b0571ee62647fd78d920571f281fb1"
+    },
+    {
+      "from": "experiments/image-color-v1/negative-color-total-model-io.cinch",
+      "to": "experiments/image-color-v1/negative-color-total-model-io.cinch",
+      "bytes": 727,
+      "sha256": "0abb99c96b585baaca0d6a8b96a891b11489348800b25a48505ba29ef268c8ab"
+    }
+  ],
+  "existing_root_dependencies": [
+    {
+      "path": "tooling/check_compare.py",
+      "root_sha256": "2cc7faf4fd24a0ee8af0bb85a9b46dc289cc0aa969181927213dea0721d474af",
+      "required_helpers": [
+        "digest",
+        "initialize_runtime",
+        "run"
+      ],
+      "provider_initialization": "Ordinary current compiler build, exact archive locked/copied by existing helper; initialization outputs are separate from the30MiB functional unit."
+    }
+  ],
+  "source_epoch": {
+    "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707"
+  },
+  "maintained_parent_target": {
+    "target": "lib_image_color",
+    "tests": [
+      "image_color_declarations_have_canonical_documentation",
+      "rust_cli_executes_image_color_with_normal_and_poison_profiles"
+    ],
+    "sdk_required": false,
+    "current_rust_only": true,
+    "actual_parent_execution_pending": true,
+    "failed_projects_retained_on_assertion_panic": true,
+    "runtime_initialization": "Normal current compiler build and exact locked archive snapshot; provider initialization separately scoped from functional cap.",
+    "functional_heap_profiles": [
+      "32M normal/8M stack",
+      "256M poisoned/8M stack"
+    ],
+    "compiler_host_stack": "64MiB"
+  },
+  "standalone_complete": [
+    "Full78-record mapping",
+    "All1808 source colors and11models plus helpers/palettes/constants/owner observations O2/exact-IR O0, normal/poison zero leaks",
+    "51,052,544 actual-body scalar comparisons and3 verified portable objects",
+    "All3 callback IO-erasure refusals",
+    "All95 declarations canonical",
+    "Actual full-entrypoint-to-nine-kernel paths and optimized instruction evidence"
+  ],
+  "pending": [
+    "Root maintained Cargo target execution",
+    "Matched public pipeline build/preflight and Root-granted paired elapsed timing",
+    "Full Native qualification and genuine source-absent client gate",
+    "Production selection/shared inventory/docs integration"
+  ],
+  "excluded": [
+    "All Multipart and quoted-printable source/snapshots/benchmarks/archival machinery",
+    "Frozen compiler/runtime/provider copies",
+    "Generated functional ELF/IR/interface cache copies",
+    "All failure artifacts (remain plain in original projects)"
+  ]
+}

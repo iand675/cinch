@@ -1,0 +1,712 @@
+-- | Pure color values, explicit conversion models and immutable palettes.
+-- Standard representations retain raw channel widths and model identity.
+-- Canonical observation yields premultiplied16-bit RGBA in wider machine words.
+-- Conversion rounding, first palette ties and zero-alpha behavior are explicit.
+module Image.Color where
+
+  import Data.Bool
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  export Color, ColorKind, ColorModel, ColorPalette
+  export Rgba8Kind, Rgba16Kind, Nrgba8Kind, Nrgba16Kind, Alpha8Kind, Alpha16Kind, Gray8Kind, Gray16Kind, YcbcrKind, YcbcraKind, CmykKind, RgbaSourceKind
+  export color-kind, color-source, color-rgba
+  export color-model, color-model-total, color-model-kind, color-convert
+  export color-palette, color-palette-colors, color-palette-index, color-palette-convert, color-palette-model
+  export color-rgb-to-ycbcr, color-ycbcr-to-rgb, color-rgb-to-cmyk, color-cmyk-to-rgb
+  export color-ycbcra-base, color-black, color-white, color-transparent, color-opaque
+  export color-rgba8, color-rgba8-components, color-rgba8-model
+  export color-rgba16, color-rgba16-components, color-rgba16-model
+  export color-nrgba8, color-nrgba8-components, color-nrgba8-model
+  export color-nrgba16, color-nrgba16-components, color-nrgba16-model
+  export color-alpha8, color-alpha8-components, color-alpha8-model
+  export color-alpha16, color-alpha16-components, color-alpha16-model
+  export color-gray8, color-gray8-components, color-gray8-model
+  export color-gray16, color-gray16-components, color-gray16-model
+  export color-ycbcr, color-ycbcr-components, color-ycbcr-model
+  export color-ycbcra, color-ycbcra-components, color-ycbcra-model
+  export color-cmyk, color-cmyk-components, color-cmyk-model
+
+  -- | Observable identity of each standard representation or custom channel source.
+  data ColorKind where
+    -- | The premultiplied8-bit red, green, blue and alpha representation.
+    Rgba8Kind :: ColorKind
+    -- | The premultiplied16-bit red, green, blue and alpha representation.
+    Rgba16Kind :: ColorKind
+    -- | The straight8-bit red, green, blue and alpha representation.
+    Nrgba8Kind :: ColorKind
+    -- | The straight16-bit red, green, blue and alpha representation.
+    Nrgba16Kind :: ColorKind
+    -- | The 8-bit alpha representation.
+    Alpha8Kind :: ColorKind
+    -- | The 16-bit alpha representation.
+    Alpha16Kind :: ColorKind
+    -- | The opaque8-bit gray representation.
+    Gray8Kind :: ColorKind
+    -- | The opaque16-bit gray representation.
+    Gray16Kind :: ColorKind
+    -- | The opaque8-bit luma and chroma representation.
+    YcbcrKind :: ColorKind
+    -- | The straight8-bit luma, chroma and alpha representation.
+    YcbcraKind :: ColorKind
+    -- | The opaque8-bit cyan, magenta, yellow and black representation.
+    CmykKind :: ColorKind
+    -- | A caller-supplied pure source of canonical premultiplied channels.
+    RgbaSourceKind :: ColorKind
+
+  -- | Opaque immutable color retaining its source identity and exact raw fields.
+  data Color where
+    -- | A standard representation with fixed-width channels in a logical packed word.
+    StoredColor :: ColorKind -> U64 -> Color
+    -- | A retained pure callback returning the four bounded canonical channels.
+    SourceColor :: (Unit -> U64) -> Color
+
+  -- | Explicit pure conversion capability with optional output for absent conversions.
+  data ColorModel where
+    -- | A standard conversion retaining its observable target kind.
+    StandardModel :: ColorKind -> ColorModel
+    -- | A retained caller callback whose absent result remains absent.
+    CallbackModel :: (Color -> Option Color) -> ColorModel
+    -- | An immutable palette returning the actual nearest original value.
+    PaletteModel :: ColorPalette -> ColorModel
+
+  -- | An immutable sequence; construction and observation preserve color identities.
+  data ColorPalette where
+    -- | Private sequence storage shared without mutable byte buffers.
+    Palette :: List Color -> ColorPalette
+
+  -- | Compare only explicit representation tags, without a global equality policy.
+  same-kind :: ColorKind -> ColorKind -> Bool
+  same-kind left right = case left of
+    Rgba8Kind -> case right of Rgba8Kind -> True; _ -> False
+    Rgba16Kind -> case right of Rgba16Kind -> True; _ -> False
+    Nrgba8Kind -> case right of Nrgba8Kind -> True; _ -> False
+    Nrgba16Kind -> case right of Nrgba16Kind -> True; _ -> False
+    Alpha8Kind -> case right of Alpha8Kind -> True; _ -> False
+    Alpha16Kind -> case right of Alpha16Kind -> True; _ -> False
+    Gray8Kind -> case right of Gray8Kind -> True; _ -> False
+    Gray16Kind -> case right of Gray16Kind -> True; _ -> False
+    YcbcrKind -> case right of YcbcrKind -> True; _ -> False
+    YcbcraKind -> case right of YcbcraKind -> True; _ -> False
+    CmykKind -> case right of CmykKind -> True; _ -> False
+    RgbaSourceKind -> case right of RgbaSourceKind -> True; _ -> False
+
+  -- | Observe the retained representation without forcing a custom channel callback.
+  color-kind :: Color -> ColorKind
+  color-kind value = case value of StoredColor kind word -> kind; SourceColor callback -> RgbaSourceKind
+
+  -- | Retain a pure callback; channels are sixteen-bit premultiplied values, not copied eagerly.
+  color-source :: (Unit -> (U16, U16, U16, U16)) -> Color
+  color-source callback = SourceColor (\unit -> case callback () of (r, g, b, a) -> pack16 r g b a)
+
+  -- | Pack four bytes in logical low-to-high order, independent of memory endianness.
+  pack8 :: U8 -> U8 -> U8 -> U8 -> U64
+  pack8 r g b a = bit-or-u64 (u8-to-u64 r) (bit-or-u64 (wrapping-shl-u64 (u8-to-u64 g) 8) (bit-or-u64 (wrapping-shl-u64 (u8-to-u64 b) 16) (wrapping-shl-u64 (u8-to-u64 a) 24)))
+
+  -- | Pack four sixteen-bit channels in logical low-to-high order.
+  pack16 :: U16 -> U16 -> U16 -> U16 -> U64
+  pack16 r g b a = bit-or-u64 (u16-to-u64 r) (bit-or-u64 (wrapping-shl-u64 (u16-to-u64 g) 16) (bit-or-u64 (wrapping-shl-u64 (u16-to-u64 b) 32) (wrapping-shl-u64 (u16-to-u64 a) 48)))
+
+  -- | Extract a wrapped byte offset from a private logical packed representation.
+  byte-at :: U64 -> U32 -> U8
+  byte-at word shift = wrapping-u64-to-u8 (wrapping-shr-u64 word shift)
+
+  -- | Extract a wrapped sixteen-bit offset from a private logical packed representation.
+  short-at :: U64 -> U32 -> U16
+  short-at word shift = wrapping-u64-to-u16 (wrapping-shr-u64 word shift)
+
+  -- | Construct premultiplied8-bit red, green, blue and alpha; raw channels are retained without alpha clamping.
+  color-rgba8 :: U8 -> U8 -> U8 -> U8 -> Color
+  color-rgba8 r g b a = StoredColor Rgba8Kind (pack8 r g b a)
+
+  -- | Observe exact raw rgba8 fields, returning absent for other representations.
+  color-rgba8-components :: Color -> Option (U8, U8, U8, U8)
+  color-rgba8-components value = case value of
+    StoredColor Rgba8Kind word -> Some ((byte-at word 0, byte-at word 8, byte-at word 16, byte-at word 24))
+    _ -> None
+
+  -- | Convert to the rgba8 representation; already matching values retain their fields.
+  color-rgba8-model :: ColorModel
+  color-rgba8-model = StandardModel Rgba8Kind
+
+  -- | Construct premultiplied16-bit red, green, blue and alpha; raw channels are retained without alpha clamping.
+  color-rgba16 :: U16 -> U16 -> U16 -> U16 -> Color
+  color-rgba16 r g b a = StoredColor Rgba16Kind (pack16 r g b a)
+
+  -- | Observe exact raw rgba16 fields, returning absent for other representations.
+  color-rgba16-components :: Color -> Option (U16, U16, U16, U16)
+  color-rgba16-components value = case value of
+    StoredColor Rgba16Kind word -> Some ((short-at word 0, short-at word 16, short-at word 32, short-at word 48))
+    _ -> None
+
+  -- | Convert to the rgba16 representation; already matching values retain their fields.
+  color-rgba16-model :: ColorModel
+  color-rgba16-model = StandardModel Rgba16Kind
+
+  -- | Construct straight8-bit red, green, blue and alpha; raw channels are retained without alpha clamping.
+  color-nrgba8 :: U8 -> U8 -> U8 -> U8 -> Color
+  color-nrgba8 r g b a = StoredColor Nrgba8Kind (pack8 r g b a)
+
+  -- | Observe exact raw nrgba8 fields, returning absent for other representations.
+  color-nrgba8-components :: Color -> Option (U8, U8, U8, U8)
+  color-nrgba8-components value = case value of
+    StoredColor Nrgba8Kind word -> Some ((byte-at word 0, byte-at word 8, byte-at word 16, byte-at word 24))
+    _ -> None
+
+  -- | Convert to the nrgba8 representation; already matching values retain their fields.
+  color-nrgba8-model :: ColorModel
+  color-nrgba8-model = StandardModel Nrgba8Kind
+
+  -- | Construct straight16-bit red, green, blue and alpha; raw channels are retained without alpha clamping.
+  color-nrgba16 :: U16 -> U16 -> U16 -> U16 -> Color
+  color-nrgba16 r g b a = StoredColor Nrgba16Kind (pack16 r g b a)
+
+  -- | Observe exact raw nrgba16 fields, returning absent for other representations.
+  color-nrgba16-components :: Color -> Option (U16, U16, U16, U16)
+  color-nrgba16-components value = case value of
+    StoredColor Nrgba16Kind word -> Some ((short-at word 0, short-at word 16, short-at word 32, short-at word 48))
+    _ -> None
+
+  -- | Convert to the nrgba16 representation; already matching values retain their fields.
+  color-nrgba16-model :: ColorModel
+  color-nrgba16-model = StandardModel Nrgba16Kind
+
+  -- | Construct 8-bit alpha; raw channels are retained without alpha clamping.
+  color-alpha8 :: U8 -> Color
+  color-alpha8 channel = StoredColor Alpha8Kind (pack8 channel 0 0 0)
+
+  -- | Observe exact raw alpha8 fields, returning absent for other representations.
+  color-alpha8-components :: Color -> Option U8
+  color-alpha8-components value = case value of
+    StoredColor Alpha8Kind word -> Some (byte-at word 0)
+    _ -> None
+
+  -- | Convert to the alpha8 representation; already matching values retain their fields.
+  color-alpha8-model :: ColorModel
+  color-alpha8-model = StandardModel Alpha8Kind
+
+  -- | Construct 16-bit alpha; raw channels are retained without alpha clamping.
+  color-alpha16 :: U16 -> Color
+  color-alpha16 channel = StoredColor Alpha16Kind (pack16 channel 0 0 0)
+
+  -- | Observe exact raw alpha16 fields, returning absent for other representations.
+  color-alpha16-components :: Color -> Option U16
+  color-alpha16-components value = case value of
+    StoredColor Alpha16Kind word -> Some (short-at word 0)
+    _ -> None
+
+  -- | Convert to the alpha16 representation; already matching values retain their fields.
+  color-alpha16-model :: ColorModel
+  color-alpha16-model = StandardModel Alpha16Kind
+
+  -- | Construct opaque8-bit gray; raw channels are retained without alpha clamping.
+  color-gray8 :: U8 -> Color
+  color-gray8 channel = StoredColor Gray8Kind (pack8 channel 0 0 0)
+
+  -- | Observe exact raw gray8 fields, returning absent for other representations.
+  color-gray8-components :: Color -> Option U8
+  color-gray8-components value = case value of
+    StoredColor Gray8Kind word -> Some (byte-at word 0)
+    _ -> None
+
+  -- | Convert to the gray8 representation; already matching values retain their fields.
+  color-gray8-model :: ColorModel
+  color-gray8-model = StandardModel Gray8Kind
+
+  -- | Construct opaque16-bit gray; raw channels are retained without alpha clamping.
+  color-gray16 :: U16 -> Color
+  color-gray16 channel = StoredColor Gray16Kind (pack16 channel 0 0 0)
+
+  -- | Observe exact raw gray16 fields, returning absent for other representations.
+  color-gray16-components :: Color -> Option U16
+  color-gray16-components value = case value of
+    StoredColor Gray16Kind word -> Some (short-at word 0)
+    _ -> None
+
+  -- | Convert to the gray16 representation; already matching values retain their fields.
+  color-gray16-model :: ColorModel
+  color-gray16-model = StandardModel Gray16Kind
+
+  -- | Construct opaque8-bit luma and chroma; raw channels are retained without alpha clamping.
+  color-ycbcr :: U8 -> U8 -> U8 -> Color
+  color-ycbcr y cb cr = StoredColor YcbcrKind (pack8 y cb cr 0)
+
+  -- | Observe exact raw ycbcr fields, returning absent for other representations.
+  color-ycbcr-components :: Color -> Option (U8, U8, U8)
+  color-ycbcr-components value = case value of
+    StoredColor YcbcrKind word -> Some ((byte-at word 0, byte-at word 8, byte-at word 16))
+    _ -> None
+
+  -- | Convert to the ycbcr representation; already matching values retain their fields.
+  color-ycbcr-model :: ColorModel
+  color-ycbcr-model = StandardModel YcbcrKind
+
+  -- | Construct straight8-bit luma, chroma and alpha; raw channels are retained without alpha clamping.
+  color-ycbcra :: U8 -> U8 -> U8 -> U8 -> Color
+  color-ycbcra y cb cr a = StoredColor YcbcraKind (pack8 y cb cr a)
+
+  -- | Observe exact raw ycbcra fields, returning absent for other representations.
+  color-ycbcra-components :: Color -> Option (U8, U8, U8, U8)
+  color-ycbcra-components value = case value of
+    StoredColor YcbcraKind word -> Some ((byte-at word 0, byte-at word 8, byte-at word 16, byte-at word 24))
+    _ -> None
+
+  -- | Convert to the ycbcra representation; already matching values retain their fields.
+  color-ycbcra-model :: ColorModel
+  color-ycbcra-model = StandardModel YcbcraKind
+
+  -- | Construct opaque8-bit cyan, magenta, yellow and black; raw channels are retained without alpha clamping.
+  color-cmyk :: U8 -> U8 -> U8 -> U8 -> Color
+  color-cmyk c m y k = StoredColor CmykKind (pack8 c m y k)
+
+  -- | Observe exact raw cmyk fields, returning absent for other representations.
+  color-cmyk-components :: Color -> Option (U8, U8, U8, U8)
+  color-cmyk-components value = case value of
+    StoredColor CmykKind word -> Some ((byte-at word 0, byte-at word 8, byte-at word 16, byte-at word 24))
+    _ -> None
+
+  -- | Convert to the cmyk representation; already matching values retain their fields.
+  color-cmyk-model :: ColorModel
+  color-cmyk-model = StandardModel CmykKind
+
+  -- | Observe the embedded luma/chroma value without changing the independent alpha channel.
+  color-ycbcra-base :: Color -> Option Color
+  color-ycbcra-base value = case value of
+    StoredColor YcbcraKind word -> Some (color-ycbcr (byte-at word 0) (byte-at word 8) (byte-at word 16))
+    _ -> None
+
+  -- | Preserve the conventional opaque black grayscale representation.
+  color-black :: Color
+  color-black = color-gray16 0
+
+  -- | Preserve the conventional opaque white grayscale representation.
+  color-white :: Color
+  color-white = color-gray16 65535
+
+  -- | Preserve the zero-alpha-only representation of transparency.
+  color-transparent :: Color
+  color-transparent = color-alpha16 0
+
+  -- | Preserve the full-alpha-only representation of opacity.
+  color-opaque :: Color
+  color-opaque = color-alpha16 65535
+
+  -- | Retain a pure model callback including its possible absent result.
+  color-model :: (Color -> Option Color) -> ColorModel
+  color-model callback = CallbackModel callback
+
+  -- | Retain a total pure model callback, wrapping its returned color as present.
+  color-model-total :: (Color -> Color) -> ColorModel
+  color-model-total callback = CallbackModel (\value -> Some (callback value))
+
+  -- | Observe a standard target kind; callbacks and palettes have no standard target tag.
+  color-model-kind :: ColorModel -> Option ColorKind
+  color-model-kind model = case model of StandardModel kind -> Some kind; _ -> None
+
+  -- | Dispatch an explicit conversion without adding mutable state or hidden registration.
+  color-convert :: ColorModel -> Color -> Option Color
+  color-convert model value = case model of
+    StandardModel kind -> Some (convert-standard kind value)
+    CallbackModel callback -> callback value
+    PaletteModel palette -> color-palette-convert palette value
+
+  -- | Observe sixteen-bit premultiplied channels widened for multiplication without overflow.
+  color-rgba :: Color -> (U32, U32, U32, U32)
+  color-rgba value = let word = rgba-word value in
+    (u16-to-u32 (short-at word 0), u16-to-u32 (short-at word 16), u16-to-u32 (short-at word 32), u16-to-u32 (short-at word 48))
+
+  -- | Expand a bounded scalar channel into all four sixteen-bit lanes.
+  repeated-word :: U16 -> U64
+  repeated-word channel = pack16 channel channel channel channel
+
+  -- | Observe the exact16-bit value without an intervening8-bit conversion.
+  rgba-word :: Color -> U64
+  rgba-word value = case value of
+    SourceColor callback -> callback ()
+    StoredColor kind word -> case kind of
+      Rgba8Kind -> expand8 word
+      Rgba16Kind -> word
+      Nrgba8Kind -> premultiply (expand8 word)
+      Nrgba16Kind -> premultiply word
+      Alpha8Kind -> repeated-word (wrapping-mul-u16 (u8-to-u16 (byte-at word 0)) 257)
+      Alpha16Kind -> repeated-word (short-at word 0)
+      Gray8Kind -> let y = wrapping-mul-u16 (u8-to-u16 (byte-at word 0)) 257 in pack16 y y y 65535
+      Gray16Kind -> let y = short-at word 0 in pack16 y y y 65535
+      YcbcrKind -> ycbcr16 word
+      YcbcraKind -> let rgb = ycbcr16 word in premultiply (pack16 (short-at rgb 0) (short-at rgb 16) (short-at rgb 32) (wrapping-mul-u16 (u8-to-u16 (byte-at word 24)) 257))
+      CmykKind -> cmyk16 word
+      RgbaSourceKind -> word
+
+  -- | Reduce high bytes only after all sixteen-bit arithmetic is complete.
+  narrow8 :: U64 -> U64
+  narrow8 word = pack8 (wrapping-u16-to-u8 (wrapping-shr-u16 (short-at word 0) 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 (short-at word 16) 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 (short-at word 32) 8)) (wrapping-u16-to-u8 (wrapping-shr-u16 (short-at word 48) 8))
+
+  -- | Preserve same-model fields, otherwise perform the exact target rounding sequence.
+  convert-standard :: ColorKind -> Color -> Color
+  convert-standard kind value = if same-kind kind (color-kind value) then value else
+    let word = rgba-word value in
+    case kind of
+      Rgba8Kind -> StoredColor kind (narrow8 word)
+      Rgba16Kind -> StoredColor kind word
+      Nrgba8Kind -> StoredColor kind (narrow8 (if eq-u16 (short-at word 48) 0 then 0 else unpremultiply word))
+      Nrgba16Kind -> StoredColor kind (if eq-u16 (short-at word 48) 0 then 0 else unpremultiply word)
+      Alpha8Kind -> color-alpha8 (wrapping-u16-to-u8 (wrapping-shr-u16 (short-at word 48) 8))
+      Alpha16Kind -> color-alpha16 (short-at word 48)
+      Gray8Kind -> color-gray8 (wrapping-u32-to-u8 (wrapping-shr-u32 (gray-sum word) 24))
+      Gray16Kind -> color-gray16 (wrapping-u32-to-u16 (wrapping-shr-u32 (gray-sum word) 16))
+      YcbcrKind -> StoredColor kind (rgb-ycbcr (narrow8 word))
+      YcbcraKind -> case value of
+        StoredColor YcbcrKind raw -> StoredColor kind (bit-or-u64 raw 4278190080)
+        _ -> StoredColor kind (bit-or-u64 (rgb-ycbcr (narrow8 (unpremultiply word))) (wrapping-shl-u64 (u8-to-u64 (wrapping-u16-to-u8 (wrapping-shr-u16 (short-at word 48) 8))) 24))
+      CmykKind -> StoredColor kind (rgb-cmyk (narrow8 word))
+      RgbaSourceKind -> value
+
+  -- | Convert an8-bit RGB triple with exact fixed-point luma/chroma rounding.
+  color-rgb-to-ycbcr :: U8 -> U8 -> U8 -> (U8, U8, U8)
+  color-rgb-to-ycbcr r g b = let word = rgb-ycbcr (pack8 r g b 0) in (byte-at word 0, byte-at word 8, byte-at word 16)
+
+  -- | Convert an8-bit luma/chroma triple with saturated channels and y-dependent rounding.
+  color-ycbcr-to-rgb :: U8 -> U8 -> U8 -> (U8, U8, U8)
+  color-ycbcr-to-rgb y cb cr = let word = narrow8 (ycbcr16 (pack8 y cb cr 0)) in (byte-at word 0, byte-at word 8, byte-at word 16)
+
+  -- | Convert an8-bit RGB triple with the explicit all-black singularity.
+  color-rgb-to-cmyk :: U8 -> U8 -> U8 -> (U8, U8, U8, U8)
+  color-rgb-to-cmyk r g b = let word = rgb-cmyk (pack8 r g b 0) in (byte-at word 0, byte-at word 8, byte-at word 16, byte-at word 24)
+
+  -- | Convert8-bit ink channels through16-bit products before reducing precision.
+  color-cmyk-to-rgb :: U8 -> U8 -> U8 -> U8 -> (U8, U8, U8)
+  color-cmyk-to-rgb c m y k = let word = narrow8 (cmyk16 (pack8 c m y k)) in (byte-at word 0, byte-at word 8, byte-at word 16)
+
+  -- | Capture an immutable color sequence, including an explicit empty palette.
+  color-palette :: List Color -> ColorPalette
+  color-palette colors = Palette colors
+
+  -- | Observe the same immutable color values in their original order.
+  color-palette-colors :: ColorPalette -> List Color
+  color-palette-colors palette = case palette of Palette colors -> colors
+
+  -- | Treat a palette as an explicit model; empty conversion remains absent.
+  color-palette-model :: ColorPalette -> ColorModel
+  color-palette-model palette = PaletteModel palette
+
+  -- | Return the first nearest index using all four premultiplied channels; empty is zero.
+  color-palette-index :: ColorPalette -> Color -> Nat
+  color-palette-index palette value = case palette of
+    Palette colors -> case nearest colors (rgba-word value) 0 4294967295 None of
+      None -> 0
+      Some (index, selected) -> index
+
+  -- | Return the original nearest color, with absence for an empty palette.
+  color-palette-convert :: ColorPalette -> Color -> Option Color
+  color-palette-convert palette value = case palette of
+    Palette colors -> case colors of
+      Nil -> None
+      Cons first tail -> case nearest colors (rgba-word value) 0 4294967295 None of
+        None -> None
+        Some (index, selected) -> Some selected
+
+  -- | Traverse in order; per-channel squared distances are truncated before summing.
+  nearest :: List Color -> U64 -> Nat -> U32 -> Option (Nat, Color) -> Option (Nat, Color)
+  nearest colors query index best selected = case colors of
+    Nil -> selected
+    Cons candidate tail -> let distance = distance4 query (rgba-word candidate) in
+      if lt-u32 distance best then
+        if eq-u32 distance 0 then Some (index, candidate)
+        else nearest tail query (index + 1) distance (Some (index, candidate))
+      else nearest tail query (index + 1) best selected
+
+  -- | Expand four packed bytes to sixteen-bit lanes by exact byte duplication.
+  prim expand8 :: U64 -> U64 where
+    llvm {
+      %low = trunc i64 %0 to i32
+      %bytes = bitcast i32 %low to <4 x i8>
+      %wide = zext <4 x i8> %bytes to <4 x i16>
+      %expanded = mul <4 x i16> %wide, <i16 257, i16 257, i16 257, i16 257>
+      %result = bitcast <4 x i16> %expanded to i64
+      ret i64 %result
+    }
+
+  -- | Multiply straight RGB by alpha with exact truncating division; alpha stays unchanged.
+  prim premultiply :: U64 -> U64 where
+    llvm {
+      %lanes = bitcast i64 %0 to <4 x i16>
+      %wide = zext <4 x i16> %lanes to <4 x i32>
+      %alphawide = lshr i64 %0, 48
+      %alpha = trunc i64 %alphawide to i32
+      %seed = insertelement <4 x i32> undef, i32 %alpha, i32 0
+      %factor = shufflevector <4 x i32> %seed, <4 x i32> undef, <4 x i32> zeroinitializer
+      %product = mul <4 x i32> %wide, %factor
+      %scaled = udiv <4 x i32> %product, <i32 65535, i32 65535, i32 65535, i32 65535>
+      %narrow = trunc <4 x i32> %scaled to <4 x i16>
+      %packed = bitcast <4 x i16> %narrow to i64
+      %rgb = and i64 %packed, 281474976710655
+      %originalalpha = and i64 %0, -281474976710656
+      %result = or i64 %rgb, %originalalpha
+      ret i64 %result
+    }
+
+  -- | Unpremultiply bounded channels; zero alpha leaves the input for explicit caller policy.
+  prim unpremultiply :: U64 -> U64 where
+    llvm {
+      %lanes = bitcast i64 %0 to <4 x i16>
+      %wide = zext <4 x i16> %lanes to <4 x i32>
+      %alphawide = lshr i64 %0, 48
+      %alpha = trunc i64 %alphawide to i32
+      %zero = icmp eq i32 %alpha, 0
+      %divisor = select i1 %zero, i32 1, i32 %alpha
+      %seed = insertelement <4 x i32> undef, i32 %divisor, i32 0
+      %factor = shufflevector <4 x i32> %seed, <4 x i32> undef, <4 x i32> zeroinitializer
+      %product = mul <4 x i32> %wide, <i32 65535, i32 65535, i32 65535, i32 65535>
+      %scaled = udiv <4 x i32> %product, %factor
+      %narrow = trunc <4 x i32> %scaled to <4 x i16>
+      %packed = bitcast <4 x i16> %narrow to i64
+      %rgb = and i64 %packed, 281474976710655
+      %originalalpha = and i64 %0, -281474976710656
+      %result = or i64 %rgb, %originalalpha
+      %selected = select i1 %zero, i64 %0, i64 %result
+      ret i64 %selected
+    }
+
+  -- | Accumulate exact grayscale coefficients and rounding within the proved32-bit bound.
+  prim gray-sum :: U64 -> U32 where
+    llvm {
+      %shift0 = lshr i64 %0, 0
+      %lane0 = trunc i64 %shift0 to i16
+      %wide0 = zext i16 %lane0 to i32
+      %shift1 = lshr i64 %0, 16
+      %lane1 = trunc i64 %shift1 to i16
+      %wide1 = zext i16 %lane1 to i32
+      %shift2 = lshr i64 %0, 32
+      %lane2 = trunc i64 %shift2 to i16
+      %wide2 = zext i16 %lane2 to i32
+      %shift3 = lshr i64 %0, 48
+      %lane3 = trunc i64 %shift3 to i16
+      %wide3 = zext i16 %lane3 to i32
+      %r = mul i32 %wide0, 19595
+      %g = mul i32 %wide1, 38470
+      %b = mul i32 %wide2, 7471
+      %rg = add i32 %r, %g
+      %rgb = add i32 %rg, %b
+      %rounded = add i32 %rgb, 32768
+      ret i32 %rounded
+    }
+
+  -- | Convert packed luma/chroma directly to saturated16-bit RGB with full fixed-point precision.
+  prim ycbcr16 :: U64 -> U64 where
+    llvm {
+      %shift0 = lshr i64 %0, 0
+      %lane0 = trunc i64 %shift0 to i8
+      %wide0 = zext i8 %lane0 to i32
+      %shift1 = lshr i64 %0, 8
+      %lane1 = trunc i64 %shift1 to i8
+      %wide1 = zext i8 %lane1 to i32
+      %shift2 = lshr i64 %0, 16
+      %lane2 = trunc i64 %shift2 to i8
+      %wide2 = zext i8 %lane2 to i32
+      %shift3 = lshr i64 %0, 24
+      %lane3 = trunc i64 %shift3 to i8
+      %wide3 = zext i8 %lane3 to i32
+      %yy = mul i32 %wide0, 65793
+      %cb = sub i32 %wide1, 128
+      %cr = sub i32 %wide2, 128
+      %rcr = mul i32 %cr, 91881
+      %rterm = add i32 %yy, %rcr
+      %gcb = mul i32 %cb, 22554
+      %gcr = mul i32 %cr, 46802
+      %gterms = add i32 %gcb, %gcr
+      %gterm = sub i32 %yy, %gterms
+      %bcb = mul i32 %cb, 116130
+      %bterm = add i32 %yy, %bcb
+      %r = ashr i32 %rterm, 8
+      %negative_r = icmp slt i32 %r, 0
+      %low_r = select i1 %negative_r, i32 0, i32 %r
+      %large_r = icmp sgt i32 %low_r, 65535
+      %clip_r = select i1 %large_r, i32 65535, i32 %low_r
+      %g = ashr i32 %gterm, 8
+      %negative_g = icmp slt i32 %g, 0
+      %low_g = select i1 %negative_g, i32 0, i32 %g
+      %large_g = icmp sgt i32 %low_g, 65535
+      %clip_g = select i1 %large_g, i32 65535, i32 %low_g
+      %b = ashr i32 %bterm, 8
+      %negative_b = icmp slt i32 %b, 0
+      %low_b = select i1 %negative_b, i32 0, i32 %b
+      %large_b = icmp sgt i32 %low_b, 65535
+      %clip_b = select i1 %large_b, i32 65535, i32 %low_b
+      %outwide0 = zext i32 %clip_r to i64
+      %outshift0 = shl i64 %outwide0, 0
+      %outwide1 = zext i32 %clip_g to i64
+      %outshift1 = shl i64 %outwide1, 16
+      %outwide2 = zext i32 %clip_b to i64
+      %outshift2 = shl i64 %outwide2, 32
+      %outsum1 = or i64 %outshift0, %outshift1
+      %outsum2 = or i64 %outsum1, %outshift2
+      %opaque = or i64 %outsum2, 18446462598732840960
+      ret i64 %opaque
+    }
+
+  -- | Convert8-bit RGB to fixed-point luma/chroma with explicit saturated rounding.
+  prim rgb-ycbcr :: U64 -> U64 where
+    llvm {
+      %shift0 = lshr i64 %0, 0
+      %lane0 = trunc i64 %shift0 to i8
+      %wide0 = zext i8 %lane0 to i32
+      %shift1 = lshr i64 %0, 8
+      %lane1 = trunc i64 %shift1 to i8
+      %wide1 = zext i8 %lane1 to i32
+      %shift2 = lshr i64 %0, 16
+      %lane2 = trunc i64 %shift2 to i8
+      %wide2 = zext i8 %lane2 to i32
+      %shift3 = lshr i64 %0, 24
+      %lane3 = trunc i64 %shift3 to i8
+      %wide3 = zext i8 %lane3 to i32
+      %yr = mul i32 %wide0, 19595
+      %yg = mul i32 %wide1, 38470
+      %yb = mul i32 %wide2, 7471
+      %yrg = add i32 %yr, %yg
+      %yrgb = add i32 %yrg, %yb
+      %yround = add i32 %yrgb, 32768
+      %y = ashr i32 %yround, 16
+      %cbr = mul i32 %wide0, -11056
+      %cbg = mul i32 %wide1, -21712
+      %cbb = mul i32 %wide2, 32768
+      %cbrg = add i32 %cbr, %cbg
+      %cbrgb = add i32 %cbrg, %cbb
+      %cbround = add i32 %cbrgb, 8421376
+      %cb = ashr i32 %cbround, 16
+      %crr = mul i32 %wide0, 32768
+      %crg = mul i32 %wide1, -27440
+      %crb = mul i32 %wide2, -5328
+      %crrg = add i32 %crr, %crg
+      %crrgb = add i32 %crrg, %crb
+      %crround = add i32 %crrgb, 8421376
+      %cr = ashr i32 %crround, 16
+      %negative_y = icmp slt i32 %y, 0
+      %low_y = select i1 %negative_y, i32 0, i32 %y
+      %large_y = icmp sgt i32 %low_y, 255
+      %clip_y = select i1 %large_y, i32 255, i32 %low_y
+      %negative_cb = icmp slt i32 %cb, 0
+      %low_cb = select i1 %negative_cb, i32 0, i32 %cb
+      %large_cb = icmp sgt i32 %low_cb, 255
+      %clip_cb = select i1 %large_cb, i32 255, i32 %low_cb
+      %negative_cr = icmp slt i32 %cr, 0
+      %low_cr = select i1 %negative_cr, i32 0, i32 %cr
+      %large_cr = icmp sgt i32 %low_cr, 255
+      %clip_cr = select i1 %large_cr, i32 255, i32 %low_cr
+      %outwide0 = zext i32 %clip_y to i64
+      %outshift0 = shl i64 %outwide0, 0
+      %outwide1 = zext i32 %clip_cb to i64
+      %outshift1 = shl i64 %outwide1, 8
+      %outwide2 = zext i32 %clip_cr to i64
+      %outshift2 = shl i64 %outwide2, 16
+      %outsum1 = or i64 %outshift0, %outshift1
+      %outsum2 = or i64 %outsum1, %outshift2
+      ret i64 %outsum2
+    }
+
+  -- | Convert RGB through its maximum channel, keeping all-black division explicitly guarded.
+  prim rgb-cmyk :: U64 -> U64 where
+    llvm {
+      %shift0 = lshr i64 %0, 0
+      %lane0 = trunc i64 %shift0 to i8
+      %wide0 = zext i8 %lane0 to i32
+      %shift1 = lshr i64 %0, 8
+      %lane1 = trunc i64 %shift1 to i8
+      %wide1 = zext i8 %lane1 to i32
+      %shift2 = lshr i64 %0, 16
+      %lane2 = trunc i64 %shift2 to i8
+      %wide2 = zext i8 %lane2 to i32
+      %shift3 = lshr i64 %0, 24
+      %lane3 = trunc i64 %shift3 to i8
+      %wide3 = zext i8 %lane3 to i32
+      %rg = icmp ugt i32 %wide0, %wide1
+      %maxrg = select i1 %rg, i32 %wide0, i32 %wide1
+      %rgb = icmp ugt i32 %maxrg, %wide2
+      %white = select i1 %rgb, i32 %maxrg, i32 %wide2
+      %zero = icmp eq i32 %white, 0
+      %divisor = select i1 %zero, i32 1, i32 %white
+      %rdiff = sub i32 %white, %wide0
+      %gdiff = sub i32 %white, %wide1
+      %bdiff = sub i32 %white, %wide2
+      %rmul = mul i32 %rdiff, 255
+      %gmul = mul i32 %gdiff, 255
+      %bmul = mul i32 %bdiff, 255
+      %c = udiv i32 %rmul, %divisor
+      %m = udiv i32 %gmul, %divisor
+      %y = udiv i32 %bmul, %divisor
+      %k = sub i32 255, %white
+      %outwide0 = zext i32 %c to i64
+      %outshift0 = shl i64 %outwide0, 0
+      %outwide1 = zext i32 %m to i64
+      %outshift1 = shl i64 %outwide1, 8
+      %outwide2 = zext i32 %y to i64
+      %outshift2 = shl i64 %outwide2, 16
+      %outwide3 = zext i32 %k to i64
+      %outshift3 = shl i64 %outwide3, 24
+      %outsum1 = or i64 %outshift0, %outshift1
+      %outsum2 = or i64 %outsum1, %outshift2
+      %outsum3 = or i64 %outsum2, %outshift3
+      ret i64 %outsum3
+    }
+
+  -- | Convert ink channels through full16-bit products before any8-bit reduction.
+  prim cmyk16 :: U64 -> U64 where
+    llvm {
+      %shift0 = lshr i64 %0, 0
+      %lane0 = trunc i64 %shift0 to i8
+      %wide0 = zext i8 %lane0 to i32
+      %shift1 = lshr i64 %0, 8
+      %lane1 = trunc i64 %shift1 to i8
+      %wide1 = zext i8 %lane1 to i32
+      %shift2 = lshr i64 %0, 16
+      %lane2 = trunc i64 %shift2 to i8
+      %wide2 = zext i8 %lane2 to i32
+      %shift3 = lshr i64 %0, 24
+      %lane3 = trunc i64 %shift3 to i8
+      %wide3 = zext i8 %lane3 to i32
+      %kmul = mul i32 %wide3, 257
+      %white = sub i32 65535, %kmul
+      %inkr = mul i32 %wide0, 257
+      %inverser = sub i32 65535, %inkr
+      %productr = mul i32 %inverser, %white
+      %r = udiv i32 %productr, 65535
+      %inkg = mul i32 %wide1, 257
+      %inverseg = sub i32 65535, %inkg
+      %productg = mul i32 %inverseg, %white
+      %g = udiv i32 %productg, 65535
+      %inkb = mul i32 %wide2, 257
+      %inverseb = sub i32 65535, %inkb
+      %productb = mul i32 %inverseb, %white
+      %b = udiv i32 %productb, 65535
+      %outwide0 = zext i32 %r to i64
+      %outshift0 = shl i64 %outwide0, 0
+      %outwide1 = zext i32 %g to i64
+      %outshift1 = shl i64 %outwide1, 16
+      %outwide2 = zext i32 %b to i64
+      %outshift2 = shl i64 %outwide2, 32
+      %outsum1 = or i64 %outshift0, %outshift1
+      %outsum2 = or i64 %outsum1, %outshift2
+      %opaque = or i64 %outsum2, 18446462598732840960
+      ret i64 %opaque
+    }
+
+  -- | Sum four squared16-bit differences after per-lane truncation, without overflowing32 bits.
+  prim distance4 :: U64 -> U64 -> U32 where
+    llvm {
+      %left = bitcast i64 %0 to <4 x i16>
+      %right = bitcast i64 %1 to <4 x i16>
+      %leftwide = zext <4 x i16> %left to <4 x i32>
+      %rightwide = zext <4 x i16> %right to <4 x i32>
+      %difference = sub <4 x i32> %leftwide, %rightwide
+      %square = mul <4 x i32> %difference, %difference
+      %scaled = lshr <4 x i32> %square, <i32 2, i32 2, i32 2, i32 2>
+      %r = extractelement <4 x i32> %scaled, i32 0
+      %g = extractelement <4 x i32> %scaled, i32 1
+      %b = extractelement <4 x i32> %scaled, i32 2
+      %a = extractelement <4 x i32> %scaled, i32 3
+      %rg = add i32 %r, %g
+      %ba = add i32 %b, %a
+      %sum = add i32 %rg, %ba
+      ret i32 %sum
+    }

@@ -1,0 +1,346 @@
+-- | Execute public color/model/palette observations against an independent fixture table.
+module Main where
+  import Image.Color
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  -- | Return the independent source-color count.
+  foreign import ccall "color_fixture_total" raw-total :: forall (r :: Region). I32 ->{IO r} I64
+
+  -- | Read an expected original or model-output representation identity.
+  foreign import ccall "color_fixture_kind" raw-kind :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+
+  -- | Read one exact original or model-output raw field.
+  foreign import ccall "color_fixture_field" raw-field :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I64
+
+  -- | Read one independently observed premultiplied channel.
+  foreign import ccall "color_fixture_rgba" raw-rgba :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I64
+
+  -- | Read complete direct-conversion helper inputs and outputs.
+  foreign import ccall "color_fixture_helpers" raw-helpers :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I64
+
+  -- | Observe the independent helper family count.
+  foreign import ccall "color_fixture_helper_count" raw-helper-count :: forall (r :: Region). I64 ->{IO r} I64
+
+  -- | Observe the independent palette-case count.
+  foreign import ccall "color_fixture_palette_count" raw-palette-count :: forall (r :: Region). I32 ->{IO r} I64
+
+  -- | Observe the original palette sequence length.
+  foreign import ccall "color_fixture_palette_size" raw-palette-size :: forall (r :: Region). I64 ->{IO r} I64
+
+  -- | Read a palette element or query identity.
+  foreign import ccall "color_fixture_palette_kind" raw-palette-kind :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+
+  -- | Read a palette element or query raw field.
+  foreign import ccall "color_fixture_palette_field" raw-palette-field :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I64
+
+  -- | Read the exact first nearest index.
+  foreign import ccall "color_fixture_palette_index" raw-palette-index :: forall (r :: Region). I64 ->{IO r} I64
+
+  -- | Read optional selected identity or its exact fields and channels.
+  foreign import ccall "color_fixture_palette_result" raw-palette-result :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+
+  -- | Read independently captured standard constant identity, fields or canonical channels.
+  foreign import ccall "color_fixture_constant" raw-constant :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+
+  -- | Retain the exact first failing family, row and model in foreign diagnostics.
+  foreign import ccall "color_fixture_failure" raw-failure :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I32
+
+  -- | Give each public representation tag a stable fixture-only code.
+  kind-code :: ColorKind -> I64
+  kind-code kind = case kind of
+    Rgba8Kind -> 0
+    Rgba16Kind -> 1
+    Nrgba8Kind -> 2
+    Nrgba16Kind -> 3
+    Alpha8Kind -> 4
+    Alpha16Kind -> 5
+    Gray8Kind -> 6
+    Gray16Kind -> 7
+    YcbcrKind -> 8
+    YcbcraKind -> 9
+    CmykKind -> 10
+    RgbaSourceKind -> 11
+
+  -- | Recover a retained four-element managed channel list after its factory returns.
+  retained-channels :: List U16 -> (U16, U16, U16, U16)
+  retained-channels values = case values of
+    Cons r (Cons g (Cons b (Cons a tail))) -> (r, g, b, a)
+    _ -> (0, 0, 0, 0)
+
+  -- | Capture actual managed state in a pure custom color callback, without eager observation.
+  retained-source :: U16 -> U16 -> U16 -> U16 -> Color
+  retained-source r g b a =
+    let fields = Cons r (Cons g (Cons b (Cons a Nil))) in
+    color-source (\unit -> retained-channels fields)
+
+  -- | Construct exact fixed-width public values from a fixture identity and bounded fields.
+  from-fields :: I64 -> U16 -> U16 -> U16 -> U16 -> Color
+  from-fields kind c0 c1 c2 c3 =
+    if eq-i64 kind 0 then color-rgba8 (wrapping-u16-to-u8 c0) (wrapping-u16-to-u8 c1) (wrapping-u16-to-u8 c2) (wrapping-u16-to-u8 c3)
+    else if eq-i64 kind 1 then color-rgba16 c0 c1 c2 c3
+    else if eq-i64 kind 2 then color-nrgba8 (wrapping-u16-to-u8 c0) (wrapping-u16-to-u8 c1) (wrapping-u16-to-u8 c2) (wrapping-u16-to-u8 c3)
+    else if eq-i64 kind 3 then color-nrgba16 c0 c1 c2 c3
+    else if eq-i64 kind 4 then color-alpha8 (wrapping-u16-to-u8 c0)
+    else if eq-i64 kind 5 then color-alpha16 c0
+    else if eq-i64 kind 6 then color-gray8 (wrapping-u16-to-u8 c0)
+    else if eq-i64 kind 7 then color-gray16 c0
+    else if eq-i64 kind 8 then color-ycbcr (wrapping-u16-to-u8 c0) (wrapping-u16-to-u8 c1) (wrapping-u16-to-u8 c2)
+    else if eq-i64 kind 9 then color-ycbcra (wrapping-u16-to-u8 c0) (wrapping-u16-to-u8 c1) (wrapping-u16-to-u8 c2) (wrapping-u16-to-u8 c3)
+    else if eq-i64 kind 10 then color-cmyk (wrapping-u16-to-u8 c0) (wrapping-u16-to-u8 c1) (wrapping-u16-to-u8 c2) (wrapping-u16-to-u8 c3)
+    else retained-source c0 c1 c2 c3
+
+  -- | Read a source color once; all channel callbacks may outlive this factory frame.
+  fixture-color :: forall (r :: Region). using (io :: Io r) => I64 ->{IO r} Color
+  fixture-color index = from-fields (raw-kind index -1) (wrapping-i64-to-u16 (raw-field index -1 0)) (wrapping-i64-to-u16 (raw-field index -1 1)) (wrapping-i64-to-u16 (raw-field index -1 2)) (wrapping-i64-to-u16 (raw-field index -1 3))
+
+  -- | Select every real builtin model without duplicating its conversion implementation.
+  fixture-model :: I64 -> ColorModel
+  fixture-model index =
+    if eq-i64 index 0 then color-rgba8-model
+    else if eq-i64 index 1 then color-rgba16-model
+    else if eq-i64 index 2 then color-nrgba8-model
+    else if eq-i64 index 3 then color-nrgba16-model
+    else if eq-i64 index 4 then color-alpha8-model
+    else if eq-i64 index 5 then color-alpha16-model
+    else if eq-i64 index 6 then color-gray8-model
+    else if eq-i64 index 7 then color-gray16-model
+    else if eq-i64 index 8 then color-ycbcr-model
+    else if eq-i64 index 9 then color-ycbcra-model
+    else if eq-i64 index 10 then color-cmyk-model
+    else color-model (\value -> None)
+
+  -- | Verify exact raw fields through the matching typed public observer.
+  fields-match :: Color -> (U16, U16, U16, U16) -> Bool
+  fields-match value expected = case expected of
+    (e0, e1, e2, e3) -> case color-kind value of
+      Rgba8Kind -> case color-rgba8-components value of Some (c0, c1, c2, c3) -> eq-u16 (u8-to-u16 c0) e0 && eq-u16 (u8-to-u16 c1) e1 && eq-u16 (u8-to-u16 c2) e2 && eq-u16 (u8-to-u16 c3) e3; None -> False
+      Rgba16Kind -> case color-rgba16-components value of Some (c0, c1, c2, c3) -> eq-u16 c0 e0 && eq-u16 c1 e1 && eq-u16 c2 e2 && eq-u16 c3 e3; None -> False
+      Nrgba8Kind -> case color-nrgba8-components value of Some (c0, c1, c2, c3) -> eq-u16 (u8-to-u16 c0) e0 && eq-u16 (u8-to-u16 c1) e1 && eq-u16 (u8-to-u16 c2) e2 && eq-u16 (u8-to-u16 c3) e3; None -> False
+      Nrgba16Kind -> case color-nrgba16-components value of Some (c0, c1, c2, c3) -> eq-u16 c0 e0 && eq-u16 c1 e1 && eq-u16 c2 e2 && eq-u16 c3 e3; None -> False
+      Alpha8Kind -> case color-alpha8-components value of Some c0 -> eq-u16 (u8-to-u16 c0) e0; None -> False
+      Alpha16Kind -> case color-alpha16-components value of Some c0 -> eq-u16 c0 e0; None -> False
+      Gray8Kind -> case color-gray8-components value of Some c0 -> eq-u16 (u8-to-u16 c0) e0; None -> False
+      Gray16Kind -> case color-gray16-components value of Some c0 -> eq-u16 c0 e0; None -> False
+      YcbcrKind -> case color-ycbcr-components value of Some (c0, c1, c2) -> eq-u16 (u8-to-u16 c0) e0 && eq-u16 (u8-to-u16 c1) e1 && eq-u16 (u8-to-u16 c2) e2; None -> False
+      YcbcraKind -> case color-ycbcra-components value of Some (c0, c1, c2, c3) -> eq-u16 (u8-to-u16 c0) e0 && eq-u16 (u8-to-u16 c1) e1 && eq-u16 (u8-to-u16 c2) e2 && eq-u16 (u8-to-u16 c3) e3; None -> False
+      CmykKind -> case color-cmyk-components value of Some (c0, c1, c2, c3) -> eq-u16 (u8-to-u16 c0) e0 && eq-u16 (u8-to-u16 c1) e1 && eq-u16 (u8-to-u16 c2) e2 && eq-u16 (u8-to-u16 c3) e3; None -> False
+      RgbaSourceKind -> True
+
+  -- | Observe the embedded luma/chroma record with an independently retained alpha channel.
+  embedded-match :: Color -> Bool
+  embedded-match value = case color-ycbcra-components value of
+    None -> is-none (color-ycbcra-base value)
+    Some (y, cb, cr, a) -> case color-ycbcra-base value of
+      None -> False
+      Some base -> case color-ycbcr-components base of
+        None -> False
+        Some (by, bcb, bcr) -> eq-u8 y by && eq-u8 cb bcb && eq-u8 cr bcr && eq-i64 (kind-code (color-kind base)) 8
+
+  -- | Check every optional observer's exact representation discrimination.
+  observers-match :: Color -> Bool
+  observers-match value =
+    let code = kind-code (color-kind value) in
+    (if eq-i64 code 0 then is-some (color-rgba8-components value) else is-none (color-rgba8-components value)) &&
+    (if eq-i64 code 1 then is-some (color-rgba16-components value) else is-none (color-rgba16-components value)) &&
+    (if eq-i64 code 2 then is-some (color-nrgba8-components value) else is-none (color-nrgba8-components value)) &&
+    (if eq-i64 code 3 then is-some (color-nrgba16-components value) else is-none (color-nrgba16-components value)) &&
+    (if eq-i64 code 4 then is-some (color-alpha8-components value) else is-none (color-alpha8-components value)) &&
+    (if eq-i64 code 5 then is-some (color-alpha16-components value) else is-none (color-alpha16-components value)) &&
+    (if eq-i64 code 6 then is-some (color-gray8-components value) else is-none (color-gray8-components value)) &&
+    (if eq-i64 code 7 then is-some (color-gray16-components value) else is-none (color-gray16-components value)) &&
+    (if eq-i64 code 8 then is-some (color-ycbcr-components value) else is-none (color-ycbcr-components value)) &&
+    (if eq-i64 code 9 then is-some (color-ycbcra-components value) else is-none (color-ycbcra-components value)) &&
+    (if eq-i64 code 10 then is-some (color-cmyk-components value) else is-none (color-cmyk-components value))
+
+  -- | Compare canonical wide channels without confusing source-model fields with premultiplication.
+  rgba-match :: Color -> (U32, U32, U32, U32) -> Bool
+  rgba-match value expected = case expected of
+    (er, eg, eb, ea) -> case color-rgba value of
+      (r, g, b, a) -> eq-u32 r er && eq-u32 g eg && eq-u32 b eb && eq-u32 a ea
+
+  -- | Verify kind, all exposed raw fields, discriminators and canonical channel observations.
+  observation-match :: Color -> I64 -> (U16, U16, U16, U16) -> (U32, U32, U32, U32) -> Bool
+  observation-match value kind fields rgba = eq-i64 (kind-code (color-kind value)) kind && fields-match value fields && observers-match value && embedded-match value && rgba-match value rgba
+
+  -- | Check one original/model result against only independent table values.
+  fixture-match :: forall (r :: Region). using (io :: Io r) => Color -> I64 -> I64 ->{IO r} Bool
+  fixture-match value index model =
+    let fields = (wrapping-i64-to-u16 (raw-field index model 0), wrapping-i64-to-u16 (raw-field index model 1), wrapping-i64-to-u16 (raw-field index model 2), wrapping-i64-to-u16 (raw-field index model 3)) in
+    let rgba = (wrapping-i64-to-u32 (raw-rgba index model 0), wrapping-i64-to-u32 (raw-rgba index model 1), wrapping-i64-to-u32 (raw-rgba index model 2), wrapping-i64-to-u32 (raw-rgba index model 3)) in
+    let correct = observation-match value (raw-kind index model) fields rgba in
+    if correct then True else let reported = raw-failure 0 index model in False
+
+  -- | Retain the original color across every conversion and a final repeated observation.
+  models-match :: forall (r :: Region). using (io :: Io r) => Color -> I64 -> I64 ->{IO r} Bool
+  models-match original index model = if lt-i64 model 11 then
+    let selected = fixture-model model in
+    let tagged = case color-model-kind selected of Some kind -> eq-i64 (kind-code kind) model; None -> False in
+    if tagged then (case color-convert selected original of
+      None -> False
+      Some converted -> if fixture-match converted index model then models-match original index (wrapping-add-i64 model 1) else False)
+    else False
+    else fixture-match original index -1
+
+  -- | Consume all independently captured concrete inputs with runtime-generated progress.
+  vectors-match :: forall (r :: Region). using (io :: Io r) => I64 -> I64 ->{IO r} Bool
+  vectors-match index end = if lt-i64 index end then
+    let original = fixture-color index in
+    if fixture-match original index -1 && models-match original index 0 then vectors-match (wrapping-add-i64 index 1) end else False
+    else True
+
+  -- | Exercise all direct conversion functions independently of model observation precision.
+  helper-match :: forall (r :: Region). using (io :: Io r) => I64 -> I64 ->{IO r} Bool
+  helper-match family index =
+    let c0 = wrapping-i64-to-u8 (raw-helpers family index 0) in
+    let c1 = wrapping-i64-to-u8 (raw-helpers family index 1) in
+    let c2 = wrapping-i64-to-u8 (raw-helpers family index 2) in
+    if eq-i64 family 0 then
+      case color-rgb-to-ycbcr c0 c1 c2 of
+        (y, cb, cr) -> eq-u8 y (wrapping-i64-to-u8 (raw-helpers family index 3)) && eq-u8 cb (wrapping-i64-to-u8 (raw-helpers family index 4)) && eq-u8 cr (wrapping-i64-to-u8 (raw-helpers family index 5))
+    else if eq-i64 family 1 then
+      case color-rgb-to-cmyk c0 c1 c2 of
+        (c, m, y, k) -> eq-u8 c (wrapping-i64-to-u8 (raw-helpers family index 3)) && eq-u8 m (wrapping-i64-to-u8 (raw-helpers family index 4)) && eq-u8 y (wrapping-i64-to-u8 (raw-helpers family index 5)) && eq-u8 k (wrapping-i64-to-u8 (raw-helpers family index 6))
+    else if eq-i64 family 2 then
+      case color-ycbcr-to-rgb c0 c1 c2 of
+        (r, g, b) -> eq-u8 r (wrapping-i64-to-u8 (raw-helpers family index 3)) && eq-u8 g (wrapping-i64-to-u8 (raw-helpers family index 4)) && eq-u8 b (wrapping-i64-to-u8 (raw-helpers family index 5))
+    else
+      case color-cmyk-to-rgb c0 c1 c2 (wrapping-i64-to-u8 (raw-helpers family index 3)) of
+        (r, g, b) -> eq-u8 r (wrapping-i64-to-u8 (raw-helpers family index 4)) && eq-u8 g (wrapping-i64-to-u8 (raw-helpers family index 5)) && eq-u8 b (wrapping-i64-to-u8 (raw-helpers family index 6))
+
+  -- | Traverse a direct-helper family with a runtime supplied length.
+  helpers-match :: forall (r :: Region). using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} Bool
+  helpers-match family index end = if lt-i64 index end then
+    if helper-match family index then helpers-match family (wrapping-add-i64 index 1) end else let reported = raw-failure (wrapping-add-i64 family 1) index -1 in False
+    else True
+
+  -- | Build a live palette element or query through the same exact public constructors.
+  palette-color :: forall (r :: Region). using (io :: Io r) => I64 -> I64 ->{IO r} Color
+  palette-color index slot = from-fields (raw-palette-kind index slot) (wrapping-i64-to-u16 (raw-palette-field index slot 0)) (wrapping-i64-to-u16 (raw-palette-field index slot 1)) (wrapping-i64-to-u16 (raw-palette-field index slot 2)) (wrapping-i64-to-u16 (raw-palette-field index slot 3))
+
+  -- | Preserve original palette order, including explicit emptiness and first ties.
+  palette-colors :: forall (r :: Region). using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} List Color
+  palette-colors index slot end = if lt-i64 slot end then Cons (palette-color index slot) (palette-colors index (wrapping-add-i64 slot 1) end) else Nil
+
+  -- | Compare an optional nearest result with its exact retained source identity and channels.
+  palette-result-match :: forall (r :: Region). using (io :: Io r) => I64 -> Option Color ->{IO r} Bool
+  palette-result-match index result = if lt-i64 (raw-palette-result index 0) 0 then is-none result else case result of
+    None -> False
+    Some value -> observation-match value (raw-palette-result index 0)
+      (wrapping-i64-to-u16 (raw-palette-result index 1), wrapping-i64-to-u16 (raw-palette-result index 2), wrapping-i64-to-u16 (raw-palette-result index 3), wrapping-i64-to-u16 (raw-palette-result index 4))
+      (wrapping-i64-to-u32 (raw-palette-result index 5), wrapping-i64-to-u32 (raw-palette-result index 6), wrapping-i64-to-u32 (raw-palette-result index 7), wrapping-i64-to-u32 (raw-palette-result index 8))
+
+  -- | Observe the exact stored palette sequence through its public immutable accessor.
+  palette-sequence-match :: forall (r :: Region). using (io :: Io r) => List Color -> I64 -> I64 -> I64 ->{IO r} Bool
+  palette-sequence-match colors index slot end = case colors of
+    Nil -> eq-i64 slot end
+    Cons value tail -> if lt-i64 slot end then
+      if eq-i64 (kind-code (color-kind value)) (raw-palette-kind index slot) && fields-match value
+        (wrapping-i64-to-u16 (raw-palette-field index slot 0), wrapping-i64-to-u16 (raw-palette-field index slot 1), wrapping-i64-to-u16 (raw-palette-field index slot 2), wrapping-i64-to-u16 (raw-palette-field index slot 3))
+      then palette-sequence-match tail index (wrapping-add-i64 slot 1) end else False
+      else False
+
+  -- | Check direct and model conversion through aliased immutable palette values.
+  palette-match :: forall (r :: Region). using (io :: Io r) => I64 ->{IO r} Bool
+  palette-match index =
+    let palette = color-palette (palette-colors index 0 (raw-palette-size index)) in
+    let query = palette-color index -1 in
+    let direct = color-palette-convert palette query in
+    let modeled = color-convert (color-palette-model palette) query in
+    let observedIndex = color-palette-index palette query in
+    if observedIndex <= 9223372036854775807 then
+      palette-sequence-match (color-palette-colors palette) index 0 (raw-palette-size index) && eq-i64 (nat-to-i64 observedIndex) (raw-palette-index index) && palette-result-match index direct && palette-result-match index modeled && is-none (color-model-kind (color-palette-model palette))
+    else False
+
+  -- | Traverse independent empty, alpha, exact-match and truncation-tie palette observations.
+  palettes-match :: forall (r :: Region). using (io :: Io r) => I64 -> I64 ->{IO r} Bool
+  palettes-match index end = if lt-i64 index end then
+    if palette-match index then palettes-match (wrapping-add-i64 index 1) end else let reported = raw-failure 5 index -1 in False
+    else True
+
+  -- | Verify a standard color constant against the actual independent representation.
+  constant-match :: forall (r :: Region). using (io :: Io r) => Color -> I64 ->{IO r} Bool
+  constant-match value index = observation-match value (raw-constant index 0)
+    (wrapping-i64-to-u16 (raw-constant index 1), wrapping-i64-to-u16 (raw-constant index 2), wrapping-i64-to-u16 (raw-constant index 3), wrapping-i64-to-u16 (raw-constant index 4))
+    (wrapping-i64-to-u32 (raw-constant index 5), wrapping-i64-to-u32 (raw-constant index 6), wrapping-i64-to-u32 (raw-constant index 7), wrapping-i64-to-u32 (raw-constant index 8))
+
+  -- | Observe live captured bytes with exact16-bit expansion and retained backing ownership.
+  bytes-channels :: Bytes -> (U16, U16, U16, U16)
+  bytes-channels input = if bytes-len input >= 4 then
+    (wrapping-mul-u16 (wrapping-i64-to-u16 (nat-to-i64 (bytes-get input 0))) 257,
+      wrapping-mul-u16 (wrapping-i64-to-u16 (nat-to-i64 (bytes-get input 1))) 257,
+      wrapping-mul-u16 (wrapping-i64-to-u16 (nat-to-i64 (bytes-get input 2))) 257,
+      wrapping-mul-u16 (wrapping-i64-to-u16 (nat-to-i64 (bytes-get input 3))) 257)
+    else (0, 0, 0, 0)
+
+  -- | Return callbacks and an aliased selected color after their caller's owner factory returns.
+  live-owner :: Bytes -> (Color, ColorModel, ColorPalette, Option Color)
+  live-owner input =
+    let original = color-source (\unit -> bytes-channels input) in
+    let model = color-model (\value -> Some (case bytes-channels input of (r, g, b, a) -> color-rgba16 r g b a)) in
+    let palette = color-palette (Cons original (Cons (color-gray8 128) Nil)) in
+    (original, model, palette, color-palette-convert palette color-black)
+
+  -- | Return captured byte owners without retaining the source buffer in the caller.
+  escaped-owner :: U8 -> (Color, ColorModel, ColorPalette, Option Color)
+  escaped-owner channel =
+    let input = bytes-new 4 in
+    let red = bytes-set input 0 (u8-to-nat channel) in
+    let alpha = bytes-set input 3 255 in
+    live-owner input
+
+  -- | Exercise source/model/selected-color callbacks after the allocating frame has returned.
+  escaped-owner-match :: U8 -> Bool
+  escaped-owner-match channel = case escaped-owner channel of
+    (original, model, palette, selected) ->
+      let red = u16-to-u32 (wrapping-mul-u16 (u8-to-u16 channel) 257) in
+      let expected = (red, 0, 0, 65535) in
+      let first = rgba-match original expected in
+      let modeled = case color-convert model color-black of None -> False; Some value -> rgba-match value expected in
+      let retained = case selected of None -> False; Some value -> rgba-match value expected && eq-i64 (kind-code (color-kind value)) 11 in
+      first && modeled && retained && rgba-match original expected && (case color-convert (color-palette-model palette) original of None -> False; Some value -> rgba-match value expected)
+
+  -- | Model and palette callbacks stay live across serialized mutation of their retained owner.
+  live-owner-match :: Unit -> Bool
+  live-owner-match unit =
+    let input = bytes-new 4 in
+    let alpha = bytes-set input 3 255 in
+    case live-owner input of
+      (original, model, palette, selected) ->
+        let before = rgba-match original (0, 0, 0, 65535) && color-palette-index palette color-black == 0 in
+        let red = bytes-set input 0 255 in
+        let green = bytes-set input 1 255 in
+        let blue = bytes-set input 2 255 in
+        let after = rgba-match original (65535, 65535, 65535, 65535) && color-palette-index palette color-black == 1 in
+        let retained = case selected of None -> False; Some value -> rgba-match value (65535, 65535, 65535, 65535) && eq-i64 (kind-code (color-kind value)) 11 in
+        let modeled = case color-convert model color-black of None -> False; Some value -> rgba-match value (65535, 65535, 65535, 65535) && eq-i64 (kind-code (color-kind value)) 1 in
+        before && after && retained && modeled && bytes-len input == 4
+
+  -- | Retain caller callbacks and managed channels through models and selected palette results.
+  ownership-match :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r} Bool
+  ownership-match unit =
+    let source = retained-source (wrapping-i64-to-u16 (raw-field 0 -1 0)) 257 32768 65535 in
+    let identity = color-model-total (\value -> value) in
+    let selected = color-palette-convert (color-palette (Cons source Nil)) source in
+    let original = color-rgba source in
+    let absent = color-convert (color-model (\value -> None)) source in
+    case color-convert identity source of
+      None -> False
+      Some returned -> case selected of
+        None -> False
+        Some paletteValue -> is-none absent && is-none (color-model-kind identity) && rgba-match returned original && rgba-match paletteValue original && eq-i64 (kind-code (color-kind returned)) 11 && eq-i64 (kind-code (color-kind paletteValue)) 11
+
+  -- | Execute all concrete, helper, optional-model, palette and owner observations.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    if vectors-match 0 (raw-total 0) then
+      if helpers-match 0 0 (raw-helper-count 0) && helpers-match 1 0 (raw-helper-count 1) && helpers-match 2 0 (raw-helper-count 2) && helpers-match 3 0 (raw-helper-count 3) then
+        if palettes-match 0 (raw-palette-count 0) then
+          if constant-match color-black 0 && constant-match color-white 1 && constant-match color-transparent 2 && constant-match color-opaque 3 then (if ownership-match () && live-owner-match () && escaped-owner-match (wrapping-i64-to-u8 (raw-field 0 -1 0)) then 0 else 4) else 5
+        else 3
+      else 2
+    else 1

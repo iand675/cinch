@@ -1,0 +1,17 @@
+{
+  "scope": "Additive isolated complete color-operation candidate; current Root parent validation, no production or Native-family admission.",
+  "passed": 2,
+  "failed": 0,
+  "runtime_seconds": 5.45,
+  "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+  "log": "experiments/image-color-v1/parent-release.log",
+  "log_sha256": "7d187df1ff260011fed1b888d722edce7e02e0d4bed76ce71522742dbecbd096",
+  "origin_commit": "8f2e4182",
+  "pending": [
+    "Matched public pipeline timing/review",
+    "Production distribution and generated reference",
+    "Current Native qualification remains separate"
+  ]
+}

@@ -1,0 +1,141 @@
+{
+  "status": "static plan; runtime, preflight, actual code and paired timing pending",
+  "scope": "Complete public conversion and nearest-palette pipelines with observed output/representation and retained inputs",
+  "source_basis": {
+    "path": "experiments/image-color-v1/sources/Image.Color.cinch",
+    "sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+    "preserve_original_immutable": true
+  },
+  "modes": [
+    {
+      "name": "premultiply",
+      "operation": "NRGBA16 construction and canonical RGBA observation",
+      "input_patterns": [
+        "zero alpha",
+        "partial alpha and rounding edges",
+        "opaque"
+      ]
+    },
+    {
+      "name": "straight-model",
+      "operation": "RGBA16 to NRGBA8 model conversion plus exact raw/canonical output observation",
+      "input_patterns": [
+        "zero alpha",
+        "partial alpha",
+        "opaque"
+      ]
+    },
+    {
+      "name": "custom-model",
+      "operation": "Actual retained pure model callback, optional None for zero-alpha inputs and component permutation for present results",
+      "input_patterns": [
+        "zero alpha",
+        "partial alpha",
+        "opaque"
+      ],
+      "observe": "Option discriminant, actual returned model identity, all raw/canonical output fields"
+    },
+    {
+      "name": "custom-source",
+      "operation": "Actual retained custom Color callback with captured channels and caller alpha distribution",
+      "input_patterns": [
+        "zero alpha",
+        "partial alpha",
+        "opaque"
+      ],
+      "observe": "Full canonical output and retained source identity"
+    },
+    {
+      "name": "gray-model",
+      "operation": "RGBA16 to Gray8/Gray16 with complete output observation",
+      "input_patterns": [
+        "coefficient rounding edges",
+        "mixed channels"
+      ]
+    },
+    {
+      "name": "ycbcr16",
+      "operation": "YCbCr or NYCbCrA canonical16-bit conversion, preserving direct precision",
+      "input_patterns": [
+        "neutral chroma",
+        "saturation edges",
+        "mixed chroma/alpha"
+      ]
+    },
+    {
+      "name": "cmyk",
+      "operation": "Complete RGB-to-CMYK-to-RGB conversion and canonical output observation",
+      "input_patterns": [
+        "black singularity",
+        "mixed channels"
+      ]
+    },
+    {
+      "name": "palette-index/convert/model",
+      "operation": "Index and converted original-color observation for immutable prepared palettes",
+      "palette_sizes": [
+        0,
+        4,
+        16,
+        256
+      ],
+      "input_patterns": [
+        "empty",
+        "exact match",
+        "alpha-only discrimination",
+        "equidistant first ties",
+        "per-term-truncation zero-distance ties",
+        "mixed queries"
+      ],
+      "observe": "Index, optional actual selected-color identity, all raw/canonical output fields"
+    },
+    {
+      "name": "rgba-control",
+      "operation": "RGBA16 canonical observation without model conversion",
+      "input_patterns": [
+        "same deterministic inputs as conversion workloads"
+      ]
+    }
+  ],
+  "paired_implementations": [
+    "Explicit selected SIMD/SWAR candidate",
+    "Same-source scalar numeric kernel derivation with identical public pipeline",
+    "Pinned installed SDK reference using actual color types/models/palette"
+  ],
+  "clock_boundary": "Input/query/palette/model setup before the start clock; complete conversion, output-field/canonical traversal and checksum inside; retained source/palette observations and teardown after the end clock",
+  "required_preflights": [
+    "Exact independent output, representation and retained-input/palette checksums",
+    "Normal32MiB/8MiB and separate poisoned256MiB/8MiB zero-leak Cinch runs",
+    "Actual current LLVM/optimized assembly inspection with complete entry-to-kernel reachability",
+    "Independent actual-body scalar kernels plus real AArch64/wasm objects"
+  ],
+  "measurement": "Root-granted exclusiveCPU0 only after sealed plain inputs/preflights; balanced rotated paired order, warmups plus all raw samples; exact pre/post cpu.stat; no allocation counters during elapsed timing",
+  "allocation_controls": "Separate counter-enabled correctness epoch only; inspect generated IR/ASM and allocation counts if large SDK gaps appear. Preserve immutable source/reference baselines and any regressions.",
+  "resource_policy": {
+    "build_initial_mib": 350,
+    "reserve_mib": 250,
+    "maximum_unarchived_unit_mib": 30
+  },
+  "limits": [
+    "No source build or measurement has run for this plan",
+    "Scalar single-pixel division may remain scalar even when palette/channel arithmetic uses vector instructions",
+    "All regressions/noise remain visible; no SDK parity assumption",
+    "No new Native family admission or production selection"
+  ],
+  "qualified_compiler": {
+    "path": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+    "sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf"
+  },
+  "same_workload_contract": {
+    "sdk": "Pinned installed go1.27.4 image/color, unchanged independently compiled reference source per sealed pair",
+    "generation": "Identical deterministic machine-word state/byte extraction and explicit alpha0/partial/opaque distributions; source/model/palette setup before timing",
+    "sizes": [
+      64,
+      4096
+    ],
+    "full_checksums": "Hash Option discriminator, model identity, every raw field and canonical channel for every result; retain original query/source/palette hashes afterward",
+    "nil_and_empty": "Empty palette conversion and custom absent model output both hash explicit absent outcomes; no fabricated color",
+    "reference_mutation_policy": "No source/reference/expected-checksum mutation after preflight sealing"
+  }
+}

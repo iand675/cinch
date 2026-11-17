@@ -1,0 +1,107 @@
+{
+  "scope": "Actual pure callback contracts refuse all3 foreign IO-erasure attempts; no parser/emission/runtime claim.",
+  "checks": [
+    {
+      "scope": "Check a complete isolated color source with an explicit frozen compiler/runtime identity.",
+      "runtime_claim": false,
+      "compiler": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+      "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+      "future_runtime": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/libcinchruntime.a",
+      "future_runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+      "main_sha256": "9efd5113621322120ab04bf8e552420ce6fb4e2db4848bcc8f24d02f97643a1f",
+      "runner_sha256": "e03b0a2547439a62dc1ac2959977c634b2576d298c56cc0eeb64efab72551484",
+      "cpu_affinity": [
+        1
+      ],
+      "compiler_host_stack_bytes": 67108864,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/image-color/negative-color-source-io/Main.cinch"
+      ],
+      "initial_free_bytes": 874356736,
+      "resource_policy": {
+        "initial_mib": 350,
+        "reserve_mib": 250,
+        "unit_mib": 30
+      },
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "cinch: 12:32: effect rows do not match: {} vs {IO r#1038 | ?r1269} (in /workspace/dasl-stdlib-multipart/build/image-color/negative-color-source-io/Main.cinch)\n",
+      "failed_artifacts_retained_plain": true,
+      "seconds": 0.42958595301024616,
+      "final_free_bytes": 874336256,
+      "output_bytes": 33827,
+      "defining_interfaces": {}
+    },
+    {
+      "scope": "Check a complete isolated color source with an explicit frozen compiler/runtime identity.",
+      "runtime_claim": false,
+      "compiler": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+      "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+      "future_runtime": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/libcinchruntime.a",
+      "future_runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+      "main_sha256": "93280b9bb9946cc472ae932987f82fcce8b0571ee62647fd78d920571f281fb1",
+      "runner_sha256": "e03b0a2547439a62dc1ac2959977c634b2576d298c56cc0eeb64efab72551484",
+      "cpu_affinity": [
+        1
+      ],
+      "compiler_host_stack_bytes": 67108864,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/image-color/negative-color-model-io/Main.cinch"
+      ],
+      "initial_free_bytes": 874328064,
+      "resource_policy": {
+        "initial_mib": 350,
+        "reserve_mib": 250,
+        "unit_mib": 30
+      },
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "cinch: 12:31: effect rows do not match: {} vs {IO r#1038 | ?r1269} (in /workspace/dasl-stdlib-multipart/build/image-color/negative-color-model-io/Main.cinch)\n",
+      "failed_artifacts_retained_plain": true,
+      "seconds": 0.478589420003118,
+      "final_free_bytes": 874287104,
+      "output_bytes": 33849,
+      "defining_interfaces": {}
+    },
+    {
+      "scope": "Check a complete isolated color source with an explicit frozen compiler/runtime identity.",
+      "runtime_claim": false,
+      "compiler": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+      "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+      "future_runtime": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/libcinchruntime.a",
+      "future_runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+      "main_sha256": "0abb99c96b585baaca0d6a8b96a891b11489348800b25a48505ba29ef268c8ab",
+      "runner_sha256": "e03b0a2547439a62dc1ac2959977c634b2576d298c56cc0eeb64efab72551484",
+      "cpu_affinity": [
+        1
+      ],
+      "compiler_host_stack_bytes": 67108864,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-multipart/build/image-color/negative-color-total-model-io/Main.cinch"
+      ],
+      "initial_free_bytes": 874274816,
+      "resource_policy": {
+        "initial_mib": 350,
+        "reserve_mib": 250,
+        "unit_mib": 30
+      },
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "cinch: 12:37: effect rows do not match: {} vs {IO r#1038 | ?r1269} (in /workspace/dasl-stdlib-multipart/build/image-color/negative-color-total-model-io/Main.cinch)\n",
+      "failed_artifacts_retained_plain": true,
+      "seconds": 0.47492412498104386,
+      "final_free_bytes": 874233856,
+      "output_bytes": 33848,
+      "defining_interfaces": {}
+    }
+  ]
+}

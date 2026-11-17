@@ -1241,10 +1241,26 @@
     },
     {
       "reference_package": "image/color",
-      "status": "unreviewed",
+      "status": "partial",
       "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 78
+      "remaining": [
+        "Public pipeline timing and performance review",
+        "Production module selection and generated reference",
+        "Current Native qualification"
+      ],
+      "reference_declarations": 78,
+      "candidate_modules": [
+        {
+          "module": "Image.Color",
+          "path": "experiments/image-color-v1/sources/Image.Color.cinch",
+          "availability": "Isolated review candidate; absent from production prelude"
+        }
+      ],
+      "capability_mapping": "experiments/image-color-v1/operation-map.json",
+      "tests": [
+        "lib_image_color"
+      ],
+      "review": "All78 cumulative reference records have explicit idiomatic candidate mappings. Complete model/helper/palette and retained-owner runtime matrix passes O2 and exact accepted-IR O0; current Root C2/d91 maintained parent passes2/2. All95 declarations have canonical documentation. Actual numeric kernels pass51,052,544 scalar comparisons and actual AArch64/WebAssembly/big-endian PowerPC object checks; no foreign execution claimed. Matched public-pipeline preflights cover21 modes, but elapsed timing and production selection remain pending. No package completion or Native-family admission claimed."
     },
     {
       "reference_package": "image/color/palette",
