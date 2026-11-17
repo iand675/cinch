@@ -5,8 +5,11 @@ The baseline source remains byte-for-byte unchanged at
 The separate snapshot under `build/maps-entry-candidate/sources` is
 reconstructible from `tooling/map-entry-cells-candidate.patch`; its hash
 is recorded in `stdlib-maps-entry-candidate-results.json`. It is not a
-selected production representation and has not passed source/runtime or
-performance gates.
+selected production representation. Exact frozen855/c4 now accepts its
+full source closure, and all12 established live-mutation/ownership controls
+pass in normal32M/8M and poison256M/8M with zero leaks. The full independent
+matrix, supplemental edge/IEEE/IO/region/capability gates and candidate
+measurements remain pending; no complete runtime/performance claim follows.
 
 The baseline pipeline's measured allocation and construction costs motivate
 this change. The map never uses public linked-list navigation, ordering or
@@ -58,3 +61,16 @@ workload artifact be compared with the preserved baseline. No Native gain
 or general source-absent interface admission follows from this candidate.
 The actual Region-header/open-row transport gaps and the older Native
 producer-composition refusal remain independent compiler gates.
+
+## Exact current partial qualification
+
+`stdlib-maps-855-source-results.json` preserves both baseline and candidate
+source-only gates. `stdlib-maps-855-control-results.json` records their
+separate12-control consumers, four zero-leak processes and exact LLVM20
+linker identities. Each unit stayed below20MiB new output. Subsequent
+work stops before compilation when free disk is below250MiB; runtime
+units must preserve200MiB reserve. The supplemental SDK-edge consumer was
+resource-paused before any compile and therefore has no semantic verdict.
+Closed unit ELF, LLVM and generated cache bytes are recoverable from their
+durable verified archive index; sources, baseline benchmark artifacts,
+source-absent interface evidence and frozen inputs are unchanged.

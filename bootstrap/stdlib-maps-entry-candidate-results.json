@@ -1,7 +1,7 @@
 {
   "kind": "unselected-private-map-entry-candidate",
   "production_selected": false,
-  "source_checked": false,
+  "source_checked": true,
   "runtime_qualified": false,
   "timing_measured": false,
   "baseline_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
@@ -10,5 +10,12 @@
   "documented_declarations": 63,
   "public_exports_and_signatures_unchanged": true,
   "private_storage": "Existing typed Var cells; no new raw-slot/foreign ABI",
-  "source_snapshot": "build/maps-entry-candidate/sources/Data.Mutable.Map.cinch"
+  "source_snapshot": "build/maps-entry-candidate/sources/Data.Mutable.Map.cinch",
+  "partial_runtime": {
+    "scope": "12 controls normal32M/8M and poison256M/8M, zero leaks; full matrix still pending",
+    "report": "bootstrap/stdlib-maps-855-control-results.json",
+    "source_gate": "bootstrap/stdlib-maps-855-source-results.json",
+    "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+  }
 }

@@ -70,7 +70,10 @@ unbounded generations/serials and shallow ownership. Its source is
 `c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078`;
 the baseline source and all measured artifacts remain unchanged. No foreign
 declaration, raw-slot ABI or public signature is added or changed. The
-candidate is unselected and has not passed source/runtime/performance gates.
+candidate is unselected. A separate exact855/c4 epoch now passes its full
+source and12 established ownership/live-mutation controls, with both
+normal/poison profiles zero leaks. The full matrix and candidate measurement
+gates remain pending; no complete qualification or speed gain follows.
 Its invariants, exact patch and required matrices are recorded separately in
 `stdlib-maps-entry-candidate.md` and its result JSON.
 
@@ -99,3 +102,16 @@ recovery index, reclaiming 50378123 bytes. Source, LLVM and all benchmark,
 frozen compiler/provider/runtime inputs were preserved. The archive receipt
 and restore helper retain reproducibility; no successful matrix was rerun
 to produce this review checkpoint.
+
+## Subsequent boxed-Nat compiler epoch
+
+The exact frozen Rust855/c4 pair accepts both unchanged baseline0fc and
+separate C839 full source closures. Their12-control ownership/live-
+mutation/policy/late-callback consumers also pass independently in normal
+32M/8M and poison256M/8M, four zero-leak processes, with explicit LLVM20.
+These reports are in `stdlib-maps-855-source-results.json` and
+`stdlib-maps-855-control-results.json`. They do not relabel the earlier
+fa3 full matrix or performance measurements. The new baseline SDK-edge
+consumer paused at the disk guard before any compilation. Full per-
+representation800/IEEE/edge/IO/region/negative and remaining Native gates
+are still required before representation selection.
