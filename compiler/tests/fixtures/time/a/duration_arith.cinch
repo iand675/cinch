@@ -1,0 +1,132 @@
+-- Lane A: Data.Time.Duration arithmetic in range (add, sub, mul, both
+-- divisions) and the ordering laws on samples.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Ordering
+  import Data.Time.Duration
+
+  some-d :: Option Duration -> Duration -> Bool
+  some-d o want = case o of
+    Some d -> d == want
+    None -> False
+
+  ns :: I64 -> Duration
+  ns n = duration-from-nanos n
+
+  -- 1: zero is the identity, negation the inverse, subtraction is
+  -- addition of the negation, and units mix exactly.
+  check-add-sub-laws :: Int
+  check-add-sub-laws =
+    if some-d (duration-checked-add (ns 5) duration-zero) (ns 5)
+      && some-d (duration-checked-add duration-zero (ns (-5))) (ns (-5))
+      && some-d (duration-checked-add (ns 5) (duration-neg (ns 5))) duration-zero
+      && some-d (duration-checked-sub (ns 5) (ns 8)) (ns (-3))
+      && some-d (duration-checked-add (ns 5) (duration-neg (ns 8))) (ns (-3))
+      && some-d (duration-checked-add (ns 5) (ns 8)) (ns 13)
+      && some-d (duration-checked-add (ns 8) (ns 5)) (ns 13)
+      && some-d (duration-checked-add (duration-from-hours 1) (duration-from-minutes (-90))) (duration-from-minutes (-30))
+      && some-d (duration-checked-sub (duration-from-seconds 1) (duration-from-nanos 1)) (ns 999999999)
+      then 0 else 1
+
+  -- 2: multiplication by a count.
+  check-mul :: Int
+  check-mul =
+    if some-d (duration-checked-mul (duration-from-millis 1500) 3) (duration-from-millis 4500)
+      && some-d (duration-checked-mul (duration-from-millis 1500) (-2)) (duration-from-seconds (-3))
+      && some-d (duration-checked-mul (duration-from-millis (-1500)) (-2)) (duration-from-seconds 3)
+      && some-d (duration-checked-mul (duration-from-hours 5) 0) duration-zero
+      && some-d (duration-checked-mul (ns 1) min-bound-i64) (ns min-bound-i64)
+      && duration-saturating-mul (duration-from-minutes 2) 30 == duration-from-hours 1
+      then 0 else 2
+
+  -- 4: `duration-div` truncates toward zero, for every sign pairing.
+  check-div-truncates :: Int
+  check-div-truncates =
+    if duration-div (duration-from-seconds 7) 2 == duration-from-millis 3500
+      && duration-div (ns 7) 2 == ns 3
+      && duration-div (ns (-7)) 2 == ns (-3)
+      && duration-div (ns 7) (-2) == ns (-3)
+      && duration-div (ns (-7)) (-2) == ns 3
+      && duration-div (ns 6) (-2) == ns (-3)
+      && duration-div (ns 1) 2 == duration-zero
+      && duration-div (ns (-1)) 2 == duration-zero
+      && duration-div max-duration 1 == max-duration
+      && duration-div max-duration (-1) == min-duration
+      && duration-div min-duration (-1) == max-duration
+      && duration-div (ns min-bound-i64) min-bound-i64 == ns 1
+      then 0 else 4
+
+  -- 8: `duration-div-floor` rounds toward negative infinity.
+  check-div-floor :: Int
+  check-div-floor =
+    if duration-div-floor (ns 7) 2 == ns 3
+      && duration-div-floor (ns (-7)) 2 == ns (-4)
+      && duration-div-floor (ns 7) (-2) == ns (-4)
+      && duration-div-floor (ns (-7)) (-2) == ns 3
+      && duration-div-floor (ns (-6)) 2 == ns (-3)
+      && duration-div-floor (ns 6) (-2) == ns (-3)
+      && duration-div-floor (ns (-1)) 2 == ns (-1)
+      && duration-div-floor (ns 1) (-2) == ns (-1)
+      && duration-div-floor (ns 1) 2 == duration-zero
+      && duration-div-floor min-duration (-1) == max-duration
+      && duration-div-floor min-duration 1 == min-duration
+      && eq-i128 (duration-total-nanos (duration-div-floor min-duration 2)) (-85070591730234615865843651857942052864)
+      && eq-i128 (duration-total-nanos (duration-div min-duration 2)) (-85070591730234615865843651857942052863)
+      then 0 else 8
+
+  -- `a` strictly below `b`, as `duration-cmp` and as every instance
+  -- method see it, in both argument orders.
+  below :: Duration -> Duration -> Bool
+  below a b = case duration-cmp a b of
+    LT -> case duration-cmp b a of
+      GT -> a < b && a <= b && b > a && b >= a && a /= b
+        && not (a > b) && not (a >= b) && not (b < a) && not (b <= a) && not (a == b)
+      _ -> False
+    _ -> False
+
+  -- `a` equal to itself under every spelling.
+  same :: Duration -> Bool
+  same a = case duration-cmp a a of
+    EQ -> a == a && a <= a && a >= a && not (a /= a) && not (a < a) && not (a > a)
+    _ -> False
+
+  -- 16: a strictly increasing chain is ordered pairwise (irreflexive,
+  -- antisymmetric) and end to end (transitive).
+  check-order-chain :: Int
+  check-order-chain =
+    if below min-duration (duration-from-hours (-1))
+      && below (duration-from-hours (-1)) (ns (-1))
+      && below (ns (-1)) duration-zero
+      && below duration-zero (ns 1)
+      && below (ns 1) (duration-from-hours 1)
+      && below (duration-from-hours 1) max-duration
+      && below min-duration max-duration
+      && below (duration-from-hours (-1)) (duration-from-hours 1)
+      && below (ns (-1)) (ns 1)
+      && below (duration-from-millis 999) (duration-from-seconds 1)
+      then 0 else 16
+
+  -- 32: the order is reflexive and equality is the count's.
+  check-order-reflexive :: Int
+  check-order-reflexive =
+    if same min-duration && same max-duration && same duration-zero
+      && same (duration-from-millis (-1500))
+      && duration-from-minutes 60 == duration-from-hours 1
+      then 0 else 32
+
+  -- 64: the shorter and the longer of two.
+  check-min-max-of :: Int
+  check-min-max-of =
+    if duration-min-of (ns (-3)) (ns 2) == ns (-3)
+      && duration-min-of (ns 2) (ns (-3)) == ns (-3)
+      && duration-max-of (ns (-3)) (ns 2) == ns 2
+      && duration-max-of (ns 2) (ns (-3)) == ns 2
+      && duration-min-of min-duration max-duration == min-duration
+      && duration-max-of min-duration max-duration == max-duration
+      && duration-max-of (ns 4) (ns 4) == ns 4
+      then 0 else 64
+
+  main :: Int
+  main = check-add-sub-laws + check-mul + check-div-truncates + check-div-floor
+    + check-order-chain + check-order-reflexive + check-min-max-of

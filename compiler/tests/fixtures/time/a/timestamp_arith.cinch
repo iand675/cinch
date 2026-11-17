@@ -1,0 +1,148 @@
+-- Lane A: Data.Time.Timestamp arithmetic with durations (round trips,
+-- refusals, saturation), since/until antisymmetry and the order.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Ordering
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+
+  none-t :: Option Timestamp -> Bool
+  none-t o = case o of
+    None -> True
+    Some _ -> False
+
+  some-t :: Option Timestamp -> Timestamp -> Bool
+  some-t o want = case o of
+    Some t -> t == want
+    None -> False
+
+  at :: I64 -> Timestamp
+  at n = timestamp-from-unix-nanos n
+
+  one :: Duration
+  one = duration-from-nanos 1
+
+  -- Adding `d` and subtracting it again is the identity, and so is
+  -- the other order.
+  undoes :: Timestamp -> Duration -> Bool
+  undoes t d = case timestamp-checked-add t d of
+    None -> False
+    Some u -> case timestamp-checked-sub t d of
+      None -> False
+      Some v -> some-t (timestamp-checked-sub u d) t && some-t (timestamp-checked-add v d) t
+
+  -- 1: add and sub move the instant exactly and undo each other.
+  check-add-sub-round-trips :: Int
+  check-add-sub-round-trips =
+    if some-t (timestamp-checked-add timestamp-epoch (duration-from-seconds 1)) (at 1000000000)
+      && some-t (timestamp-checked-sub timestamp-epoch (duration-from-seconds 1)) (at (-1000000000))
+      && some-t (timestamp-checked-add (at 5) (duration-from-nanos (-7))) (at (-2))
+      && some-t (timestamp-checked-sub (at 5) (duration-from-nanos (-7))) (at 12)
+      && some-t (timestamp-checked-add (at 5) duration-zero) (at 5)
+      && undoes timestamp-epoch (duration-from-hours 1000000)
+      && undoes (at 1700000000123456789) (duration-from-millis (-86400123))
+      && undoes (at (-1)) (duration-from-nanos 1)
+      && undoes timestamp-epoch (duration-from-hours (-70000000))
+      then 0 else 1
+
+  -- 2: arithmetic that leaves the range is refused, exactly at the
+  -- bounds.
+  check-arith-refusals :: Int
+  check-arith-refusals =
+    if none-t (timestamp-checked-add max-timestamp one)
+      && none-t (timestamp-checked-sub min-timestamp one)
+      && none-t (timestamp-checked-sub max-timestamp (duration-neg one))
+      && none-t (timestamp-checked-add min-timestamp (duration-neg one))
+      && none-t (timestamp-checked-add timestamp-epoch max-duration)
+      && none-t (timestamp-checked-add timestamp-epoch min-duration)
+      && none-t (timestamp-checked-sub timestamp-epoch max-duration)
+      && none-t (timestamp-checked-add max-timestamp max-duration)
+      && none-t (timestamp-checked-sub min-timestamp max-duration)
+      && some-t (timestamp-checked-add max-timestamp duration-zero) max-timestamp
+      && some-t (timestamp-checked-sub min-timestamp duration-zero) min-timestamp
+      && some-t (timestamp-checked-add min-timestamp (timestamp-since max-timestamp min-timestamp)) max-timestamp
+      && some-t (timestamp-checked-sub max-timestamp (timestamp-since max-timestamp min-timestamp)) min-timestamp
+      then 0 else 2
+
+  -- 4: the saturating twins clamp to the bounds and are exact inside.
+  check-saturating :: Int
+  check-saturating =
+    if timestamp-saturating-add max-timestamp one == max-timestamp
+      && timestamp-saturating-sub min-timestamp one == min-timestamp
+      && timestamp-saturating-add timestamp-epoch max-duration == max-timestamp
+      && timestamp-saturating-add timestamp-epoch min-duration == min-timestamp
+      && timestamp-saturating-sub timestamp-epoch max-duration == min-timestamp
+      && timestamp-saturating-sub timestamp-epoch min-duration == max-timestamp
+      && timestamp-saturating-add max-timestamp max-duration == max-timestamp
+      && timestamp-saturating-sub min-timestamp max-duration == min-timestamp
+      && timestamp-saturating-add (at 5) (duration-from-nanos (-7)) == at (-2)
+      && timestamp-saturating-sub (at 5) (duration-from-nanos (-7)) == at 12
+      then 0 else 4
+
+  -- `since` and `until` are each other's negation and swap with their
+  -- arguments.
+  antisymmetric :: Timestamp -> Timestamp -> Bool
+  antisymmetric a b =
+    timestamp-since a b == duration-neg (timestamp-since b a)
+      && timestamp-until a b == duration-neg (timestamp-until b a)
+      && timestamp-since a b == timestamp-until b a
+      && some-t (timestamp-checked-add b (timestamp-since a b)) a
+      && some-t (timestamp-checked-add a (timestamp-until a b)) b
+
+  -- 8: since/until values, antisymmetry, and totality across the
+  -- whole range.
+  check-since-until :: Int
+  check-since-until =
+    if timestamp-since (at 12) (at 5) == duration-from-nanos 7
+      && timestamp-until (at 12) (at 5) == duration-from-nanos (-7)
+      && timestamp-since (at (-3)) (at 4) == duration-from-nanos (-7)
+      && duration-is-zero (timestamp-since max-timestamp max-timestamp)
+      && eq-i128 (duration-total-nanos (timestamp-since max-timestamp min-timestamp)) 631107230401999999999
+      && eq-i128 (duration-total-nanos (timestamp-until max-timestamp min-timestamp)) (-631107230401999999999)
+      && antisymmetric max-timestamp min-timestamp
+      && antisymmetric timestamp-epoch max-timestamp
+      && antisymmetric (at (-1)) (at 1700000000123456789)
+      && antisymmetric (at 9) (at 9)
+      then 0 else 8
+
+  below :: Timestamp -> Timestamp -> Bool
+  below a b = case timestamp-cmp a b of
+    LT -> case timestamp-cmp b a of
+      GT -> a < b && a <= b && b > a && b >= a && a /= b
+        && not (a > b) && not (a >= b) && not (b < a) && not (b <= a) && not (a == b)
+      _ -> False
+    _ -> False
+
+  same :: Timestamp -> Bool
+  same a = case timestamp-cmp a a of
+    EQ -> a == a && a <= a && a >= a && not (a /= a) && not (a < a) && not (a > a)
+    _ -> False
+
+  -- 16: the order on a strictly increasing chain, pairwise and end to
+  -- end, and reflexivity.
+  check-order :: Int
+  check-order =
+    if below min-timestamp (at min-bound-i64)
+      && below (at min-bound-i64) (at (-1))
+      && below (at (-1)) timestamp-epoch
+      && below timestamp-epoch (at 1)
+      && below (at 1) (at max-bound-i64)
+      && below (at max-bound-i64) max-timestamp
+      && below min-timestamp max-timestamp
+      && below (at (-1)) (at 1)
+      && same min-timestamp && same max-timestamp && same timestamp-epoch && same (at (-1))
+      then 0 else 16
+
+  -- 32: the order agrees with the sign of `since`.
+  check-order-matches-since :: Int
+  check-order-matches-since =
+    if duration-is-positive (timestamp-since (at 1) (at (-1)))
+      && duration-is-negative (timestamp-since (at (-1)) (at 1))
+      && duration-is-positive (timestamp-until min-timestamp max-timestamp)
+      && duration-is-negative (timestamp-until max-timestamp min-timestamp)
+      then 0 else 32
+
+  main :: Int
+  main = check-add-sub-round-trips + check-arith-refusals + check-saturating
+    + check-since-until + check-order + check-order-matches-since

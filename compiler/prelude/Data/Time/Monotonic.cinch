@@ -1,0 +1,132 @@
+-- Data.Time.Monotonic: a reading of the monotonic clock
+-- (design/datetime.md, layer L0 "machine time", lane A).
+--
+-- A `Monotonic` answers "how long did that take?" and nothing else. It
+-- is a count of nanoseconds since an origin the runtime picks at
+-- start-up, so a single reading means nothing and only the difference
+-- of two readings from the same process does. There is deliberately no
+-- way to turn one into a `Timestamp` or a date: "when did that
+-- happen?" is `Data.Time.Timestamp`'s question.
+--
+-- REPRESENTATION. One `I64` (what `cinch_clock_monotonic_ns` returns,
+-- unconverted) behind the private constructor `MkMonotonic`. As for
+-- `Duration`, the scalar is unboxed and the single-constructor `data`
+-- wrapper is one 8-byte heap object per value (`cinch_alloc_ctor(8,
+-- 0)`); `#[repr(transparent)] record` does not remove the box in
+-- native code and would make the type constructible by importers.
+--
+-- Design law shape. `monotonic-elapsed-between a b` is `b - a`, signed
+-- and exact (the difference of two `I64`s always fits a `Duration`),
+-- so it is antisymmetric (`elapsed-between b a` is its negation) and
+-- zero on equal readings. `monotonic-checked-add m d` is the reading
+-- `d` later, so `elapsed-between m (add m d)` is `d` whenever the sum
+-- exists, and `checked-sub m d` is `checked-add m (neg d)`.
+-- `monotonic-cmp` is the integer order, and it is the order of the
+-- instants when both readings come from one process. The checks are
+-- compiler/tests/lib_time_a.rs.
+--
+-- NAMED REFUSALS (boundaries this module deliberately does not
+-- cross):
+--   - conversion to or from wall-clock time: no function relates a
+--     `Monotonic` to a `Timestamp`.
+--   - readings from different processes or boots: the origin is
+--     per-process; comparing across processes is meaningless and the
+--     type cannot detect it.
+--   - a friend-only constructor: Cinch has no friend modules, so the
+--     raw constructor `monotonic-from-raw-nanos` is exported for
+--     `Effect.Time`. Only a clock reader should call it (tests use it
+--     to build fixed readings).
+--   - sums outside `I64` nanoseconds (about 292 years from the
+--     origin): `monotonic-checked-add` answers `None`, the
+--     `saturating-` twin clamps.
+--   - `Int`/`Nat` (bignums): neither appears.
+--
+-- Naming: every export is prefixed `monotonic-` (see
+-- `Data.Time.Duration`'s header).
+module Data.Time.Monotonic where
+
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Duration
+
+  export Monotonic
+  export monotonic-from-raw-nanos, monotonic-to-raw-nanos
+  export monotonic-elapsed-between
+  export monotonic-checked-add, monotonic-checked-sub
+  export monotonic-saturating-add, monotonic-saturating-sub
+  export monotonic-cmp
+
+
+  -- Nanoseconds since the runtime's origin. Not exported (named
+  -- apart from the type so that `export Monotonic` does not export it).
+  data Monotonic where
+    MkMonotonic :: I64 -> Monotonic
+
+  raw-of :: Monotonic -> I64
+  raw-of m = case m of
+    MkMonotonic n -> n
+
+  -- RAW: wrap a monotonic clock word. For clock readers
+  -- (`Effect.Time.monotonic-now`) and tests only; a number that did
+  -- not come from this process's monotonic clock makes a reading that
+  -- compares meaninglessly with real ones.
+  monotonic-from-raw-nanos :: I64 -> Monotonic
+  monotonic-from-raw-nanos n = MkMonotonic n
+
+  -- RAW: the clock word back (for logging and tracing; it is not a
+  -- time of day and not comparable across processes).
+  monotonic-to-raw-nanos :: Monotonic -> I64
+  monotonic-to-raw-nanos m = raw-of m
+
+  -- The time from `earlier` to `later`: `later - earlier`, negative
+  -- when the arguments are the other way round. Total: the difference
+  -- of two `I64`s has magnitude below 2^64, so the wrapping `I128`
+  -- subtraction is exact and the result is a duration.
+  monotonic-elapsed-between :: Monotonic -> Monotonic -> Duration
+  monotonic-elapsed-between earlier later =
+    duration-saturating-from-i128-nanos (wrapping-sub-i128 (i64-to-i128 (raw-of later)) (i64-to-i128 (raw-of earlier)))
+
+  -- The exact `I128` sum of a reading and a duration, when it exists.
+  shifted :: Monotonic -> Duration -> Option I128
+  shifted m d = checked-add-i128 (i64-to-i128 (raw-of m)) (duration-total-nanos d)
+
+  -- The reading `d` after `m` (before it for a negative `d`); `None`
+  -- when that leaves `I64` nanoseconds.
+  monotonic-checked-add :: Monotonic -> Duration -> Option Monotonic
+  monotonic-checked-add m d = case shifted m d of
+    None -> None
+    Some n -> case checked-i128-to-i64 n of
+      None -> None
+      Some x -> Some (MkMonotonic x)
+
+  -- The reading `d` before `m`. Negation is total on durations.
+  monotonic-checked-sub :: Monotonic -> Duration -> Option Monotonic
+  monotonic-checked-sub m d = monotonic-checked-add m (duration-neg d)
+
+  -- The same, clamped to the `I64` bounds.
+  monotonic-saturating-add :: Monotonic -> Duration -> Monotonic
+  monotonic-saturating-add m d =
+    MkMonotonic (saturating-i128-to-i64 (saturating-add-i128 (i64-to-i128 (raw-of m)) (duration-total-nanos d)))
+
+  monotonic-saturating-sub :: Monotonic -> Duration -> Monotonic
+  monotonic-saturating-sub m d = monotonic-saturating-add m (duration-neg d)
+
+  monotonic-cmp :: Monotonic -> Monotonic -> Ordering
+  monotonic-cmp a b =
+    if lt-i64 (raw-of a) (raw-of b) then LT
+    else if gt-i64 (raw-of a) (raw-of b) then GT
+    else EQ
+
+  implicit instance Eq_Monotonic :: Eq Monotonic where
+    (==) a b = eq-i64 (raw-of a) (raw-of b)
+    (/=) a b = ne-i64 (raw-of a) (raw-of b)
+
+  implicit instance Ord_Monotonic :: Ord Monotonic where
+    (<) a b = lt-i64 (raw-of a) (raw-of b)
+    (<=) a b = le-i64 (raw-of a) (raw-of b)
+    (>) a b = gt-i64 (raw-of a) (raw-of b)
+    (>=) a b = ge-i64 (raw-of a) (raw-of b)

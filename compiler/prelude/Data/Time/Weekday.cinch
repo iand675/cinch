@@ -1,0 +1,243 @@
+-- Data.Time.Weekday: the seven days of the week.
+--
+-- A `Weekday` is one of seven constructors, `Monday` through `Sunday`.
+-- It is civil vocabulary only: it names a position in the seven-day
+-- cycle and knows nothing about dates (Data.Time.Date's `weekday` is
+-- the road from a date to its `Weekday`).
+--
+-- Two numberings are in common use and both are provided, each in both
+-- directions:
+--   - ISO 8601, Monday = 1 .. Sunday = 7 (`to-monday-one`,
+--     `from-monday-one`);
+--   - the C `tm_wday` convention, Sunday = 0 .. Saturday = 6
+--     (`to-sunday-zero`, `from-sunday-zero`).
+-- `to-monday-zero` (Monday = 0 .. Sunday = 6) is the offset the cycle
+-- arithmetic itself uses and is exported for the same reason.
+--
+-- Design law shape. Every `to-` conversion returns its range in its
+-- type, and every `from-` conversion over a refined argument is total
+-- and inverts it: `from-monday-one (to-monday-one d)` is `d`, and the
+-- same for Sunday zero. The `-checked` readers take a plain `I64` and
+-- answer `None` exactly outside the numbering's range. `next` and
+-- `previous` are inverse rotations of period seven; `add-days n d` is
+-- `next` applied n times for n >= 0 and `previous` applied -n times
+-- otherwise, for EVERY `I64` (the count is reduced modulo seven before
+-- anything is added, so nothing can overflow). `days-until a b` is the
+-- forward distance from `a` to `b` in `0..=6`:
+-- `add-days (days-until a b) a` is `b`, and `days-until a a` is 0.
+-- `days-since a b` is `days-until b a`. The order (`cmp`, `Eq`, `Ord`)
+-- is the ISO order, Monday first and Sunday last.
+--
+-- NAMED REFUSALS:
+--   - weekday names, abbreviations and locale-dependent "first day of
+--     the week": no text lives here (Text.Time.* owns rendering), and
+--     the order is fixed at ISO's Monday-first.
+--   - refined results for `days-until`/`days-since`: machine integer
+--     arithmetic is opaque to the checker's difference logic, so the
+--     `0..=6` bound is stated in prose and tested, not carried in the
+--     type (a clamp would be the only way to state it, and it would be
+--     dead code).
+--   - a total machine division: `Data.Machine` has only
+--     `checked-rem-i64`, so the private `rem7` matches its `None` arm
+--     although the divisor is the literal 7 (never zero, never -1).
+module Data.Time.Weekday where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Ordering
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+
+  export Weekday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
+  export to-monday-one, to-monday-zero, to-sunday-zero
+  export from-monday-one, from-monday-zero, from-sunday-zero
+  export from-monday-one-checked, from-monday-zero-checked, from-sunday-zero-checked
+  export next, previous, add-days, days-until, days-since
+  export is-weekend, cmp
+
+
+  data Weekday where
+    Monday :: Weekday
+    Tuesday :: Weekday
+    Wednesday :: Weekday
+    Thursday :: Weekday
+    Friday :: Weekday
+    Saturday :: Weekday
+    Sunday :: Weekday
+
+  -- -----------------------------------------------------------------
+  -- Numberings.
+  -- -----------------------------------------------------------------
+
+  -- ISO 8601: Monday = 1 .. Sunday = 7.
+  to-monday-one :: Weekday -> InRange 1 7 I64
+  to-monday-one d = case d of
+    Monday -> 1
+    Tuesday -> 2
+    Wednesday -> 3
+    Thursday -> 4
+    Friday -> 5
+    Saturday -> 6
+    Sunday -> 7
+
+  -- Monday = 0 .. Sunday = 6: the days elapsed since Monday.
+  to-monday-zero :: Weekday -> InRange 0 6 I64
+  to-monday-zero d = case d of
+    Monday -> 0
+    Tuesday -> 1
+    Wednesday -> 2
+    Thursday -> 3
+    Friday -> 4
+    Saturday -> 5
+    Sunday -> 6
+
+  -- C's `tm_wday`: Sunday = 0 .. Saturday = 6.
+  to-sunday-zero :: Weekday -> InRange 0 6 I64
+  to-sunday-zero d = case d of
+    Sunday -> 0
+    Monday -> 1
+    Tuesday -> 2
+    Wednesday -> 3
+    Thursday -> 4
+    Friday -> 5
+    Saturday -> 6
+
+  -- Total over the refined argument: the last arm is the range's last
+  -- value (7), not an impossible case.
+  from-monday-one :: (n :: InRange 1 7 I64) -> Weekday
+  from-monday-one n =
+    if n == 1 then Monday
+    else if n == 2 then Tuesday
+    else if n == 3 then Wednesday
+    else if n == 4 then Thursday
+    else if n == 5 then Friday
+    else if n == 6 then Saturday
+    else Sunday
+
+  from-monday-zero :: (n :: InRange 0 6 I64) -> Weekday
+  from-monday-zero n =
+    if n == 0 then Monday
+    else if n == 1 then Tuesday
+    else if n == 2 then Wednesday
+    else if n == 3 then Thursday
+    else if n == 4 then Friday
+    else if n == 5 then Saturday
+    else Sunday
+
+  from-sunday-zero :: (n :: InRange 0 6 I64) -> Weekday
+  from-sunday-zero n =
+    if n == 0 then Sunday
+    else if n == 1 then Monday
+    else if n == 2 then Tuesday
+    else if n == 3 then Wednesday
+    else if n == 4 then Thursday
+    else if n == 5 then Friday
+    else Saturday
+
+  -- The readers for an unrefined `I64`: `None` exactly outside the
+  -- numbering's range.
+  from-monday-one-checked :: I64 -> Option Weekday
+  from-monday-one-checked n =
+    if 1 <= n && n <= 7 then Some (from-monday-one n) else None
+
+  from-monday-zero-checked :: I64 -> Option Weekday
+  from-monday-zero-checked n =
+    if 0 <= n && n <= 6 then Some (from-monday-zero n) else None
+
+  from-sunday-zero-checked :: I64 -> Option Weekday
+  from-sunday-zero-checked n =
+    if 0 <= n && n <= 6 then Some (from-sunday-zero n) else None
+
+  -- -----------------------------------------------------------------
+  -- The cycle.
+  -- -----------------------------------------------------------------
+
+  next :: Weekday -> Weekday
+  next d = case d of
+    Monday -> Tuesday
+    Tuesday -> Wednesday
+    Wednesday -> Thursday
+    Thursday -> Friday
+    Friday -> Saturday
+    Saturday -> Sunday
+    Sunday -> Monday
+
+  previous :: Weekday -> Weekday
+  previous d = case d of
+    Monday -> Sunday
+    Tuesday -> Monday
+    Wednesday -> Tuesday
+    Thursday -> Wednesday
+    Friday -> Thursday
+    Saturday -> Friday
+    Sunday -> Saturday
+
+  -- `n` days after `d` (before it for a negative `n`), for every
+  -- `I64`. Overflow argument: `n` is first reduced to its truncated
+  -- remainder modulo 7, in -6..=6; adding the weekday's offset (0..=6)
+  -- and 7 gives 1..=19, so the wrapping additions never wrap.
+  add-days :: I64 -> Weekday -> Weekday
+  add-days n d =
+    let s = wrapping-add-i64 (wrapping-add-i64 (rem7 n) (to-monday-zero d)) 7 in
+    from-offset (if s >= 14 then wrapping-sub-i64 s 14 else if s >= 7 then wrapping-sub-i64 s 7 else s)
+
+  -- The forward distance from `a` to `b`, in 0..=6: the number of
+  -- times `next` must be applied to `a` to reach `b`. Both offsets
+  -- are in 0..=6, so the difference is in -6..=6 and nothing wraps.
+  days-until :: Weekday -> Weekday -> I64
+  days-until a b =
+    let diff = wrapping-sub-i64 (to-monday-zero b) (to-monday-zero a) in
+    if diff < 0 then wrapping-add-i64 diff 7 else diff
+
+  -- The backward distance from `a` to `b`, in 0..=6: the number of
+  -- times `previous` must be applied to `a` to reach `b`.
+  days-since :: Weekday -> Weekday -> I64
+  days-since a b = days-until b a
+
+  is-weekend :: Weekday -> Bool
+  is-weekend d = case d of
+    Saturday -> True
+    Sunday -> True
+    _ -> False
+
+  -- The ISO order: Monday first, Sunday last.
+  cmp :: Weekday -> Weekday -> Ordering
+  cmp a b =
+    let x = to-monday-zero a in
+    let y = to-monday-zero b in
+    if x < y then LT else if x == y then EQ else GT
+
+  implicit instance Eq_Weekday :: Eq Weekday where
+    (==) a b = to-monday-zero a == to-monday-zero b
+    (/=) a b = to-monday-zero a /= to-monday-zero b
+
+  implicit instance Ord_Weekday :: Ord Weekday where
+    (<) a b = to-monday-zero a < to-monday-zero b
+    (<=) a b = to-monday-zero a <= to-monday-zero b
+    (>) a b = to-monday-zero a > to-monday-zero b
+    (>=) a b = to-monday-zero a >= to-monday-zero b
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing.
+  -- -----------------------------------------------------------------
+
+  -- The truncated remainder of `n` modulo 7, in -6..=6. `None` from
+  -- `checked-rem-i64` means a zero divisor or `min / -1`; the divisor
+  -- is the literal 7, so that arm cannot be taken.
+  rem7 :: I64 -> I64
+  rem7 n = case checked-rem-i64 n 7 of
+    Some r -> r
+    None -> 0
+
+  -- The weekday at a Monday-zero offset. Every caller passes an offset
+  -- it has already reduced into 0..=6; the last arm is offset 6.
+  from-offset :: I64 -> Weekday
+  from-offset n =
+    if n == 0 then Monday
+    else if n == 1 then Tuesday
+    else if n == 2 then Wednesday
+    else if n == 3 then Thursday
+    else if n == 4 then Friday
+    else if n == 5 then Saturday
+    else Sunday

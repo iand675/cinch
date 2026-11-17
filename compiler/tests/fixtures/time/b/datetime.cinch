@@ -1,0 +1,267 @@
+-- Lane B: Data.Time.DateTime. Parts and forwarded fields, replacing a
+-- part, add-seconds-nanos carrying forward across a month end and
+-- backward across a year start (and its refusals at the range ends),
+-- the forwarded date arithmetic, the I128 nanosecond difference, the
+-- "as if UTC" epoch conversions including one nanosecond before the
+-- epoch, and the consistency of the order with both lines.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Weekday (Weekday, Monday, Thursday, Friday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  -- A date from plain fields; a refusal reads as the least date,
+  -- which no vector below expects.
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  hmsn :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  hmsn h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (hmsn h mi s ns)
+
+  fields :: DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo d h mi s ns =
+    DT.year x == y && DT.month x == mo && DT.day x == d
+    && DT.hour x == h && DT.minute x == mi && DT.second x == s && DT.subsec-nanosecond x == ns
+
+  is-at :: Option DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  is-at o y mo d h mi s ns = case o of
+    None -> False
+    Some x -> fields x y mo d h mi s ns
+
+  is-dt :: Option DateTime -> DateTime -> Bool
+  is-dt o x = case o of
+    None -> False
+    Some y -> y == x
+
+  refused :: Option DateTime -> Bool
+  refused o = case o of
+    None -> True
+    Some _ -> False
+
+  pair-is :: (I64, I64) -> I64 -> I64 -> Bool
+  pair-is p s n = case p of
+    (a, b) -> a == s && b == n
+
+  -- 1: construction, parts, forwarded fields, replacing a part.
+  check-parts :: Int
+  check-parts =
+    let d = D.date-of 2024 2 15 in
+    let t = T.time-of-day 13 45 30 123456789 in
+    let x = DT.datetime d t in
+    if DT.date-part x == d && DT.time-part x == t
+       && fields x 2024 2 15 13 45 30 123456789
+       && DT.millisecond x == 123 && DT.microsecond x == 456 && DT.nanosecond x == 789
+       && DT.weekday x == Thursday && DT.day-of-year x == 46
+       && fields (DT.from-date d) 2024 2 15 0 0 0 0
+       && fields (DT.start-of-day x) 2024 2 15 0 0 0 0
+       && fields (DT.end-of-day x) 2024 2 15 23 59 59 999999999
+       && fields (DT.with-date (D.date-of 1999 12 28) x) 1999 12 28 13 45 30 123456789
+       && fields (DT.with-time T.noon x) 2024 2 15 12 0 0 0
+       && fields DT.min-datetime (-9999) 1 1 0 0 0 0
+       && fields DT.max-datetime 9999 12 31 23 59 59 999999999
+       && DT.start-of-day x == DT.from-date d && DT.with-time t (DT.from-date d) == x
+    then 0 else 1
+
+  -- 2: add-seconds-nanos carrying forward (across a month end, a leap
+  -- day, a year end) and by more than a day.
+  check-add-forward :: Int
+  check-add-forward =
+    if is-at (DT.add-seconds-nanos 1 0 (at 2024 2 29 23 59 59 0)) 2024 3 1 0 0 0 0
+       && is-at (DT.add-seconds-nanos 0 1 (at 2024 2 29 23 59 59 999999999)) 2024 3 1 0 0 0 0
+       && is-at (DT.add-seconds-nanos 1 0 (at 2023 2 28 23 59 59 0)) 2023 3 1 0 0 0 0
+       && is-at (DT.add-seconds-nanos 1 0 (at 2024 2 28 23 59 59 0)) 2024 2 29 0 0 0 0
+       && is-at (DT.add-seconds-nanos 3600 0 (at 2023 1 31 23 0 0 0)) 2023 2 1 0 0 0 0
+       && is-at (DT.add-seconds-nanos 1 0 (at 2023 12 31 23 59 59 5)) 2024 1 1 0 0 0 5
+       && is-at (DT.add-seconds-nanos 31622400 0 (at 2024 1 1 0 0 0 0)) 2025 1 1 0 0 0 0
+       && is-at (DT.add-seconds-nanos 0 0 (at 2024 6 1 1 2 3 4)) 2024 6 1 1 2 3 4
+       && is-at (DT.add-seconds-nanos 90061 1000000001 (at 2024 6 30 22 58 58 999999999)) 2024 7 2 0 0 1 0
+       && is-at (DT.add-seconds-nanos 0 86400000000000 (at 2024 4 30 6 0 0 0)) 2024 5 1 6 0 0 0
+       && is-at (DT.add-seconds-nanos 5 (-5000000000) (at 2024 4 30 6 0 0 0)) 2024 4 30 6 0 0 0
+    then 0 else 2
+
+  -- 4: add-seconds-nanos carrying backward (across a year start, a
+  -- month start, the epoch, year 0).
+  check-add-backward :: Int
+  check-add-backward =
+    if is-at (DT.add-seconds-nanos 0 (-1) (at 2024 1 1 0 0 0 0)) 2023 12 31 23 59 59 999999999
+       && is-at (DT.add-seconds-nanos (-1) 0 (at 2024 1 1 0 0 0 0)) 2023 12 31 23 59 59 0
+       && is-at (DT.add-seconds-nanos (-1) 0 (at 2024 3 1 0 0 0 0)) 2024 2 29 23 59 59 0
+       && is-at (DT.add-seconds-nanos (-1) 0 (at 2023 3 1 0 0 0 0)) 2023 2 28 23 59 59 0
+       && is-at (DT.add-seconds-nanos 0 (-1) (at 1970 1 1 0 0 0 0)) 1969 12 31 23 59 59 999999999
+       && is-at (DT.add-seconds-nanos (-86400) 0 (at 0 1 1 12 0 0 0)) (-1) 12 31 12 0 0 0
+       && is-at (DT.add-seconds-nanos (-31622400) 0 (at 2025 1 1 0 0 0 0)) 2024 1 1 0 0 0 0
+       && is-at (DT.add-seconds-nanos (-90061) (-1000000001) (at 2024 7 2 0 0 1 0)) 2024 6 30 22 58 58 999999999
+    then 0 else 4
+
+  -- 8: the refusals at the range ends and for unbounded counts, and
+  -- the full-range traversal.
+  check-add-refusals :: Int
+  check-add-refusals =
+    if refused (DT.add-seconds-nanos 0 1 DT.max-datetime)
+       && refused (DT.add-seconds-nanos 0 (-1) DT.min-datetime)
+       && refused (DT.add-seconds-nanos 1 0 DT.max-datetime)
+       && refused (DT.add-seconds-nanos (-1) 0 DT.min-datetime)
+       && is-at (DT.add-seconds-nanos 0 (-1) DT.max-datetime) 9999 12 31 23 59 59 999999998
+       && is-at (DT.add-seconds-nanos 0 1 DT.min-datetime) (-9999) 1 1 0 0 0 1
+       && is-dt (DT.add-seconds-nanos 631107417599 999999999 DT.min-datetime) DT.max-datetime
+       && is-dt (DT.add-seconds-nanos (-631107417599) (-999999999) DT.max-datetime) DT.min-datetime
+       && refused (DT.add-seconds-nanos 631107417600 0 DT.min-datetime)
+       && refused (DT.add-seconds-nanos 9223372036854775807 0 (at 2024 1 1 0 0 0 0))
+       && refused (DT.add-seconds-nanos (-9223372036854775808) 0 (at 2024 1 1 0 0 0 0))
+       && refused (DT.add-seconds-nanos 9223372036854775807 9223372036854775807 DT.max-datetime)
+       && refused (DT.add-seconds-nanos (-9223372036854775808) (-9223372036854775808) DT.min-datetime)
+       && is-at (DT.add-seconds-nanos 0 9223372036854775807 (at 2024 1 1 0 0 0 0)) 2316 4 11 23 47 16 854775807
+       && is-at (DT.add-seconds-nanos 0 (-9223372036854775808) (at 2024 1 1 0 0 0 0)) 1731 9 22 0 12 43 145224192
+    then 0 else 8
+
+  -- 16: the forwarded date arithmetic keeps the time.
+  check-date-arithmetic :: Int
+  check-date-arithmetic =
+    let x = at 2024 5 31 8 30 0 7 in
+    if is-at (DT.add-days 1 x) 2024 6 1 8 30 0 7 && is-at (DT.add-days (-31) x) 2024 4 30 8 30 0 7
+       && is-at (DT.add-months-constrain 1 x) 2024 6 30 8 30 0 7
+       && is-at (DT.add-months-constrain 2 x) 2024 7 31 8 30 0 7
+       && is-at (DT.add-months-constrain (-3) x) 2024 2 29 8 30 0 7
+       && is-at (DT.add-years-constrain 1 (at 2024 2 29 23 59 59 999999999)) 2025 2 28 23 59 59 999999999
+       && is-at (DT.add-years-constrain (-4) (at 2024 2 29 1 0 0 0)) 2020 2 29 1 0 0 0
+       && refused (DT.add-days 1 DT.max-datetime) && refused (DT.add-days (-1) DT.min-datetime)
+       && refused (DT.add-months-constrain 1 DT.max-datetime)
+       && refused (DT.add-years-constrain (-1) DT.min-datetime)
+       && refused (DT.add-days 9223372036854775807 x)
+    then 0 else 16
+
+  -- The I128 difference as whole seconds and leftover nanoseconds
+  -- (truncated), for comparing against literals that fit `I64`.
+  diff-is :: DateTime -> DateTime -> I64 -> I64 -> Bool
+  diff-is a b secs nanos =
+    let n = DT.diff-nanos a b in
+    case checked-div-i128 n (i64-to-i128 1000000000) of
+      None -> False
+      Some q -> case checked-rem-i128 n (i64-to-i128 1000000000) of
+        None -> False
+        Some r -> q == i64-to-i128 secs && r == i64-to-i128 nanos
+
+  -- 32: diff-nanos is finish minus start, total over the whole range.
+  check-diff :: Int
+  check-diff =
+    let a = at 2024 1 1 0 0 0 0 in
+    let b = at 2023 12 31 23 59 59 999999999 in
+    if DT.diff-nanos b a == i64-to-i128 1 && DT.diff-nanos a b == i64-to-i128 (-1)
+       && DT.diff-nanos a a == i64-to-i128 0
+       && diff-is (at 2024 2 29 0 0 0 0) (at 2024 3 1 0 0 0 0) 86400 0
+       && diff-is (at 2024 3 1 0 0 0 0) (at 2024 2 29 0 0 0 0) (-86400) 0
+       && diff-is (at 1970 1 1 0 0 0 0) (at 2024 2 29 23 59 59 5) 1709251199 5
+       && diff-is DT.min-datetime DT.max-datetime 631107417599 999999999
+       && diff-is DT.max-datetime DT.min-datetime (-631107417599) (-999999999)
+       && diff-is (at 2024 1 1 12 0 0 0) (at 2024 1 2 11 59 59 999999999) 86399 999999999
+       && DT.diff-nanos DT.min-datetime DT.max-datetime > i64-to-i128 9223372036854775807
+    then 0 else 32
+
+  from-is :: I64 -> I64 -> DateTime -> Bool
+  from-is s n x = is-dt (DT.from-epoch-seconds-nanos-utc s n) x
+
+  -- 64: the "as if UTC" conversions, both directions, including one
+  -- nanosecond before the epoch (floored seconds, non-negative nanos).
+  check-epoch :: Int
+  check-epoch =
+    if pair-is (DT.to-epoch-seconds-nanos-utc (at 1970 1 1 0 0 0 0)) 0 0
+       && pair-is (DT.to-epoch-seconds-nanos-utc (at 1969 12 31 23 59 59 999999999)) (-1) 999999999
+       && pair-is (DT.to-epoch-seconds-nanos-utc (at 1969 12 31 23 59 59 0)) (-1) 0
+       && pair-is (DT.to-epoch-seconds-nanos-utc (at 1969 12 31 23 59 58 500000000)) (-2) 500000000
+       && pair-is (DT.to-epoch-seconds-nanos-utc (at 2024 2 29 23 59 59 1)) 1709251199 1
+       && pair-is (DT.to-epoch-seconds-nanos-utc (at 2000 1 1 0 0 0 0)) 946684800 0
+       && pair-is (DT.to-epoch-seconds-nanos-utc DT.max-datetime) 253402300799 999999999
+       && pair-is (DT.to-epoch-seconds-nanos-utc DT.min-datetime) (-377705116800) 0
+       && from-is 0 0 (at 1970 1 1 0 0 0 0)
+       && from-is (-1) 999999999 (at 1969 12 31 23 59 59 999999999)
+       && from-is (-1) 0 (at 1969 12 31 23 59 59 0)
+       && from-is (-86400) 0 (at 1969 12 31 0 0 0 0)
+       && from-is (-86401) 1 (at 1969 12 30 23 59 59 1)
+       && from-is 1709251199 1 (at 2024 2 29 23 59 59 1)
+       && from-is 946684800 0 (at 2000 1 1 0 0 0 0)
+       && from-is 253402300799 999999999 DT.max-datetime
+       && from-is (-377705116800) 0 DT.min-datetime
+       && refused (DT.from-epoch-seconds-nanos-utc 253402300800 0)
+       && refused (DT.from-epoch-seconds-nanos-utc (-377705116801) 999999999)
+       && refused (DT.from-epoch-seconds-nanos-utc 0 1000000000)
+       && refused (DT.from-epoch-seconds-nanos-utc 0 (-1))
+       && refused (DT.from-epoch-seconds-nanos-utc 9223372036854775807 0)
+       && refused (DT.from-epoch-seconds-nanos-utc (-9223372036854775808) 0)
+       && refused (DT.from-epoch-seconds-nanos-utc 0 9223372036854775807)
+    then 0 else 64
+
+  is-lt :: Ordering -> Bool
+  is-lt o = case o of
+    LT -> True
+    _ -> False
+
+  is-eq :: Ordering -> Bool
+  is-eq o = case o of
+    EQ -> True
+    _ -> False
+
+  is-gt :: Ordering -> Bool
+  is-gt o = case o of
+    GT -> True
+    _ -> False
+
+  -- -1, 0 or 1: the order of the two "as if UTC" coordinates.
+  line-order :: DateTime -> DateTime -> I64
+  line-order a b = case DT.to-epoch-seconds-nanos-utc a of
+    (sa, na) -> case DT.to-epoch-seconds-nanos-utc b of
+      (sb, nb) ->
+        if sa < sb then -1 else if sa > sb then 1
+        else if na < nb then -1 else if na > nb then 1 else 0
+
+  -- The lexicographic order agrees with the epoch line, with the sign
+  -- of the nanosecond difference, and across all instance methods; and
+  -- the epoch conversion inverts.
+  agrees :: DateTime -> DateTime -> Bool
+  agrees a b =
+    let o = line-order a b in
+    let n = DT.diff-nanos a b in
+    let zero = i64-to-i128 0 in
+    let back = case DT.to-epoch-seconds-nanos-utc a of
+          (s, ns) -> is-dt (DT.from-epoch-seconds-nanos-utc s ns) a in
+    if o < 0 then back && is-lt (DT.cmp a b) && a < b && a <= b && a /= b && n > zero
+                  && (if a > b then False else True) && (if a >= b then False else True)
+                  && (if a == b then False else True)
+    else if o == 0 then back && is-eq (DT.cmp a b) && a == b && a <= b && a >= b && n == zero
+                  && (if a < b then False else True) && (if a > b then False else True)
+                  && (if a /= b then False else True)
+    else back && is-gt (DT.cmp a b) && a > b && a >= b && a /= b && n < zero
+                  && (if a < b then False else True) && (if a <= b then False else True)
+
+  -- 128: the order: date first, then time.
+  check-order :: Int
+  check-order =
+    let a = at 2023 12 31 23 59 59 999999999 in
+    let b = at 2024 1 1 0 0 0 0 in
+    let c = at 2024 1 1 0 0 0 1 in
+    let d = at (-1) 12 31 23 59 59 0 in
+    let e = at 0 1 1 0 0 0 0 in
+    if agrees a b && agrees b a && agrees b c && agrees c b && agrees a c && agrees b b
+       && agrees d e && agrees e d && agrees d a && agrees DT.min-datetime DT.max-datetime
+       && agrees DT.max-datetime DT.min-datetime && agrees DT.min-datetime DT.min-datetime
+       && agrees (at 2024 1 2 0 0 0 0) (at 2024 1 1 23 59 59 999999999)
+       && agrees (at 1969 12 31 23 59 59 999999999) (at 1970 1 1 0 0 0 0)
+    then 0 else 128
+
+  main :: Int
+  main = check-parts + check-add-forward + check-add-backward + check-add-refusals + check-date-arithmetic + check-diff + check-epoch + check-order

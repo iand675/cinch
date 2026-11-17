@@ -1,0 +1,111 @@
+-- Lane A: Data.Time.Monotonic: elapsed time in both orders, moving a
+-- reading by a duration, the refusals at the `I64` bounds, the order.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Ordering
+  import Data.Time.Duration
+  import Data.Time.Monotonic
+
+  m :: I64 -> Monotonic
+  m n = monotonic-from-raw-nanos n
+
+  none-m :: Option Monotonic -> Bool
+  none-m o = case o of
+    None -> True
+    Some _ -> False
+
+  some-m :: Option Monotonic -> Monotonic -> Bool
+  some-m o want = case o of
+    Some x -> x == want
+    None -> False
+
+  -- 1: `elapsed-between earlier later` is `later - earlier`, signed.
+  check-elapsed-both-orders :: Int
+  check-elapsed-both-orders =
+    if monotonic-elapsed-between (m 3) (m 10) == duration-from-nanos 7
+      && monotonic-elapsed-between (m 10) (m 3) == duration-from-nanos (-7)
+      && duration-is-zero (monotonic-elapsed-between (m 10) (m 10))
+      && monotonic-elapsed-between (m 1000000000) (m 3500000000) == duration-from-millis 2500
+      && monotonic-elapsed-between (m 3) (m 10) == duration-neg (monotonic-elapsed-between (m 10) (m 3))
+      then 0 else 1
+
+  -- 2: the difference of the two `I64` extremes does not fit an `I64`
+  -- and is still exact.
+  check-elapsed-extremes :: Int
+  check-elapsed-extremes =
+    if eq-i128 (duration-total-nanos (monotonic-elapsed-between (m min-bound-i64) (m max-bound-i64))) 18446744073709551615
+      && eq-i128 (duration-total-nanos (monotonic-elapsed-between (m max-bound-i64) (m min-bound-i64))) (-18446744073709551615)
+      && eq-i128 (duration-total-nanos (monotonic-elapsed-between (m 0) (m max-bound-i64))) 9223372036854775807
+      then 0 else 2
+
+  -- 4: moving a reading, and elapsed-between recovering the duration.
+  check-add-sub :: Int
+  check-add-sub =
+    if some-m (monotonic-checked-add (m 10) (duration-from-nanos 5)) (m 15)
+      && some-m (monotonic-checked-add (m 10) (duration-from-nanos (-15))) (m (-5))
+      && some-m (monotonic-checked-sub (m 10) (duration-from-nanos 4)) (m 6)
+      && some-m (monotonic-checked-sub (m 10) (duration-from-nanos (-4))) (m 14)
+      && some-m (monotonic-checked-add (m 0) (duration-from-seconds 2)) (m 2000000000)
+      && some-m (monotonic-checked-add (m 7) duration-zero) (m 7)
+      && monotonic-elapsed-between (m 10) (monotonic-saturating-add (m 10) (duration-from-millis 3)) == duration-from-millis 3
+      && eq-i64 (monotonic-to-raw-nanos (m (-42))) (-42)
+      then 0 else 4
+
+  -- 8: a sum outside `I64` nanoseconds is refused, exactly at the
+  -- bounds.
+  check-add-refusals :: Int
+  check-add-refusals =
+    if none-m (monotonic-checked-add (m max-bound-i64) (duration-from-nanos 1))
+      && none-m (monotonic-checked-sub (m min-bound-i64) (duration-from-nanos 1))
+      && none-m (monotonic-checked-add (m 0) max-duration)
+      && none-m (monotonic-checked-add (m 0) min-duration)
+      && none-m (monotonic-checked-sub (m 0) max-duration)
+      && none-m (monotonic-checked-add (m 1) (duration-from-nanos max-bound-i64))
+      && some-m (monotonic-checked-add (m 0) (duration-from-nanos max-bound-i64)) (m max-bound-i64)
+      && some-m (monotonic-checked-add (m max-bound-i64) duration-zero) (m max-bound-i64)
+      && some-m (monotonic-checked-add (m max-bound-i64) (duration-from-nanos min-bound-i64)) (m (-1))
+      && some-m (monotonic-checked-add (m min-bound-i64) (monotonic-elapsed-between (m min-bound-i64) (m max-bound-i64))) (m max-bound-i64)
+      then 0 else 8
+
+  -- 16: the saturating twins clamp to the `I64` bounds.
+  check-saturating :: Int
+  check-saturating =
+    if monotonic-saturating-add (m max-bound-i64) (duration-from-nanos 1) == m max-bound-i64
+      && monotonic-saturating-sub (m min-bound-i64) (duration-from-nanos 1) == m min-bound-i64
+      && monotonic-saturating-add (m 5) max-duration == m max-bound-i64
+      && monotonic-saturating-add (m 5) min-duration == m min-bound-i64
+      && monotonic-saturating-sub (m 5) max-duration == m min-bound-i64
+      && monotonic-saturating-add (m 5) (duration-from-nanos (-2)) == m 3
+      && monotonic-saturating-sub (m 5) (duration-from-nanos (-2)) == m 7
+      then 0 else 16
+
+  below :: Monotonic -> Monotonic -> Bool
+  below a b = case monotonic-cmp a b of
+    LT -> case monotonic-cmp b a of
+      GT -> a < b && a <= b && b > a && b >= a && a /= b
+        && not (a > b) && not (a >= b) && not (b < a) && not (b <= a) && not (a == b)
+      _ -> False
+    _ -> False
+
+  same :: Monotonic -> Bool
+  same a = case monotonic-cmp a a of
+    EQ -> a == a && a <= a && a >= a && not (a /= a) && not (a < a) && not (a > a)
+    _ -> False
+
+  -- 32: the order, and its agreement with the sign of elapsed time.
+  check-order :: Int
+  check-order =
+    if below (m min-bound-i64) (m (-1))
+      && below (m (-1)) (m 0)
+      && below (m 0) (m 1)
+      && below (m 1) (m max-bound-i64)
+      && below (m min-bound-i64) (m max-bound-i64)
+      && same (m 0) && same (m min-bound-i64) && same (m max-bound-i64)
+      && duration-is-positive (monotonic-elapsed-between (m 0) (m 1))
+      && duration-is-negative (monotonic-elapsed-between (m 1) (m 0))
+      then 0 else 32
+
+  main :: Int
+  main = check-elapsed-both-orders + check-elapsed-extremes + check-add-sub
+    + check-add-refusals + check-saturating + check-order

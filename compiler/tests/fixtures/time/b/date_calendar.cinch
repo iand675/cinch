@@ -1,0 +1,225 @@
+-- Lane B: Data.Time.Date calendar positions. Weekday anchors,
+-- day-of-year at year boundaries, first/last of month and year,
+-- month and year arithmetic with Temporal's "constrain" overflow
+-- (Jiff's vectors), nth-weekday-of-month, nth-weekday, and ISO 8601
+-- week dates.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Weekday (Weekday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
+  import Data.Time.Weekday as W
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+
+  is-ymd :: Option Date -> I64 -> I64 -> I64 -> Bool
+  is-ymd o y m d = case o of
+    None -> False
+    Some x -> D.year x == y && D.month x == m && D.day x == d
+
+  fields :: Date -> I64 -> I64 -> I64 -> Bool
+  fields x y m d = D.year x == y && D.month x == m && D.day x == d
+
+  refused :: Option Date -> Bool
+  refused o = case o of
+    None -> True
+    Some _ -> False
+
+  -- A date from plain fields for the tests' own use; a refusal reads
+  -- as the least date, which no vector below expects.
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  -- 1: weekday anchors.
+  check-weekday :: Int
+  check-weekday =
+    if D.weekday (ymd 1970 1 1) == Thursday && D.weekday (ymd 2000 1 1) == Saturday
+       && D.weekday (ymd 2024 2 29) == Thursday && D.weekday (ymd 2026 11 17) == Tuesday
+       && D.weekday (ymd 1969 12 31) == Wednesday && D.weekday (ymd 2000 3 1) == Wednesday
+       && D.weekday (ymd 1900 1 1) == Monday && D.weekday (ymd 2100 3 1) == Monday
+       && D.weekday (ymd 0 1 1) == Saturday && D.weekday (ymd 0 2 29) == Tuesday
+       && D.weekday (ymd (-1) 12 31) == Friday && D.weekday (ymd (-4) 2 29) == Thursday
+       && D.weekday (ymd 1 1 1) == Monday
+       && D.weekday D.min-date == Monday && D.weekday D.max-date == Friday
+       && D.weekday (ymd 2024 7 10) == Wednesday
+    then 0 else 1
+
+  -- 2: day-of-year at the year boundaries and around February.
+  check-day-of-year :: Int
+  check-day-of-year =
+    if D.day-of-year (ymd 2024 1 1) == 1 && D.day-of-year (ymd 2024 12 31) == 366
+       && D.day-of-year (ymd 2023 1 1) == 1 && D.day-of-year (ymd 2023 12 31) == 365
+       && D.day-of-year (ymd 2024 2 29) == 60 && D.day-of-year (ymd 2024 3 1) == 61
+       && D.day-of-year (ymd 2023 2 28) == 59 && D.day-of-year (ymd 2023 3 1) == 60
+       && D.day-of-year (ymd 2026 11 17) == 321 && D.day-of-year (ymd 1900 12 31) == 365
+       && D.day-of-year (ymd 2000 12 31) == 366 && D.day-of-year (ymd 0 12 31) == 366
+       && D.day-of-year (ymd 2023 1 31) == 31 && D.day-of-year (ymd 2023 2 1) == 32
+       && D.day-of-year (ymd 2023 7 1) == 182 && D.day-of-year (ymd 2024 7 1) == 183
+       && D.day-of-year (ymd 2023 4 1) == 91 && D.day-of-year (ymd 2023 5 1) == 121
+       && D.day-of-year (ymd 2023 6 1) == 152 && D.day-of-year (ymd 2023 8 1) == 213
+       && D.day-of-year (ymd 2023 9 1) == 244 && D.day-of-year (ymd 2023 10 1) == 274
+       && D.day-of-year (ymd 2023 11 1) == 305 && D.day-of-year (ymd 2023 12 1) == 335
+       && D.day-of-year D.min-date == 1 && D.day-of-year D.max-date == 365
+       && D.day-of-year (ymd 2024 12 31) == D.days-in-year 2024
+    then 0 else 2
+
+  -- 4: first/last of month and year.
+  check-firsts-and-lasts :: Int
+  check-firsts-and-lasts =
+    let x = ymd 2024 2 15 in
+    let y = ymd 2023 2 15 in
+    if fields (D.first-of-month x) 2024 2 1 && fields (D.last-of-month x) 2024 2 29
+       && fields (D.last-of-month y) 2023 2 28
+       && fields (D.first-of-year x) 2024 1 1 && fields (D.last-of-year x) 2024 12 31
+       && fields (D.last-of-month (ymd 2023 4 1)) 2023 4 30
+       && fields (D.last-of-month (ymd 2023 12 31)) 2023 12 31
+       && fields (D.first-of-month (ymd 2023 12 31)) 2023 12 1
+       && fields (D.first-of-year D.min-date) (-9999) 1 1 && fields (D.last-of-year D.min-date) (-9999) 12 31
+       && fields (D.first-of-year D.max-date) 9999 1 1 && fields (D.last-of-year D.max-date) 9999 12 31
+       && fields (D.last-of-month (ymd (-4) 2 1)) (-4) 2 29
+    then 0 else 4
+
+  -- 8: add-months-constrain (Jiff/Temporal vectors).
+  check-add-months :: Int
+  check-add-months =
+    if is-ymd (D.add-months-constrain 1 (ymd 2024 5 31)) 2024 6 30
+       && is-ymd (D.add-months-constrain 2 (ymd 2024 5 31)) 2024 7 31
+       && is-ymd (D.add-months-constrain 1 (ymd 2025 1 31)) 2025 2 28
+       && is-ymd (D.add-months-constrain 1 (ymd 2024 1 31)) 2024 2 29
+       && is-ymd (D.add-months-constrain 0 (ymd 2024 1 31)) 2024 1 31
+       && is-ymd (D.add-months-constrain (-2) (ymd 2024 1 31)) 2023 11 30
+       && is-ymd (D.add-months-constrain (-1) (ymd 2024 1 15)) 2023 12 15
+       && is-ymd (D.add-months-constrain (-1) (ymd 2024 3 31)) 2024 2 29
+       && is-ymd (D.add-months-constrain (-1) (ymd 2023 3 31)) 2023 2 28
+       && is-ymd (D.add-months-constrain 12 (ymd 2024 2 29)) 2025 2 28
+       && is-ymd (D.add-months-constrain 48 (ymd 2024 2 29)) 2028 2 29
+       && is-ymd (D.add-months-constrain 25 (ymd 2023 12 31)) 2026 1 31
+       && is-ymd (D.add-months-constrain (-25) (ymd 2023 1 31)) 2020 12 31
+       && is-ymd (D.add-months-constrain 11 (ymd 2023 2 10)) 2024 1 10
+       && is-ymd (D.add-months-constrain (-1) (ymd 0 1 31)) (-1) 12 31
+       && is-ymd (D.add-months-constrain 1 (ymd (-1) 12 15)) 0 1 15
+       && is-ymd (D.add-months-constrain (-13) (ymd 0 1 31)) (-2) 12 31
+       && is-ymd (D.add-months-constrain 14 (ymd (-2) 12 31)) 0 2 29
+       && is-ymd (D.add-months-constrain 1 (ymd 9999 11 30)) 9999 12 30
+       && is-ymd (D.add-months-constrain (-11) (ymd (-9999) 12 31)) (-9999) 1 31
+       && is-ymd (D.add-months-constrain 239987 (ymd (-9999) 1 31)) 9999 12 31
+       && refused (D.add-months-constrain 1 (ymd 9999 12 1))
+       && refused (D.add-months-constrain (-1) (ymd (-9999) 1 31))
+       && refused (D.add-months-constrain 239988 (ymd (-9999) 1 31))
+       && refused (D.add-months-constrain 9223372036854775807 (ymd 2024 1 1))
+       && refused (D.add-months-constrain (-9223372036854775808) (ymd 2024 1 1))
+       && refused (D.add-months-constrain 9223372036854775807 (ymd (-9999) 1 1))
+    then 0 else 8
+
+  -- 16: add-years-constrain: only 29 February ever clamps.
+  check-add-years :: Int
+  check-add-years =
+    if is-ymd (D.add-years-constrain 1 (ymd 2024 2 29)) 2025 2 28
+       && is-ymd (D.add-years-constrain 4 (ymd 2024 2 29)) 2028 2 29
+       && is-ymd (D.add-years-constrain (-4) (ymd 2024 2 29)) 2020 2 29
+       && is-ymd (D.add-years-constrain (-1) (ymd 2024 2 29)) 2023 2 28
+       && is-ymd (D.add-years-constrain (-124) (ymd 2024 2 29)) 1900 2 28
+       && is-ymd (D.add-years-constrain (-24) (ymd 2024 2 29)) 2000 2 29
+       && is-ymd (D.add-years-constrain 0 (ymd 2024 2 29)) 2024 2 29
+       && is-ymd (D.add-years-constrain 1 (ymd 2024 12 31)) 2025 12 31
+       && is-ymd (D.add-years-constrain (-2025) (ymd 2024 6 30)) (-1) 6 30
+       && is-ymd (D.add-years-constrain 7975 (ymd 2024 2 29)) 9999 2 28
+       && is-ymd (D.add-years-constrain 19998 D.min-date) 9999 1 1
+       && is-ymd (D.add-years-constrain (-19998) D.max-date) (-9999) 12 31
+       && refused (D.add-years-constrain 7976 (ymd 2024 2 29))
+       && refused (D.add-years-constrain 1 D.max-date) && refused (D.add-years-constrain (-1) D.min-date)
+       && refused (D.add-years-constrain 9223372036854775807 (ymd 2024 1 1))
+       && refused (D.add-years-constrain (-9223372036854775808) (ymd 2024 1 1))
+       && refused (D.add-years-constrain (-9223372036854775808) (ymd (-1) 1 1))
+    then 0 else 16
+
+  -- 32: nth-weekday-of-month. July 2024 starts on a Monday and has 31
+  -- days; February 2024 starts on a Thursday and has 29.
+  check-nth-of-month :: Int
+  check-nth-of-month =
+    let july = ymd 2024 7 17 in
+    let feb = ymd 2024 2 10 in
+    let march = ymd 2024 3 1 in
+    if is-ymd (D.nth-weekday-of-month (-1) Sunday july) 2024 7 28
+       && is-ymd (D.nth-weekday-of-month 1 Monday july) 2024 7 1
+       && is-ymd (D.nth-weekday-of-month 5 Monday july) 2024 7 29
+       && is-ymd (D.nth-weekday-of-month 5 Tuesday july) 2024 7 30
+       && is-ymd (D.nth-weekday-of-month 5 Wednesday july) 2024 7 31
+       && refused (D.nth-weekday-of-month 5 Thursday july)
+       && refused (D.nth-weekday-of-month 5 Sunday july)
+       && is-ymd (D.nth-weekday-of-month 4 Sunday july) 2024 7 28
+       && is-ymd (D.nth-weekday-of-month 1 Sunday july) 2024 7 7
+       && is-ymd (D.nth-weekday-of-month 2 Tuesday july) 2024 7 9
+       && is-ymd (D.nth-weekday-of-month (-1) Wednesday july) 2024 7 31
+       && is-ymd (D.nth-weekday-of-month (-1) Monday july) 2024 7 29
+       && is-ymd (D.nth-weekday-of-month (-5) Monday july) 2024 7 1
+       && is-ymd (D.nth-weekday-of-month (-2) Thursday july) 2024 7 18
+       && refused (D.nth-weekday-of-month (-5) Thursday july)
+       && refused (D.nth-weekday-of-month 0 Monday july)
+       && refused (D.nth-weekday-of-month 6 Monday july) && refused (D.nth-weekday-of-month (-6) Monday july)
+       && refused (D.nth-weekday-of-month 9223372036854775807 Monday july)
+       && refused (D.nth-weekday-of-month (-9223372036854775808) Monday july)
+       && is-ymd (D.nth-weekday-of-month 5 Thursday feb) 2024 2 29
+       && refused (D.nth-weekday-of-month 5 Friday feb)
+       && is-ymd (D.nth-weekday-of-month (-1) Thursday feb) 2024 2 29
+       && is-ymd (D.nth-weekday-of-month (-5) Thursday feb) 2024 2 1
+       && is-ymd (D.nth-weekday-of-month 2 Friday march) 2024 3 8
+       && is-ymd (D.nth-weekday-of-month (-1) Friday march) 2024 3 29
+       && is-ymd (D.nth-weekday-of-month 5 Saturday march) 2024 3 30
+       && is-ymd (D.nth-weekday-of-month 1 Monday D.min-date) (-9999) 1 1
+       && is-ymd (D.nth-weekday-of-month (-1) Friday D.max-date) 9999 12 31
+    then 0 else 32
+
+  -- 64: nth-weekday (strictly after for positive n, strictly before
+  -- for negative n).
+  check-nth-weekday :: Int
+  check-nth-weekday =
+    let wed = ymd 2024 7 10 in
+    let sun = ymd 2024 3 10 in
+    if is-ymd (D.nth-weekday 2 Thursday wed) 2024 7 18
+       && is-ymd (D.nth-weekday 1 Thursday wed) 2024 7 11
+       && is-ymd (D.nth-weekday 1 Wednesday wed) 2024 7 17
+       && is-ymd (D.nth-weekday (-1) Wednesday wed) 2024 7 3
+       && is-ymd (D.nth-weekday (-1) Tuesday wed) 2024 7 9
+       && is-ymd (D.nth-weekday 1 Tuesday wed) 2024 7 16
+       && is-ymd (D.nth-weekday (-2) Thursday wed) 2024 6 27
+       && is-ymd (D.nth-weekday 1 Saturday sun) 2024 3 16
+       && is-ymd (D.nth-weekday (-1) Saturday sun) 2024 3 9
+       && is-ymd (D.nth-weekday (-2) Saturday sun) 2024 3 2
+       && is-ymd (D.nth-weekday 52 Wednesday wed) 2025 7 9
+       && is-ymd (D.nth-weekday 4 Monday (ymd 2024 12 30)) 2025 1 27
+       && refused (D.nth-weekday 0 Thursday wed)
+       && refused (D.nth-weekday 9223372036854775807 Thursday wed)
+       && refused (D.nth-weekday (-9223372036854775808) Thursday wed)
+       && refused (D.nth-weekday 1043500 Thursday wed) && refused (D.nth-weekday (-1043500) Thursday wed)
+       && refused (D.nth-weekday 1 Monday D.max-date) && refused (D.nth-weekday (-1) Sunday D.min-date)
+       && is-ymd (D.nth-weekday (-1) Thursday D.max-date) 9999 12 30
+       && is-ymd (D.nth-weekday 1 Tuesday D.min-date) (-9999) 1 2
+       && is-ymd (D.nth-weekday 1043498 Friday D.min-date) 9999 12 31
+       && is-ymd (D.nth-weekday 1043497 Friday D.min-date) 9999 12 24
+       && refused (D.nth-weekday 1043499 Friday D.min-date)
+    then 0 else 64
+
+  iso-is :: Date -> I64 -> I64 -> Bool
+  iso-is x y w = D.iso-week-year x == y && D.iso-week x == w
+
+  -- 128: ISO 8601 week dates at the year boundaries.
+  check-iso-week :: Int
+  check-iso-week =
+    if iso-is (ymd 2024 12 30) 2025 1 && iso-is (ymd 2021 1 3) 2020 53
+       && iso-is (ymd 2020 12 31) 2020 53 && iso-is (ymd 2026 1 1) 2026 1
+       && iso-is (ymd 2023 1 1) 2022 52 && iso-is (ymd 2024 1 1) 2024 1
+       && iso-is (ymd 2026 11 17) 2026 47 && iso-is (ymd 2015 12 31) 2015 53
+       && iso-is (ymd 2016 1 3) 2015 53 && iso-is (ymd 2016 1 4) 2016 1
+       && iso-is (ymd 2008 12 29) 2009 1 && iso-is (ymd 2008 12 28) 2008 52
+       && iso-is (ymd 1 1 1) 1 1
+       && iso-is D.min-date (-9999) 1 && iso-is (ymd (-9999) 1 7) (-9999) 1
+       && iso-is (ymd (-9999) 1 8) (-9999) 2 && iso-is D.max-date 9999 52
+       && iso-is (ymd 2024 6 15) 2024 24
+    then 0 else 128
+
+  main :: Int
+  main = check-weekday + check-day-of-year + check-firsts-and-lasts + check-add-months + check-add-years + check-nth-of-month + check-nth-weekday + check-iso-week

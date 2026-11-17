@@ -1,0 +1,301 @@
+-- Data.Time.DateTime: a civil date and wall-clock time.
+--
+-- A `DateTime` is a `Date` and a `TimeOfDay` together: what a calendar
+-- and a wall clock show at once, attached to no place. It is NOT an
+-- instant. Turning a civil reading into an instant needs an offset or
+-- a time zone, and that conversion is the zone layer's
+-- (Data.Time.Offset, Data.Time.Zone); the two `-utc` functions here
+-- are the arithmetic that layer is built from, and their names say
+-- what they assume.
+--
+-- Representation. A two-field `data` behind a private constructor
+-- holding the `Date` and the `TimeOfDay` (design/datetime.md section
+-- 4: "two fields, boxed until unpacking lands"). As held today
+-- (verified against the emitted LLVM): one heap object with two
+-- reference fields, each pointing at the one-word object of its part,
+-- so `date-part` and `time-part` are a field read and build nothing.
+-- Storing the two `I64` words inline instead would save two objects
+-- per value but needs an unchecked `Date`-from-word constructor
+-- exported from Data.Time.Date, which would let any importer forge an
+-- invalid date; the invariant was kept.
+--
+-- Design law shape. `datetime d t` followed by `date-part` and
+-- `time-part` returns `d` and `t`. The order is lexicographic, date
+-- then time, and agrees with the "as if UTC" line:
+-- `cmp a b` is the sign of `diff-nanos a b` reversed in argument order
+-- (`diff-nanos start finish` is finish minus start) and the order of
+-- the `(seconds, nanoseconds)` pairs of `to-epoch-seconds-nanos-utc`.
+-- `from-epoch-seconds-nanos-utc` inverts `to-epoch-seconds-nanos-utc`
+-- on the whole range. `add-seconds-nanos s n x` is the value whose
+-- "as if UTC" line position is `x`'s plus `s` seconds and `n`
+-- nanoseconds, or `None` when the date leaves -9999-01-01..=9999-12-31;
+-- it carries through midnight, month ends and year ends in either
+-- direction. `add-days`, `add-months-constrain` and
+-- `add-years-constrain` move the date exactly as Data.Time.Date's do
+-- and keep the time.
+--
+-- No operation faults (T2): everything is total or answers `Option`.
+--
+-- NAMED REFUSALS:
+--   - an inline two-word value: see Representation above.
+--   - instants, offsets and zones: a `DateTime` has no position on the
+--     timeline; "epoch seconds as if UTC" is a civil-line coordinate
+--     for the zone layer, not a `Timestamp`.
+--   - a `Duration`- or `Span`-typed surface, `until`/`since` in
+--     calendar units, and rounding: Data.Time.Arithmetic owns those;
+--     this module is plain `I64` (and one `I128` for the full-range
+--     nanosecond difference, which does not fit `I64`: the range spans
+--     about 6.3e20 nanoseconds).
+--   - text (Text.Time.Iso).
+--   - a total machine division: `Data.Machine` has only
+--     `checked-div-i64`/`checked-rem-i64`; the private `quot`/`rem`
+--     take a divisor at `InRange 2 9223372036854775807 I64` (which
+--     excludes both `None` cases) and still must match the `None` arm.
+module Data.Time.DateTime where
+
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Weekday (Weekday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+
+  export DateTime, datetime, from-date, date-part, time-part
+  export year, month, day, weekday, day-of-year
+  export hour, minute, second, subsec-nanosecond
+  export millisecond, microsecond, nanosecond
+  export start-of-day, end-of-day, with-date, with-time
+  export add-seconds-nanos, add-days, add-months-constrain, add-years-constrain
+  export diff-nanos
+  export to-epoch-seconds-nanos-utc, from-epoch-seconds-nanos-utc
+  export min-datetime, max-datetime, cmp
+
+
+  -- The date and the time (header). Not exported.
+  data DateTime where
+    MkDateTime :: Date -> TimeOfDay -> DateTime
+
+  -- -----------------------------------------------------------------
+  -- Construction and parts. Any `Date` and any `TimeOfDay` make a
+  -- `DateTime`, so construction is total.
+  -- -----------------------------------------------------------------
+
+  datetime :: Date -> TimeOfDay -> DateTime
+  datetime d t = MkDateTime d t
+
+  -- The date at 00:00:00.
+  from-date :: Date -> DateTime
+  from-date d = MkDateTime d T.midnight
+
+  date-part :: DateTime -> Date
+  date-part x = case x of
+    MkDateTime d _ -> d
+
+  time-part :: DateTime -> TimeOfDay
+  time-part x = case x of
+    MkDateTime _ t -> t
+
+  -- -9999-01-01T00:00:00 and 9999-12-31T23:59:59.999999999.
+  min-datetime :: DateTime
+  min-datetime = MkDateTime D.min-date T.min-time
+
+  max-datetime :: DateTime
+  max-datetime = MkDateTime D.max-date T.max-time
+
+  -- -----------------------------------------------------------------
+  -- Fields, forwarded to the parts with their refined ranges.
+  -- -----------------------------------------------------------------
+
+  year :: DateTime -> InRange (-9999) 9999 I64
+  year x = D.year (date-part x)
+
+  month :: DateTime -> InRange 1 12 I64
+  month x = D.month (date-part x)
+
+  day :: DateTime -> InRange 1 31 I64
+  day x = D.day (date-part x)
+
+  weekday :: DateTime -> Weekday
+  weekday x = D.weekday (date-part x)
+
+  day-of-year :: DateTime -> InRange 1 366 I64
+  day-of-year x = D.day-of-year (date-part x)
+
+  hour :: DateTime -> InRange 0 23 I64
+  hour x = T.hour (time-part x)
+
+  minute :: DateTime -> InRange 0 59 I64
+  minute x = T.minute (time-part x)
+
+  second :: DateTime -> InRange 0 59 I64
+  second x = T.second (time-part x)
+
+  subsec-nanosecond :: DateTime -> InRange 0 999999999 I64
+  subsec-nanosecond x = T.subsec-nanosecond (time-part x)
+
+  millisecond :: DateTime -> InRange 0 999 I64
+  millisecond x = T.millisecond (time-part x)
+
+  microsecond :: DateTime -> InRange 0 999 I64
+  microsecond x = T.microsecond (time-part x)
+
+  nanosecond :: DateTime -> InRange 0 999 I64
+  nanosecond x = T.nanosecond (time-part x)
+
+  -- -----------------------------------------------------------------
+  -- Replacing a part.
+  -- -----------------------------------------------------------------
+
+  -- The same date at 00:00:00.
+  start-of-day :: DateTime -> DateTime
+  start-of-day x = MkDateTime (date-part x) T.midnight
+
+  -- The same date at 23:59:59.999999999, the last representable time
+  -- of the civil day.
+  end-of-day :: DateTime -> DateTime
+  end-of-day x = MkDateTime (date-part x) T.max-time
+
+  with-date :: Date -> DateTime -> DateTime
+  with-date d x = MkDateTime d (time-part x)
+
+  with-time :: TimeOfDay -> DateTime -> DateTime
+  with-time t x = MkDateTime (date-part x) t
+
+  -- -----------------------------------------------------------------
+  -- Arithmetic.
+  -- -----------------------------------------------------------------
+
+  -- Adds `secs` seconds and `nanos` nanoseconds, each signed and each
+  -- any `I64`, carrying into the date. `None` when the date leaves the
+  -- range. The time wraps with `T.add-seconds-nanos-wrapping` (total
+  -- for every pair of `I64`s; its overflow argument is there), and the
+  -- whole-day carry it reports (within +-1.07e14) moves the date
+  -- through `D.add-days`, whose sum is checked.
+  add-seconds-nanos :: I64 -> I64 -> DateTime -> Option DateTime
+  add-seconds-nanos secs nanos x = case T.add-seconds-nanos-wrapping secs nanos (time-part x) of
+    (carry, t) -> case D.add-days carry (date-part x) of
+      None -> None
+      Some d -> Some (MkDateTime d t)
+
+  -- `n` days later (earlier when negative), same time.
+  add-days :: I64 -> DateTime -> Option DateTime
+  add-days n x = case D.add-days n (date-part x) of
+    None -> None
+    Some d -> Some (MkDateTime d (time-part x))
+
+  -- `n` months later, the day clamped to the target month's length
+  -- (Temporal's "constrain"), same time.
+  add-months-constrain :: I64 -> DateTime -> Option DateTime
+  add-months-constrain n x = case D.add-months-constrain n (date-part x) of
+    None -> None
+    Some d -> Some (MkDateTime d (time-part x))
+
+  -- `n` years later, 29 February clamped to 28 February where the
+  -- target year is not a leap year, same time.
+  add-years-constrain :: I64 -> DateTime -> Option DateTime
+  add-years-constrain n x = case D.add-years-constrain n (date-part x) of
+    None -> None
+    Some d -> Some (MkDateTime d (time-part x))
+
+  -- `diff-nanos start finish`: finish minus start in nanoseconds on
+  -- the civil line (every day is 86400 seconds), negative when
+  -- `finish` is earlier. Total: the day difference is within
+  -- +-7304483 and the time difference within +-86399999999999, so the
+  -- result is within +-6.4e20, which needs `I128` (it exceeds `I64`'s
+  -- 9.2e18) and is nowhere near wrapping it.
+  diff-nanos :: DateTime -> DateTime -> I128
+  diff-nanos start finish =
+    let days = D.diff-days (date-part start) (date-part finish) in
+    let nanos = T.diff-nanos (time-part start) (time-part finish) in
+    wrapping-add-i128 (wrapping-mul-i128 (i64-to-i128 days) (i64-to-i128 86400000000000)) (i64-to-i128 nanos)
+
+  -- -----------------------------------------------------------------
+  -- The civil line read as if it were UTC (for the zone layer).
+  -- -----------------------------------------------------------------
+
+  -- Whole seconds since 1970-01-01T00:00:00 reading the civil value as
+  -- if it were UTC, floored, and the subsecond nanoseconds in
+  -- 0..=999999999. One nanosecond before the epoch is `(-1, 999999999)`.
+  -- The seconds are `epoch-day * 86400 + second-of-day`, within
+  -- +-3.8e11, so nothing wraps; the floor is automatic because the
+  -- time of day is never negative.
+  to-epoch-seconds-nanos-utc :: DateTime -> (I64, I64)
+  to-epoch-seconds-nanos-utc x =
+    let n = T.to-nanos-of-day (time-part x) in
+    let days = D.to-epoch-days (date-part x) in
+    (wrapping-add-i64 (wrapping-mul-i64 days 86400) (quot n 1000000000), rem n 1000000000)
+
+  -- The inverse. `None` when `nanos` is outside 0..=999999999 (the
+  -- pair is not normalised) or the date leaves the range. The seconds
+  -- are any `I64`: they are split by truncated division into days and
+  -- a remainder that is moved into 0..=86399, so nothing wraps, and
+  -- the day count (within +-1.07e14) is refused by `D.from-epoch-days`
+  -- when out of range.
+  from-epoch-seconds-nanos-utc :: I64 -> I64 -> Option DateTime
+  from-epoch-seconds-nanos-utc secs nanos =
+    if nanos < 0 || nanos > 999999999 then None
+    else
+      let r0 = rem secs 86400 in
+      let q0 = quot secs 86400 in
+      let sod = if r0 < 0 then wrapping-add-i64 r0 86400 else r0 in
+      let days = if r0 < 0 then wrapping-sub-i64 q0 1 else q0 in
+      case D.from-epoch-days days of
+        None -> None
+        Some d -> case T.from-nanos-of-day (wrapping-add-i64 (wrapping-mul-i64 sod 1000000000) nanos) of
+          None -> None
+          Some t -> Some (MkDateTime d t)
+
+  -- -----------------------------------------------------------------
+  -- Order: lexicographic, date then time.
+  -- -----------------------------------------------------------------
+
+  cmp :: DateTime -> DateTime -> Ordering
+  cmp a b = case D.cmp (date-part a) (date-part b) of
+    LT -> LT
+    GT -> GT
+    EQ -> T.cmp (time-part a) (time-part b)
+
+  implicit instance Eq_DateTime :: Eq DateTime where
+    (==) a b = date-part a == date-part b && time-part a == time-part b
+    (/=) a b = date-part a /= date-part b || time-part a /= time-part b
+
+  implicit instance Ord_DateTime :: Ord DateTime where
+    (<) a b = case cmp a b of
+      LT -> True
+      EQ -> False
+      GT -> False
+    (<=) a b = case cmp a b of
+      GT -> False
+      LT -> True
+      EQ -> True
+    (>) a b = case cmp a b of
+      GT -> True
+      LT -> False
+      EQ -> False
+    (>=) a b = case cmp a b of
+      LT -> False
+      GT -> True
+      EQ -> True
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing.
+  -- -----------------------------------------------------------------
+
+  -- Truncated quotient and remainder. The divisor's type excludes zero
+  -- and -1, the only inputs for which the checked operations answer
+  -- `None`, so the `None` arms cannot be taken.
+  quot :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  quot a d = case checked-div-i64 a d of
+    Some q -> q
+    None -> 0
+
+  rem :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  rem a d = case checked-rem-i64 a d of
+    Some r -> r
+    None -> 0
