@@ -84,6 +84,7 @@ def main() -> None:
         jobs["source"] = "module Main where\n  import Data.Mutable.Map\n  import Data.Mutable.Map.Optional\n  import Data.Mutable.Map.Float\n  main :: Int\n  main = 0\n"
     if "region" in args.modes:
         jobs["region"] = (ROOT / "compiler/tests/fixtures/maps-region-pair.cinch").read_text()
+        jobs["region-source"] = (ROOT / "compiler/tests/fixtures/maps-region-source.cinch").read_text()
     if "control" in args.modes:
         jobs["control"] = (ROOT / "compiler/tests/fixtures/mutable-map-control.cinch").read_text()
     if "trace" in args.modes:
@@ -104,7 +105,7 @@ def main() -> None:
             executable, llvm = directory / "consumer", directory / "consumer.ll"
             suite = {"name": label, "consumer_sha256": digest(entry), "runs": []}
             report["suites"].append(suite)
-            check_only = label in ("source", "region")
+            check_only = label in ("source", "region", "region-source")
             if args.frontend == "rust":
                 command = [str(compiler), "check" if check_only else "build", str(entry)]
                 if not check_only:

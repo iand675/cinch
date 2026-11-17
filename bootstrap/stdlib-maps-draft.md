@@ -18,8 +18,9 @@ Copy currently uses a direct identity-bucket worker. This keeps the same
 source-preferred, finite self-copy behavior without a temporary insertion
 status cell. Optional Copy directly dispatches present maps and checks
 empty sources for absent destinations. The generic source composition
-API remains present and needs a separate cross-region composition gate;
-these specialized workers do not establish that gate.
+API remains present. Its separate cross-region composition source gate
+now passes repaired Rust fa3; these specialized workers alone did not
+establish that gate.
 
 ## Preserved source evidence and limits
 
@@ -46,7 +47,38 @@ these specialized workers do not establish that gate.
 
 Exact inputs and diagnostics remain under `build/maps-source-probe`,
 `build/maps-region-probes` and `build/maps-native-source-probe`. The
-maintained minimal region fixture is `maps-region-pair.cinch`.
+maintained minimal region fixtures are `maps-region-pair.cinch` and
+`maps-region-source.cinch`.
+
+## Repaired source gate and genuine interface refusal
+
+The exact repaired Rust compiler is
+`fa3ea3c9be1b74be455cb18ce0f084ef31aafb82e39ccc8fd660f653719531d2`,
+source checkpoint `5c664cfd`, with adjacent c4 runtime. It checks the
+entire current core/Optional/Float source and both independent distinct-
+region read/source-composition fixtures. No API was narrowed to obtain
+these source verdicts. Reports are under `build/maps-region-safe`.
+
+A real source-absent consumer uses byte-for-byte copies of the actual
+fa3-produced interfaces, with hashes from its generated manifest and no
+library sources beside the consumer. Both Native2f and experimental4a
+reject a call to imported `mutable-map-size`, exit4/compiler leak0:
+
+```text
+imported nominal scheme needs defining-module type identities: Data.Mutable.Map.MutableMap
+type constructor is applied to too many arguments
+kind mismatch in type inference
+```
+
+`build/maps-source-absent-fa3/results.json` preserves the exact artifacts,
+consumers and verdicts. Even closed mutable-map-size/copy/new exports have
+`resolved:null`. At frozen source5c, the Rust writer's
+`resolved_kernel_effect_row` excludes Mut and refuses open row tails;
+this is a concrete cause of the missing resolved declarations. The
+MutableMap/Var/LinkedList phantom headers also still say Type. Those
+header semantics and open-row transport are separate gates; no metadata
+was restamped and no reader check was weakened. Cross-producer interface
+compatibility is not established by source checking.
 
 ## Prepared independent gates
 
@@ -59,7 +91,9 @@ The published generation receipt explicitly does not qualify the library.
 
 The prepared trace and float templates render these independent values;
 they were generated and Python syntax-checked, but no Cinch consumer was
-compiled or executed. The separate control has twelve first-failure
+linked or executed. The first control build found an invalid selective
+import of builtin type Bytes from its operations module; that fixture
+import is corrected, with retry pending. The separate control has twelve first-failure
 groups: binding utilities, views/early stop, clear during traversal,
 NaN clone/self-copy, optional absence, growth/overwrite, delete/reinsert
 with immediate slot reuse, nested traversal, explicit colliding policy,
@@ -75,7 +109,7 @@ identities. It separates source-only checks from actual LLVM/link/runtime
 gates; normal32M/8M and separate poison256M/8M must both report zero leaks.
 Native linking explicitly selects O0 or O2 and its exact matched provider
 object/runtime; Rust whole-source linking uses only its explicit archive.
-The full validator has not yet been exercised.
+Source-only modes passed; emission/link/runtime modes remain unqualified.
 
 Ring selected9c and unselected storage candidate0dd remain immutable.
 Work switches back to bounded focused Ring qualification when the exact

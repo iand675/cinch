@@ -7,7 +7,7 @@ module Main where
   import Data.Mutable.Map.Optional
   import Data.Mutable.Map.Float
   import Data.Mutable.Var
-  import Data.Bytes (Bytes, bytes-new, bytes-len)
+  import Data.Bytes (bytes-new, bytes-len)
 
   -- | Require successful completion of a checked mutation.
   succeeded :: Result MapError Unit -> Bool

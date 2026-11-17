@@ -1,0 +1,48 @@
+{
+  "kind": "map-draft-source-and-interface-observations",
+  "library_runtime_qualified": false,
+  "source_compiler_sha256": "fa3ea3c9be1b74be455cb18ce0f084ef31aafb82e39ccc8fd660f653719531d2",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "source_inputs": {
+    "Data.Mutable.Map": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+    "Data.Mutable.Map.Optional": "7e9b280b6e9d7b0a545479f0ff6c705ecac5ce477608bda3b0c04e644c81620a",
+    "Data.Mutable.Map.Float": "ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a",
+    "Data.Mutable.HashTable": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+    "Data.Mutable.LinkedList": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
+    "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+  },
+  "source_gates": [
+    "source",
+    "region",
+    "region-source"
+  ],
+  "reports": {
+    "build/maps-region-safe/source-results.json": "055b8e2ebc9493cf25b1c989f746a50b3b2ef1a503ffe34c0e2219a46b9a8fd7",
+    "build/maps-region-safe/source/region-source/check.json": "1113c1958ba86b13604a39c7c4234bef54cbeb9ed87e7ba782f0b56ecbb79fc2",
+    "build/maps-source-absent-fa3/results.json": "fcbb601dbea910191beb4211256078bb9e19961b8491f8205682588c3a6868a8"
+  },
+  "source_absent_consumers": [
+    {
+      "label": "native2f",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "exit": 4,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "diagnostics": "bootstrap.check:1:17: imported nominal scheme needs defining-module type identities: Data.Mutable.Map.MutableMap\nbootstrap.check:1:17: type constructor is applied to too many arguments\nbootstrap.check:5:24: kind mismatch in type inference\n"
+    },
+    {
+      "label": "experimental4a",
+      "compiler_sha256": "4a44146bfe538cf605933f8e8175387ae40f152bb991add6640a5b5882b12d41",
+      "exit": 4,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "diagnostics": "bootstrap.check:1:17: imported nominal scheme needs defining-module type identities: Data.Mutable.Map.MutableMap\nbootstrap.check:1:17: type constructor is applied to too many arguments\nbootstrap.check:5:24: kind mismatch in type inference\n"
+    }
+  ],
+  "interface_bytes_modified": false,
+  "known_limits": [
+    "Mut and open rows are not serialized into resolved schemes by this Rust writer.",
+    "Phantom-region headers remain Type; no metadata reinterpretation or cross-producer parity claim.",
+    "No linked/runtime map consumer has passed yet."
+  ]
+}
