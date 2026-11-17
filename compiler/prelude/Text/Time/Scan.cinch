@@ -1,0 +1,265 @@
+-- Text.Time.Scan: the byte cursor, digit readers and digit writers the
+-- datetime text modules share (Text.Time.Iso, Text.Time.Strtime, and
+-- the later RFC 9557 and duration modules).
+--
+-- Design law shape. An input is a `Bytes` and a cursor is a plain `I64`
+-- byte position; nothing here allocates per byte read, and nothing
+-- decodes to `Char`.
+--   - `scan-byte-at b i` is the byte at `i` as 0..=255, and -1 for every
+--     position outside the buffer (negative or past the end). The end
+--     of input is therefore one more "byte value" a state machine
+--     branches on, and no read can fault.
+--   - `scan-digit-at b i` is 0..=9 for an ASCII digit and -1 otherwise
+--     (including the end).
+--   - `scan-digits b i n` reads exactly `n` digits as a number, or -1 if
+--     any of the `n` bytes is not a digit. `n` is at most 18 so the
+--     value fits an `I64` (the callers pass at most 9).
+--   - `scan-count-digits b i limit` counts the run of digits at `i`,
+--     stopping at `limit`.
+--   - `scan-fraction-digits`/`scan-fraction-head` are the two halves of
+--     printing a subsecond: how many digits are exact, and the leading
+--     digits of the nine.
+--   - `scan-put-byte b i v` writes one byte and answers `i + 1`;
+--     `scan-put-digits b i width v` writes `v` (non-negative) as exactly
+--     `width` decimal digits, most significant first, keeping the low
+--     `width` digits. A write outside the buffer is skipped, never a
+--     fault; the callers size their buffers exactly, so no write is
+--     skipped in practice.
+--
+-- String views. `scan-bytes-of-string` is `Data.String.string-to-bytes`:
+-- ONE `memmove` copy of the backing. `Data.String` keeps the backing
+-- private on purpose (its immutability contract: "every conversion out
+-- of a String copies"), so no no-copy byte view of a `String` exists
+-- for a module outside `Data.String`. `scan-string-of-bytes` is
+-- `string-from-bytes`: one UTF-8 validation pass and one copy.
+--
+-- NAMED REFUSALS:
+--   - a no-copy view of a `String` as bytes: not available (above). A
+--     parse costs one copy of the input; a print costs one copy of the
+--     output buffer.
+--   - machine-indexed byte access: `bytes-get`/`bytes-set` take a `Nat`
+--     index, so every byte read converts the `I64` cursor with
+--     `nat-from-i64` inside `scan-byte-at`. The cursor itself, and all
+--     arithmetic on it, stays an `I64`.
+--   - a total machine division: `scan-quot`/`scan-rem` take the divisor
+--     at `InRange 2 9223372036854775807 I64` (the `Data.Time.Date`
+--     convention), which excludes both `None` cases of the checked
+--     operations.
+module Text.Time.Scan where
+
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Bytes
+  import Data.String
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+
+  export scan-bytes-of-string, scan-string-of-bytes
+  export scan-length, scan-byte-at, scan-digit-at, scan-digits, scan-count-digits
+  export scan-lower-at, scan-is-space
+  export scan-new, scan-put-byte, scan-put-digits, scan-put-bytes, scan-take, scan-slice
+  export scan-quot, scan-rem, scan-pow10, scan-fraction-digits, scan-fraction-head
+
+
+  -- -----------------------------------------------------------------
+  -- Views.
+  -- -----------------------------------------------------------------
+
+  -- The UTF-8 bytes of a string: one copy (see the header).
+  scan-bytes-of-string :: String -> Bytes
+  scan-bytes-of-string s = string-to-bytes s
+
+  -- The string a printer's buffer holds. The printers write ASCII only,
+  -- so the validation never fails; the fallback is the empty string.
+  scan-string-of-bytes :: Bytes -> String
+  scan-string-of-bytes b = case string-from-bytes b of
+    Some s -> s
+    None -> empty-string
+
+  scan-length :: Bytes -> I64
+  scan-length b = nat-to-i64 (bytes-len b)
+
+  -- -----------------------------------------------------------------
+  -- Reading.
+  -- -----------------------------------------------------------------
+
+  scan-byte-at :: Bytes -> I64 -> I64
+  scan-byte-at b i =
+    if i < 0 then -1
+    else
+      let n = nat-from-i64 i in
+      if n < bytes-len b then nat-to-i64 (bytes-get b n) else -1
+
+  scan-digit-at :: Bytes -> I64 -> I64
+  scan-digit-at b i =
+    let c = scan-byte-at b i in
+    if c >= 48 && c <= 57 then wrapping-sub-i64 c 48 else -1
+
+  -- The byte at `i` with ASCII upper case letters folded to lower case;
+  -- other bytes (and -1) unchanged.
+  scan-lower-at :: Bytes -> I64 -> I64
+  scan-lower-at b i =
+    let c = scan-byte-at b i in
+    if c >= 65 && c <= 90 then wrapping-add-i64 c 32 else c
+
+  -- ASCII white space: space, tab, LF, VT, FF, CR.
+  scan-is-space :: I64 -> Bool
+  scan-is-space c = c == 32 || (c >= 9 && c <= 13)
+
+  -- Exactly `n` digits at `i` as a number, -1 if one is missing. The
+  -- accumulator is below 10^n <= 10^18, so the wrapping operations never
+  -- wrap for n <= 18; a larger `n` is refused with -1.
+  scan-digits :: Bytes -> I64 -> I64 -> I64
+  scan-digits b i n = if n < 1 || n > 18 then -1 else digits-loop b i n 0
+
+  digits-loop :: Bytes -> I64 -> I64 -> I64 -> I64
+  digits-loop b i n acc =
+    if n <= 0 then acc
+    else
+      let d = scan-digit-at b i in
+      if d < 0 then -1
+      else digits-loop b (wrapping-add-i64 i 1) (wrapping-sub-i64 n 1) (wrapping-add-i64 (wrapping-mul-i64 acc 10) d)
+
+  -- The length of the run of digits at `i`, at most `limit`.
+  scan-count-digits :: Bytes -> I64 -> I64 -> I64
+  scan-count-digits b i limit = count-loop b i limit 0
+
+  count-loop :: Bytes -> I64 -> I64 -> I64 -> I64
+  count-loop b i limit k =
+    if k >= limit then k
+    else if scan-digit-at b (wrapping-add-i64 i k) < 0 then k
+    else count-loop b i limit (wrapping-add-i64 k 1)
+
+  -- -----------------------------------------------------------------
+  -- Writing.
+  -- -----------------------------------------------------------------
+
+  -- A zeroed buffer of `n` bytes (none for a negative `n`).
+  scan-new :: I64 -> Bytes
+  scan-new n = if n < 0 then bytes-new 0 else bytes-new (nat-from-i64 n)
+
+  -- Writes the low eight bits of `v` at `i`; answers `i + 1`. Positions
+  -- are far below 2^62, so the increment does not wrap.
+  scan-put-byte :: Bytes -> I64 -> I64 -> I64
+  scan-put-byte b i v =
+    if i < 0 then wrapping-add-i64 i 1
+    else
+      let n = nat-from-i64 i in
+      let x = mask-i64 v 255 in
+      if n < bytes-len b then
+        let u = bytes-set b n (nat-from-i64 x) in
+        wrapping-add-i64 i 1
+      else wrapping-add-i64 i 1
+
+  -- `v` as exactly `width` decimal digits at `i`; answers `i + width`.
+  -- Written from the least significant digit backward. A negative `v`
+  -- is written as zeros.
+  scan-put-digits :: Bytes -> I64 -> I64 -> I64 -> I64
+  scan-put-digits b i width v =
+    if width <= 0 then i
+    else
+      let end = wrapping-add-i64 i width in
+      let u = put-digits-back b i (wrapping-sub-i64 end 1) (if v < 0 then 0 else v) in
+      end
+
+  put-digits-back :: Bytes -> I64 -> I64 -> I64 -> I64
+  put-digits-back b first at v =
+    if at < first then 0
+    else
+      let u = scan-put-byte b at (wrapping-add-i64 48 (scan-rem v 10)) in
+      put-digits-back b first (wrapping-sub-i64 at 1) (scan-quot v 10)
+
+  -- Copies `n` bytes of `src` from `si` to `dst` at `di`; answers
+  -- `di + n`. A range that does not fit either buffer copies nothing.
+  scan-put-bytes :: Bytes -> I64 -> Bytes -> I64 -> I64 -> I64
+  scan-put-bytes dst di src si n =
+    if di < 0 || si < 0 || n <= 0 then di
+    else
+      let d = nat-from-i64 di in
+      let s = nat-from-i64 si in
+      let k = nat-from-i64 n in
+      if d + k <= bytes-len dst && s + k <= bytes-len src then
+        let u = bytes-copy-range dst src d s k in
+        wrapping-add-i64 di n
+      else wrapping-add-i64 di n
+
+  -- The first `n` bytes of `b` as a fresh buffer (all of it when `n` is
+  -- its length or more).
+  scan-take :: Bytes -> I64 -> Bytes
+  scan-take b n =
+    let len = scan-length b in
+    let m = if n > len then len else n in
+    let out = scan-new m in
+    let u = scan-put-bytes out 0 b 0 m in
+    out
+
+  -- The bytes `start .. end` of `b` as a fresh buffer; the empty buffer
+  -- when the range is empty or does not lie inside `b`.
+  scan-slice :: Bytes -> I64 -> I64 -> Bytes
+  scan-slice b start end =
+    if start < 0 || end <= start || end > scan-length b then scan-new 0
+    else
+      let n = wrapping-sub-i64 end start in
+      let out = scan-new n in
+      let u = scan-put-bytes out 0 b start n in
+      out
+
+  -- -----------------------------------------------------------------
+  -- Arithmetic.
+  -- -----------------------------------------------------------------
+
+  scan-quot :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  scan-quot a d = case checked-div-i64 a d of
+    Some q -> q
+    None -> 0
+
+  scan-rem :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  scan-rem a d = case checked-rem-i64 a d of
+    Some r -> r
+    None -> 0
+
+  -- 10^k for k in 0..=9; 1 below 0 and 10^9 above 9.
+  scan-pow10 :: I64 -> I64
+  scan-pow10 k =
+    if k <= 0 then 1
+    else if k == 1 then 10
+    else if k == 2 then 100
+    else if k == 3 then 1000
+    else if k == 4 then 10000
+    else if k == 5 then 100000
+    else if k == 6 then 1000000
+    else if k == 7 then 10000000
+    else if k == 8 then 100000000
+    else 1000000000
+
+  -- The number of fraction digits the shortest exact rendering of a
+  -- subsecond nanosecond count needs: 0 for zero, otherwise 9 less the
+  -- trailing zeros.
+  scan-fraction-digits :: I64 -> InRange 0 9 I64
+  scan-fraction-digits ns =
+    if ns == 0 then 0
+    else if scan-rem ns 10 /= 0 then 9
+    else if scan-rem ns 100 /= 0 then 8
+    else if scan-rem ns 1000 /= 0 then 7
+    else if scan-rem ns 10000 /= 0 then 6
+    else if scan-rem ns 100000 /= 0 then 5
+    else if scan-rem ns 1000000 /= 0 then 4
+    else if scan-rem ns 10000000 /= 0 then 3
+    else if scan-rem ns 100000000 /= 0 then 2
+    else 1
+
+  -- The first `digits` digits of a nine-digit subsecond (truncation);
+  -- all nine for `digits` of 9 or more, the first for 1 or less.
+  scan-fraction-head :: I64 -> I64 -> I64
+  scan-fraction-head ns digits =
+    if digits >= 9 then ns
+    else if digits == 8 then scan-quot ns 10
+    else if digits == 7 then scan-quot ns 100
+    else if digits == 6 then scan-quot ns 1000
+    else if digits == 5 then scan-quot ns 10000
+    else if digits == 4 then scan-quot ns 100000
+    else if digits == 3 then scan-quot ns 1000000
+    else if digits == 2 then scan-quot ns 10000000
+    else scan-quot ns 100000000

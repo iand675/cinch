@@ -1,0 +1,270 @@
+-- Lane C: TZif-backed zones around the world (tzdata 2026e).
+-- Australia/Sydney (a southern fold and gap, daylight time across the
+-- new year), Asia/Kolkata (+05:30, no transitions since 1945),
+-- Europe/Amsterdam and Europe/London (both change at 01:00 UTC;
+-- pre-war Amsterdam time, British Standard Time), Pacific/Apia (the
+-- day 2011-12-30 never happened: a 24-hour gap), America/Santiago
+-- (gaps and folds at civil midnight) and UTC (a file with no
+-- transitions), each including instants answered by the footer's
+-- POSIX rule and by the first local time type.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Relation.Eq
+  import Data.Time.Timestamp
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Effect.Time.Zone
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s 0 of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  ts :: I64 -> Timestamp
+  ts s = case timestamp-from-unix-seconds s of
+    None -> timestamp-epoch
+    Some t -> t
+
+  opt-secs :: Option I64 -> I64
+  opt-secs o = case o of
+    None -> -1
+    Some t -> t
+
+  opt-ts :: Option Timestamp -> I64
+  opt-ts o = case o of
+    None -> -1
+    Some t -> timestamp-to-unix-seconds t
+
+  one :: Ambiguous -> I64 -> Bool
+  one a o = case a of
+    Unambiguous x -> offset-to-seconds x == o
+    Gap _ _ -> False
+    Fold _ _ -> False
+
+  gap :: Ambiguous -> I64 -> I64 -> Bool
+  gap a before after = case a of
+    Unambiguous _ -> False
+    Gap x y -> offset-to-seconds x == before && offset-to-seconds y == after
+    Fold _ _ -> False
+
+  fold :: Ambiguous -> I64 -> I64 -> Bool
+  fold a before after = case a of
+    Unambiguous _ -> False
+    Gap _ _ -> False
+    Fold x y -> offset-to-seconds x == before && offset-to-seconds y == after
+
+  -- A resolution: the instant's Unix second, or -1 for a rejected
+  -- gap, -2 for a rejected fold, -3 for out of range.
+  res :: Result AmbiguityError Timestamp -> I64
+  res r = case r of
+    Ok t -> timestamp-to-unix-seconds t
+    Err e -> case e of
+      RejectedGap _ _ -> -1
+      RejectedFold _ _ -> -2
+      AmbiguityOutOfRange -> -3
+
+  says :: TimeZone -> I64 -> I64 -> Bool -> String -> Bool
+  says z t secs dst abbr =
+    let i = zone-info-at-unix-seconds z t in
+    offset-to-seconds (offset-info-offset i) == secs
+    && offset-info-is-dst i == dst && offset-info-abbreviation i == abbr
+
+  -- The resolved instant and the offset in force at it.
+  lands :: TimeZone -> Disambiguation -> DateTime -> I64 -> I64 -> DateTime -> Bool
+  lands z s x secs offset reading = case zone-to-timestamp s z x of
+    Err _ -> False
+    Ok t ->
+      timestamp-to-unix-seconds t == secs
+      && offset-to-seconds (zone-offset-at z t) == offset
+      && zone-to-datetime z t == reading
+
+  -- 1: Sydney. 2026-04-05T02:30 happens twice (+11:00 then +10:00).
+  check-sydney :: TimeZone -> Int
+  check-sydney z =
+    let x = at 2026 4 5 2 30 0 in
+    if fold (zone-to-ambiguous z x) 39600 36000
+       && lands z Compatible x 1775316600 39600 x
+       && lands z Earlier x 1775316600 39600 x
+       && lands z Later x 1775320200 36000 x
+       && res (zone-to-timestamp Reject z x) == -2
+       && gap (zone-to-ambiguous z (at 2026 10 4 2 30 0)) 36000 39600
+       && lands z Compatible (at 2026 10 4 2 30 0) 1791045000 39600 (at 2026 10 4 3 30 0)
+       && lands z Earlier (at 2026 10 4 2 30 0) 1791041400 36000 (at 2026 10 4 1 30 0)
+       && says z 1767225600 39600 True "AEDT"
+       && says z 1775318399 39600 True "AEDT"
+       && says z 1775318400 36000 False "AEST"
+       && says z 1791043200 39600 True "AEDT"
+       && says z 4103697600 39600 True "AEDT"
+       && says z 4119336000 36000 False "AEST"
+       && says z 16733231999 39600 True "AEDT"
+       && says z 16733232000 36000 False "AEST"
+       && says z (-5000000000) 36292 False "LMT"
+       && one (zone-to-ambiguous z (at 2026 1 1 0 0 0)) 39600
+       && one (zone-to-ambiguous z (at 2500 12 31 23 59 59)) 39600
+      then 0 else 1
+
+  -- 2: Kolkata. +05:30 throughout modern times; the last transition
+  -- was in 1945 (the end of wartime +06:30).
+  check-kolkata :: TimeZone -> Int
+  check-kolkata z =
+    if says z 1780295400 19800 False "IST"
+       && says z 0 19800 False "IST"
+       && says z 16742116800 19800 False "IST"
+       && says z (-764145000) 19800 False "IST"
+       && says z (-764145001) 23400 True "+0630"
+       && says z (-2019705671) 19270 False "MMT"
+       && says z (-5000000000) 21208 False "LMT"
+       && opt-secs (zone-next-transition-unix-seconds z (-764145000)) == -1
+       && opt-secs (zone-next-transition-unix-seconds z 1780295400) == -1
+       && opt-secs (zone-previous-transition-unix-seconds z 1780295400) == -764145000
+       && opt-secs (zone-next-transition-unix-seconds z (-764145001)) == -764145000
+       && one (zone-to-ambiguous z (at 2026 6 1 12 0 0)) 19800
+       && res (zone-to-timestamp-reject z (at 2026 6 1 12 0 0)) == 1780295400
+       && zone-to-datetime z (ts 0) == at 1970 1 1 5 30 0
+       && zone-transition-count z == 7
+      then 0 else 2
+
+  -- 4: Amsterdam. The clocks change at 01:00 UTC: 02:00 local in
+  -- March (a gap to 03:00), 03:00 local in October (a fold back to
+  -- 02:00). Before 1940 the Netherlands kept Amsterdam time,
+  -- UTC+00:19:32, and its summer time.
+  check-amsterdam :: TimeZone -> Int
+  check-amsterdam z =
+    if says z 1774745999 3600 False "CET"
+       && says z 1774746000 7200 True "CEST"
+       && says z 1792889999 7200 True "CEST"
+       && says z 1792890000 3600 False "CET"
+       && gap (zone-to-ambiguous z (at 2026 3 29 2 30 0)) 3600 7200
+       && one (zone-to-ambiguous z (at 2026 3 29 1 59 59)) 3600
+       && one (zone-to-ambiguous z (at 2026 3 29 3 0 0)) 7200
+       && fold (zone-to-ambiguous z (at 2026 10 25 2 30 0)) 7200 3600
+       && one (zone-to-ambiguous z (at 2026 10 25 3 0 0)) 3600
+       && lands z Compatible (at 2026 3 29 2 30 0) 1774747800 7200 (at 2026 3 29 3 30 0)
+       && lands z Later (at 2026 10 25 2 30 0) 1792891800 3600 (at 2026 10 25 2 30 0)
+       && lands z Earlier (at 2026 10 25 2 30 0) 1792888200 7200 (at 2026 10 25 2 30 0)
+       && says z (-1029190773) 1172 False "AMT"
+       && says z (-1029190772) 4772 True "NST"
+       && says z (-1025745572) 4800 True "+0120"
+       && says z (-1017613200) 1200 False "+0020"
+       && says z (-5000000000) 1172 False "LMT"
+       && says z 16732659599 3600 False "CET"
+       && says z 16732659600 7200 True "CEST"
+       && says z 16751408400 3600 False "CET"
+       && opt-secs (zone-next-transition-unix-seconds z 1774746000) == 1792890000
+      then 0 else 4
+
+  -- 8: London. The same instants as Amsterdam, an hour earlier on the
+  -- clock. From 1968 to 1971 "BST" was British Standard Time: +01:00
+  -- and not daylight saving.
+  check-london :: TimeZone -> Int
+  check-london z =
+    if says z 1774745999 0 False "GMT"
+       && says z 1774746000 3600 True "BST"
+       && says z 1792890000 0 False "GMT"
+       && gap (zone-to-ambiguous z (at 2026 3 29 1 30 0)) 0 3600
+       && fold (zone-to-ambiguous z (at 2026 10 25 1 30 0)) 3600 0
+       && one (zone-to-ambiguous z (at 2026 10 25 2 0 0)) 0
+       && says z 0 3600 False "BST"
+       && says z (-59004001) 0 False "GMT"
+       && says z (-59004000) 3600 True "BST"
+       && says z 57722400 0 False "GMT"
+       && says z (-3852662326) (-75) False "LMT"
+       && says z (-3852662325) 0 False "GMT"
+       && says z 4119336000 3600 True "BST"
+       && says z 16726478400 0 False "GMT"
+       && opt-secs (zone-previous-transition-unix-seconds z (-3852662325)) == -1
+      then 0 else 8
+
+  -- 16: Apia crossed the date line at the end of 2011-12-29: the
+  -- clocks went from 24:00 on the 29th (-10:00) straight to 00:00 on
+  -- the 31st (+14:00). Every reading on the 30th is in the gap.
+  check-apia :: TimeZone -> Int
+  check-apia z =
+    if says z 1325239199 (-36000) True "-10"
+       && says z 1325239200 50400 True "+14"
+       && zone-to-datetime z (ts 1325239199) == at 2011 12 29 23 59 59
+       && zone-to-datetime z (ts 1325239200) == at 2011 12 31 0 0 0
+       && one (zone-to-ambiguous z (at 2011 12 29 23 59 59)) (-36000)
+       && gap (zone-to-ambiguous z (at 2011 12 30 0 0 0)) (-36000) 50400
+       && gap (zone-to-ambiguous z (at 2011 12 30 12 0 0)) (-36000) 50400
+       && gap (zone-to-ambiguous z (at 2011 12 30 23 59 59)) (-36000) 50400
+       && one (zone-to-ambiguous z (at 2011 12 31 0 0 0)) 50400
+       && lands z Compatible (at 2011 12 30 12 0 0) 1325282400 50400 (at 2011 12 31 12 0 0)
+       && lands z Later (at 2011 12 30 12 0 0) 1325282400 50400 (at 2011 12 31 12 0 0)
+       && lands z Earlier (at 2011 12 30 12 0 0) 1325196000 (-36000) (at 2011 12 29 12 0 0)
+       && res (zone-to-timestamp Reject z (at 2011 12 30 12 0 0)) == -1
+       && says z 1617458400 46800 False "+13"
+       && says z 1793572200 46800 False "+13"
+       && says z 4119336000 46800 False "+13"
+       && says z 16742116800 46800 False "+13"
+       && says z (-5000000000) 45184 False "LMT"
+      then 0 else 16
+
+  -- 32: Santiago changes at 24:00: on 2026-09-06 midnight does not
+  -- exist (the day starts at 01:00), and the last hour of 2026-04-04
+  -- happens twice.
+  check-santiago :: TimeZone -> Int
+  check-santiago z =
+    if says z 1788667199 (-14400) False "-04"
+       && says z 1788667200 (-10800) True "-03"
+       && says z 1775357999 (-10800) True "-03"
+       && says z 1775358000 (-14400) False "-04"
+       && gap (zone-to-ambiguous z (at 2026 9 6 0 0 0)) (-14400) (-10800)
+       && gap (zone-to-ambiguous z (at 2026 9 6 0 30 0)) (-14400) (-10800)
+       && one (zone-to-ambiguous z (at 2026 9 6 1 0 0)) (-10800)
+       && one (zone-to-ambiguous z (at 2026 9 5 23 59 59)) (-14400)
+       && lands z Compatible (at 2026 9 6 0 0 0) 1788667200 (-10800) (at 2026 9 6 1 0 0)
+       && fold (zone-to-ambiguous z (at 2026 4 4 23 30 0)) (-10800) (-14400)
+       && one (zone-to-ambiguous z (at 2026 4 5 0 0 0)) (-14400)
+       && says z 4110490799 (-10800) True "-03"
+       && says z 4110490800 (-14400) False "-04"
+       && says z 4123800000 (-10800) True "-03"
+       && gap (zone-to-ambiguous z (at 2100 9 5 0 30 0)) (-14400) (-10800)
+       && says z (-5000000000) (-16965) False "LMT"
+      then 0 else 32
+
+  -- 64: UTC: a TZif file with no transitions at all.
+  check-utc :: TimeZone -> Int
+  check-utc z =
+    if zone-name z == "UTC" && zone-transition-count z == 0
+       && says z 0 0 False "UTC"
+       && says z (-377705023201) 0 False "UTC"
+       && says z 253402207200 0 False "UTC"
+       && opt-secs (zone-next-transition-unix-seconds z 0) == -1
+       && opt-secs (zone-previous-transition-unix-seconds z 0) == -1
+       && one (zone-to-ambiguous z (at 2026 3 8 2 30 0)) 0
+       && zone-to-datetime z (ts 1793572200) == at 2026 11 1 22 30 0
+      then 0 else 64
+
+  load :: forall r. using (io :: Io r) => String ->{IO r} Result TzLookupError TimeZone
+  load name = tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") name
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case load "Australia/Sydney" of
+      Err _ -> 128
+      Ok sydney -> case load "Asia/Kolkata" of
+        Err _ -> 128
+        Ok kolkata -> case load "Europe/Amsterdam" of
+          Err _ -> 128
+          Ok amsterdam -> case load "Europe/London" of
+            Err _ -> 128
+            Ok london -> case load "Pacific/Apia" of
+              Err _ -> 128
+              Ok apia -> case load "America/Santiago" of
+                Err _ -> 128
+                Ok santiago -> case load "UTC" of
+                  Err _ -> 128
+                  Ok utc -> check-sydney sydney + check-kolkata kolkata
+                    + check-amsterdam amsterdam + check-london london
+                    + check-apia apia + check-santiago santiago + check-utc utc

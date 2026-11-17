@@ -1,0 +1,222 @@
+-- Lane E: Text.Time.Iso, timestamps (RFC 3339). Known instants, the
+-- UTC printer and its round trip at both range ends and around the
+-- epoch, equal instants written at different offsets, the offset
+-- printer (minutes, seconds, both signs, range), the offset as written
+-- (`Z`, numeric, `-00:00`), the refusal of a date-time with no offset,
+-- offsets beyond the limit, instants outside the range, and the
+-- lenient forms.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.Bytes
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Iso
+  import Text.Time.Scan
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Timestamp
+
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  hmsn :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  hmsn h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (hmsn h mi s ns)
+
+  -- A refusal as `constructor number * 1000 + position`; -1 for `Ok`.
+  code :: IsoError -> I64
+  code e = case e of
+    IsoUnexpectedEnd p -> wrapping-add-i64 1000 p
+    IsoExpectedDigit p -> wrapping-add-i64 2000 p
+    IsoExpectedDash p -> wrapping-add-i64 3000 p
+    IsoExpectedColon p -> wrapping-add-i64 4000 p
+    IsoExpectedTimeSeparator p -> wrapping-add-i64 5000 p
+    IsoMissingTime p -> wrapping-add-i64 6000 p
+    IsoUnexpectedTime p -> wrapping-add-i64 7000 p
+    IsoTrailingInput p -> wrapping-add-i64 8000 p
+    IsoNegativeZeroYear p -> wrapping-add-i64 9000 p
+    IsoYearOutOfRange p -> wrapping-add-i64 10000 p
+    IsoMonthOutOfRange p -> wrapping-add-i64 11000 p
+    IsoDayOutOfRange p -> wrapping-add-i64 12000 p
+    IsoHourOutOfRange p -> wrapping-add-i64 13000 p
+    IsoMinuteOutOfRange p -> wrapping-add-i64 14000 p
+    IsoSecondOutOfRange p -> wrapping-add-i64 15000 p
+    IsoLeapSecond p -> wrapping-add-i64 16000 p
+    IsoEmptyFraction p -> wrapping-add-i64 17000 p
+    IsoFractionTooLong p -> wrapping-add-i64 18000 p
+    IsoMissingOffset p -> wrapping-add-i64 19000 p
+    IsoExpectedOffset p -> wrapping-add-i64 20000 p
+    IsoOffsetOutOfRange p -> wrapping-add-i64 21000 p
+    IsoTimestampOutOfRange p -> wrapping-add-i64 22000 p
+
+  refusal :: Result IsoError Timestamp -> I64
+  refusal r = case r of
+    Ok _ -> -1
+    Err e -> code e
+
+  secs :: I64 -> Timestamp
+  secs s = case timestamp-from-unix-seconds s of
+    None -> timestamp-epoch
+    Some t -> t
+
+  sn :: I64 -> I64 -> Timestamp
+  sn s n = case timestamp-from-unix-seconds-and-nanos s n of
+    None -> timestamp-epoch
+    Some t -> t
+
+  reads :: String -> Timestamp -> Bool
+  reads s t = case timestamp-from-string s of
+    Err _ -> False
+    Ok x -> x == t
+
+  reads-lenient :: String -> Timestamp -> Bool
+  reads-lenient s t = case timestamp-from-string-lenient s of
+    Err _ -> False
+    Ok x -> x == t
+
+  round :: Timestamp -> String -> Bool
+  round t s = timestamp-to-string t == s && reads s t
+
+  -- Reads as instant `t` with offset seconds `off` and spelling `form`
+  -- (0 `Z`, 1 numeric, 2 `-00:00`).
+  form-number :: IsoOffsetForm -> I64
+  form-number f = case f of
+    IsoWrittenZ -> 0
+    IsoWrittenNumeric -> 1
+    IsoWrittenNegativeZero -> 2
+
+  reads-with :: String -> Timestamp -> I64 -> I64 -> Bool
+  reads-with s t off form = case timestamp-from-string-with-offset s of
+    Err _ -> False
+    Ok p -> case p of
+      (x, o) -> x == t && iso-offset-seconds o == off && form-number (iso-offset-form o) == form
+
+  prints-at :: I64 -> Timestamp -> String -> Bool
+  prints-at off t s = case timestamp-to-string-with-offset off t of
+    None -> False
+    Some x -> x == s && reads x t
+
+  no-print :: I64 -> Timestamp -> Bool
+  no-print off t = case timestamp-to-string-with-offset off t of
+    None -> True
+    Some _ -> False
+
+  same-instant :: String -> String -> Bool
+  same-instant a b = case timestamp-from-string a of
+    Err _ -> False
+    Ok x -> reads b x
+
+  check-known :: Int
+  check-known =
+    if round (secs 1793423700) "2026-10-31T05:15:00Z" && round timestamp-epoch "1970-01-01T00:00:00Z"
+       && round (secs (-1)) "1969-12-31T23:59:59Z" && round (sn (-1) 999999999) "1969-12-31T23:59:59.999999999Z"
+       && round (sn 0 1) "1970-01-01T00:00:00.000000001Z" && round (sn 1793423700 500000000) "2026-10-31T05:15:00.5Z"
+       && round (sn 1793423700 123456000) "2026-10-31T05:15:00.123456Z"
+       && reads "2026-10-31T05:15Z" (secs 1793423700) && reads "2026-10-31T05:15:00,5Z" (sn 1793423700 500000000)
+    then 0 else 1
+
+  check-ends :: Int
+  check-ends =
+    if round min-timestamp "-009999-01-02T01:59:59Z" && round max-timestamp "9999-12-30T22:00:00.999999999Z"
+       && reads "-009999-01-01T00:00:00-25:59:59" min-timestamp
+       && reads "9999-12-31T23:59:59.999999999+25:59:59" max-timestamp
+       && refusal (timestamp-from-string "-009999-01-02T01:59:58Z") == 22000
+       && refusal (timestamp-from-string "-009999-01-02T01:59:58.999999999Z") == 22000
+       && refusal (timestamp-from-string "9999-12-30T22:00:01Z") == 22000
+       && refusal (timestamp-from-string "9999-12-31T23:59:59Z") == 22000
+       && refusal (timestamp-from-string "-009999-01-01T00:00:00+00:00") == 22000
+    then 0 else 2
+
+  check-equal-instants :: Int
+  check-equal-instants =
+    if same-instant "2026-11-12T15:36:00-05:00" "2026-11-12T20:36:00Z"
+       && same-instant "2026-11-13T02:06:00+05:30" "2026-11-12T20:36:00Z"
+       && same-instant "2026-11-12T17:06:00-03:30" "2026-11-12T20:36:00Z"
+       && same-instant "2026-11-12T20:36:00+00:00" "2026-11-12T20:36:00Z"
+       && same-instant "2026-11-12T20:36:00-00:00" "2026-11-12T20:36:00Z"
+       && same-instant "2026-11-12T20:55:32+00:19:32" "2026-11-12T20:36:00Z"
+       && same-instant "2027-01-01T00:30:00+01:00" "2026-12-31T23:30:00Z"
+    then 0 else 4
+
+  check-print-offset :: Int
+  check-print-offset =
+    let t = secs 1793423700 in
+    if prints-at 19800 t "2026-10-31T10:45:00+05:30" && prints-at (-12600) t "2026-10-31T01:45:00-03:30"
+       && prints-at 0 t "2026-10-31T05:15:00+00:00" && prints-at (-18000) t "2026-10-31T00:15:00-05:00"
+       && prints-at 1172 t "2026-10-31T05:34:32+00:19:32" && prints-at (-1172) t "2026-10-31T04:55:28-00:19:32"
+       && prints-at 3600 (sn 1793423700 250000000) "2026-10-31T06:15:00.25+01:00"
+       && prints-at 93599 max-timestamp "9999-12-31T23:59:59.999999999+25:59:59"
+       && prints-at (-93599) min-timestamp "-009999-01-01T00:00:00-25:59:59"
+       && prints-at (-93599) max-timestamp "9999-12-29T20:00:01.999999999-25:59:59"
+       && no-print 93600 t && no-print (-93600) t
+    then 0 else 8
+
+  check-offset-form :: Int
+  check-offset-form =
+    let t = secs 1793423700 in
+    if reads-with "2026-10-31T05:15:00Z" t 0 0 && reads-with "2026-10-31T05:15:00+00:00" t 0 1
+       && reads-with "2026-10-31T05:15:00-00:00" t 0 2 && reads-with "2026-10-31T10:45:00+05:30" t 19800 1
+       && reads-with "2026-10-31T01:45:00-03:30" t (-12600) 1 && reads-with "2026-10-31T05:34:32+00:19:32" t 1172 1
+       && reads-with "2026-10-31T05:15:00-00:00:00" t 0 2 && reads-with "2026-10-31T05:14:59-00:00:01" t (-1) 1
+    then 0 else 16
+
+  -- A civil date-time is not an instant.
+  check-missing-offset :: Int
+  check-missing-offset =
+    if refusal (timestamp-from-string "2026-10-31T05:15:00") == 19019
+       && refusal (timestamp-from-string "2024-02-09T10:00") == 19016
+       && refusal (timestamp-from-string "2026-10-31T05:15:00.5") == 19021
+       && refusal (timestamp-from-string-lenient "2026-10-31 05:15:00") == 19019
+       && refusal (timestamp-from-string "2026-10-31") == 6010
+       && refusal (timestamp-from-string "2026-10-31T05:15:00z") == 20019
+       && refusal (timestamp-from-string "2026-10-31T05:15:00 +01:00") == 20019
+       && refusal (timestamp-from-string "2026-10-31T05:15:00UTC") == 20019
+       && refusal (timestamp-from-string "2023-02-29T10:00Z") == 12008
+       && refusal (timestamp-from-string "2026-10-31T23:59:60Z") == 16017
+       && refusal (timestamp-from-string "") == 1000
+    then 0 else 32
+
+  check-offset-refusals :: Int
+  check-offset-refusals =
+    if refusal (timestamp-from-string "2026-10-31T05:15:00+26:00") == 21019
+       && refusal (timestamp-from-string "2026-10-31T05:15:00-26:00") == 21019
+       && refusal (timestamp-from-string "2026-10-31T05:15:00+99:99") == 21019
+       && refusal (timestamp-from-string "2026-10-31T05:15:00+25:60") == 21019
+       && refusal (timestamp-from-string "2026-10-31T05:15:00+25:59:60") == 21019
+       && refusal (timestamp-from-string "2026-10-31T05:15:00+0530") == 4022
+       && refusal (timestamp-from-string "2026-10-31T05:15:00+05") == 1022
+       && refusal (timestamp-from-string "2026-10-31T05:15:00+05:3") == 1024
+       && refusal (timestamp-from-string "2026-10-31T05:15:00+5:30") == 2021
+       && refusal (timestamp-from-string "2026-10-31T05:15:00+05:30:") == 1026
+       && refusal (timestamp-from-string "2026-10-31T05:15:00Z ") == 8020
+       && refusal (timestamp-from-string "2026-10-31T05:15:00ZZ") == 8020
+       && refusal (timestamp-from-string "2026-10-31T05:15:00+05:30[Asia/Kolkata]") == 8025
+    then 0 else 64
+
+  check-lenient-precision :: Int
+  check-lenient-precision =
+    let t = secs 1793423700 in
+    if reads-lenient "2026-10-31 05:15:00z" t && reads-lenient "2026-10-31t05:15:00Z" t
+       && reads-lenient "20261031T05:15:00+00:00" t && reads-lenient "2026-10-31 10:45:00+05:30" t
+       && reads-lenient "2026-10-31T05:14:60Z" (secs 1793423699)
+       && timestamp-to-string-precision 0 (sn 1793423700 987654321) == "2026-10-31T05:15:00Z"
+       && timestamp-to-string-precision 3 (sn 1793423700 987654321) == "2026-10-31T05:15:00.987Z"
+       && timestamp-to-string-precision 9 t == "2026-10-31T05:15:00.000000000Z"
+       && timestamp-to-unix-seconds t == 1793423700
+    then 0 else 128
+
+  main :: Int
+  main = check-known + check-ends + check-equal-instants + check-print-offset + check-offset-form + check-missing-offset + check-offset-refusals + check-lenient-precision

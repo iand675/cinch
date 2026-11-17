@@ -1,0 +1,325 @@
+-- Lane D: Data.Time.Arithmetic, rounding values with a `Round` options
+-- value. A date-time (2024-11-02T17:46:20.123456789 to 30 minutes is
+-- 18:00 and to the day is 2024-11-03T00:00, the carry crossing month
+-- and year ends and refused at the end of the range), a time of day
+-- (wrapping to midnight), a timestamp (on the number line on both
+-- sides of the epoch, with increments up to a whole day), the defaults
+-- and every refusal. Expected values are from the Jiff 1.0
+-- announcement and the TC39 Temporal reference polyfill.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  -- Values from plain fields; a refusal reads as a value no vector
+  -- below expects.
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  tod :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  tod h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (tod h mi s ns)
+
+  ts :: I64 -> I64 -> Timestamp
+  ts secs nanos = case timestamp-from-unix-seconds-and-nanos secs nanos of
+    None -> timestamp-epoch
+    Some t -> t
+
+  -- A span from its ten signed units (years down to nanoseconds), and
+  -- a clock span from its six.
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  ck :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Clock
+  ck h mi s ms us ns = case span-clock-from-units h mi s ms us ns of
+    Err _ -> span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- The six clock fields, the calendar fields being zero.
+  clock :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  clock x h mi s ms us ns = fields x 0 0 0 0 h mi s ms us ns
+
+  sp-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  sp-is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  ck-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ck-is r h mi s ms us ns = sp-is r 0 0 0 0 h mi s ms us ns
+
+  some-is :: forall (c :: SpanClass). Option (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  some-is o y mo w d h mi s ms us ns = case o of
+    None -> False
+    Some x -> fields x y mo w d h mi s ms us ns
+
+  no-span :: forall (c :: SpanClass). Option (Span c) -> Bool
+  no-span o = case o of
+    None -> True
+    Some _ -> False
+
+  -- The refusals by number: 1 sign conflict, 2 unit limit, 3 needs
+  -- anchor, 4 bad units, 5 bad increment, 6 out of range.
+  code :: SpanError -> I64
+  code e = case e of
+    SpanSignConflict -> 1
+    SpanUnitLimit -> 2
+    SpanNeedsAnchor -> 3
+    SpanBadUnits -> 4
+    SpanBadIncrement -> 5
+    SpanOutOfRange -> 6
+
+  err-is :: forall a. Result SpanError a -> I64 -> Bool
+  err-is r want = case r of
+    Err e -> code e == want
+    Ok _ -> False
+
+  -- Refused, whatever the reason.
+  sp-err :: forall (c :: SpanClass). Result SpanError (Span c) -> Bool
+  sp-err r = case r of
+    Err _ -> True
+    Ok _ -> False
+
+  d-is :: Option Date -> I64 -> I64 -> I64 -> Bool
+  d-is o y m d = case o of
+    None -> False
+    Some x -> x == ymd y m d
+
+  no-date :: Option Date -> Bool
+  no-date o = case o of
+    None -> True
+    Some _ -> False
+
+  dt-is :: Option DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dt-is o y mo d h mi s ns = case o of
+    None -> False
+    Some x -> x == at y mo d h mi s ns
+
+  no-datetime :: Option DateTime -> Bool
+  no-datetime o = case o of
+    None -> True
+    Some _ -> False
+
+  dtr-is :: Result SpanError DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dtr-is o y mo d h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == at y mo d h mi s ns
+
+  tr-is :: Result SpanError TimeOfDay -> I64 -> I64 -> I64 -> I64 -> Bool
+  tr-is o h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == tod h mi s ns
+
+  tsr-is :: Result SpanError Timestamp -> I64 -> I64 -> Bool
+  tsr-is o secs nanos = case o of
+    Err _ -> False
+    Ok x -> x == ts secs nanos
+
+  -- An exact total: the reduced numerator and denominator.
+  ratio-is :: Result SpanError (I128, I128) -> I64 -> I64 -> Bool
+  ratio-is r n d = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (a, b) -> eq-i128 a (i64-to-i128 n) && eq-i128 b (i64-to-i128 d)
+
+  -- A total within one millionth of the reference's float.
+  tot-is :: Result SpanError (I128, I128) -> I64 -> Bool
+  tot-is r want = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (n, d) -> case checked-div-i128 (wrapping-mul-i128 n 1000000) d of
+        None -> False
+        Some q ->
+          let diff = wrapping-sub-i128 q (i64-to-i128 want) in
+          le-i128 diff 1 && ge-i128 diff (-1)
+
+  ord-is :: Result SpanError Ordering -> I64 -> Bool
+  ord-is r want = case r of
+    Err _ -> False
+    Ok o -> order-is o want
+
+  order-is :: Ordering -> I64 -> Bool
+  order-is o want = case o of
+    LT -> want == -1
+    EQ -> want == 0
+    GT -> want == 1
+
+  df :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> Difference
+  df l s i m = with-largest l (with-smallest s (with-increment i (with-mode m difference-default)))
+
+  sr :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+  sr l s i m = with-largest l (with-smallest s (with-increment i (with-mode m span-round-default)))
+
+  rd :: TimeUnit -> I64 -> RoundMode -> Round
+  rd s i m = with-smallest s (with-increment i (with-mode m round-default))
+
+  -- 1: date-times.
+  check-datetime :: Int
+  check-datetime =
+    let x = at 2024 11 2 17 46 20 123456789 in
+    if dtr-is (datetime-round (rd Minute 30 HalfExpand) x) 2024 11 2 18 0 0 0
+       && dtr-is (datetime-round (round-to Day) x) 2024 11 3 0 0 0 0
+       && dtr-is (datetime-round (rd Hour 6 Floor) x) 2024 11 2 12 0 0 0
+       && dtr-is (datetime-round (rd Microsecond 500 Ceil) x) 2024 11 2 17 46 20 123500000
+       && dtr-is (datetime-round (round-to Hour) x) 2024 11 2 18 0 0 0
+       && dtr-is (datetime-round (round-to Minute) x) 2024 11 2 17 46 0 0
+       && dtr-is (datetime-round (round-to Second) x) 2024 11 2 17 46 20 0
+       && dtr-is (datetime-round (round-to Millisecond) x) 2024 11 2 17 46 20 123000000
+       && dtr-is (datetime-round (round-to Microsecond) x) 2024 11 2 17 46 20 123457000
+       && dtr-is (datetime-round (round-to Nanosecond) x) 2024 11 2 17 46 20 123456789
+       && dtr-is (datetime-round (rd Day 1 Trunc) x) 2024 11 2 0 0 0 0
+       && dtr-is (datetime-round (rd Day 1 Ceil) (at 2024 11 2 0 0 0 1)) 2024 11 3 0 0 0 0
+       && dtr-is (datetime-round (rd Day 1 Ceil) (at 2024 11 2 0 0 0 0)) 2024 11 2 0 0 0 0
+       && dtr-is (datetime-round (round-to Day) (at 2024 2 29 12 0 0 0)) 2024 3 1 0 0 0 0
+       && dtr-is (datetime-round (rd Day 1 HalfTrunc) (at 2024 2 29 12 0 0 0)) 2024 2 29 0 0 0 0
+       && dtr-is (datetime-round (rd Day 1 HalfEven) (at 2024 2 29 12 0 0 0)) 2024 2 29 0 0 0 0
+       && dtr-is (datetime-round (rd Hour 12 HalfExpand) (at 2024 2 29 18 0 0 0)) 2024 3 1 0 0 0 0
+    then 0 else 1
+
+  -- 2: times of day; rounding up at the end of the day wraps.
+  check-time :: Int
+  check-time =
+    let t = tod 13 45 30 0 in
+    if tr-is (time-round (round-to Minute) (tod 23 59 40 0)) 0 0 0 0
+       && tr-is (time-round (round-to Hour) t) 14 0 0 0
+       && tr-is (time-round (rd Hour 1 Trunc) t) 13 0 0 0
+       && tr-is (time-round (rd Second 1 HalfEven) (tod 13 45 30 500000000)) 13 45 30 0
+       && tr-is (time-round (rd Second 1 HalfEven) (tod 13 45 31 500000000)) 13 45 32 0
+       && tr-is (time-round (rd Minute 20 Ceil) t) 14 0 0 0
+       && tr-is (time-round (rd Minute 20 Floor) t) 13 40 0 0
+       && tr-is (time-round (rd Minute 15 HalfExpand) (tod 13 52 30 0)) 14 0 0 0
+       && tr-is (time-round (rd Minute 15 HalfTrunc) (tod 13 52 30 0)) 13 45 0 0
+       && tr-is (time-round (rd Hour 12 HalfExpand) (tod 18 0 0 0)) 0 0 0 0
+       && tr-is (time-round (rd Hour 12 HalfFloor) (tod 18 0 0 0)) 12 0 0 0
+       && tr-is (time-round (rd Nanosecond 500 HalfExpand) (tod 0 0 0 250)) 0 0 0 500
+       && tr-is (time-round (rd Millisecond 250 Expand) (tod 23 59 59 750000001)) 0 0 0 0
+       && tr-is (time-round (rd Hour 8 Ceil) T.max-time) 0 0 0 0
+       && tr-is (time-round (rd Hour 8 Floor) T.max-time) 16 0 0 0
+       && tr-is (time-round (round-to Hour) T.midnight) 0 0 0 0
+    then 0 else 2
+
+  -- 4: the carry into the date, and its refusal at the end of the
+  -- range.
+  check-carry :: Int
+  check-carry =
+    if dtr-is (datetime-round (round-to Second) (at 2024 12 31 23 59 59 500000000)) 2025 1 1 0 0 0 0
+       && dtr-is (datetime-round (round-to Hour) (at 2024 2 28 23 30 0 0)) 2024 2 29 0 0 0 0
+       && dtr-is (datetime-round (round-to Hour) (at 2023 2 28 23 30 0 0)) 2023 3 1 0 0 0 0
+       && dtr-is (datetime-round (rd Minute 30 Ceil) (at (-1) 12 31 23 30 0 1)) 0 1 1 0 0 0 0
+       && err-is (datetime-round (round-to Second) DT.max-datetime) 6
+       && err-is (datetime-round (round-to Day) DT.max-datetime) 6
+       && err-is (datetime-round (rd Nanosecond 2 Ceil) DT.max-datetime) 6
+       && dtr-is (datetime-round (rd Day 1 Floor) DT.max-datetime) 9999 12 31 0 0 0 0
+       && dtr-is (datetime-round (rd Second 1 Trunc) DT.max-datetime) 9999 12 31 23 59 59 0
+       && dtr-is (datetime-round (round-to Nanosecond) DT.max-datetime) 9999 12 31 23 59 59 999999999
+       && dtr-is (datetime-round (round-to Day) DT.min-datetime) (-9999) 1 1 0 0 0 0
+       && dtr-is (datetime-round (round-to Day) (at 9999 12 31 11 59 59 999999999)) 9999 12 31 0 0 0 0
+    then 0 else 4
+
+  -- 8: timestamps round on the number line: before the epoch `Trunc`
+  -- is still toward the past and a tie under `HalfExpand` still goes
+  -- toward the future (RoundNumberToIncrementAsIfPositive).
+  check-timestamp :: Int
+  check-timestamp =
+    let x = ts 1710074096 789000000 in
+    if tsr-is (timestamp-round (round-to Second) (ts (-1) 500000000)) 0 0
+       && tsr-is (timestamp-round (rd Second 1 Trunc) (ts (-1) 500000000)) (-1) 0
+       && tsr-is (timestamp-round (rd Second 1 HalfEven) (ts (-2) 500000000)) (-2) 0
+       && tsr-is (timestamp-round (rd Hour 24 Expand) (ts (-41400) 0)) 0 0
+       && tsr-is (timestamp-round (rd Hour 24 HalfTrunc) (ts (-41400) 0)) 0 0
+       && tsr-is (timestamp-round (rd Hour 24 HalfExpand) (ts (-43200) 0)) 0 0
+       && tsr-is (timestamp-round (rd Hour 24 HalfTrunc) (ts (-43200) 0)) (-86400) 0
+       && tsr-is (timestamp-round (rd Hour 24 Floor) (ts (-1) 0)) (-86400) 0
+       && tsr-is (timestamp-round (rd Minute 90 HalfExpand) x) 1710072000 0
+       && tsr-is (timestamp-round (rd Second 86400 Floor) x) 1710028800 0
+       && tsr-is (timestamp-round (round-to Second) x) 1710074097 0
+       && tsr-is (timestamp-round (round-to Millisecond) (ts 5 1500000)) 5 2000000
+       && tsr-is (timestamp-round (rd Microsecond 1 Floor) (ts 5 1999)) 5 1000
+       && tsr-is (timestamp-round (rd Nanosecond 1000000000 Ceil) (ts 5 1)) 6 0
+       && tsr-is (timestamp-round (round-to Hour) (ts 5400 0)) 7200 0
+       && tsr-is (timestamp-round (round-to Nanosecond) x) 1710074096 789000000
+       && err-is (timestamp-round (rd Hour 1 Ceil) max-timestamp) 6
+       && err-is (timestamp-round (rd Hour 1 Floor) min-timestamp) 6
+    then 0 else 8
+
+  -- 16: the refusals: a unit the value cannot be rounded to, and an
+  -- increment that does not divide the next larger unit (or, for a
+  -- timestamp, a 24-hour day).
+  check-refusals :: Int
+  check-refusals =
+    let t = tod 13 45 30 0 in
+    let x = at 2024 11 2 17 46 20 123456789 in
+    let i = ts 1710074096 789000000 in
+    if err-is (time-round (round-to Day) t) 4
+       && err-is (time-round (round-to Week) t) 4
+       && err-is (time-round (rd Minute 7 HalfExpand) t) 5
+       && err-is (time-round (rd Minute 60 HalfExpand) t) 5
+       && err-is (time-round (rd Hour 24 HalfExpand) t) 5
+       && err-is (time-round (rd Hour 0 HalfExpand) t) 5
+       && err-is (time-round (rd Nanosecond 1000 HalfExpand) t) 5
+       && err-is (time-round (rd Second (-1) HalfExpand) t) 5
+       && err-is (datetime-round (rd Day 2 HalfExpand) x) 5
+       && err-is (datetime-round (rd Day 0 HalfExpand) x) 5
+       && err-is (datetime-round (round-to Week) x) 4
+       && err-is (datetime-round (round-to Month) x) 4
+       && err-is (datetime-round (round-to Year) x) 4
+       && err-is (datetime-round (rd Hour 5 HalfExpand) x) 5
+       && err-is (timestamp-round (round-to Day) i) 4
+       && err-is (timestamp-round (round-to Year) i) 4
+       && err-is (timestamp-round (rd Hour 5 HalfExpand) i) 5
+       && err-is (timestamp-round (rd Hour 48 HalfExpand) i) 5
+       && err-is (timestamp-round (rd Minute 7 HalfExpand) i) 5
+       && err-is (timestamp-round (rd Second 0 HalfExpand) i) 5
+       && tsr-is (timestamp-round (rd Minute 1440 Floor) i) 1710028800 0
+       && tsr-is (timestamp-round (rd Hour 24 Floor) i) 1710028800 0
+    then 0 else 16
+
+  -- 32: the default options round nothing, and `round-to` is the
+  -- default with a unit.
+  check-defaults :: Int
+  check-defaults =
+    let t = tod 13 45 30 123456789 in
+    let x = at 2024 11 2 17 46 20 123456789 in
+    let i = ts (-1710074096) 789000001 in
+    if tr-is (time-round round-default t) 13 45 30 123456789
+       && dtr-is (datetime-round round-default x) 2024 11 2 17 46 20 123456789
+       && tsr-is (timestamp-round round-default i) (-1710074096) 789000001
+       && tr-is (time-round (with-smallest Second round-default) t) 13 45 30 0
+       && tr-is (time-round (with-mode Ceil (with-smallest Second round-default)) t) 13 45 31 0
+       && tr-is (time-round (with-increment 10 (with-smallest Second round-default)) t) 13 45 30 0
+       && tr-is (time-round (round-to Second) t) 13 45 30 0
+       && tr-is (time-round (with-mode Ceil (round-to Minute)) t) 13 46 0 0
+    then 0 else 32
+
+  main :: Int
+  main =
+    check-datetime + check-time + check-carry + check-timestamp
+    + check-refusals + check-defaults

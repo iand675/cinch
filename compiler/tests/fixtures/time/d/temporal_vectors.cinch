@@ -1,0 +1,409 @@
+-- Lane D: differential vectors. Every expected value in this file was
+-- produced by the TC39 Temporal reference polyfill
+-- (@js-temporal/polyfill: PlainDate, PlainDateTime, PlainTime, Instant
+-- and Duration) on pseudo-random inputs biased toward month ends, and
+-- is checked here against Data.Time.Span and Data.Time.Arithmetic:
+-- add and subtract, until and since with every combination of largest
+-- unit, smallest unit, increment and rounding mode, Duration.round,
+-- total and compare with a plain relativeTo, and round on the three
+-- value types. (Temporal's `x.since(y, options)` is `x-since-with
+-- options x y`.)
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  -- Values from plain fields; a refusal reads as a value no vector
+  -- below expects.
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  tod :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  tod h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (tod h mi s ns)
+
+  ts :: I64 -> I64 -> Timestamp
+  ts secs nanos = case timestamp-from-unix-seconds-and-nanos secs nanos of
+    None -> timestamp-epoch
+    Some t -> t
+
+  -- A span from its ten signed units (years down to nanoseconds), and
+  -- a clock span from its six.
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  ck :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Clock
+  ck h mi s ms us ns = case span-clock-from-units h mi s ms us ns of
+    Err _ -> span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- The six clock fields, the calendar fields being zero.
+  clock :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  clock x h mi s ms us ns = fields x 0 0 0 0 h mi s ms us ns
+
+  sp-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  sp-is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  ck-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ck-is r h mi s ms us ns = sp-is r 0 0 0 0 h mi s ms us ns
+
+  some-is :: forall (c :: SpanClass). Option (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  some-is o y mo w d h mi s ms us ns = case o of
+    None -> False
+    Some x -> fields x y mo w d h mi s ms us ns
+
+  no-span :: forall (c :: SpanClass). Option (Span c) -> Bool
+  no-span o = case o of
+    None -> True
+    Some _ -> False
+
+  -- The refusals by number: 1 sign conflict, 2 unit limit, 3 needs
+  -- anchor, 4 bad units, 5 bad increment, 6 out of range.
+  code :: SpanError -> I64
+  code e = case e of
+    SpanSignConflict -> 1
+    SpanUnitLimit -> 2
+    SpanNeedsAnchor -> 3
+    SpanBadUnits -> 4
+    SpanBadIncrement -> 5
+    SpanOutOfRange -> 6
+
+  err-is :: forall a. Result SpanError a -> I64 -> Bool
+  err-is r want = case r of
+    Err e -> code e == want
+    Ok _ -> False
+
+  -- Refused, whatever the reason.
+  sp-err :: forall (c :: SpanClass). Result SpanError (Span c) -> Bool
+  sp-err r = case r of
+    Err _ -> True
+    Ok _ -> False
+
+  d-is :: Option Date -> I64 -> I64 -> I64 -> Bool
+  d-is o y m d = case o of
+    None -> False
+    Some x -> x == ymd y m d
+
+  no-date :: Option Date -> Bool
+  no-date o = case o of
+    None -> True
+    Some _ -> False
+
+  dt-is :: Option DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dt-is o y mo d h mi s ns = case o of
+    None -> False
+    Some x -> x == at y mo d h mi s ns
+
+  no-datetime :: Option DateTime -> Bool
+  no-datetime o = case o of
+    None -> True
+    Some _ -> False
+
+  dtr-is :: Result SpanError DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dtr-is o y mo d h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == at y mo d h mi s ns
+
+  tr-is :: Result SpanError TimeOfDay -> I64 -> I64 -> I64 -> I64 -> Bool
+  tr-is o h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == tod h mi s ns
+
+  tsr-is :: Result SpanError Timestamp -> I64 -> I64 -> Bool
+  tsr-is o secs nanos = case o of
+    Err _ -> False
+    Ok x -> x == ts secs nanos
+
+  -- An exact total: the reduced numerator and denominator.
+  ratio-is :: Result SpanError (I128, I128) -> I64 -> I64 -> Bool
+  ratio-is r n d = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (a, b) -> eq-i128 a (i64-to-i128 n) && eq-i128 b (i64-to-i128 d)
+
+  -- A total within one millionth of the reference's float.
+  tot-is :: Result SpanError (I128, I128) -> I64 -> Bool
+  tot-is r want = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (n, d) -> case checked-div-i128 (wrapping-mul-i128 n 1000000) d of
+        None -> False
+        Some q ->
+          let diff = wrapping-sub-i128 q (i64-to-i128 want) in
+          le-i128 diff 1 && ge-i128 diff (-1)
+
+  ord-is :: Result SpanError Ordering -> I64 -> Bool
+  ord-is r want = case r of
+    Err _ -> False
+    Ok o -> order-is o want
+
+  order-is :: Ordering -> I64 -> Bool
+  order-is o want = case o of
+    LT -> want == -1
+    EQ -> want == 0
+    GT -> want == 1
+
+  df :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> Difference
+  df l s i m = with-largest l (with-smallest s (with-increment i (with-mode m difference-default)))
+
+  sr :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+  sr l s i m = with-largest l (with-smallest s (with-increment i (with-mode m span-round-default)))
+
+  rd :: TimeUnit -> I64 -> RoundMode -> Round
+  rd s i m = with-smallest s (with-increment i (with-mode m round-default))
+
+  -- 1: adding and subtracting spans on dates, date-times and times of day.
+  check-add :: Int
+  check-add =
+    if d-is (date-add-span (sp 2 0 0 80 0 0 0 674 311 0) (ymd 1997 12 29)) 2000 3 18
+       && d-is (date-add-span (sp 3 0 7 5 0 24 0 0 762 0) (ymd 2006 4 30)) 2009 6 23
+       && d-is (date-sub-span (sp 0 25 0 78 0 0 0 0 0 0) (ymd 2004 2 28)) 2001 11 11
+       && d-is (date-add-span (sp 0 0 8 9 0 0 0 1760 1104 506) (ymd 2009 12 30)) 2010 3 5
+       && d-is (date-add-span (sp 0 0 0 0 0 0 30 0 0 0) (ymd 2006 2 28)) 2006 2 28
+       && d-is (date-add-span (sp 0 0 0 0 0 0 (-195) 0 0 (-1070)) (ymd 2006 2 28)) 2006 2 28
+       && d-is (date-add-span (sp 2 19 6 83 55 0 168 0 0 0) (ymd 2005 3 3)) 2009 2 7
+       && d-is (date-add-span (sp 0 0 0 0 35 0 122 1346 0 476) (ymd 2028 6 1)) 2028 6 2
+       && d-is (date-add-span (sp 3 0 1 89 95 0 0 0 1645 0) (ymd 2025 2 26)) 2028 6 4
+       && d-is (date-sub-span (sp 0 0 0 0 0 0 4 0 0 0) (ymd 2018 2 8)) 2018 2 8
+       && dt-is (datetime-sub-span (sp 0 0 0 (-55) (-71) (-32) 0 (-1103) (-1836) 0) (at 2006 7 29 14 19 46 530249394)) 2006 9 25 13 51 47 635085394
+       && dt-is (datetime-sub-span (sp 4 0 3 0 0 0 0 0 1046 1957) (at 2005 7 29 19 19 24 16913320)) 2001 7 8 19 19 24 15865363
+       && dt-is (datetime-sub-span (sp 0 0 6 9 0 0 0 0 0 0) (at 2016 1 30 1 55 56 180534689)) 2015 12 10 1 55 56 180534689
+       && dt-is (datetime-add-span (sp 0 0 0 (-51) (-90) 0 (-21) (-1861) (-316) 0) (at 2023 3 31 0 0 0 0)) 2023 2 4 5 59 37 138684000
+       && dt-is (datetime-sub-span (sp 0 0 0 0 0 0 0 0 0 0) (at 2015 11 22 0 0 0 0)) 2015 11 22 0 0 0 0
+       && dt-is (datetime-add-span (sp 1 0 0 69 0 0 90 0 432 0) (at 2030 3 26 1 49 31 266835132)) 2031 6 3 1 51 1 267267132
+       && dt-is (datetime-add-span (sp 0 16 4 10 0 0 0 390 582 0) (at 2014 6 30 11 0 3 314812670)) 2015 12 7 11 0 3 705394670
+       && dt-is (datetime-add-span (sp 0 0 0 14 76 0 0 0 0 0) (at 2011 1 30 19 21 51 227914850)) 2011 2 16 23 21 51 227914850
+       && dt-is (datetime-add-span (sp (-1) 0 0 (-67) 0 0 0 (-1382) (-1705) (-645)) (at 2024 7 2 0 0 0 0)) 2023 4 25 23 59 58 616294355
+       && dt-is (datetime-add-span (sp 3 0 2 0 0 0 0 0 0 0) (at 1999 4 29 0 0 0 0)) 2002 5 13 0 0 0 0
+       && time-add-span-wrapping (sp 0 0 0 0 0 0 36 0 0 1847) (tod 18 23 55 278841178) == tod 18 24 31 278843025
+       && time-add-span-wrapping (sp 0 0 0 0 0 185 0 0 1605 0) (tod 5 21 3 726934962) == tod 8 26 3 728539962
+       && time-add-span-wrapping (sp 0 0 0 0 0 0 0 0 0 1117) (tod 23 24 14 343427244) == tod 23 24 14 343428361
+       && time-add-span-wrapping (sp 0 0 4 0 0 0 0 1988 1713 1179) (tod 0 0 0 0) == tod 0 0 1 989714179
+    then 0 else 1
+
+  -- 2: date differences with options, until and since.
+  check-date-difference :: Int
+  check-date-difference =
+    if sp-is (date-until-with (df Month Week 2 Floor) (ymd 2016 12 22) (ymd 1995 3 5)) 0 (-261) (-4) 0 0 0 0 0 0 0
+       && sp-is (date-since-with (df Year Month 5 Ceil) (ymd 1997 1 29) (ymd 1996 12 26)) 0 5 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Month Month 2 HalfEven) (ymd 2000 9 22) (ymd 2028 10 28)) 0 338 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Year Week 3 Ceil) (ymd 2030 11 28) (ymd 2016 5 14)) (-14) (-6) 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with (df Year Year 2 Trunc) (ymd 2014 3 26) (ymd 2028 10 7)) (-14) 0 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Week Week 2 HalfExpand) (ymd 2023 8 31) (ymd 2023 8 9)) 0 0 (-4) 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Year Year 1 Expand) (ymd 2011 12 25) (ymd 1995 10 17)) (-17) 0 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Year Month 3 Trunc) (ymd 2010 6 29) (ymd 2030 2 14)) 19 6 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with (df Year Year 1 Ceil) (ymd 2020 5 29) (ymd 2020 6 17)) 0 0 0 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Month Month 3 Expand) (ymd 2027 11 28) (ymd 2023 8 31)) 0 (-51) 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with (df Year Week 1 HalfTrunc) (ymd 2008 3 2) (ymd 2028 2 28)) (-19) (-11) (-4) 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Day Day 10 HalfTrunc) (ymd 2024 2 28) (ymd 2011 1 28)) 0 0 0 (-4780) 0 0 0 0 0 0
+       && sp-is (date-until-with (df Month Month 1 HalfEven) (ymd 2003 3 2) (ymd 2013 1 29)) 0 119 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with (df Year Week 3 HalfCeil) (ymd 2019 12 30) (ymd 2019 11 4)) 0 1 3 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Day Day 1 HalfFloor) (ymd 2013 3 21) (ymd 2013 3 10)) 0 0 0 (-11) 0 0 0 0 0 0
+       && sp-is (date-until-with (df Year Day 7 Trunc) (ymd 2022 8 8) (ymd 2010 4 29)) (-12) (-3) 0 (-7) 0 0 0 0 0 0
+       && sp-is (date-until-with (df Year Week 2 Expand) (ymd 2023 5 31) (ymd 2023 7 25)) 0 1 4 0 0 0 0 0 0 0
+       && sp-is (date-until-with (df Month Week 1 Trunc) (ymd 2014 1 29) (ymd 2013 12 13)) 0 (-1) (-2) 0 0 0 0 0 0 0
+       && sp-is (date-since-with (df Month Day 10 HalfCeil) (ymd 2020 3 30) (ymd 2014 3 29)) 0 72 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with (df Year Year 2 Trunc) (ymd 2019 1 3) (ymd 2020 2 21)) 0 0 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with (df Year Month 1 HalfEven) (ymd 2014 11 6) (ymd 2018 3 31)) (-3) (-5) 0 0 0 0 0 0 0 0
+       && sp-is (date-since-with (df Day Day 10 Trunc) (ymd 2027 7 31) (ymd 2027 7 21)) 0 0 0 10 0 0 0 0 0 0
+    then 0 else 2
+
+  -- 4: date-time differences with options, until and since.
+  check-datetime-difference :: Int
+  check-datetime-difference =
+    if sp-is (datetime-until-with (df Day Second 10 HalfCeil) (at 2012 2 28 12 30 9 603958466) (at 2020 1 20 16 25 16 750160772)) 0 0 0 2883 3 55 10 0 0 0
+       && sp-is (datetime-until-with (df Day Second 5 Trunc) (at 2021 2 28 6 51 19 624756210) (at 2021 3 16 17 26 56 321558344)) 0 0 0 16 10 35 35 0 0 0
+       && sp-is (datetime-until-with (df Year Minute 1 HalfFloor) (at 2010 7 30 16 49 47 637103655) (at 2023 7 30 1 26 21 784720132)) 12 11 0 29 8 37 0 0 0 0
+       && sp-is (datetime-since-with (df Week Second 15 Expand) (at 2003 5 31 12 2 39 540239694) (at 2009 11 11 17 4 34 290552548)) 0 0 (-336) (-4) (-5) (-2) 0 0 0 0
+       && sp-is (datetime-until-with (df Day Day 1 HalfFloor) (at 2007 3 31 0 0 0 0) (at 2005 6 15 20 24 20 365285786)) 0 0 0 (-653) 0 0 0 0 0 0
+       && sp-is (datetime-until-with (df Day Minute 10 HalfCeil) (at 2005 2 28 11 37 15 827966556) (at 2005 3 9 20 37 15 827966548)) 0 0 0 9 9 0 0 0 0 0
+       && sp-is (datetime-until-with (df Minute Millisecond 10 Expand) (at 2025 8 14 23 14 9 235916645) (at 2014 8 28 14 20 25 529591739)) 0 0 0 0 0 (-5766293) (-43) (-710) 0 0
+       && sp-is (datetime-until-with (df Month Millisecond 500 HalfEven) (at 2004 3 14 10 8 8 630274595) (at 2012 12 30 0 12 50 720638084)) 0 105 0 15 14 4 42 0 0 0
+       && sp-is (datetime-until-with (df Second Second 30 Expand) (at 2002 1 30 0 21 13 674705419) (at 2029 2 28 3 18 34 277163601)) 0 0 0 0 0 0 854593050 0 0 0
+       && sp-is (datetime-until-with (df Hour Nanosecond 250 HalfExpand) (at 1997 3 31 0 0 0 0) (at 2016 2 28 3 57 36 598285589)) 0 0 0 0 165795 57 36 598 285 500
+       && sp-is (datetime-since-with (df Second Second 15 Floor) (at 1999 7 29 9 53 57 374907587) (at 1999 7 18 6 53 57 374906177)) 0 0 0 0 0 0 961200 0 0 0
+       && sp-is (datetime-until-with (df Week Minute 15 HalfCeil) (at 2005 2 28 23 37 49 375275607) (at 2014 4 19 5 18 52 949308406)) 0 0 476 4 5 45 0 0 0 0
+       && sp-is (datetime-until-with (df Year Year 2 HalfTrunc) (at 2019 11 29 5 26 45 400215540) (at 1997 4 23 0 0 0 0)) (-22) 0 0 0 0 0 0 0 0 0
+       && sp-is (datetime-until-with (df Hour Microsecond 5 Expand) (at 1997 9 19 16 5 18 760585689) (at 1997 8 15 20 5 18 760590527)) 0 0 0 0 (-836) 0 0 0 0 0
+       && sp-is (datetime-until-with (df Week Nanosecond 500 HalfTrunc) (at 2012 7 31 1 2 16 372375608) (at 2020 8 23 0 24 10 576333828)) 0 0 420 4 23 21 54 203 958 0
+       && sp-is (datetime-until-with (df Year Microsecond 2 HalfTrunc) (at 1995 2 28 0 0 0 0) (at 1995 3 23 11 0 0 1731)) 0 0 0 23 11 0 0 0 2 0
+       && sp-is (datetime-until-with (df Year Year 1 Expand) (at 2023 12 30 0 0 0 0) (at 2024 1 18 5 0 0 1010)) 1 0 0 0 0 0 0 0 0 0
+       && sp-is (datetime-since-with (df Minute Minute 5 HalfFloor) (at 2028 9 3 11 4 18 199771928) (at 2028 8 19 14 4 18 199769583)) 0 0 0 0 0 21420 0 0 0 0
+       && sp-is (datetime-since-with (df Year Day 3 HalfEven) (at 2009 5 28 6 10 52 90189324) (at 2014 2 28 6 30 42 69939526)) (-4) (-9) 0 0 0 0 0 0 0 0
+       && sp-is (datetime-since-with (df Year Day 3 HalfExpand) (at 2001 1 24 18 50 16 218144974) (at 2030 2 28 23 16 29 367494283)) (-29) (-1) 0 (-3) 0 0 0 0 0 0
+       && sp-is (datetime-since-with (df Week Microsecond 5 Trunc) (at 2029 10 30 0 0 0 0) (at 2007 3 11 4 27 37 927174876)) 0 0 1181 1 19 32 22 72 825 0
+       && sp-is (datetime-since-with (df Year Month 2 Expand) (at 2011 6 11 2 49 39 937003795) (at 1998 2 10 7 58 14 35114018)) 13 6 0 0 0 0 0 0 0 0
+    then 0 else 4
+
+  -- 8: time-of-day and timestamp differences with options.
+  check-clock-difference :: Int
+  check-clock-difference =
+    if sp-is (time-since-with (df Millisecond Millisecond 1 HalfFloor) (tod 1 54 26 332776772) (tod 0 0 0 0)) 0 0 0 0 0 0 0 6866333 0 0
+       && sp-is (time-until-with (df Microsecond Microsecond 2 Expand) (tod 0 0 0 0) (tod 12 37 49 704897554)) 0 0 0 0 0 0 0 0 45469704898 0
+       && sp-is (time-since-with (df Hour Nanosecond 2 Floor) (tod 7 26 45 630260297) (tod 0 0 0 0)) 0 0 0 0 7 26 45 630 260 296
+       && sp-is (time-since-with (df Millisecond Millisecond 1 Ceil) (tod 23 27 4 947144299) (tod 0 0 0 0)) 0 0 0 0 0 0 0 84424948 0 0
+       && sp-is (time-until-with (df Minute Nanosecond 250 HalfEven) (tod 0 0 0 0) (tod 12 39 40 104537917)) 0 0 0 0 0 759 40 104 538 0
+       && sp-is (time-since-with (df Minute Minute 15 HalfCeil) (tod 0 0 0 0) (tod 13 26 16 991196217)) 0 0 0 0 0 (-810) 0 0 0 0
+       && sp-is (time-until-with (df Millisecond Microsecond 1 HalfCeil) (tod 0 0 0 0) (tod 1 42 11 311997993)) 0 0 0 0 0 0 0 6131311 998 0
+       && sp-is (time-since-with (df Second Second 1 HalfTrunc) (tod 4 59 48 634368363) (tod 7 15 29 528509023)) 0 0 0 0 0 0 (-8141) 0 0 0
+       && sp-is (time-until-with (df Hour Minute 5 Floor) (tod 23 1 15 696026010) (tod 0 0 0 0)) 0 0 0 0 (-23) (-5) 0 0 0 0
+       && sp-is (time-since-with (df Hour Nanosecond 500 HalfFloor) (tod 0 0 0 0) (tod 10 2 25 624722220)) 0 0 0 0 (-10) (-2) (-25) (-624) (-722) 0
+       && sp-is (time-since-with (df Hour Nanosecond 100 HalfCeil) (tod 15 15 21 150971978) (tod 0 0 0 0)) 0 0 0 0 15 15 21 150 972 0
+       && sp-is (timestamp-since-span-with (df Hour Hour 2 Trunc) (ts 193139077 257064104) (ts 1179093363 258107423)) 0 0 0 0 (-273876) 0 0 0 0 0
+       && sp-is (timestamp-until-span-with (df Second Second 15 HalfEven) (ts (-263033866) 986019373) (ts 1618824961 755930185)) 0 0 0 0 0 0 1881858825 0 0 0
+       && sp-is (timestamp-until-span-with (df Microsecond Nanosecond 5 Trunc) (ts 602616311 775670290) (ts (-1595328331) 992030412)) 0 0 0 0 0 0 0 0 (-2197944641783639) (-875)
+       && sp-is (timestamp-until-span-with (df Minute Second 1 Expand) (ts (-1012691617) 35888314) (ts 1556263568 84503173)) 0 0 0 0 0 42815919 46 0 0 0
+       && sp-is (timestamp-since-span-with (df Microsecond Microsecond 500 Ceil) (ts 50583125 662789106) (ts (-1607422829) 349222928)) 0 0 0 0 0 0 0 0 1658005954314000 0
+       && sp-is (timestamp-since-span-with (df Hour Minute 5 Ceil) (ts (-1993940831) 553118613) (ts 1321037771 915704369)) 0 0 0 0 (-920827) (-20) 0 0 0 0
+       && sp-is (timestamp-until-span-with (df Minute Second 2 Expand) (ts (-1125503540) 816362411) (ts 979382993 33712267)) 0 0 0 0 0 35081442 14 0 0 0
+       && sp-is (timestamp-since-span-with (df Minute Minute 20 HalfCeil) (ts (-1091994285) 101437836) (ts (-308297395) 461114824)) 0 0 0 0 0 (-13061620) 0 0 0 0
+       && sp-is (timestamp-until-span-with (df Hour Minute 2 Trunc) (ts 1369596483 659644604) (ts (-11140822) 393928051)) 0 0 0 0 (-383538) (-8) 0 0 0 0
+       && sp-is (timestamp-since-span-with (df Millisecond Millisecond 500 HalfEven) (ts 473416926 850247621) (ts (-438986778) 959368944)) 0 0 0 0 0 0 0 912403704000 0 0
+       && sp-is (timestamp-until-span-with (df Millisecond Millisecond 10 HalfTrunc) (ts 1891752722 39219975) (ts 1365313174 469239711)) 0 0 0 0 0 0 0 (-526439547570) 0 0
+    then 0 else 8
+
+  -- 16: spans rounded against an anchor date.
+  check-round-relative :: Int
+  check-round-relative =
+    if sp-is (span-round-relative (sr Week Millisecond 500 Ceil) (RelativeDate (ymd 2029 12 30)) (sp 0 0 (-1) 0 0 0 0 0 (-1322) (-687))) 0 0 (-1) 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Nanosecond Nanosecond 5 Floor) (RelativeDate (ymd 2005 2 4)) (sp 0 0 0 0 70 0 0 0 0 0)) 0 0 0 0 0 0 0 0 0 252000000000000
+       && sp-is (span-round-relative (sr Hour Hour 3 Trunc) (RelativeDate (ymd 1997 2 28)) (sp 0 0 0 0 0 0 110 0 0 0)) 0 0 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Hour Nanosecond 1 Floor) (RelativeDate (ymd 2013 10 28)) (sp 0 0 (-9) 0 0 0 0 (-916) 0 (-404))) 0 0 0 0 (-1512) 0 0 (-916) 0 (-404)
+       && sp-is (span-round-relative (sr Day Day 3 Expand) (RelativeDate (ymd 2000 2 9)) (sp 0 0 8 0 0 0 0 0 1271 484)) 0 0 0 57 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Minute Second 30 HalfTrunc) (RelativeDate (ymd 2024 1 28)) (sp 3 0 0 12 0 0 0 0 0 0)) 0 0 0 0 0 1595520 0 0 0 0
+       && sp-err (span-round-relative (sr Week Day 7 Ceil) (RelativeDate (ymd 2028 6 30)) (sp (-1) 0 (-7) 0 (-75) 0 0 0 0 (-1241)))
+       && sp-is (span-round-relative (sr Year Year 2 Ceil) (RelativeDate (ymd 2007 3 30)) (sp 3 0 7 0 0 0 0 667 809 66)) 4 0 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Day Millisecond 1 HalfCeil) (RelativeDate (ymd 2011 11 13)) (sp 0 0 0 43 0 199 115 1517 0 1477)) 0 0 0 43 3 20 56 517 0 0
+       && sp-is (span-round-relative (sr Hour Second 1 Floor) (RelativeDate (ymd 2014 5 31)) (sp 0 0 8 0 97 0 0 0 0 0)) 0 0 0 0 1441 0 0 0 0 0
+       && sp-is (span-round-relative (sr Day Day 3 HalfTrunc) (RelativeDate (ymd 2007 10 28)) (sp 0 (-25) 0 0 0 0 (-188) 0 0 0)) 0 0 0 (-759) 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Year Day 1 HalfEven) (RelativeDate (ymd 2024 1 28)) (sp 2 0 0 0 0 0 143 0 0 0)) 2 0 0 0 0 0 0 0 0 0
+       && sp-err (span-round-relative (sr Year Day 3 HalfFloor) (RelativeDate (ymd 2018 8 21)) (sp (-4) 0 0 (-48) 0 (-64) 0 (-1942) 0 (-580)))
+       && sp-is (span-round-relative (sr Day Day 1 Floor) (RelativeDate (ymd 2002 11 1)) (sp 0 (-13) (-5) (-59) 0 (-89) 0 0 0 0)) 0 0 0 (-491) 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Hour Hour 12 HalfFloor) (RelativeDate (ymd 2021 2 20)) (sp 0 0 0 0 61 0 0 0 0 1414)) 0 0 0 0 60 0 0 0 0 0
+       && sp-err (span-round-relative (sr Year Week 2 HalfFloor) (RelativeDate (ymd 2030 8 15)) (sp 0 0 0 0 17 0 0 0 913 0))
+       && sp-is (span-round-relative (sr Week Hour 6 HalfExpand) (RelativeDate (ymd 1997 2 28)) (sp 2 2 5 0 79 194 0 1999 0 0)) 0 0 118 1 12 0 0 0 0 0
+       && sp-err (span-round-relative (sr Year Week 2 HalfEven) (RelativeDate (ymd 1997 5 31)) (sp 1 29 3 0 3 0 0 0 224 1266))
+       && sp-is (span-round-relative (sr Year Second 10 HalfTrunc) (RelativeDate (ymd 2011 6 11)) (sp 3 14 0 0 0 0 0 0 0 508)) 4 2 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Week Week 2 HalfCeil) (RelativeDate (ymd 2015 11 20)) (sp 0 0 0 66 0 196 0 1397 0 0)) 0 0 10 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Microsecond Nanosecond 1 HalfCeil) (RelativeDate (ymd 2026 2 28)) (sp 0 0 0 0 0 (-28) 0 0 0 0)) 0 0 0 0 0 0 0 0 (-1680000000) 0
+       && sp-is (span-round-relative (sr Day Hour 4 HalfEven) (RelativeDate (ymd 2019 2 28)) (sp 0 0 6 0 0 0 0 0 0 1576)) 0 0 0 42 0 0 0 0 0 0
+    then 0 else 16
+
+  -- 32: spans balanced and totalled against an anchor date (totals to a millionth).
+  check-balance-total :: Int
+  check-balance-total =
+    if sp-is (span-balance-relative Year (RelativeDate (ymd 2012 2 29)) (sp (-2) 0 (-4) 0 (-18) 0 0 (-509) (-1246) (-536))) (-2) 0 0 (-28) (-18) 0 0 (-510) (-246) (-536)
+       && sp-is (span-balance-relative Year (RelativeDate (ymd 2004 8 30)) (sp 0 (-19) 0 0 0 0 (-24) (-1060) 0 (-103))) (-1) (-7) 0 0 0 0 (-25) (-60) 0 (-103)
+       && sp-is (span-balance-relative Microsecond (RelativeDate (ymd 2026 12 20)) (sp 0 17 0 0 0 0 0 866 0 697)) 0 0 0 0 0 0 0 0 44668800866000 697
+       && sp-is (span-balance-relative Week (RelativeDate (ymd 2007 2 14)) (sp 0 0 0 75 47 0 0 0 0 0)) 0 0 10 6 23 0 0 0 0 0
+       && sp-is (span-balance-relative Year (RelativeDate (ymd 2024 4 28)) (sp 0 0 0 0 0 0 (-172) 0 (-24) (-306))) 0 0 0 0 0 (-2) (-52) 0 (-24) (-306)
+       && sp-is (span-balance-relative Microsecond (RelativeDate (ymd 2012 3 28)) (sp 0 5 0 0 92 0 0 0 1839 0)) 0 0 0 0 0 0 0 0 13550400001839 0
+       && sp-is (span-balance-relative Month (RelativeDate (ymd 2023 2 4)) (sp 0 0 0 90 0 0 115 0 0 0)) 0 3 0 1 0 1 55 0 0 0
+       && sp-is (span-balance-relative Microsecond (RelativeDate (ymd 2004 1 24)) (sp 0 (-3) 0 (-42) 0 0 0 0 0 0)) 0 0 0 0 0 0 0 0 (-11577600000000) 0
+       && sp-is (span-balance-relative Microsecond (RelativeDate (ymd 1999 4 13)) (sp (-1) 0 0 0 (-17) (-129) (-90) (-1054) (-1996) 0)) 0 0 0 0 0 0 0 0 (-31605031055996) 0
+       && sp-is (span-balance-relative Hour (RelativeDate (ymd 2004 12 31)) (sp (-2) (-10) (-7) 0 0 0 0 0 0 0)) 0 0 0 0 (-26064) 0 0 0 0 0
+       && sp-is (span-balance-relative Second (RelativeDate (ymd 2024 2 28)) (sp 4 0 9 41 71 0 0 0 554 0)) 0 0 0 0 0 0 135471600 0 554 0
+       && tot-is (span-total-relative Week (RelativeDate (ymd 2015 6 14)) (sp (-4) 0 (-8) 0 (-86) 0 0 0 0 0)) (-217226190)
+       && tot-is (span-total-relative Month (RelativeDate (ymd 2027 4 21)) (sp 0 0 0 87 19 0 0 0 0 1069)) 2893055
+       && tot-is (span-total-relative Hour (RelativeDate (ymd 2020 8 31)) (sp 0 12 7 0 42 0 154 0 0 0)) 9978042777
+       && tot-is (span-total-relative Year (RelativeDate (ymd 2002 3 29)) (sp 0 19 0 22 43 0 0 1525 0 1748)) 1649704
+       && tot-is (span-total-relative Minute (RelativeDate (ymd 2028 4 13)) (sp 0 0 0 0 0 0 0 0 0 0)) 0
+       && tot-is (span-total-relative Second (RelativeDate (ymd 2006 3 28)) (sp 0 0 0 0 (-17) (-163) (-84) 0 0 0)) (-71064000000)
+       && tot-is (span-total-relative Month (RelativeDate (ymd 1997 3 20)) (sp 0 12 0 0 0 0 0 0 0 0)) 12000000
+       && tot-is (span-total-relative Second (RelativeDate (ymd 1997 7 7)) (sp (-4) 0 0 0 0 0 0 0 (-411) 0)) (-126230400000411)
+       && tot-is (span-total-relative Minute (RelativeDate (ymd 2018 1 30)) (sp 0 0 0 0 (-51) 0 (-171) 0 (-629) 0)) (-3062850010)
+       && tot-is (span-total-relative Hour (RelativeDate (ymd 2008 3 30)) (sp 0 27 7 0 19 0 24 0 0 0)) 20923006666
+       && tot-is (span-total-relative Week (RelativeDate (ymd 2023 2 17)) (sp 3 0 0 0 0 0 0 0 1081 0)) 156571428
+    then 0 else 32
+
+  -- 64: spans compared against an anchor date; clock spans rounded, summed and totalled.
+  check-compare-clock :: Int
+  check-compare-clock =
+    if ord-is (span-compare-relative (RelativeDate (ymd 1998 2 21)) (sp 0 0 5 0 0 0 0 0 0 0) (sp 0 27 4 0 40 0 0 0 738 1930)) (-1)
+       && ord-is (span-compare-relative (RelativeDate (ymd 2008 11 23)) (sp 0 5 0 0 28 194 0 0 222 0) (sp 0 19 3 0 49 71 21 0 0 0)) (-1)
+       && ord-is (span-compare-relative (RelativeDate (ymd 2014 1 18)) (sp 0 0 0 0 0 0 0 0 0 577) (sp 0 0 0 0 0 0 0 0 0 577)) 0
+       && ord-is (span-compare-relative (RelativeDate (ymd 2000 1 28)) (sp 0 12 0 15 28 91 0 837 0 1703) (sp 0 0 0 0 0 0 0 0 33024660837001 703)) 0
+       && ord-is (span-compare-relative (RelativeDate (ymd 1999 1 23)) (sp 0 4 2 89 0 153 89 0 0 1024) (sp 0 0 3 10 24 128 9 1332 0 0)) 1
+       && ord-is (span-compare-relative (RelativeDate (ymd 2006 1 30)) (sp 0 1 0 0 0 118 0 0 1954 218) (sp 0 0 0 87 0 151 0 0 0 0)) (-1)
+       && ord-is (span-compare-relative (RelativeDate (ymd 2020 6 16)) (sp 0 0 0 81 20 124 0 0 671 0) (sp 0 0 0 0 0 0 7077840 0 671 0)) 0
+       && ord-is (span-compare-relative (RelativeDate (ymd 2003 3 4)) (sp 0 (-2) (-1) (-73) 0 0 0 0 0 (-1915)) (sp 0 0 (-19) (-6) 0 0 0 0 (-1) (-915))) 0
+       && sp-is (span-round (sr Microsecond Microsecond 1 HalfEven) (ck 63 0 0 0 0 0)) 0 0 0 0 0 0 0 0 226800000000 0
+       && sp-is (span-round (sr Hour Nanosecond 5 Ceil) (ck 53 0 0 0 0 0)) 0 0 0 0 53 0 0 0 0 0
+       && sp-is (span-round (sr Minute Minute 30 Expand) (ck 0 0 0 0 0 0)) 0 0 0 0 0 0 0 0 0 0
+       && sp-is (span-round (sr Millisecond Microsecond 2 HalfExpand) (ck 0 196 0 0 522 1111)) 0 0 0 0 0 0 0 11760000 524 0
+       && sp-is (span-round (sr Minute Minute 5 HalfTrunc) (ck 0 82 0 0 0 0)) 0 0 0 0 0 80 0 0 0 0
+       && sp-is (span-round (sr Minute Second 5 HalfExpand) (ck 0 0 (-25) 0 0 0)) 0 0 0 0 0 0 (-25) 0 0 0
+       && sp-is (option-to-result SpanUnitLimit (span-checked-sub (ck 0 (-49) 0 0 (-50) (-1039)) (ck 0 0 0 0 0 0))) 0 0 0 0 0 (-49) 0 0 (-51) (-39)
+       && sp-is (option-to-result SpanUnitLimit (span-checked-add (ck 72 0 0 0 0 0) (ck 0 0 0 0 0 0))) 0 0 0 0 72 0 0 0 0 0
+       && sp-is (option-to-result SpanUnitLimit (span-checked-sub (ck 0 0 0 390 0 843) (ck 0 0 0 0 (-719) (-106)))) 0 0 0 0 0 0 0 390 719 949
+       && sp-is (option-to-result SpanUnitLimit (span-checked-sub (ck 0 0 32 909 957 1791) (ck 0 0 0 0 1968 0))) 0 0 0 0 0 0 32 907 990 791
+       && sp-is (option-to-result SpanUnitLimit (span-checked-sub (ck 0 154 48 0 0 961) (ck 0 98 0 0 0 0))) 0 0 0 0 0 56 48 0 0 961
+       && tot-is (span-total Minute (ck 0 0 (-76) (-439) 0 (-1201))) (-1273983)
+       && tot-is (span-total Hour (ck 0 0 0 0 0 1135)) 0
+       && tot-is (span-total Second (ck 0 0 0 1751 0 0)) 1751000
+       && tot-is (span-total Microsecond (ck 0 0 0 0 0 0)) 0
+    then 0 else 64
+
+  -- 128: times of day, date-times and timestamps rounded.
+  check-round-values :: Int
+  check-round-values =
+    if tr-is (time-round (rd Minute 1 Expand) (tod 10 21 48 62604134)) 10 22 0 0
+       && tr-is (time-round (rd Millisecond 100 Expand) (tod 5 55 41 310822304)) 5 55 41 400000000
+       && tr-is (time-round (rd Hour 4 Trunc) (tod 3 55 49 585754513)) 0 0 0 0
+       && tr-is (time-round (rd Hour 12 HalfEven) (tod 3 58 55 70396152)) 0 0 0 0
+       && tr-is (time-round (rd Microsecond 10 HalfCeil) (tod 9 34 26 279348953)) 9 34 26 279350000
+       && tr-is (time-round (rd Minute 5 HalfEven) (tod 21 19 42 824339884)) 21 20 0 0
+       && tr-is (time-round (rd Nanosecond 500 Floor) (tod 7 28 48 478431700)) 7 28 48 478431500
+       && dtr-is (datetime-round (rd Nanosecond 2 Ceil) (at 2014 3 28 0 0 0 0)) 2014 3 28 0 0 0 0
+       && dtr-is (datetime-round (rd Second 1 Expand) (at 2024 4 30 16 37 53 509262371)) 2024 4 30 16 37 54 0
+       && dtr-is (datetime-round (rd Second 30 HalfExpand) (at 2020 2 19 0 0 0 0)) 2020 2 19 0 0 0 0
+       && dtr-is (datetime-round (rd Microsecond 500 Floor) (at 2027 8 4 0 0 0 0)) 2027 8 4 0 0 0 0
+       && dtr-is (datetime-round (rd Minute 30 Floor) (at 2010 3 17 15 13 47 541523149)) 2010 3 17 15 0 0 0
+       && dtr-is (datetime-round (rd Hour 4 Trunc) (at 2005 12 31 14 32 42 231410756)) 2005 12 31 12 0 0 0
+       && dtr-is (datetime-round (rd Nanosecond 250 HalfFloor) (at 2018 3 13 0 0 0 0)) 2018 3 13 0 0 0 0
+       && dtr-is (datetime-round (rd Day 1 Trunc) (at 2022 7 31 22 48 57 829318469)) 2022 7 31 0 0 0 0
+       && tsr-is (timestamp-round (rd Hour 12 Trunc) (ts (-1168172836) 85997134)) (-1168214400) 0
+       && tsr-is (timestamp-round (rd Microsecond 10 HalfExpand) (ts (-1106982231) 498192101)) (-1106982231) 498190000
+       && tsr-is (timestamp-round (rd Second 86400 HalfFloor) (ts (-105869292) 740555763)) (-105840000) 0
+       && tsr-is (timestamp-round (rd Microsecond 10 Trunc) (ts (-376308441) 88862419)) (-376308441) 88860000
+       && tsr-is (timestamp-round (rd Second 60 Trunc) (ts 1145187141 207118272)) 1145187120 0
+       && tsr-is (timestamp-round (rd Hour 24 Trunc) (ts 1958166602 137084007)) 1958083200 0
+       && tsr-is (timestamp-round (rd Minute 30 Expand) (ts (-995325565) 727786898)) (-995324400) 0
+       && tsr-is (timestamp-round (rd Nanosecond 1000000 Expand) (ts (-1497398853) 883936316)) (-1497398853) 884000000
+    then 0 else 128
+
+  main :: Int
+  main =
+    check-add + check-date-difference + check-datetime-difference + check-clock-difference
+    + check-round-relative + check-balance-total + check-compare-clock + check-round-values

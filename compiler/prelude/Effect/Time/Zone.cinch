@@ -1,0 +1,272 @@
+-- Effect.Time.Zone: the time zone database and the system zone
+-- (design/datetime.md, layer L5, lane C; T5, T12).
+--
+-- Getting a `TimeZone` by name reads a file, so it is an effect under
+-- the `Io r` capability and it is kept apart from using a zone, which
+-- is pure (T5). A `TzDb` is a value naming a zoneinfo directory (a
+-- tree of TZif files, one per zone, at the path its IANA name
+-- spells); `tzdb-lookup` reads one file through `Effect.Fs` and
+-- parses it with `Data.Time.Zone.Tzif`. Nothing is cached: keep the
+-- `TimeZone`.
+--
+-- Design law shape. `tzdb-lookup db name` reads exactly the file
+-- `<directory>/<name>` and nothing else, and only for a name that
+-- `tzdb-valid-name` accepts: non-empty, at most 255 bytes, made of
+-- `/`-separated components that are each non-empty, not `.` or `..`,
+-- and spelled with ASCII letters, digits, `.`, `_`, `+` and `-`. Such
+-- a name has no leading `/` and no `..`, so the path cannot leave the
+-- database directory by its spelling (a symbolic link inside the
+-- directory is the directory owner's business). The zone's name is
+-- the name it was looked up under. The error says which stage
+-- refused: the name, the file system, or the file's contents.
+-- `system-time-zone` never fails: it answers the zone it found and
+-- `system-time-zone-source` says where from.
+--
+-- NAMED REFUSALS:
+--   - the `TZ` and `TZDIR` environment variables: the prelude has no
+--     reader for the process environment (`Effect.Process`'s header
+--     records the refusal), so `tzdb-system` is always
+--     /usr/share/zoneinfo and `system-time-zone` does not consult
+--     `TZ`. When an environment reader exists, `TZ` goes first in
+--     `system-time-zone` and `TZDIR` in `tzdb-system`; meanwhile a
+--     caller holding the variable's text can use `tzdb-lookup` or
+--     `Data.Time.Zone.Posix.parse-posix-tz` on it.
+--   - the target of the /etc/localtime symbolic link: `Effect.Fs` has
+--     no `readlink`, so the zone's NAME is taken from /etc/timezone
+--     (the Debian convention) when that file names a zone the
+--     database has; otherwise the bytes of /etc/localtime are parsed
+--     and the zone is named "Etc/Unknown" (Jiff's name for a system
+--     zone it cannot identify).
+--   - a bundled or build-time database (T13): not built.
+--   - caching and reloading.
+--   - names outside the grammar above, even if a file exists for
+--     them (`posixrules`, `right/...` parse or not on their merits;
+--     `../x` and `/x` are refused unread).
+module Effect.Time.Zone where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Path
+  import Data.Result
+  import Data.String
+  import Effect.Fs
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.Zone
+  import Data.Time.Zone.Tzif
+  import Data.Time.Zoned
+  import Effect.Time (now)
+
+  export TzDb, tzdb-system, tzdb-at, tzdb-directory
+  export TzLookupError, TzInvalidName, TzNotFound, TzUnreadable, TzMalformed
+  export tzdb-valid-name, tzdb-lookup
+  export SystemZoneSource, SystemFromEtcTimezone, SystemFromEtcLocaltime, SystemFallbackUtc
+  export SystemZone, system-zone-time-zone, system-zone-source
+  export system-time-zone, system-time-zone-source
+  export zoned-now, zoned-now-system
+
+
+  -- A zoneinfo directory. Abstract; `tzdb-at` makes one.
+  data TzDb where
+    MkTzDb :: String -> TzDb
+
+  -- Why a lookup failed.
+  data TzLookupError where
+    -- The name is not a zone name (the header's grammar); no file was
+    -- touched.
+    TzInvalidName :: TzLookupError
+    -- The database has no file of that name (or it is a directory).
+    TzNotFound :: TzLookupError
+    -- The file exists and could not be read.
+    TzUnreadable :: FsError -> TzLookupError
+    -- The file is not a usable TZif file.
+    TzMalformed :: TzifError -> TzLookupError
+
+  -- Where `system-time-zone` found its answer.
+  data SystemZoneSource where
+    -- /etc/timezone named a zone the system database has.
+    SystemFromEtcTimezone :: SystemZoneSource
+    -- The contents of /etc/localtime (named "Etc/Unknown").
+    SystemFromEtcLocaltime :: SystemZoneSource
+    -- Neither worked: UTC.
+    SystemFallbackUtc :: SystemZoneSource
+
+  -- The system zone and where it came from.
+  data SystemZone where
+    MkSystemZone :: TimeZone -> SystemZoneSource -> SystemZone
+
+  system-zone-time-zone :: SystemZone -> TimeZone
+  system-zone-time-zone s = case s of
+    MkSystemZone z _ -> z
+
+  system-zone-source :: SystemZone -> SystemZoneSource
+  system-zone-source s = case s of
+    MkSystemZone _ src -> src
+
+  -- -----------------------------------------------------------------
+  -- Databases.
+  -- -----------------------------------------------------------------
+
+  -- The system database, /usr/share/zoneinfo (see NAMED REFUSALS for
+  -- `TZDIR`).
+  tzdb-system :: TzDb
+  tzdb-system = MkTzDb "/usr/share/zoneinfo"
+
+  -- The database rooted at a directory (absolute, or relative to the
+  -- process's working directory).
+  tzdb-at :: String -> TzDb
+  tzdb-at dir = MkTzDb dir
+
+  tzdb-directory :: TzDb -> String
+  tzdb-directory db = case db of
+    MkTzDb dir -> dir
+
+  -- -----------------------------------------------------------------
+  -- Names.
+  -- -----------------------------------------------------------------
+
+  byte-at :: Bytes -> Nat -> I64
+  byte-at b i = if i < bytes-len b then nat-to-i64 (bytes-get b i) else -1
+
+  -- A letter, a digit, `.`, `_`, `+` or `-`.
+  is-name-byte :: I64 -> Bool
+  is-name-byte c =
+    (ge-i64 c 65 && le-i64 c 90) || (ge-i64 c 97 && le-i64 c 122) || (ge-i64 c 48 && le-i64 c 57)
+      || eq-i64 c 46 || eq-i64 c 95 || eq-i64 c 43 || eq-i64 c 45
+
+  -- A scan with two words of state: the length of the component so
+  -- far and whether every byte of it has been a dot. A component ends
+  -- at `/` or at the end and is refused when empty, `.` or `..`.
+  valid-from :: Bytes -> Nat -> I64 -> Bool -> Bool
+  valid-from b i comp-len all-dots =
+    let c = byte-at b i in
+    if lt-i64 c 0 then component-ok comp-len all-dots
+    else if eq-i64 c 47 then
+      (if component-ok comp-len all-dots then valid-from b (i + 1) 0 True else False)
+    else if is-name-byte c then
+      valid-from b (i + 1) (wrapping-add-i64 comp-len 1) (all-dots && eq-i64 c 46)
+    else False
+
+  component-ok :: I64 -> Bool -> Bool
+  component-ok comp-len all-dots =
+    if eq-i64 comp-len 0 then False
+    else if all-dots && le-i64 comp-len 2 then False
+    else True
+
+  valid-name-bytes :: Bytes -> Bool
+  valid-name-bytes b =
+    if bytes-len b == 0 then False
+    else if bytes-len b > 255 then False
+    else valid-from b 0 0 True
+
+  -- Whether a string is a zone name (the header's grammar). Pure.
+  tzdb-valid-name :: String -> Bool
+  tzdb-valid-name name = valid-name-bytes (string-to-bytes name)
+
+  -- -----------------------------------------------------------------
+  -- Lookup.
+  -- -----------------------------------------------------------------
+
+  -- The zone called `name` in the database. The path's kind is asked
+  -- first and only a regular file is read: a zone name that is a
+  -- directory of the database (`America`) is `TzNotFound`, and
+  -- `fs-read` is never pointed at a directory (it sizes its buffer
+  -- from `lseek`, which on a directory can answer an enormous
+  -- length and exhaust the heap).
+  tzdb-lookup :: forall r. using (io :: Io r) => TzDb -> String ->{IO r} Result TzLookupError TimeZone
+  tzdb-lookup db name =
+    if tzdb-valid-name name then
+      case read-regular (path-join (path-from-string (tzdb-directory db)) (path-from-string name)) of
+        Err e -> Err (lookup-error e)
+        Ok content -> case parse-tzif name content of
+          Err e -> Err (TzMalformed e)
+          Ok z -> Ok z
+    else Err TzInvalidName
+
+  -- The bytes of a regular file; anything else at the path (a
+  -- directory, a device) is `NotFound`.
+  read-regular :: forall r. using (io :: Io r) => Path ->{IO r} Result FsError Bytes
+  read-regular path = case fs-metadata path of
+    Err e -> Err e
+    Ok meta -> case file-meta-kind meta of
+      FileIsDirectory -> Err NotFound
+      FileIsOther -> Err NotFound
+      FileIsFile -> fs-read path
+
+  lookup-error :: FsError -> TzLookupError
+  lookup-error e = case e of
+    NotFound -> TzNotFound
+    IsADirectory -> TzNotFound
+    NotADirectory -> TzNotFound
+    PermissionDenied -> TzUnreadable e
+    AlreadyExists -> TzUnreadable e
+    InvalidName -> TzUnreadable e
+    IoError -> TzUnreadable e
+
+  -- -----------------------------------------------------------------
+  -- The system zone.
+  -- -----------------------------------------------------------------
+
+  -- The index of the first byte at or after `i` that is a space or a
+  -- control character (the end of the first word).
+  word-end :: Bytes -> Nat -> Nat
+  word-end b i = if gt-i64 (byte-at b i) 32 then word-end b (i + 1) else i
+
+  -- The first word of a buffer as a string, if it is one.
+  first-word :: Bytes -> Option String
+  first-word b =
+    let n = word-end b 0 in
+    if n <= bytes-len b then
+      let out = bytes-new n in
+      let u = bytes-copy-range out b 0 0 n in
+      string-from-bytes out
+    else None
+
+  -- The zone /etc/timezone names, if it names one the database has.
+  from-etc-timezone :: forall r. using (io :: Io r) => Unit ->{IO r} Option TimeZone
+  from-etc-timezone u = case read-regular (path-from-string "/etc/timezone") of
+    Err _ -> None
+    Ok content -> case first-word content of
+      None -> None
+      Some name -> case tzdb-lookup tzdb-system name of
+        Err _ -> None
+        Ok z -> Some z
+
+  -- The zone /etc/localtime holds, under the name "Etc/Unknown".
+  from-etc-localtime :: forall r. using (io :: Io r) => Unit ->{IO r} Option TimeZone
+  from-etc-localtime u = case read-regular (path-from-string "/etc/localtime") of
+    Err _ -> None
+    Ok content -> case parse-tzif "Etc/Unknown" content of
+      Err _ -> None
+      Ok z -> Some z
+
+  -- The system's zone and where it was found: /etc/timezone's name
+  -- looked up in the system database, else the contents of
+  -- /etc/localtime, else UTC. (`TZ` is not consulted; see NAMED
+  -- REFUSALS.)
+  system-time-zone-source :: forall r. using (io :: Io r) => Unit ->{IO r} SystemZone
+  system-time-zone-source u = case from-etc-timezone u of
+    Some z -> MkSystemZone z SystemFromEtcTimezone
+    None -> case from-etc-localtime u of
+      Some z -> MkSystemZone z SystemFromEtcLocaltime
+      None -> MkSystemZone zone-utc SystemFallbackUtc
+
+  -- The system's zone.
+  system-time-zone :: forall r. using (io :: Io r) => Unit ->{IO r} TimeZone
+  system-time-zone u = system-zone-time-zone (system-time-zone-source u)
+
+  -- -----------------------------------------------------------------
+  -- Now.
+  -- -----------------------------------------------------------------
+
+  -- The current instant read in a zone.
+  zoned-now :: forall r. using (io :: Io r) => TimeZone ->{IO r} Zoned
+  zoned-now z = zoned-from-timestamp z (now ())
+
+  -- The current instant read in the system's zone.
+  zoned-now-system :: forall r. using (io :: Io r) => Unit ->{IO r} Zoned
+  zoned-now-system u = zoned-from-timestamp (system-time-zone u) (now ())

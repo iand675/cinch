@@ -1,0 +1,158 @@
+-- Lane E: Text.Time.Iso, times of day. The shortest exact fraction for
+-- every fraction length 1..=9 and its round trip, trailing-zero
+-- trimming, the fixed-precision printer (truncating), `HH:MM`, the
+-- comma fraction, every strict refusal with its named error and
+-- position, and the lenient leap second.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.Bytes
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Iso
+  import Text.Time.Scan
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Timestamp
+
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  hmsn :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  hmsn h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (hmsn h mi s ns)
+
+  -- A refusal as `constructor number * 1000 + position`; -1 for `Ok`.
+  code :: IsoError -> I64
+  code e = case e of
+    IsoUnexpectedEnd p -> wrapping-add-i64 1000 p
+    IsoExpectedDigit p -> wrapping-add-i64 2000 p
+    IsoExpectedDash p -> wrapping-add-i64 3000 p
+    IsoExpectedColon p -> wrapping-add-i64 4000 p
+    IsoExpectedTimeSeparator p -> wrapping-add-i64 5000 p
+    IsoMissingTime p -> wrapping-add-i64 6000 p
+    IsoUnexpectedTime p -> wrapping-add-i64 7000 p
+    IsoTrailingInput p -> wrapping-add-i64 8000 p
+    IsoNegativeZeroYear p -> wrapping-add-i64 9000 p
+    IsoYearOutOfRange p -> wrapping-add-i64 10000 p
+    IsoMonthOutOfRange p -> wrapping-add-i64 11000 p
+    IsoDayOutOfRange p -> wrapping-add-i64 12000 p
+    IsoHourOutOfRange p -> wrapping-add-i64 13000 p
+    IsoMinuteOutOfRange p -> wrapping-add-i64 14000 p
+    IsoSecondOutOfRange p -> wrapping-add-i64 15000 p
+    IsoLeapSecond p -> wrapping-add-i64 16000 p
+    IsoEmptyFraction p -> wrapping-add-i64 17000 p
+    IsoFractionTooLong p -> wrapping-add-i64 18000 p
+    IsoMissingOffset p -> wrapping-add-i64 19000 p
+    IsoExpectedOffset p -> wrapping-add-i64 20000 p
+    IsoOffsetOutOfRange p -> wrapping-add-i64 21000 p
+    IsoTimestampOutOfRange p -> wrapping-add-i64 22000 p
+
+  refusal :: Result IsoError TimeOfDay -> I64
+  refusal r = case r of
+    Ok _ -> -1
+    Err e -> code e
+
+  reads :: String -> TimeOfDay -> Bool
+  reads s t = case time-from-string s of
+    Err _ -> False
+    Ok x -> x == t
+
+  reads-lenient :: String -> TimeOfDay -> Bool
+  reads-lenient s t = case time-from-string-lenient s of
+    Err _ -> False
+    Ok x -> x == t
+
+  round :: TimeOfDay -> String -> Bool
+  round t s = time-to-string t == s && reads s t
+
+  check-whole :: Int
+  check-whole =
+    if round T.midnight "00:00:00" && round T.noon "12:00:00" && round (hmsn 23 59 59 0) "23:59:59"
+       && round (hmsn 5 15 0 0) "05:15:00" && round (hmsn 13 45 30 0) "13:45:30"
+       && reads "13:45" (hmsn 13 45 0 0) && reads "00:00" T.midnight && reads "23:59" (hmsn 23 59 0 0)
+    then 0 else 1
+
+  -- One vector per fraction length: the shortest exact rendering.
+  check-fraction-lengths :: Int
+  check-fraction-lengths =
+    if round (hmsn 1 2 3 500000000) "01:02:03.5" && round (hmsn 1 2 3 120000000) "01:02:03.12"
+       && round (hmsn 1 2 3 123000000) "01:02:03.123" && round (hmsn 1 2 3 123400000) "01:02:03.1234"
+       && round (hmsn 1 2 3 123450000) "01:02:03.12345" && round (hmsn 1 2 3 123456000) "01:02:03.123456"
+       && round (hmsn 1 2 3 123456700) "01:02:03.1234567" && round (hmsn 1 2 3 123456780) "01:02:03.12345678"
+       && round (hmsn 1 2 3 123456789) "01:02:03.123456789"
+    then 0 else 2
+
+  check-fraction-edges :: Int
+  check-fraction-edges =
+    if round (hmsn 0 0 0 1) "00:00:00.000000001" && round T.max-time "23:59:59.999999999"
+       && round (hmsn 0 0 0 1000) "00:00:00.000001" && round (hmsn 0 0 0 1000000) "00:00:00.001"
+       && round (hmsn 0 0 0 100000000) "00:00:00.1" && round (hmsn 0 0 0 10) "00:00:00.00000001"
+       && round (hmsn 9 8 7 60000) "09:08:07.00006"
+       && reads "01:02:03.500000000" (hmsn 1 2 3 500000000) && reads "01:02:03.50" (hmsn 1 2 3 500000000)
+       && reads "01:02:03.0" (hmsn 1 2 3 0) && reads "01:02:03.000000000" (hmsn 1 2 3 0)
+       && reads "01:02:03,5" (hmsn 1 2 3 500000000) && reads "01:02:03,123456789" (hmsn 1 2 3 123456789)
+    then 0 else 4
+
+  check-precision :: Int
+  check-precision =
+    let t = hmsn 1 2 3 987654321 in
+    if time-to-string-precision 0 t == "01:02:03" && time-to-string-precision 1 t == "01:02:03.9"
+       && time-to-string-precision 2 t == "01:02:03.98" && time-to-string-precision 3 t == "01:02:03.987"
+       && time-to-string-precision 4 t == "01:02:03.9876" && time-to-string-precision 5 t == "01:02:03.98765"
+       && time-to-string-precision 6 t == "01:02:03.987654" && time-to-string-precision 7 t == "01:02:03.9876543"
+       && time-to-string-precision 8 t == "01:02:03.98765432" && time-to-string-precision 9 t == "01:02:03.987654321"
+       && time-to-string-precision 3 T.midnight == "00:00:00.000" && time-to-string-precision 9 T.noon == "12:00:00.000000000"
+       && time-to-string-precision 3 T.max-time == "23:59:59.999" && time-to-string-precision 0 T.max-time == "23:59:59"
+    then 0 else 8
+
+  check-field-refusals :: Int
+  check-field-refusals =
+    if refusal (time-from-string "24:00:00") == 13000 && refusal (time-from-string "24:00") == 13000
+       && refusal (time-from-string "23:60:00") == 14003 && refusal (time-from-string "23:60") == 14003
+       && refusal (time-from-string "23:59:60") == 16006 && refusal (time-from-string "23:59:61") == 15006
+       && refusal (time-from-string "23:59:60.5") == 16006 && refusal (time-from-string "99:99:99") == 13000
+       && refusal (time-from-string "12:00:00.") == 17009 && refusal (time-from-string "12:00:00,") == 17009
+       && refusal (time-from-string "12:00:00.x") == 17009
+       && refusal (time-from-string "12:00:00.1234567890") == 18009
+       && refusal (time-from-string "12:00:00.12345678901234567890") == 18009
+    then 0 else 16
+
+  check-shape-refusals :: Int
+  check-shape-refusals =
+    if refusal (time-from-string "") == 1000 && refusal (time-from-string "junk") == 2000
+       && refusal (time-from-string "12") == 1002 && refusal (time-from-string "12:") == 1003
+       && refusal (time-from-string "12:3") == 1004 && refusal (time-from-string "1:30") == 2001
+       && refusal (time-from-string "12.30") == 4002 && refusal (time-from-string "1230") == 4002
+       && refusal (time-from-string "12:30:") == 1006 && refusal (time-from-string "12:30:4") == 1007
+       && refusal (time-from-string "12:30.5") == 8005 && refusal (time-from-string "12:30:45Z") == 8008
+       && refusal (time-from-string "12:30:45 ") == 8008 && refusal (time-from-string " 12:30:45") == 2000
+       && refusal (time-from-string "12:30:45.5x") == 8010 && refusal (time-from-string "12:30:45+01:00") == 8008
+       && refusal (time-from-string "T12:30:45") == 2000 && refusal (time-from-string "12:30 PM") == 8005
+    then 0 else 32
+
+  -- Second 60 reads as second 59 (fraction kept); nothing else loosens.
+  check-lenient :: Int
+  check-lenient =
+    if reads-lenient "23:59:60" (hmsn 23 59 59 0) && reads-lenient "23:59:60.25" (hmsn 23 59 59 250000000)
+       && reads-lenient "00:00:60" (hmsn 0 0 59 0) && reads-lenient "13:45:30.5" (hmsn 13 45 30 500000000)
+       && refusal (time-from-string-lenient "23:59:61") == 15006
+       && refusal (time-from-string-lenient "24:00:00") == 13000
+       && refusal (time-from-string-lenient "23:60:00") == 14003
+       && refusal (time-from-string-lenient "12:00:00.") == 17009
+    then 0 else 64
+
+  main :: Int
+  main = check-whole + check-fraction-lengths + check-fraction-edges + check-precision + check-field-refusals + check-shape-refusals + check-lenient

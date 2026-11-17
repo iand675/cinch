@@ -1,0 +1,1326 @@
+-- Data.Time.Span: a calendar-aware duration that keeps each unit.
+--
+-- A `Span` is TC39 Temporal's Duration as rendered by Jiff's `Span`:
+-- ten unit values (years, months, weeks, days, hours, minutes, seconds,
+-- milliseconds, microseconds, nanoseconds) that all share one sign.
+-- "1 month 2 days" stays one month and two days: how long that is
+-- depends on the date it is added to, which is why a `Span` is not a
+-- `Duration` (Data.Time.Duration, an exact count of nanoseconds).
+--
+-- Representation. One sign (-1, 0, 1) and ten non-negative `I64`
+-- magnitudes behind a private constructor (Jiff's layout,
+-- design/datetime.md section 4). As held today (verified against the
+-- emitted LLVM): one heap object of eleven unboxed `I64` words, read
+-- at offsets 0, 8, .. 80; the class index is not stored in it.
+-- Every magnitude is within its unit's limit (Jiff's limits, chosen so
+-- any single unit spans at most the supported date range):
+--
+--     years         19998          hours         175307616
+--     months        239976         minutes       10518456960
+--     weeks         1043497        seconds       631107417600
+--     days          7304484        milliseconds  631107417600000
+--                                  microseconds  631107417600000000
+--                                  nanoseconds   9223372036854775807
+--
+-- so the clock units of any span total fewer than 1.3e21 nanoseconds,
+-- and days and weeks read as 24-hour days add fewer than 1.3e21 more:
+-- every sum formed here is below 2^72 and lives in an `I128` with room
+-- to spare. That bound is the overflow argument for every `wrapping-`
+-- `I128` operation in this module; the few places where a caller's
+-- unbounded value enters (a `Duration`, a rounding increment times a
+-- unit) use a checked operation or a prior range test and say so.
+--
+-- The index (design/datetime.md T6). `Span (c :: SpanClass)` says
+-- whether the span may hold calendar units. `Span Clock` holds hours
+-- and smaller only: its length is a fixed number of nanoseconds, so it
+-- can be compared, totalled, rounded and converted to a `Duration` with
+-- no anchor, and those operations take `Span Clock` and cannot be
+-- handed anything else. `Span Calendar` may hold days and larger; the
+-- `-relative` forms take any class and an anchor (`Relative`). The
+-- setters for hours and smaller preserve the class; the setters for
+-- days and larger answer `Span Calendar` (even when the value set is
+-- zero: the index is an upper bound, not a census). `span-to-clock` is
+-- the checked way down and `span-to-calendar` the free way up.
+--
+-- A day is a calendar unit here, as in Jiff: Temporal lets a civil
+-- Duration treat days as 24 hours with no anchor, and that convention
+-- is available only under a name that says so
+-- (`span-to-duration-civil-days`).
+--
+-- Design law shape.
+--   - All non-zero units share the span's sign. `span-negate` flips it,
+--     `span-abs` clears it; each accessor returns its unit with the
+--     sign applied, so `span-with-<unit> (span-<unit> s) s` is `Some s`.
+--   - `span-fieldwise-eq` is the ONLY equality: unit by unit. There is
+--     deliberately NO `Eq` instance. 2 hours and 120 minutes are
+--     different spans that have the same length, and 1 month and 30
+--     days are different spans whose lengths agree only sometimes; an
+--     `==` would have to pick one reading silently. Ask for
+--     `span-fieldwise-eq` (same fields) or `span-compare` /
+--     `span-compare-relative` (same length) by name.
+--   - `span-balance` changes only how a length is spelled: the result
+--     has the same length (the same `span-total` in every unit, the
+--     same `span-compare` class) with every unit above `largest` zero
+--     and every unit below it within its natural bound (minutes below
+--     60 and so on). Balancing is not rounding (T8): it never changes
+--     the length.
+--   - `span-round` is Temporal's Duration.prototype.round: round the
+--     length to a multiple of `increment` of `smallest` under `mode`,
+--     then balance up to `largest`. With a calendar `smallest` (week,
+--     month, year) the two candidates are the anchor plus the span's
+--     value truncated to the increment and that plus one increment
+--     (NudgeToCalendarUnit), and a result that fills a larger unit is
+--     carried up (BubbleRelativeDuration).
+--   - `span-total unit` is the exact length in `unit` as a reduced
+--     rational `(numerator, denominator)` with a positive denominator.
+--     For a calendar unit it is the whole units plus the fraction of
+--     the next one, measured on the anchor's own calendar (24 hours is
+--     1/30 of a month from 1 June and 1/31 from 1 July).
+--   - `span-compare` orders spans by length; anchored, by where they
+--     land from the anchor.
+--   - The anchored forms are all one construction, Temporal's: add the
+--     span to the anchor (`span-add-to-datetime`), then take the
+--     difference from the anchor to that point in the units asked for
+--     (`span-difference-civil`). Adding applies years and months first
+--     with the day constrained to the target month's length
+--     (2024-05-31 + 1 month = 2024-06-30), then weeks and days, then
+--     the clock units with a 24-hour civil day. The difference is
+--     DifferenceISODateTime: the largest whole count of each unit, from
+--     the largest down, that does not pass the end point, the day of
+--     the month being compared unconstrained (2024-05-31 until
+--     2024-09-30 is 3 months 30 days).
+--
+-- The zoned seam. `Relative` has two constructors, a civil `Date` (read
+-- at midnight) and a civil `DateTime`. Every anchored operation reaches
+-- the anchor through two private functions only: `origin-of` (the
+-- anchor's civil reading) and `line` (a civil reading's position on a
+-- nanosecond line; for civil anchors every day is 24 hours). A zoned
+-- anchor (Data.Time.Zoned.Arithmetic, lane F) needs a third
+-- constructor, `line` through the zone's civil-to-instant mapping, and
+-- Temporal's NudgeToZonedTime beside `nudge-day-time`; nothing else in
+-- the engine assumes a 24-hour day. Until then lane F can build on the
+-- exported engine (`span-add-to-datetime`, `span-difference-civil`,
+-- `span-time-nanos`, `span-from-units`).
+--
+-- No operation faults (T2): refined arguments (`span-of-hours 2`),
+-- `Option` for the setters and simple conversions, and
+-- `Result SpanError` wherever more than one refusal is possible.
+--
+-- NAMED REFUSALS:
+--   - `Unit`: the unit type is `TimeUnit` (see Data.Time.Unit).
+--   - an `Eq` instance: refused on purpose (see the law shape).
+--   - an erased index: the index costs nothing in the object, but a
+--     function polymorphic in it (`forall (c :: SpanClass).`) receives
+--     the index as a run-time word argument, and a caller at a known
+--     class builds and drops a `Clock` or `Calendar` constructor value
+--     to pass it (seen in the emitted LLVM for `span-negate`). Nothing
+--     here reads it. Kept, because the index is what the spec asks
+--     for; it becomes free when the compiler erases unread indices.
+--   - an index variable without its binder: `Span c -> I64` alone is
+--     refused ("unknown name c in index position"), so every signature
+--     polymorphic in the class spells `forall (c :: SpanClass).`.
+--   - arithmetic in the index: the class of a sum or of a rounded span
+--     is not computed. The clock-only forms answer `Span Clock`; every
+--     anchored form answers `Span Calendar` whatever units the result
+--     has, and `span-to-clock` recovers the stronger index by a test.
+--   - a refined rational or a float as the total: `span-total` returns
+--     a pair of `I128` (refinements inside tuples only check for
+--     literals, and a wide scalar has no solver sort), reduced, with a
+--     positive denominator. `span-total-f64` divides the two.
+--   - `span-to-duration-days-24h`: that spelling does not lex (a hyphen
+--     followed by a digit); the function is
+--     `span-to-duration-civil-days`.
+--   - a days-are-24-hours anchor (Jiff's `SpanRelativeTo::
+--     days_are_24_hours`): not offered; anchor at any civil date
+--     instead (a civil day is always 24 hours).
+--   - Temporal's refusal of Duration.round with neither unit given: not
+--     ported. `span-round-default` rounds to nanoseconds, which only
+--     rebalances up to the span's own largest unit.
+--   - text: no printer or parser lives here (Text.Time.Duration).
+module Data.Time.Span where
+
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  export Span, SpanClass, Clock, Calendar
+  export SpanError, SpanSignConflict, SpanUnitLimit, SpanNeedsAnchor
+  export SpanBadUnits, SpanBadIncrement, SpanOutOfRange
+  export span-zero, span-from-units, span-clock-from-units
+  export span-of-years, span-of-months, span-of-weeks, span-of-days
+  export span-of-hours, span-of-minutes, span-of-seconds
+  export span-of-milliseconds, span-of-microseconds, span-of-nanoseconds
+  export span-with-years, span-with-months, span-with-weeks, span-with-days
+  export span-with-hours, span-with-minutes, span-with-seconds
+  export span-with-milliseconds, span-with-microseconds, span-with-nanoseconds
+  export span-years, span-months, span-weeks, span-days
+  export span-hours, span-minutes, span-seconds
+  export span-milliseconds, span-microseconds, span-nanoseconds
+  export span-sign, span-is-zero, span-is-negative, span-is-positive
+  export span-negate, span-abs
+  export span-fieldwise-eq, span-largest-unit
+  export span-is-clock, span-to-clock, span-to-calendar
+  export span-time-nanos
+  export span-from-duration, span-to-duration, span-to-duration-checked
+  export span-to-duration-civil-days
+  export Relative, RelativeDate, RelativeDateTime
+  export SpanRound, span-round-default
+  export span-balance, span-balance-relative
+  export span-round, span-round-relative
+  export span-total, span-total-relative
+  export span-total-f64, span-total-relative-f64
+  export span-compare, span-compare-relative
+  export span-checked-add, span-checked-sub
+  export span-checked-add-relative, span-checked-sub-relative
+  export span-add-to-date, span-add-to-datetime
+  export span-difference-civil, span-difference-nanos
+
+
+  -- Whether a span may hold calendar units (day and larger).
+  data SpanClass where
+    Clock :: SpanClass
+    Calendar :: SpanClass
+
+  -- The sign (-1, 0, 1), then the ten magnitudes from years down to
+  -- nanoseconds (header). Not exported: the sign and limit invariants.
+  data Span (c :: SpanClass) where
+    MkSpan :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span c
+
+  -- The refusals of this module and of Data.Time.Arithmetic.
+  data SpanError where
+    -- Units of both signs were given.
+    SpanSignConflict :: SpanError
+    -- A unit's magnitude is beyond its limit (header table).
+    SpanUnitLimit :: SpanError
+    -- A calendar unit (day or larger), in the span or asked for, where
+    -- there is no anchor to give it a length.
+    SpanNeedsAnchor :: SpanError
+    -- `largest` is smaller than `smallest`, or a unit the operation
+    -- does not accept.
+    SpanBadUnits :: SpanError
+    -- The rounding increment is not valid for the smallest unit.
+    SpanBadIncrement :: SpanError
+    -- A date, date-time or timestamp left the supported range.
+    SpanOutOfRange :: SpanError
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing: machine arithmetic under short names. The header
+  -- gives the bound that keeps each wrapping use from wrapping.
+  -- -----------------------------------------------------------------
+
+  plus :: I64 -> I64 -> I64
+  plus a b = wrapping-add-i64 a b
+
+  minus :: I64 -> I64 -> I64
+  minus a b = wrapping-sub-i64 a b
+
+  times :: I64 -> I64 -> I64
+  times a b = wrapping-mul-i64 a b
+
+  -- Truncated quotient and remainder by a divisor of at least 1. The
+  -- guard excludes the divisors for which the checked operations answer
+  -- `None` (zero, and -1 with the minimum), so `None` is unreachable.
+  quot :: I64 -> I64 -> I64
+  quot a d =
+    if d < 1 then 0
+    else case checked-div-i64 a d of
+      Some q -> q
+      None -> 0
+
+  rem :: I64 -> I64 -> I64
+  rem a d =
+    if d < 1 then 0
+    else case checked-rem-i64 a d of
+      Some r -> r
+      None -> 0
+
+  sgn :: I64 -> I64
+  sgn n = if n > 0 then 1 else if n < 0 then -1 else 0
+
+  -- -1 for a negative sign, otherwise 1 (Temporal's "sign" argument of
+  -- the nudge operations, where zero counts as positive).
+  dir :: I64 -> I64
+  dir n = if n < 0 then -1 else 1
+
+  wide :: I64 -> I128
+  wide n = i64-to-i128 n
+
+  add128 :: I128 -> I128 -> I128
+  add128 a b = wrapping-add-i128 a b
+
+  sub128 :: I128 -> I128 -> I128
+  sub128 a b = wrapping-sub-i128 a b
+
+  mul128 :: I128 -> I128 -> I128
+  mul128 a b = wrapping-mul-i128 a b
+
+  -- Truncated quotient and remainder by a positive divisor; same
+  -- argument as `quot`.
+  q128 :: I128 -> I128 -> I128
+  q128 a d =
+    if lt-i128 d 1 then 0
+    else case checked-div-i128 a d of
+      Some q -> q
+      None -> 0
+
+  r128 :: I128 -> I128 -> I128
+  r128 a d =
+    if lt-i128 d 1 then 0
+    else case checked-rem-i128 a d of
+      Some r -> r
+      None -> 0
+
+  -- Floored quotient by a positive divisor.
+  floor128 :: I128 -> I128 -> I128
+  floor128 a d =
+    let q = q128 a d in
+    if lt-i128 (r128 a d) 0 then sub128 q 1 else q
+
+  sgn128 :: I128 -> I64
+  sgn128 n = if gt-i128 n 0 then 1 else if lt-i128 n 0 then -1 else 0
+
+  -- The magnitude of a value that is never `I128`'s minimum (every
+  -- caller's value is bounded far inside `I128`, or is a `Duration`'s
+  -- count, whose range excludes the minimum).
+  abs128 :: I128 -> I128
+  abs128 n = if lt-i128 n 0 then wrapping-neg-i128 n else n
+
+  -- Whether a non-negative wide value fits an `I64`.
+  fits :: I128 -> Bool
+  fits n = le-i128 n 9223372036854775807
+
+  -- A wide value the caller knows fits an `I64`.
+  low64 :: I128 -> I64
+  low64 n = wrapping-i128-to-i64 n
+
+  day-ns :: I128
+  day-ns = 86400000000000
+
+  opt :: forall a. Result SpanError a -> Option a
+  opt r = case r of
+    Err _ -> None
+    Ok x -> Some x
+
+  -- -----------------------------------------------------------------
+  -- The representation's own helpers.
+  -- -----------------------------------------------------------------
+
+  -- The signed value of each unit: the sign times the magnitude (a
+  -- product of -1, 0 or 1 with a non-negative `I64`, so it cannot wrap).
+  g-years :: forall (c :: SpanClass). Span c -> I64
+  g-years s = case s of
+    MkSpan sg yev _ _ _ _ _ _ _ _ _ -> times sg yev
+
+  g-months :: forall (c :: SpanClass). Span c -> I64
+  g-months s = case s of
+    MkSpan sg _ mov _ _ _ _ _ _ _ _ -> times sg mov
+
+  g-weeks :: forall (c :: SpanClass). Span c -> I64
+  g-weeks s = case s of
+    MkSpan sg _ _ wev _ _ _ _ _ _ _ -> times sg wev
+
+  g-days :: forall (c :: SpanClass). Span c -> I64
+  g-days s = case s of
+    MkSpan sg _ _ _ dav _ _ _ _ _ _ -> times sg dav
+
+  g-hours :: forall (c :: SpanClass). Span c -> I64
+  g-hours s = case s of
+    MkSpan sg _ _ _ _ hov _ _ _ _ _ -> times sg hov
+
+  g-minutes :: forall (c :: SpanClass). Span c -> I64
+  g-minutes s = case s of
+    MkSpan sg _ _ _ _ _ miv _ _ _ _ -> times sg miv
+
+  g-seconds :: forall (c :: SpanClass). Span c -> I64
+  g-seconds s = case s of
+    MkSpan sg _ _ _ _ _ _ sev _ _ _ -> times sg sev
+
+  g-milliseconds :: forall (c :: SpanClass). Span c -> I64
+  g-milliseconds s = case s of
+    MkSpan sg _ _ _ _ _ _ _ miv _ _ -> times sg miv
+
+  g-microseconds :: forall (c :: SpanClass). Span c -> I64
+  g-microseconds s = case s of
+    MkSpan sg _ _ _ _ _ _ _ _ miv _ -> times sg miv
+
+  g-nanoseconds :: forall (c :: SpanClass). Span c -> I64
+  g-nanoseconds s = case s of
+    MkSpan sg _ _ _ _ _ _ _ _ _ nav -> times sg nav
+
+  sign-of :: forall (c :: SpanClass). Span c -> I64
+  sign-of s = case s of
+    MkSpan sg _ _ _ _ _ _ _ _ _ _ -> sg
+
+  -- Same value at another index. Private: the callers below establish
+  -- what the new index claims.
+  retag :: forall (a :: SpanClass) (b :: SpanClass). Span a -> Span b
+  retag s = case s of
+    MkSpan sg y mo w d h mi sc ms us ns -> MkSpan sg y mo w d h mi sc ms us ns
+
+  within :: I64 -> I64 -> Bool
+  within v limit = v >= minus 0 limit && v <= limit
+
+  -- The one checked road into the representation: ten signed values,
+  -- each within its unit's limit and no two of opposite sign. The
+  -- limits make every negation below exact (the nanosecond limit
+  -- excludes `I64`'s minimum).
+  build :: forall (c :: SpanClass). I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Result SpanError (Span c)
+  build y mo w d h mi sc ms us ns =
+    if within y 19998 && within mo 239976 && within w 1043497 && within d 7304484
+       && within h 175307616 && within mi 10518456960 && within sc 631107417600
+       && within ms 631107417600000 && within us 631107417600000000
+       && within ns 9223372036854775807
+    then
+      let pos = y > 0 || mo > 0 || w > 0 || d > 0 || h > 0 || mi > 0 || sc > 0 || ms > 0 || us > 0 || ns > 0 in
+      let neg = y < 0 || mo < 0 || w < 0 || d < 0 || h < 0 || mi < 0 || sc < 0 || ms < 0 || us < 0 || ns < 0 in
+      if pos && neg then Err SpanSignConflict
+      else if pos then Ok (MkSpan 1 y mo w d h mi sc ms us ns)
+      else if neg then Ok (MkSpan (-1) (minus 0 y) (minus 0 mo) (minus 0 w) (minus 0 d) (minus 0 h) (minus 0 mi) (minus 0 sc) (minus 0 ms) (minus 0 us) (minus 0 ns))
+      else Ok (MkSpan 0 0 0 0 0 0 0 0 0 0 0)
+    else Err SpanUnitLimit
+
+  -- A span with one non-zero unit, the unit chosen by position (0 is
+  -- years, 9 nanoseconds). The caller's refined argument is within the
+  -- unit's limit.
+  pick :: I64 -> I64 -> I64 -> I64
+  pick slot i mag = if slot == i then mag else 0
+
+  single :: forall (c :: SpanClass). I64 -> I64 -> Span c
+  single slot n =
+    let mag = if n < 0 then minus 0 n else n in
+    MkSpan (sgn n) (pick slot 0 mag) (pick slot 1 mag) (pick slot 2 mag) (pick slot 3 mag) (pick slot 4 mag) (pick slot 5 mag) (pick slot 6 mag) (pick slot 7 mag) (pick slot 8 mag) (pick slot 9 mag)
+
+  -- -----------------------------------------------------------------
+  -- Construction.
+  -- -----------------------------------------------------------------
+
+  span-zero :: Span Clock
+  span-zero = MkSpan 0 0 0 0 0 0 0 0 0 0 0
+
+  -- All ten units at once, signed, from years down to nanoseconds.
+  -- `Err SpanUnitLimit` when a unit is beyond its limit,
+  -- `Err SpanSignConflict` when two units have opposite signs.
+  span-from-units :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Result SpanError (Span Calendar)
+  span-from-units y mo w d h mi sc ms us ns = build y mo w d h mi sc ms us ns
+
+  -- The six clock units at once, from hours down to nanoseconds.
+  span-clock-from-units :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Result SpanError (Span Clock)
+  span-clock-from-units h mi sc ms us ns = build 0 0 0 0 h mi sc ms us ns
+
+  -- One unit, total: the limit is in the argument's type, so
+  -- `span-of-hours 2` checks with nothing else written and a literal
+  -- beyond the limit is refused at compile time.
+  span-of-years :: (n :: InRange (-19998) 19998 I64) -> Span Calendar
+  span-of-years n = single 0 n
+
+  span-of-months :: (n :: InRange (-239976) 239976 I64) -> Span Calendar
+  span-of-months n = single 1 n
+
+  span-of-weeks :: (n :: InRange (-1043497) 1043497 I64) -> Span Calendar
+  span-of-weeks n = single 2 n
+
+  span-of-days :: (n :: InRange (-7304484) 7304484 I64) -> Span Calendar
+  span-of-days n = single 3 n
+
+  span-of-hours :: (n :: InRange (-175307616) 175307616 I64) -> Span Clock
+  span-of-hours n = single 4 n
+
+  span-of-minutes :: (n :: InRange (-10518456960) 10518456960 I64) -> Span Clock
+  span-of-minutes n = single 5 n
+
+  span-of-seconds :: (n :: InRange (-631107417600) 631107417600 I64) -> Span Clock
+  span-of-seconds n = single 6 n
+
+  span-of-milliseconds :: (n :: InRange (-631107417600000) 631107417600000 I64) -> Span Clock
+  span-of-milliseconds n = single 7 n
+
+  span-of-microseconds :: (n :: InRange (-631107417600000000) 631107417600000000 I64) -> Span Clock
+  span-of-microseconds n = single 8 n
+
+  span-of-nanoseconds :: (n :: InRange (-9223372036854775807) 9223372036854775807 I64) -> Span Clock
+  span-of-nanoseconds n = single 9 n
+
+  -- Set one unit to a signed value, keeping the others. `None` when the
+  -- value is beyond the unit's limit or its sign conflicts with another
+  -- non-zero unit. Setting a unit to zero always succeeds. The four
+  -- calendar setters answer `Span Calendar`; the six clock setters keep
+  -- the class.
+  span-with-years :: forall (c :: SpanClass). I64 -> Span c -> Option (Span Calendar)
+  span-with-years v s = opt (build v (g-months s) (g-weeks s) (g-days s) (g-hours s) (g-minutes s) (g-seconds s) (g-milliseconds s) (g-microseconds s) (g-nanoseconds s))
+
+  span-with-months :: forall (c :: SpanClass). I64 -> Span c -> Option (Span Calendar)
+  span-with-months v s = opt (build (g-years s) v (g-weeks s) (g-days s) (g-hours s) (g-minutes s) (g-seconds s) (g-milliseconds s) (g-microseconds s) (g-nanoseconds s))
+
+  span-with-weeks :: forall (c :: SpanClass). I64 -> Span c -> Option (Span Calendar)
+  span-with-weeks v s = opt (build (g-years s) (g-months s) v (g-days s) (g-hours s) (g-minutes s) (g-seconds s) (g-milliseconds s) (g-microseconds s) (g-nanoseconds s))
+
+  span-with-days :: forall (c :: SpanClass). I64 -> Span c -> Option (Span Calendar)
+  span-with-days v s = opt (build (g-years s) (g-months s) (g-weeks s) v (g-hours s) (g-minutes s) (g-seconds s) (g-milliseconds s) (g-microseconds s) (g-nanoseconds s))
+
+  span-with-hours :: forall (c :: SpanClass). I64 -> Span c -> Option (Span c)
+  span-with-hours v s = opt (build (g-years s) (g-months s) (g-weeks s) (g-days s) v (g-minutes s) (g-seconds s) (g-milliseconds s) (g-microseconds s) (g-nanoseconds s))
+
+  span-with-minutes :: forall (c :: SpanClass). I64 -> Span c -> Option (Span c)
+  span-with-minutes v s = opt (build (g-years s) (g-months s) (g-weeks s) (g-days s) (g-hours s) v (g-seconds s) (g-milliseconds s) (g-microseconds s) (g-nanoseconds s))
+
+  span-with-seconds :: forall (c :: SpanClass). I64 -> Span c -> Option (Span c)
+  span-with-seconds v s = opt (build (g-years s) (g-months s) (g-weeks s) (g-days s) (g-hours s) (g-minutes s) v (g-milliseconds s) (g-microseconds s) (g-nanoseconds s))
+
+  span-with-milliseconds :: forall (c :: SpanClass). I64 -> Span c -> Option (Span c)
+  span-with-milliseconds v s = opt (build (g-years s) (g-months s) (g-weeks s) (g-days s) (g-hours s) (g-minutes s) (g-seconds s) v (g-microseconds s) (g-nanoseconds s))
+
+  span-with-microseconds :: forall (c :: SpanClass). I64 -> Span c -> Option (Span c)
+  span-with-microseconds v s = opt (build (g-years s) (g-months s) (g-weeks s) (g-days s) (g-hours s) (g-minutes s) (g-seconds s) (g-milliseconds s) v (g-nanoseconds s))
+
+  span-with-nanoseconds :: forall (c :: SpanClass). I64 -> Span c -> Option (Span c)
+  span-with-nanoseconds v s = opt (build (g-years s) (g-months s) (g-weeks s) (g-days s) (g-hours s) (g-minutes s) (g-seconds s) (g-milliseconds s) (g-microseconds s) v)
+
+  -- -----------------------------------------------------------------
+  -- Observation.
+  -- -----------------------------------------------------------------
+
+  -- Each unit with the span's sign applied.
+  span-years :: forall (c :: SpanClass). Span c -> I64
+  span-years s = g-years s
+
+  span-months :: forall (c :: SpanClass). Span c -> I64
+  span-months s = g-months s
+
+  span-weeks :: forall (c :: SpanClass). Span c -> I64
+  span-weeks s = g-weeks s
+
+  span-days :: forall (c :: SpanClass). Span c -> I64
+  span-days s = g-days s
+
+  span-hours :: forall (c :: SpanClass). Span c -> I64
+  span-hours s = g-hours s
+
+  span-minutes :: forall (c :: SpanClass). Span c -> I64
+  span-minutes s = g-minutes s
+
+  span-seconds :: forall (c :: SpanClass). Span c -> I64
+  span-seconds s = g-seconds s
+
+  span-milliseconds :: forall (c :: SpanClass). Span c -> I64
+  span-milliseconds s = g-milliseconds s
+
+  span-microseconds :: forall (c :: SpanClass). Span c -> I64
+  span-microseconds s = g-microseconds s
+
+  span-nanoseconds :: forall (c :: SpanClass). Span c -> I64
+  span-nanoseconds s = g-nanoseconds s
+
+  -- -1, 0 or 1.
+  span-sign :: forall (c :: SpanClass). Span c -> InRange (-1) 1 I64
+  span-sign s =
+    let sg = sign-of s in
+    if sg > 0 then 1 else if sg < 0 then -1 else 0
+
+  span-is-zero :: forall (c :: SpanClass). Span c -> Bool
+  span-is-zero s = sign-of s == 0
+
+  span-is-negative :: forall (c :: SpanClass). Span c -> Bool
+  span-is-negative s = sign-of s < 0
+
+  span-is-positive :: forall (c :: SpanClass). Span c -> Bool
+  span-is-positive s = sign-of s > 0
+
+  -- Total: only the sign changes.
+  span-negate :: forall (c :: SpanClass). Span c -> Span c
+  span-negate s = case s of
+    MkSpan sg y mo w d h mi sc ms us ns -> MkSpan (minus 0 sg) y mo w d h mi sc ms us ns
+
+  span-abs :: forall (c :: SpanClass). Span c -> Span c
+  span-abs s = case s of
+    MkSpan sg y mo w d h mi sc ms us ns -> MkSpan (if sg < 0 then 1 else sg) y mo w d h mi sc ms us ns
+
+  -- Unit by unit, and the sign. The only equality (header).
+  span-fieldwise-eq :: forall (a :: SpanClass) (b :: SpanClass). Span a -> Span b -> Bool
+  span-fieldwise-eq a b = case a of
+    MkSpan sa ya moa wa da ha mia sca msa usa nsa -> case b of
+      MkSpan sb yb mob wb db hb mib scb msb usb nsb ->
+        sa == sb && ya == yb && moa == mob && wa == wb && da == db
+        && ha == hb && mia == mib && sca == scb && msa == msb && usa == usb && nsa == nsb
+
+  -- The largest non-zero unit; `Nanosecond` for the zero span
+  -- (Temporal's DefaultTemporalLargestUnit).
+  span-largest-unit :: forall (c :: SpanClass). Span c -> TimeUnit
+  span-largest-unit s =
+    if g-years s /= 0 then Year
+    else if g-months s /= 0 then Month
+    else if g-weeks s /= 0 then Week
+    else if g-days s /= 0 then Day
+    else if g-hours s /= 0 then Hour
+    else if g-minutes s /= 0 then Minute
+    else if g-seconds s /= 0 then Second
+    else if g-milliseconds s /= 0 then Millisecond
+    else if g-microseconds s /= 0 then Microsecond
+    else Nanosecond
+
+  -- Whether every calendar unit (days and larger) is zero.
+  span-is-clock :: forall (c :: SpanClass). Span c -> Bool
+  span-is-clock s = g-years s == 0 && g-months s == 0 && g-weeks s == 0 && g-days s == 0
+
+  -- The checked way down the index: `None` when a calendar unit is
+  -- non-zero.
+  span-to-clock :: forall (c :: SpanClass). Span c -> Option (Span Clock)
+  span-to-clock s = if span-is-clock s then Some (retag s) else None
+
+  -- The free way up.
+  span-to-calendar :: forall (c :: SpanClass). Span c -> Span Calendar
+  span-to-calendar s = retag s
+
+  -- The clock units (hours and smaller) as one signed nanosecond count;
+  -- the calendar units are not part of it. Below 1.3e21 in magnitude
+  -- (header), so the wrapping sums are exact.
+  span-time-nanos :: forall (c :: SpanClass). Span c -> I128
+  span-time-nanos s = case s of
+    MkSpan sg _ _ _ _ h mi sc ms us ns ->
+      mul128 (wide sg)
+        (add128 (add128 (mul128 (wide h) 3600000000000) (mul128 (wide mi) 60000000000))
+          (add128 (add128 (mul128 (wide sc) 1000000000) (mul128 (wide ms) 1000000))
+            (add128 (mul128 (wide us) 1000) (wide ns))))
+
+  -- -----------------------------------------------------------------
+  -- The internal duration (Temporal's Internal Duration Record): the
+  -- four date units, signed, and the clock units as one nanosecond
+  -- count. Every algorithm below works on this.
+  -- -----------------------------------------------------------------
+
+  data Parts where
+    MkParts :: I64 -> I64 -> I64 -> I64 -> I128 -> Parts
+
+  -- ToInternalDurationRecord.
+  to-parts :: forall (c :: SpanClass). Span c -> Parts
+  to-parts s = case s of
+    MkSpan sg y mo w d _ _ _ _ _ _ -> MkParts (times sg y) (times sg mo) (times sg w) (times sg d) (span-time-nanos s)
+
+  zero-parts :: Parts
+  zero-parts = MkParts 0 0 0 0 0
+
+  date-only :: I64 -> I64 -> I64 -> I64 -> Parts
+  date-only y mo w d = MkParts y mo w d 0
+
+  -- InternalDurationSign: the sign of the first non-zero part.
+  parts-sign :: Parts -> I64
+  parts-sign p = case p of
+    MkParts y mo w d t ->
+      if y /= 0 then sgn y else if mo /= 0 then sgn mo
+      else if w /= 0 then sgn w else if d /= 0 then sgn d
+      else sgn128 t
+
+  with-sign :: Bool -> I128 -> I64
+  with-sign negative mag = if negative then minus 0 (low64 mag) else low64 mag
+
+  -- TemporalDurationFromInternal: spell the clock nanoseconds in units
+  -- up to `largest` (a calendar `largest` spells them up to days, the
+  -- whole days joining the date part's days), and build the span.
+  -- `Err SpanUnitLimit` when a unit does not fit.
+  --
+  -- The magnitude `a` is split from the top: each quotient is taken only
+  -- when its unit is at or below `largest`, otherwise the amount stays
+  -- in the remainder for the next unit down. Each piece is tested
+  -- against `I64` before it is narrowed (the count can be a caller's
+  -- whole `Duration`), and the day sum is checked.
+  from-parts :: forall (c :: SpanClass). TimeUnit -> Parts -> Result SpanError (Span c)
+  from-parts largest p = case p of
+    MkParts y mo w d t ->
+      let r = unit-rank largest in
+      let negative = lt-i128 t 0 in
+      let a = abs128 t in
+      let dd = if r >= 6 then q128 a day-ns else 0 in
+      let a1 = if r >= 6 then r128 a day-ns else a in
+      let hh = if r >= 5 then q128 a1 3600000000000 else 0 in
+      let a2 = if r >= 5 then r128 a1 3600000000000 else a1 in
+      let mi = if r >= 4 then q128 a2 60000000000 else 0 in
+      let a3 = if r >= 4 then r128 a2 60000000000 else a2 in
+      let sc = if r >= 3 then q128 a3 1000000000 else 0 in
+      let a4 = if r >= 3 then r128 a3 1000000000 else a3 in
+      let ms = if r >= 2 then q128 a4 1000000 else 0 in
+      let a5 = if r >= 2 then r128 a4 1000000 else a4 in
+      let us = if r >= 1 then q128 a5 1000 else 0 in
+      let ns = if r >= 1 then r128 a5 1000 else a5 in
+      if fits dd && fits hh && fits mi && fits sc && fits ms && fits us && fits ns then
+        case checked-add-i64 d (with-sign negative dd) of
+          None -> Err SpanUnitLimit
+          Some days -> build y mo w days (with-sign negative hh) (with-sign negative mi) (with-sign negative sc) (with-sign negative ms) (with-sign negative us) (with-sign negative ns)
+      else Err SpanUnitLimit
+
+  -- -----------------------------------------------------------------
+  -- Durations.
+  -- -----------------------------------------------------------------
+
+  -- A `Duration` spelled in units up to `largest`, which must be `Hour`
+  -- or smaller (a duration has no days: `None` for a calendar unit).
+  -- `None` also when a unit would pass its limit (a duration can be far
+  -- longer than any span).
+  span-from-duration :: TimeUnit -> Duration -> Option (Span Clock)
+  span-from-duration largest x =
+    if unit-is-calendar largest then None
+    else opt (from-parts largest (MkParts 0 0 0 0 (duration-total-nanos x)))
+
+  -- Total on the clock class: the exact length. (The count is below
+  -- 1.3e21, inside `Duration`'s range, so the `None` arm is
+  -- unreachable.)
+  span-to-duration :: Span Clock -> Duration
+  span-to-duration s = case duration-from-i128-nanos (span-time-nanos s) of
+    Some x -> x
+    None -> duration-zero
+
+  -- The same for any class, by a test: `None` when a calendar unit
+  -- (days or larger) is non-zero, since its length depends on a date.
+  span-to-duration-checked :: forall (c :: SpanClass). Span c -> Option Duration
+  span-to-duration-checked s =
+    if span-is-clock s then duration-from-i128-nanos (span-time-nanos s) else None
+
+  -- The named convention "a day is 24 hours" (and so a week is 168):
+  -- exact for civil time, wrong across a zone transition, which is why
+  -- it has to be asked for by name. Years and months have no fixed
+  -- length under any convention: `None`.
+  span-to-duration-civil-days :: forall (c :: SpanClass). Span c -> Option Duration
+  span-to-duration-civil-days s =
+    if g-years s /= 0 || g-months s /= 0 then None
+    else
+      let days = plus (times (g-weeks s) 7) (g-days s) in
+      duration-from-i128-nanos (add128 (span-time-nanos s) (mul128 (wide days) day-ns))
+
+  -- -----------------------------------------------------------------
+  -- Civil addition (the engine's first half).
+  -- -----------------------------------------------------------------
+
+  -- CalendarDateAdd with "constrain": years and months move the month
+  -- exactly, as ONE month count (so the day is constrained once, to the
+  -- final month: 2024-02-29 + 1 year 2 months is 2025-04-29, not the
+  -- 28th), then weeks and days move the epoch day. The counts come from
+  -- span fields or from them plus a rounding increment (at most
+  -- 1000000000), so the wrapping products and sums are exact; lane B's
+  -- operations check the result against the range.
+  add-date :: I64 -> I64 -> I64 -> I64 -> Date -> Option Date
+  add-date y mo w d x =
+    let months = plus (times y 12) mo in
+    let days = plus (times w 7) d in
+    if months == 0 then (if days == 0 then Some x else D.add-days days x)
+    else case D.add-months-constrain months x of
+      None -> None
+      Some m -> if days == 0 then Some m else D.add-days days m
+
+  add-date-parts :: Parts -> Date -> Option Date
+  add-date-parts p x = case p of
+    MkParts y mo w d _ -> add-date y mo w d x
+
+  -- Temporal's PlainDate.prototype.add: the clock units are balanced
+  -- into whole 24-hour days, truncated toward zero, and join the days
+  -- (ToDateDurationRecordWithoutTime); the remainder below a day is
+  -- dropped. `None` when the date leaves the range.
+  span-add-to-date :: forall (c :: SpanClass). Span c -> Date -> Option Date
+  span-add-to-date s x = case to-parts s of
+    MkParts y mo w d t -> add-date y mo w (plus d (low64 (q128 t day-ns))) x
+
+  -- Temporal's PlainDateTime.prototype.add: the days join the clock
+  -- units as 24-hour days (ToInternalDurationRecordWith24HourDays), the
+  -- time of day moves by that amount and reports the whole days it
+  -- crossed (AddTime, floored), and the date then moves by years,
+  -- months, weeks and that day count. `None` when the date leaves the
+  -- range.
+  --
+  -- Overflow: the nanosecond sum is below 2^72 (header); its floored
+  -- day count is below 1.5e7 in magnitude, and the remainder is in
+  -- 0..=86399999999999, so both narrowings are exact.
+  add-datetime :: I64 -> I64 -> I64 -> I64 -> I128 -> DateTime -> Option DateTime
+  add-datetime y mo w d t x =
+    let total = add128 (wide (T.to-nanos-of-day (DT.time-part x))) (add128 t (mul128 (wide d) day-ns)) in
+    let carry = floor128 total day-ns in
+    let rest = sub128 total (mul128 carry day-ns) in
+    case add-date y mo w (low64 carry) (DT.date-part x) of
+      None -> None
+      Some nd -> case T.from-nanos-of-day (low64 rest) of
+        None -> None
+        Some nt -> Some (DT.datetime nd nt)
+
+  span-add-to-datetime :: forall (c :: SpanClass). Span c -> DateTime -> Option DateTime
+  span-add-to-datetime s x = case to-parts s of
+    MkParts y mo w d t -> add-datetime y mo w d t x
+
+  -- -----------------------------------------------------------------
+  -- Civil difference (the engine's second half).
+  -- -----------------------------------------------------------------
+
+  -- A civil reading's position on a nanosecond line on which every day
+  -- is 24 hours (Temporal's GetUTCEpochNanoseconds). Only differences
+  -- of these are used. Within +-3.8e20.
+  line :: DateTime -> I128
+  line x =
+    add128 (mul128 (wide (D.to-epoch-days (DT.date-part x))) day-ns) (wide (T.to-nanos-of-day (DT.time-part x)))
+
+  month-index :: Date -> I64
+  month-index x = plus (times (D.year x) 12) (D.month x)
+
+  -- DifferenceISODate (CalendarDateUntil for the ISO calendar), from
+  -- `a` to `b`, as (years, months, weeks, days) with `largest` at least
+  -- `Day`.
+  --
+  -- Reading of the specification. Its loops find the largest count of
+  -- years, then of months, for which the date (a.year + years,
+  -- a.month + months, a.day), compared field by field WITHOUT
+  -- constraining the day, does not surpass `b` (ISODateSurpasses). The
+  -- field-by-field comparison is a comparison of (month index, day)
+  -- pairs, so the month count has the closed form used here: the
+  -- difference of the month indexes, less one step when `a`'s day lies
+  -- beyond `b`'s in the direction of travel. For `Year` the same count
+  -- is split by truncating division, which is what the year loop
+  -- followed by the month loop produces. The days are then counted from
+  -- the intermediate date WITH its day constrained (RegulateISODate),
+  -- which lies between `a` and `b` and so is in range.
+  date-diff :: TimeUnit -> Date -> Date -> Parts
+  date-diff largest a b =
+    let r = unit-rank largest in
+    if a == b then zero-parts
+    else if r >= 8 then
+      let diff = minus (month-index b) (month-index a) in
+      let d1 = D.day a in
+      let d2 = D.day b in
+      let months = if b > a then (if d1 > d2 then minus diff 1 else diff)
+                   else (if d1 < d2 then plus diff 1 else diff) in
+      case D.add-months-constrain months a of
+        None -> zero-parts
+        Some mid ->
+          if r >= 9 then date-only (quot months 12) (rem months 12) 0 (D.diff-days mid b)
+          else date-only 0 months 0 (D.diff-days mid b)
+    else if r == 7 then
+      let days = D.diff-days a b in
+      date-only 0 0 (quot days 7) (rem days 7)
+    else date-only 0 0 0 (D.diff-days a b)
+
+  -- CompareISODate as a number.
+  date-order :: Date -> Date -> I64
+  date-order a b = if a > b then 1 else if a < b then -1 else 0
+
+  -- DifferenceISODateTime, from `a` to `b`. The time difference and
+  -- the date difference must not disagree in sign, so when the time
+  -- runs against the dates one day is moved from the date difference
+  -- into the time. With a clock `largest` the days join the time as
+  -- 24-hour days.
+  --
+  -- The adjusted end date is one day nearer `a` than `b` is, so it is
+  -- in range and the `None` arm is unreachable.
+  datetime-diff :: TimeUnit -> DateTime -> DateTime -> Parts
+  datetime-diff largest a b =
+    let da = DT.date-part a in
+    let db = DT.date-part b in
+    let t = T.diff-nanos (DT.time-part a) (DT.time-part b) in
+    let time-sign = sgn t in
+    let date-sign = date-order da db in
+    if time-sign /= 0 && time-sign == date-sign then
+      case D.add-days time-sign db of
+        None -> zero-parts
+        Some adj -> datetime-diff-from largest da adj (sub128 (wide t) (mul128 (wide time-sign) day-ns))
+    else datetime-diff-from largest da db (wide t)
+
+  datetime-diff-from :: TimeUnit -> Date -> Date -> I128 -> Parts
+  datetime-diff-from largest da db t = case date-diff (unit-larger-of Day largest) da db of
+    MkParts y mo w d _ ->
+      if unit-is-calendar largest then MkParts y mo w d t
+      else MkParts y mo w 0 (add128 t (mul128 (wide d) day-ns))
+
+  -- -----------------------------------------------------------------
+  -- Rounding relative to an anchor (RoundRelativeDuration).
+  -- -----------------------------------------------------------------
+
+  -- The two candidates around a duration for a calendar unit: the
+  -- unit's value truncated to the increment (`r1`) and one increment
+  -- further from zero (`r2`), the two date durations they stand for,
+  -- and where each lands from the anchor on the line.
+  data Window where
+    MkWindow :: I64 -> I64 -> Parts -> Parts -> I128 -> I128 -> Window
+
+  -- A value truncated toward zero to a multiple of `inc` (at least 1).
+  trunc-to :: I64 -> I64 -> I64
+  trunc-to inc v = times (quot v inc) inc
+
+  window-at :: DateTime -> I64 -> I64 -> Parts -> Parts -> Result SpanError Window
+  window-at origin r1 r2 sp ep = case add-date-parts sp (DT.date-part origin) of
+    None -> Err SpanOutOfRange
+    Some sd -> case add-date-parts ep (DT.date-part origin) of
+      None -> Err SpanOutOfRange
+      Some ed ->
+        let sn = line (DT.datetime sd (DT.time-part origin)) in
+        let en = line (DT.datetime ed (DT.time-part origin)) in
+        if eq-i128 sn en then Err SpanOutOfRange
+        else Ok (MkWindow r1 r2 sp ep sn en)
+
+  -- The first half of NudgeToCalendarUnit. For a week the
+  -- specification adds the years and months to the anchor, then counts
+  -- the whole weeks in the duration's days from there; since a week is
+  -- seven days on every date, that count is the days divided by seven,
+  -- truncated. (The `Day` arm is the specification's too. A civil
+  -- anchor never reaches it, because a civil day is 24 hours and goes
+  -- through `nudge-day-time`; it is the arm a zoned anchor needs.)
+  window :: I64 -> Parts -> DateTime -> I64 -> TimeUnit -> Result SpanError Window
+  window sign p origin inc unit = case p of
+    MkParts y mo w d _ ->
+      let step = times inc sign in
+      case unit of
+        Year ->
+          let r1 = trunc-to inc y in
+          window-at origin r1 (plus r1 step) (date-only r1 0 0 0) (date-only (plus r1 step) 0 0 0)
+        Month ->
+          let r1 = trunc-to inc mo in
+          window-at origin r1 (plus r1 step) (date-only y r1 0 0) (date-only y (plus r1 step) 0 0)
+        Week ->
+          let r1 = trunc-to inc (plus w (quot d 7)) in
+          window-at origin r1 (plus r1 step) (date-only y mo r1 0) (date-only y mo (plus r1 step) 0)
+        Day ->
+          let r1 = trunc-to inc d in
+          window-at origin r1 (plus r1 step) (date-only y mo w r1) (date-only y mo w (plus r1 step))
+        Hour -> Err SpanBadUnits
+        Minute -> Err SpanBadUnits
+        Second -> Err SpanBadUnits
+        Millisecond -> Err SpanBadUnits
+        Microsecond -> Err SpanBadUnits
+        Nanosecond -> Err SpanBadUnits
+
+  -- What a nudge produced: the rounded duration, where it lands on the
+  -- line, and whether it moved to the further candidate.
+  data Nudge where
+    MkNudge :: Parts -> I128 -> Bool -> Nudge
+
+  -- NudgeToCalendarUnit. With `den` the window's length and `num` the
+  -- distance from its start to the destination, the duration's exact
+  -- value in the unit is r1 + sign * inc * num / den. Multiplying
+  -- through by `den` gives the integer `v` below, and rounding `v` to a
+  -- multiple of `inc * den` with the kernel is the specification's
+  -- ApplyUnsignedRoundingMode between |r1| and |r2| (the kernel reads
+  -- the sign of `v`, which is the duration's sign whenever `v` is not
+  -- already exact, and its half-even case reads the parity of r1 / inc,
+  -- as the specification does).
+  --
+  -- Overflow: `den` and `num` are below 6.4e20 (the whole line), `inc`
+  -- is at most 1e9 and |r1| at most about 1e9, so `v` and `inc * den`
+  -- are below 1.3e30.
+  nudge-calendar :: I64 -> Parts -> I128 -> DateTime -> I64 -> TimeUnit -> RoundMode -> Result SpanError Nudge
+  nudge-calendar sign p dest origin inc unit mode = case window sign p origin inc unit of
+    Err e -> Err e
+    Ok win -> case win of
+      MkWindow r1 _ sp ep sn en ->
+        let den = abs128 (sub128 en sn) in
+        let num = abs128 (sub128 dest sn) in
+        let base = mul128 (wide r1) den in
+        let v = add128 base (mul128 (wide (times sign inc)) num) in
+        case round-i128 mode (mul128 (wide inc) den) v of
+          None -> Err SpanUnitLimit
+          Some rounded ->
+            if eq-i128 rounded base then Ok (MkNudge sp sn False)
+            else Ok (MkNudge ep en True)
+
+  -- NudgeToDayOrTime: the days join the clock nanoseconds as 24-hour
+  -- days, the sum is rounded to the increment, and with a calendar
+  -- `largest` the whole days are handed back to the date part. The
+  -- nudge "expanded" when the rounding crossed into another day in the
+  -- duration's own direction.
+  --
+  -- One deliberate difference from the specification's text, which
+  -- sets didExpandDays to "dayDeltaSign = TimeDurationSign" and so also
+  -- reports an expansion when both are zero (nothing was rounded and
+  -- the time part is zero). The carry that follows can never succeed in
+  -- that case (the unrounded difference already holds the largest whole
+  -- count of every unit), so the results are identical; but the carry
+  -- probes the anchor plus one more of each larger unit, and at the end
+  -- of the date range that probe is a refusal for a span that needed no
+  -- rounding at all. Here an expansion requires a day to have been
+  -- crossed.
+  --
+  -- Overflow: `unit-len * inc` is at most 86400e9 * 1e9 < 2^77, and the
+  -- sum is below 2^72 (header), so the rounded value is below 2^78.
+  nudge-day-time :: Parts -> I128 -> TimeUnit -> I64 -> TimeUnit -> RoundMode -> Result SpanError Nudge
+  nudge-day-time p dest largest inc smallest mode = case p of
+    MkParts y mo w d t ->
+      let total = add128 t (mul128 (wide d) day-ns) in
+      let unit-len = case unit-nanos smallest of
+                       Some n -> n
+                       None -> day-ns in
+      case round-i128 mode (mul128 unit-len (wide inc)) total of
+        None -> Err SpanUnitLimit
+        Some rounded ->
+          let whole = q128 total day-ns in
+          let rounded-whole = q128 rounded day-ns in
+          let delta = sgn128 (sub128 rounded-whole whole) in
+          let expanded = delta /= 0 && delta == sgn128 total in
+          let nudged = add128 dest (sub128 rounded total) in
+          if unit-is-calendar largest then
+            Ok (MkNudge (MkParts y mo w (low64 rounded-whole) (sub128 rounded (mul128 rounded-whole day-ns))) nudged expanded)
+          else Ok (MkNudge (MkParts y mo w 0 rounded) nudged expanded)
+
+  -- The duration one step further in the next larger unit, with
+  -- everything below that unit cleared (BubbleRelativeDuration's
+  -- endDuration).
+  bubble-end :: I64 -> Parts -> TimeUnit -> Parts
+  bubble-end sign p u = case p of
+    MkParts y mo w _ _ ->
+      if unit-eq u Year then date-only (plus y sign) 0 0 0
+      else if unit-eq u Month then date-only y (plus mo sign) 0 0
+      else date-only y mo (plus w sign) 0
+
+  -- BubbleRelativeDuration: after a nudge that expanded, the rounded
+  -- duration may equal a whole number of the next larger unit (30 days
+  -- that became a full month); each larger unit up to `largest` is
+  -- tried in turn and the carry stops at the first that is not reached.
+  -- Weeks are tried only when `largest` is `Week`. `unit` is the unit
+  -- already settled.
+  bubble :: I64 -> Parts -> I128 -> DateTime -> TimeUnit -> TimeUnit -> Result SpanError Parts
+  bubble sign p nudged origin largest unit =
+    if unit-rank unit >= unit-rank largest then Ok p
+    else case unit-next-larger unit of
+      None -> Ok p
+      Some u ->
+        if unit-eq u Week && not (unit-eq largest Week) then bubble sign p nudged origin largest u
+        else
+          let ep = bubble-end sign p u in
+          case add-date-parts ep (DT.date-part origin) of
+            None -> Err SpanOutOfRange
+            Some ed ->
+              let en = line (DT.datetime ed (DT.time-part origin)) in
+              if sgn128 (sub128 nudged en) /= minus 0 sign then bubble sign ep nudged origin largest u
+              else Ok p
+
+  nudge :: I64 -> Parts -> I128 -> DateTime -> TimeUnit -> I64 -> TimeUnit -> RoundMode -> Result SpanError Nudge
+  nudge sign p dest origin largest inc smallest mode =
+    if unit-rank smallest >= 7 then nudge-calendar sign p dest origin inc smallest mode
+    else nudge-day-time p dest largest inc smallest mode
+
+  -- RoundRelativeDuration for a civil anchor: week, month and year go
+  -- through the calendar nudge, day and smaller through the 24-hour
+  -- nudge; a nudge that expanded is carried upward, except from weeks.
+  round-relative :: Parts -> I128 -> DateTime -> TimeUnit -> I64 -> TimeUnit -> RoundMode -> Result SpanError Parts
+  round-relative p dest origin largest inc smallest mode =
+    let sign = dir (parts-sign p) in
+    case nudge sign p dest origin largest inc smallest mode of
+      Err e -> Err e
+      Ok n -> case n of
+        MkNudge q nudged expanded ->
+          if expanded && not (unit-eq smallest Week) then bubble sign q nudged origin largest (unit-larger-of smallest Day)
+          else Ok q
+
+  -- DifferencePlainDateTimeWithRounding, before the final spelling.
+  diff-rounded :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> DateTime -> DateTime -> Result SpanError Parts
+  diff-rounded largest smallest inc mode a b =
+    if a == b then Ok zero-parts
+    else
+      let p = datetime-diff largest a b in
+      if unit-eq smallest Nanosecond && inc == 1 then Ok p
+      else round-relative p (line b) a largest inc smallest mode
+
+  -- The engine behind every civil `until`/`since` and every anchored
+  -- span operation: the span from `a` to `b` with units up to
+  -- `largest`, rounded to `inc` of `smallest` under `mode` relative to
+  -- `a` (Temporal's DifferencePlainDateTimeWithRounding and
+  -- TemporalDurationFromInternal). Data.Time.Arithmetic gives it its
+  -- everyday names and defaults.
+  --   Err SpanBadUnits      `largest` is smaller than `smallest`
+  --   Err SpanBadIncrement  `inc` is not valid for `smallest`
+  --                         (`unit-span-increment-ok`)
+  --   Err SpanOutOfRange    a rounding candidate lies outside the
+  --                         date range
+  --   Err SpanUnitLimit     a unit of the result passes its limit
+  span-difference-civil :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> DateTime -> DateTime -> Result SpanError (Span Calendar)
+  span-difference-civil largest smallest inc mode a b =
+    if unit-rank largest < unit-rank smallest then Err SpanBadUnits
+    else if not (unit-span-increment-ok smallest inc) then Err SpanBadIncrement
+    else case diff-rounded largest smallest inc mode a b of
+      Err e -> Err e
+      Ok p -> from-parts largest p
+
+  -- The engine for differences that are a plain nanosecond count (two
+  -- times of day, two timestamps) and for clock-only spans: round
+  -- `nanos` to `inc` of `smallest` under `mode` (RoundTimeDuration),
+  -- then spell it in units up to `largest`. Both units must be `Hour`
+  -- or smaller.
+  --   Err SpanBadUnits      a calendar unit, or `largest` smaller than
+  --                         `smallest`
+  --   Err SpanBadIncrement  `inc` is not valid for `smallest`
+  --   Err SpanUnitLimit     the count is `I128`'s minimum, the rounded
+  --                         value leaves `I128`, or a unit of the
+  --                         result passes its limit
+  span-difference-nanos :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> I128 -> Result SpanError (Span Clock)
+  span-difference-nanos largest smallest inc mode nanos =
+    if unit-is-calendar largest || unit-rank largest < unit-rank smallest then Err SpanBadUnits
+    else if not (unit-span-increment-ok smallest inc) then Err SpanBadIncrement
+    else case unit-nanos smallest of
+      None -> Err SpanBadUnits
+      Some len -> case round-i128 mode (mul128 len (wide inc)) nanos of
+        None -> Err SpanUnitLimit
+        Some rounded -> from-parts largest (MkParts 0 0 0 0 rounded)
+
+  -- -----------------------------------------------------------------
+  -- Anchors.
+  -- -----------------------------------------------------------------
+
+  -- What a span with calendar units is measured from. A `Date` is read
+  -- at midnight. (The zoned anchor is lane F's; the header describes
+  -- the seam.)
+  data Relative where
+    RelativeDate :: Date -> Relative
+    RelativeDateTime :: DateTime -> Relative
+
+  origin-of :: Relative -> DateTime
+  origin-of r = case r of
+    RelativeDate d -> DT.from-date d
+    RelativeDateTime x -> x
+
+  -- -----------------------------------------------------------------
+  -- Balancing (T8: not rounding).
+  -- -----------------------------------------------------------------
+
+  -- Respell a clock span with units up to `largest` (`Hour` or
+  -- smaller): 90 minutes to `Hour` is 1 hour 30 minutes, and back to
+  -- `Minute` is 90 minutes.
+  --   Err SpanNeedsAnchor  `largest` is a calendar unit
+  --   Err SpanUnitLimit    a unit of the result passes its limit
+  span-balance :: TimeUnit -> Span Clock -> Result SpanError (Span Clock)
+  span-balance largest s =
+    if unit-is-calendar largest then Err SpanNeedsAnchor
+    else from-parts largest (MkParts 0 0 0 0 (span-time-nanos s))
+
+  -- Respell any span with units up to `largest`, measured from the
+  -- anchor: 2756 hours from 2020-01-01 to `Year` is 3 months 23 days
+  -- 20 hours.
+  --   Err SpanOutOfRange  the anchor plus the span leaves the range
+  --   Err SpanUnitLimit   a unit of the result passes its limit
+  span-balance-relative :: forall (c :: SpanClass). TimeUnit -> Relative -> Span c -> Result SpanError (Span Calendar)
+  span-balance-relative largest rel s =
+    let origin = origin-of rel in
+    case span-add-to-datetime s origin of
+      None -> Err SpanOutOfRange
+      Some goal -> from-parts largest (datetime-diff largest origin goal)
+
+  -- -----------------------------------------------------------------
+  -- Rounding.
+  -- -----------------------------------------------------------------
+
+  -- The options of `span-round` (T7): the largest unit of the result
+  -- (unset means the larger of the span's own largest unit and
+  -- `smallest`), the smallest unit, the increment and the mode.
+  data SpanRound where
+    MkSpanRound :: Option TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+
+  -- Largest unset, smallest `Nanosecond`, increment 1, `HalfExpand`
+  -- (Temporal's defaults for Duration.prototype.round).
+  span-round-default :: SpanRound
+  span-round-default = MkSpanRound None Nanosecond 1 HalfExpand
+
+  implicit instance LargestOption_SpanRound :: LargestOption SpanRound where
+    with-largest u o = case o of
+      MkSpanRound _ s i m -> MkSpanRound (Some u) s i m
+
+  implicit instance RoundingOptions_SpanRound :: RoundingOptions SpanRound where
+    with-smallest u o = case o of
+      MkSpanRound l _ i m -> MkSpanRound l u i m
+    with-increment n o = case o of
+      MkSpanRound l s _ m -> MkSpanRound l s n m
+    with-mode md o = case o of
+      MkSpanRound l s i _ -> MkSpanRound l s i md
+
+  -- The resolved largest unit, or the refusal, per
+  -- Duration.prototype.round: the default largest unit, the order of
+  -- the two units, the increment's validity for `smallest`, and the
+  -- rule that an increment above 1 on a calendar `smallest` requires
+  -- `largest` to be that same unit.
+  resolve-round :: forall (c :: SpanClass). SpanRound -> Span c -> Result SpanError TimeUnit
+  resolve-round o s = case o of
+    MkSpanRound l smallest inc _ ->
+      let largest = case l of
+                      Some u -> u
+                      None -> unit-larger-of (span-largest-unit s) smallest in
+      if unit-rank largest < unit-rank smallest then Err SpanBadUnits
+      else if not (unit-span-increment-ok smallest inc) then Err SpanBadIncrement
+      else if inc > 1 && unit-is-calendar smallest && not (unit-eq largest smallest) then Err SpanBadIncrement
+      else Ok largest
+
+  -- Round a clock span: 2 hours 30 minutes to `Hour` is 3 hours under
+  -- `HalfExpand` and 2 under `Trunc`.
+  --   Err SpanNeedsAnchor   a calendar unit is asked for
+  --   Err SpanBadUnits      `largest` is smaller than `smallest`
+  --   Err SpanBadIncrement  the increment is not valid for `smallest`
+  --   Err SpanUnitLimit     a unit of the result passes its limit
+  span-round :: SpanRound -> Span Clock -> Result SpanError (Span Clock)
+  span-round o s = case resolve-round o s of
+    Err e -> Err e
+    Ok largest -> case o of
+      MkSpanRound _ smallest inc mode ->
+        if unit-is-calendar largest then Err SpanNeedsAnchor
+        else span-difference-nanos largest smallest inc mode (span-time-nanos s)
+
+  -- Round any span, measured from the anchor: 1 month 1 day 1 hour
+  -- from 2022-01-01 with largest and smallest `Day` is 32 days.
+  --   Err SpanBadUnits, SpanBadIncrement  as above
+  --   Err SpanOutOfRange  the anchor plus the span, or a rounding
+  --                       candidate, leaves the range
+  --   Err SpanUnitLimit   a unit of the result passes its limit
+  span-round-relative :: forall (c :: SpanClass). SpanRound -> Relative -> Span c -> Result SpanError (Span Calendar)
+  span-round-relative o rel s = case resolve-round o s of
+    Err e -> Err e
+    Ok largest -> case o of
+      MkSpanRound _ smallest inc mode ->
+        let origin = origin-of rel in
+        case span-add-to-datetime s origin of
+          None -> Err SpanOutOfRange
+          Some goal -> span-difference-civil largest smallest inc mode origin goal
+
+  -- -----------------------------------------------------------------
+  -- Totals.
+  -- -----------------------------------------------------------------
+
+  gcd128 :: I128 -> I128 -> I128
+  gcd128 a b = if eq-i128 b 0 then a else gcd128 b (r128 a b)
+
+  -- A fraction in lowest terms; the denominator is positive.
+  reduce :: I128 -> I128 -> (I128, I128)
+  reduce n d =
+    let g = gcd128 (abs128 n) d in
+    if lt-i128 g 2 then (n, d) else (q128 n g, q128 d g)
+
+  -- The exact length of a clock span in `unit` (`Hour` or smaller), as
+  -- a reduced fraction: 90 minutes in hours is (3, 2).
+  --   Err SpanNeedsAnchor  `unit` is a calendar unit
+  span-total :: TimeUnit -> Span Clock -> Result SpanError (I128, I128)
+  span-total unit s = case unit-nanos unit of
+    None -> Err SpanNeedsAnchor
+    Some len -> Ok (reduce (span-time-nanos s) len)
+
+  -- The exact length of any span in `unit`, measured from the anchor
+  -- (Temporal's Duration.prototype.total with a plain relativeTo). For
+  -- week, month and year: the whole units, plus the fraction of the
+  -- next one that the remainder covers on the anchor's calendar
+  -- (NudgeToCalendarUnit's total, increment 1).
+  --   Err SpanOutOfRange  the anchor plus the span, or the end of the
+  --                       unit being measured, leaves the range
+  span-total-relative :: forall (c :: SpanClass). TimeUnit -> Relative -> Span c -> Result SpanError (I128, I128)
+  span-total-relative unit rel s =
+    let origin = origin-of rel in
+    case span-add-to-datetime s origin of
+      None -> Err SpanOutOfRange
+      Some goal ->
+        if origin == goal then Ok (0, 1)
+        else total-between unit origin goal
+
+  total-between :: TimeUnit -> DateTime -> DateTime -> Result SpanError (I128, I128)
+  total-between unit origin goal =
+    let p = datetime-diff unit origin goal in
+    if unit-rank unit >= 7 then
+      let sign = dir (parts-sign p) in
+      case window sign p origin 1 unit of
+        Err e -> Err e
+        Ok win -> case win of
+          MkWindow r1 _ _ _ sn en ->
+            let den = abs128 (sub128 en sn) in
+            let num = abs128 (sub128 (line goal) sn) in
+            Ok (reduce (add128 (mul128 (wide r1) den) (mul128 (wide sign) num)) den)
+    else case p of
+      MkParts _ _ _ d t ->
+        let len = case unit-nanos unit of
+                    Some n -> n
+                    None -> day-ns in
+        Ok (reduce (add128 t (mul128 (wide d) day-ns)) len)
+
+  ratio-f64 :: Result SpanError (I128, I128) -> Result SpanError F64
+  ratio-f64 r = case r of
+    Err e -> Err e
+    Ok pair -> case pair of
+      (n, d) -> Ok (div-f64 (i128-to-f64 n) (i128-to-f64 d))
+
+  -- The totals as the nearest `F64` to the exact fraction's two halves
+  -- divided (what Temporal and Jiff return).
+  span-total-f64 :: TimeUnit -> Span Clock -> Result SpanError F64
+  span-total-f64 unit s = ratio-f64 (span-total unit s)
+
+  span-total-relative-f64 :: forall (c :: SpanClass). TimeUnit -> Relative -> Span c -> Result SpanError F64
+  span-total-relative-f64 unit rel s = ratio-f64 (span-total-relative unit rel s)
+
+  -- -----------------------------------------------------------------
+  -- Comparison by length.
+  -- -----------------------------------------------------------------
+
+  cmp128 :: I128 -> I128 -> Ordering
+  cmp128 a b = if lt-i128 a b then LT else if gt-i128 a b then GT else EQ
+
+  -- Clock spans by length: 2 hours and 120 minutes are `EQ`.
+  span-compare :: Span Clock -> Span Clock -> Ordering
+  span-compare a b = cmp128 (span-time-nanos a) (span-time-nanos b)
+
+  -- Temporal's DateDurationDays: the days a span's date part covers
+  -- from the anchor date.
+  anchored-days :: forall (c :: SpanClass). Date -> Span c -> Option I64
+  anchored-days x s =
+    if g-years s == 0 && g-months s == 0 && g-weeks s == 0 then Some (g-days s)
+    else case add-date (g-years s) (g-months s) (g-weeks s) 0 x of
+      None -> None
+      Some later -> Some (plus (g-days s) (D.diff-days x later))
+
+  anchored-length :: forall (c :: SpanClass). Date -> Span c -> Option I128
+  anchored-length x s = case anchored-days x s of
+    None -> None
+    Some days -> Some (add128 (span-time-nanos s) (mul128 (wide days) day-ns))
+
+  -- Any two spans by length, measured from the anchor (Temporal's
+  -- Duration.compare with a plain relativeTo: the date parts are turned
+  -- into days from the anchor's date, and a civil day is 24 hours).
+  -- One month and 30 days are `EQ` from 1 June and differ from 1 July.
+  --   Err SpanOutOfRange  the anchor plus a span's date part leaves the
+  --                       range
+  span-compare-relative :: forall (a :: SpanClass) (b :: SpanClass). Relative -> Span a -> Span b -> Result SpanError Ordering
+  span-compare-relative rel a b =
+    if span-fieldwise-eq a b then Ok EQ
+    else
+      let x = DT.date-part (origin-of rel) in
+      case anchored-length x a of
+        None -> Err SpanOutOfRange
+        Some la -> case anchored-length x b of
+          None -> Err SpanOutOfRange
+          Some lb -> Ok (cmp128 la lb)
+
+  -- -----------------------------------------------------------------
+  -- Sums of spans.
+  -- -----------------------------------------------------------------
+
+  -- The sum of two clock spans, spelled up to the larger of their
+  -- largest units (Temporal's AddDurations). `None` when a unit of the
+  -- result passes its limit.
+  span-checked-add :: Span Clock -> Span Clock -> Option (Span Clock)
+  span-checked-add a b =
+    let largest = unit-larger-of (span-largest-unit a) (span-largest-unit b) in
+    opt (from-parts largest (MkParts 0 0 0 0 (add128 (span-time-nanos a) (span-time-nanos b))))
+
+  span-checked-sub :: Span Clock -> Span Clock -> Option (Span Clock)
+  span-checked-sub a b = span-checked-add a (span-negate b)
+
+  -- The sum of any two spans measured from the anchor (Jiff's
+  -- `Span::checked_add` with a relative date-time): the anchor moves by
+  -- `a`, then by `b`, and the result is the difference from the anchor
+  -- to that point, spelled up to the larger of the two spans' largest
+  -- units.
+  --   Err SpanOutOfRange  a step leaves the range
+  --   Err SpanUnitLimit   a unit of the result passes its limit
+  span-checked-add-relative :: forall (a :: SpanClass) (b :: SpanClass). Relative -> Span a -> Span b -> Result SpanError (Span Calendar)
+  span-checked-add-relative rel a b =
+    let origin = origin-of rel in
+    let largest = unit-larger-of (span-largest-unit a) (span-largest-unit b) in
+    case span-add-to-datetime a origin of
+      None -> Err SpanOutOfRange
+      Some mid -> case span-add-to-datetime b mid of
+        None -> Err SpanOutOfRange
+        Some fin -> from-parts largest (datetime-diff largest origin fin)
+
+  span-checked-sub-relative :: forall (a :: SpanClass) (b :: SpanClass). Relative -> Span a -> Span b -> Result SpanError (Span Calendar)
+  span-checked-sub-relative rel a b = span-checked-add-relative rel a (span-negate b)

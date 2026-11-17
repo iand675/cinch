@@ -1,0 +1,217 @@
+-- Lane E: Text.Time.Iso building blocks and Text.Time.Scan. The cursor
+-- parsers inside a larger buffer (the position after each value is
+-- where an RFC 9557 annotation would start), `iso-expect-end`, the
+-- length functions and writers into a caller's buffer, the exactly
+-- sized pieces, `iso-error-position`, and the Scan readers and writers.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.Bytes
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Iso
+  import Text.Time.Scan
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Timestamp
+
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  hmsn :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  hmsn h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (hmsn h mi s ns)
+
+  -- A refusal as `constructor number * 1000 + position`; -1 for `Ok`.
+  code :: IsoError -> I64
+  code e = case e of
+    IsoUnexpectedEnd p -> wrapping-add-i64 1000 p
+    IsoExpectedDigit p -> wrapping-add-i64 2000 p
+    IsoExpectedDash p -> wrapping-add-i64 3000 p
+    IsoExpectedColon p -> wrapping-add-i64 4000 p
+    IsoExpectedTimeSeparator p -> wrapping-add-i64 5000 p
+    IsoMissingTime p -> wrapping-add-i64 6000 p
+    IsoUnexpectedTime p -> wrapping-add-i64 7000 p
+    IsoTrailingInput p -> wrapping-add-i64 8000 p
+    IsoNegativeZeroYear p -> wrapping-add-i64 9000 p
+    IsoYearOutOfRange p -> wrapping-add-i64 10000 p
+    IsoMonthOutOfRange p -> wrapping-add-i64 11000 p
+    IsoDayOutOfRange p -> wrapping-add-i64 12000 p
+    IsoHourOutOfRange p -> wrapping-add-i64 13000 p
+    IsoMinuteOutOfRange p -> wrapping-add-i64 14000 p
+    IsoSecondOutOfRange p -> wrapping-add-i64 15000 p
+    IsoLeapSecond p -> wrapping-add-i64 16000 p
+    IsoEmptyFraction p -> wrapping-add-i64 17000 p
+    IsoFractionTooLong p -> wrapping-add-i64 18000 p
+    IsoMissingOffset p -> wrapping-add-i64 19000 p
+    IsoExpectedOffset p -> wrapping-add-i64 20000 p
+    IsoOffsetOutOfRange p -> wrapping-add-i64 21000 p
+    IsoTimestampOutOfRange p -> wrapping-add-i64 22000 p
+
+  text :: Bytes -> String
+  text b = scan-string-of-bytes b
+
+  date-at :: IsoMode -> String -> I64 -> Date -> I64 -> Bool
+  date-at mode s i d next = case iso-parse-date-at mode (scan-bytes-of-string s) i of
+    Err _ -> False
+    Ok p -> case p of
+      (x, j) -> x == d && j == next
+
+  time-at :: IsoMode -> String -> I64 -> TimeOfDay -> I64 -> Bool
+  time-at mode s i t next = case iso-parse-time-at mode (scan-bytes-of-string s) i of
+    Err _ -> False
+    Ok p -> case p of
+      (x, j) -> x == t && j == next
+
+  datetime-at :: IsoMode -> String -> I64 -> DateTime -> I64 -> Bool
+  datetime-at mode s i t next = case iso-parse-datetime-at mode (scan-bytes-of-string s) i of
+    Err _ -> False
+    Ok p -> case p of
+      (x, j) -> x == t && j == next
+
+  offset-at :: IsoMode -> String -> I64 -> I64 -> I64 -> Bool
+  offset-at mode s i off next = case iso-parse-offset-at mode (scan-bytes-of-string s) i of
+    Err _ -> False
+    Ok p -> case p of
+      (o, j) -> iso-offset-seconds o == off && j == next
+
+  offset-refusal :: IsoMode -> String -> I64 -> I64
+  offset-refusal mode s i = case iso-parse-offset-at mode (scan-bytes-of-string s) i of
+    Ok _ -> -1
+    Err e -> code e
+
+  timestamp-at :: String -> I64 -> I64 -> I64 -> I64 -> Bool
+  timestamp-at s i unix off next = case iso-parse-timestamp-at IsoStrict (scan-bytes-of-string s) i of
+    Err _ -> False
+    Ok p -> case p of
+      (v, j) -> case v of
+        (ts, o) -> timestamp-to-unix-seconds ts == unix && iso-offset-seconds o == off && j == next
+
+  check-cursor-date-time :: Int
+  check-cursor-date-time =
+    if date-at IsoStrict "x=2024-02-29;" 2 (ymd 2024 2 29) 12 && date-at IsoStrict "2024-02-29T10:00" 0 (ymd 2024 2 29) 10
+       && date-at IsoLenient "on 20240229." 3 (ymd 2024 2 29) 11 && date-at IsoStrict "-000044-03-15[u-ca=iso8601]" 0 (ymd (-44) 3 15) 13
+       && time-at IsoStrict "at 10:30:15.25Z" 3 (hmsn 10 30 15 250000000) 14 && time-at IsoStrict "10:30+01:00" 0 (hmsn 10 30 0 0) 5
+       && time-at IsoStrict "10:30:15:99" 0 (hmsn 10 30 15 0) 8 && time-at IsoLenient "23:59:60]" 0 (hmsn 23 59 59 0) 8
+    then 0 else 1
+
+  check-cursor-datetime-offset :: Int
+  check-cursor-datetime-offset =
+    if datetime-at IsoStrict "2024-02-29T10:00:00[Europe/Amsterdam]" 0 (at 2024 2 29 10 0 0 0) 19
+       && datetime-at IsoLenient "<2024-02-29 10:00>" 1 (at 2024 2 29 10 0 0 0) 17
+       && offset-at IsoStrict "Z[UTC]" 0 0 1 && offset-at IsoStrict "+05:30[Asia/Kolkata]" 0 19800 6
+       && offset-at IsoStrict "xx-03:30" 2 (-12600) 8 && offset-at IsoStrict "+00:19:32[Europe/Amsterdam]" 0 1172 9
+       && offset-at IsoLenient "z" 0 0 1 && offset-at IsoStrict "+25:59:59" 0 93599 9 && offset-at IsoStrict "-25:59:59" 0 (-93599) 9
+       && offset-refusal IsoStrict "z" 0 == 20000 && offset-refusal IsoStrict "" 0 == 19000
+       && offset-refusal IsoStrict "+26:00" 0 == 21000 && offset-refusal IsoStrict "[UTC]" 0 == 20000
+       && offset-refusal IsoStrict "ab" 5 == 19005
+    then 0 else 2
+
+  check-cursor-timestamp :: Int
+  check-cursor-timestamp =
+    if timestamp-at "2026-10-31T10:45:00+05:30[Asia/Kolkata]" 0 1793423700 19800 25
+       && timestamp-at "t=2026-10-31T05:15:00Z[UTC]" 2 1793423700 0 22
+       && timestamp-at "2026-10-31T05:15:00Z" 0 1793423700 0 20
+    then 0 else 4
+
+  expect-date :: String -> I64
+  expect-date s =
+    let b = scan-bytes-of-string s in
+    case iso-expect-end b (iso-parse-date-at IsoStrict b 0) of
+      Ok _ -> -1
+      Err e -> code e
+
+  check-expect-end :: Int
+  check-expect-end =
+    if expect-date "2024-02-29" == -1 && expect-date "2024-02-29T10:00" == 8010 && expect-date "2024-02-29[x]" == 8010
+       && iso-error-position (IsoMissingOffset 19) == 19 && iso-error-position (IsoTrailingInput 7) == 7
+       && iso-error-position (IsoLeapSecond 17) == 17 && iso-error-position (IsoTimestampOutOfRange 0) == 0
+       && iso-error-position (IsoUnexpectedTime 10) == 10 && iso-error-position (IsoDayOutOfRange 8) == 8
+    then 0 else 8
+
+  -- Lengths agree with what the writers advance by, and writers fill a
+  -- caller's buffer in place.
+  check-writers :: Int
+  check-writers =
+    let b = scan-new 40 in
+    let p0 = scan-put-byte b 0 91 in
+    let p1 = iso-write-date b p0 (ymd 2026 11 13) in
+    let p2 = scan-put-byte b p1 84 in
+    let p3 = iso-write-time b p2 3 (hmsn 17 30 5 987654321) in
+    let p4 = iso-write-offset b p3 19800 in
+    let p5 = scan-put-byte b p4 93 in
+    if p1 == 11 && p3 == 24 && p4 == 30 && p5 == 31
+       && text (scan-take b p5) == "[2026-11-13T17:30:05.987+05:30]"
+       && iso-date-length (ymd 2026 11 13) == 10 && iso-date-length (ymd (-44) 3 15) == 13 && iso-date-length (ymd 0 1 1) == 10
+       && iso-time-length 0 == 8 && iso-time-length 1 == 10 && iso-time-length 9 == 18
+       && iso-offset-length 19800 == 6 && iso-offset-length (-12600) == 6 && iso-offset-length 1172 == 9 && iso-offset-length 0 == 6
+       && iso-fraction-digits (hmsn 1 2 3 0) == 0 && iso-fraction-digits (hmsn 1 2 3 500000000) == 1
+       && iso-fraction-digits (hmsn 1 2 3 1000) == 6 && iso-fraction-digits (hmsn 1 2 3 1) == 9
+       && iso-offset-in-range 93599 && iso-offset-in-range (-93599) && not-in 93600 && not-in (-93600)
+    then 0 else 16
+
+  not-in :: I64 -> Bool
+  not-in off = if iso-offset-in-range off then False else True
+
+  check-pieces :: Int
+  check-pieces =
+    if text (iso-date-bytes (ymd (-44) 3 15)) == "-000044-03-15" && text (iso-date-bytes (ymd 2026 11 13)) == "2026-11-13"
+       && text (iso-time-bytes (hmsn 17 30 0 0)) == "17:30:00" && text (iso-time-bytes (hmsn 17 30 0 120000000)) == "17:30:00.12"
+       && text (iso-datetime-bytes (at 2026 11 13 17 30 0 0)) == "2026-11-13T17:30:00"
+       && text (iso-offset-bytes 19800) == "+05:30" && text (iso-offset-bytes (-12600)) == "-03:30"
+       && text (iso-offset-bytes 0) == "+00:00" && text (iso-offset-bytes (-1)) == "-00:00:01"
+       && text (iso-offset-bytes 93599) == "+25:59:59" && text (iso-offset-bytes 93600) == ""
+       && scan-length (iso-time-bytes (hmsn 17 30 0 120000000)) == 11
+    then 0 else 32
+
+  check-scan-read :: Int
+  check-scan-read =
+    let b = scan-bytes-of-string "2024-x 0123456789Ab" in
+    if scan-length b == 19 && scan-byte-at b 0 == 50 && scan-byte-at b 4 == 45 && scan-byte-at b 19 == -1
+       && scan-byte-at b (-1) == -1 && scan-byte-at b 9223372036854775807 == -1
+       && scan-digit-at b 0 == 2 && scan-digit-at b 4 == -1 && scan-digit-at b 19 == -1
+       && scan-digits b 0 4 == 2024 && scan-digits b 0 5 == -1 && scan-digits b 7 10 == 123456789
+       && scan-digits b 16 2 == -1 && scan-digits b 0 0 == -1 && scan-digits b 0 19 == -1
+       && scan-count-digits b 0 9 == 4 && scan-count-digits b 7 3 == 3 && scan-count-digits b 7 99 == 10
+       && scan-count-digits b 4 9 == 0 && scan-count-digits b 19 9 == 0
+       && scan-lower-at b 17 == 97 && scan-lower-at b 18 == 98 && scan-lower-at b 0 == 50 && scan-lower-at b 19 == -1
+       && scan-is-space 32 && scan-is-space 9 && scan-is-space 10 && scan-is-space 13 && scan-is-space 65 == False
+       && scan-is-space (-1) == False
+    then 0 else 64
+
+  check-scan-write :: Int
+  check-scan-write =
+    let b = scan-new 12 in
+    let p = scan-put-digits b 0 4 2024 in
+    let q = scan-put-byte b p 45 in
+    let r = scan-put-digits b q 3 7 in
+    let s = scan-put-digits b r 2 12345 in
+    let t = scan-put-digits b s 0 9 in
+    let u = scan-put-digits b t 2 (-5) in
+    let v = scan-put-byte b 12 65 in
+    let w = scan-put-byte b (-3) 65 in
+    let c = scan-new 4 in
+    let x = scan-put-bytes c 1 b 0 2 in
+    let y = scan-put-bytes c 3 b 0 2 in
+    if p == 4 && q == 5 && r == 8 && s == 10 && t == 10 && u == 12 && v == 13 && w == -2 && x == 3
+       && text b == "2024-0074500" && text (scan-take b 4) == "2024" && text (scan-take b 99) == "2024-0074500"
+       && text (scan-take b 0) == "" && scan-length (scan-new (-1)) == 0
+       && scan-byte-at c 0 == 0 && scan-byte-at c 1 == 50 && scan-byte-at c 2 == 48 && scan-byte-at c 3 == 0
+       && scan-quot 17 5 == 3 && scan-rem 17 5 == 2 && scan-quot (-17) 5 == -3 && scan-rem (-17) 5 == -2
+       && scan-pow10 0 == 1 && scan-pow10 3 == 1000 && scan-pow10 9 == 1000000000 && scan-pow10 (-1) == 1 && scan-pow10 12 == 1000000000
+    then 0 else 128
+
+  main :: Int
+  main = check-cursor-date-time + check-cursor-datetime-offset + check-cursor-timestamp + check-expect-end + check-writers + check-pieces + check-scan-read + check-scan-write

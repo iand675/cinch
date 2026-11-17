@@ -1,0 +1,147 @@
+-- Lane E: Text.Time.Iso, civil date-times. Round trips at ordinary
+-- values, both range ends, year 0 and negative years, with and without
+-- a fraction; the fixed-precision printer; strict refusals (a date
+-- where a date-time is expected, wrong separators, an offset after a
+-- civil date-time, 29 February in a non-leap year); and the lenient
+-- separators, basic date and leap second.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.Bytes
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Iso
+  import Text.Time.Scan
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Timestamp
+
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  hmsn :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  hmsn h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (hmsn h mi s ns)
+
+  -- A refusal as `constructor number * 1000 + position`; -1 for `Ok`.
+  code :: IsoError -> I64
+  code e = case e of
+    IsoUnexpectedEnd p -> wrapping-add-i64 1000 p
+    IsoExpectedDigit p -> wrapping-add-i64 2000 p
+    IsoExpectedDash p -> wrapping-add-i64 3000 p
+    IsoExpectedColon p -> wrapping-add-i64 4000 p
+    IsoExpectedTimeSeparator p -> wrapping-add-i64 5000 p
+    IsoMissingTime p -> wrapping-add-i64 6000 p
+    IsoUnexpectedTime p -> wrapping-add-i64 7000 p
+    IsoTrailingInput p -> wrapping-add-i64 8000 p
+    IsoNegativeZeroYear p -> wrapping-add-i64 9000 p
+    IsoYearOutOfRange p -> wrapping-add-i64 10000 p
+    IsoMonthOutOfRange p -> wrapping-add-i64 11000 p
+    IsoDayOutOfRange p -> wrapping-add-i64 12000 p
+    IsoHourOutOfRange p -> wrapping-add-i64 13000 p
+    IsoMinuteOutOfRange p -> wrapping-add-i64 14000 p
+    IsoSecondOutOfRange p -> wrapping-add-i64 15000 p
+    IsoLeapSecond p -> wrapping-add-i64 16000 p
+    IsoEmptyFraction p -> wrapping-add-i64 17000 p
+    IsoFractionTooLong p -> wrapping-add-i64 18000 p
+    IsoMissingOffset p -> wrapping-add-i64 19000 p
+    IsoExpectedOffset p -> wrapping-add-i64 20000 p
+    IsoOffsetOutOfRange p -> wrapping-add-i64 21000 p
+    IsoTimestampOutOfRange p -> wrapping-add-i64 22000 p
+
+  refusal :: Result IsoError DateTime -> I64
+  refusal r = case r of
+    Ok _ -> -1
+    Err e -> code e
+
+  reads :: String -> DateTime -> Bool
+  reads s x = case datetime-from-string s of
+    Err _ -> False
+    Ok y -> y == x
+
+  reads-lenient :: String -> DateTime -> Bool
+  reads-lenient s x = case datetime-from-string-lenient s of
+    Err _ -> False
+    Ok y -> y == x
+
+  round :: DateTime -> String -> Bool
+  round x s = datetime-to-string x == s && reads s x
+
+  check-ordinary :: Int
+  check-ordinary =
+    if round (at 2026 11 13 17 30 0 0) "2026-11-13T17:30:00" && round (at 2024 2 29 23 59 59 0) "2024-02-29T23:59:59"
+       && round (at 1970 1 1 0 0 0 0) "1970-01-01T00:00:00" && round (at 2024 7 4 9 8 7 60000) "2024-07-04T09:08:07.00006"
+       && round (at 2024 12 31 23 59 59 999999999) "2024-12-31T23:59:59.999999999"
+       && reads "2024-02-29T10:00" (at 2024 2 29 10 0 0 0) && reads "2024-02-29T10:00:00,5" (at 2024 2 29 10 0 0 500000000)
+    then 0 else 1
+
+  check-ends :: Int
+  check-ends =
+    if round DT.min-datetime "-009999-01-01T00:00:00" && round DT.max-datetime "9999-12-31T23:59:59.999999999"
+       && round (at 0 1 1 0 0 0 0) "0000-01-01T00:00:00" && round (at 0 12 31 23 59 59 1) "0000-12-31T23:59:59.000000001"
+       && round (at (-1) 12 31 23 59 59 0) "-000001-12-31T23:59:59" && round (at (-44) 3 15 12 0 0 0) "-000044-03-15T12:00:00"
+       && reads "+002026-11-13T17:30" (at 2026 11 13 17 30 0 0)
+    then 0 else 2
+
+  check-precision :: Int
+  check-precision =
+    let x = at 2026 11 13 17 30 5 987654321 in
+    if datetime-to-string-precision 0 x == "2026-11-13T17:30:05" && datetime-to-string-precision 3 x == "2026-11-13T17:30:05.987"
+       && datetime-to-string-precision 6 x == "2026-11-13T17:30:05.987654" && datetime-to-string-precision 9 x == "2026-11-13T17:30:05.987654321"
+       && datetime-to-string-precision 3 DT.min-datetime == "-009999-01-01T00:00:00.000"
+    then 0 else 4
+
+  check-missing-time :: Int
+  check-missing-time =
+    if refusal (datetime-from-string "2024-02-09") == 6010 && refusal (datetime-from-string "-000044-03-15") == 6013
+       && refusal (datetime-from-string "2024-02-09T") == 1011 && refusal (datetime-from-string "2024-02-09T10") == 1013
+       && refusal (datetime-from-string "2024-02-09T10:") == 1014 && refusal (datetime-from-string "") == 1000
+       && refusal (datetime-from-string "junk") == 2000 && refusal (datetime-from-string "10:00:00") == 2002
+    then 0 else 8
+
+  check-refusals :: Int
+  check-refusals =
+    if refusal (datetime-from-string "2023-02-29T10:00") == 12008 && refusal (datetime-from-string "2024-02-30T10:00") == 12008
+       && refusal (datetime-from-string "2024-13-01T10:00") == 11005 && refusal (datetime-from-string "2024-2-9T10:00") == 2006
+       && refusal (datetime-from-string "2024-02-09T24:00:00") == 13011 && refusal (datetime-from-string "2024-02-09T23:60:00") == 14014
+       && refusal (datetime-from-string "2024-02-09T23:59:60") == 16017 && refusal (datetime-from-string "2024-02-09T10:00:00.") == 17020
+       && refusal (datetime-from-string "2024-02-09T10:00:00.1234567890") == 18020
+    then 0 else 16
+
+  check-shape :: Int
+  check-shape =
+    if refusal (datetime-from-string "2024-02-09 10:00:00") == 5010 && refusal (datetime-from-string "2024-02-09t10:00:00") == 5010
+       && refusal (datetime-from-string "2024-02-09_10:00:00") == 5010 && refusal (datetime-from-string "2024-02-09TT10:00") == 2011
+       && refusal (datetime-from-string "2024-02-09T10:00:00Z") == 8019 && refusal (datetime-from-string "2024-02-09T10:00:00+01:00") == 8019
+       && refusal (datetime-from-string "2024-02-09T10:00:00 ") == 8019 && refusal (datetime-from-string "20240209T10:00:00") == 3004
+       && refusal (datetime-from-string "2024-02-09T10:00:00[UTC]") == 8019
+    then 0 else 32
+
+  check-lenient :: Int
+  check-lenient =
+    let x = at 2024 2 9 10 0 0 0 in
+    if reads-lenient "2024-02-09 10:00:00" x && reads-lenient "2024-02-09t10:00:00" x && reads-lenient "2024-02-09T10:00:00" x
+       && reads-lenient "20240209T10:00" x && reads-lenient "20240209 10:00" x
+       && reads-lenient "2024-02-09 23:59:60" (at 2024 2 9 23 59 59 0)
+       && reads-lenient "2024-02-09 23:59:60.75" (at 2024 2 9 23 59 59 750000000)
+       && refusal (datetime-from-string-lenient "2024-02-09  10:00:00") == 2011
+       && refusal (datetime-from-string-lenient "2024-02-09_10:00:00") == 5010
+       && refusal (datetime-from-string-lenient "2024-02-09") == 6010
+       && refusal (datetime-from-string-lenient "2023-02-29 10:00") == 12008
+       && refusal (datetime-from-string-lenient "2024-02-09 10:00:00z") == 8019
+    then 0 else 64
+
+  main :: Int
+  main = check-ordinary + check-ends + check-precision + check-missing-time + check-refusals + check-shape + check-lenient

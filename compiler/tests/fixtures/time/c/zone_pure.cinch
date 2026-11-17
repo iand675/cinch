@@ -1,0 +1,389 @@
+-- Lane C: Data.Time.Zone without any file. Fixed-offset zones and
+-- their names, the whole Disambiguation-by-Ambiguous table and its
+-- named errors, hand-built transition tables (with and without a
+-- POSIX rule for the tail) read on each side of every transition,
+-- every refusal of `zone-from-table`, the ambiguity derived from a
+-- table (a gap, a fold, a transition that changes only the
+-- abbreviation, and a 24-hour jump), and a zone made of a POSIX rule.
+module Main where
+  import Data.List
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Relation.Eq
+  import Data.Time.Timestamp
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zone.Posix
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s 0 of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- The civil reading at a position on the civil line.
+  civil :: I64 -> DateTime
+  civil l = case DT.from-epoch-seconds-nanos-utc l 0 of
+    None -> DT.min-datetime
+    Some x -> x
+
+  ts :: I64 -> Timestamp
+  ts s = case timestamp-from-unix-seconds s of
+    None -> timestamp-epoch
+    Some t -> t
+
+  off :: I64 -> Offset
+  off s = case offset-from-seconds s of
+    None -> offset-utc
+    Some o -> o
+
+  opt-off :: Option Offset -> I64
+  opt-off o = case o of
+    None -> 999999
+    Some x -> offset-to-seconds x
+
+  opt-ts :: Option Timestamp -> I64
+  opt-ts o = case o of
+    None -> -1
+    Some t -> timestamp-to-unix-seconds t
+
+  opt-secs :: Option I64 -> I64
+  opt-secs o = case o of
+    None -> -1
+    Some t -> t
+
+  one :: Ambiguous -> I64 -> Bool
+  one a o = case a of
+    Unambiguous x -> offset-to-seconds x == o
+    Gap _ _ -> False
+    Fold _ _ -> False
+
+  gap :: Ambiguous -> I64 -> I64 -> Bool
+  gap a before after = case a of
+    Unambiguous _ -> False
+    Gap x y -> offset-to-seconds x == before && offset-to-seconds y == after
+    Fold _ _ -> False
+
+  fold :: Ambiguous -> I64 -> I64 -> Bool
+  fold a before after = case a of
+    Unambiguous _ -> False
+    Gap _ _ -> False
+    Fold x y -> offset-to-seconds x == before && offset-to-seconds y == after
+
+  -- A resolution: the instant's Unix second, or -1 for a rejected
+  -- gap, -2 for a rejected fold, -3 for out of range.
+  res :: Result AmbiguityError Timestamp -> I64
+  res r = case r of
+    Ok t -> timestamp-to-unix-seconds t
+    Err e -> case e of
+      RejectedGap _ _ -> -1
+      RejectedFold _ _ -> -2
+      AmbiguityOutOfRange -> -3
+
+  says :: TimeZone -> I64 -> I64 -> Bool -> String -> Bool
+  says z t secs dst abbr =
+    let i = zone-info-at-unix-seconds z t in
+    offset-to-seconds (offset-info-offset i) == secs
+    && offset-info-is-dst i == dst && offset-info-abbreviation i == abbr
+
+  -- 1: fixed-offset zones.
+  check-fixed :: Int
+  check-fixed =
+    let ist = zone-fixed (off 19800) in
+    let pst = zone-fixed (offset-of-hours (-8)) in
+    if zone-name zone-utc == "UTC" && zone-name (zone-fixed offset-utc) == "UTC"
+       && zone-name ist == "+05:30" && zone-name pst == "-08:00"
+       && zone-name (zone-fixed (off 1)) == "+00:00:01"
+       && zone-name (zone-fixed (off (-93599))) == "-25:59:59"
+       && zone-name (zone-fixed-named "Nowhere" (off 60)) == "Nowhere"
+       && says ist 0 19800 False "+05:30"
+       && says zone-utc 1793572200 0 False "UTC"
+       && says (zone-fixed-named "Nowhere" (off 60)) (-5) 60 False "Nowhere"
+       && opt-off (zone-fixed-offset ist) == 19800
+       && opt-off (zone-fixed-offset zone-utc) == 0
+       && zone-transition-count ist == 0
+       && opt-ts (zone-next-transition ist (ts 0)) == -1
+       && opt-ts (zone-previous-transition ist (ts 0)) == -1
+       && one (zone-to-ambiguous ist (at 2026 3 8 2 30 0)) 19800
+       && zone-to-datetime ist (ts 0) == at 1970 1 1 5 30 0
+       && offset-to-seconds (zone-offset-at pst (ts 0)) == -28800
+       && res (zone-to-timestamp Reject pst (at 1970 1 1 0 0 0)) == 28800
+      then 0 else 1
+
+  b :: Offset
+  b = offset-of-hours (-5)
+
+  a :: Offset
+  a = offset-of-hours (-4)
+
+  -- 2: the offset each strategy reads a civil value with
+  -- (Data.Time.Zone.Types' table), and the predicates.
+  check-table :: Int
+  check-table =
+    if opt-off (ambiguous-offset Compatible (Unambiguous b)) == -18000
+       && opt-off (ambiguous-offset Earlier (Unambiguous b)) == -18000
+       && opt-off (ambiguous-offset Later (Unambiguous b)) == -18000
+       && opt-off (ambiguous-offset Reject (Unambiguous b)) == -18000
+       && opt-off (ambiguous-offset Compatible (Gap b a)) == -18000
+       && opt-off (ambiguous-offset Earlier (Gap b a)) == -14400
+       && opt-off (ambiguous-offset Later (Gap b a)) == -18000
+       && opt-off (ambiguous-offset Reject (Gap b a)) == 999999
+       && opt-off (ambiguous-offset Compatible (Fold a b)) == -14400
+       && opt-off (ambiguous-offset Earlier (Fold a b)) == -14400
+       && opt-off (ambiguous-offset Later (Fold a b)) == -18000
+       && opt-off (ambiguous-offset Reject (Fold a b)) == 999999
+       && not (ambiguous-is-ambiguous (Unambiguous b))
+       && ambiguous-is-ambiguous (Gap b a) && ambiguous-is-ambiguous (Fold a b)
+       && ambiguous-is-gap (Gap b a) && not (ambiguous-is-gap (Fold a b)) && not (ambiguous-is-gap (Unambiguous b))
+       && ambiguous-is-fold (Fold a b) && not (ambiguous-is-fold (Gap b a)) && not (ambiguous-is-fold (Unambiguous b))
+       && opt-off (ambiguous-unambiguous (Unambiguous b)) == -18000
+       && opt-off (ambiguous-unambiguous (Gap b a)) == 999999
+       && opt-off (ambiguous-unambiguous (Fold a b)) == 999999
+      then 0 else 2
+
+  gap-error :: Result AmbiguityError Timestamp -> I64 -> I64 -> Bool
+  gap-error r before after = case r of
+    Ok _ -> False
+    Err e -> case e of
+      RejectedGap x y -> offset-to-seconds x == before && offset-to-seconds y == after
+      RejectedFold _ _ -> False
+      AmbiguityOutOfRange -> False
+
+  fold-error :: Result AmbiguityError Timestamp -> I64 -> I64 -> Bool
+  fold-error r before after = case r of
+    Ok _ -> False
+    Err e -> case e of
+      RejectedGap _ _ -> False
+      RejectedFold x y -> offset-to-seconds x == before && offset-to-seconds y == after
+      AmbiguityOutOfRange -> False
+
+  -- 4: the eliminators on New York's gap (2026-03-08 02:30) and fold
+  -- (2026-11-01 01:30): in the gap "compatible" and "later" are the
+  -- later instant (03:30 -04:00) and "earlier" the earlier one
+  -- (01:30 -05:00); in the fold "compatible" and "earlier" are the
+  -- first occurrence.
+  check-eliminators :: Int
+  check-eliminators =
+    let g = at 2026 3 8 2 30 0 in
+    let f = at 2026 11 1 1 30 0 in
+    if res (ambiguous-resolve Compatible g (Gap b a)) == 1772955000
+       && res (ambiguous-resolve Later g (Gap b a)) == 1772955000
+       && res (ambiguous-resolve Earlier g (Gap b a)) == 1772951400
+       && res (ambiguous-resolve Reject g (Gap b a)) == -1
+       && gap-error (ambiguous-reject g (Gap b a)) (-18000) (-14400)
+       && res (ambiguous-compatible g (Gap b a)) == 1772955000
+       && res (ambiguous-earlier g (Gap b a)) == 1772951400
+       && res (ambiguous-later g (Gap b a)) == 1772955000
+       && res (ambiguous-resolve Compatible f (Fold a b)) == 1793511000
+       && res (ambiguous-resolve Earlier f (Fold a b)) == 1793511000
+       && res (ambiguous-resolve Later f (Fold a b)) == 1793514600
+       && res (ambiguous-resolve Reject f (Fold a b)) == -2
+       && fold-error (ambiguous-reject f (Fold a b)) (-14400) (-18000)
+       && res (ambiguous-compatible f (Fold a b)) == 1793511000
+       && res (ambiguous-later f (Fold a b)) == 1793514600
+       && res (ambiguous-resolve Reject f (Unambiguous b)) == 1793514600
+       && res (ambiguous-resolve Compatible DT.min-datetime (Unambiguous offset-utc)) == -3
+       && res (ambiguous-resolve Reject DT.max-datetime (Unambiguous offset-utc)) == -3
+      then 0 else 4
+
+  lmt :: OffsetInfo
+  lmt = offset-info (off (-1000)) False "LMT"
+
+  std :: OffsetInfo
+  std = offset-info (off 3600) False "STD"
+
+  dst :: OffsetInfo
+  dst = offset-info (off 7200) True "DST"
+
+  -- Transitions at 1000000 (to STD), 2000000 (to DST), 3000000 (back).
+  table :: Option PosixRule -> Result ZoneTableError TimeZone
+  table tail = zone-from-table "Test/Table" (Cons 1000000 (Cons 2000000 (Cons 3000000 Nil))) (Cons 1 (Cons 2 (Cons 1 Nil))) (Cons lmt (Cons std (Cons dst Nil))) tail
+
+  table-reads :: TimeZone -> Bool
+  table-reads z =
+    zone-name z == "Test/Table" && zone-transition-count z == 3
+    && says z (-5000000000) (-1000) False "LMT"
+    && says z 999999 (-1000) False "LMT"
+    && says z 1000000 3600 False "STD"
+    && says z 1999999 3600 False "STD"
+    && says z 2000000 7200 True "DST"
+    && says z 2999999 7200 True "DST"
+    && says z 3000000 3600 False "STD"
+    && says z 9000000000 3600 False "STD"
+    && opt-off (zone-fixed-offset z) == 999999
+    && opt-secs (zone-next-transition-unix-seconds z (-9000000000)) == 1000000
+    && opt-secs (zone-next-transition-unix-seconds z 999999) == 1000000
+    && opt-secs (zone-next-transition-unix-seconds z 1000000) == 2000000
+    && opt-secs (zone-next-transition-unix-seconds z 2999999) == 3000000
+    && opt-secs (zone-next-transition-unix-seconds z 3000000) == -1
+    && opt-secs (zone-previous-transition-unix-seconds z 1000000) == -1
+    && opt-secs (zone-previous-transition-unix-seconds z 1000001) == 1000000
+    && opt-secs (zone-previous-transition-unix-seconds z 3000000) == 2000000
+    && opt-secs (zone-previous-transition-unix-seconds z 9000000000) == 3000000
+    && opt-secs (zone-previous-transition-unix-seconds z (-9223372036854775808)) == -1
+    && opt-ts (zone-next-transition z (ts 1000000)) == 2000000
+    && opt-ts (zone-previous-transition z (ts 1000000)) == -1
+    && zone-to-datetime z (ts 2000000) == civil 2007200
+
+  -- 8: a table without a tail rule: type 0 before the first
+  -- transition, each transition's type from it on, the last type
+  -- forever; strict next and previous.
+  check-table-zone :: Int
+  check-table-zone = case table None of
+    Err _ -> 8
+    Ok z -> if table-reads z then 0 else 8
+
+  -- A table whose last transition is 2007-03-11T07:00Z (to EDT), with
+  -- New York's rule after it.
+  with-tail :: PosixRule -> Result ZoneTableError TimeZone
+  with-tail r = zone-from-table "Test/Tail" (Cons 1000000 (Cons 1173596400 Nil)) (Cons 0 (Cons 1 Nil)) (Cons (offset-info (off (-18000)) False "EST") (Cons (offset-info (off (-14400)) True "EDT") Nil)) (Some r)
+
+  tail-reads :: TimeZone -> Bool
+  tail-reads z =
+    says z 999999 (-18000) False "EST"
+    && says z 1173596399 (-18000) False "EST"
+    && says z 1173596400 (-14400) True "EDT"
+    && says z 1793572200 (-18000) False "EST"
+    && says z 1783572200 (-14400) True "EDT"
+    && says z 16742116800 (-14400) True "EDT"
+    && opt-secs (zone-next-transition-unix-seconds z 0) == 1000000
+    && opt-secs (zone-next-transition-unix-seconds z 1000000) == 1173596400
+    && opt-secs (zone-next-transition-unix-seconds z 1173596400) == 1194156000
+    && opt-secs (zone-next-transition-unix-seconds z 1772953200) == 1793512800
+    && opt-secs (zone-previous-transition-unix-seconds z 1793512800) == 1772953200
+    && opt-secs (zone-previous-transition-unix-seconds z 1173596401) == 1173596400
+    && opt-secs (zone-previous-transition-unix-seconds z 1173596400) == 1000000
+    && gap (zone-to-ambiguous z (at 2026 3 8 2 30 0)) (-18000) (-14400)
+    && fold (zone-to-ambiguous z (at 2026 11 1 1 30 0)) (-14400) (-18000)
+    && gap (zone-to-ambiguous z (at 2007 3 11 2 30 0)) (-18000) (-14400)
+
+  -- 16: a table with a tail rule: the table up to its last
+  -- transition, the rule from it on.
+  check-tail :: Int
+  check-tail = case parse-posix-tz "EST5EDT,M3.2.0,M11.1.0" of
+    Err _ -> 16
+    Ok r -> case with-tail r of
+      Err _ -> 16
+      Ok z -> if tail-reads z then 0 else 16
+
+  -- 0 accepted, else the refusal.
+  table-code :: Result ZoneTableError TimeZone -> I64
+  table-code r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      ZoneNoTypes -> 1
+      ZoneLengthMismatch -> 2
+      ZoneUnsortedTransitions -> 3
+      ZoneTypeIndexOutOfRange -> 4
+
+  empty-reads :: Result ZoneTableError TimeZone -> Bool
+  empty-reads r = case r of
+    Err _ -> False
+    Ok z -> says z 0 3600 False "STD" && says z (-9000000000) 3600 False "STD"
+      && zone-transition-count z == 0
+      && opt-secs (zone-next-transition-unix-seconds z 0) == -1
+      && opt-secs (zone-previous-transition-unix-seconds z 0) == -1
+      && one (zone-to-ambiguous z (at 2026 3 8 2 30 0)) 3600
+
+  -- 32: `zone-from-table`'s refusals, and a table with no
+  -- transitions.
+  check-table-refusals :: Int
+  check-table-refusals =
+    if table-code (zone-from-table "x" Nil Nil Nil None) == 1
+       && table-code (zone-from-table "x" (Cons 1 Nil) Nil (Cons std Nil) None) == 2
+       && table-code (zone-from-table "x" Nil (Cons 0 Nil) (Cons std Nil) None) == 2
+       && table-code (zone-from-table "x" (Cons 2 (Cons 1 Nil)) (Cons 0 (Cons 0 Nil)) (Cons std Nil) None) == 3
+       && table-code (zone-from-table "x" (Cons 1 (Cons 1 Nil)) (Cons 0 (Cons 0 Nil)) (Cons std Nil) None) == 3
+       && table-code (zone-from-table "x" (Cons 1 Nil) (Cons 1 Nil) (Cons std Nil) None) == 4
+       && table-code (zone-from-table "x" (Cons 1 Nil) (Cons (-1) Nil) (Cons std Nil) None) == 4
+       && table-code (zone-from-table "x" (Cons 1 (Cons 2 Nil)) (Cons 0 (Cons 2 Nil)) (Cons std (Cons dst Nil)) None) == 4
+       && table-code (zone-from-table "x" (Cons 1 (Cons 2 Nil)) (Cons 0 (Cons 1 Nil)) (Cons std (Cons dst Nil)) None) == 0
+       && empty-reads (zone-from-table "x" Nil Nil (Cons std Nil) None)
+      then 0 else 32
+
+  -- Offsets -10:00, then +14:00 (a 24-hour jump at 5000000), then the
+  -- same offset under another abbreviation (at 6000000).
+  jump :: Result ZoneTableError TimeZone
+  jump = zone-from-table "Test/Jump" (Cons 5000000 (Cons 6000000 Nil)) (Cons 1 (Cons 2 Nil)) (Cons (offset-info (off (-36000)) False "-10") (Cons (offset-info (off 50400) False "+14") (Cons (offset-info (off 50400) False "XYZ") Nil))) None
+
+  jump-reads :: TimeZone -> Bool
+  jump-reads z =
+    one (zone-to-ambiguous z (civil 4963999)) (-36000)
+    && gap (zone-to-ambiguous z (civil 4964000)) (-36000) 50400
+    && gap (zone-to-ambiguous z (civil 5000000)) (-36000) 50400
+    && gap (zone-to-ambiguous z (civil 5050399)) (-36000) 50400
+    && one (zone-to-ambiguous z (civil 5050400)) 50400
+    && one (zone-to-ambiguous z (civil 6050399)) 50400
+    && one (zone-to-ambiguous z (civil 6050400)) 50400
+    && one (zone-to-ambiguous z (civil 6050401)) 50400
+    && says z 6000000 50400 False "XYZ"
+    && res (zone-to-timestamp Compatible z (civil 5000000)) == 5036000
+    && res (zone-to-timestamp Earlier z (civil 5000000)) == 4949600
+    && res (zone-to-timestamp Later z (civil 5000000)) == 5036000
+    && res (zone-to-timestamp Reject z (civil 5000000)) == -1
+
+  table-ambiguity :: TimeZone -> Bool
+  table-ambiguity z =
+    one (zone-to-ambiguous z (civil 998999)) (-1000)
+    && gap (zone-to-ambiguous z (civil 999000)) (-1000) 3600
+    && gap (zone-to-ambiguous z (civil 1003599)) (-1000) 3600
+    && one (zone-to-ambiguous z (civil 1003600)) 3600
+    && one (zone-to-ambiguous z (civil 2003599)) 3600
+    && gap (zone-to-ambiguous z (civil 2003600)) 3600 7200
+    && gap (zone-to-ambiguous z (civil 2007199)) 3600 7200
+    && one (zone-to-ambiguous z (civil 2007200)) 7200
+    && one (zone-to-ambiguous z (civil 3003599)) 7200
+    && fold (zone-to-ambiguous z (civil 3003600)) 7200 3600
+    && fold (zone-to-ambiguous z (civil 3007199)) 7200 3600
+    && one (zone-to-ambiguous z (civil 3007200)) 3600
+    && res (zone-to-timestamp-compatible z (civil 3003600)) == 2996400
+    && res (zone-to-timestamp-earlier z (civil 3003600)) == 2996400
+    && res (zone-to-timestamp-later z (civil 3003600)) == 3000000
+    && res (zone-to-timestamp-reject z (civil 3003600)) == -2
+    && res (zone-to-timestamp-compatible z (civil 2003600)) == 2000000
+    && res (zone-to-timestamp-earlier z (civil 2003600)) == 1996400
+    && res (zone-to-timestamp-reject z (civil 2003600)) == -1
+    && res (zone-to-timestamp-reject z (civil 2500000)) == 2492800
+
+  -- 64: ambiguity derived from a table: the gap and fold are exactly
+  -- the readings between the two local times of a transition; a
+  -- transition that keeps the offset makes neither; a 24-hour jump
+  -- is a 24-hour gap.
+  check-table-ambiguity :: Int
+  check-table-ambiguity = case table None of
+    Err _ -> 64
+    Ok z -> case jump of
+      Err _ -> 64
+      Ok j -> if table-ambiguity z && jump-reads j then 0 else 64
+
+  rule-zone-reads :: TimeZone -> Bool
+  rule-zone-reads z =
+    zone-name z == "Sydney-ish"
+    && says z 1775318399 39600 True "AEDT"
+    && says z 1775318400 36000 False "AEST"
+    && fold (zone-to-ambiguous z (at 2026 4 5 2 30 0)) 39600 36000
+    && gap (zone-to-ambiguous z (at 2026 10 4 2 30 0)) 36000 39600
+    && opt-ts (zone-next-transition z (ts 1767225600)) == 1775318400
+    && opt-ts (zone-previous-transition z (ts 1791043200)) == 1775318400
+    && res (zone-to-timestamp-later z (at 2026 4 5 2 30 0)) == 1775320200
+    && res (zone-to-timestamp-compatible z (at 2026 4 5 2 30 0)) == 1775316600
+    && zone-transition-count z == 0
+    && opt-off (zone-fixed-offset z) == 999999
+
+  -- 128: a zone that is a POSIX rule throughout.
+  check-rule-zone :: Int
+  check-rule-zone = case parse-posix-tz "AEST-10AEDT,M10.1.0,M4.1.0/3" of
+    Err _ -> 128
+    Ok r -> if rule-zone-reads (zone-posix "Sydney-ish" r) then 0 else 128
+
+  main :: Int
+  main = check-fixed + check-table + check-eliminators + check-table-zone
+    + check-tail + check-table-refusals + check-table-ambiguity + check-rule-zone

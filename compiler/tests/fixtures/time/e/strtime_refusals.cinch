@@ -1,0 +1,242 @@
+-- Lane E: Text.Time.Strtime, refusals. Every parse refusal with its
+-- named error and input position, every out-of-range field, `%Z`,
+-- every format refusal (unknown conversion, a format ending inside a
+-- conversion, widths, misplaced modifiers) through both `strftime` and
+-- `strptime`, and every refusal of the conversions out of a parsed
+-- value (missing fields, an invalid date, a weekday contradicting its
+-- date and the other mismatches).
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Strtime
+  import Data.Time.Weekday (Weekday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Timestamp
+
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  hmsn :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  hmsn h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (hmsn h mi s ns)
+
+  -- A refusal as a number: constructor * 1000000 + position * 1000 +
+  -- conversion byte (0 where the constructor has none).
+  code :: StrtimeError -> I64
+  code e = case e of
+    StrtimeUnknownConversion p c -> wrapping-add-i64 1000000 (wrapping-add-i64 (wrapping-mul-i64 p 1000) c)
+    StrtimeDanglingPercent p -> wrapping-add-i64 2000000 (wrapping-mul-i64 p 1000)
+    StrtimeWidthTooLarge p -> wrapping-add-i64 3000000 (wrapping-mul-i64 p 1000)
+    StrtimeModifierNotAllowed p -> wrapping-add-i64 4000000 (wrapping-mul-i64 p 1000)
+    StrtimeMissingField c -> wrapping-add-i64 5000000 c
+    StrtimeUnexpectedEnd p -> wrapping-add-i64 6000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedDigit p -> wrapping-add-i64 7000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedName p -> wrapping-add-i64 8000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedOffset p -> wrapping-add-i64 9000000 (wrapping-mul-i64 p 1000)
+    StrtimeLiteralMismatch p -> wrapping-add-i64 10000000 (wrapping-mul-i64 p 1000)
+    StrtimeFieldOutOfRange p c -> wrapping-add-i64 11000000 (wrapping-add-i64 (wrapping-mul-i64 p 1000) c)
+    StrtimeTrailingInput p -> wrapping-add-i64 12000000 (wrapping-mul-i64 p 1000)
+    StrtimeZoneAbbreviationNotParsed p -> wrapping-add-i64 13000000 (wrapping-mul-i64 p 1000)
+    StrtimeMissingYear -> 14000000
+    StrtimeMissingMonth -> 15000000
+    StrtimeMissingDay -> 16000000
+    StrtimeMissingHour -> 17000000
+    StrtimeMissingMeridiem -> 18000000
+    StrtimeMissingOffset -> 19000000
+    StrtimeInvalidDate -> 20000000
+    StrtimeDateMismatch -> 21000000
+    StrtimeWeekdayMismatch -> 22000000
+    StrtimeDayOfYearMismatch -> 23000000
+    StrtimeIsoWeekMismatch -> 24000000
+    StrtimeWeekNumberMismatch -> 25000000
+    StrtimeHourMismatch -> 26000000
+    StrtimeTimestampOutOfRange -> 27000000
+
+  -- `strftime f b` is `Ok expected`.
+  fb :: String -> BrokenDown -> String -> Bool
+  fb f b expected = case strftime f b of
+    Err _ -> False
+    Ok s -> s == expected
+
+  fd :: String -> Date -> String -> Bool
+  fd f d expected = fb f (broken-down-from-date d) expected
+
+  ft :: String -> TimeOfDay -> String -> Bool
+  ft f t expected = fb f (broken-down-from-time t) expected
+
+  fx :: String -> DateTime -> String -> Bool
+  fx f x expected = fb f (broken-down-from-datetime x) expected
+
+  -- The refusal of `strftime f b`; -1 for `Ok`.
+  fe :: String -> BrokenDown -> I64
+  fe f b = case strftime f b of
+    Ok _ -> -1
+    Err e -> code e
+
+  -- The refusal of `strptime f s`; -1 for `Ok`.
+  pe :: String -> String -> I64
+  pe f s = case strptime f s of
+    Ok _ -> -1
+    Err e -> code e
+
+  is :: Option I64 -> I64 -> Bool
+  is o v = case o of
+    None -> False
+    Some x -> x == v
+
+  none :: Option I64 -> Bool
+  none o = case o of
+    None -> True
+    Some _ -> False
+
+  pd :: String -> String -> Date -> Bool
+  pd f s d = case date-strptime f s of
+    Err _ -> False
+    Ok x -> x == d
+
+  pt :: String -> String -> TimeOfDay -> Bool
+  pt f s t = case time-strptime f s of
+    Err _ -> False
+    Ok x -> x == t
+
+  px :: String -> String -> DateTime -> Bool
+  px f s x = case datetime-strptime f s of
+    Err _ -> False
+    Ok y -> y == x
+
+  check-shape :: Int
+  check-shape =
+    if pe "%Y-%m-%d" "2026-11" == 6007000 && pe "%Y-%m-%d" "2026-11-" == 6008000 && pe "%Y" "" == 6000000
+       && pe "%Y-%m-%d" "2026-xx-01" == 7005000 && pe "%Y" "-" == 6001000 && pe "%Y" "-x" == 7001000
+       && pe "%b" "Foo" == 8000000 && pe "%b" "No" == 8000000 && pe "%b" "" == 6000000 && pe "%a" "Fr" == 8000000
+       && pe "%A" "Xyzday" == 8000000 && pe "%p" "XM" == 8000000 && pe "%p" "A" == 8000000 && pe "%p" "" == 6000000
+       && pe "%Q" "" == 6000000 && pe "%Q" "[x]" == 8000000
+       && pe "%z" "0530" == 9000000 && pe "%z" "" == 6000000 && pe "%:z" "Z" == 9000000
+       && pe "%z" "+05" == 6003000 && pe "%z" "+05:30" == 7003000 && pe "%:z" "+0530" == 10003000
+       && pe "%:z" "+05" == 6003000 && pe "%::z" "+05:30" == 6006000 && pe "%::z" "+05:30x" == 10006000
+       && pe "%:z" "+05:3" == 6005000 && pe "%:z" "+05:30:" == 6007000
+       && pe "%Y/%m" "2026-11" == 10004000 && pe "%Y" "2026x" == 12004000 && pe "%F" "2026-11-13T10:00" == 12010000
+       && pe "%H:%M:%S.%f" "01:02:03." == 6009000 && pe "%H:%M:%S%.f" "01:02:03." == 6009000
+       && pe "%H:%M:%S%.f" "01:02:03.x" == 7009000 && pe "%Z" "CET" == 13000000 && pe "%F %Z" "2026-11-13 CET" == 13011000
+    then 0 else 1
+
+  check-ranges :: Int
+  check-ranges =
+    if pe "%m" "13" == 11000109 && pe "%m" "0" == 11000109 && pe "%d" "32" == 11000100 && pe "%d" "0" == 11000100
+       && pe "%e" "32" == 11000101 && pe "%H" "24" == 11000072 && pe "%M" "60" == 11000077 && pe "%S" "60" == 11000083
+       && pe "%S" "61" == 11000083 && pe "%I" "13" == 11000073 && pe "%I" "0" == 11000073
+       && pe "%j" "367" == 11000106 && pe "%j" "0" == 11000106 && pe "%u" "8" == 11000117 && pe "%u" "0" == 11000117
+       && pe "%w" "7" == 11000119 && pe "%V" "54" == 11000086 && pe "%V" "0" == 11000086
+       && pe "%U" "54" == 11000085 && pe "%W" "54" == 11000087
+       && pe "%z" "+2600" == 11000122 && pe "%z" "+0560" == 11000122 && pe "%:z" "-25:59:60" == 11000122
+       && pe "%f" "1234567890" == 11000102 && pe "x%f" "x1234567890" == 11001102
+       && pe "%s" "253402207201" == 11000115 && pe "%s" "-377705023202" == 11000115
+       && pe "%Y-%m" "2026-13" == 11005109
+       && pe "%Y" "10000" == 12004000 && pe "%m" "123" == 12002000
+    then 0 else 2
+
+  check-format-refusals :: Int
+  check-format-refusals =
+    let b = broken-down-from-datetime (at 2026 11 13 17 30 0 0) in
+    if fe "%q" b == 1001113 && fe "%Y %q" b == 1004113 && fe "%E" b == 1001069 && fe "%c" b == 1001099
+       && fe "%x" b == 1001120 && fe "%-^a" b == 1002094 && fe "%:q" b == 1002113 && fe "%.q" b == 1002113
+       && fe "%5q" b == 1002113 && fe "%\n" b == 1001010
+       && fe "%" b == 2000000 && fe "abc%" b == 2003000 && fe "%-" b == 2000000 && fe "%10" b == 2000000
+       && fe "%Y%" b == 2002000 && fe "%:" b == 2000000 && fe "%." b == 2000000 && fe "%.3" b == 2000000
+       && fe "%256d" b == 3000000 && fe "%1000d" b == 3000000 && fe "x%999999d" b == 3001000 && fe "%255d" b == -1
+    then 0 else 4
+
+  check-modifier-refusals :: Int
+  check-modifier-refusals =
+    let b = broken-down-from-datetime (at 2026 11 13 17 30 0 0) in
+    if fe "%5%" b == 4000000 && fe "%-F" b == 4000000 && fe "%_T" b == 4000000 && fe "%3D" b == 4000000
+       && fe "%^R" b == 4000000 && fe "%-n" b == 4000000 && fe "%2t" b == 4000000
+       && fe "%:Y" b == 4000000 && fe "%::d" b == 4000000 && fe "%:::z" b == 4000000 && fe "%:f" b == 4000000
+       && fe "%12f" b == 4000000 && fe "%10f" b == 4000000 && fe "%00f" b == 4000000
+       && fe "%.10f" b == 4000000 && fe "%5.3f" b == 4000000 && fe "%.3d" b == 4000000 && fe "%.Y" b == 4000000
+       && fe "ab %-F" b == 4003000
+       && pe "%q" "x" == 1001113 && pe "abc%" "abc" == 2003000 && pe "%256d" "1" == 3000000 && pe "%-F" "2026-11-13" == 4000000
+    then 0 else 8
+
+  date-refusal :: String -> String -> I64
+  date-refusal f s = case date-strptime f s of
+    Ok _ -> -1
+    Err e -> code e
+
+  time-refusal :: String -> String -> I64
+  time-refusal f s = case time-strptime f s of
+    Ok _ -> -1
+    Err e -> code e
+
+  datetime-refusal :: String -> String -> I64
+  datetime-refusal f s = case datetime-strptime f s of
+    Ok _ -> -1
+    Err e -> code e
+
+  timestamp-refusal :: String -> String -> I64
+  timestamp-refusal f s = case strptime f s of
+    Err e -> code e
+    Ok b -> case broken-down-to-timestamp b of
+      Ok _ -> -1
+      Err e -> code e
+
+  check-missing :: Int
+  check-missing =
+    if date-refusal "%m/%d" "11/13" == 14000000 && date-refusal "%Y" "2026" == 15000000
+       && date-refusal "%Y-%m" "2026-11" == 16000000 && date-refusal "%H:%M" "17:30" == 14000000
+       && date-refusal "%a" "Fri" == 14000000 && date-refusal "%G-W%V" "2026-W46" == 14000000
+       && date-refusal "%Y %U" "2026 45" == 15000000
+       && time-refusal "%M" "30" == 17000000 && time-refusal "%F" "2026-11-13" == 17000000
+       && time-refusal "%I:%M" "05:30" == 18000000 && time-refusal "%p" "PM" == 17000000
+       && datetime-refusal "%T" "17:30:00" == 14000000 && datetime-refusal "%F %M" "2026-11-13 30" == 17000000
+       && datetime-refusal "%F %I" "2026-11-13 05" == 18000000
+       && timestamp-refusal "%F %T" "2026-11-13 17:30:00" == 19000000 && timestamp-refusal "%F" "2026-11-13" == 19000000
+       && timestamp-refusal "%T %z" "17:30:00 +0100" == 14000000
+       && timestamp-refusal "%F %T %z" "-9999-01-01 00:00:00 +0000" == 27000000
+       && timestamp-refusal "%F %T %z" "9999-12-31 23:59:59 +0000" == 27000000
+       && timestamp-refusal "%F %T %z" "2026-11-13 17:30:00 +0100" == -1
+    then 0 else 16
+
+  -- A parsed field that contradicts the date the others name.
+  check-mismatch :: Int
+  check-mismatch =
+    if date-refusal "%a %F" "Thu 2026-11-13" == 22000000 && date-refusal "%A, %B %d, %Y" "Monday, November 13, 2026" == 22000000
+       && date-refusal "%F %u" "2026-11-13 4" == 22000000 && date-refusal "%F %w" "2026-11-13 0" == 22000000
+       && date-refusal "%a %F" "Fri 2026-11-13" == -1
+       && date-refusal "%F" "2026-02-30" == 20000000 && date-refusal "%F" "2023-02-29" == 20000000
+       && date-refusal "%F" "2026-04-31" == 20000000
+       && date-refusal "%F %j" "2026-11-13 316" == 23000000 && date-refusal "%F %j" "2026-11-13 317" == -1
+       && date-refusal "%Y %j %d" "2026 317 14" == 21000000 && date-refusal "%Y %j %m" "2026 317 10" == 21000000
+       && date-refusal "%Y %j %d" "2026 317 13" == -1
+       && date-refusal "%F %G" "2024-12-30 2024" == 24000000 && date-refusal "%F %G" "2024-12-30 2025" == -1
+       && date-refusal "%F %V" "2024-12-30 53" == 24000000 && date-refusal "%F %V" "2024-12-30 01" == -1
+       && date-refusal "%F %U" "2026-11-13 44" == 25000000 && date-refusal "%F %W" "2026-11-13 46" == 25000000
+       && date-refusal "%F %U %W" "2026-11-13 45 45" == -1
+       && date-refusal "%G-W%V-%u %Y" "2025-W01-1 2025" == 21000000 && date-refusal "%G-W%V-%u %Y" "2025-W01-1 2024" == -1
+    then 0 else 32
+
+  check-hour-mismatch :: Int
+  check-hour-mismatch =
+    if time-refusal "%H %I %p" "17 04 PM" == 26000000 && time-refusal "%H %p" "17 AM" == 26000000
+       && time-refusal "%H %p" "05 PM" == 26000000 && time-refusal "%H %I" "00 11" == 26000000
+       && time-refusal "%H %I %p" "17 05 PM" == -1 && time-refusal "%H %p" "00 AM" == -1
+       && time-refusal "%H %I" "12 12" == -1 && time-refusal "%H %I" "00 12" == -1
+    then 0 else 64
+
+  main :: Int
+  main = check-shape + check-ranges + check-format-refusals + check-modifier-refusals + check-missing + check-mismatch + check-hour-mismatch

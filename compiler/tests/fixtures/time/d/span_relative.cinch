@@ -1,0 +1,336 @@
+-- Lane D: Data.Time.Span, the anchored operations (any span, measured
+-- from a civil date or date-time). Vectors from the Jiff 1.0
+-- announcement and from the TC39 Temporal reference polyfill:
+-- balancing (2756 hours from 2020-01-01 is 3 months 23 days 20 hours),
+-- rounding with calendar units including the carry into a larger unit
+-- (11 months 20 days rounds to 1 year) and the directed modes on
+-- negative spans, exact totals on the anchor's calendar (24 hours is
+-- 1/30 of a month from 1 June and 1/31 from 1 July), comparison (one
+-- month against 30 days), anchored sums, a date-time anchor, and the
+-- refusals.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  -- Values from plain fields; a refusal reads as a value no vector
+  -- below expects.
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  tod :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  tod h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (tod h mi s ns)
+
+  ts :: I64 -> I64 -> Timestamp
+  ts secs nanos = case timestamp-from-unix-seconds-and-nanos secs nanos of
+    None -> timestamp-epoch
+    Some t -> t
+
+  -- A span from its ten signed units (years down to nanoseconds), and
+  -- a clock span from its six.
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  ck :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Clock
+  ck h mi s ms us ns = case span-clock-from-units h mi s ms us ns of
+    Err _ -> span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- The six clock fields, the calendar fields being zero.
+  clock :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  clock x h mi s ms us ns = fields x 0 0 0 0 h mi s ms us ns
+
+  sp-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  sp-is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  ck-is :: forall (c :: SpanClass). Result SpanError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ck-is r h mi s ms us ns = sp-is r 0 0 0 0 h mi s ms us ns
+
+  some-is :: forall (c :: SpanClass). Option (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  some-is o y mo w d h mi s ms us ns = case o of
+    None -> False
+    Some x -> fields x y mo w d h mi s ms us ns
+
+  no-span :: forall (c :: SpanClass). Option (Span c) -> Bool
+  no-span o = case o of
+    None -> True
+    Some _ -> False
+
+  -- The refusals by number: 1 sign conflict, 2 unit limit, 3 needs
+  -- anchor, 4 bad units, 5 bad increment, 6 out of range.
+  code :: SpanError -> I64
+  code e = case e of
+    SpanSignConflict -> 1
+    SpanUnitLimit -> 2
+    SpanNeedsAnchor -> 3
+    SpanBadUnits -> 4
+    SpanBadIncrement -> 5
+    SpanOutOfRange -> 6
+
+  err-is :: forall a. Result SpanError a -> I64 -> Bool
+  err-is r want = case r of
+    Err e -> code e == want
+    Ok _ -> False
+
+  -- Refused, whatever the reason.
+  sp-err :: forall (c :: SpanClass). Result SpanError (Span c) -> Bool
+  sp-err r = case r of
+    Err _ -> True
+    Ok _ -> False
+
+  d-is :: Option Date -> I64 -> I64 -> I64 -> Bool
+  d-is o y m d = case o of
+    None -> False
+    Some x -> x == ymd y m d
+
+  no-date :: Option Date -> Bool
+  no-date o = case o of
+    None -> True
+    Some _ -> False
+
+  dt-is :: Option DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dt-is o y mo d h mi s ns = case o of
+    None -> False
+    Some x -> x == at y mo d h mi s ns
+
+  no-datetime :: Option DateTime -> Bool
+  no-datetime o = case o of
+    None -> True
+    Some _ -> False
+
+  dtr-is :: Result SpanError DateTime -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  dtr-is o y mo d h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == at y mo d h mi s ns
+
+  tr-is :: Result SpanError TimeOfDay -> I64 -> I64 -> I64 -> I64 -> Bool
+  tr-is o h mi s ns = case o of
+    Err _ -> False
+    Ok x -> x == tod h mi s ns
+
+  tsr-is :: Result SpanError Timestamp -> I64 -> I64 -> Bool
+  tsr-is o secs nanos = case o of
+    Err _ -> False
+    Ok x -> x == ts secs nanos
+
+  -- An exact total: the reduced numerator and denominator.
+  ratio-is :: Result SpanError (I128, I128) -> I64 -> I64 -> Bool
+  ratio-is r n d = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (a, b) -> eq-i128 a (i64-to-i128 n) && eq-i128 b (i64-to-i128 d)
+
+  -- A total within one millionth of the reference's float.
+  tot-is :: Result SpanError (I128, I128) -> I64 -> Bool
+  tot-is r want = case r of
+    Err _ -> False
+    Ok pair -> case pair of
+      (n, d) -> case checked-div-i128 (wrapping-mul-i128 n 1000000) d of
+        None -> False
+        Some q ->
+          let diff = wrapping-sub-i128 q (i64-to-i128 want) in
+          le-i128 diff 1 && ge-i128 diff (-1)
+
+  ord-is :: Result SpanError Ordering -> I64 -> Bool
+  ord-is r want = case r of
+    Err _ -> False
+    Ok o -> order-is o want
+
+  order-is :: Ordering -> I64 -> Bool
+  order-is o want = case o of
+    LT -> want == -1
+    EQ -> want == 0
+    GT -> want == 1
+
+  df :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> Difference
+  df l s i m = with-largest l (with-smallest s (with-increment i (with-mode m difference-default)))
+
+  sr :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> SpanRound
+  sr l s i m = with-largest l (with-smallest s (with-increment i (with-mode m span-round-default)))
+
+  rd :: TimeUnit -> I64 -> RoundMode -> Round
+  rd s i m = with-smallest s (with-increment i (with-mode m round-default))
+
+  rel :: I64 -> I64 -> I64 -> Relative
+  rel y m d = RelativeDate (ymd y m d)
+
+  -- 1: balancing against an anchor.
+  check-balance :: Int
+  check-balance =
+    let s = sp 0 0 0 0 2756 0 0 0 0 0 in
+    if sp-is (span-balance-relative Year (rel 2020 1 1) s) 0 3 0 23 20 0 0 0 0 0
+       && sp-is (span-balance-relative Month (rel 2020 1 1) s) 0 3 0 23 20 0 0 0 0 0
+       && sp-is (span-balance-relative Week (rel 2020 1 1) s) 0 0 16 2 20 0 0 0 0 0
+       && sp-is (span-balance-relative Day (rel 2020 1 1) s) 0 0 0 114 20 0 0 0 0 0
+       && sp-is (span-balance-relative Hour (rel 2020 1 1) s) 0 0 0 0 2756 0 0 0 0 0
+       && sp-is (span-balance-relative Minute (rel 2020 1 1) s) 0 0 0 0 0 165360 0 0 0 0
+       && sp-is (span-balance-relative Year (rel 2020 1 1) (sp 0 14 0 0 0 0 0 0 0 0)) 1 2 0 0 0 0 0 0 0 0
+       && sp-is (span-balance-relative Year (rel 2020 1 1) (sp 0 0 0 366 0 0 0 0 0 0)) 1 0 0 0 0 0 0 0 0 0
+       && sp-is (span-balance-relative Year (rel 2021 1 1) (sp 0 0 0 366 0 0 0 0 0 0)) 1 0 0 1 0 0 0 0 0 0
+       && sp-is (span-balance-relative Day (rel 2024 2 1) (sp 0 1 0 0 0 0 0 0 0 0)) 0 0 0 29 0 0 0 0 0 0
+       && sp-is (span-balance-relative Day (rel 2023 2 1) (sp 0 1 0 0 0 0 0 0 0 0)) 0 0 0 28 0 0 0 0 0 0
+       && sp-is (span-balance-relative Hour (rel 2023 2 1) (sp 0 1 0 0 0 0 0 0 0 0)) 0 0 0 0 672 0 0 0 0 0
+       && sp-is (span-balance-relative Month (rel 2020 1 1) (sp 0 0 0 (-31) 0 0 0 0 0 0)) 0 (-1) 0 0 0 0 0 0 0 0
+       && sp-is (span-balance-relative Year (rel 2020 1 1) (span-to-calendar span-zero)) 0 0 0 0 0 0 0 0 0 0
+       && sp-is (span-balance-relative Day (rel 2020 1 1) (sp 0 0 2 0 49 0 0 0 0 0)) 0 0 0 16 1 0 0 0 0 0
+    then 0 else 1
+
+  -- 2: rounding against an anchor (Temporal's Duration.prototype.round
+  -- with a plain relativeTo).
+  check-round :: Int
+  check-round =
+    if sp-is (span-round-relative (with-largest Day (with-smallest Day span-round-default)) (rel 2022 1 1) (sp 0 1 0 1 1 0 0 0 0 0)) 0 0 0 32 0 0 0 0 0 0
+       && sp-is (span-round-relative (with-smallest Month span-round-default) (rel 2020 1 1) (sp 1 2 0 10 0 0 0 0 0 0)) 1 2 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (with-smallest Month span-round-default) (rel 2020 1 1) (sp 1 2 0 20 0 0 0 0 0 0)) 1 3 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (with-largest Year (with-smallest Month span-round-default)) (rel 2020 1 1) (sp 0 11 0 20 0 0 0 0 0 0)) 1 0 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (with-smallest Year span-round-default) (rel 2020 1 1) (sp 1 6 0 0 0 0 0 0 0 0)) 1 0 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (with-mode Trunc (with-smallest Year span-round-default)) (rel 2020 1 1) (sp 1 7 0 0 0 0 0 0 0 0)) 1 0 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (with-largest Week (with-smallest Week span-round-default)) (rel 2020 1 1) (sp 0 0 0 40 0 0 0 0 0 0)) 0 0 6 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (with-largest Month (with-smallest Week span-round-default)) (rel 2020 1 1) (sp 0 0 0 40 0 0 0 0 0 0)) 0 1 1 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (with-mode Ceil (with-smallest Month span-round-default)) (rel 2020 3 31) (sp (-1) (-2) 0 (-20) 0 0 0 0 0 0)) (-1) (-2) 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (with-mode Floor (with-smallest Month span-round-default)) (rel 2020 3 31) (sp (-1) (-2) 0 (-20) 0 0 0 0 0 0)) (-1) (-3) 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Month Month 3 HalfExpand) (rel 2020 1 1) (sp 0 7 0 0 0 0 0 0 0 0)) 0 6 0 0 0 0 0 0 0 0
+       && sp-is (span-round-relative (with-largest Month (with-smallest Day span-round-default)) (rel 2020 2 1) (sp 0 0 0 29 12 0 0 0 0 0)) 0 1 0 1 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Day Hour 12 HalfExpand) (rel 2020 2 1) (sp 0 0 0 1 36 0 0 0 0 0)) 0 0 0 2 12 0 0 0 0 0
+       && sp-is (span-round-relative span-round-default (rel 2020 2 1) (sp 0 0 0 1 36 0 0 0 0 0)) 0 0 0 2 12 0 0 0 0 0
+       && sp-is (span-round-relative (with-smallest Hour span-round-default) (rel 2020 2 1) (sp 0 0 0 0 2 30 0 0 0 0)) 0 0 0 0 3 0 0 0 0 0
+    then 0 else 2
+
+  -- 4: exact totals on the anchor's calendar.
+  check-total :: Int
+  check-total =
+    let day = sp 0 0 0 0 24 0 0 0 0 0 in
+    if ratio-is (span-total-relative Month (rel 2026 6 1) day) 1 30
+       && ratio-is (span-total-relative Month (rel 2026 7 1) day) 1 31
+       && ratio-is (span-total-relative Day (rel 2024 2 1) (sp 0 1 0 0 0 0 0 0 0 0)) 29 1
+       && ratio-is (span-total-relative Day (rel 2023 2 1) (sp 0 1 0 0 0 0 0 0 0 0)) 28 1
+       && ratio-is (span-total-relative Day (rel 2024 1 1) (sp 1 0 0 0 0 0 0 0 0 0)) 366 1
+       && ratio-is (span-total-relative Week (rel 2023 1 1) (sp 1 0 0 0 0 0 0 0 0 0)) 365 7
+       && ratio-is (span-total-relative Month (rel 2024 3 31) (sp 0 (-1) 0 (-15) 0 0 0 0 0 0)) (-44) 29
+       && ratio-is (span-total-relative Year (rel 2023 1 1) (sp 1 6 0 0 0 0 0 0 0 0)) 274 183
+       && ratio-is (span-total-relative Week (rel 2023 1 1) (sp 0 0 0 10 0 0 0 0 0 0)) 10 7
+       && ratio-is (span-total-relative Hour (rel 2023 1 1) (sp 0 0 0 1 12 0 0 0 0 0)) 36 1
+       && ratio-is (span-total-relative Day (rel 2024 3 31) (sp 0 (-1) 0 (-15) 0 0 0 0 0 0)) (-46) 1
+       && ratio-is (span-total-relative Year (rel 2023 1 1) (span-to-calendar span-zero)) 0 1
+       && ratio-is (span-total-relative Nanosecond (rel 2023 1 1) (sp 0 0 0 1 0 0 0 0 0 1)) 86400000000001 1
+       && ratio-is (span-total-relative Month (rel 2024 1 1) (sp 1 0 0 0 0 0 0 0 0 0)) 12 1
+    then 0 else 4
+
+  -- 8: comparison by length from the anchor.
+  check-compare :: Int
+  check-compare =
+    let month = sp 0 1 0 0 0 0 0 0 0 0 in
+    let days30 = sp 0 0 0 30 0 0 0 0 0 0 in
+    if ord-is (span-compare-relative (rel 2026 6 1) month days30) 0
+       && ord-is (span-compare-relative (rel 2026 7 1) month days30) 1
+       && ord-is (span-compare-relative (rel 2026 2 1) month days30) (-1)
+       && ord-is (span-compare-relative (rel 2024 1 1) (sp 1 0 0 0 0 0 0 0 0 0) (sp 0 0 0 365 0 0 0 0 0 0)) 1
+       && ord-is (span-compare-relative (rel 2023 1 1) (sp 1 0 0 0 0 0 0 0 0 0) (sp 0 0 0 365 0 0 0 0 0 0)) 0
+       && ord-is (span-compare-relative (rel 2026 3 1) (span-negate month) (span-negate days30)) 1
+       && ord-is (span-compare-relative (rel 2026 3 1) (sp 0 0 1 0 0 0 0 0 0 0) (sp 0 0 0 7 0 0 0 0 0 0)) 0
+       && ord-is (span-compare-relative (rel 2026 3 1) (sp 0 0 0 1 1 0 0 0 0 0) (span-of-hours 25)) 0
+       && ord-is (span-compare-relative (rel 2026 3 1) (span-of-hours 2) (span-of-minutes 121)) (-1)
+       && ord-is (span-compare-relative (rel 2026 3 1) month month) 0
+       && ord-is (span-compare-relative (RelativeDateTime (at 2026 7 1 13 0 0 0)) month days30) 1
+    then 0 else 8
+
+  -- 16: sums measured from the anchor (Jiff's checked_add with a
+  -- relative date-time): the anchor moves by the first span, then the
+  -- second, and the result is the difference from the anchor, spelled
+  -- up to the larger of the two largest units. Not associative with
+  -- month ends: from 31 January, one month and one month is 1 month 29
+  -- days.
+  check-add :: Int
+  check-add =
+    let month = sp 0 1 0 0 0 0 0 0 0 0 in
+    let day = sp 0 0 0 1 0 0 0 0 0 0 in
+    if sp-is (span-checked-add-relative (rel 2024 1 31) month day) 0 1 0 1 0 0 0 0 0 0
+       && sp-is (span-checked-sub-relative (rel 2024 3 1) month day) 0 0 0 30 0 0 0 0 0 0
+       && sp-is (span-checked-add-relative (rel 2024 1 1) (span-of-hours 20) (span-of-hours 10)) 0 0 0 0 30 0 0 0 0 0
+       && sp-is (span-checked-add-relative (rel 2024 1 1) day (span-of-hours 30)) 0 0 0 2 6 0 0 0 0 0
+       && sp-is (span-checked-add-relative (rel 2020 1 1) (sp 0 11 0 0 0 0 0 0 0 0) month) 0 12 0 0 0 0 0 0 0 0
+       && sp-is (span-checked-add-relative (rel 2020 1 1) (sp 1 0 0 0 0 0 0 0 0 0) (sp 0 12 0 0 0 0 0 0 0 0)) 2 0 0 0 0 0 0 0 0 0
+       && sp-is (span-checked-add-relative (rel 2024 1 31) month month) 0 1 0 29 0 0 0 0 0 0
+       && sp-is (span-checked-sub-relative (rel 2024 3 31) month month) 0 0 0 (-1) 0 0 0 0 0 0
+       && sp-is (span-checked-add-relative (rel 2024 1 1) (span-to-calendar span-zero) (span-to-calendar span-zero)) 0 0 0 0 0 0 0 0 0 0
+       && sp-is (span-checked-sub-relative (rel 2024 1 1) day day) 0 0 0 0 0 0 0 0 0 0
+    then 0 else 16
+
+  -- 32: the refusals.
+  check-refusals :: Int
+  check-refusals =
+    let top = RelativeDate D.max-date in
+    let month = sp 0 1 0 0 0 0 0 0 0 0 in
+    let day = sp 0 0 0 1 0 0 0 0 0 0 in
+    if err-is (span-balance-relative Year top day) 6
+       && err-is (span-round-relative span-round-default top day) 6
+       && err-is (span-total-relative Day top day) 6
+       && err-is (span-compare-relative top month day) 6
+       && err-is (span-checked-add-relative top day (span-negate day)) 6
+       && err-is (span-balance-relative Year (RelativeDate D.min-date) (span-negate day)) 6
+       && err-is (span-total-relative Year (rel 9999 6 1) month) 6
+       && err-is (span-round-relative (with-smallest Year span-round-default) (rel 9999 6 1) month) 6
+       && err-is (span-round-relative (sr Year Month 3 Trunc) (rel 2020 1 1) (sp 0 7 0 0 0 0 0 0 0 0)) 5
+       && err-is (span-round-relative (sr Month Day 2 Trunc) (rel 2020 1 1) (sp 0 7 0 0 0 0 0 0 0 0)) 5
+       && err-is (span-round-relative (sr Hour Minute 7 Trunc) (rel 2020 1 1) day) 5
+       && err-is (span-round-relative (sr Day Month 1 Trunc) (rel 2020 1 1) day) 4
+       && err-is (span-round-relative (sr Minute Hour 1 Trunc) (rel 2020 1 1) day) 4
+       && err-is (span-balance-relative Nanosecond (rel 2020 1 1) (sp 300 0 0 0 0 0 0 0 0 0)) 2
+       && sp-is (span-balance-relative Day top (span-negate day)) 0 0 0 (-1) 0 0 0 0 0 0
+       && sp-is (span-round-relative (sr Day Day 2 Trunc) (rel 2020 1 1) (sp 0 0 0 7 0 0 0 0 0 0)) 0 0 0 6 0 0 0 0 0 0
+    then 0 else 32
+
+  -- 64: a date-time anchor. The anchor's time of day is where the
+  -- clock units start from; with no zone it shifts both ends alike,
+  -- except that a difference whose time runs against its dates gives a
+  -- day back to the time (from 31 January 23:00, one month and two
+  -- hours lands on 1 March 01:00, which is 29 days 2 hours away: one
+  -- whole month from 23:00 would be 29 February 23:00, and the count
+  -- of months is taken on dates one day short).
+  check-datetime-anchor :: Int
+  check-datetime-anchor =
+    let noon = RelativeDateTime (at 2020 1 1 12 0 0 0) in
+    if sp-is (span-balance-relative Year noon (sp 0 0 0 0 2756 0 0 0 0 0)) 0 3 0 23 20 0 0 0 0 0
+       && sp-is (span-round-relative (with-largest Day (with-smallest Day span-round-default)) (RelativeDateTime (at 2022 1 1 23 59 59 999999999)) (sp 0 1 0 1 1 0 0 0 0 0)) 0 0 0 32 0 0 0 0 0 0
+       && ratio-is (span-total-relative Month (RelativeDateTime (at 2026 6 1 18 30 0 0)) (sp 0 0 0 0 24 0 0 0 0 0)) 1 30
+       && ratio-is (span-total-relative Month (RelativeDateTime (at 2026 6 30 18 30 0 0)) (sp 0 0 0 0 24 0 0 0 0 0)) 1 30
+       && sp-is (span-balance-relative Month (RelativeDateTime (at 2024 1 31 6 0 0 0)) (sp 0 0 0 30 0 0 0 0 0 0)) 0 1 0 1 0 0 0 0 0 0
+       && sp-is (span-checked-add-relative (RelativeDateTime (at 2024 1 31 23 0 0 0)) (sp 0 1 0 0 0 0 0 0 0 0) (span-of-hours 2)) 0 0 0 29 2 0 0 0 0 0
+    then 0 else 64
+
+  main :: Int
+  main =
+    check-balance + check-round + check-total + check-compare
+    + check-add + check-refusals + check-datetime-anchor

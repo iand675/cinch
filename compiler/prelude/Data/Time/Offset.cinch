@@ -1,0 +1,220 @@
+-- Data.Time.Offset: a fixed distance from UTC
+-- (design/datetime.md, layer L2 "zone", lane C).
+--
+-- An `Offset` is a whole number of seconds east of UTC: the amount
+-- added to an instant's UTC reading to get the civil reading in some
+-- place at that instant. It is the smallest piece of the zone layer:
+-- a `TimeZone` (`Data.Time.Zone`) is a rule that picks an `Offset`
+-- for each instant, and the two conversions here (instant to civil
+-- reading at an offset, and back) are the arithmetic every zone
+-- conversion is built from.
+--
+-- REPRESENTATION. One `I64` (seconds east) behind the private
+-- constructor `MkOffset`, always within -93599..=93599 (25:59:59,
+-- T3, Jiff's bound). Boxed today like every one-field `data` (see
+-- `Data.Time.Duration`'s header).
+--
+-- Design law shape. `offset-from-seconds (offset-to-seconds o)` is
+-- `Some o`; the order and equality are those of the seconds.
+-- `offset-negate` is an involution (the range is symmetric).
+-- `offset-hours`, `offset-minutes` and `offset-seconds` are the
+-- magnitude's components and `offset-is-negative` its sign, so
+-- `|seconds| = hours * 3600 + minutes * 60 + seconds`.
+-- `offset-timestamp-to-datetime o t` is the civil reading of `t` at
+-- `o`: the "as if UTC" civil line position `unix seconds + o`. It is
+-- total because the timestamp range was chosen (T3) so that every
+-- instant has a civil reading in years -9999..=9999 at every offset.
+-- `offset-datetime-to-timestamp o x` is its inverse: `Some t`
+-- exactly when the instant `x - o` is inside the timestamp range, and
+-- then `offset-timestamp-to-datetime o t` is `x`.
+--
+-- NAMED REFUSALS:
+--   - offsets beyond 25:59:59 either way: `offset-from-seconds`
+--     answers `None`; the refined constructors do not admit them.
+--   - sub-second offsets (some historical local mean times carry
+--     fractions in the source data; TZif stores whole seconds).
+--   - a faulting or silently clamping conversion: the unreachable
+--     `None` in `offset-timestamp-to-datetime` (the civil module
+--     cannot know the timestamp bound) reads as the nearest end of the
+--     civil range, `min-datetime` or `max-datetime`; no input reaches
+--     it (see the function).
+--   - text (`+05:30`): `Text.Time.Iso` owns it.
+--   - a refined `InRange` result type on the component accessors is
+--     kept; the values are produced by a clamp that never fires
+--     (machine arithmetic is opaque to the refinement checker).
+module Data.Time.Offset where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+
+  export Offset
+  export offset-utc, offset-from-seconds, offset-of-seconds, offset-of-hours
+  export offset-from-hms
+  export offset-to-seconds, offset-negate, offset-is-negative, offset-is-utc
+  export offset-hours, offset-minutes, offset-seconds
+  export min-offset, max-offset
+  export offset-timestamp-to-datetime, offset-datetime-to-timestamp
+  export offset-cmp
+
+
+  -- Seconds east of UTC, within -93599..=93599. Not exported.
+  data Offset where
+    MkOffset :: I64 -> Offset
+
+  -- -----------------------------------------------------------------
+  -- Construction.
+  -- -----------------------------------------------------------------
+
+  -- UTC itself: zero seconds.
+  offset-utc :: Offset
+  offset-utc = MkOffset 0
+
+  -- -25:59:59 and +25:59:59.
+  min-offset :: Offset
+  min-offset = MkOffset (-93599)
+
+  max-offset :: Offset
+  max-offset = MkOffset 93599
+
+  -- `None` outside -93599..=93599.
+  offset-from-seconds :: I64 -> Option Offset
+  offset-from-seconds s =
+    if lt-i64 s (-93599) then None
+    else if gt-i64 s 93599 then None
+    else Some (MkOffset s)
+
+  -- Total over the refined range, so a literal needs no `Option`.
+  offset-of-seconds :: (s :: InRange (-93599) 93599 I64) -> Offset
+  offset-of-seconds s = MkOffset s
+
+  -- Whole hours. 25 * 3600 = 90000, inside the range, so the wrapping
+  -- product is exact and in range.
+  offset-of-hours :: (h :: InRange (-25) 25 I64) -> Offset
+  offset-of-hours h = MkOffset (wrapping-mul-i64 h 3600)
+
+  -- Sign and magnitude components: `negative` then hours, minutes and
+  -- seconds. `None` unless hours is 0..=25 and minutes and seconds are
+  -- 0..=59. The sum is at most 25 * 3600 + 59 * 60 + 59 = 93599.
+  offset-from-hms :: Bool -> I64 -> I64 -> I64 -> Option Offset
+  offset-from-hms negative h m s =
+    if lt-i64 h 0 || gt-i64 h 25 || lt-i64 m 0 || gt-i64 m 59 || lt-i64 s 0 || gt-i64 s 59 then None
+    else
+      let mag = wrapping-add-i64 (wrapping-add-i64 (wrapping-mul-i64 h 3600) (wrapping-mul-i64 m 60)) s in
+      if negative then Some (MkOffset (wrapping-neg-i64 mag)) else Some (MkOffset mag)
+
+  -- -----------------------------------------------------------------
+  -- Reading.
+  -- -----------------------------------------------------------------
+
+  offset-to-seconds :: Offset -> I64
+  offset-to-seconds o = case o of
+    MkOffset s -> s
+
+  -- The opposite offset. The range is symmetric, so this is total and
+  -- the negation cannot wrap.
+  offset-negate :: Offset -> Offset
+  offset-negate o = MkOffset (wrapping-neg-i64 (offset-to-seconds o))
+
+  -- West of UTC.
+  offset-is-negative :: Offset -> Bool
+  offset-is-negative o = lt-i64 (offset-to-seconds o) 0
+
+  offset-is-utc :: Offset -> Bool
+  offset-is-utc o = eq-i64 (offset-to-seconds o) 0
+
+  -- The magnitude, 0..=93599.
+  magnitude :: Offset -> I64
+  magnitude o =
+    let s = offset-to-seconds o in
+    if lt-i64 s 0 then wrapping-neg-i64 s else s
+
+  -- The magnitude's whole hours, minutes of the hour and seconds of
+  -- the minute. Each clamp below never fires (the magnitude is at most
+  -- 93599); it exists because machine arithmetic is opaque to the
+  -- refinement checker.
+  offset-hours :: Offset -> InRange 0 25 I64
+  offset-hours o =
+    let h = quot (magnitude o) 3600 in
+    if h < 0 then 0 else if h > 25 then 25 else h
+
+  offset-minutes :: Offset -> InRange 0 59 I64
+  offset-minutes o =
+    let m = quot (rem (magnitude o) 3600) 60 in
+    if m < 0 then 0 else if m > 59 then 59 else m
+
+  offset-seconds :: Offset -> InRange 0 59 I64
+  offset-seconds o =
+    let s = rem (magnitude o) 60 in
+    if s < 0 then 0 else if s > 59 then 59 else s
+
+  -- -----------------------------------------------------------------
+  -- Instant to civil reading and back.
+  -- -----------------------------------------------------------------
+
+  -- The civil reading of `t` at `o`. The Unix seconds are within
+  -- +-3.8e11 and the offset within +-93599, so the sum cannot wrap.
+  -- The timestamp range (T3) is the civil range pulled in by 93599
+  -- seconds at each end, so the sum always names a second of a year in
+  -- -9999..=9999 and the `None` arm is unreachable; if it were ever
+  -- taken (a change to either range), the answer is the nearest end of
+  -- the civil range rather than a fault.
+  offset-timestamp-to-datetime :: Offset -> Timestamp -> DateTime
+  offset-timestamp-to-datetime o t = case timestamp-to-unix-seconds-and-nanos t of
+    (secs, nanos) ->
+      let local = wrapping-add-i64 secs (offset-to-seconds o) in
+      case DT.from-epoch-seconds-nanos-utc local nanos of
+        Some x -> x
+        None -> if lt-i64 local 0 then DT.min-datetime else DT.max-datetime
+
+  -- The instant whose civil reading at `o` is `x`: the civil line
+  -- position less the offset. `None` when that instant is outside the
+  -- timestamp range (only within 26 hours of the ends of the civil
+  -- range). The civil seconds are within +-3.8e11, so the subtraction
+  -- cannot wrap.
+  offset-datetime-to-timestamp :: Offset -> DateTime -> Option Timestamp
+  offset-datetime-to-timestamp o x = case DT.to-epoch-seconds-nanos-utc x of
+    (secs, nanos) ->
+      timestamp-from-unix-seconds-and-nanos (wrapping-sub-i64 secs (offset-to-seconds o)) nanos
+
+  -- -----------------------------------------------------------------
+  -- Order: the seconds' order (further east is greater).
+  -- -----------------------------------------------------------------
+
+  offset-cmp :: Offset -> Offset -> Ordering
+  offset-cmp a b =
+    let x = offset-to-seconds a in
+    let y = offset-to-seconds b in
+    if lt-i64 x y then LT else if eq-i64 x y then EQ else GT
+
+  implicit instance Eq_Offset :: Eq Offset where
+    (==) a b = eq-i64 (offset-to-seconds a) (offset-to-seconds b)
+    (/=) a b = ne-i64 (offset-to-seconds a) (offset-to-seconds b)
+
+  implicit instance Ord_Offset :: Ord Offset where
+    (<) a b = lt-i64 (offset-to-seconds a) (offset-to-seconds b)
+    (<=) a b = le-i64 (offset-to-seconds a) (offset-to-seconds b)
+    (>) a b = gt-i64 (offset-to-seconds a) (offset-to-seconds b)
+    (>=) a b = ge-i64 (offset-to-seconds a) (offset-to-seconds b)
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing.
+  -- -----------------------------------------------------------------
+
+  -- Truncated quotient and remainder. The divisor's type excludes zero
+  -- and -1, the only inputs for which the checked operations answer
+  -- `None`, so the `None` arms cannot be taken.
+  quot :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  quot a d = case checked-div-i64 a d of
+    Some q -> q
+    None -> 0
+
+  rem :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  rem a d = case checked-rem-i64 a d of
+    Some r -> r
+    None -> 0

@@ -1,0 +1,278 @@
+-- Lane C: Data.Time.Zoned. Building from an instant and from a civil
+-- reading under each strategy, the cached parts, moving to another
+-- zone, the start of the day (ordinary days, a 25-hour day, days that
+-- begin at 01:00 in America/Santiago, the day after the one
+-- Pacific/Apia skipped, and hand-built zones whose gap or fold
+-- straddles midnight), the order on instants and equality on instant
+-- and zone name.
+module Main where
+  import Data.List
+  import Data.Machine
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Relation.Eq
+  import Data.Time.Timestamp
+  import Data.Time.Weekday (Weekday, Sunday, Thursday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Effect.Time.Zone
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s 0 of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  ts :: I64 -> Timestamp
+  ts s = case timestamp-from-unix-seconds s of
+    None -> timestamp-epoch
+    Some t -> t
+
+  off :: I64 -> Offset
+  off s = case offset-from-seconds s of
+    None -> offset-utc
+    Some o -> o
+
+  -- The INVARIANT: the cached offset and reading are the zone's for
+  -- the instant.
+  coherent :: Zoned -> Bool
+  coherent x =
+    let z = zoned-time-zone x in
+    let t = zoned-timestamp x in
+    zoned-offset x == zone-offset-at z t && zoned-datetime x == zone-to-datetime z t
+
+  -- A zoned value at this Unix second, offset and civil reading.
+  is :: Zoned -> I64 -> I64 -> DateTime -> Bool
+  is x secs offset reading =
+    timestamp-to-unix-seconds (zoned-timestamp x) == secs
+    && offset-to-seconds (zoned-offset x) == offset
+    && zoned-datetime x == reading && coherent x
+
+  ok-is :: Result AmbiguityError Zoned -> I64 -> I64 -> DateTime -> Bool
+  ok-is r secs offset reading = case r of
+    Err _ -> False
+    Ok x -> is x secs offset reading
+
+  -- 0 accepted, 1 rejected gap, 2 rejected fold, 3 out of range.
+  err-code :: Result AmbiguityError Zoned -> I64
+  err-code r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      RejectedGap _ _ -> 1
+      RejectedFold _ _ -> 2
+      AmbiguityOutOfRange -> 3
+
+  some-is :: Option Zoned -> I64 -> I64 -> DateTime -> Bool
+  some-is o secs offset reading = case o of
+    None -> False
+    Some x -> is x secs offset reading
+
+  ord-code :: Ordering -> I64
+  ord-code o = case o of
+    LT -> -1
+    EQ -> 0
+    GT -> 1
+
+  -- 1: an instant read in a zone, and its parts.
+  check-from-timestamp :: TimeZone -> Int
+  check-from-timestamp ny =
+    let x = zoned-from-timestamp ny (ts 1793572200) in
+    let n = case timestamp-from-unix-seconds-and-nanos 1793572200 123456789 of
+          Some t -> zoned-from-timestamp ny t
+          None -> x in
+    if is x 1793572200 (-18000) (at 2026 11 1 17 30 0)
+       && zoned-timestamp x == ts 1793572200
+       && zone-name (zoned-time-zone x) == "America/New_York"
+       && zoned-year x == 2026 && zoned-month x == 11 && zoned-day x == 1
+       && zoned-hour x == 17 && zoned-minute x == 30 && zoned-second x == 0
+       && zoned-subsec-nanosecond x == 0 && zoned-weekday x == Sunday
+       && zoned-date x == D.date-of 2026 11 1
+       && zoned-time-of-day x == T.time-of-day 17 30 0 0
+       && zoned-abbreviation x == "EST" && not (zoned-is-dst x)
+       && offset-info-abbreviation (zoned-info x) == "EST"
+       && zoned-subsec-nanosecond n == 123456789 && zoned-second n == 0 && coherent n
+       && zoned-abbreviation (zoned-from-timestamp ny (ts 1783572200)) == "EDT"
+       && zoned-is-dst (zoned-from-timestamp ny (ts 1783572200))
+       && is (zoned-from-timestamp zone-utc timestamp-epoch) 0 0 (at 1970 1 1 0 0 0)
+       && zoned-weekday (zoned-from-timestamp zone-utc timestamp-epoch) == Thursday
+       && coherent (zoned-from-timestamp ny min-timestamp)
+       && coherent (zoned-from-timestamp ny max-timestamp)
+      then 0 else 1
+
+  -- 2: a civil reading in a zone under each strategy. In the gap the
+  -- result reads as the shifted time, not the argument.
+  check-from-datetime :: TimeZone -> Int
+  check-from-datetime ny =
+    let plain = at 2026 11 1 17 30 0 in
+    let f = at 2026 11 1 1 30 0 in
+    let g = at 2026 3 8 2 30 0 in
+    if ok-is (zoned-from-datetime Reject ny plain) 1793572200 (-18000) plain
+       && ok-is (zoned-from-datetime Compatible ny f) 1793511000 (-14400) f
+       && ok-is (zoned-from-datetime Earlier ny f) 1793511000 (-14400) f
+       && ok-is (zoned-from-datetime Later ny f) 1793514600 (-18000) f
+       && err-code (zoned-from-datetime Reject ny f) == 2
+       && ok-is (zoned-from-datetime Compatible ny g) 1772955000 (-14400) (at 2026 3 8 3 30 0)
+       && ok-is (zoned-from-datetime Later ny g) 1772955000 (-14400) (at 2026 3 8 3 30 0)
+       && ok-is (zoned-from-datetime Earlier ny g) 1772951400 (-18000) (at 2026 3 8 1 30 0)
+       && err-code (zoned-from-datetime Reject ny g) == 1
+       && ok-is (zoned-from-datetime-compatible ny f) 1793511000 (-14400) f
+       && ok-is (zoned-from-datetime-earlier ny g) 1772951400 (-18000) (at 2026 3 8 1 30 0)
+       && ok-is (zoned-from-datetime-later ny f) 1793514600 (-18000) f
+       && err-code (zoned-from-datetime-reject ny g) == 1
+       && err-code (zoned-from-datetime-reject ny f) == 2
+       && err-code (zoned-from-datetime-reject ny plain) == 0
+       && err-code (zoned-from-datetime Compatible zone-utc DT.min-datetime) == 3
+       && err-code (zoned-from-datetime Compatible zone-utc DT.max-datetime) == 3
+      then 0 else 2
+
+  -- 4: the same instant in another zone; the order is on instants,
+  -- equality on the instant and the zone's name.
+  check-with-zone :: TimeZone -> TimeZone -> Int
+  check-with-zone ny ams =
+    let x = zoned-from-timestamp ny (ts 1793572200) in
+    let y = zoned-with-time-zone ams x in
+    let later = zoned-from-timestamp ams (ts 1793572201) in
+    if is y 1793572200 3600 (at 2026 11 1 23 30 0)
+       && zone-name (zoned-time-zone y) == "Europe/Amsterdam"
+       && is (zoned-with-time-zone (zone-fixed (off 19800)) x) 1793572200 19800 (at 2026 11 2 4 0 0)
+       && is (zoned-with-time-zone zone-utc x) 1793572200 0 (at 2026 11 1 22 30 0)
+       && is (zoned-with-time-zone ny y) 1793572200 (-18000) (at 2026 11 1 17 30 0)
+       && ord-code (zoned-cmp x y) == 0
+       && ord-code (zoned-cmp x later) == -1
+       && ord-code (zoned-cmp later x) == 1
+       && x == x && x == zoned-with-time-zone ny y
+       && x /= y && not (x == y)
+       && y /= later && not (y == later)
+       && not (x /= zoned-from-timestamp ny (ts 1793572200))
+      then 0 else 4
+
+  day-length :: Option Zoned -> Option Zoned -> I64
+  day-length a b = case a of
+    None -> -1
+    Some x -> case b of
+      None -> -1
+      Some y -> wrapping-sub-i64 (timestamp-to-unix-seconds (zoned-timestamp y)) (timestamp-to-unix-seconds (zoned-timestamp x))
+
+  -- 8: the start of the day in New York: midnight; and the day the
+  -- clocks go back is 25 hours long, the day they go forward 23.
+  check-start-of-day :: TimeZone -> Int
+  check-start-of-day ny =
+    let evening = zoned-from-timestamp ny (ts 1793572200) in
+    let next = zoned-from-timestamp ny (ts 1793600000) in
+    let spring = zoned-from-timestamp ny (ts 1772955000) in
+    let after = zoned-from-timestamp ny (ts 1773040000) in
+    if some-is (zoned-start-of-day evening) 1793505600 (-14400) (at 2026 11 1 0 0 0)
+       && some-is (zoned-start-of-day next) 1793595600 (-18000) (at 2026 11 2 0 0 0)
+       && day-length (zoned-start-of-day evening) (zoned-start-of-day next) == 90000
+       && some-is (zoned-start-of-day spring) 1772946000 (-18000) (at 2026 3 8 0 0 0)
+       && day-length (zoned-start-of-day spring) (zoned-start-of-day after) == 82800
+       && some-is (zoned-start-of-day (zoned-from-timestamp ny (ts 1793505600))) 1793505600 (-14400) (at 2026 11 1 0 0 0)
+       && some-is (zoned-start-of-day (zoned-from-timestamp ny (ts 1793505599))) 1793419200 (-14400) (at 2026 10 31 0 0 0)
+       && some-is (zoned-start-of-day (zoned-from-timestamp zone-utc (ts 18000))) 0 0 (at 1970 1 1 0 0 0)
+      then 0 else 8
+
+  -- 16: Santiago. On 2026-09-06 midnight was skipped, so the day
+  -- starts at 01:00; the day before a fold at 24:00 starts normally
+  -- and is 25 hours long.
+  check-santiago :: TimeZone -> Int
+  check-santiago z =
+    let gap-day = zoned-from-timestamp z (ts 1788706800) in
+    let fold-day = zoned-from-timestamp z (ts 1775314800) in
+    let after-fold = zoned-from-timestamp z (ts 1775404800) in
+    if is gap-day 1788706800 (-10800) (at 2026 9 6 12 0 0)
+       && some-is (zoned-start-of-day gap-day) 1788667200 (-10800) (at 2026 9 6 1 0 0)
+       && some-is (zoned-start-of-day (zoned-from-timestamp z (ts 1788667200))) 1788667200 (-10800) (at 2026 9 6 1 0 0)
+       && some-is (zoned-start-of-day (zoned-from-timestamp z (ts 1788667199))) 1788580800 (-14400) (at 2026 9 5 0 0 0)
+       && some-is (zoned-start-of-day (zoned-from-timestamp z (ts 1788750000))) 1788750000 (-10800) (at 2026 9 7 0 0 0)
+       && some-is (zoned-start-of-day fold-day) 1775271600 (-10800) (at 2026 4 4 0 0 0)
+       && some-is (zoned-start-of-day after-fold) 1775361600 (-14400) (at 2026 4 5 0 0 0)
+       && day-length (zoned-start-of-day fold-day) (zoned-start-of-day after-fold) == 90000
+      then 0 else 16
+
+  -- 32: Apia. The day after 2011-12-29 is 2011-12-31; each starts at
+  -- its own midnight, 24 hours apart, though the dates differ by two.
+  check-apia :: TimeZone -> Int
+  check-apia z =
+    let before = zoned-from-timestamp z (ts 1325196000) in
+    let after = zoned-from-timestamp z (ts 1325282400) in
+    if is before 1325196000 (-36000) (at 2011 12 29 12 0 0)
+       && is after 1325282400 50400 (at 2011 12 31 12 0 0)
+       && some-is (zoned-start-of-day before) 1325152800 (-36000) (at 2011 12 29 0 0 0)
+       && some-is (zoned-start-of-day after) 1325239200 50400 (at 2011 12 31 0 0 0)
+       && day-length (zoned-start-of-day before) (zoned-start-of-day after) == 86400
+       && ok-is (zoned-from-datetime Compatible z (at 2011 12 30 12 0 0)) 1325282400 50400 (at 2011 12 31 12 0 0)
+       && ok-is (zoned-from-datetime Earlier z (at 2011 12 30 12 0 0)) 1325196000 (-36000) (at 2011 12 29 12 0 0)
+       && err-code (zoned-from-datetime Reject z (at 2011 12 30 12 0 0)) == 1
+       && is (zoned-from-timestamp z (ts 1325239199)) 1325239199 (-36000) (at 2011 12 29 23 59 59)
+       && is (zoned-from-timestamp z (ts 1325239200)) 1325239200 50400 (at 2011 12 31 0 0 0)
+      then 0 else 32
+
+  -- UTC until 2026-06-09T23:30Z, then +01:00: the clocks jump from
+  -- 23:30 to 00:30, so 2026-06-10 starts at 00:30.
+  straddle-gap :: Result ZoneTableError TimeZone
+  straddle-gap = zone-from-table "Test/GapOverMidnight" (Cons 1781047800 Nil) (Cons 1 Nil) (Cons (offset-info offset-utc False "A") (Cons (offset-info (off 3600) True "B") Nil)) None
+
+  -- +01:00 until 2026-06-09T23:30Z (00:30 on the 10th), then UTC: the
+  -- clocks fall back to 23:30 on the 9th, and midnight comes twice.
+  straddle-fold :: Result ZoneTableError TimeZone
+  straddle-fold = zone-from-table "Test/FoldOverMidnight" (Cons 1781047800 Nil) (Cons 1 Nil) (Cons (offset-info (off 3600) True "B") (Cons (offset-info offset-utc False "A") Nil)) None
+
+  gap-starts :: TimeZone -> Bool
+  gap-starts z =
+    some-is (zoned-start-of-day (zoned-from-timestamp z (ts 1781067600))) 1781047800 3600 (at 2026 6 10 0 30 0)
+    && some-is (zoned-start-of-day (zoned-from-timestamp z (ts 1781047800))) 1781047800 3600 (at 2026 6 10 0 30 0)
+    && some-is (zoned-start-of-day (zoned-from-timestamp z (ts 1781047799))) 1780963200 0 (at 2026 6 9 0 0 0)
+    && ok-is (zoned-from-datetime Compatible z (at 2026 6 10 0 0 0)) 1781049600 3600 (at 2026 6 10 1 0 0)
+
+  fold-starts :: TimeZone -> Bool
+  fold-starts z =
+    some-is (zoned-start-of-day (zoned-from-timestamp z (ts 1781067600))) 1781046000 3600 (at 2026 6 10 0 0 0)
+    && some-is (zoned-start-of-day (zoned-from-timestamp z (ts 1781006400))) 1780959600 3600 (at 2026 6 9 0 0 0)
+    && is (zoned-from-timestamp z (ts 1781047800)) 1781047800 0 (at 2026 6 9 23 30 0)
+    && some-is (zoned-start-of-day (zoned-from-timestamp z (ts 1781047800))) 1780959600 3600 (at 2026 6 9 0 0 0)
+
+  none :: Option Zoned -> Bool
+  none o = case o of
+    None -> True
+    Some _ -> False
+
+  -- 64: a gap that straddles midnight (the day starts when the gap
+  -- ends, which "compatible" would overshoot), a fold that straddles
+  -- it (the day starts at the first midnight), and the one day whose
+  -- start is before the timestamp range.
+  check-straddle :: Int
+  check-straddle = case straddle-gap of
+    Err _ -> 64
+    Ok g -> case straddle-fold of
+      Err _ -> 64
+      Ok f ->
+        if gap-starts g && fold-starts f
+           && none (zoned-start-of-day (zoned-from-timestamp zone-utc min-timestamp))
+           && not (none (zoned-start-of-day (zoned-from-timestamp zone-utc max-timestamp)))
+          then 0 else 64
+
+  load :: forall r. using (io :: Io r) => String ->{IO r} Result TzLookupError TimeZone
+  load name = tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") name
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case load "America/New_York" of
+      Err _ -> 128
+      Ok ny -> case load "Europe/Amsterdam" of
+        Err _ -> 128
+        Ok ams -> case load "America/Santiago" of
+          Err _ -> 128
+          Ok santiago -> case load "Pacific/Apia" of
+            Err _ -> 128
+            Ok apia -> check-from-timestamp ny + check-from-datetime ny
+              + check-with-zone ny ams + check-start-of-day ny
+              + check-santiago santiago + check-apia apia + check-straddle

@@ -1,0 +1,223 @@
+-- Lane E: Text.Time.Strtime, flags, widths and the conversions with
+-- modifiers. Every flag (`-` `_` `0` `^` `#`) on numbers and on text,
+-- widths on both, the fraction forms (`%f`, `%Nf`, `%.f`, `%.Nf`), the
+-- offset forms (`%z`, `%:z`, `%::z`) for +05:30, -03:30 and offsets
+-- with seconds, `%Z`, `%Q`, `%s`, and the missing-field refusals.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Strtime
+  import Data.Time.Weekday (Weekday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Timestamp
+
+  ymd :: I64 -> I64 -> I64 -> Date
+  ymd y m d = case D.date y m d of
+    None -> D.min-date
+    Some x -> x
+
+  hmsn :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  hmsn h m s ns = case T.time-of-day-checked h m s ns of
+    None -> T.midnight
+    Some t -> t
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = DT.datetime (ymd y mo d) (hmsn h mi s ns)
+
+  -- A refusal as a number: constructor * 1000000 + position * 1000 +
+  -- conversion byte (0 where the constructor has none).
+  code :: StrtimeError -> I64
+  code e = case e of
+    StrtimeUnknownConversion p c -> wrapping-add-i64 1000000 (wrapping-add-i64 (wrapping-mul-i64 p 1000) c)
+    StrtimeDanglingPercent p -> wrapping-add-i64 2000000 (wrapping-mul-i64 p 1000)
+    StrtimeWidthTooLarge p -> wrapping-add-i64 3000000 (wrapping-mul-i64 p 1000)
+    StrtimeModifierNotAllowed p -> wrapping-add-i64 4000000 (wrapping-mul-i64 p 1000)
+    StrtimeMissingField c -> wrapping-add-i64 5000000 c
+    StrtimeUnexpectedEnd p -> wrapping-add-i64 6000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedDigit p -> wrapping-add-i64 7000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedName p -> wrapping-add-i64 8000000 (wrapping-mul-i64 p 1000)
+    StrtimeExpectedOffset p -> wrapping-add-i64 9000000 (wrapping-mul-i64 p 1000)
+    StrtimeLiteralMismatch p -> wrapping-add-i64 10000000 (wrapping-mul-i64 p 1000)
+    StrtimeFieldOutOfRange p c -> wrapping-add-i64 11000000 (wrapping-add-i64 (wrapping-mul-i64 p 1000) c)
+    StrtimeTrailingInput p -> wrapping-add-i64 12000000 (wrapping-mul-i64 p 1000)
+    StrtimeZoneAbbreviationNotParsed p -> wrapping-add-i64 13000000 (wrapping-mul-i64 p 1000)
+    StrtimeMissingYear -> 14000000
+    StrtimeMissingMonth -> 15000000
+    StrtimeMissingDay -> 16000000
+    StrtimeMissingHour -> 17000000
+    StrtimeMissingMeridiem -> 18000000
+    StrtimeMissingOffset -> 19000000
+    StrtimeInvalidDate -> 20000000
+    StrtimeDateMismatch -> 21000000
+    StrtimeWeekdayMismatch -> 22000000
+    StrtimeDayOfYearMismatch -> 23000000
+    StrtimeIsoWeekMismatch -> 24000000
+    StrtimeWeekNumberMismatch -> 25000000
+    StrtimeHourMismatch -> 26000000
+    StrtimeTimestampOutOfRange -> 27000000
+
+  -- `strftime f b` is `Ok expected`.
+  fb :: String -> BrokenDown -> String -> Bool
+  fb f b expected = case strftime f b of
+    Err _ -> False
+    Ok s -> s == expected
+
+  fd :: String -> Date -> String -> Bool
+  fd f d expected = fb f (broken-down-from-date d) expected
+
+  ft :: String -> TimeOfDay -> String -> Bool
+  ft f t expected = fb f (broken-down-from-time t) expected
+
+  fx :: String -> DateTime -> String -> Bool
+  fx f x expected = fb f (broken-down-from-datetime x) expected
+
+  -- The refusal of `strftime f b`; -1 for `Ok`.
+  fe :: String -> BrokenDown -> I64
+  fe f b = case strftime f b of
+    Ok _ -> -1
+    Err e -> code e
+
+  -- The refusal of `strptime f s`; -1 for `Ok`.
+  pe :: String -> String -> I64
+  pe f s = case strptime f s of
+    Ok _ -> -1
+    Err e -> code e
+
+  is :: Option I64 -> I64 -> Bool
+  is o v = case o of
+    None -> False
+    Some x -> x == v
+
+  none :: Option I64 -> Bool
+  none o = case o of
+    None -> True
+    Some _ -> False
+
+  pd :: String -> String -> Date -> Bool
+  pd f s d = case date-strptime f s of
+    Err _ -> False
+    Ok x -> x == d
+
+  pt :: String -> String -> TimeOfDay -> Bool
+  pt f s t = case time-strptime f s of
+    Err _ -> False
+    Ok x -> x == t
+
+  px :: String -> String -> DateTime -> Bool
+  px f s x = case datetime-strptime f s of
+    Err _ -> False
+    Ok y -> y == x
+
+  check-number-flags :: Int
+  check-number-flags =
+    let x = at 2024 2 9 4 5 6 0 in
+    if fx "%-d %-m %-H %-M %-S %-j" x "9 2 4 5 6 40" && fx "%_d|%_m|%_H|%_j" x " 9| 2| 4| 40"
+       && fx "%0e|%0d|%0u" x "09|09|5" && fx "%-e|%_e|%e" x "9| 9| 9"
+       && fx "%-Y %_Y %0Y" (at 44 1 1 0 0 0 0) "44   44 0044"
+       && fx "%-Y|%_Y" (at (-44) 1 1 0 0 0 0) "-44|  -44"
+       && fx "%^d %#d %^Y" x "09 09 2024"
+    then 0 else 1
+
+  check-number-widths :: Int
+  check-number-widths =
+    let x = at 2024 2 9 4 5 6 0 in
+    if fx "%5d|%1d|%3m|%6Y|%2Y" x "00009|9|002|002024|2024"
+       && fx "%_5d|%_1d|%_6Y" x "    9|9|  2024" && fx "%-5d|%-6Y" x "9|2024"
+       && fx "%05d|%010j" x "00009|0000000040" && fx "%3u|%_3u|%-3u|%u" x "005|  5|5|5"
+       && fx "%6Y" (at (-44) 1 1 0 0 0 0) "-000044" && fx "%_6Y" (at (-44) 1 1 0 0 0 0) "    -44"
+       && fx "%255d" x (string-concat (string-repeat 254 "0") "9")
+    then 0 else 2
+
+  check-text-flags :: Int
+  check-text-flags =
+    let x = at 2026 11 13 17 30 0 0 in
+    if fx "%^a %^A %^b %^B" x "FRI FRIDAY NOV NOVEMBER" && fx "%#a %#A %#b %#B" x "FRI FRIDAY NOV NOVEMBER"
+       && fx "%p %^p %#p" x "PM PM pm" && fx "%P %^P %#P" x "pm PM PM"
+       && fx "%5a|%10A|%6b|%12B|%4p" x "  Fri|    Friday|   Nov|    November|  PM"
+       && fx "%-5a|%-10B|%2a|%0a|%_a" x "Fri|November|Fri|Fri|Fri"
+       && fx "%^10A|%#6b" x "    FRIDAY|   NOV"
+    then 0 else 4
+
+  check-fraction :: Int
+  check-fraction =
+    let t = hmsn 1 2 3 123456789 in
+    let h = hmsn 1 2 3 500000000 in
+    let z = hmsn 1 2 3 0 in
+    if ft "%f" t "123456789" && ft "%f" h "5" && ft "%f" z "0" && ft "%f" (hmsn 1 2 3 1000) "000001"
+       && ft "%3f" t "123" && ft "%6f" t "123456" && ft "%9f" t "123456789" && ft "%1f" t "1"
+       && ft "%3f" h "500" && ft "%6f" z "000000" && ft "%9f" h "500000000"
+       && ft "%S%.f" t "03.123456789" && ft "%S%.f" h "03.5" && ft "%S%.f" z "03"
+       && ft "%S%.3f" t "03.123" && ft "%S%.6f" h "03.500000" && ft "%S%.9f" z "03.000000000" && ft "%S%.0f" t "03"
+       && ft "%S%.1f" (hmsn 1 2 3 999999999) "03.9"
+    then 0 else 8
+
+  with-off :: I64 -> BrokenDown
+  with-off off = case timestamp-from-unix-seconds 1793423700 of
+    None -> broken-down-empty
+    Some ts -> case broken-down-from-timestamp-at-offset off ts of
+      None -> broken-down-empty
+      Some b -> b
+
+  check-offsets :: Int
+  check-offsets =
+    if fb "%z|%:z|%::z" (with-off 19800) "+0530|+05:30|+05:30:00" && fb "%z|%:z|%::z" (with-off (-12600)) "-0330|-03:30|-03:30:00"
+       && fb "%z|%:z|%::z" (with-off 0) "+0000|+00:00|+00:00:00" && fb "%z|%:z|%::z" (with-off 1172) "+001932|+00:19:32|+00:19:32"
+       && fb "%z|%:z" (with-off (-1)) "-000001|-00:00:01" && fb "%z|%:z" (with-off 93599) "+255959|+25:59:59"
+       && fb "%z|%:z" (with-off (-93599)) "-255959|-25:59:59"
+       && fb "%F %T %:z" (with-off 19800) "2026-10-31 10:45:00 +05:30" && fb "%F %T %:z" (with-off (-12600)) "2026-10-31 01:45:00 -03:30"
+       && fb "%z" (broken-down-with-offset 3600 broken-down-empty) "+0100"
+    then 0 else 16
+
+  zoned :: BrokenDown
+  zoned = broken-down-with-zone-name "Europe/Amsterdam" (broken-down-with-zone-abbreviation "CET" (with-off 3600))
+
+  check-zones :: Int
+  check-zones =
+    if fb "%Z" zoned "CET" && fb "%^Z|%#Z|%5Z|%-5Z" zoned "CET|cet|  CET|CET"
+       && fb "%Q" zoned "Europe/Amsterdam" && fb "%20Q|%^Q" zoned "    Europe/Amsterdam|Europe/Amsterdam"
+       && fb "%Q" (with-off 19800) "+05:30" && fb "%Q" (with-off (-1172)) "-00:19:32"
+       && fb "%F %T %Z (%Q)" zoned "2026-10-31 06:15:00 CET (Europe/Amsterdam)"
+       && fb "%Z" (broken-down-with-zone-abbreviation "" broken-down-empty) ""
+    then 0 else 32
+
+  check-unix :: Int
+  check-unix =
+    if fb "%s" (with-off 0) "1793423700" && fb "%s" (with-off 19800) "1793423700"
+       && fb "%s" (broken-down-with-offset 0 (broken-down-from-datetime (at 2026 11 13 17 30 0 0))) "1794591000"
+       && fb "%s" (broken-down-with-offset 19800 (broken-down-from-datetime (at 2026 11 13 17 30 0 0))) "1794571200"
+       && fb "%s" (broken-down-with-offset 0 (broken-down-from-datetime (at 1969 12 31 23 59 59 0))) "-1"
+       && fb "%s" (broken-down-with-offset 0 (broken-down-from-datetime (at 1970 1 1 0 0 0 0))) "0"
+       && fb "%s" (broken-down-from-timestamp-utc min-timestamp) "-377705023201"
+       && fb "%s" (broken-down-from-timestamp-utc max-timestamp) "253402207200"
+       && fb "%15s|%_15s|%-15s" (with-off 0) "000001793423700|     1793423700|1793423700"
+       && fb "%s" (broken-down-with-unix-seconds 42 broken-down-empty) "42"
+    then 0 else 64
+
+  -- A conversion whose field the value lacks is refused by name.
+  check-missing :: Int
+  check-missing =
+    let d = broken-down-from-date (ymd 2026 11 13) in
+    let t = broken-down-from-time (hmsn 17 30 0 0) in
+    if fe "%H" d == 5000072 && fe "%F %T" d == 5000072 && fe "%M" d == 5000077 && fe "%S" d == 5000083
+       && fe "%I" d == 5000073 && fe "%p" d == 5000112 && fe "%P" d == 5000080
+       && fe "%Y" t == 5000089 && fe "%m" t == 5000109 && fe "%d" t == 5000100 && fe "%e" t == 5000101
+       && fe "%a" t == 5000097 && fe "%A" t == 5000065 && fe "%b" t == 5000098 && fe "%B" t == 5000066
+       && fe "%j" t == 5000106 && fe "%u" t == 5000117 && fe "%w" t == 5000119 && fe "%G" t == 5000071
+       && fe "%g" t == 5000103 && fe "%V" t == 5000086 && fe "%U" t == 5000085 && fe "%W" t == 5000087
+       && fe "%C" t == 5000067 && fe "%y" t == 5000121
+       && fe "%z" d == 5000122 && fe "%:z" d == 5000122 && fe "%Z" d == 5000090 && fe "%Q" d == 5000081
+       && fe "%s" d == 5000115 && fe "%s" (broken-down-from-datetime (at 2026 11 13 17 30 0 0)) == 5000115
+       && fe "%f" d == -1 && fe "%.f" d == -1 && fe "ok" broken-down-empty == -1
+    then 0 else 128
+
+  main :: Int
+  main = check-number-flags + check-number-widths + check-text-flags + check-fraction + check-offsets + check-zones + check-unix + check-missing
