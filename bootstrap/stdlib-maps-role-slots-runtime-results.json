@@ -1,0 +1,122 @@
+{
+  "kind": "one-bounded-annotated-C839-Region-runtime-unit",
+  "status": "passed",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "provenance_sha256": "c303ec5ab34c80e19c19e659fa34ee35d1d5b73d0e2d9e81a1c9d990c7712251",
+  "source_receipt_sha256": "21b92e326532a11070ca8ac6289fc810f9b779020044a80084d1d2d9cff8d197",
+  "cpu_affinity": [
+    1
+  ],
+  "candidate_selected": false,
+  "production_promoted": false,
+  "native_family_relabelled": false,
+  "historical_interfaces_modified": false,
+  "fresh_start_minimum_bytes": 367001600,
+  "minimum_reserve_bytes": 262144000,
+  "maximum_new_output_bytes": 20971520,
+  "runs": [
+    {
+      "command": [
+        "/workspace/dasl-stdlib-maps-audit/build/maps-role-slots-runtime-a1/consumer"
+      ],
+      "exit": 0,
+      "seconds": 0.002406418992904946,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1531 bytes=57275 peak=3723 header-blocks=1524 header-bytes=56000 immortal=0 freed=1524 live=0\n",
+      "poisoned_free": false,
+      "heap": "32M",
+      "stack": "8M"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-maps-audit/build/maps-role-slots-runtime-a1/consumer"
+      ],
+      "exit": 0,
+      "seconds": 0.0017122509889304638,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1531 bytes=57275 peak=57251 header-blocks=1524 header-bytes=56000 immortal=0 freed=1524 live=0\n",
+      "poisoned_free": true,
+      "heap": "256M",
+      "stack": "8M"
+    }
+  ],
+  "failure_indices": {
+    "101-103": "independent value-NaN and callback-mutation edge cases",
+    "201-207": "independent full-bit IEEE64 multiset observations",
+    "301-303": "mixed IO+Mut source, value and EqualBy callback contracts"
+  },
+  "free_bytes_before": 417722368,
+  "sources": {
+    "Data.Mutable.Map": {
+      "original": "/workspace/dasl-stdlib-maps-audit/build/maps-nominal-region-static/candidate/Data.Mutable.Map.cinch",
+      "sha256": "7085aebe4c10dcd0cf27be6ffc0348a239398b07d54f60cb098722802b244c65"
+    },
+    "Data.Mutable.HashTable": {
+      "original": "/workspace/dasl-stdlib-maps-audit/build/maps-nominal-region-static/common/Data.Mutable.HashTable.cinch",
+      "sha256": "c82a41f07ac8ff0c39af0b184394db0a96a53b8452e0c22fb67c290c5ccdbf4e"
+    },
+    "Data.Mutable.Var": {
+      "original": "/workspace/dasl-stdlib-maps-audit/build/maps-nominal-region-static/common/Data.Mutable.Var.cinch",
+      "sha256": "0fc77c23d78f0fa5eaff95fbe578a88a34b5de0e7a09cb5fbebb97f912bc11ee"
+    },
+    "Data.Mutable.Map.Optional": {
+      "original": "/workspace/dasl-stdlib-maps-audit/compiler/prelude/Data/Mutable/Map/Optional.cinch",
+      "sha256": "7e9b280b6e9d7b0a545479f0ff6c705ecac5ce477608bda3b0c04e644c81620a"
+    },
+    "Data.Mutable.Map.Float": {
+      "original": "/workspace/dasl-stdlib-maps-audit/compiler/prelude/Data/Mutable/Map/Float.cinch",
+      "sha256": "ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a"
+    }
+  },
+  "fixtures": {
+    "MapProbe.Edge": {
+      "original_consumer_sha256": "ac81fb118141e3dc42d120d406bf0a6b9317da062d5731f4a89379d18e276de7",
+      "selected_module_sha256": "48a5dedcb0480889ce0caa5370ddf8e8439bcac279283b0deeebb689b631b8dc",
+      "only_transformation": "Rename Main module and export its existing main entry; every assertion and helper is unchanged."
+    },
+    "MapProbe.IEEE64": {
+      "original_consumer_sha256": "ae7d15d9332bc9d721463a509a56400326c7390c76acfc1b817c961b480e9f1f",
+      "selected_module_sha256": "0bd9c2625d8cde0f1cbf9dcfc9bb5c9b72525012431ee17ea070c1e0ed6396c8",
+      "only_transformation": "Rename Main module and export its existing main entry; every assertion and helper is unchanged."
+    },
+    "MapProbe.Mixed": {
+      "original_consumer_sha256": "ff211c8dea51c6dd5c04fcd28668c0d907b84bbe7a0eabd8dd6ae402b9339c18",
+      "selected_module_sha256": "b60a61def5cc19dd12c4824c4d45d86db3d4eb2f68dafc071bc8f93893955545",
+      "only_transformation": "Rename Main module and export its existing main entry; every assertion and helper is unchanged."
+    }
+  },
+  "entry_sha256": "223e321b8b3493d5913fa81f3bea6ee1e19b5334f8d7b97163cd06b273db9261",
+  "maps-vectors.json": "ea54c9b5518f4ac45d9dfcacd81cb1a6433cd3b4f17ee4070b9886e0d786a047",
+  "maps-edge-vectors.json": "463cb975559bde910c67ef5aeda54d0958cf1eba2aed6f343723660e8b730c47",
+  "compiler_invoked": true,
+  "compile": {
+    "command": [
+      "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+      "build",
+      "/workspace/dasl-stdlib-maps-audit/build/maps-role-slots-runtime-a1/Main.cinch",
+      "-o",
+      "/workspace/dasl-stdlib-maps-audit/build/maps-role-slots-runtime-a1/consumer",
+      "--opt-level",
+      "2",
+      "--runtime-archive",
+      "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a"
+    ],
+    "exit": 0,
+    "seconds": 7.482963104004739,
+    "stdout": "",
+    "stderr": ""
+  },
+  "executable_sha256": "f99e9be008c082090ca5129fc1ab163a4fe16af30e20afb8f46fee292f0d58cd",
+  "llvm_sha256": "a6c77e8a1b4bd010c0235e71aaa893071b9697f4c78b0f9ca482d7c2d58579e6",
+  "output_bytes_after_compile": 10081536,
+  "output_bytes": 10081843,
+  "free_bytes_after": 407429120,
+  "durable_attempt_report": {
+    "path": "build/maps-role-slots-runtime-a1-results.json",
+    "sha256": "37be0c3c0be8dadd5f641add1f001a470cedcbc73040c64e7b52e83ae8a5327e"
+  },
+  "runner_sha256": "aa66792a32d979879c2ac40b0f9ef9ad196d52cb71dcea3ec72736ae8d1458d7",
+  "execution_helper_sha256": "a3069e2d3af33e397bbf1318b34baa1150f3c4013652ecf86bdd6c7f51160934",
+  "scope": "One combined independent edge+IEEE64+mixedIO/Mut unit only; no full800, performance, interface-consumer, Native-family or candidate-selection qualification."
+}
