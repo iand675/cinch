@@ -1,8 +1,9 @@
 # Unqualified map façade draft
 
 This checkpoint contains implementation and fixture work in progress.
-It is **not published library coverage**, has no runtime qualification,
-and must not be integrated as a completed package. Published independent
+It is **not published library coverage** and must not be integrated as a
+completed package. Its partial source/control/IEEE qualification is
+recorded below. Published independent
 audit/reference checkpoints remain separate from this local source draft.
 
 The new modules are `Data.Mutable.Map`, `.Optional` and `.Float`. The five
@@ -90,17 +91,25 @@ bit-exact NaN/zero/clone/copy/delete rows and seven nil/empty observations.
 The published generation receipt explicitly does not qualify the library.
 
 The prepared trace and float templates render these independent values;
-they were generated and Python syntax-checked, but no Cinch consumer was
-linked or executed. The first control build found an invalid selective
-import of builtin type Bytes from its operations module; that fixture
-import is corrected, with retry pending. The separate control has twelve first-failure
+the eight general traces remain unexecuted. The separate control has twelve first-failure
 groups: binding utilities, views/early stop, clear during traversal,
 NaN clone/self-copy, optional absence, growth/overwrite, delete/reinsert
 with immediate slot reuse, nested traversal, explicit colliding policy,
 owned Bytes after source clear, shallow shared mutable values, and a source
 retaining its yield callback after completion. The insertion/absent-source
 session is closed before returning; late yields return False without
-mutating the former destination.
+mutating the former destination. The final control emits/links O2 and
+passes normal32M/8M and poison256M/8M on fa3/c4, both zero leaks. Its earlier
+import/default-literal/scoped-region annotation fixture failures are
+preserved; typed ordinary helpers tie absence and callback state to the
+actual map's region.
+
+Both independent binary32 and binary64 consumers also emit/link O2 and
+pass normal/poison profiles, four zero-leak processes. All fourteen SDK
+observations match complete signaling/quiet NaN/sign/zero key bits,
+multiplicity and clone/copy/delete/self-equality behavior. These are real
+runtime results, not a claim that all800 general steps or Native map
+runtime gates have passed. Reports are under `build/maps-region-safe`.
 Further value-NaN/callback mutation/error-prefix controls, source-absent
 interfaces, capacity models and public benchmark gates remain required.
 
@@ -109,7 +118,8 @@ identities. It separates source-only checks from actual LLVM/link/runtime
 gates; normal32M/8M and separate poison256M/8M must both report zero leaks.
 Native linking explicitly selects O0 or O2 and its exact matched provider
 object/runtime; Rust whole-source linking uses only its explicit archive.
-Source-only modes passed; emission/link/runtime modes remain unqualified.
+Source-only and the stated control/IEEE modes passed; general traces and
+Native emission/link/runtime modes remain unqualified.
 
 Ring selected9c and unselected storage candidate0dd remain immutable.
 Work switches back to bounded focused Ring qualification when the exact

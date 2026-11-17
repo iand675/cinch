@@ -104,7 +104,7 @@ module Main where
   reinsert-during-visit :: forall r. MutableMap r Nat Nat -> Var r Nat -> Var r Nat -> Nat -> Nat ->{Mut r} Bool
   reinsert-during-visit map calls victim key value =
     let count = var-read calls in
-    let selected = if key == 1 then 2 else 1 in
+    let selected = if key == 1 then (2 :: Nat) else 1 in
     let changed = if count == 0 then
                     let saved = var-write victim selected in
                     case mutable-map-delete map selected of
@@ -198,11 +198,15 @@ module Main where
     let saved = var-write retained yield in
     let accepted = yield 1 10 in ()
 
+  -- | Give the initial retained callback the actual map region through an ordinary typed argument.
+  inactive-yield :: forall r. MutableMap r Nat Nat -> Nat -> Nat ->{Mut r} Bool
+  inactive-yield map key value = let empty = mutable-map-is-empty map in False
+
   -- | A source cannot mutate its former destination through a yield retained past completion.
   closed-source-case :: forall r. Unit ->{Mut r} Bool
   closed-source-case unit =
-    let retained = var-new ((\key value -> False) :: Nat -> Nat ->{Mut r} Bool) in
     let map = mutable-map-new () in
+    let retained = var-new (inactive-yield map) in
     let inserted = succeeded (mutable-map-insert map (retain-yield retained)) in
     let yield = var-read retained in
     let late = yield 2 20 in
@@ -233,11 +237,15 @@ module Main where
         let copied = succeeded (mutable-map-copy map map) in
         first && second && missing && unequal && deleted && cloned && copied && mutable-map-size map == 4 && mutable-map-size copy == 2
 
+  -- | Tie an absent optional carrier to an existing map's actual region and binding types.
+  absent-like :: forall r. MutableMap r Nat Nat -> Option (MutableMap r Nat Nat)
+  absent-like map = None
+
   -- | Verify optional absence normalization and refusal only when a binding is actually supplied.
   optional-case :: forall r. Unit ->{Mut r} Bool
   optional-case unit =
-    let absent = (None :: Option (MutableMap r Nat Nat)) in
     let empty = mutable-map-new () in
+    let absent = absent-like empty in
     let equal = optional-map-equal absent (Some empty) in
     let inserted = succeeded (optional-map-insert absent (map-source-from-list Nil)) in
     let refused = case optional-map-insert absent (map-source-from-list [(1,2)]) of Err MapMissingDestination -> True; other -> False in

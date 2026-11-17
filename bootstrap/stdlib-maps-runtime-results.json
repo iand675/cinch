@@ -1,0 +1,40 @@
+{
+  "kind": "partial-map-runtime-qualification",
+  "package_complete": false,
+  "compiler_sha256": "fa3ea3c9be1b74be455cb18ce0f084ef31aafb82e39ccc8fd660f653719531d2",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "opt_level": "2",
+  "sources": {
+    "Data.Mutable.Map": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+    "Data.Mutable.Map.Optional": "7e9b280b6e9d7b0a545479f0ff6c705ecac5ce477608bda3b0c04e644c81620a",
+    "Data.Mutable.Map.Float": "ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a",
+    "Data.Mutable.HashTable": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+    "Data.Mutable.LinkedList": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
+    "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+  },
+  "control_groups": 12,
+  "independent_float_rows": 14,
+  "profiles": [
+    {
+      "heap": "32M",
+      "stack": "8M",
+      "poison": false
+    },
+    {
+      "heap": "256M",
+      "stack": "8M",
+      "poison": true
+    }
+  ],
+  "completed_zero_leak_processes": 6,
+  "reports": {
+    "build/maps-region-safe/control-region-tied-results.json": "e35493fdf8a7971d3a5df5597e047d0e9fed2f91fdc00c53d60e5a8c7d9b2a58",
+    "build/maps-region-safe/ieee-results.json": "34f0965d61dd529ec763f97deab63b39827cfa13ce358647059235cafdfdb08f"
+  },
+  "remaining": [
+    "800 independent general steps",
+    "Native source/emission/runtime qualification",
+    "Source-absent interface transport",
+    "Public pipeline benchmarks and allocation/assembly review"
+  ]
+}
