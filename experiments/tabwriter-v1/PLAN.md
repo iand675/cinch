@@ -1,6 +1,6 @@
 # Tabwriter package plan
 
-Status: independent partial implementation. The original SDK protocol capture and checked configuration receipts remain in `OBSERVATIONS.md` and `reference-gates.json`. `CORE-CANDIDATE.md` and `candidate-v2` record concrete parser/layout/writer source, all 549 complete-input cases and twelve streaming cases on their explicit compiler/runtime tuple. Full streaming/adaptation, Native, ownership, portability and public performance gates remain open. This directory is separate from the frozen buffered and cycle experiments; it adds no provider, inventory, website or production collector change.
+Status: independent partial implementation. The original SDK protocol capture and checked configuration receipts remain in `OBSERVATIONS.md` and `reference-gates.json`. `CORE-CANDIDATE.md` and `candidate-v3` record concrete parser/layout/writer source, all 549 complete-input cases and 51 ordinary streaming cases on their explicit compiler/runtime tuple. Adaptation, Native, ownership, portability and public performance gates remain open. This directory is separate from the frozen buffered and cycle experiments; it adds no provider, inventory, website or production collector change.
 
 ## Actual declaration map
 

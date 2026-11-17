@@ -12,10 +12,10 @@ The writer stores an advanced output after every callback, including errors. Ori
 
 ## Qualified evidence
 
-`candidate-v2/gates.json` and the SDK-free `verify_candidate.py` bind:
+`candidate-v3/gates.json` and the SDK-free `verify_candidate.py` bind:
 
 - All **549** complete-input literal reference cases, checking both public byte output and every underlying offer, including empty offers. All 23 source/runtime units pass the exact 330/d91 compiler/runtime pair in normal 32 MiB and poisoned 256 MiB heaps with an 8 MiB managed stack, empty stdout and zero live/leaked objects.
-- The first **twelve** ordinary streaming cases. They check each operation's consumed input and public error family, cumulative underlying calls, signed reports, physically accepted prefixes, retained offer buffers and advanced capability epochs. Both memory profiles pass. The earlier six-case receipt remains unchanged in `candidate-v1`.
+- All **51** ordinary streaming cases. They check each operation's consumed input and public error family, cumulative underlying calls, signed reports, physically accepted prefixes, retained offer buffers and advanced capability epochs. Both memory profiles pass. The earlier six- and twelve-case receipts remain unchanged in `candidate-v1` and `candidate-v2`.
 - Genuine defining metadata records `TabOutput` and `TabWriter` with an explicit Region parameter and ordinary error-type parameter, preserves combined effects on write/flush/dispatch and excludes writer/output/storage constructors from the public value surface.
 
 Earlier configuration, split-scalar, escape/HTML, input/export-alias and writer reset/shared-handle controls also pass their respective exact source epochs. Their receipts remain plain in the owned build tree. The preserved earlier failures include layout syntax, a fixture byte-index obligation, explicit refinement widening and the SDK observer's cache-growth budget failure. None is relabeled as a compiler or runtime success.
@@ -24,7 +24,7 @@ All completed successful ELF/IR pairs have verified durable recovery archives. T
 
 ## Remaining full-package work
 
-Thirty-nine ordinary streaming cases remain from the 51-case generated protocol set, covering later failure checkpoints, explicit-flush recovery, empty/short output calls, malformed signed reports, reset aliases, distinct new handles and bounded huge-width output.
+All 51 ordinary streaming cases now cover later failure checkpoints, explicit-flush recovery, empty/short output calls, malformed signed reports, reset aliases, distinct new handles and bounded huge-width output. The twelve adaptation controls and the independent gates below remain open.
 
 The twelve original panic/uninitialized cases require explicit native controls rather than invented equivalent returns:
 
