@@ -69,6 +69,8 @@ mod nr {
     pub(super) const READ: i64 = 0;
     pub(super) const WRITE: i64 = 1;
     pub(super) const CLOSE: i64 = 3;
+    /// Blocking kernel cryptographic entropy (`getrandom`).
+    pub(super) const GETRANDOM: i64 = 318;
     pub(super) const MMAP: i64 = 9;
     pub(super) const MPROTECT: i64 = 10;
     pub(super) const MUNMAP: i64 = 11;
@@ -87,6 +89,8 @@ mod nr {
     pub(super) const IOCTL: i64 = 29;
     pub(super) const OPENAT: i64 = 56;
     pub(super) const CLOSE: i64 = 57;
+    /// Blocking kernel cryptographic entropy (`getrandom`).
+    pub(super) const GETRANDOM: i64 = 278;
     pub(super) const READ: i64 = 63;
     pub(super) const WRITE: i64 = 64;
     pub(super) const EXIT_GROUP: i64 = 94;
@@ -107,6 +111,8 @@ mod nr {
     pub(super) const READ: i64 = 3;
     pub(super) const WRITE: i64 = 4;
     pub(super) const CLOSE: i64 = 6;
+    /// Blocking kernel cryptographic entropy (`getrandom`).
+    pub(super) const GETRANDOM: i64 = 355;
     pub(super) const MMAP: i64 = 192;
     pub(super) const MPROTECT: i64 = 125;
     pub(super) const MUNMAP: i64 = 91;
@@ -256,6 +262,17 @@ pub(crate) fn write(fd: i64, buf: &[u8]) -> (i64, i64) {
 
 pub(crate) fn read(fd: i64, buf: &mut [u8]) -> (i64, i64) {
     let raw = unsafe { syscall(nr::READ, fd, buf.as_mut_ptr() as i64, buf.len() as i64, 0, 0, 0) };
+    split(raw)
+}
+
+/// Fill up to `buf.len()` bytes using the initialized kernel generator.
+/// Flags are zero: block for initialization, with no insecure entropy mode.
+pub(crate) fn getrandom(buf: &mut [u8]) -> (i64, i64) {
+    let raw = unsafe {
+        // SAFETY: the mutable slice is valid for the exact requested length;
+        // the kernel writes only within that region before the call returns.
+        syscall(nr::GETRANDOM, buf.as_mut_ptr() as i64, buf.len() as i64, 0, 0, 0, 0)
+    };
     split(raw)
 }
 
