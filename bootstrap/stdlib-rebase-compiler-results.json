@@ -148,6 +148,12 @@
       "passed": 10,
       "log": "bootstrap/repros/stdlib-rebase-gates/json-value.log",
       "log_sha256": "21eb37e2f52c36422243c7a9c2db959b5dfa6f9438db6e66dd4a7eb066fa8929"
+    },
+    {
+      "gate": "documented-mvar",
+      "passed": 12,
+      "log": "bootstrap/repros/stdlib-rebase-gates/documented-mvar.log",
+      "log_sha256": "0e2c8ff6be5fce05f7e4a951379367b7fbdccc4e3eb5a63698a7cd84483154e9"
     }
   ],
   "preserved_attempts": [
@@ -368,5 +374,15 @@
     "compiler/prelude/Text/Utf8.cinch": "1cbea5905f313433efbc56e2b91f60ce86cd82c499b342e17601766ab41d4159",
     "compiler/prelude/Text/Yaml.cinch": "2b4ec0c04c4395f8f1b42dd0b2e564ed2453dbc570d827a84fd693f7f1b06589",
     "compiler/prelude/Text/Zlib.cinch": "106c7d309df7a045f78b61737fc4a0a0ff14c821b1fe9f1777284549f042c55d"
+  },
+  "documented_frozen_compiler": {
+    "path": "build/stdlib-rebased-main-frozen",
+    "provenance_sha256": "faa52ca9cd87d6cafe42476b5af974b76f76508bb0c39ebdf4e09dda7e96dfab",
+    "source_checkpoint": "64b1a4980f43981bbd03df9559e5fe92538518c7",
+    "compiler_sha256": "bfacd9af23b3a6770da9ecfb55c12547bf38bcd530399fad82ab00022257e1a9",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "runtime_abi": 10,
+    "embedded_module_count": 66,
+    "public_module_count": 190
   }
 }

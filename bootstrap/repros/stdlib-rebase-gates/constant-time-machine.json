@@ -1,0 +1,205 @@
+{
+  "compiler_sha256": "bfacd9af23b3a6770da9ecfb55c12547bf38bcd530399fad82ab00022257e1a9",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source_llvm_sha256": "8ed78d45065f9cb176d3bf53d71858bbb30d33e2d3baddf057460620ca14f3f4",
+  "compiler_stack_bytes": 67108864,
+  "scope": "Concrete host SSA/assembly audit and guarded private workers; foreign targets are object emission, not execution or timing proof.",
+  "commands": [
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "-S",
+        "-emit-llvm",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/consumer.ll",
+        "-o",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/optimized.ll"
+      ],
+      "label": "optimized-ssa",
+      "exit": 0,
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n"
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "-S",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/consumer.ll",
+        "-o",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/optimized.s"
+      ],
+      "label": "optimized-assembly",
+      "exit": 0,
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n"
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/consumer.ll",
+        "/workspace/dasl-stdlib-io/compiler/tests/fixtures/constant-time-guard.c",
+        "/workspace/dasl-stdlib-io/build/stdlib-rebased-main-frozen/libcinchruntime.a",
+        "-Wl,--wrap=main",
+        "-lpthread",
+        "-ldl",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/guard-o0"
+      ],
+      "label": "guard-link-o0",
+      "exit": 0,
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /tmp/consumer-0f0eba.o: warning: relocation against `Data.String.Eq_String.==.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/guard-o0"
+      ],
+      "label": "guard-run-o0",
+      "exit": 0,
+      "stdout": "133644 guard observations passed\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/consumer.ll",
+        "/workspace/dasl-stdlib-io/compiler/tests/fixtures/constant-time-guard.c",
+        "/workspace/dasl-stdlib-io/build/stdlib-rebased-main-frozen/libcinchruntime.a",
+        "-Wl,--wrap=main",
+        "-lpthread",
+        "-ldl",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/guard-o2"
+      ],
+      "label": "guard-link-o2",
+      "exit": 0,
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /tmp/consumer-e2f179.o: warning: relocation against `Data.String.Eq_String.==.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/guard-o2"
+      ],
+      "label": "guard-run-o2",
+      "exit": 0,
+      "stdout": "133644 guard observations passed\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-rebased-main-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/wasm32-unknown-unknown/Main.cinch",
+        "--target",
+        "wasm32-unknown-unknown",
+        "-o",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/wasm32-unknown-unknown/consumer.ll"
+      ],
+      "label": "wasm32-unknown-unknown-emit",
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-target",
+        "wasm32-unknown-unknown",
+        "-O2",
+        "-c",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/wasm32-unknown-unknown/consumer.ll",
+        "-o",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/wasm32-unknown-unknown/consumer.o"
+      ],
+      "label": "wasm32-unknown-unknown-object",
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-rebased-main-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/aarch64-unknown-linux-gnu/Main.cinch",
+        "--target",
+        "aarch64-unknown-linux-gnu",
+        "-o",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/aarch64-unknown-linux-gnu/consumer.ll"
+      ],
+      "label": "aarch64-unknown-linux-gnu-emit",
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-target",
+        "aarch64-unknown-linux-gnu",
+        "-O2",
+        "-c",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/aarch64-unknown-linux-gnu/consumer.ll",
+        "-o",
+        "/workspace/dasl-stdlib-io/build/constant-time-rebased-main-functional-v1/machine/aarch64-unknown-linux-gnu/consumer.o"
+      ],
+      "label": "aarch64-unknown-linux-gnu-object",
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "guards": [
+    {
+      "optimization": 0,
+      "executable_sha256": "0286ee50badd12ab875538e004921c5f20180add4c05798bd9603690b84a77cb",
+      "observations": 133644
+    },
+    {
+      "optimization": 2,
+      "executable_sha256": "0b60651ea521403dee7103d31580e923b3f7965e8bf686ac14e224b4dc0b00c5",
+      "observations": 133644
+    }
+  ],
+  "objects": [
+    {
+      "target": "wasm32-unknown-unknown",
+      "llvm_sha256": "692453a10e2d7160b8557cc001e0c3dc66aee7a659dd4304fedda80f77ef04cd",
+      "object_sha256": "8c85b98ed0d84a3fca5cf6e3d0c8ffa50c89e1c420772b6703200a705a33925e"
+    },
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "llvm_sha256": "ccbebbb76ae574987e82908e6d7ba6b389268c17e7f6fd60e208efeaef30778d",
+      "object_sha256": "9a784f99dd3d311e2f6d7e6a803c1334f7615e68219151beaf367b8ce8772810"
+    }
+  ],
+  "traversal_audit": {
+    "difference-blocks": {
+      "public_conditional_branches": 9,
+      "secret_conditional_branches": 0,
+      "secret_address_dependencies": 0
+    },
+    "difference-tail": {
+      "public_conditional_branches": 9,
+      "secret_conditional_branches": 0,
+      "secret_address_dependencies": 0
+    }
+  },
+  "optimized_llvm_sha256": "8c311b9c1b34849cdee8e6a3f68a637606fb02d505ee6f45efc35f254964c85b",
+  "optimized_assembly_sha256": "1f63f2779fa50b7a0401f3e5174ce7f7918e34d772fe8c81d7fa8023bb194dfd",
+  "scalar_audit": {
+    "constant-byte-equal": "straight-line SSA; no branch, call, or memory access",
+    "constant-i32-equal": "straight-line SSA; no branch, call, or memory access",
+    "constant-select": "straight-line SSA; no branch, call, or memory access",
+    "less-or-equal-word": "straight-line SSA; no branch, call, or memory access",
+    "select-word": "straight-line SSA; no branch, call, or memory access",
+    "select-byte": "straight-line SSA; no branch, call, or memory access",
+    "zero-word": "straight-line SSA; no branch, call, or memory access"
+  },
+  "guard_source_sha256": "f900aa9bb357aa378eab662643805515a56e4c47ea9bb2772a51584bfc6f4338",
+  "status": "passed"
+}

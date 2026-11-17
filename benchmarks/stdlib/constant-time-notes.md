@@ -53,3 +53,12 @@ Packed writes currently use the existing checked byte stores. Direct stores in
 pure inline LLVM are excluded by the primitive containment policy. Improving
 that path requires a sound compiler operation with complete bounds, ownership
 and backend support; bypassing the policy is not an optimization.
+
+A separate rebase epoch is retained in
+`constant-time-equality-rebased-main-results.json`. Its matched compiler/runtime
+contains 66 embedded modules, including shared single-place variables. The
+128 normal/poison preflight observations and 280 ordinary-RC timing intervals
+passed; the selected implementation was 1.40–7.40 times faster than the
+preserved initial implementation in that epoch, with zero quota throttling.
+This comparison measures the two implementations under the same rebased
+compiler; it does not isolate the effect of the compiler rebase itself.

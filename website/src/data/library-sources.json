@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "base_manifest_sha256": "e43afe96027d28ed96f7feae39d2d72adc1430d76ab55847ed354cb4ef20e100",
+  "base_manifest_sha256": "7dbf2f6c367b379615e42def4c006fad9f05ec4c752105e07377afd77df5a6cc",
   "modules": [
     {
       "module": "Algebra.Arithmetic",
@@ -768,6 +768,14 @@
       "sha256": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
       "embedded": true,
       "values": 6,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Concurrent.MVar",
+      "path": "compiler/prelude/Effect/Concurrent/MVar.cinch",
+      "sha256": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e",
+      "embedded": true,
+      "values": 14,
       "public_methods": 0
     },
     {

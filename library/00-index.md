@@ -227,6 +227,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Buffered.Core](Effect.Buffered.Core.md) | Ship source | Byte-stream events with signed progress, simultaneous failures, shared advanced continuations and explicit transfer capabilities. |
 | [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md) | Ship source | Initialized opaque continuation cells whose allocation, observation and replacement require their I/O region. |
 | [Effect.Clock](Effect.Clock.md) | Embedded | Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs. |
+| [Effect.Concurrent.MVar](Effect.Concurrent.MVar.md) | Embedded | Native single-place shared variables with FIFO handoff, blocking take/put/read/swap, nonblocking operations, and cancellable waits through the task scheduler. |
 | [Effect.Concurrent](Effect.Concurrent.md) | Embedded | Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations. |
 | [Effect.Coverage](Effect.Coverage.md) | Ship source | Coverage collection/reporting utilities with explicit runtime and source metadata. |
 | [Effect.Crc64](Effect.Crc64.md) | Ship source | Inspectable CRC-64 states, generic byte writers and bounded reader-to-checksum copying with advanced source continuations. |
@@ -261,7 +262,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **189 source modules**: **65 embedded** and **124 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **190 source modules**: **66 embedded** and **124 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 
