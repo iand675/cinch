@@ -1,0 +1,90 @@
+{
+  "scope": "Exact finalcompat source/runtime/archive tools; all old epochs remain unchanged.",
+  "files": {
+    "methods-v7-runtime.py": {
+      "path": "build/json-error-methods-rust-v7/runner.py",
+      "sha256": "1ce03705d6531d4b2e9fd7ffddb78222a7d8e003d69e3f04f619a18cb2ad104f",
+      "bytes": 6472
+    },
+    "updates-v2-runtime.py": {
+      "path": "build/json-error-updates-rust-v2/runner.py",
+      "sha256": "99edc427ff298bcffb9f2476a7f8bffcc8c1bb06f9232deb2b616aef773d0d49",
+      "bytes": 6472
+    },
+    "pointer-final-v3-runtime.py": {
+      "path": "build/json-error-pointer-final-rust-v3/runner.py",
+      "sha256": "2ec998bec836af2d2e8c64e530227d206674997b1191584484d24b8739fbde75",
+      "bytes": 6553
+    },
+    "owner-final-v3-runtime.py": {
+      "path": "build/json-error-owner-final-rust-v3/runner.py",
+      "sha256": "2ec998bec836af2d2e8c64e530227d206674997b1191584484d24b8739fbde75",
+      "bytes": 6553
+    },
+    "bool-final-v3-runtime.py": {
+      "path": "build/json-error-bool-final-rust-v3/runner.py",
+      "sha256": "2ec998bec836af2d2e8c64e530227d206674997b1191584484d24b8739fbde75",
+      "bytes": 6553
+    },
+    "string-final-v3-runtime.py": {
+      "path": "build/json-error-string-final-rust-v3/runner.py",
+      "sha256": "2ec998bec836af2d2e8c64e530227d206674997b1191584484d24b8739fbde75",
+      "bytes": 6553
+    },
+    "integer-final-v3-runtime.py": {
+      "path": "build/json-error-integer-final-rust-v3/runner.py",
+      "sha256": "2ec998bec836af2d2e8c64e530227d206674997b1191584484d24b8739fbde75",
+      "bytes": 6553
+    },
+    "probe_methods_v7.py": {
+      "path": "build/json-next-error-context/probe_methods_v7.py",
+      "sha256": "34cce298301e5391a4f07bce48e91f0622daa84f5935a437d6e77b4560f45681",
+      "bytes": 3462
+    },
+    "archive_methods_v7.py": {
+      "path": "build/json-next-error-context/archive_methods_v7.py",
+      "sha256": "6059eb611dc988d679d27092f9ae4543ebdb36b9fe2630bdfb4b46f4c404e2dd",
+      "bytes": 4558
+    },
+    "probe_updates_v2.py": {
+      "path": "build/json-next-error-context/probe_updates_v2.py",
+      "sha256": "3338b58b28f1dcaad268ed8b7a8ed5b9803dcf602b304d0dd01cf2769425e0ca",
+      "bytes": 3462
+    },
+    "archive_updates_v2.py": {
+      "path": "build/json-next-error-context/archive_updates_v2.py",
+      "sha256": "487677eb9c4296069fe450e243e6b287dad825bf6664535422502f4e3905413b",
+      "bytes": 4558
+    },
+    "probe_final_quoted.py": {
+      "path": "build/json-next-error-context/probe_final_quoted.py",
+      "sha256": "8fecd3a1cbb2987ee1ac5570bcdcc1610bbdb822ba611a21eddf69cd7077d6ec",
+      "bytes": 3529
+    },
+    "archive_final_quoted.py": {
+      "path": "build/json-next-error-context/archive_final_quoted.py",
+      "sha256": "be11981692a64c195578c0b7b5dccc36243687506c59673121e5ff9754e49e66",
+      "bytes": 4941
+    },
+    "run_final_quoted_unit.py": {
+      "path": "build/json-next-error-context/run_final_quoted_unit.py",
+      "sha256": "593131f03e2e8257387dd8435f646fc004acaf879713f3bcf02fc5927f2ab6c0",
+      "bytes": 1804
+    },
+    "pipeline_methods_v7.py": {
+      "path": "build/json-next-error-context/pipeline_methods_v7.py",
+      "sha256": "c6fff6ee831cd2e2dacb76df08d80c9860d10662c501dc81aa3f5823fa5c17ef",
+      "bytes": 1414
+    },
+    "pipeline_updates_v2.py": {
+      "path": "build/json-next-error-context/pipeline_updates_v2.py",
+      "sha256": "33492a0dbdf104fe047ff4681de375bf5b9c13f88f953816a31ac3f23b4c756b",
+      "bytes": 1414
+    },
+    "pipeline_final_quoted.py": {
+      "path": "build/json-next-error-context/pipeline_final_quoted.py",
+      "sha256": "0e97851fe4ce10a81737511fc20d063f5b74d7f3990c67479a9c788ddf7c8368",
+      "bytes": 1520
+    }
+  }
+}
