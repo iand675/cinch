@@ -711,7 +711,7 @@ impl Checker {
             // the defining public type row.
             let refined = info.refine.is_some();
             if info.param_kinds.iter().any(|k| match k {
-                ParamKind::Type | ParamKind::Con(_) => false,
+                ParamKind::Type | ParamKind::Con(_) | ParamKind::Region => false,
                 ParamKind::Val(ty) if refined || info.opaque => !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes),
                 _ => true,
             }) { return None }

@@ -758,6 +758,7 @@ impl Checker {
             if row_params.contains(&name) || region_params.contains(&name) { continue; }
             match kind {
                 ParamKind::Type => scheme.params.push(name.into()),
+                ParamKind::Region => { if !region_params.contains(&name) { region_params.push(name); } },
                 ParamKind::Con(arity) => { scheme.con_params.push((name.clone().into(), arity)); scheme.params.push(name.into()); }
                 ParamKind::Val(carrier) => {
                     kinds.insert(name.clone(), Ty::Idx(Box::new(ITerm::Var(name.clone().into()))));
@@ -2358,6 +2359,7 @@ impl Checker {
                 }
                 match k {
                     ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                    ParamKind::Region => {},
                     ParamKind::Val(t) => idx_params.push(IxParam::Val(p.clone().into(), t.clone())),
                     ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone().into())),
                 }
@@ -2387,7 +2389,7 @@ impl Checker {
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
-                region_params: Vec::new(),
+                region_params: params.iter().filter_map(|(name, kind)| (*kind == ParamKind::Region).then(|| name.clone())).collect(),
                 ctx: Vec::new(),
                 ty,
             };
@@ -3086,13 +3088,16 @@ impl Checker {
     }
 
     /// A nominal declaration's parameters and their kinds: a kind
-    /// annotation classifies each one as a type parameter or an index value
+    /// annotation classifies each one as a type, runtime identity or index value
     /// (`data Vec (n :: Nat) (a :: Type)`); an un-annotated parameter is a
     /// type parameter (dependent core kernel design, section 5).
     fn nominal_params(&mut self, params: &[ast::TypeBinder]) -> Result<(Vec<String>, Vec<ParamKind>)> {
         let mut names: Vec<String> = Vec::new();
         let mut kinds: Vec<ParamKind> = Vec::new();
         for b in params {
+            if names.contains(&b.name.text) {
+                return Err(Error::at(b.name.span, "duplicate nominal parameter"));
+            }
             let k = match &b.ann {
                 Some(ann) => self.binder_kind(ann, &names)?,
                 None => ParamKind::Type,
@@ -3229,6 +3234,9 @@ impl Checker {
                 return Err(Error::at(h.name.span, format!("duplicate type {}", h.name.text)));
             }
             let (params, param_kinds) = self.nominal_params(h.params)?;
+            // Earlier constructors can refer to a later member of this block.
+            // Keep that member's explicit telescope available before either body checks.
+            self.interface_binders.insert((module.to_string(), h.name.text.clone()), h.params.to_vec());
             self.types
                 .entry(h.name.text.clone())
                 .or_default()
@@ -3927,19 +3935,7 @@ impl Checker {
                     {
                         return Err(Error::at(o.name.span, format!("duplicate type {}", o.name.text)));
                     }
-                    let mut params: Vec<String> = Vec::new();
-                    let mut param_kinds: Vec<ParamKind> = Vec::new();
-                    for b in &o.params {
-                        let k = match &b.ann {
-                            Some(ann) => self.binder_kind(ann, &params)?,
-                            None => ParamKind::Type,
-                        };
-                        // Keep the checked carrier/function kind just as for
-                        // other nominal declarations; opacity hides values
-                        // and layouts, not parameter kinds.
-                        params.push(b.name.text.clone());
-                        param_kinds.push(k);
-                    }
+                    let (params, param_kinds) = self.nominal_params(&o.params)?;
                     // Abstract: no constructors and no fields, so values
                     // arise only from foreign calls and there is no
                     // layout projection (foreign function interface
@@ -4011,7 +4007,7 @@ impl Checker {
                                 };
                                 vars.push(b.name.text.clone());
                                 match k {
-                                    ParamKind::Type | ParamKind::Con(_) => {
+                                    ParamKind::Region | ParamKind::Type | ParamKind::Con(_) => {
                                         return Err(Error::at(
                                             b.name.span,
                                             "constructor-local type parameters are not supported in this slice; move the parameter to the family",
@@ -4038,7 +4034,7 @@ impl Checker {
                                             "effect rows on constructor arguments are not supported in the bootstrap slice",
                                         ));
                                     }
-                                    let t = self.conv_type(arg, &vars)?;
+                                    let t = self.conv_nominal_type(arg, &vars, &data.params)?;
                                     let m = match mult {
                                         Some(n) => Mult::parse(&n.text).ok_or_else(|| {
                                             Error::at(n.span, format!("unknown multiplicity {}", n.text))
@@ -4063,7 +4059,7 @@ impl Checker {
                                             format!("duplicate binder {}", name.text),
                                         ));
                                     }
-                                    let t = self.conv_type(ann, &vars)?;
+                                    let t = self.conv_nominal_type(ann, &vars, &data.params)?;
                                     let m = match mult {
                                         Some(n) => Mult::parse(&n.text).ok_or_else(|| {
                                             Error::at(n.span, format!("unknown multiplicity {}", n.text))
@@ -4078,7 +4074,7 @@ impl Checker {
                                 other => break other,
                             }
                         };
-                        let res_ty = self.conv_type(result, &vars)?;
+                        let res_ty = self.conv_nominal_type(result, &vars, &data.params)?;
                         // The result is the declared family applied to its
                         // parameters: type and proposition parameters must
                         // be the declared ones, index parameters may be
@@ -4094,6 +4090,7 @@ impl Checker {
                                         ParamKind::Type | ParamKind::Con(_) => {
                                             Ty::Param(params[i].clone().into())
                                         }
+                                        ParamKind::Region => Ty::Region(params[i].clone().into()),
                                         ParamKind::Val(_) => continue,
                                         ParamKind::Prop => {
                                             Ty::Prp(Box::new(PTerm::Var(params[i].clone())))
@@ -4152,6 +4149,7 @@ impl Checker {
                             }
                             match k {
                                 ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                    ParamKind::Region => {},
                                 ParamKind::Val(t) => {
                                     idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                                 }
@@ -4177,10 +4175,10 @@ impl Checker {
                         // treating them as type metavariables leaves the
                         // callback's effect label fixed to its source spelling.
                         let mut row_params = Vec::new();
-                        let mut region_params = Vec::new();
+                        let mut region_params: Vec<String> = params.iter().zip(&param_kinds).filter_map(|(name, kind)| (*kind == ParamKind::Region).then(|| name.clone())).collect();
                         collect_row_names(&scheme_ty, &mut row_params, &mut region_params);
                         for name in &region_params {
-                            if params.iter().zip(&param_kinds).any(|(parameter, kind)| parameter == name && !matches!(kind, ParamKind::Type)) {
+                            if params.iter().zip(&param_kinds).any(|(parameter, kind)| parameter == name && !matches!(kind, ParamKind::Type | ParamKind::Region)) {
                                 return Err(Error::at(c.name.span, format!("runtime identity {name} cannot also be an index or higher-kinded family parameter")));
                             }
                         }
@@ -4395,6 +4393,7 @@ impl Checker {
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
                             ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Region => Ty::Region(p.clone().into()),
                             _ => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                         })
                         .collect();
@@ -4414,6 +4413,7 @@ impl Checker {
                         }
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                    ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
@@ -4543,7 +4543,7 @@ impl Checker {
                     let mut vars = params.clone();
                     let mut field_tys = Vec::new();
                     for f in &rec.fields {
-                        let t = self.conv_type(&f.ty, &vars)?;
+                        let t = self.conv_nominal_type(&f.ty, &vars, &rec.params)?;
                         // A record is a data declaration with one
                         // constructor, so its fields obey the same
                         // group positivity discipline (core specification
@@ -4607,6 +4607,7 @@ impl Checker {
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
                             ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Region => Ty::Region(p.clone().into()),
                             ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
                         })
@@ -4621,6 +4622,7 @@ impl Checker {
                         }
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                    ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
@@ -4661,7 +4663,7 @@ impl Checker {
                         val_params: Vec::new(),
                         prop_params: Vec::new(),
                         row_params: Vec::new(),
-                        region_params: Vec::new(),
+                        region_params: params.iter().zip(&param_kinds).filter_map(|(name, kind)| (*kind == ParamKind::Region).then(|| name.clone())).collect(),
                         ctx: Vec::new(),
                         ty: scheme_ty,
                     };
@@ -4735,16 +4737,7 @@ impl Checker {
                     {
                         return Err(Error::at(rec.name.span, format!("duplicate type {}", rec.name.text)));
                     }
-                    let mut params: Vec<String> = Vec::new();
-                    let mut param_kinds: Vec<ParamKind> = Vec::new();
-                    for b in &rec.params {
-                        let k = match &b.ann {
-                            Some(ann) => self.binder_kind(ann, &params)?,
-                            None => ParamKind::Type,
-                        };
-                        params.push(b.name.text.clone());
-                        param_kinds.push(k);
-                    }
+                    let (params, param_kinds) = self.nominal_params(&rec.params)?;
                     let mut obs_names: Vec<String> = Vec::new();
                     for f in &rec.fields {
                         let fset = self.validate_attr_site(&f.attrs, AttrSite::Field)?;
@@ -4782,7 +4775,7 @@ impl Checker {
                     let mut vars = params.clone();
                     let mut obs_tys = Vec::new();
                     for f in &rec.fields {
-                        let t = self.conv_type(&f.ty, &vars)?;
+                        let t = self.conv_nominal_type(&f.ty, &vars, &rec.params)?;
                         check_group_positivity(&self.types, &[nominal_identity(&module, &rec.name)], &f.name.text, &t, &rec.name, f.span)?;
                         obs_tys.push(t);
                         vars.push(f.name.text.clone());
@@ -4794,6 +4787,7 @@ impl Checker {
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
                             ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Region => Ty::Region(p.clone().into()),
                             ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
                         })
@@ -4808,6 +4802,7 @@ impl Checker {
                         }
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                    ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
@@ -4848,7 +4843,7 @@ impl Checker {
                         val_params: Vec::new(),
                         prop_params: Vec::new(),
                         row_params: Vec::new(),
-                        region_params: Vec::new(),
+                        region_params: params.iter().zip(&param_kinds).filter_map(|(name, kind)| (*kind == ParamKind::Region).then(|| name.clone())).collect(),
                         ctx: Vec::new(),
                         ty: scheme_ty,
                     };
@@ -10303,6 +10298,7 @@ impl Checker {
                 ParamKind::Val(_) => 1,
                 ParamKind::Prop => 2,
                 ParamKind::Con(_) => 3,
+                ParamKind::Region => 4,
             };
             let mut distinct_axis: Option<u8> = None;
             let mut first_val: Option<ParamKind> = None;
@@ -10320,6 +10316,7 @@ impl Checker {
                 (Some(h), _) => h.clone(),
                 (None, Some(1)) => first_val.unwrap_or(ParamKind::Type),
                 (None, Some(2)) => ParamKind::Prop,
+                (None, Some(4)) => ParamKind::Region,
                 (None, _) => ParamKind::Type,
             };
             kinds.insert(name.clone(), kind);
@@ -17464,6 +17461,7 @@ impl Checker {
                     .unwrap_or_else(|| format!("p{i}")),
                 kind: match kind {
                     ParamKind::Type => "Type".to_string(),
+                    ParamKind::Region => "Region".to_string(),
                     ParamKind::Val(ty) => ty.to_string(),
                     ParamKind::Prop => "Prop".to_string(),
                     ParamKind::Con(n) => vec!["Type"; n + 1].join(" -> "),
