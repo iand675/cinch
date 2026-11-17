@@ -1,0 +1,6 @@
+{
+  "frontend": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/frontend.py",
+  "frontend_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+  "helper_sha256": "aa5510d76d5c2512988c6ce7184b6969db3f63f11488ac3abb9884e543a79934",
+  "pair_sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d"
+}
