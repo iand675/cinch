@@ -296,7 +296,7 @@
     "756 sealed public timing observations, all complete output/owner checks match,504 Cinch zero-leak runs, raw regressions and actual quota facts retained"
   ],
   "pending": [
-    "Dynamic allocation census and repeatability confirmation of observed control regressions",
+    "Root-granted longer-count paired confirmation of observed control regressions",
     "Full Native qualification and genuine source-absent client gate",
     "Production selection/shared inventory/docs integration"
   ],
@@ -348,6 +348,36 @@
       "to": "tooling/inspect_color_controls.py",
       "bytes": 7902,
       "sha256": "b7926d0efb60097916144fd32bc325c99f45e42becbf093801cdca777ca4b6b5"
+    },
+    {
+      "from": "tooling/check_color_benchmark_counts.py",
+      "to": "tooling/check_color_benchmark_counts.py",
+      "bytes": 6783,
+      "sha256": "facbbcc9ebb0091cf53b1d57c8a1673c0dec504a10435e04e69c309578d15b95"
+    },
+    {
+      "from": "experiments/image-color-v1/allocation-counts.json",
+      "to": "experiments/image-color-v1/allocation-counts.json",
+      "bytes": 217845,
+      "sha256": "431b998b1adbf14ae6ce8834814490413223eebf26e8419afb1af81385fb789e"
+    },
+    {
+      "from": "experiments/image-color-v1/allocation-review.md",
+      "to": "experiments/image-color-v1/allocation-review.md",
+      "bytes": 2835,
+      "sha256": "1242927ac8c34084041444bc74c80b7c510eede69b443ab900b93c4f9fdb621d"
+    },
+    {
+      "from": "experiments/image-color-v1/confirmation-count-preflight.json",
+      "to": "experiments/image-color-v1/confirmation-count-preflight.json",
+      "bytes": 11145,
+      "sha256": "bdb6114550177b08e3aff864023d47f03eb2b745163a9382ae2ba62ebf362c13"
+    },
+    {
+      "from": "experiments/image-color-v1/confirmation-plan.json",
+      "to": "experiments/image-color-v1/confirmation-plan.json",
+      "bytes": 1271,
+      "sha256": "697cadf16654a04a81363968edd24f68c00dcd9aeeb4654f5718cf22ada09186"
     }
   ]
 }
