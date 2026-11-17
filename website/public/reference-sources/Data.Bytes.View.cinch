@@ -19,6 +19,7 @@ module Data.Bytes.View where
   export byte-view-take, byte-view-drop
   export byte-view-utf8-at
   export byte-view-index-byte
+  export byte-view-ascii-space-run-end
   export BytePattern, bytes-compile-pattern, byte-pattern-length, byte-pattern-bytes
   export byte-view-index-pattern, byte-view-last-index-pattern, byte-view-contains-pattern
   export byte-view-has-prefix-pattern, byte-view-has-suffix-pattern
@@ -840,3 +841,68 @@ module Data.Bytes.View where
   -- | Remove an exact suffix from a complete buffer while retaining its whole owner.
   bytes-cut-suffix :: Bytes -> Bytes -> Option ByteView
   bytes-cut-suffix input needle = byte-view-cut-suffix (bytes-view input) needle
+
+  -- | Test sixteen available bytes for one ASCII whitespace class without endian-dependent lane numbering.
+  -- Every lane must be ASCII and match the requested class; no byte beyond the proved block is loaded.
+  prim ascii-space-sixteen :: I64 -> I64 -> Bool -> Bool where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %bytes = load <16 x i8>, ptr %at, align 1
+      %delta = sub <16 x i8> %bytes, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %controls = icmp ule <16 x i8> %delta, <i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4>
+      %spaces = icmp eq <16 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %whitespace = or <16 x i1> %controls, %spaces
+      %nonspace = xor <16 x i1> %whitespace, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %wanted = icmp ne i8 %2, 0
+      %selected = select i1 %wanted, <16 x i1> %whitespace, <16 x i1> %nonspace
+      %ascii = icmp ult <16 x i8> %bytes, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
+      %matching = and <16 x i1> %selected, %ascii
+      %mask = bitcast <16 x i1> %matching to i16
+      %all = icmp eq i16 %mask, -1
+      %result = zext i1 %all to i8
+      ret i8 %result
+    }
+
+  -- | Classify one zero-extended byte as ASCII whitespace or ASCII non-whitespace.
+  prim ascii-space-byte :: U64 -> Bool -> Bool where
+    llvm {
+      %delta = sub i64 %0, 9
+      %controls = icmp ule i64 %delta, 4
+      %space = icmp eq i64 %0, 32
+      %whitespace = or i1 %controls, %space
+      %wanted = icmp ne i8 %1, 0
+      %class = icmp eq i1 %whitespace, %wanted
+      %ascii = icmp ult i64 %0, 128
+      %yes = and i1 %class, %ascii
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Find the first opposite-class or non-ASCII byte in an exact scalar fringe.
+  ascii-space-tail :: I64 -> I64 -> I64 -> Bool -> I64
+  ascii-space-tail base at end spaces = if offset-before at end then
+    let byte = load-byte base at in if ascii-space-byte byte spaces then
+      let next = offset-add at 1 in ascii-space-tail base next end spaces
+    else at
+    else at
+
+  -- | Skip complete matching SIMD blocks, then examine only the bounded mismatch or final fringe.
+  ascii-space-blocks :: I64 -> I64 -> I64 -> Bool -> I64
+  ascii-space-blocks base at end spaces = let left = offset-sub end at in
+    if offset-at-least left 16 then
+      if ascii-space-sixteen base at spaces then
+        let next = offset-add at 16 in ascii-space-blocks base next end spaces
+      else ascii-space-tail base at end spaces
+    else ascii-space-tail base at end spaces
+
+  -- | End a maximal ASCII whitespace or non-whitespace run from a relative position.
+  -- True selects exactly TAB through CR and SPACE; False selects other ASCII bytes.
+  -- A non-ASCII byte ends either run. End positions are valid; positions past the view return None.
+  -- Observes current aliases, retains the whole owner and never reads outside the logical view.
+  byte-view-ascii-space-run-end :: ByteView -> Nat -> Bool -> Option Nat
+  byte-view-ascii-space-run-end view position spaces = case view of
+    View raw start end -> if position > end - start then None else
+      let absolute = start + position in let begin = nat-to-i64 absolute in let finish = nat-to-i64 end in
+      let base = bytes-data raw in let found = hold-input raw (ascii-space-blocks base begin finish spaces) in
+      let origin = nat-to-i64 start in relative-match found origin

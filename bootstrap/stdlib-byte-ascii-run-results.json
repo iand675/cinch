@@ -254,7 +254,7 @@
     "reported_tests": 6,
     "status": "passed",
     "seconds": 24.9,
-    "log": "/tmp/cinch-stdlib-ascii-run-parent-gate.log",
+    "log": "bootstrap/repros/byte-ascii-parent-gate/parent.log",
     "log_sha256": "7cd7d15ea9adda19c801562d1a1a479082c0b9566e6ee89ffe60b683b1d1af53",
     "scope": "checked-RC Rust API O0/O2/full matrix, actual wasm/ARM/PPC full adapter objects, canonical docs",
     "distinct_from_historical_native_family": true

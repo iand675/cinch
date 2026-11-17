@@ -181,9 +181,9 @@
     {
       "module": "Data.Bytes.View",
       "path": "compiler/prelude/Data/Bytes/View.cinch",
-      "sha256": "966efd5cff80d7bc922b07c6d718373318fe5ad2275eff12072b157e4de3da23",
+      "sha256": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
       "embedded": false,
-      "values": 49,
+      "values": 50,
       "public_methods": 0
     },
     {
