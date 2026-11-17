@@ -1,0 +1,40 @@
+{
+  "status": "actual-independent-reference",
+  "command": [
+    "taskset",
+    "-c",
+    "2",
+    "/tmp/cinch-go-current/go/bin/go",
+    "run",
+    "/workspace/dasl-stdlib-json/build/json-syntax-partial-reference-v1/observer.go"
+  ],
+  "sdk": "go1.27.4",
+  "observer_sha256": "8c6654815be15eb7045a65195779cc7fd5e82eaa0dbbb492b212cbac6d8b07ec",
+  "elapsed_seconds": 0.6308657649788074,
+  "exit_code": 0,
+  "output_bytes": 363365,
+  "stderr_bytes": 0,
+  "selected_sources_unchanged": {
+    "Value": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+    "Codec": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3"
+  },
+  "previous1494_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "cinch_executed": false,
+  "failure_artifacts_plain": "/workspace/dasl-stdlib-json/build/json-syntax-partial-reference-v1",
+  "vectors_sha256": "7257d12bb9947b25b8fc3afcc29d4a365ec94c585f12b19a9bcf657eb34c2d8d",
+  "rows": 902,
+  "by_model": {
+    "int": 68,
+    "record": 126,
+    "pointer-record": 126,
+    "slice": 76,
+    "array": 76,
+    "map": 88,
+    "any": 102,
+    "raw": 84,
+    "json-hook": 84,
+    "text-hook": 72
+  },
+  "render_panics": 0,
+  "scope": "Everyprefix and allmalformedrows retained underbothpolicies; no expectation normalization or passingCinchclaim. Original1494andallpriororacles unchanged."
+}
