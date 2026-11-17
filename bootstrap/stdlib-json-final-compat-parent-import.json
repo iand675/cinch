@@ -1,0 +1,61 @@
+{
+  "source_commit": "f7c027d3",
+  "scope": "Selected Value/Codec final1494-reference refresh in explicitly separate855/c4 source context; Root33+focused6 regression gates retain independent3dae/d91 identity. No source or oracle changed.",
+  "reference_rows": 1494,
+  "additional_retained_row": 1,
+  "additional_owner_groups": 4,
+  "bounded_memory_processes": 14,
+  "files": {
+    "bootstrap/stdlib-json-final-compat-stage-checkpoint.json": "c71fba61f1fb29610e4a4dc4b8a3cab365432ca1e824b2f26cdb41f74704562c",
+    "bootstrap/stdlib-json-final-compat-integration-manifest.json": "96f507f1518f6e580890f4864a6f23b4cdcb48e5463b95a284d941700e304dc1",
+    "bootstrap/stdlib-json-read-field-docs-v1.json": "b54596744ac1ad3122bb98173e072ecb5a46b87157286cea5679b4f4b18b94b7",
+    "bootstrap/stdlib-json-error-methods-rust-v7-results.json": "92933a8006539be3e7b5fa50dcbf29a315bd3d40e8b1e24322c91216a165bcea",
+    "bootstrap/stdlib-json-error-methods-rust-v7-functional-archive.json": "227781bfb490b17a6291bfa22f7dc4211cdb5fb01775489dd78a4e0cbdb4a958",
+    "bootstrap/stdlib-json-error-updates-rust-v2-results.json": "087ad338fce794fd7ae11298193d45a5b93fd452d29afda289583e000f4348b7",
+    "bootstrap/stdlib-json-error-updates-rust-v2-functional-archive.json": "6fd2073777fa197d37f9d722bd0253fc68003f789c3daeb2ca28ef145268f103",
+    "bootstrap/stdlib-json-error-pointer-final-rust-v3-results.json": "3e9eb9553a4fe9cfe01349b7808c8830ff93dc41c9458f5ba8200d2484d7bce6",
+    "bootstrap/stdlib-json-error-pointer-final-rust-v3-functional-archive.json": "ac051c90314e6ccc1476e057215f55d539c35970ec5de13fdebaf1f6d31f5eb5",
+    "bootstrap/stdlib-json-error-owner-final-rust-v3-results.json": "093fa94c1f785796ada19ed5781b9e7c5976469bf69925e30852e04ca4d34135",
+    "bootstrap/stdlib-json-error-owner-final-rust-v3-functional-archive.json": "fe3ab10de6ab72990cc3ec5aacacfb17d3545a129d6734c6120380a17bf2fda4",
+    "bootstrap/stdlib-json-error-bool-final-rust-v3-results.json": "0571095715ec3f5068ea4492fe93419dc7056352a88511532dbdbf76268c4c9a",
+    "bootstrap/stdlib-json-error-bool-final-rust-v3-functional-archive.json": "0b5b13e8f707ed78c42cf4e28ada61212a210f46c57bea9e1443ecdaf5e7d84e",
+    "bootstrap/stdlib-json-error-string-final-rust-v3-results.json": "b5c23908b4882d725cee2aa72c46ee2c4068c069f867cae9ed9d264ef7858fb2",
+    "bootstrap/stdlib-json-error-string-final-rust-v3-functional-archive.json": "14a2d3b5f54d2a7b2dbb41eb9cf0b4f2e39befa8020c46b8e1a431196c40e148",
+    "bootstrap/stdlib-json-error-integer-final-rust-v3-results.json": "ad02aeadc2fb1223c882cdf90114fc492cc45c82ce750d26644699eb8550ed36",
+    "bootstrap/stdlib-json-error-integer-final-rust-v3-functional-archive.json": "b800ffd632e90f178bbc1f5a9e1fc61d3e4ab35b8452e6c93d90bb4e5b9fe4fa"
+  },
+  "dependency_context": {
+    "Data.Array": {
+      "standalone_sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "root_sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee"
+    },
+    "Data.Bytes.Word": {
+      "standalone_sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "root_sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+    },
+    "Data.Unicode.Tables": {
+      "standalone_sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+      "root_sha256": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342"
+    },
+    "Data.Unicode.Kernel": {
+      "standalone_sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "root_sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b"
+    },
+    "Text.Json.Binary32": {
+      "standalone_sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+      "root_sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693"
+    },
+    "Text.Json.Value": {
+      "standalone_sha256": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+      "root_sha256": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758"
+    },
+    "Text.Base64.Encoding": {
+      "standalone_sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "root_sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e"
+    },
+    "Text.Json.Codec": {
+      "standalone_sha256": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3",
+      "root_sha256": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3"
+    }
+  }
+}

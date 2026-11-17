@@ -16,7 +16,6 @@
   "log_sha256": "e51fc460f256a4dd4c275f57dfb9a6f71314c4d3b3d3ebe07e06841b7b06292f",
   "prior_failures": "bootstrap/repros/json-parent-v2-failures/receipt.json",
   "pending": [
-    "Final affected reference corpus refresh",
     "Remaining syntax-partial/streaming/full92 surface",
     "Public pipeline performance and current Native qualification"
   ],
@@ -29,5 +28,12 @@
     "log": "bootstrap/repros/json-parent-qualified/field-context-parent.log",
     "log_sha256": "a9442435e0cafd946f4139dba5caa1e19e2207afba1808c4278640ce5a3cc3f7",
     "source_epoch_unchanged": true
+  },
+  "independent_selected_source_refresh": {
+    "receipt": "bootstrap/stdlib-json-final-compat-parent-import.json",
+    "source_commit": "f7c027d3",
+    "reference_rows": 1494,
+    "memory_processes": 14,
+    "scope": "Separate855/c4 exact selected Value/Codec source epoch; retained previous oracle and all failed epochs."
   }
 }

@@ -312,10 +312,9 @@
     "compiler/prelude/Data/Bytes/Fields.cinch": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963"
   },
   "qualification": "bootstrap/stdlib-json-parent-results.json",
-  "qualification_sha256": "128aaecbb01307b788f8c69e2d644b7f585578d2e8141db942e7a485d1b97613",
+  "qualification_sha256": "71e4fddcc3e979dd17e1d73d5581cab4c4b156e57a7029ef8ad9927d7743e109",
   "scope": "Current JSON source snapshot passes33 release parent tests. Rust implementation unchanged from339-unit-qualified2a; build identity includes final JSON source.",
   "limits": [
-    "Affected1494 separate reference refresh pending",
     "Full92 JSON/Native/performance scope remains open"
   ],
   "library_reference": {
@@ -329,5 +328,6 @@
   "reference_logs": {
     "bootstrap/repros/json-parent-qualified/reference-generation.log": "4e417840f7a35190842b51b28cf28d62b38c0d4b643f84758b54c9d14c31e1ac",
     "bootstrap/repros/json-parent-qualified/doc-validation.log": "55ec686c7febe5b0db80b3a81340254136f99f75922567cbc1958c00a29b42b6"
-  }
+  },
+  "independent_reference_refresh": "bootstrap/stdlib-json-final-compat-parent-import.json"
 }

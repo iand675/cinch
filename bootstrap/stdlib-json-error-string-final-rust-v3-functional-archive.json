@@ -1,0 +1,35 @@
+{
+  "description": "Verified successful closed functional ELF/IR archive only; all sources/frozen/compiler/provider/runtime/benchmark inputs/failure diagnostics remain plain",
+  "archive_path": "build/json-error-functional-archives/string-final-rust-v3.tar.gz",
+  "archive_sha256": "a378c3f365951fc794e582dcee5de24bf9c17b52bf418f2bee98dad1c06c3e02",
+  "archive_bytes": 3517168,
+  "decompressed_tar_sha256": "795bdb04ac9a358017842c6002123598c11d385fade0894f67eef6f6bddee54e",
+  "members": [
+    {
+      "path": "build/json-error-string-final-rust-v3/consumer.ll",
+      "bytes": 8068784,
+      "mode": 384,
+      "sha256": "22def545a7687919f6ee368316577b8a26f5b8070aba792c77ce6d762e315927"
+    },
+    {
+      "path": "build/json-error-string-final-rust-v3/consumer",
+      "bytes": 7281384,
+      "mode": 448,
+      "sha256": "5dfc9ad021a1106d30126bf6ca21a9a35d76ab3c26ecbd2ba5e0c7d2d2bc7e8b"
+    }
+  ],
+  "execution_receipt": "bootstrap/stdlib-json-error-string-final-rust-v3-results.json",
+  "execution_receipt_sha256": "b5c23908b4882d725cee2aa72c46ee2c4068c069f867cae9ed9d264ef7858fb2",
+  "ordering": "archive fsync+directory fsync; CRC/decompressed tar+all member SHA/size/mode verification; recovery index fsync+parent fsync BEFORE any unlink; original file identity recheck; output-parent fsync AFTER unlink",
+  "free_bytes_before": 409763840,
+  "verified_before_unlink": true,
+  "recovery_exception": false,
+  "compressed_output_limit_bytes": 10485760,
+  "recovery_command": [
+    "tar",
+    "-xzf",
+    "/workspace/dasl-stdlib-json/build/json-error-functional-archives/string-final-rust-v3.tar.gz",
+    "-C",
+    "/workspace/dasl-stdlib-json"
+  ]
+}
