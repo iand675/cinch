@@ -1,5 +1,5 @@
 {
-  "status": "isolated-candidate-source-check-passed-runtime-pending",
+  "status": "isolated-candidate-full-independent-Rust-runtime-passed-portable-and-performance-review-pending",
   "source_basis": "c244166183e6be61f0bace69e5b9c5a87a2fceda",
   "modules": [
     "Data.Uuid",
@@ -11,18 +11,16 @@
   "representation": "two immutable network-order U64 words",
   "acceleration": "existing Text.Hex inline LLVM SIMD; bounded packed word reads and unsigned two-word LLVM comparison",
   "state": "explicit pure V7 state plus private MVar serialized IO generator; entropy and clock remain actual provider operations",
-  "reference_generator": "tooling/go_uuid_vectors_test.go; not yet built",
+  "reference_generator": "Actual existing-SDK vectors generated; exact executed source and original/prospective formatted identities recorded separately.",
   "adaptations": [
     "MustParse capability uses total validation witness plus total extraction",
     "UnmarshalText returns a replacement immutable receiver and preserves the original on refusal"
   ],
   "pending": [
-    "independent SDK vectors",
-    "maintained tests",
-    "normal/poison runtime corpus",
-    "actual entropy/clock and shared generator runtime gates",
-    "portable kernels",
-    "matched public pipeline benchmarks",
-    "Native capability/transport evidence"
+    "maintained Cargo target including actual custom-profile PPC object gate",
+    "actual Native capability/transport evidence",
+    "matched public pipeline benchmark build/preflight/measurement review",
+    "concurrent shared-generator stress if separately required",
+    "candidate selection"
   ]
 }

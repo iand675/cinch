@@ -1,0 +1,134 @@
+{
+  "kind": "UUID-candidate-independent-Rust-runtime-matrix",
+  "status": "reference-and-boundary-runtime-passed",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "sources": {
+    "Data.Uuid": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+    "Effect.Uuid": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3"
+  },
+  "candidate_selected": false,
+  "package_complete": false,
+  "native_family_relabelled": false,
+  "units": {
+    "parse-0000": {
+      "status": "passed",
+      "report": "build/uuid-parse-0-a1-results.json",
+      "report_sha256": "b55e397449ab9860c161a742d2515d032cb1afd7a97576fa41177c767d7606a8",
+      "observations": 128
+    },
+    "parse-0128": {
+      "status": "passed",
+      "report": "build/uuid-parse-0128-a1-results.json",
+      "exit": 0,
+      "report_sha256": "093e0faa79e1d89c938df8b93e1c7e2d4c69ebdb20fa11f7b24398eb509d47f6",
+      "observations": 128
+    },
+    "parse-0256": {
+      "status": "passed",
+      "report": "build/uuid-parse-0256-a1-results.json",
+      "exit": 0,
+      "report_sha256": "a21d029ca774531b90dcea372b4fc8aa23979230f42be8ab282dcd06d0b8cd7e",
+      "observations": 128
+    },
+    "parse-0384": {
+      "status": "passed",
+      "report": "build/uuid-parse-0384-a1-results.json",
+      "exit": 0,
+      "report_sha256": "edc6499759691fb202d40e84909dbba012c2ed51f707422405aab5b0da357b77",
+      "observations": 128
+    },
+    "parse-0512": {
+      "status": "passed",
+      "report": "build/uuid-parse-0512-a1-results.json",
+      "exit": 0,
+      "report_sha256": "1e6230fb799b8ca3d36f730257d3e94af6263ab5fab5963d7a07c5d6932a85b6",
+      "observations": 128
+    },
+    "parse-0640": {
+      "status": "passed",
+      "report": "build/uuid-parse-0640-a1-results.json",
+      "exit": 0,
+      "report_sha256": "9ad4e9f46fe4d36f1e4a79ec9901ba63e5338893dfb251e4c521fb0729019b3e",
+      "observations": 20
+    },
+    "append-0000": {
+      "status": "passed",
+      "report": "build/uuid-append-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "8614f568214f9ad6e14e38fbef7dd515f1020720b5327ba09e569f5fd18e5d69",
+      "observations": 128
+    },
+    "append-0128": {
+      "status": "passed",
+      "report": "build/uuid-append-0128-a1-results.json",
+      "exit": 0,
+      "report_sha256": "31b5d062baab9e2193c5b3034bfdc2b5c9ef49ae337a6f9b7b433e2acb892487",
+      "observations": 76
+    },
+    "compare-0000": {
+      "status": "passed",
+      "report": "build/uuid-compare-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "9ab1d6763f68900f4c40937fbc58bd7c26e60b4b5e952fc3a8f4bd3063ac62cb",
+      "observations": 128
+    },
+    "compare-0128": {
+      "status": "passed",
+      "report": "build/uuid-compare-0128-a1-results.json",
+      "exit": 0,
+      "report_sha256": "10005bd87ce0eb70f07f5a62de3a84261b7a3f93b1c766bb9157b7c82fce6a28",
+      "observations": 128
+    },
+    "compare-0256": {
+      "status": "passed",
+      "report": "build/uuid-compare-0256-a1-results.json",
+      "exit": 0,
+      "report_sha256": "303aab7a4c4ae6a8dc818acd6cc8dd615eb88342d38f6b782a82f2a4dc07be84",
+      "observations": 114
+    },
+    "generated-0000": {
+      "status": "passed",
+      "report": "build/uuid-generated-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "e8ad8caa1997471a90588fb28e29282c49b8c8e1693103261e1e0002ecded12d",
+      "observations": 48
+    },
+    "control-0000": {
+      "status": "passed",
+      "report": "build/uuid-control-0000-a2-results.json",
+      "exit": 0,
+      "report_sha256": "3708dc121fda35ad08125553d0a16dc99edf25715e0becf980095da31707878a",
+      "observations": null
+    },
+    "io-0000": {
+      "status": "passed",
+      "report": "build/uuid-io-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "ffee2834b1e5379a3c8bf79cff5025e8efb26b68cc2504be3d5b03e0be407be0",
+      "observations": null
+    }
+  },
+  "observations": {
+    "parse": 660,
+    "append": 204,
+    "compare": 370,
+    "generated": 48,
+    "control": 1,
+    "io": 1
+  },
+  "normal_poison_processes": 28,
+  "maximum_unit_bytes": 9043460,
+  "fixture_sha256": "af3900f51bd4ed04fc660d988bfa4a36391cac5c58eb9cc3cde2c638df90a44e",
+  "progress_sha256": "fe3b80e3c38bc9bf13ce54df9cdd0dec95edac2c285b2974afeaeb05962862e2",
+  "archive_index_sha256": "ca8dce52a7df30d73d523e595857cd25d9cf3a019e73e19d42b285a297e80081",
+  "separate_v7_receipt": "bootstrap/stdlib-uuid-v7-results.json",
+  "first_failure_preserved": "build/uuid-control-0000-a1-results.json",
+  "fixture_diagnosis": "bootstrap/stdlib-uuid-clock-fixture-diagnosis.json",
+  "remaining": [
+    "maintained Cargo test target including custom PPC profile",
+    "actual Native capability path",
+    "matched public-pipeline benchmark review",
+    "candidate selection"
+  ]
+}

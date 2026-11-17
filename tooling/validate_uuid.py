@@ -37,8 +37,8 @@ def main() -> None:
     parser.add_argument('--runtime',type=Path,required=True)
     parser.add_argument('--clang',type=Path,required=True)
     parser.add_argument('--cpu',type=int,required=True)
-    parser.add_argument('--minimum-free-mib',type=int,choices=(320,350),default=350,
-                        help='Use320 only for the explicitly coordinated single-producer resource exception')
+    parser.add_argument('--minimum-free-mib',type=int,choices=(300,320,330,350),default=350,
+                        help='Use a sub350 threshold only for its explicitly coordinated resource exception')
     parser.add_argument('--mode',choices=('source','parse','append','compare','v7','generated','control','io'),required=True)
     parser.add_argument('--start',type=int,default=0)
     parser.add_argument('--count',type=int,default=128)

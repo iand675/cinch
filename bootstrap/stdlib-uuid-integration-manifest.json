@@ -1,0 +1,95 @@
+{
+  "kind": "minimal-UUID-candidate-integration-proposal",
+  "source_basis": "c244166183e6be61f0bace69e5b9c5a87a2fceda",
+  "apply_now": false,
+  "candidate_isolated_until": "Portable and matched benchmark review; Native-family claims remain separate.",
+  "production_files": [
+    "compiler/prelude/Data/Uuid.cinch",
+    "compiler/prelude/Effect/Uuid.cinch"
+  ],
+  "sdk_free_test_files": [
+    "compiler/tests/lib_uuid.rs",
+    "compiler/tests/fixtures/uuid-vectors.json",
+    "tooling/generate_uuid_cases.py",
+    "compiler/tests/fixtures/uuid-append.cinch.in",
+    "compiler/tests/fixtures/uuid-compare.cinch.in",
+    "compiler/tests/fixtures/uuid-control.cinch",
+    "compiler/tests/fixtures/uuid-generated.cinch.in",
+    "compiler/tests/fixtures/uuid-io.cinch",
+    "compiler/tests/fixtures/uuid-parse.cinch.in",
+    "compiler/tests/fixtures/uuid-portable.cinch",
+    "compiler/tests/fixtures/uuid-v7.cinch.in"
+  ],
+  "files": [
+    {
+      "path": "compiler/prelude/Data/Uuid.cinch",
+      "sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c"
+    },
+    {
+      "path": "compiler/prelude/Effect/Uuid.cinch",
+      "sha256": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3"
+    },
+    {
+      "path": "compiler/tests/lib_uuid.rs",
+      "sha256": "17ee5b6378297e584502edba481425c770c4a2307fce2c8880775e19783d5429"
+    },
+    {
+      "path": "compiler/tests/fixtures/uuid-vectors.json",
+      "sha256": "af3900f51bd4ed04fc660d988bfa4a36391cac5c58eb9cc3cde2c638df90a44e"
+    },
+    {
+      "path": "tooling/generate_uuid_cases.py",
+      "sha256": "c4c4d1fa92cfd8a672f5cffeec2ee1018e518c422e87f3e16701ee96d970bdc9"
+    },
+    {
+      "path": "compiler/tests/fixtures/uuid-append.cinch.in",
+      "sha256": "7df5c59ed2afee5ba72f19c85e0fa364403ab8dc796bf3af95357c223cf07787"
+    },
+    {
+      "path": "compiler/tests/fixtures/uuid-compare.cinch.in",
+      "sha256": "17689296c786d7812d2d0b4c206f0bf4fe9feb917134c7b71b5bfa465c858b4d"
+    },
+    {
+      "path": "compiler/tests/fixtures/uuid-control.cinch",
+      "sha256": "89594bf1d33313aca3fbf37cb7736f30ac601315b18c327cbf6b18770d23f11e"
+    },
+    {
+      "path": "compiler/tests/fixtures/uuid-generated.cinch.in",
+      "sha256": "ff86651efc0225b138b18895778c99e5f3bd0d2e2b81bd179881ea236dbb2bd4"
+    },
+    {
+      "path": "compiler/tests/fixtures/uuid-io.cinch",
+      "sha256": "35cdfa80452fb0a16bdcc3ea8e6c499fee8ed7bb7e14ac083e1d520e55efac03"
+    },
+    {
+      "path": "compiler/tests/fixtures/uuid-parse.cinch.in",
+      "sha256": "e4b42b2353fa24aee4e4559e49aaaf06d4657dd5d2811293c7093297b8573e10"
+    },
+    {
+      "path": "compiler/tests/fixtures/uuid-portable.cinch",
+      "sha256": "943cf1d7399dc683ecd8963176f8d13f61d1615c9789d06681d1e7e8ac0a6758"
+    },
+    {
+      "path": "compiler/tests/fixtures/uuid-v7.cinch.in",
+      "sha256": "7aa8067eaf457383609a94c420a09935b3efc8805d827ffd68aa303d44bc52aa"
+    }
+  ],
+  "requires_no_reference_sdk_at_test_time": true,
+  "requires_no_map_or_unrelated_production_changes": true,
+  "review_evidence_only_not_production_manifest": [
+    "bootstrap/stdlib-uuid-runtime-matrix-results.json",
+    "bootstrap/stdlib-uuid-portable-results.json",
+    "bootstrap/stdlib-uuid-clock-fixture-diagnosis.json",
+    "bootstrap/stdlib-uuid-doc-results.json"
+  ],
+  "benchmark_review_paths": [
+    "tooling/data/uuid-benchmark.cinch",
+    "tooling/bench_uuid_reference.go",
+    "tooling/bench_uuid.py"
+  ],
+  "reference_provenance_paths": [
+    "tooling/go_uuid_vectors_test.go",
+    "bootstrap/repros/uuid-reference-initial/oracle_test.go",
+    "bootstrap/stdlib-uuid-reference-results.json"
+  ]
+}

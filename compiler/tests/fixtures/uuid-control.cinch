@@ -49,15 +49,15 @@ module Main where
   clock-errors :: Unit -> Bool
   clock-errors unit =
     let entropy = bytes-new 8 in
-    let outside = case uuid-v7-step uuid-v7-initial 281474976710656000000000 entropy of Err UuidClockOutOfRange -> True; other -> False in
+    let outside = case uuid-v7-step uuid-v7-initial 281474976710656000000 entropy of Err UuidClockOutOfRange -> True; other -> False in
     let bad-entropy = case uuid-v7-step uuid-v7-initial 0 (bytes-new 7) of Err (UuidInvalidLength length) -> length == 7; other -> False in
     let bad-tick = case uuid-v7-from-tick 18446744073709551615 entropy of Err UuidClockOutOfRange -> True; other -> False in
-    case uuid-v7-step uuid-v7-initial 281474976710655999999999 entropy of
+    case uuid-v7-step uuid-v7-initial 281474976710655999999 entropy of
       Err error -> False
       Ok pair -> case pair of
         (state, value) ->
-          let exhausted = case uuid-v7-step state 281474976710655999999999 entropy of Err UuidClockExhausted -> True; other -> False in
-          let recovered = case uuid-v7-step state 0 entropy of Ok result -> True; Err error -> False in
+          let exhausted = case uuid-v7-step state 281474976710655999999 entropy of Err UuidClockExhausted -> True; other -> False in
+          let recovered = case uuid-v7-step state 0 entropy of Ok result -> (case result of (next, restored) -> uuid-format restored == "00000000-0000-7000-8000-000000000000"); Err error -> False in
           outside && bad-entropy && bad-tick && exhausted && recovered
 
   -- | Check sentinels and arbitrary bit patterns without imposing generation-time version restrictions.

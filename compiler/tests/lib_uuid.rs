@@ -140,3 +140,75 @@ fn uuid_declarations_have_canonical_documentation() {
         }
     }
 }
+
+/// Actual complete immutable adapters retain endian/vector/packed bodies and compile for32/64-bit and big-endian targets.
+#[test]
+fn uuid_full_adapters_compile_for_portable_targets() {
+    for (triple, arch, endian) in [
+        ("wasm32-unknown-unknown", "wasm32", "little"),
+        ("aarch64-unknown-linux-gnu", "aarch64", "little"),
+        ("powerpc64-unknown-linux-gnu", "powerpc64", "big"),
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        for (module, source) in [
+            ("Data.Uuid", include_str!("../prelude/Data/Uuid.cinch")),
+            ("Text.Hex", include_str!("../prelude/Text/Hex.cinch")),
+            (
+                "Data.Bytes.Word",
+                include_str!("../prelude/Data/Bytes/Word.cinch"),
+            ),
+        ] {
+            std::fs::write(directory.path().join(format!("{module}.cinch")), source).unwrap();
+        }
+        std::fs::write(
+            directory.path().join("Main.cinch"),
+            include_str!("fixtures/uuid-portable.cinch"),
+        )
+        .unwrap();
+        let profile = cinch::driver::target_profile(&cinch::driver::DriverOptions {
+            target: Some(triple.into()),
+            ..Default::default()
+        })
+        .unwrap_or_else(|_| {
+            assert_eq!(arch, "powerpc64");
+            let mut profile = cinch::core::TargetProfile::native();
+            profile.triple = triple.into();
+            profile.arch = arch.into();
+            profile.endian = endian.into();
+            profile.os = "linux".into();
+            profile.word_size = 64;
+            profile
+        });
+        let ir_path = directory.path().join("consumer.ll");
+        common::drive_with_profile(
+            Mode::EmitIr,
+            cinch::check::StageMode::Refresh,
+            directory.path(),
+            "Main.cinch",
+            Some(ir_path.clone()),
+            &profile,
+        )
+        .unwrap();
+        let ir = std::fs::read_to_string(&ir_path).unwrap();
+        for actual_body in ["Data.Uuid.compare-packed", "@llvm.bswap.i64", "<8 x i8>"] {
+            assert!(
+                ir.contains(actual_body),
+                "{triple}: missing actual adapter body {actual_body}"
+            );
+        }
+        let output = std::process::Command::new(
+            std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
+        )
+        .args(["-target", triple, "-O2", "-c", "-x", "ir"])
+        .arg(&ir_path)
+        .arg("-o")
+        .arg(directory.path().join("consumer.o"))
+        .output()
+        .unwrap();
+        assert!(
+            output.status.success(),
+            "{triple}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
