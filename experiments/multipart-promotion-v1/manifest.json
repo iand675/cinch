@@ -1,0 +1,177 @@
+{
+  "status": "Fresh source,12public/7private defining metadata and actual live three-factory O2 runtime passed330/d91 normal/poison8M. Full independent corpus pending; production unchanged.",
+  "basis_effect_sha256": "b9e813899b592e69016e92d4292d2e19e96b4eec077b2f7511633d6e78d45af8",
+  "historical_production_sha256": "1969a6077e1aafb84226e9f4457ceb0b17395bdd9ad82a3a8256ec02e22a8044",
+  "changes": [
+    {
+      "name": "MultipartSource",
+      "visibility": "public",
+      "historical_header": "data MultipartSource r e where",
+      "proposal_header": "data MultipartSource (r :: Region) e where",
+      "basis": "Its callback uses IO r and optionally Mut r."
+    },
+    {
+      "name": "MultipartSink",
+      "visibility": "public",
+      "historical_header": "data MultipartSink r e where",
+      "proposal_header": "data MultipartSink (r :: Region) e where",
+      "basis": "Its callback uses IO r and optionally Mut r."
+    },
+    {
+      "name": "WriterState",
+      "visibility": "private",
+      "historical_header": "data WriterState r e where",
+      "proposal_header": "data WriterState (r :: Region) e where",
+      "basis": "It stores MultipartSink r; this is the writer session identity."
+    },
+    {
+      "name": "MultipartWriter",
+      "visibility": "public",
+      "historical_header": "data MultipartWriter r e where",
+      "proposal_header": "data MultipartWriter (r :: Region) e where",
+      "basis": "Its cell is Var r (WriterState r e)."
+    },
+    {
+      "name": "MultipartOutputPart",
+      "visibility": "public",
+      "historical_header": "data MultipartOutputPart r e where",
+      "proposal_header": "data MultipartOutputPart (r :: Region) e where",
+      "basis": "Its writer/body cells use Var r."
+    },
+    {
+      "name": "InputState",
+      "visibility": "private",
+      "historical_header": "data InputState r e where",
+      "proposal_header": "data InputState (r :: Region) e where",
+      "basis": "It stores MultipartSource r and the input continuation."
+    },
+    {
+      "name": "ReaderState",
+      "visibility": "private",
+      "historical_header": "data ReaderState r e where",
+      "proposal_header": "data ReaderState (r :: Region) e where",
+      "basis": "Its input/current cells use Var r."
+    },
+    {
+      "name": "MultipartReader",
+      "visibility": "public",
+      "historical_header": "data MultipartReader r e where",
+      "proposal_header": "data MultipartReader (r :: Region) e where",
+      "basis": "Its reader cell is Var r."
+    },
+    {
+      "name": "MultipartPart",
+      "visibility": "public",
+      "historical_header": "data MultipartPart r e where",
+      "proposal_header": "data MultipartPart (r :: Region) e where",
+      "basis": "Its reader and part cells use Var r."
+    },
+    {
+      "name": "StorageOps",
+      "visibility": "private",
+      "historical_header": "data StorageOps r e key fileHandle state where",
+      "proposal_header": "data StorageOps (r :: Region) e key fileHandle state where",
+      "basis": "Every backend callback uses IO r, optionally Mut r."
+    },
+    {
+      "name": "MultipartStorage",
+      "visibility": "public",
+      "historical_header": "data MultipartStorage r e key fileHandle state where",
+      "proposal_header": "data MultipartStorage (r :: Region) e key fileHandle state where",
+      "basis": "Its backend-state cell is Var r and operations use r."
+    },
+    {
+      "name": "FileBacking",
+      "visibility": "private",
+      "historical_header": "data FileBacking r e key fileHandle state where",
+      "proposal_header": "data FileBacking (r :: Region) e key fileHandle state where",
+      "basis": "Disk backing retains MultipartStorage r."
+    },
+    {
+      "name": "FileHeaderState",
+      "visibility": "private",
+      "historical_header": "data FileHeaderState r e key fileHandle state where",
+      "proposal_header": "data FileHeaderState (r :: Region) e key fileHandle state where",
+      "basis": "Its backing is FileBacking r."
+    },
+    {
+      "name": "MultipartFileHeader",
+      "visibility": "public",
+      "historical_header": "data MultipartFileHeader r e key fileHandle state where",
+      "proposal_header": "data MultipartFileHeader (r :: Region) e key fileHandle state where",
+      "basis": "Its metadata cell is Var r."
+    },
+    {
+      "name": "MultipartFile",
+      "visibility": "public",
+      "historical_header": "data MultipartFile r e key fileHandle state where",
+      "proposal_header": "data MultipartFile (r :: Region) e key fileHandle state where",
+      "basis": "Memory/section cursors use Var r and disk backing uses MultipartStorage r."
+    },
+    {
+      "name": "FormState",
+      "visibility": "private",
+      "historical_header": "data FormState r e key fileHandle state where",
+      "proposal_header": "data FormState (r :: Region) e key fileHandle state where",
+      "basis": "Its file lists contain MultipartFileHeader r."
+    },
+    {
+      "name": "MultipartForm",
+      "visibility": "public",
+      "historical_header": "data MultipartForm r e key fileHandle state where",
+      "proposal_header": "data MultipartForm (r :: Region) e key fileHandle state where",
+      "basis": "Its state cell is Var r."
+    },
+    {
+      "name": "MultipartCleanup",
+      "visibility": "public",
+      "historical_header": "data MultipartCleanup r e where",
+      "proposal_header": "data MultipartCleanup (r :: Region) e where",
+      "basis": "Its retry callback requires IO r and Mut r."
+    },
+    {
+      "name": "MultipartFormReadOutcome",
+      "visibility": "public",
+      "historical_header": "data MultipartFormReadOutcome r e key fileHandle state where",
+      "proposal_header": "data MultipartFormReadOutcome (r :: Region) e key fileHandle state where",
+      "basis": "Its form and cleanup carriers retain the same r identity."
+    }
+  ],
+  "signature_impact": "../multipart-both-effects-v1/signature-impact.json",
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+    "sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+    "source_commit": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf"
+  },
+  "sources": {
+    "Effect.Multipart.cinch": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b",
+    "Text.Multipart.cinch": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2"
+  },
+  "source_gate": {
+    "path": "build/multipart/promotion-330-live-v1/report.json",
+    "source_returncode": 0,
+    "initial_wrapper_outcome": "Stopped after successful source admission when5,438,940 retained bytes exceeded the initial5MiB source-only cap. All genuine defining artifacts remain plain.",
+    "authorized_exception": "Root explicitly authorized6MiB for this combined source-only epoch after inspecting the complete genuine producer closure. No source check is relabeled or repeated.",
+    "committed_receipt": "source-gate.json"
+  },
+  "metadata_gate": {
+    "path": "build/multipart/promotion-330-metadata-v1/report.json",
+    "public_carriers": 12,
+    "private_carriers": 7,
+    "private_scope": "Separate test-only observation copy appends seven exported pure identities. Actual candidate and public API remain unchanged.",
+    "committed_receipt": "metadata-gate.json"
+  },
+  "live_runtime_gate": {
+    "path": "build/multipart/promotion-330-live-v1/runtime-rust.json",
+    "committed_receipt": "live-runtime-gate.json",
+    "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "profiles": [
+      "normal32MiB/8MiB",
+      "poison256MiB/8MiB"
+    ],
+    "new_output_bytes": 16941183,
+    "production_adopted": false
+  }
+}
