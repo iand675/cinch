@@ -1,0 +1,71 @@
+{
+  "kind": "separate-UUID-packed-parser-candidate",
+  "status": "functional-portable-parent8-and-matched-ad6-performance-gates-recorded-unselected-pending-review",
+  "baseline_source": "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
+  "baseline_source_sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+  "source": "experiments/uuid-packed-parser-v1/sources/Data.Uuid.cinch",
+  "source_sha256": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+  "effect_source_unchanged": "experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch",
+  "effect_source_sha256": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
+  "kernel_derivation": {
+    "path": "compiler/prelude/Text/Hex.cinch",
+    "sha256": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "scope": "Private SIMD decode8 body copied byte-for-byte except declaration name and documentation; existing Hex source remains unchanged."
+  },
+  "preserves": [
+    "all public declarations and error variants",
+    "canonical/compact/brace/lowercase-URN acceptance and mixed-case hexadecimal",
+    "punctuation-first refusal and invalid-length distinction",
+    "immutable words and fresh byte conversions",
+    "existing canonical rendering, append,compare,hash,V4/V7 logic"
+  ],
+  "changes": [
+    "Direct packed classification and network-word construction; no compact32 or decoded16 temporary buffers",
+    "Gather canonical groups using only existing proved four/eight-byte reads",
+    "Check all classification flags before constructing a value"
+  ],
+  "non_goals": [
+    "String backing remains private; uuid-parse still makes the ordinary string-to-bytes copy",
+    "No representation/ABI/compiler/runtime/shared-module change",
+    "No entropy/time substitution",
+    "No selection or performance claim before full qualification and paired timing"
+  ],
+  "pending": [
+    "Root review/selection of parsing-only optimization; controls and variability retained",
+    "Current Native family compatibility remains separate/unclaimed",
+    "Further generation/runtime-provider optimization deferred to separate ownership"
+  ],
+  "candidate_selected": false,
+  "package_complete": false,
+  "completed": [
+    "exact330/d91 source check",
+    "46Data.Uuid canonical declarations with zero diagnostics/orphans",
+    "first128independent parser/receiver/strict-parser observations normal32M/poison256M,8Mstack,zero leaks",
+    "full660parse/204append/370compare/48recorded payload/9clock sequence independent matrix",
+    "32768metamorphic position/form/byte receiver and input-restoration cases",
+    "owner/hash/range controls and actual entropy/wallclock/serialized shared-generator IO",
+    "16bounded units/32normal+poison processes allzero leaks; every closed functional output durably archived",
+    "Actual packed-adapter wasm32/AArch64IR and object compilation with packed decoder call paths; PPC CLI refusal remains separate",
+    "Actual currentRoot8/PPC gate21.39s selects expected41c8source,actual path/SHA logged; distinct from330andbaseline8",
+    "Matchedad6/d91 baseline+packed builds with identical5baefa harness and closure exceptData.Uuid",
+    "Both180condition/540process independent reference memory preflights and200process paired0/1/20/4096 proof",
+    "OrdinaryRC allocation/ASM review shows canonical6blocks/144B reduction",
+    "ExclusiveCPU0 paired180observations all fingerprints match,all6rawsamples retained,pre/postquota zero additional throttles;per-workload gains/regressions/variation retained"
+  ],
+  "qualification": {
+    "source_doc": "source-doc-results.json",
+    "initial_runtime": "initial-runtime-results.json",
+    "positional_oracle": "positional-reference.json",
+    "positional_source_check": "passed after a preserved fixture-only reserved-identifier rename",
+    "selected": false,
+    "runtime_matrix": "runtime-matrix-results.json",
+    "portable": "portable-results.json",
+    "parent8": "parent-maintained-results.json",
+    "current_baseline": "current-baseline-preflight.json",
+    "current_packed": "current-packed-preflight.json",
+    "current_pair": "current-pair-preflight.json",
+    "allocation_assembly": "current-allocation-assembly-results.json",
+    "timing": "current-timing-review.json",
+    "raw_all_samples": "current-timing-all-observations.json"
+  }
+}

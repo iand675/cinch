@@ -1,0 +1,146 @@
+{
+  "kind": "isolated-packed-UUID-full-standalone-runtime-matrix",
+  "status": "passed",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source_sha256": {
+    "Data.Uuid": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+    "Effect.Uuid": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3"
+  },
+  "fixture_sha256": "af3900f51bd4ed04fc660d988bfa4a36391cac5c58eb9cc3cde2c638df90a44e",
+  "ledger_sha256": "d56f57bcf0baa6561d99c0ced4142de02b0c2f81268655a0e43779f8a1b8d7e2",
+  "independent_observations": {
+    "parse": 660,
+    "append": 204,
+    "compare": 370,
+    "generated": 48,
+    "v7": 9
+  },
+  "derived_positional_observations": 32768,
+  "control_and_real_IO": true,
+  "bounded_units": 16,
+  "memory_processes": 32,
+  "memory": "normal32MiB/poison256MiB,8MiBstack,allzero leaks",
+  "units": {
+    "parse-0000": {
+      "status": "passed",
+      "report": "build/uuid-packed-parse-0-a1-results.json",
+      "report_sha256": "142655b7053a7e8fc339b7cce2f03b690256503ba7312bb110d57cab957a9c78",
+      "independent_observations": 128
+    },
+    "custom-0000": {
+      "status": "passed",
+      "report": "build/uuid-packed-custom-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "9c6dc43758e586483ce393a3de1cca9d0a6e642b905297ad6427595b18f21671",
+      "consumer_sha256": "405769377bbca49cab5df41a68bd825d5bbbee5bbdba451aa0da0906cc582c64",
+      "derived_metamorphic_observations": 32768,
+      "oracle_kind": "positional law using actual256SDKbyte classifications; no new reference execution"
+    },
+    "parse-0128": {
+      "status": "passed",
+      "report": "build/uuid-packed-parse-0128-a1-results.json",
+      "exit": 0,
+      "report_sha256": "54642c78eeb279d91c74fb98afe2513f54cbd9c14033d322d6b3235ea805c566",
+      "independent_observations": 128
+    },
+    "parse-0256": {
+      "status": "passed",
+      "report": "build/uuid-packed-parse-0256-a1-results.json",
+      "exit": 0,
+      "report_sha256": "40fb51aa7c2a2b31875808ba59e7a774f763a22ea3eba1f3965791e0cccb58cf",
+      "independent_observations": 128
+    },
+    "parse-0384": {
+      "status": "passed",
+      "report": "build/uuid-packed-parse-0384-a1-results.json",
+      "exit": 0,
+      "report_sha256": "9ed308fa3a39e6f91087789ad2523b8d55aca4c0cd707000b0c331f8ff33761d",
+      "independent_observations": 128
+    },
+    "parse-0512": {
+      "status": "passed",
+      "report": "build/uuid-packed-parse-0512-a1-results.json",
+      "exit": 0,
+      "report_sha256": "1f6284010902d7d14d4ec82716434f92c3aebdc8bb59594744ed32d4cb8e8eef",
+      "independent_observations": 128
+    },
+    "parse-0640": {
+      "status": "passed",
+      "report": "build/uuid-packed-parse-0640-a1-results.json",
+      "exit": 0,
+      "report_sha256": "fbb0110730379e56075c6276e3f50be3c41798d0bab999f488d255e89ea6491d",
+      "independent_observations": 20
+    },
+    "append-0000": {
+      "status": "passed",
+      "report": "build/uuid-packed-append-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "52bc1019d81c241c0a9164ff791354b19b53bc0e38a23cd79d8c4c9f8d6f7f69",
+      "independent_observations": 128
+    },
+    "append-0128": {
+      "status": "passed",
+      "report": "build/uuid-packed-append-0128-a1-results.json",
+      "exit": 0,
+      "report_sha256": "5832be3354eb5ec98679faa33fa884f82f165c3c9a4f422785e86ebf935d82b9",
+      "independent_observations": 76
+    },
+    "compare-0000": {
+      "status": "passed",
+      "report": "build/uuid-packed-compare-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "63e99c77d6931450daae5c6d3381adb9701261e79f41bd024d6b543ff47e2d41",
+      "independent_observations": 128
+    },
+    "compare-0128": {
+      "status": "passed",
+      "report": "build/uuid-packed-compare-0128-a1-results.json",
+      "exit": 0,
+      "report_sha256": "b4d29c621e2c18fa8aaed684bdca28ceecab6cca7359278b27638fe22c9a360a",
+      "independent_observations": 128
+    },
+    "compare-0256": {
+      "status": "passed",
+      "report": "build/uuid-packed-compare-0256-a1-results.json",
+      "exit": 0,
+      "report_sha256": "d0c668ff86ef02fae917cce0896f8e7152bdfd4c463b77c09a35973bb6192f54",
+      "independent_observations": 114
+    },
+    "generated-0000": {
+      "status": "passed",
+      "report": "build/uuid-packed-generated-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "20579d08f420773a2df9129463fc399f850b671e3ffede76b4f6d86936d5247a",
+      "independent_observations": 48
+    },
+    "v7-0000": {
+      "status": "passed",
+      "report": "build/uuid-packed-v7-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "cd72e4635f4d1c5906fbda98e23653284b179da3890cefd0f894041b5a3f6667",
+      "independent_observations": 9
+    },
+    "control-0000": {
+      "status": "passed",
+      "report": "build/uuid-packed-control-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "a77ee68980471de3e0c56a3ddd5251b71c43de042d041c9a88c763a6d9359735",
+      "independent_observations": null
+    },
+    "io-0000": {
+      "status": "passed",
+      "report": "build/uuid-packed-io-0000-a1-results.json",
+      "exit": 0,
+      "report_sha256": "229d15ef619e1deb4372133ce91306436c4c0f13fa029c6e742a764ca0d87e7d",
+      "independent_observations": null
+    }
+  },
+  "candidate_selected": false,
+  "package_complete": false,
+  "not_claimed": [
+    "maintainedParent8/PPCcustomprofile gate for this source",
+    "matched packed performance",
+    "full Native packed source compatibility"
+  ]
+}

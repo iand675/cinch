@@ -1,0 +1,25 @@
+{
+  "kind": "matched-ad6-packed-UUID-pipeline-preflight",
+  "status": "passed",
+  "identity_sha256": "1e511ee135dcaad94f1f4b065ddfc6ac7fd542f941b3e62c413262a8881df0dc",
+  "preflight_sha256": "c4335964999bcfa317ef0cc85004000da0f3c283dfb46768932e19d48dc32c65",
+  "compiler_sha256": "ad6e72f9cb4b946c7864b088062a2413974ca7b965153e1d7a413a97e0554e14",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "sources": {
+    "Effect.Concurrent.MVar.cinch": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e",
+    "Effect.Uuid.cinch": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
+    "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "Main.cinch": "5baefa7af7c819b2acfef39f5302c62ae42a5c44ec864ec75146cf908ccc563b",
+    "Effect.Clock.cinch": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
+    "Data.Uuid.cinch": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+    "Effect.Random.cinch": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+  },
+  "reference_executable_sha256": "b2c294fb07f3f0b67cd29ed177c075cbcd13abdcfd63b1c9df1e71f8623007ea",
+  "conditions": 180,
+  "processes": 540,
+  "output_bytes": 12281316,
+  "new_cache_bytes": 0,
+  "timing_claim": false,
+  "candidate_selected": false
+}

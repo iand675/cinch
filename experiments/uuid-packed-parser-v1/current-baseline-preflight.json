@@ -1,0 +1,18 @@
+{
+  "kind": "matched-current-compiler-UUID-baseline-preflight",
+  "status": "passed-baseline-only",
+  "compiler_sha256": "ad6e72f9cb4b946c7864b088062a2413974ca7b965153e1d7a413a97e0554e14",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source_sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+  "entry_sha256": "5baefa7af7c819b2acfef39f5302c62ae42a5c44ec864ec75146cf908ccc563b",
+  "reference_executable_sha256": "b2c294fb07f3f0b67cd29ed177c075cbcd13abdcfd63b1c9df1e71f8623007ea",
+  "identity_sha256": "f6a45bf9a5f0a51ba95d90b504e415d48e2f7447bf952e403ef3301366c817c3",
+  "preflight_sha256": "145d57f62ae8987b9793b47555e76157908aa5c5a23e38f851adcc9a0ff80750",
+  "conditions": 180,
+  "processes": 540,
+  "output_bytes": 12404735,
+  "new_cache_bytes": 0,
+  "timing_claim": false,
+  "packed_built": false,
+  "scope": "Currentad6/d91 baseline with exact original5baefa harness, ordinaryHexSIMD and existing SDK binary. Allcandidate normal32M/poison256M and8Mstack processes matchreference fingerprints,zero leaks. Packedbuild waits parent resource reservation."
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "isolated-UUID-packed-parser-source-and-doc-check",
+  "status": "passed-source-only",
+  "source_result": "build/uuid-packed-source-a1-results.json",
+  "source_result_sha256": "aecaa7907159db0235a0c4c8ef622a4f4f5ab8f9de6fde1fd35fb0d94f804b1f",
+  "candidate_sha256": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+  "docs_sha256": "82d8010a7276d081e70c20e0ccc35a3999e0ce4ac99e7f33aafdd16e23fe6aca",
+  "canonical_declarations": 46,
+  "doc_diagnostics": [],
+  "doc_orphans": [],
+  "runtime_executed": false,
+  "candidate_selected": false,
+  "package_complete": false
+}

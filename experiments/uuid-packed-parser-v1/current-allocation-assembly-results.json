@@ -1,0 +1,1351 @@
+{
+  "kind": "ad6-UUID-matched-parser-allocation-assembly-preflight",
+  "status": "passed",
+  "compiler_sha256": "ad6e72f9cb4b946c7864b088062a2413974ca7b965153e1d7a413a97e0554e14",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "preflight_sha256": "ccbcc87a3839312a107798312f08aef36b7151bb0d734cc229160f87aa13662a",
+  "conditions": 10,
+  "memory_processes": 200,
+  "groups": [
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 0,
+      "variants": {
+        "baseline": {
+          "raw": {
+            "0": {
+              "blocks": 147,
+              "bytes": 4097,
+              "peak": 1340,
+              "header-blocks": 106,
+              "header-bytes": 2392,
+              "immortal": 0,
+              "freed": 106,
+              "live": 0
+            },
+            "1": {
+              "blocks": 163,
+              "bytes": 4541,
+              "peak": 1340,
+              "header-blocks": 118,
+              "header-bytes": 2736,
+              "immortal": 0,
+              "freed": 118,
+              "live": 0
+            },
+            "20": {
+              "blocks": 475,
+              "bytes": 13144,
+              "peak": 1342,
+              "header-blocks": 354,
+              "header-bytes": 9432,
+              "immortal": 0,
+              "freed": 354,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 65693,
+              "bytes": 1823002,
+              "peak": 1344,
+              "header-blocks": 49276,
+              "header-bytes": 1411752,
+              "immortal": 0,
+              "freed": 49276,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 16.42105263157895,
+            "bytes": 452.7894736842105,
+            "header-blocks": 12.421052631578947,
+            "header-bytes": 352.42105263157896,
+            "freed": 12.421052631578947
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 16.002442002442002,
+            "bytes": 444.0686202686203,
+            "header-blocks": 12.004395604395604,
+            "header-bytes": 344.0820512820513,
+            "freed": 12.004395604395604
+          }
+        },
+        "packed": {
+          "raw": {
+            "0": {
+              "blocks": 135,
+              "bytes": 3809,
+              "peak": 1340,
+              "header-blocks": 98,
+              "header-bytes": 2200,
+              "immortal": 0,
+              "freed": 98,
+              "live": 0
+            },
+            "1": {
+              "blocks": 145,
+              "bytes": 4109,
+              "peak": 1340,
+              "header-blocks": 106,
+              "header-bytes": 2448,
+              "immortal": 0,
+              "freed": 106,
+              "live": 0
+            },
+            "20": {
+              "blocks": 341,
+              "bytes": 9932,
+              "peak": 1341,
+              "header-blocks": 264,
+              "header-bytes": 7280,
+              "immortal": 0,
+              "freed": 264,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 41105,
+              "bytes": 1232890,
+              "peak": 1344,
+              "header-blocks": 32884,
+              "header-bytes": 1018344,
+              "immortal": 0,
+              "freed": 32884,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 10.31578947368421,
+            "bytes": 306.4736842105263,
+            "header-blocks": 8.31578947368421,
+            "header-bytes": 254.31578947368422,
+            "freed": 8.31578947368421
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 10.002442002442002,
+            "bytes": 300.0686202686203,
+            "header-blocks": 8.004395604395604,
+            "header-bytes": 248.08205128205128,
+            "freed": 8.004395604395604
+          }
+        }
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 1,
+      "variants": {
+        "baseline": {
+          "raw": {
+            "0": {
+              "blocks": 147,
+              "bytes": 4097,
+              "peak": 1340,
+              "header-blocks": 106,
+              "header-bytes": 2392,
+              "immortal": 0,
+              "freed": 106,
+              "live": 0
+            },
+            "1": {
+              "blocks": 157,
+              "bytes": 4321,
+              "peak": 1340,
+              "header-blocks": 113,
+              "header-bytes": 2552,
+              "immortal": 0,
+              "freed": 113,
+              "live": 0
+            },
+            "20": {
+              "blocks": 353,
+              "bytes": 8700,
+              "peak": 1341,
+              "header-blocks": 252,
+              "header-bytes": 5712,
+              "immortal": 0,
+              "freed": 252,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 41117,
+              "bytes": 921882,
+              "peak": 1344,
+              "header-blocks": 28796,
+              "header-bytes": 658088,
+              "immortal": 0,
+              "freed": 28796,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 10.31578947368421,
+            "bytes": 230.47368421052633,
+            "header-blocks": 7.315789473684211,
+            "header-bytes": 166.31578947368422,
+            "freed": 7.315789473684211
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 10.002442002442002,
+            "bytes": 224.06862026862026,
+            "header-blocks": 7.004395604395604,
+            "header-bytes": 160.08205128205128,
+            "freed": 7.004395604395604
+          }
+        },
+        "packed": {
+          "raw": {
+            "0": {
+              "blocks": 135,
+              "bytes": 3809,
+              "peak": 1340,
+              "header-blocks": 98,
+              "header-bytes": 2200,
+              "immortal": 0,
+              "freed": 98,
+              "live": 0
+            },
+            "1": {
+              "blocks": 141,
+              "bytes": 3945,
+              "peak": 1340,
+              "header-blocks": 102,
+              "header-bytes": 2288,
+              "immortal": 0,
+              "freed": 102,
+              "live": 0
+            },
+            "20": {
+              "blocks": 261,
+              "bytes": 6652,
+              "peak": 1341,
+              "header-blocks": 184,
+              "header-bytes": 4080,
+              "immortal": 0,
+              "freed": 184,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 24719,
+              "bytes": 561102,
+              "peak": 1343,
+              "header-blocks": 16498,
+              "header-bytes": 362944,
+              "immortal": 0,
+              "freed": 16498,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 6.315789473684211,
+            "bytes": 142.47368421052633,
+            "header-blocks": 4.315789473684211,
+            "header-bytes": 94.3157894736842,
+            "freed": 4.315789473684211
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 6.001953601953602,
+            "bytes": 136.05787545787547,
+            "header-blocks": 4.003907203907204,
+            "header-bytes": 88.07228327228327,
+            "freed": 4.003907203907204
+          }
+        }
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 2,
+      "variants": {
+        "baseline": {
+          "raw": {
+            "0": {
+              "blocks": 147,
+              "bytes": 4097,
+              "peak": 1340,
+              "header-blocks": 106,
+              "header-bytes": 2392,
+              "immortal": 0,
+              "freed": 106,
+              "live": 0
+            },
+            "1": {
+              "blocks": 164,
+              "bytes": 4590,
+              "peak": 1340,
+              "header-blocks": 119,
+              "header-bytes": 2776,
+              "immortal": 0,
+              "freed": 119,
+              "live": 0
+            },
+            "20": {
+              "blocks": 495,
+              "bytes": 14124,
+              "peak": 1342,
+              "header-blocks": 374,
+              "header-bytes": 10232,
+              "immortal": 0,
+              "freed": 374,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 69789,
+              "bytes": 2023706,
+              "peak": 1344,
+              "header-blocks": 53372,
+              "header-bytes": 1575592,
+              "immortal": 0,
+              "freed": 53372,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 17.42105263157895,
+            "bytes": 501.7894736842105,
+            "header-blocks": 13.421052631578947,
+            "header-bytes": 392.42105263157896,
+            "freed": 13.421052631578947
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 17.002442002442002,
+            "bytes": 493.0686202686203,
+            "header-blocks": 13.004395604395604,
+            "header-bytes": 384.0820512820513,
+            "freed": 13.004395604395604
+          }
+        },
+        "packed": {
+          "raw": {
+            "0": {
+              "blocks": 135,
+              "bytes": 3809,
+              "peak": 1340,
+              "header-blocks": 98,
+              "header-bytes": 2200,
+              "immortal": 0,
+              "freed": 98,
+              "live": 0
+            },
+            "1": {
+              "blocks": 146,
+              "bytes": 4158,
+              "peak": 1340,
+              "header-blocks": 107,
+              "header-bytes": 2488,
+              "immortal": 0,
+              "freed": 107,
+              "live": 0
+            },
+            "20": {
+              "blocks": 361,
+              "bytes": 10912,
+              "peak": 1341,
+              "header-blocks": 284,
+              "header-bytes": 8080,
+              "immortal": 0,
+              "freed": 284,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 45201,
+              "bytes": 1433594,
+              "peak": 1344,
+              "header-blocks": 36980,
+              "header-bytes": 1182184,
+              "immortal": 0,
+              "freed": 36980,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 11.31578947368421,
+            "bytes": 355.4736842105263,
+            "header-blocks": 9.31578947368421,
+            "header-bytes": 294.3157894736842,
+            "freed": 9.31578947368421
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 11.002442002442002,
+            "bytes": 349.0686202686203,
+            "header-blocks": 9.004395604395604,
+            "header-bytes": 288.0820512820513,
+            "freed": 9.004395604395604
+          }
+        }
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 3,
+      "variants": {
+        "baseline": {
+          "raw": {
+            "0": {
+              "blocks": 147,
+              "bytes": 4097,
+              "peak": 1340,
+              "header-blocks": 106,
+              "header-bytes": 2392,
+              "immortal": 0,
+              "freed": 106,
+              "live": 0
+            },
+            "1": {
+              "blocks": 165,
+              "bytes": 4623,
+              "peak": 1340,
+              "header-blocks": 120,
+              "header-bytes": 2816,
+              "immortal": 0,
+              "freed": 120,
+              "live": 0
+            },
+            "20": {
+              "blocks": 515,
+              "bytes": 14784,
+              "peak": 1342,
+              "header-blocks": 394,
+              "header-bytes": 11032,
+              "immortal": 0,
+              "freed": 394,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 73885,
+              "bytes": 2158874,
+              "peak": 1344,
+              "header-blocks": 57468,
+              "header-bytes": 1739432,
+              "immortal": 0,
+              "freed": 57468,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 18.42105263157895,
+            "bytes": 534.7894736842105,
+            "header-blocks": 14.421052631578947,
+            "header-bytes": 432.42105263157896,
+            "freed": 14.421052631578947
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 18.002442002442002,
+            "bytes": 526.0686202686203,
+            "header-blocks": 14.004395604395604,
+            "header-bytes": 424.0820512820513,
+            "freed": 14.004395604395604
+          }
+        },
+        "packed": {
+          "raw": {
+            "0": {
+              "blocks": 135,
+              "bytes": 3809,
+              "peak": 1340,
+              "header-blocks": 98,
+              "header-bytes": 2200,
+              "immortal": 0,
+              "freed": 98,
+              "live": 0
+            },
+            "1": {
+              "blocks": 147,
+              "bytes": 4191,
+              "peak": 1340,
+              "header-blocks": 108,
+              "header-bytes": 2528,
+              "immortal": 0,
+              "freed": 108,
+              "live": 0
+            },
+            "20": {
+              "blocks": 381,
+              "bytes": 11572,
+              "peak": 1341,
+              "header-blocks": 304,
+              "header-bytes": 8880,
+              "immortal": 0,
+              "freed": 304,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 49297,
+              "bytes": 1568762,
+              "peak": 1344,
+              "header-blocks": 41076,
+              "header-bytes": 1346024,
+              "immortal": 0,
+              "freed": 41076,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 12.31578947368421,
+            "bytes": 388.4736842105263,
+            "header-blocks": 10.31578947368421,
+            "header-bytes": 334.3157894736842,
+            "freed": 10.31578947368421
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 12.002442002442002,
+            "bytes": 382.0686202686203,
+            "header-blocks": 10.004395604395604,
+            "header-bytes": 328.0820512820513,
+            "freed": 10.004395604395604
+          }
+        }
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 4,
+      "variants": {
+        "baseline": {
+          "raw": {
+            "0": {
+              "blocks": 147,
+              "bytes": 4097,
+              "peak": 1340,
+              "header-blocks": 106,
+              "header-bytes": 2392,
+              "immortal": 0,
+              "freed": 106,
+              "live": 0
+            },
+            "1": {
+              "blocks": 159,
+              "bytes": 4494,
+              "peak": 1339,
+              "header-blocks": 122,
+              "header-bytes": 2760,
+              "immortal": 0,
+              "freed": 122,
+              "live": 0
+            },
+            "20": {
+              "blocks": 635,
+              "bytes": 15684,
+              "peak": 1342,
+              "header-blocks": 514,
+              "header-bytes": 11992,
+              "immortal": 0,
+              "freed": 514,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 98475,
+              "bytes": 2343414,
+              "peak": 1346,
+              "header-blocks": 82050,
+              "header-bytes": 1936184,
+              "immortal": 0,
+              "freed": 82050,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 25.05263157894737,
+            "bytes": 588.9473684210526,
+            "header-blocks": 20.63157894736842,
+            "header-bytes": 485.89473684210526,
+            "freed": 20.63157894736842
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 24.00879120879121,
+            "bytes": 571.1648351648352,
+            "header-blocks": 20.006837606837607,
+            "header-bytes": 472.14261294261297,
+            "freed": 20.006837606837607
+          }
+        },
+        "packed": {
+          "raw": {
+            "0": {
+              "blocks": 135,
+              "bytes": 3809,
+              "peak": 1340,
+              "header-blocks": 98,
+              "header-bytes": 2200,
+              "immortal": 0,
+              "freed": 98,
+              "live": 0
+            },
+            "1": {
+              "blocks": 130,
+              "bytes": 3871,
+              "peak": 1339,
+              "header-blocks": 100,
+              "header-bytes": 2296,
+              "immortal": 0,
+              "freed": 100,
+              "live": 0
+            },
+            "20": {
+              "blocks": 281,
+              "bytes": 8652,
+              "peak": 1341,
+              "header-blocks": 224,
+              "header-bytes": 6320,
+              "immortal": 0,
+              "freed": 224,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 28829,
+              "bytes": 970922,
+              "peak": 1345,
+              "header-blocks": 24696,
+              "header-bytes": 821840,
+              "immortal": 0,
+              "freed": 24696,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 7.947368421052632,
+            "bytes": 251.6315789473684,
+            "header-blocks": 6.526315789473684,
+            "header-bytes": 211.78947368421052,
+            "freed": 6.526315789473684
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 7.008302808302808,
+            "bytes": 236.15409035409036,
+            "header-blocks": 6.006349206349206,
+            "header-bytes": 200.13284493284493,
+            "freed": 6.006349206349206
+          }
+        }
+      }
+    },
+    {
+      "workload": "format",
+      "size": 0,
+      "pattern": 0,
+      "variants": {
+        "baseline": {
+          "raw": {
+            "0": {
+              "blocks": 149,
+              "bytes": 4140,
+              "peak": 1341,
+              "header-blocks": 108,
+              "header-bytes": 2432,
+              "immortal": 0,
+              "freed": 108,
+              "live": 0
+            },
+            "1": {
+              "blocks": 155,
+              "bytes": 4296,
+              "peak": 1341,
+              "header-blocks": 111,
+              "header-bytes": 2504,
+              "immortal": 0,
+              "freed": 111,
+              "live": 0
+            },
+            "20": {
+              "blocks": 273,
+              "bytes": 7337,
+              "peak": 1341,
+              "header-blocks": 172,
+              "header-bytes": 3952,
+              "immortal": 0,
+              "freed": 172,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 24749,
+              "bytes": 643617,
+              "peak": 1347,
+              "header-blocks": 12420,
+              "header-bytes": 297824,
+              "immortal": 0,
+              "freed": 12420,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 6.2105263157894735,
+            "bytes": 160.05263157894737,
+            "header-blocks": 3.210526315789474,
+            "header-bytes": 76.21052631578948,
+            "freed": 3.210526315789474
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 6.005860805860806,
+            "bytes": 156.12234432234433,
+            "header-blocks": 3.005860805860806,
+            "header-bytes": 72.11721611721612,
+            "freed": 3.005860805860806
+          }
+        },
+        "packed": {
+          "raw": {
+            "0": {
+              "blocks": 137,
+              "bytes": 3852,
+              "peak": 1341,
+              "header-blocks": 100,
+              "header-bytes": 2240,
+              "immortal": 0,
+              "freed": 100,
+              "live": 0
+            },
+            "1": {
+              "blocks": 143,
+              "bytes": 4008,
+              "peak": 1341,
+              "header-blocks": 103,
+              "header-bytes": 2312,
+              "immortal": 0,
+              "freed": 103,
+              "live": 0
+            },
+            "20": {
+              "blocks": 261,
+              "bytes": 7049,
+              "peak": 1341,
+              "header-blocks": 164,
+              "header-bytes": 3760,
+              "immortal": 0,
+              "freed": 164,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 24737,
+              "bytes": 643329,
+              "peak": 1347,
+              "header-blocks": 12412,
+              "header-bytes": 297632,
+              "immortal": 0,
+              "freed": 12412,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 6.2105263157894735,
+            "bytes": 160.05263157894737,
+            "header-blocks": 3.210526315789474,
+            "header-bytes": 76.21052631578948,
+            "freed": 3.210526315789474
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 6.005860805860806,
+            "bytes": 156.12234432234433,
+            "header-blocks": 3.005860805860806,
+            "header-bytes": 72.11721611721612,
+            "freed": 3.005860805860806
+          }
+        }
+      }
+    },
+    {
+      "workload": "append",
+      "size": 0,
+      "pattern": 0,
+      "variants": {
+        "baseline": {
+          "raw": {
+            "0": {
+              "blocks": 149,
+              "bytes": 4140,
+              "peak": 1341,
+              "header-blocks": 108,
+              "header-bytes": 2432,
+              "immortal": 0,
+              "freed": 108,
+              "live": 0
+            },
+            "1": {
+              "blocks": 156,
+              "bytes": 4312,
+              "peak": 1341,
+              "header-blocks": 112,
+              "header-bytes": 2520,
+              "immortal": 0,
+              "freed": 112,
+              "live": 0
+            },
+            "20": {
+              "blocks": 293,
+              "bytes": 7657,
+              "peak": 1341,
+              "header-blocks": 192,
+              "header-bytes": 4272,
+              "immortal": 0,
+              "freed": 192,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 28845,
+              "bytes": 709153,
+              "peak": 1347,
+              "header-blocks": 16516,
+              "header-bytes": 363360,
+              "immortal": 0,
+              "freed": 16516,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 7.2105263157894735,
+            "bytes": 176.05263157894737,
+            "header-blocks": 4.2105263157894735,
+            "header-bytes": 92.21052631578948,
+            "freed": 4.2105263157894735
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 7.005860805860806,
+            "bytes": 172.12234432234433,
+            "header-blocks": 4.005860805860806,
+            "header-bytes": 88.11721611721612,
+            "freed": 4.005860805860806
+          }
+        },
+        "packed": {
+          "raw": {
+            "0": {
+              "blocks": 137,
+              "bytes": 3852,
+              "peak": 1341,
+              "header-blocks": 100,
+              "header-bytes": 2240,
+              "immortal": 0,
+              "freed": 100,
+              "live": 0
+            },
+            "1": {
+              "blocks": 144,
+              "bytes": 4024,
+              "peak": 1341,
+              "header-blocks": 104,
+              "header-bytes": 2328,
+              "immortal": 0,
+              "freed": 104,
+              "live": 0
+            },
+            "20": {
+              "blocks": 281,
+              "bytes": 7369,
+              "peak": 1341,
+              "header-blocks": 184,
+              "header-bytes": 4080,
+              "immortal": 0,
+              "freed": 184,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 28833,
+              "bytes": 708865,
+              "peak": 1347,
+              "header-blocks": 16508,
+              "header-bytes": 363168,
+              "immortal": 0,
+              "freed": 16508,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 7.2105263157894735,
+            "bytes": 176.05263157894737,
+            "header-blocks": 4.2105263157894735,
+            "header-bytes": 92.21052631578948,
+            "freed": 4.2105263157894735
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 7.005860805860806,
+            "bytes": 172.12234432234433,
+            "header-blocks": 4.005860805860806,
+            "header-bytes": 88.11721611721612,
+            "freed": 4.005860805860806
+          }
+        }
+      }
+    },
+    {
+      "workload": "append",
+      "size": 64,
+      "pattern": 0,
+      "variants": {
+        "baseline": {
+          "raw": {
+            "0": {
+              "blocks": 156,
+              "bytes": 4327,
+              "peak": 1342,
+              "header-blocks": 114,
+              "header-bytes": 2552,
+              "immortal": 0,
+              "freed": 114,
+              "live": 0
+            },
+            "1": {
+              "blocks": 163,
+              "bytes": 4563,
+              "peak": 1342,
+              "header-blocks": 118,
+              "header-bytes": 2640,
+              "immortal": 0,
+              "freed": 118,
+              "live": 0
+            },
+            "20": {
+              "blocks": 302,
+              "bytes": 9170,
+              "peak": 1343,
+              "header-blocks": 200,
+              "header-bytes": 4432,
+              "immortal": 0,
+              "freed": 200,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 28852,
+              "bytes": 971484,
+              "peak": 1348,
+              "header-blocks": 16522,
+              "header-bytes": 363480,
+              "immortal": 0,
+              "freed": 16522,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 7.315789473684211,
+            "bytes": 242.47368421052633,
+            "header-blocks": 4.315789473684211,
+            "header-bytes": 94.3157894736842,
+            "freed": 4.315789473684211
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 7.005860805860806,
+            "bytes": 236.12234432234433,
+            "header-blocks": 4.005860805860806,
+            "header-bytes": 88.11721611721612,
+            "freed": 4.005860805860806
+          }
+        },
+        "packed": {
+          "raw": {
+            "0": {
+              "blocks": 144,
+              "bytes": 4039,
+              "peak": 1342,
+              "header-blocks": 106,
+              "header-bytes": 2360,
+              "immortal": 0,
+              "freed": 106,
+              "live": 0
+            },
+            "1": {
+              "blocks": 153,
+              "bytes": 4319,
+              "peak": 1343,
+              "header-blocks": 112,
+              "header-bytes": 2488,
+              "immortal": 0,
+              "freed": 112,
+              "live": 0
+            },
+            "20": {
+              "blocks": 290,
+              "bytes": 8882,
+              "peak": 1343,
+              "header-blocks": 192,
+              "header-bytes": 4240,
+              "immortal": 0,
+              "freed": 192,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 28840,
+              "bytes": 971196,
+              "peak": 1348,
+              "header-blocks": 16514,
+              "header-bytes": 363288,
+              "immortal": 0,
+              "freed": 16514,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 7.2105263157894735,
+            "bytes": 240.1578947368421,
+            "header-blocks": 4.2105263157894735,
+            "header-bytes": 92.21052631578948,
+            "freed": 4.2105263157894735
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 7.005372405372405,
+            "bytes": 236.1115995115995,
+            "header-blocks": 4.005372405372405,
+            "header-bytes": 88.1074481074481,
+            "freed": 4.005372405372405
+          }
+        }
+      }
+    },
+    {
+      "workload": "append",
+      "size": 4096,
+      "pattern": 0,
+      "variants": {
+        "baseline": {
+          "raw": {
+            "0": {
+              "blocks": 168,
+              "bytes": 8605,
+              "peak": 4532,
+              "header-blocks": 126,
+              "header-bytes": 2792,
+              "immortal": 0,
+              "freed": 126,
+              "live": 0
+            },
+            "1": {
+              "blocks": 175,
+              "bytes": 12873,
+              "peak": 8738,
+              "header-blocks": 130,
+              "header-bytes": 2880,
+              "immortal": 0,
+              "freed": 130,
+              "live": 0
+            },
+            "20": {
+              "blocks": 316,
+              "bytes": 94132,
+              "peak": 8739,
+              "header-blocks": 214,
+              "header-bytes": 4712,
+              "immortal": 0,
+              "freed": 214,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 28864,
+              "bytes": 17490834,
+              "peak": 8741,
+              "header-blocks": 16534,
+              "header-bytes": 363720,
+              "immortal": 0,
+              "freed": 16534,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 7.421052631578948,
+            "bytes": 4276.789473684211,
+            "header-blocks": 4.421052631578948,
+            "header-bytes": 96.42105263157895,
+            "freed": 4.421052631578948
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 7.005860805860806,
+            "bytes": 4268.122344322344,
+            "header-blocks": 4.005860805860806,
+            "header-bytes": 88.11721611721612,
+            "freed": 4.005860805860806
+          }
+        },
+        "packed": {
+          "raw": {
+            "0": {
+              "blocks": 156,
+              "bytes": 8317,
+              "peak": 4532,
+              "header-blocks": 118,
+              "header-bytes": 2600,
+              "immortal": 0,
+              "freed": 118,
+              "live": 0
+            },
+            "1": {
+              "blocks": 163,
+              "bytes": 12585,
+              "peak": 8738,
+              "header-blocks": 122,
+              "header-bytes": 2688,
+              "immortal": 0,
+              "freed": 122,
+              "live": 0
+            },
+            "20": {
+              "blocks": 304,
+              "bytes": 93844,
+              "peak": 8739,
+              "header-blocks": 206,
+              "header-bytes": 4520,
+              "immortal": 0,
+              "freed": 206,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 28852,
+              "bytes": 17490546,
+              "peak": 8741,
+              "header-blocks": 16526,
+              "header-bytes": 363528,
+              "immortal": 0,
+              "freed": 16526,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 7.421052631578948,
+            "bytes": 4276.789473684211,
+            "header-blocks": 4.421052631578948,
+            "header-bytes": 96.42105263157895,
+            "freed": 4.421052631578948
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 7.005860805860806,
+            "bytes": 4268.122344322344,
+            "header-blocks": 4.005860805860806,
+            "header-bytes": 88.11721611721612,
+            "freed": 4.005860805860806
+          }
+        }
+      }
+    },
+    {
+      "workload": "compare",
+      "size": 0,
+      "pattern": 0,
+      "variants": {
+        "baseline": {
+          "raw": {
+            "0": {
+              "blocks": 151,
+              "bytes": 4183,
+              "peak": 1342,
+              "header-blocks": 110,
+              "header-bytes": 2472,
+              "immortal": 0,
+              "freed": 110,
+              "live": 0
+            },
+            "1": {
+              "blocks": 151,
+              "bytes": 4183,
+              "peak": 1342,
+              "header-blocks": 110,
+              "header-bytes": 2472,
+              "immortal": 0,
+              "freed": 110,
+              "live": 0
+            },
+            "20": {
+              "blocks": 157,
+              "bytes": 4306,
+              "peak": 1343,
+              "header-blocks": 116,
+              "header-bytes": 2592,
+              "immortal": 0,
+              "freed": 116,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 159,
+              "bytes": 4422,
+              "peak": 1345,
+              "header-blocks": 126,
+              "header-bytes": 2768,
+              "immortal": 0,
+              "freed": 126,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 0.3157894736842105,
+            "bytes": 6.473684210526316,
+            "header-blocks": 0.3157894736842105,
+            "header-bytes": 6.315789473684211,
+            "freed": 0.3157894736842105
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 0.0019536019536019536,
+            "bytes": 0.058363858363858365,
+            "header-blocks": 0.003907203907203907,
+            "header-bytes": 0.07228327228327229,
+            "freed": 0.003907203907203907
+          }
+        },
+        "packed": {
+          "raw": {
+            "0": {
+              "blocks": 139,
+              "bytes": 3895,
+              "peak": 1342,
+              "header-blocks": 102,
+              "header-bytes": 2280,
+              "immortal": 0,
+              "freed": 102,
+              "live": 0
+            },
+            "1": {
+              "blocks": 139,
+              "bytes": 3895,
+              "peak": 1342,
+              "header-blocks": 102,
+              "header-bytes": 2280,
+              "immortal": 0,
+              "freed": 102,
+              "live": 0
+            },
+            "20": {
+              "blocks": 145,
+              "bytes": 4018,
+              "peak": 1343,
+              "header-blocks": 108,
+              "header-bytes": 2400,
+              "immortal": 0,
+              "freed": 108,
+              "live": 0
+            },
+            "4096": {
+              "blocks": 147,
+              "bytes": 4134,
+              "peak": 1345,
+              "header-blocks": 118,
+              "header-bytes": 2576,
+              "immortal": 0,
+              "freed": 118,
+              "live": 0
+            }
+          },
+          "one_to_twenty_per_iteration": {
+            "blocks": 0.3157894736842105,
+            "bytes": 6.473684210526316,
+            "header-blocks": 0.3157894736842105,
+            "header-bytes": 6.315789473684211,
+            "freed": 0.3157894736842105
+          },
+          "one_to_4096_per_iteration": {
+            "blocks": 0.0019536019536019536,
+            "bytes": 0.058363858363858365,
+            "header-blocks": 0.003907203907203907,
+            "header-bytes": 0.07228327228327229,
+            "freed": 0.003907203907203907
+          }
+        }
+      }
+    }
+  ],
+  "assembly": {
+    "baseline": {
+      "assembly_sha256": "b6c30b1b731ffc53bdbf59954390438eaea25d07247e8d004a790f62fece5378",
+      "llvm_sha256": "0888577a3c2a290cf471351111de48cd8b0b8936a04ce46ef5317bcbb2251f2c",
+      "bodies": {
+        "Data.Uuid.uuid-parse-bytes": {
+          "lines": 1027,
+          "static_call_sites": {
+            "cinch_bytes_len@PLT": 11,
+            "cinch_nat_to_len@PLT": 3,
+            "cinch_bytes_new@PLT": 3,
+            "\"Text.Hex.hex-decode-append#cc\"@PLT": 1,
+            "cinch_alloc_ctor@PLT": 5,
+            "cinch.rc.drop.obj": 4,
+            "cinch_bytes_get@PLT": 11,
+            "\"Data.Nat.Eq_Nat.==.app\"@PLT": 11,
+            "*(%rax)": 11,
+            "cinch_bytes_data@PLT": 6,
+            "cinch_drop_slow@PLT": 9,
+            "\"Data.Uuid.decode-dashed\"@PLT": 1,
+            "cinch_bytes_copy@PLT": 10,
+            "cinch_drop_mt@PLT": 9,
+            "cinch_free@PLT": 1,
+            "cinch_dup_mt@PLT": 2
+          }
+        },
+        "Data.Uuid.decode-dashed": {
+          "lines": 716,
+          "static_call_sites": {
+            "cinch_nat_add@PLT": 8,
+            "cinch_nat_to_i64@PLT": 9,
+            "cinch_bytes_get@PLT": 4,
+            "cinch_drop_slow@PLT": 10,
+            "cinch_drop_mt@PLT": 10,
+            "\"Data.Nat.Eq_Nat.==.app\"@PLT": 4,
+            "*(%rax)": 4,
+            "cinch_nat_to_len@PLT": 1,
+            "cinch_bytes_new@PLT": 1,
+            "cinch_bytes_copy@PLT": 6,
+            "cinch_alloc_ctor@PLT": 1,
+            "\"Data.Uuid.decode-compact\"@PLT": 1
+          }
+        },
+        "Data.Uuid.decode-compact": {
+          "lines": 451,
+          "static_call_sites": {
+            "cinch_nat_to_len@PLT": 1,
+            "cinch_bytes_new@PLT": 1,
+            "\"Text.Hex.hex-decode-append#cc\"@PLT": 1,
+            "cinch_alloc_ctor@PLT": 4,
+            "cinch_drop_slow@PLT": 8,
+            "cinch_drop_mt@PLT": 8,
+            "cinch_free@PLT": 1,
+            "cinch_dup_mt@PLT": 2,
+            "cinch_bytes_len@PLT": 8,
+            "cinch_bytes_data@PLT": 4
+          }
+        }
+      }
+    },
+    "packed": {
+      "assembly_sha256": "68cf8cd41e8d7e8608511f98a2c09f3babf8751037b3d06a338053e0444b6888",
+      "llvm_sha256": "7c622dcf93e01955c40550ef39ae4bbec4950c06c4767a75f8f20e2596bd3ac7",
+      "bodies": {
+        "Data.Uuid.uuid-parse-bytes": {
+          "lines": 1378,
+          "static_call_sites": {
+            "cinch_bytes_len@PLT": 23,
+            "cinch.rc.drop.obj": 4,
+            "cinch_alloc_ctor@PLT": 5,
+            "cinch_bytes_get@PLT": 11,
+            "\"Data.Nat.Eq_Nat.==.app\"@PLT": 11,
+            "*(%rax)": 11,
+            "cinch_bytes_data@PLT": 22,
+            "cinch_drop_slow@PLT": 3,
+            "\"Data.Uuid.decode-dashed\"@PLT": 1,
+            "cinch_drop_mt@PLT": 3,
+            "cinch.runtime.bytesData@PLT": 6,
+            "cinch.rc.drop.tobj": 6,
+            "\"Data.Uuid.decode-hex8\"@PLT": 4,
+            "\"Data.Uuid.decoded-value\"@PLT": 1
+          }
+        },
+        "Data.Uuid.decode-dashed": {
+          "lines": 1186,
+          "static_call_sites": {
+            "cinch_nat_add@PLT": 9,
+            "cinch_nat_to_i64@PLT": 10,
+            "cinch_bytes_get@PLT": 4,
+            "cinch_drop_slow@PLT": 11,
+            "cinch_drop_mt@PLT": 11,
+            "\"Data.Nat.Eq_Nat.==.app\"@PLT": 4,
+            "*(%rax)": 4,
+            "cinch_bytes_data@PLT": 6,
+            "cinch_bytes_len@PLT": 7,
+            "cinch_alloc_ctor@PLT": 2
+          }
+        },
+        "Data.Uuid.decoded-value": {
+          "lines": 47,
+          "static_call_sites": {
+            "cinch_alloc_ctor@PLT": 2
+          }
+        }
+      }
+    }
+  },
+  "scope": "OrdinaryRC normalizedargv0 allocation slopes from0/1/20/4096 with allreference fingerprints and bothmemoryprofiles/leak0. Slopes include reporting/argument effects. Staticcall sites are branch-expanded, not dynamic costs. No elapsed samples retained.",
+  "timing_claim": false,
+  "candidate_selected": false
+}

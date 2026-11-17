@@ -1,0 +1,2889 @@
+{
+  "kind": "all-raw-UUID-pair-timing-observations",
+  "wrapper_sha256": "16da939c0392a8bda64f5677125493d93a3029bc3dda37967fa550b72ed52dc8",
+  "invocation_runner_sha256": "c9983e12d39fd1226377db48f98638a71b007f18843ad42f46271058f2c940bc",
+  "raw": [
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1961767
+      },
+      "condition_index": 0,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1261192
+      },
+      "condition_index": 0,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 597431
+      },
+      "condition_index": 0,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 934950
+      },
+      "condition_index": 0,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 227823
+      },
+      "condition_index": 0,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1942639
+      },
+      "condition_index": 0,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 239481
+      },
+      "condition_index": 0,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1933445
+      },
+      "condition_index": 0,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1415033
+      },
+      "condition_index": 0,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2181159
+      },
+      "condition_index": 0,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1313380
+      },
+      "condition_index": 0,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 212440
+      },
+      "condition_index": 0,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1417066
+      },
+      "condition_index": 0,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 238820
+      },
+      "condition_index": 0,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2052023
+      },
+      "condition_index": 0,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 258390
+      },
+      "condition_index": 0,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2052014
+      },
+      "condition_index": 0,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1166679
+      },
+      "condition_index": 0,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1215313
+      },
+      "condition_index": 1,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 576219
+      },
+      "condition_index": 1,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 185180
+      },
+      "condition_index": 1,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 794618
+      },
+      "condition_index": 1,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 213091
+      },
+      "condition_index": 1,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1189944
+      },
+      "condition_index": 1,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 405651
+      },
+      "condition_index": 1,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1357666
+      },
+      "condition_index": 1,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 656991
+      },
+      "condition_index": 1,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1213440
+      },
+      "condition_index": 1,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 600686
+      },
+      "condition_index": 1,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 207953
+      },
+      "condition_index": 1,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 606725
+      },
+      "condition_index": 1,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 216105
+      },
+      "condition_index": 1,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1098166
+      },
+      "condition_index": 1,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 248244
+      },
+      "condition_index": 1,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1333470
+      },
+      "condition_index": 1,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "1"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 582128
+      },
+      "condition_index": 1,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1871381
+      },
+      "condition_index": 2,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1147080
+      },
+      "condition_index": 2,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 280833
+      },
+      "condition_index": 2,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1494933
+      },
+      "condition_index": 2,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 316717
+      },
+      "condition_index": 2,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2175600
+      },
+      "condition_index": 2,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 233492
+      },
+      "condition_index": 2,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2149952
+      },
+      "condition_index": 2,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1130504
+      },
+      "condition_index": 2,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1882608
+      },
+      "condition_index": 2,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1488384
+      },
+      "condition_index": 2,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 206522
+      },
+      "condition_index": 2,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1332780
+      },
+      "condition_index": 2,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 328165
+      },
+      "condition_index": 2,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2023340
+      },
+      "condition_index": 2,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 407164
+      },
+      "condition_index": 2,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2082770
+      },
+      "condition_index": 2,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "2"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1146779
+      },
+      "condition_index": 2,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2385346
+      },
+      "condition_index": 3,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1225568
+      },
+      "condition_index": 3,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 270087
+      },
+      "condition_index": 3,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1254391
+      },
+      "condition_index": 3,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 273763
+      },
+      "condition_index": 3,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2511576
+      },
+      "condition_index": 3,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 272731
+      },
+      "condition_index": 3,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2254769
+      },
+      "condition_index": 3,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1180740
+      },
+      "condition_index": 3,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1984201
+      },
+      "condition_index": 3,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1274061
+      },
+      "condition_index": 3,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 291759
+      },
+      "condition_index": 3,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1302403
+      },
+      "condition_index": 3,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 343368
+      },
+      "condition_index": 3,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2431556
+      },
+      "condition_index": 3,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 251148
+      },
+      "condition_index": 3,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 2397454
+      },
+      "condition_index": 3,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "3"
+      ],
+      "observation": {
+        "fingerprint": 616988678851277605,
+        "elapsed_ns": 1244025
+      },
+      "condition_index": 3,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 2509122
+      },
+      "condition_index": 4,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 648948
+      },
+      "condition_index": 4,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 111228
+      },
+      "condition_index": 4,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 646265
+      },
+      "condition_index": 4,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 141062
+      },
+      "condition_index": 4,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 2885200
+      },
+      "condition_index": 4,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 130747
+      },
+      "condition_index": 4,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 2685899
+      },
+      "condition_index": 4,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 668487
+      },
+      "condition_index": 4,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 3073774
+      },
+      "condition_index": 4,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 658013
+      },
+      "condition_index": 4,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 108164
+      },
+      "condition_index": 4,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 701358
+      },
+      "condition_index": 4,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 134943
+      },
+      "condition_index": 4,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 2429504
+      },
+      "condition_index": 4,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 248194
+      },
+      "condition_index": 4,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 2783729
+      },
+      "condition_index": 4,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "parse",
+        "0",
+        "4096",
+        "4"
+      ],
+      "observation": {
+        "fingerprint": 10403249665526027045,
+        "elapsed_ns": 943743
+      },
+      "condition_index": 4,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1251968
+      },
+      "condition_index": 5,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 930243
+      },
+      "condition_index": 5,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 851324
+      },
+      "condition_index": 5,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 974300
+      },
+      "condition_index": 5,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 243257
+      },
+      "condition_index": 5,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1011456
+      },
+      "condition_index": 5,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 233732
+      },
+      "condition_index": 5,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 921861
+      },
+      "condition_index": 5,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 914459
+      },
+      "condition_index": 5,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1033118
+      },
+      "condition_index": 5,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1230686
+      },
+      "condition_index": 5,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 214594
+      },
+      "condition_index": 5,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1062722
+      },
+      "condition_index": 5,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 276127
+      },
+      "condition_index": 5,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 958004
+      },
+      "condition_index": 5,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 243458
+      },
+      "condition_index": 5,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 882591
+      },
+      "condition_index": 5,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "format",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 920458
+      },
+      "condition_index": 5,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1149704
+      },
+      "condition_index": 6,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1038065
+      },
+      "condition_index": 6,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 300012
+      },
+      "condition_index": 6,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1182804
+      },
+      "condition_index": 6,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 303297
+      },
+      "condition_index": 6,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1140330
+      },
+      "condition_index": 6,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 390188
+      },
+      "condition_index": 6,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 966898
+      },
+      "condition_index": 6,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 966428
+      },
+      "condition_index": 6,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 941380
+      },
+      "condition_index": 6,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1036072
+      },
+      "condition_index": 6,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 252811
+      },
+      "condition_index": 6,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 990253
+      },
+      "condition_index": 6,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 236046
+      },
+      "condition_index": 6,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 1512841
+      },
+      "condition_index": 6,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 253573
+      },
+      "condition_index": 6,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 966978
+      },
+      "condition_index": 6,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 13010662214477431589,
+        "elapsed_ns": 979898
+      },
+      "condition_index": 6,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 974820
+      },
+      "condition_index": 7,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 970033
+      },
+      "condition_index": 7,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 1481184
+      },
+      "condition_index": 7,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 1029843
+      },
+      "condition_index": 7,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 351781
+      },
+      "condition_index": 7,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 957585
+      },
+      "condition_index": 7,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 327504
+      },
+      "condition_index": 7,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 1032878
+      },
+      "condition_index": 7,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 979788
+      },
+      "condition_index": 7,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 1084435
+      },
+      "condition_index": 7,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 1204406
+      },
+      "condition_index": 7,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 532343
+      },
+      "condition_index": 7,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 1022362
+      },
+      "condition_index": 7,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 334214
+      },
+      "condition_index": 7,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 967519
+      },
+      "condition_index": 7,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 357719
+      },
+      "condition_index": 7,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 957754
+      },
+      "condition_index": 7,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "64",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 10987907572211594021,
+        "elapsed_ns": 1081390
+      },
+      "condition_index": 7,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1639322
+      },
+      "condition_index": 8,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1476306
+      },
+      "condition_index": 8,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 16888170
+      },
+      "condition_index": 8,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1561245
+      },
+      "condition_index": 8,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 2623777
+      },
+      "condition_index": 8,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1340702
+      },
+      "condition_index": 8,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 2873444
+      },
+      "condition_index": 8,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1390246
+      },
+      "condition_index": 8,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1780596
+      },
+      "condition_index": 8,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1380312
+      },
+      "condition_index": 8,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1461464
+      },
+      "condition_index": 8,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 3129550
+      },
+      "condition_index": 8,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1402606
+      },
+      "condition_index": 8,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 2983319
+      },
+      "condition_index": 8,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1435084
+      },
+      "condition_index": 8,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 3290513
+      },
+      "condition_index": 8,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1370347
+      },
+      "condition_index": 8,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "append",
+        "4096",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 11553926056429679397,
+        "elapsed_ns": 1377257
+      },
+      "condition_index": 8,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 22133
+      },
+      "condition_index": 9,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 33310
+      },
+      "condition_index": 9,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 74062
+      },
+      "condition_index": 9,
+      "sample_index": 0,
+      "warmup": true
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 24287
+      },
+      "condition_index": 9,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 74152
+      },
+      "condition_index": 9,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 22404
+      },
+      "condition_index": 9,
+      "sample_index": 1,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 73942
+      },
+      "condition_index": 9,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 21953
+      },
+      "condition_index": 9,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 23896
+      },
+      "condition_index": 9,
+      "sample_index": 2,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 21963
+      },
+      "condition_index": 9,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 24426
+      },
+      "condition_index": 9,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 44236
+      },
+      "condition_index": 9,
+      "sample_index": 3,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 24737
+      },
+      "condition_index": 9,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 72029
+      },
+      "condition_index": 9,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 22484
+      },
+      "condition_index": 9,
+      "sample_index": 4,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/reference",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 69095
+      },
+      "condition_index": 9,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-baseline-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 22124
+      },
+      "condition_index": 9,
+      "sample_index": 5,
+      "warmup": false
+    },
+    {
+      "executable": "/workspace/dasl-stdlib-uuid/build/uuid-current-packed-a1/simd/bench",
+      "arguments": [
+        "compare",
+        "0",
+        "4096",
+        "0"
+      ],
+      "observation": {
+        "fingerprint": 7755048005952721701,
+        "elapsed_ns": 24136
+      },
+      "condition_index": 9,
+      "sample_index": 5,
+      "warmup": false
+    }
+  ],
+  "includes_warmup": true,
+  "clipped_observations": false
+}

@@ -1,0 +1,29 @@
+{
+  "source_commit": "99b36949",
+  "files": {
+    "experiments/uuid-packed-parser-v1/README.md": "d9cab0f597b83e940ddbc0c7f40eee7de283c5b95b34416c9e97183b8b0fd4db",
+    "experiments/uuid-packed-parser-v1/benchmark-plan.json": "9d1bcef9dcd22b737e965a355938c35b9e210f75d1db11b5e2e27f845c115f79",
+    "experiments/uuid-packed-parser-v1/current-allocation-assembly-results.json": "ab8ca49fcf2a3020f55978493cacc5796c9e0d459b0769c9a7727599929e721c",
+    "experiments/uuid-packed-parser-v1/current-baseline-preflight.json": "0f03c4775b5ca6795dd8b46ea173c3141ed910330967006d8a1243cff1135da8",
+    "experiments/uuid-packed-parser-v1/current-packed-preflight.json": "241229f81b4967d3be12aea3c567240bb4239f3ce27333c76bba38de7e6f775d",
+    "experiments/uuid-packed-parser-v1/current-pair-preflight.json": "ccbcc87a3839312a107798312f08aef36b7151bb0d734cc229160f87aa13662a",
+    "experiments/uuid-packed-parser-v1/current-timing-all-observations.json": "c68729ba37aa3fbae1eedf1b46f5792fae1699eb357c3144c869f2e01c63fed3",
+    "experiments/uuid-packed-parser-v1/current-timing-raw.json": "f705797507872d2a15796bc645dcfa69d023acb7a942c75c11b09a69d73f1cf7",
+    "experiments/uuid-packed-parser-v1/current-timing-review.json": "ed8b9165c298dc64b679ef60345d2572c008b3db9b4b39049bb2b4a0a551d271",
+    "experiments/uuid-packed-parser-v1/current-timing-review.md": "faa59cbbb1d33b7b7ae24a2d5ab50b55dec8622a90ce23b113e1cf3c2f61fb59",
+    "experiments/uuid-packed-parser-v1/fixtures/positional.cinch": "405769377bbca49cab5df41a68bd825d5bbbee5bbdba451aa0da0906cc582c64",
+    "experiments/uuid-packed-parser-v1/initial-runtime-results.json": "142655b7053a7e8fc339b7cce2f03b690256503ba7312bb110d57cab957a9c78",
+    "experiments/uuid-packed-parser-v1/maintained-source-hook-review.json": "e15dfdf96c3342362d206bb82fb816878e55120a744f92f521b87390308902a1",
+    "experiments/uuid-packed-parser-v1/manifest.json": "a1190187834e17fc14b86c50a2f43a38f11f2a09feb2777165a1c548dca511b2",
+    "experiments/uuid-packed-parser-v1/parent-maintained-results.json": "3b6439381c61585b0e007d5626be54c39ec5b7cc04ada21f4728a39acee0a553",
+    "experiments/uuid-packed-parser-v1/portable-results.json": "9058e2af9140a4c21d4dcbfab4ab82457aad07837b48982de3cb8d438e4fa147",
+    "experiments/uuid-packed-parser-v1/positional-reference.json": "0a6ff2e49187912a79790acca321869301359ae2f0efad92a9b33310bd1c2e24",
+    "experiments/uuid-packed-parser-v1/runtime-matrix-results.json": "36820927dbea61fd9c3c09ac32d61d29aaeb3965c9fcfb641671dff11277d456",
+    "experiments/uuid-packed-parser-v1/source-doc-results.json": "5f08f428588f0a4aef4ba4761e49db200495381b1958203e7ecf1490728028e5",
+    "experiments/uuid-packed-parser-v1/sources/Data.Uuid.cinch": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+    "experiments/uuid-packed-parser-v1/timing-recording-wrapper.py": "16da939c0392a8bda64f5677125493d93a3029bc3dda37967fa550b72ed52dc8"
+  },
+  "scope": "Separate packed parser candidate plus actual old330/fullcurrentad6 qualification/timing. Root current8/PPC also recorded independently; production baseline unchanged.",
+  "root_parent": "experiments/uuid-packed-parser-v1/parent-results.json",
+  "review": "Parse36\u201376%faster with fewer allocations; allrawsamples and2\u201310%controlslowdowns retained. Candidate not selected."
+}

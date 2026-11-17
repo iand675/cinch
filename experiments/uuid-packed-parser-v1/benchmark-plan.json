@@ -1,0 +1,70 @@
+{
+  "kind": "matched-packed-UUID-current-parent-compiler-benchmark-plan",
+  "status": "prepared-not-built-awaiting-parent8-PPC-and-exact-producer",
+  "producer_required": "Exact current Root compiler/runtime identities corresponding to the successful maintained source-hook gate; no fallback to330or a Native family. Parent supplies/reviews that explicit tuple.",
+  "parent_gate": {
+    "target": "lib_uuid,all8maintained tests",
+    "source_variable": "CINCH_TEST_UUID_DATA_SOURCE",
+    "source_sha256": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+    "stdout_requirement": "Run with--nocapture or equivalent full log capture so actual selected path/SHA messages are retained.",
+    "required_before_performance": true
+  },
+  "source_pairs": {
+    "baseline": "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
+    "packed": "experiments/uuid-packed-parser-v1/sources/Data.Uuid.cinch",
+    "baseline_sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+    "packed_sha256": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+    "effect_unchanged": true,
+    "shared_modules_unchanged": true
+  },
+  "harness": "Reuse exact original a1Main.cinch bytes from build/uuid-public-bench-a1/simd/Main.cinch for BOTH new current-compiler builds; direct-harness result stays historical and unchanged.",
+  "harness_sha256": "5baefa7af7c819b2acfef39f5302c62ae42a5c44ec864ec75146cf908ccc563b",
+  "reference": "Reuse original compiled SDK executable b2c294fb07f3f0b67cd29ed177c075cbcd13abdcfd63b1c9df1e71f8623007ea; no new SDK build.",
+  "build_tool": "tooling/bench_uuid.py build --reference-artifacts build/uuid-public-bench-a1 --variants simd --entry build/uuid-public-bench-a1/simd/Main.cinch --candidate-sources EXPLICIT_SOURCE_DIRECTORY --compiler PARENT_MATCHED_COMPILER --runtime PARENT_MATCHED_RUNTIME --clang LLVM20 --cpu GRANTED_CPU --artifacts UNIQUE_DIRECTORY",
+  "build_guards": "One bounded build at a time, fresh350MiB/reserve250MiB,newoutput\u226430MiB; all baseline/packed source/IR/ASM/binaries stay plain.",
+  "control_scope": "Compare baseline parser to packed parser, each with ordinary existing Hex. A Hex-scalar switch cannot disable the packed decoder and must not be mislabeled a scalar-parser control.",
+  "preflight_stages": [
+    "Both new snapshots independently match pinned reference fingerprints for parse/render/append/compare,normal32MiB andpoison256MiB,8MiBstack,leak0.",
+    "Matching-count preflight at4096operations for the10condition set before a paired timing request.",
+    "Ordinary-RC0/1/20allocation counters,normalizedargv0,allfingerprints/zero leaks; retain raw counters/reporting caveat.",
+    "Check actual packed decoder reachability, allocation/helper/owner calls and corresponding IR/ASM in each exact snapshot.",
+    "No new generation measurement is required for a parsing-only body change; prior noisy generation/entropy-provider diagnosis remains separate."
+  ],
+  "timing_plan": {
+    "requires_new_exclusive_Root_grant": true,
+    "maximum_seconds": 30,
+    "cpu": 0,
+    "variants": [
+      "same-current-compiler baseline",
+      "same-current-compiler packed",
+      "same immutable SDK reference"
+    ],
+    "conditions": [
+      "parse canonical",
+      "parse compact",
+      "parse lowercaseURN",
+      "parse braces",
+      "parse invalidfinaldigit",
+      "canonical byte render",
+      "append0prefix",
+      "append64prefix",
+      "append4096prefix",
+      "prepared compare"
+    ],
+    "iterations": 4096,
+    "warmup": 1,
+    "retained_samples": 5,
+    "rotated_variant_order": true,
+    "argv0": "uuid-bench",
+    "instrumentation": "ordinaryRC,32MiBheap/8MiBstack;alloc/leak/poison instrumentation off for timing only",
+    "telemetry": "Capture raw cpu.stat andcpu.max BEFORE andAFTER the complete window, plusparentbackground/quota notes; preserve all samples/regressions and partial-budget failures.",
+    "acceptance": "No Source/ABI/API reduction; allobservationsmatch,performanceandallocationreview precede anyselection.",
+    "metadata_unchanged_controls": [
+      "render",
+      "append",
+      "compare"
+    ]
+  },
+  "selection": false,
+  "package_complete": false
+}
