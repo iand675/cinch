@@ -2,7 +2,8 @@
 //! (length, read, write, take) are inline IR over the `KIND_ARRAY` payload
 //! layout (`compiler/runtime/src/arrays.rs`): word 0 the element format,
 //! word 1 the length, the elements from word 2, eight bytes each for the
-//! word formats a slot array always has.
+//! word formats a slot array always has. A wide scalar occupies an owned
+//! two-word box in an object-format slot; its public value boundary remains i128.
 use super::*;
 use crate::slots::{counted, SlotOp};
 
@@ -46,7 +47,10 @@ fn not_hole(b: &mut Builder, w: &str, class: Class) {
 }
 
 pub(super) fn emit(b: &mut Builder, reg: &Registry, op: SlotOp, classes: [Class; 2]) {
-    let class = classes[0];
+    let wide = classes[0] == Class::Wide;
+    // The existing word-array runtime owns wide boxes exactly as it owns
+    // other object payloads, including bulk moves, clears and hole checks.
+    let class = frame_class(classes[0]);
     match op {
         SlotOp::New => {
             let out = rt_call(b, "cinch_slots_new", &["i64 %p0".to_string(), format!("i64 {}", scan_code(class))]);
@@ -67,7 +71,12 @@ pub(super) fn emit(b: &mut Builder, reg: &Registry, op: SlotOp, classes: [Class;
             b.line(&format!("{w} = load i64, ptr {p}, align 8"));
             not_hole(b, &w, class);
             rc_op(b, reg.rc_debug, false, &w, class);
-            ret(b, &w);
+            if wide {
+                let value = wide_unbox(b, reg, &w);
+                b.line(&format!("ret i128 {value}"));
+            } else {
+                ret(b, &w);
+            }
         }
         SlotOp::Take => {
             let p = slot_addr(b);
@@ -77,7 +86,12 @@ pub(super) fn emit(b: &mut Builder, reg: &Registry, op: SlotOp, classes: [Class;
             if counted(class) {
                 b.line(&format!("store i64 0, ptr {p}, align 8"));
             }
-            ret(b, &w);
+            if wide {
+                let value = wide_unbox(b, reg, &w);
+                b.line(&format!("ret i128 {value}"));
+            } else {
+                ret(b, &w);
+            }
         }
         SlotOp::Write => {
             // Store first, then release what the slot held: a write of the
@@ -86,7 +100,8 @@ pub(super) fn emit(b: &mut Builder, reg: &Registry, op: SlotOp, classes: [Class;
             let p = slot_addr(b);
             let old = b.reg();
             b.line(&format!("{old} = load i64, ptr {p}, align 8"));
-            b.line(&format!("store i64 %p2, ptr {p}, align 8"));
+            let value = if wide { wide_box(b, reg, "%p2") } else { "%p2".to_string() };
+            b.line(&format!("store i64 {value}, ptr {p}, align 8"));
             rc_op(b, reg.rc_debug, true, &old, class);
             ret(b, "0");
         }

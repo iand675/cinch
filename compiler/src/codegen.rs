@@ -4787,7 +4787,7 @@ impl NarrowSig {
         if !op.touches_wide() {
             return None;
         }
-        if matches!(op, PrimOp::MVar { .. }) {
+        if matches!(op, PrimOp::MVar { .. } | PrimOp::Slots { .. }) {
             let cross = |c| if c == Class::Wide { Cross::WIDE } else { Cross::WORD };
             return Some(NarrowSig { params: prim_param_classes(op).into_iter().map(cross).collect(),
                 ret: cross(prim_result_class(op).unwrap_or(Class::Raw)) });
@@ -6055,6 +6055,10 @@ fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op:
     use PrimOp::*;
     if let MVar { op: mvar_op, classes } = op {
         mvar_codegen::emit(b, reg, name, op, mvar_op, classes);
+        return Ok(());
+    }
+    if let Slots { op: slot_op, classes } = op {
+        slots_codegen::emit(b, reg, slot_op, classes);
         return Ok(());
     }
     // `Usize`/`Isize` take the target's width (a conversion's other end).

@@ -7855,9 +7855,12 @@ pub fn for_each_class(e: &Core, f: &mut impl FnMut(Class)) {
 
 impl PrimOp {
     /// Whether the operation's signature mentions a wide scalar anywhere,
-    /// including inside an `Option` result (`design/wide-scalars.md`).
+    /// including generic cell/slot payloads and `Option` results (`design/wide-scalars.md`).
     pub fn touches_wide(self) -> bool {
         if let PrimOp::MVar { classes, .. } = self { return classes[0] == Class::Wide; }
+        if let PrimOp::Slots { op, classes } = self {
+            return op != crate::slots::SlotOp::FoldNat && classes[0] == Class::Wide;
+        }
         prim_touches_wide(self)
     }
 }
