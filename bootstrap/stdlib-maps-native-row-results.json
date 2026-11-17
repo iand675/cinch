@@ -1,0 +1,74 @@
+{
+  "kind": "source-only-native-producer-row-observations",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "runner_sha256": "88d16e8af25718075729500e197e91b1e8d77a5d85a8c41ff7527ca3da47ab58",
+  "runtime_consumer_executed": false,
+  "linked": false,
+  "cpu_affinity": [
+    4
+  ],
+  "cases": [
+    {
+      "case": "generic-producer",
+      "source_sha256": "64d9b1906ae8686c2cf574a9108a1a02635f3f6fb4069051cd38d081bd18af63",
+      "bundle_sha256": "256978ce2d48202e08ced1bc7865c8c64ee31e4df4a2433ace9fa11bb3d57d7c",
+      "command_result": {
+        "command": [
+          "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+          "--check",
+          "--interfaces",
+          "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+          "/workspace/dasl-stdlib-maps-audit/build/maps-native-row-probes-2f-var-source/generic-producer/Bundle.cinch",
+          "/workspace/dasl-stdlib-maps-audit/build/maps-native-row-probes-2f-var-source/generic-producer/checked"
+        ],
+        "exit": 4,
+        "seconds": 1.3112602719920687,
+        "stdout": "",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      "diagnostics": "bootstrap.check:81:15: effect inclusion needs resolved rows\n",
+      "admitted": false,
+      "check_output_bytes": 0,
+      "check_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "explicit-client-row",
+      "source_sha256": "fda9f7dd4a47adf8a25637f12633b79bd9e6d649b9063e30c54b2f349b5856a2",
+      "bundle_sha256": "054d77da1998c9335d9c511abdeab466e2cbf3cc911b350ba9723f09f73e8907",
+      "command_result": {
+        "command": [
+          "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+          "--check",
+          "--interfaces",
+          "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+          "/workspace/dasl-stdlib-maps-audit/build/maps-native-row-probes-2f-var-source/explicit-client-row/Bundle.cinch",
+          "/workspace/dasl-stdlib-maps-audit/build/maps-native-row-probes-2f-var-source/explicit-client-row/checked"
+        ],
+        "exit": 4,
+        "seconds": 1.288530174002517,
+        "stdout": "",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      "diagnostics": "bootstrap.check:85:26: type mismatch: expected ({(Mut ?91)} union ?92), found {(Mut ?93)}\nbootstrap.check:85:26: type mismatch: expected ({(Mut ?91)} union ?92), found {(Mut ?93)}\n",
+      "admitted": false,
+      "check_output_bytes": 0,
+      "check_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "status": "observed",
+  "support_source_sha256": {
+    "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+  },
+  "package_complete": false,
+  "report": "build/maps-native-row-probes-2f-var-source/results.json",
+  "report_sha256": "24705d7fcdb61eaffc23bf0783e34d8d50055f70c9edafce0ed4c06684355849",
+  "scope": "Standalone source-selected Var producer typing; no map implementation, object link, runtime consumer or source-absent admission claim",
+  "prior_tooling_failure": {
+    "report": "build/maps-native-row-probes-2f/results.json",
+    "report_sha256": "02f5934c7e1c3eb024fa77f50e82e4f95a5a9797e8f441d416935f99ae19ef37",
+    "meaning": "Base manifest does not contain Data.Mutable.Var; original probe omitted its source and falsely treated an empty check-output placeholder as executable code. Both tooling assumptions were corrected, without changing the two probe fixtures.",
+    "compiler_exit": 4,
+    "diagnostics": "bootstrap.resolve:5:3: missing source module or checked interface: Data.Mutable.Var\n"
+  }
+}

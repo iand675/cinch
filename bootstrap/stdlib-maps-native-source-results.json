@@ -32,5 +32,12 @@
     "compile_seconds": 4.475776336999843,
     "linked": false,
     "runtime_executed": false
+  },
+  "standalone_row_probes": {
+    "report": "bootstrap/stdlib-maps-native-row-results.json",
+    "report_sha256": "e7187fe64395cd44a61f58bfcb2d00d5155db683c10ce1c30caf4f233c4d2a04",
+    "original_runtime_consumer_failure_preserved": true,
+    "both_refused": true,
+    "runtime_consumer_executed": false
   }
 }
