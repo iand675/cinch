@@ -1,0 +1,2 @@
+cinch-leak: live=0 immortal=0 leaked=0
+cinch-alloc: blocks=298 bytes=6967 peak=6250 header-blocks=224 header-bytes=4856 immortal=0 freed=224 live=0

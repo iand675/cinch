@@ -1,0 +1,22 @@
+{
+  "command": [
+    "taskset",
+    "-c",
+    "4",
+    "/workspace/dasl-stdlib-io/build/stdlib-projector-release-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/benchmark-v1/preflight-v1/project/Main.cinch",
+    "--rebuild"
+  ],
+  "environment": {
+    "LD_LIBRARY_PATH": "/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu",
+    "CINCH_CLANG": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "RUST_MIN_STACK": "67108864",
+    "TMPDIR": "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/benchmark-v1/preflight-v1/scratch"
+  },
+  "exit_code": 1,
+  "elapsed_seconds": 0.7169824299926404,
+  "peak_output_bytes": 106941,
+  "minimum_free_bytes": 401924096,
+  "guard_violation": null
+}

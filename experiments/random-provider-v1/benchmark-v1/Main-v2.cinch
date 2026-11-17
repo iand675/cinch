@@ -1,0 +1,190 @@
+-- | Actual secure entropy and UUID pipelines with observable owned results.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Machine
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.String
+  import Data.Char
+  import Data.Uuid
+  import Effect.Random
+  import Effect.Uuid
+  import Effect.Clock
+  import Effect.Process
+
+  -- | Retain the final result owner through the closing clock and report.
+  data ByteRun where
+    -- | Structural successes, variable observations and the final owned snapshot.
+    ByteRun :: U64 -> U64 -> Bytes -> ByteRun
+
+  -- | Advance machine loop metadata without natural counter allocation.
+  prim bump :: U32 -> U32 where
+    llvm { %next = add i32 %0, 1
+      ret i32 %next
+    }
+
+  -- | Compare bounded loop counters with unsigned machine order.
+  prim before :: U32 -> U32 -> Bool where
+    llvm { %yes = icmp ult i32 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Accumulate a checked invariant without allocating counter metadata.
+  prim add :: U64 -> U64 -> U64 where
+    llvm { %result = add i64 %0, %1
+      ret i64 %result
+    }
+
+  -- | Preserve variable result observations in a wrapping machine fingerprint.
+  prim mix :: U64 -> U64 -> U64 where
+    llvm { %a = xor i64 %0, %1
+      %result = mul i64 %a, 1099511628211
+      ret i64 %result
+    }
+
+  -- | Select a changing byte for the allocation-only control.
+  prim marker :: U32 -> U64 where
+    llvm { %low = and i32 %0, 255
+      %result = zext i32 %low to i64
+      ret i64 %result
+    }
+
+  -- | Convert bounded natural observations to complete machine words.
+  word :: Nat -> U64
+  word value = if value <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 value) else 0
+
+  -- | Preserve every unsigned observation bit for reporting after the clocks.
+  natural :: U64 -> Nat
+  natural value = u32-to-nat (wrapping-u64-to-u32 value) + u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 value 32)) * 4294967296
+
+  -- | Read a present byte without adding a full-buffer scan to the pipeline.
+  sample :: Bytes -> Nat -> Nat
+  sample bytes index = if index < bytes-len bytes then bytes-get bytes index else 0
+
+  -- | Observe length and boundary/middle bytes while retaining the owner.
+  fingerprint :: Bytes -> U64
+  fingerprint bytes = let size = bytes-len bytes in word (size + sample bytes 0 + sample bytes (nat-div size 2) + sample bytes (saturating-sub size 1))
+
+  -- | Pack UUID field validity and a bounded variable payload observation.
+  prim observed-words :: U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %version0 = lshr i64 %0, 52
+      %version = and i64 %version0, 15
+      %variant0 = lshr i64 %1, 6
+      %variant = and i64 %variant0, 3
+      %version_ok = icmp eq i64 %version, %2
+      %variant_ok = icmp eq i64 %variant, 2
+      %valid = and i1 %version_ok, %variant_ok
+      %flag = select i1 %valid, i64 9223372036854775808, i64 0
+      %a0 = and i64 %0, 255
+      %a7 = lshr i64 %0, 56
+      %b0 = and i64 %1, 255
+      %b7 = lshr i64 %1, 56
+      %x = add i64 %a0, %a7
+      %y = add i64 %b0, %b7
+      %sum = add i64 %x, %y
+      %result = or i64 %flag, %sum
+      ret i64 %result
+    }
+
+  -- | Read packed UUID fields from an actual public mutable snapshot.
+  observe-uuid :: U64 -> Bytes -> U64
+  observe-uuid version bytes = if bytes-len bytes == 16 then observed-words (bytes-read-le64 bytes 0) (bytes-read-le64 bytes 8) version else 0
+
+  -- | Draw real entropy, observe it and retain the newest owner across iterations.
+  random-loop :: forall (r :: Region). using (io :: Io r) => Nat -> U32 -> U32 -> U64 -> U64 -> Bytes ->{IO r} ByteRun
+  random-loop size count index valid checksum last =
+    if before index count then
+      let bytes = random-bytes size in
+      let accepted = if bytes-len bytes == size then word 1 else word 0 in
+      random-loop size count (bump index) (add valid accepted) (mix checksum (fingerprint bytes)) bytes
+    else ByteRun valid checksum last
+
+  -- | Keep fresh allocation and a changing write observable without entropy IO.
+  allocation-loop :: Nat -> U32 -> U32 -> U64 -> U64 -> Bytes -> ByteRun
+  allocation-loop size count index valid checksum last =
+    if before index count then
+      let bytes = bytes-new size in
+      let byte = natural (marker index) in
+      let written = if 0 < bytes-len bytes && byte <= 255 then bytes-set bytes 0 byte else () in
+      let accepted = if bytes-len bytes == size then word 1 else word 0 in
+      allocation-loop size count (bump index) (add valid accepted) (mix checksum (fingerprint bytes)) bytes
+    else ByteRun valid checksum last
+
+  -- | Measure bounded loop/observation metadata with no per-iteration buffer.
+  counter-loop :: U32 -> U32 -> U64 -> U64 -> Bytes -> ByteRun
+  counter-loop count index valid checksum last =
+    if before index count then counter-loop count (bump index) (add valid 1) (mix checksum (word (u32-to-nat index))) last
+    else ByteRun valid checksum last
+
+  -- | Observe the actual wall clock without an entropy draw or state update.
+  clock-loop :: forall (r :: Region). using (io :: Io r) => U32 -> U32 -> U64 -> U64 -> Bytes ->{IO r} ByteRun
+  clock-loop count index valid checksum last =
+    if before index count then
+      let now = clock-wall-ns () in
+      clock-loop count (bump index) (add valid 1) (mix checksum (word now)) last
+    else ByteRun valid checksum last
+
+  -- | Generate version4 values and retain their public byte snapshots.
+  v4-loop :: forall (r :: Region). using (io :: Io r) => U32 -> U32 -> U64 -> U64 -> Bytes ->{IO r} ByteRun
+  v4-loop count index valid checksum last =
+    if before index count then case uuid-new-v4 () of
+      Err error -> v4-loop count (bump index) valid (mix checksum 4294967295) last
+      Ok value ->
+        let bytes = uuid-to-bytes value in
+        let observation = observe-uuid 4 bytes in
+        v4-loop count (bump index) (add valid (wrapping-shr-u64 observation 63)) (mix checksum (bit-and-u64 observation 1023)) bytes
+    else ByteRun valid checksum last
+
+  -- | Include actual clock, serialized state and secure version7 entropy.
+  v7-loop :: forall (r :: Region). using (io :: Io r) => UuidV7Generator -> U32 -> U32 -> U64 -> U64 -> Bytes ->{IO r, MVar, Diverge} ByteRun
+  v7-loop generator count index valid checksum last =
+    if before index count then case uuid-new-v7 generator () of
+      Err error -> v7-loop generator count (bump index) valid (mix checksum 4294967295) last
+      Ok value ->
+        let bytes = uuid-to-bytes value in
+        let observation = observe-uuid 7 bytes in
+        v7-loop generator count (bump index) (add valid (wrapping-shr-u64 observation 63)) (mix checksum (bit-and-u64 observation 1023)) bytes
+    else ByteRun valid checksum last
+
+  -- | Parse bounded metadata entirely before entering an operation interval.
+  decimal :: List Char -> Nat -> Nat
+  decimal chars value = case chars of Nil -> value; Cons char rest -> case digit-value char of None -> 0; Some digit -> decimal rest (value * 10 + digit)
+
+  -- | Close the clock before observing and releasing the retained final owner.
+  finish :: forall (r :: Region). using (io :: Io r) => Nat -> Nat -> ByteRun ->{IO r} Int
+  finish start iterations result =
+    let end = clock-monotonic-ns () in
+    case result of
+      ByteRun valid checksum last ->
+        let retained = fingerprint last in
+        let line = string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string (natural valid)) (string-concat " " (string-concat (nat-to-string (natural checksum)) (string-concat " " (string-concat (nat-to-string (natural retained)) "\n")))))) in
+        let printed = ioWrite (string-to-bytes line) in if natural valid == iterations then 0 else 1
+
+  -- | Select one public operation and prepare initial ownership outside its clocks.
+  measure :: forall (r :: Region). using (io :: Io r) => String -> Nat -> Nat ->{IO r, MVar, Diverge} Int
+  measure mode size iterations =
+    if iterations <= 4294967295 && size <= 4096 then
+      let count = wrapping-i64-to-u32 (nat-to-i64 iterations) in
+      let initial = bytes-new 0 in
+      if mode == "random" then
+        let start = clock-monotonic-ns () in finish start iterations (random-loop size count 0 0 14695981039346656037 initial)
+      else if mode == "allocation" then
+        let start = clock-monotonic-ns () in finish start iterations (allocation-loop size count 0 0 14695981039346656037 initial)
+      else if mode == "counter" then
+        let start = clock-monotonic-ns () in finish start iterations (counter-loop count 0 0 14695981039346656037 initial)
+      else if mode == "clock" then
+        let start = clock-monotonic-ns () in finish start iterations (clock-loop count 0 0 14695981039346656037 initial)
+      else if mode == "v4" then
+        let start = clock-monotonic-ns () in finish start iterations (v4-loop count 0 0 14695981039346656037 initial)
+      else if mode == "v7" then
+        let generator = uuid-v7-generator () in
+        let start = clock-monotonic-ns () in finish start iterations (v7-loop generator count 0 0 14695981039346656037 initial)
+      else 2
+    else 2
+
+  -- | Preserve actual IO and serialized-state capabilities on the entry point.
+  main :: forall (r :: Region). Unit ->{IO r, MVar, Diverge} Int
+  main unit = with (io = newIO ()) in case process-args () of Err error -> 2; Ok args -> case args of Cons mode (Cons size (Cons count Nil)) -> measure mode (decimal (unpack size) 0) (decimal (unpack count) 0); other -> 2

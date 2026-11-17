@@ -1,0 +1,16 @@
+{
+  "scope": "v2 source-first benchmark gate after preserved7154 type mismatch",
+  "source_files": {
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Uuid.cinch": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+    "Effect.Clock.cinch": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
+    "Effect.Concurrent.MVar.cinch": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e",
+    "Effect.Process.cinch": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60",
+    "Effect.Random.cinch": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+    "Effect.Uuid.cinch": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
+    "Main.cinch": "543c68d2365ff057ee587064240ca5c38ad143ca554f785cc95e10536bb317ec",
+    "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+  },
+  "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
+  "start_free_bytes": 408014848
+}

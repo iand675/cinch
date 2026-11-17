@@ -14,3 +14,8 @@
 /staticlib-pair-v1/cinch-consumers-v1/*/run-1/consumer-baseline
 /staticlib-pair-v1/cinch-consumers-v1/*/run-1/consumer-candidate
 /staticlib-pair-v1/cinch-consumers-v1/*/build/
+# Successful benchmark preflight artifacts remain plain with recorded hashes.
+/benchmark-v1/preflight-v2/benchmark.o
+/benchmark-v1/preflight-v2/benchmark-baseline
+/benchmark-v1/preflight-v2/benchmark-candidate
+/benchmark-v1/preflight-v2/project/build/
