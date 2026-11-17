@@ -1,0 +1,21 @@
+{
+  "status": "additive-actual-compiled-inventory-correction",
+  "actual_total_tests": 45,
+  "owned_json_functions": 42,
+  "owned_baseline": 31,
+  "shared_profile_controls": [
+    "common::external_frontend::profile_tests::a_foreign_triple_must_match_its_own_profile_including_the_name",
+    "common::external_frontend::profile_tests::a_native_request_is_accepted_for_the_hosts_own_triple",
+    "common::external_frontend::profile_tests::a_profile_that_does_not_reclaim_asks_for_the_word"
+  ],
+  "shared_profile_control_count": 3,
+  "baseline_total": 34,
+  "new_owned_functions": 11,
+  "compiled_inventory_path": "/workspace/dasl-stdlib-io/build/json-parent-retained-v2/discovered-tests.json",
+  "compiled_inventory_sha256": "5a9d340c3e93ea8389bc6abfc3ce70e9d65fa0f5b5f6e2af393dd8b80bbdf359",
+  "existing_test_executable_sha256": "025505f4c661b8a7787e5323a9d9851bbca51b63cfc122589df2b480d306cee0",
+  "prior_v1_count_refusal": "42 was only the owned-source count; v1 refused actual45 before any test was executed. Original artifacts remain plain and unchanged.",
+  "profile_controls_do_not_create_Cinch_projects": true,
+  "no_target_dropped_or_extra_function_added": true,
+  "older_static_count_metadata_preserved_as_history": true
+}
