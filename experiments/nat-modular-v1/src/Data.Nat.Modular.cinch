@@ -83,25 +83,29 @@ module Data.Nat.Modular where
 
   -- | Convert only representable naturals, including the entire upper unsigned half.
   try-word :: Nat -> Option U64
-  try-word value = if value <= 18446744073709551615 then
-    let low = nat-rem value 4294967296 in
-    let high = nat-div value 4294967296 in
-    if high <= 4294967295 then
-      case checked-nat-to-i64 low of
-        None -> None
-        Some lower -> case checked-nat-to-i64 high of
+  try-word value = case checked-nat-to-i64 value of
+    Some signed -> Some (wrapping-i64-to-u64 signed)
+    None -> if value <= 18446744073709551615 then
+      let low = nat-rem value 4294967296 in
+      let high = nat-div value 4294967296 in
+      if high <= 4294967295 then
+        case checked-nat-to-i64 low of
           None -> None
-          Some upper ->
-            let lo = wrapping-i64-to-u32 lower in
-            let hi = wrapping-i64-to-u32 upper in Some (join-word lo hi)
-    else None
-    else None
+          Some lower -> case checked-nat-to-i64 high of
+            None -> None
+            Some upper ->
+              let lo = wrapping-i64-to-u32 lower in
+              let hi = wrapping-i64-to-u32 upper in Some (join-word lo hi)
+      else None
+      else None
 
-  -- | Reconstruct an exact natural from two nonnegative scalar halves.
+  -- | Convert an unsigned word exactly, using a nonnegative direct value or two scalar halves.
   word-nat :: U64 -> Nat
-  word-nat value = let low = low-word value in let high = high-word value in
-    let lower = u32-to-nat low in let upper = u32-to-nat high in
-    lower + upper * 4294967296
+  word-nat value = let signed = wrapping-u64-to-i64 value in
+    if signed >= 0 then nat-from-i64 signed else
+      let low = low-word value in let high = high-word value in
+      let lower = u32-to-nat low in let upper = u32-to-nat high in
+      lower + upper * 4294967296
 
   -- | Reduce a sum of residues with one checked subtraction and at most one extra significant bit.
   add-residues :: NonZero Nat -> Nat -> Nat -> Nat

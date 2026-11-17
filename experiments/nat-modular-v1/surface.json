@@ -1,6 +1,6 @@
 {
   "scope": "Static isolated modular foundation audit only; no execution or completeness claim",
-  "candidate_source_sha256": "774eb3d1a01be88f6fdfcf2c273b7424bd280b839e2228be6013721f5a64494c",
+  "candidate_source_sha256": "e3b3f100566adbb1ae9cd23d47bdd99c1e8bc696ee55e3814c386204834e1364",
   "status": "source-prepared-untyped-unexecuted",
   "canonical_documented_declarations": 34,
   "reference_package": "math/big",
@@ -1009,7 +1009,7 @@
   "audit_runtime_source_identity_note": "Own-lane source audit only; no claim these bodies establish a newly qualified frozen family",
   "consumer_source_sha256": "01ccec915d6f2d0974e0abff159a28fb45d928f176568281711afe9807cd53f6",
   "source_distributed_dependency_closure": {
-    "Data.Nat.Modular": "774eb3d1a01be88f6fdfcf2c273b7424bd280b839e2228be6013721f5a64494c"
+    "Data.Nat.Modular": "e3b3f100566adbb1ae9cd23d47bdd99c1e8bc696ee55e3814c386204834e1364"
   },
   "embedded_dependencies": [
     "Data.Bool",
@@ -1029,10 +1029,15 @@
   "registered_prelude_module": false,
   "prepared_sources": {
     "generate.py": "f6ab5ae964f89c12b09b5e8f0d6d2dd162e5992813fa7dc122040c48f03f85d7",
-    "README.md": "962e5986db3cdd8c39a7f72f0bd7c3005a71e0735b3e0100855e5e92ea7a1c04",
-    "models.py": "c760a999410afeb682659546ecd798b431053e779a3bbb5ebd654e93a2da4cad",
+    "README.md": "599b7c7bd1debccdbb9cc4ec471f84d50d9a1adb94f3a7263315517911a530f3",
+    "models.py": "6fc72dfcac511815ee7a828de59920ccac126a83fcdec8cee1eb83780a9b7af3",
     "consumer-small.cinch": "01ccec915d6f2d0974e0abff159a28fb45d928f176568281711afe9807cd53f6",
     "oracle.go": "2a1c94139cf856e61ff7c4ebbea95325ef765040f77912b86d3390a78b46a979",
-    "src/Data.Nat.Modular.cinch": "774eb3d1a01be88f6fdfcf2c273b7424bd280b839e2228be6013721f5a64494c"
+    "src/Data.Nat.Modular.cinch": "e3b3f100566adbb1ae9cd23d47bdd99c1e8bc696ee55e3814c386204834e1364"
+  },
+  "previous_static_source": {
+    "commit": "77141b13",
+    "sha256": "774eb3d1a01be88f6fdfcf2c273b7424bd280b839e2228be6013721f5a64494c",
+    "qualified": false
   }
 }

@@ -16,8 +16,10 @@ gcd. A negative signed input is normalized before inversion. Signed powers
 handle negative exponents by requiring that inverse first. Checked zero-modulus
 refusal is an explicit API policy, not an imported panic or an unmodulated power.
 
-The machine path first converts only values at most 2^64-1 using checked 32-bit
-halves. It never routes an upper-half unsigned value through a signed I64 cast.
+The machine path converts only values at most 2^64-1, using a checked direct
+conversion in the signed-safe range and checked 32-bit halves above it. A
+negative signed reinterpretation is never passed to Nat construction: upper-half
+unsigned results are reconstructed from two nonnegative halves.
 The private LLVM product zero-extends two U64 operands to i128, multiplies them
 exactly, and takes `urem` only with `NonZero U64`. The largest product is less
 than 2^128. Residue and small exponent loops remain unboxed. The arbitrary
@@ -38,6 +40,10 @@ modulus-sized residues. Every recursive call follows sequenced calculations
 and is in tail position. Gcd and extended gcd use tail-position Euclidean
 remainder/coefficient recurrences. Compiled bounded-stack behavior still needs
 8 MiB program-stack stress under both frontends and optimization levels.
+Multiplication takes at most the reduced multiplier's bit length in binary
+iterations. Power takes at most the exponent's bit length in outer iterations;
+each fallback multiplication takes at most the modulus's bit length. These are
+iteration bounds, not claims of constant-cost bignum arithmetic or measured speed.
 
 These are variable-time algorithms, with input-dependent iterations and
 branches. No constant-time secret-key primitive is provided. Exact modular

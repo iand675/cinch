@@ -104,6 +104,18 @@ def word_product(first: int, second: int, modulus: int) -> int:
     return result
 
 
+def word_roundtrip(value: int) -> int | None:
+    """Check both signed-safe shortcuts and the full unsigned upper-half reconstruction."""
+    assert value >= 0
+    if value >= 2**64:
+        return None
+    word = value if value < 2**63 else (value % 2**32) | ((value // 2**32) << 32)
+    signed = word if word < 2**63 else word - 2**64
+    result = signed if signed >= 0 else (word & (2**32-1)) + (word >> 32) * 2**32
+    assert result == value
+    return result
+
+
 def planned_checks() -> None:
     """Prepare exhaustive small-domain and word/bignum fringe checks for a later authorized model run."""
     for modulus in range(1, 33):
@@ -119,6 +131,7 @@ def planned_checks() -> None:
                     signed_power(signed, exponent, modulus)
     boundaries = [0, 1, 2, 2**32-1, 2**32, 2**63-1, 2**63, 2**64-1, 2**64, 2**127+1, 2**256-189]
     for first in boundaries:
+        assert word_roundtrip(first) == (first if first < 2**64 else None)
         for second in boundaries:
             divisor, x, y = bezout(first, second)
             assert divisor == first * x + second * y == math.gcd(first, second)
