@@ -1,0 +1,739 @@
+{
+  "kind": "UUID-paired-public-pipelines",
+  "action": "preflight",
+  "status": "passed",
+  "signature": {
+    "original_identity_sha256": "142c0fbfa99b8768d8ca02a106b90b00050784167b306f5011477be731558955",
+    "direct_identity_sha256": "b9665fc0f9cebd537004be79da5b53041682b894b824865f5b629e9f7ea550b7",
+    "generation_identity_sha256": "b63f6dc458fdbff1457a6ddbe3a3df113f607867f76bb6ca5e006762936be651",
+    "iterations": 4096,
+    "generation_iterations": 256
+  },
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "timing_claim": false,
+  "compares_random_payloads": false,
+  "argv0": "uuid-bench",
+  "cpu_affinity": [
+    4
+  ],
+  "memory": "32MiB/8MiB,RCdebug=0 for timing; additionally poison256MiB for preflights",
+  "background": "Root JSON33 closed; explicit CPU4 exception before coordinated timing pause",
+  "rows": [
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "fingerprint": 616988678851277605,
+      "runs": [
+        {
+          "variant": "original-simd",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-simd",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 1,
+      "iterations": 4096,
+      "fingerprint": 616988678851277605,
+      "runs": [
+        {
+          "variant": "original-simd",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-simd",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 2,
+      "iterations": 4096,
+      "fingerprint": 616988678851277605,
+      "runs": [
+        {
+          "variant": "original-simd",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-simd",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 3,
+      "iterations": 4096,
+      "fingerprint": 616988678851277605,
+      "runs": [
+        {
+          "variant": "original-simd",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-simd",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": true,
+          "fingerprint": 616988678851277605,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "fingerprint": 616988678851277605,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 4,
+      "iterations": 4096,
+      "fingerprint": 10403249665526027045,
+      "runs": [
+        {
+          "variant": "original-simd",
+          "poison": false,
+          "fingerprint": 10403249665526027045,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-simd",
+          "poison": true,
+          "fingerprint": 10403249665526027045,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": false,
+          "fingerprint": 10403249665526027045,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": true,
+          "fingerprint": 10403249665526027045,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": false,
+          "fingerprint": 10403249665526027045,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": true,
+          "fingerprint": 10403249665526027045,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": false,
+          "fingerprint": 10403249665526027045,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": true,
+          "fingerprint": 10403249665526027045,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "fingerprint": 10403249665526027045,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "format",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "fingerprint": 13010662214477431589,
+      "runs": [
+        {
+          "variant": "original-simd",
+          "poison": false,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-simd",
+          "poison": true,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": false,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": true,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": false,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": true,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": false,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": true,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "append",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "fingerprint": 13010662214477431589,
+      "runs": [
+        {
+          "variant": "original-simd",
+          "poison": false,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-simd",
+          "poison": true,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": false,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": true,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": false,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": true,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": false,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": true,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "fingerprint": 13010662214477431589,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "append",
+      "size": 64,
+      "pattern": 0,
+      "iterations": 4096,
+      "fingerprint": 10987907572211594021,
+      "runs": [
+        {
+          "variant": "original-simd",
+          "poison": false,
+          "fingerprint": 10987907572211594021,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-simd",
+          "poison": true,
+          "fingerprint": 10987907572211594021,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": false,
+          "fingerprint": 10987907572211594021,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": true,
+          "fingerprint": 10987907572211594021,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": false,
+          "fingerprint": 10987907572211594021,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": true,
+          "fingerprint": 10987907572211594021,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": false,
+          "fingerprint": 10987907572211594021,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": true,
+          "fingerprint": 10987907572211594021,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "fingerprint": 10987907572211594021,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "append",
+      "size": 4096,
+      "pattern": 0,
+      "iterations": 4096,
+      "fingerprint": 11553926056429679397,
+      "runs": [
+        {
+          "variant": "original-simd",
+          "poison": false,
+          "fingerprint": 11553926056429679397,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-simd",
+          "poison": true,
+          "fingerprint": 11553926056429679397,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": false,
+          "fingerprint": 11553926056429679397,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": true,
+          "fingerprint": 11553926056429679397,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": false,
+          "fingerprint": 11553926056429679397,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": true,
+          "fingerprint": 11553926056429679397,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": false,
+          "fingerprint": 11553926056429679397,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": true,
+          "fingerprint": 11553926056429679397,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "fingerprint": 11553926056429679397,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "compare",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "fingerprint": 7755048005952721701,
+      "runs": [
+        {
+          "variant": "original-simd",
+          "poison": false,
+          "fingerprint": 7755048005952721701,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-simd",
+          "poison": true,
+          "fingerprint": 7755048005952721701,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": false,
+          "fingerprint": 7755048005952721701,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "original-scalar",
+          "poison": true,
+          "fingerprint": 7755048005952721701,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": false,
+          "fingerprint": 7755048005952721701,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-simd",
+          "poison": true,
+          "fingerprint": 7755048005952721701,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": false,
+          "fingerprint": 7755048005952721701,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "direct-scalar",
+          "poison": true,
+          "fingerprint": 7755048005952721701,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "fingerprint": 7755048005952721701,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "generate-default",
+      "iterations": 256,
+      "runs": [
+        {
+          "variant": "candidate",
+          "poison": false,
+          "variable_fingerprint": 7019783642601803384,
+          "valid": 256,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "candidate",
+          "poison": true,
+          "variable_fingerprint": 5834461254984922450,
+          "valid": 256,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "variable_fingerprint": 694294127224812143,
+          "valid": 256,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "generate-v4",
+      "iterations": 256,
+      "runs": [
+        {
+          "variant": "candidate",
+          "poison": false,
+          "variable_fingerprint": 11862011474399370852,
+          "valid": 256,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "candidate",
+          "poison": true,
+          "variable_fingerprint": 10452452162378592966,
+          "valid": 256,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "variable_fingerprint": 8094314870890313191,
+          "valid": 256,
+          "diagnostics": ""
+        }
+      ]
+    },
+    {
+      "workload": "generate-v7",
+      "iterations": 256,
+      "runs": [
+        {
+          "variant": "candidate",
+          "poison": false,
+          "variable_fingerprint": 6567028753556658376,
+          "valid": 256,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "candidate",
+          "poison": true,
+          "variable_fingerprint": 14417577176444360843,
+          "valid": 256,
+          "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "variant": "reference",
+          "poison": false,
+          "variable_fingerprint": 4835121741416142972,
+          "valid": 256,
+          "diagnostics": ""
+        }
+      ]
+    }
+  ],
+  "original_and_direct_preserved": true,
+  "candidate_selected": false,
+  "package_complete": false,
+  "elapsed_protocol_seconds": 0.44582115299999714
+}

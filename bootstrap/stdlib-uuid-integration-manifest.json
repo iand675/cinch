@@ -86,7 +86,9 @@
     "bootstrap/stdlib-uuid-benchmark-assembly-review.json",
     "bootstrap/stdlib-uuid-generation-functional-results.json",
     "bootstrap/stdlib-uuid-benchmark-direct-functional-results.json",
-    "bootstrap/stdlib-uuid-allocation-results.json"
+    "bootstrap/stdlib-uuid-allocation-results.json",
+    "bootstrap/stdlib-uuid-benchmark-timing-results.json",
+    "bootstrap/stdlib-uuid-matched-count-preflight-results.json"
   ],
   "benchmark_review_paths": [
     "tooling/data/uuid-benchmark.cinch",
@@ -95,7 +97,8 @@
     "tooling/data/uuid-generation-benchmark.cinch",
     "tooling/bench_uuid_generation_reference.go",
     "tooling/bench_uuid_generation.py",
-    "tooling/profile_uuid_benchmarks.py"
+    "tooling/profile_uuid_benchmarks.py",
+    "tooling/measure_uuid_pipelines.py"
   ],
   "reference_provenance_paths": [
     "tooling/go_uuid_vectors_test.go",
