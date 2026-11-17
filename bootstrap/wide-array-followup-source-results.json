@@ -1,0 +1,38 @@
+{
+  "actual_cross_target_objects": false,
+  "actual_followup_runtime_tests": false,
+  "command": [
+    "taskset",
+    "-c",
+    "1",
+    "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-wide-arrays/build/wide-array-followups-source-v1/Main.cinch"
+  ],
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "cwd": "/workspace/dasl-stdlib-wide-arrays/build/wide-array-followups-source-v1",
+  "elapsed_seconds": 2.910828312014928,
+  "exit_code": 0,
+  "known_open_boundaries": [
+    "direct-wide columnar zip",
+    "packed-wide storage and Vec interoperability",
+    "Native family admission"
+  ],
+  "limit_reason": null,
+  "planned_object_profiles": [
+    "wasm32-unknown-unknown",
+    "aarch64-unknown-linux-gnu",
+    "powerpc64-unknown-linux-gnu (synthetic big-endian qualification profile)"
+  ],
+  "planned_runtime_profiles": "consumer O0/O2 \u00d7 workers1/4 \u00d7 ordinary32M/poison256M, stack8M; compiled checked-RC, partial saturation and known-argument specialization disabled",
+  "retained_bytes": 2291888,
+  "runtime_role": "qualified compiler host only; no consumer emission or execution",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "schema": 1,
+  "scope": "Source syntax/type/public API preflight only; future parent runtime and cross-object targets remain unexecuted",
+  "source_claims": {
+    "Data.Array.cinch": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Main.cinch": "04b65b981fbeb821d18ee5ff0b1f6233558eb05bf7146c8bd0014c779d94e913"
+  },
+  "status": "accepted source only"
+}
