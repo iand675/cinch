@@ -1,6 +1,6 @@
 {
   "kind": "separate-UUID-packed-parser-candidate",
-  "status": "standalone-fullmatrix-portable-and-actual-parent8-PPC-passed-matched-performance-pending",
+  "status": "functional-portable-parent8-and-matched-ad6-performance-gates-recorded-unselected-pending-review",
   "baseline_source": "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
   "baseline_source_sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
   "source": "experiments/uuid-packed-parser-v1/sources/Data.Uuid.cinch",
@@ -31,8 +31,9 @@
     "No selection or performance claim before full qualification and paired timing"
   ],
   "pending": [
-    "Native pure compatibility where admitted",
-    "Currentad6/d91 matched baseline/packed public pipeline build+memory/allocation/ASM preflights and separately granted timing"
+    "Root review/selection of parsing-only optimization; controls and variability retained",
+    "Current Native family compatibility remains separate/unclaimed",
+    "Further generation/runtime-provider optimization deferred to separate ownership"
   ],
   "candidate_selected": false,
   "package_complete": false,
@@ -45,7 +46,11 @@
     "owner/hash/range controls and actual entropy/wallclock/serialized shared-generator IO",
     "16bounded units/32normal+poison processes allzero leaks; every closed functional output durably archived",
     "Actual packed-adapter wasm32/AArch64IR and object compilation with packed decoder call paths; PPC CLI refusal remains separate",
-    "Actual currentRoot8/PPC gate21.39s selects expected41c8source,actual path/SHA logged; distinct from330andbaseline8"
+    "Actual currentRoot8/PPC gate21.39s selects expected41c8source,actual path/SHA logged; distinct from330andbaseline8",
+    "Matchedad6/d91 baseline+packed builds with identical5baefa harness and closure exceptData.Uuid",
+    "Both180condition/540process independent reference memory preflights and200process paired0/1/20/4096 proof",
+    "OrdinaryRC allocation/ASM review shows canonical6blocks/144B reduction",
+    "ExclusiveCPU0 paired180observations all fingerprints match,all6rawsamples retained,pre/postquota zero additional throttles;per-workload gains/regressions/variation retained"
   ],
   "qualification": {
     "source_doc": "source-doc-results.json",
@@ -55,6 +60,12 @@
     "selected": false,
     "runtime_matrix": "runtime-matrix-results.json",
     "portable": "portable-results.json",
-    "parent8": "parent-maintained-results.json"
+    "parent8": "parent-maintained-results.json",
+    "current_baseline": "current-baseline-preflight.json",
+    "current_packed": "current-packed-preflight.json",
+    "current_pair": "current-pair-preflight.json",
+    "allocation_assembly": "current-allocation-assembly-results.json",
+    "timing": "current-timing-review.json",
+    "raw_all_samples": "current-timing-all-observations.json"
   }
 }

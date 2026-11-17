@@ -1,0 +1,460 @@
+{
+  "kind": "matched-ad6-UUID-baseline-packed-reference-timing-review",
+  "status": "passed-protocol-candidate-unselected",
+  "compiler_sha256": "ad6e72f9cb4b946c7864b088062a2413974ca7b965153e1d7a413a97e0554e14",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "signature": {
+    "baseline_identity_sha256": "f6a45bf9a5f0a51ba95d90b504e415d48e2f7447bf952e403ef3301366c817c3",
+    "candidate_identity_sha256": "1e511ee135dcaad94f1f4b065ddfc6ac7fd542f941b3e62c413262a8881df0dc",
+    "iterations": 4096,
+    "runner_sha256": "c9983e12d39fd1226377db48f98638a71b007f18843ad42f46271058f2c940bc"
+  },
+  "raw_report_sha256": "f705797507872d2a15796bc645dcfa69d023acb7a942c75c11b09a69d73f1cf7",
+  "all180raw_observations_sha256": "c68729ba37aa3fbae1eedf1b46f5792fae1699eb357c3144c869f2e01c63fed3",
+  "wrapper_sha256": "16da939c0392a8bda64f5677125493d93a3029bc3dda37967fa550b72ed52dc8",
+  "elapsed_protocol_seconds": 0.5859216089884285,
+  "observations": 180,
+  "warmups_retained": 30,
+  "measurement_samples_retained": 150,
+  "clipped_observations": false,
+  "quota_before": {
+    "cpu.stat": "usage_usec 161751799846\nuser_usec 151697587889\nsystem_usec 10054211957\nnice_usec 481860771\nnr_periods 1231226\nnr_throttled 42006\nthrottled_usec 1757103997\nnr_bursts 0\nburst_usec 0\n",
+    "cpu.max": "400000 100000\n"
+  },
+  "quota_after": {
+    "cpu.stat": "usage_usec 161752257926\nuser_usec 151697867084\nsystem_usec 10054390841\nnice_usec 481860771\nnr_periods 1231232\nnr_throttled 42006\nthrottled_usec 1757103997\nnr_bursts 0\nburst_usec 0\n",
+    "cpu.max": "400000 100000\n"
+  },
+  "quota_delta": {
+    "usage_usec": 458080,
+    "user_usec": 279195,
+    "system_usec": 178884,
+    "nice_usec": 0,
+    "nr_periods": 6,
+    "nr_throttled": 0,
+    "throttled_usec": 0,
+    "nr_bursts": 0,
+    "burst_usec": 0
+  },
+  "background": "Root exclusiveCPU0START; allpeersackinactive/noheavyjobs; exactad6baseline+packed+sameSDK; Rootc2epoch notused",
+  "cpu_affinity": [
+    0
+  ],
+  "argv0": "uuid-bench",
+  "memory": "ordinaryRC,32MiBheap/8MiBstack;allocation/leak/poison instrumentationoff onlyduringtiming;matching-countnormal/poisonpreflightpassed",
+  "rows": [
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          1942639,
+          1933445,
+          2181159,
+          2052023,
+          2052014
+        ],
+        "packed": [
+          934950,
+          1415033,
+          1313380,
+          1417066,
+          1166679
+        ],
+        "reference": [
+          227823,
+          239481,
+          212440,
+          238820,
+          258390
+        ]
+      },
+      "median_ns_per_operation": {
+        "baseline": 500.97998046875,
+        "packed": 320.6494140625,
+        "reference": 58.3056640625
+      },
+      "packed_over_baseline": 0.6400443661690417,
+      "sample_range_over_median": {
+        "baseline": 0.12071749997807033,
+        "packed": 0.3670803575507469,
+        "reference": 0.1924043212461268
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 1,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          1189944,
+          1357666,
+          1213440,
+          1098166,
+          1333470
+        ],
+        "packed": [
+          794618,
+          656991,
+          600686,
+          606725,
+          582128
+        ],
+        "reference": [
+          213091,
+          405651,
+          207953,
+          216105,
+          248244
+        ]
+      },
+      "median_ns_per_operation": {
+        "baseline": 296.25,
+        "packed": 148.126220703125,
+        "reference": 52.760009765625
+      },
+      "packed_over_baseline": 0.5000041205168776,
+      "sample_range_over_median": {
+        "baseline": 0.21385482594936708,
+        "packed": 0.3502245663191726,
+        "reference": 0.9148238124985539
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 2,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          2175600,
+          2149952,
+          1882608,
+          2023340,
+          2082770
+        ],
+        "packed": [
+          1494933,
+          1130504,
+          1488384,
+          1332780,
+          1146779
+        ],
+        "reference": [
+          316717,
+          233492,
+          206522,
+          328165,
+          407164
+        ]
+      },
+      "median_ns_per_operation": {
+        "baseline": 508.48876953125,
+        "packed": 325.3857421875,
+        "reference": 77.323486328125
+      },
+      "packed_over_baseline": 0.6399074309693341,
+      "sample_range_over_median": {
+        "baseline": 0.1406741983032212,
+        "packed": 0.2734352256186317,
+        "reference": 0.6335056217380185
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 3,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          2511576,
+          2254769,
+          1984201,
+          2431556,
+          2397454
+        ],
+        "packed": [
+          1254391,
+          1180740,
+          1274061,
+          1302403,
+          1244025
+        ],
+        "reference": [
+          273763,
+          272731,
+          291759,
+          343368,
+          251148
+        ]
+      },
+      "median_ns_per_operation": {
+        "baseline": 585.31591796875,
+        "packed": 306.247802734375,
+        "reference": 66.836669921875
+      },
+      "packed_over_baseline": 0.523217963723183,
+      "sample_range_over_median": {
+        "baseline": 0.21997293795835082,
+        "packed": 0.09698969460080628,
+        "reference": 0.3368607152902328
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 4,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          2885200,
+          2685899,
+          3073774,
+          2429504,
+          2783729
+        ],
+        "packed": [
+          646265,
+          668487,
+          658013,
+          701358,
+          943743
+        ],
+        "reference": [
+          141062,
+          130747,
+          108164,
+          134943,
+          248194
+        ]
+      },
+      "median_ns_per_operation": {
+        "baseline": 679.621337890625,
+        "packed": 163.204833984375,
+        "reference": 32.945068359375
+      },
+      "packed_over_baseline": 0.24014083267444497,
+      "sample_range_over_median": {
+        "baseline": 0.23144135079240832,
+        "packed": 0.44500192225129287,
+        "reference": 1.037697398160705
+      }
+    },
+    {
+      "workload": "format",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          1011456,
+          921861,
+          1033118,
+          958004,
+          882591
+        ],
+        "packed": [
+          974300,
+          914459,
+          1230686,
+          1062722,
+          920458
+        ],
+        "reference": [
+          243257,
+          233732,
+          214594,
+          276127,
+          243458
+        ]
+      },
+      "median_ns_per_operation": {
+        "baseline": 233.8876953125,
+        "packed": 237.8662109375,
+        "reference": 59.388916015625
+      },
+      "packed_over_baseline": 1.0170103673888626,
+      "sample_range_over_median": {
+        "baseline": 0.15712564874468166,
+        "packed": 0.324568408087858,
+        "reference": 0.2529546940067501
+      }
+    },
+    {
+      "workload": "append",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          1140330,
+          966898,
+          941380,
+          1512841,
+          966978
+        ],
+        "packed": [
+          1182804,
+          966428,
+          1036072,
+          990253,
+          979898
+        ],
+        "reference": [
+          303297,
+          390188,
+          252811,
+          236046,
+          253573
+        ]
+      },
+      "median_ns_per_operation": {
+        "baseline": 236.07861328125,
+        "packed": 241.760986328125,
+        "reference": 61.907470703125
+      },
+      "packed_over_baseline": 1.0240698340603405,
+      "sample_range_over_median": {
+        "baseline": 0.5909762166254041,
+        "packed": 0.21850577579669034,
+        "reference": 0.6078801765172159
+      }
+    },
+    {
+      "workload": "append",
+      "size": 64,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          957585,
+          1032878,
+          1084435,
+          967519,
+          957754
+        ],
+        "packed": [
+          1029843,
+          979788,
+          1204406,
+          1022362,
+          1081390
+        ],
+        "reference": [
+          351781,
+          327504,
+          532343,
+          334214,
+          357719
+        ]
+      },
+      "median_ns_per_operation": {
+        "baseline": 236.210693359375,
+        "packed": 251.426513671875,
+        "reference": 85.884033203125
+      },
+      "packed_over_baseline": 1.0644163060363672,
+      "sample_range_over_median": {
+        "baseline": 0.1311085363698284,
+        "packed": 0.21810897389213696,
+        "reference": 0.5822912550706263
+      }
+    },
+    {
+      "workload": "append",
+      "size": 4096,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          1340702,
+          1390246,
+          1380312,
+          1435084,
+          1370347
+        ],
+        "packed": [
+          1561245,
+          1780596,
+          1461464,
+          1402606,
+          1377257
+        ],
+        "reference": [
+          2623777,
+          2873444,
+          3129550,
+          2983319,
+          3290513
+        ]
+      },
+      "median_ns_per_operation": {
+        "baseline": 336.990234375,
+        "packed": 356.802734375,
+        "reference": 728.349365234375
+      },
+      "packed_over_baseline": 1.058792504882954,
+      "sample_range_over_median": {
+        "baseline": 0.06837729440880033,
+        "packed": 0.27598285007362483,
+        "reference": 0.22348800111553607
+      }
+    },
+    {
+      "workload": "compare",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          22404,
+          21953,
+          21963,
+          22484,
+          22124
+        ],
+        "packed": [
+          24287,
+          23896,
+          24426,
+          24737,
+          24136
+        ],
+        "reference": [
+          74152,
+          73942,
+          44236,
+          72029,
+          69095
+        ]
+      },
+      "median_ns_per_operation": {
+        "baseline": 5.4013671875,
+        "packed": 5.929443359375,
+        "reference": 17.585205078125
+      },
+      "packed_over_baseline": 1.0977671307177725,
+      "sample_range_over_median": {
+        "baseline": 0.024001084794792984,
+        "packed": 0.03462757853995965,
+        "reference": 0.41533271321273374
+      }
+    }
+  ],
+  "resource_scope": "Root timing-only 300 MiB fresh / 250 MiB reserve, existing sealed binaries, report at most 5 MiB; wrapper assertions passed. No SDK/compiler/link invocation occurred.",
+  "review": [
+    "All 180 result fingerprints match, including every retained warmup.",
+    "Parsing medians improve per workload: canonical 0.640x, compact 0.500x, URN 0.640x, braces 0.523x and invalid final digit 0.240x of baseline.",
+    "Unchanged render, append and compare controls regress approximately 2\u201310% in this window. These results are retained; no broad improvement is claimed.",
+    "Normalized Main format/append/compare loop instruction text matches after removing comments/directives and renumbered local labels. This is not byte-identical placement or a proof excluding layout or machine variation.",
+    "Sample ranges are substantial in several conditions, including the reference. All raw warmups and five measurements are retained. No blind repeat is performed.",
+    "Raw cgroup counter deltas report zero additional throttled periods and microseconds during this interval. Cumulative counters remain in the report.",
+    "Absolute packed canonical parsing remains materially slower than the reference, approximately 321 versus 58 ns here. Removing buffers does not close every representation or dispatch cost.",
+    "The source candidate remains unselected pending Root review of each workload. No current Native family claim is made."
+  ],
+  "candidate_selected": false,
+  "package_complete": false
+}
