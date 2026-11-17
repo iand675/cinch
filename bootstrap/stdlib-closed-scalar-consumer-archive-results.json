@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "status": "verified lossless archival complete",
+  "scope": "Only 22 closed ordinary 7a3/V2 scalar compatibility consumer executables; no benchmark or compiler artifacts",
+  "file_count": 22,
+  "original_bytes": 254800056,
+  "compressed_bytes": 56753969,
+  "recovered_bytes": 198046087,
+  "seconds": 2.527836936991662,
+  "recovery_index_sha256": "b60077ed33a14f3e955062ae3a8a09ee85588e0b1c00f3353122ce9d82e236f7",
+  "all_original_hashes_matched_qualified_receipts": true,
+  "full_decompression_hash_and_size_verified": true,
+  "archive_parent_and_index_fsynced_before_unlink": true,
+  "active_executable_inodes_rechecked_before_unlink": true,
+  "source_llvm_assembly_receipts_frozen_provider_runtime_benchmark_inputs_unchanged": true
+}
