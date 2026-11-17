@@ -1,0 +1,177 @@
+{
+  "status": "Additive optional flush/proxy capability tested; arbitrary cross-retained transfer callback cycle remains an explicit promotion blocker. No runtime collector adoption or full80 completion is claimed.",
+  "baseline_commit": "105b610977cb2305ff8cbc8a187d7751b9cc8153",
+  "core_source_sha256": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+  "fixture_sha256": "35c185f6067aca08d2009d32a4166c63dfd09e71813d3871fb85d4ccd0b5fd35",
+  "canonical_declarations": 69,
+  "memory_process_count": 8,
+  "policies": [
+    "Optional flush returns absence without transport I/O, success, or failure plus its authoritative advanced sink.",
+    "Proxy forwarding preserves independent text/transfer/flush observations and retained callbacks see subsequent handle advances.",
+    "Returned underlying continuations determine later capability availability; adding a transfer callback preserves existing proxy capabilities.",
+    "Ordinary buffered flush drains exactly one owned layer; explicit deep routes are supplied in the separate full-family increment.",
+    "The original and valid-EOF cross-retention graphs still leak22 on ordinary ARC. The cfg(test)-only cycle prototype has not changed these consumers."
+  ],
+  "matrix": {
+    "buffered-flush-core-rust-o0": {
+      "frontend": "rust",
+      "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "snapshot_sha256": "efddf04be6b84092832f2d1f0d3a174964c2bcc27418aa84ffcfb3105c611577",
+      "string_epoch": {
+        "description": "Rust frontend with repaired scalar semantics and embedded phase2 String/Bytes after full parent gates",
+        "embedded_sources": {
+          "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+          "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+        },
+        "source_checkpoint": "cafee61a"
+      },
+      "sources": {
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Buffered.Core.cinch": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Main.cinch": "35c185f6067aca08d2009d32a4166c63dfd09e71813d3871fb85d4ccd0b5fd35"
+      },
+      "source_sha256": "35c185f6067aca08d2009d32a4166c63dfd09e71813d3871fb85d4ccd0b5fd35",
+      "llvm_sha256": "7e3d99a4a999fd50b1b0fba671752831bab3a7bafeedbaf6484f1f43130618aa",
+      "executable_sha256": "719ac243ac4bf93d9ed4da4e7f3bfcdc693ff11fe954135dacf2ed6ea0f112ca",
+      "opt_level": "0",
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=34905 bytes=1233371 peak=1754 header-blocks=32215 header-bytes=1227448 immortal=0 freed=32215 live=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=34905 bytes=1233371 peak=1227687 header-blocks=32215 header-bytes=1227448 immortal=0 freed=32215 live=0\n"
+        }
+      ],
+      "receipt_sha256": "291334f1f7ef7451f0ee553233a9adfabf08cea7b2d55b33679c2ca48a23fc27"
+    },
+    "buffered-flush-core-rust-o2": {
+      "frontend": "rust",
+      "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "snapshot_sha256": "efddf04be6b84092832f2d1f0d3a174964c2bcc27418aa84ffcfb3105c611577",
+      "string_epoch": {
+        "description": "Rust frontend with repaired scalar semantics and embedded phase2 String/Bytes after full parent gates",
+        "embedded_sources": {
+          "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+          "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+        },
+        "source_checkpoint": "cafee61a"
+      },
+      "sources": {
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Buffered.Core.cinch": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Main.cinch": "35c185f6067aca08d2009d32a4166c63dfd09e71813d3871fb85d4ccd0b5fd35"
+      },
+      "source_sha256": "35c185f6067aca08d2009d32a4166c63dfd09e71813d3871fb85d4ccd0b5fd35",
+      "llvm_sha256": "7e3d99a4a999fd50b1b0fba671752831bab3a7bafeedbaf6484f1f43130618aa",
+      "executable_sha256": "5723181b92352370a0cb98083064c04ea8e9ba06665995aeb1eeee43878710b1",
+      "opt_level": "2",
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "allocation_statistics": true,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=34905 bytes=1233371 peak=1754 header-blocks=32215 header-bytes=1227448 immortal=0 freed=32215 live=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "allocation_statistics": true,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=34905 bytes=1233371 peak=1227687 header-blocks=32215 header-bytes=1227448 immortal=0 freed=32215 live=0\n"
+        }
+      ],
+      "receipt_sha256": "5dbb97d86c756f64bb74b05c590131a5942c482984803a7cb7fa4cf02dd4e82c"
+    },
+    "buffered-flush-core-native-o0": {
+      "frontend": "native",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "snapshot_sha256": "879f629db2de1b84919dfe0bf571c705ebcef2abb857fda836ec4bd5d27e2502",
+      "string_epoch": "combined e5; explicit admitted interfaces/object; no source shadow",
+      "sources": {
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Buffered.Core.cinch": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Main.cinch": "35c185f6067aca08d2009d32a4166c63dfd09e71813d3871fb85d4ccd0b5fd35"
+      },
+      "source_sha256": "35c185f6067aca08d2009d32a4166c63dfd09e71813d3871fb85d4ccd0b5fd35",
+      "llvm_sha256": "3ed3156b532b50f6f217d6dca7c5faa14a5c567a18466e623f063bddea9e727f",
+      "executable_sha256": "26263d1f2b482e916802afa74d7c092be037d0b388167a096a82144f31553df8",
+      "opt_level": "0",
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=35253 bytes=1244285 peak=2738 header-blocks=32565 header-bytes=1238392 immortal=0 freed=32565 live=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=35253 bytes=1244285 peak=1238634 header-blocks=32565 header-bytes=1238392 immortal=0 freed=32565 live=0\n"
+        }
+      ],
+      "receipt_sha256": "180d81cd242c87e4610a319ae375d4ecc2371d24b15b0ef1fefe8dee1e69b58f",
+      "provider": {
+        "manifest_sha256": "0e3c00e99c0596fccc11231bffdc0468d87e848f72246114dbe4004f4b67e408",
+        "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+        "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+        "object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+        "metadata_sha256": "b3c2b20b6e46a9c0b321d19410764e22248df32311bd90a59b9f4e7cc1020d0d"
+      }
+    },
+    "buffered-flush-core-native-o2": {
+      "frontend": "native",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "snapshot_sha256": "879f629db2de1b84919dfe0bf571c705ebcef2abb857fda836ec4bd5d27e2502",
+      "string_epoch": "combined e5; explicit admitted interfaces/object; no source shadow",
+      "sources": {
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Buffered.Core.cinch": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Main.cinch": "35c185f6067aca08d2009d32a4166c63dfd09e71813d3871fb85d4ccd0b5fd35"
+      },
+      "source_sha256": "35c185f6067aca08d2009d32a4166c63dfd09e71813d3871fb85d4ccd0b5fd35",
+      "llvm_sha256": "3ed3156b532b50f6f217d6dca7c5faa14a5c567a18466e623f063bddea9e727f",
+      "executable_sha256": "1d5c76f41ae07e0bff5eda9b7dc08d19b33c26e6a573aa8ac4d62d815e0471e8",
+      "opt_level": "2",
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "allocation_statistics": true,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=35253 bytes=1244285 peak=2738 header-blocks=32565 header-bytes=1238392 immortal=0 freed=32565 live=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "allocation_statistics": true,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=35253 bytes=1244285 peak=1238634 header-blocks=32565 header-bytes=1238392 immortal=0 freed=32565 live=0\n"
+        }
+      ],
+      "receipt_sha256": "c8c97951b251bf030972afe4f3cc3d44882d3817a0b5dae602048f041cd4cf5a",
+      "provider": {
+        "manifest_sha256": "0e3c00e99c0596fccc11231bffdc0468d87e848f72246114dbe4004f4b67e408",
+        "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+        "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+        "object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+        "metadata_sha256": "b3c2b20b6e46a9c0b321d19410764e22248df32311bd90a59b9f4e7cc1020d0d"
+      }
+    }
+  }
+}

@@ -220,10 +220,50 @@ module Main where
                       (None, untouched) -> advertised && dropped && write-is accepted 1 && read-is read "R" && write-is last 1 && same output expected
                   else False
 
+  -- | Advertise a one-shot flush while retaining an immutable byte-write cursor in each advanced sink.
+  flush-sink :: forall r. using (io :: Io r) => Bytes -> Nat -> Bool -> Bool -> BufferSink r
+  flush-sink output at allowed failing = let plain = buffer-sink (\input -> flush-sink-write output at allowed failing input) in
+    if allowed then buffer-sink-with-flush plain (\unit -> flush-sink-step output at failing) else plain
+
+  -- | Preserve a flush capability across ordinary writes only when the returned continuation explicitly advertises it.
+  flush-sink-write :: forall r. using (io :: Io r) => Bytes -> Nat -> Bool -> Bool -> Bytes ->{IO r} (WriteEvent, BufferSink r)
+  flush-sink-write output at allowed failing input = let count = bytes-len input in
+    if at + count <= bytes-len output then
+      let copied = bytes-copy-range output input at 0 count in
+      (WriteEvent (nat-to-int count) None, flush-sink output (at + count) allowed failing)
+    else (WriteEvent 0 (Some (BufferCustomError "flush fixture capacity")), flush-sink output at allowed failing)
+
+  -- | A flush confirms one transport marker before returning either success or a structured failure and its advanced sink.
+  flush-sink-step :: forall r. using (io :: Io r) => Bytes -> Nat -> Bool ->{IO r} (Option BufferError, BufferSink r)
+  flush-sink-step output at failing = if at < bytes-len output then
+    let written = bytes-set output at 70 in
+    let status = if failing then Some (BufferCustomError "flush-once") else None in
+    (status, flush-sink output (at + 1) False False)
+    else (Some (BufferCustomError "flush fixture capacity"), flush-sink output at False False)
+
+  -- | Flush through an aliased transfer proxy, then interleave its retained write callback and returned sink on success and failure.
+  flush-proxy-control :: forall r. using (io :: Io r) => Bool ->{IO r} Bool
+  flush-proxy-control failing = let output = bytes-new 5 in
+    case buffer-source-transfer transferring-source (flush-sink output 0 True failing) of
+      (None, source, sink) -> False
+      (Some event, source, sink) -> let advertised = buffer-sink-has-flush sink in
+        let attached = buffer-sink-with-transfer sink (\read -> (TransferEvent 0 None, sink)) in
+        let preserved = buffer-sink-has-transfer attached && buffer-sink-has-flush attached in
+        case buffer-sink-flush attached of
+          (None, next) -> False
+          (Some status, next) ->
+            let correct-status = case status of None -> not failing; Some (BufferCustomError message) -> failing && message == "flush-once"; Some other -> False in
+            let dropped = not (buffer-sink-has-flush sink) && not (buffer-sink-has-flush next) in
+            case buffer-source-read source 1 of
+              (read, next-source) -> case buffer-sink-write next (string-to-bytes "E") of
+                (last, final) -> case buffer-sink-flush final of
+                  (Some unexpected, ignored) -> False
+                  (None, untouched) -> advertised && preserved && correct-status && dropped && not (buffer-sink-has-transfer next) && read-is read "R" && write-is last 1 && same output (string-to-bytes "ABFCE")
+
   -- | Repeatedly release both proxy/cell directions; none installs its proxy into its own cell.
   reclaim :: forall r. using (io :: Io r) => Nat ->{IO r} Bool
   reclaim count = if count == 0 then True
-    else if source-transfer-control () && sink-transfer-control () then reclaim (count - 1) else False
+    else if source-transfer-control () && sink-transfer-control () && text-proxy-control () && flush-proxy-control False && flush-proxy-control True then reclaim (count - 1) else False
 
   -- | Check raw boundaries, advanced callbacks, absent capabilities, legacy adapters and reclamation.
   main :: Unit ->{IO r} Int
@@ -234,4 +274,6 @@ module Main where
     else if not (absent-transfer-control ()) then 4
     else if not (stream-adapters ()) then 5
     else if not (text-proxy-control ()) then 6
-    else if reclaim 64 then 0 else 7
+    else if not (flush-proxy-control False) then 7
+    else if not (flush-proxy-control True) then 8
+    else if reclaim 64 then 0 else 9
