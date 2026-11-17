@@ -1,0 +1,65 @@
+{
+  "scope": "Evidence-only minimal baseline completion import list; no source selection or old receipt rewrite.",
+  "root_base": "820d234b784f459eaf8e99dc82871105c8731086",
+  "required_imports": [
+    {
+      "from": "experiments/multipart-promotion-v1/corpus-o0-gate.json",
+      "to": "experiments/multipart-promotion-v1/corpus-o0-gate.json",
+      "sha256": "8c38bf12b0c82bdfa6015c6f05c3ec10bee93a69a6c7732fa42b6a4bea1b6b78",
+      "bytes": 112462,
+      "exact_evidence_commit": "1416817934be60962606480ef6facc385274556b",
+      "scope": "Exact accepted330 IR O0 relink:1128 observations/23consumers/46 normal+poison zero-leak processes"
+    },
+    {
+      "from": "experiments/multipart-promotion-v1/performance-results.json",
+      "to": "experiments/multipart-promotion-v1/performance-results.json",
+      "sha256": "84f3368f4374efeef6cc206972a748ff9ab0e8b1545669cb736d588a70cd8b24",
+      "bytes": 126519,
+      "exact_evidence_commit": "8795e2dc593f13c00f133c58fcca765d3d1c291d",
+      "scope": "Complete current combined-source baseline benchmark raw/report,288 interleaved observations including warmups and all regressions"
+    },
+    {
+      "from": "experiments/multipart-promotion-v1/performance-results.md",
+      "to": "experiments/multipart-promotion-v1/performance-results.md",
+      "sha256": "afa5aeb2a5e7a8245351620ca05bbdd4384d13ff0aa55e1057aa24ec3668e0ca",
+      "bytes": 2734,
+      "exact_evidence_commit": "8795e2dc593f13c00f133c58fcca765d3d1c291d",
+      "scope": "Baseline benchmark review and limitations"
+    }
+  ],
+  "optional_preflight_context": {
+    "path": "experiments/multipart-promotion-v1/performance-preflights.json",
+    "sha256": "4300854d8a7f726742ca387cebdff5c6ad0003b21c3bf0eea22d0fc4f1ad3b0a",
+    "evidence_commit": "1416817934be60962606480ef6facc385274556b",
+    "scope": "224 both-profile independent output/retained-input preflights and actual clock/code gates"
+  },
+  "baseline_source": {
+    "Effect.Multipart": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b",
+    "Text.Multipart": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2",
+    "Text.QuotedPrintable": "cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb"
+  },
+  "epochs": {
+    "standalone_baseline": "Rust330/d91, O0 exact-IR relink and O2 accepted emission,64MiB compiler host/8MiB consumer stack",
+    "parent_sdk_free": "Root f9/d91 lib_multipart2/2, separate current-parent epoch, already publishedc2441661",
+    "later_root_epoch": "Root3dae parent results remain Root-owned; these imported receipts do not claim that compiler",
+    "historical_native": "Native65 evidence stays historical; no new family admission"
+  },
+  "inventory_facts": {
+    "full_o0_complete": true,
+    "full_o0_distinct_observations": 1128,
+    "full_o0_processes": 46,
+    "full_o0_zero_leaks": true,
+    "current_source_baseline_performance_complete": true,
+    "performance_conditions": 16,
+    "performance_raw_warmup_and_sample_processes": 288,
+    "performance_cinch_zero_leak_processes": 192,
+    "performance_reference": "Pinned go1.27.4, complete public pipelines, raw samples and regressions retained",
+    "current_native_and_production_selection": "Still independent/pending; no blanket package completion claim"
+  },
+  "excluded": [
+    "Optimized candidate sources/results (separate narrowQP proposal)",
+    "Production selection",
+    "Historical baseline source or metadata rewrites",
+    "Measured program binaries or runtime/provider inputs"
+  ]
+}
