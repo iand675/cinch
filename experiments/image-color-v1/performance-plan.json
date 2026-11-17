@@ -1,5 +1,5 @@
 {
-  "status": "Matched public SIMD/actual-scalar drivers built and all functional/actual-code gates passed; elapsed timing awaits Root exclusive grant.",
+  "status": "Sealed three-way public timing complete; raw regressions and SDK gaps retained, static control review complete, allocation/confirmation scopes separate.",
   "scope": "Complete public conversion and nearest-palette pipelines with observed output/representation and retained inputs",
   "source_basis": {
     "path": "experiments/image-color-v1/sources/Image.Color.cinch",
@@ -117,7 +117,6 @@
     "maximum_unarchived_unit_mib": 30
   },
   "limits": [
-    "No source build or measurement has run for this plan",
     "Scalar single-pixel division may remain scalar even when palette/channel arithmetic uses vector instructions",
     "All regressions/noise remain visible; no SDK parity assumption",
     "No new Native family admission or production selection"
@@ -131,8 +130,8 @@
     "sdk": "Pinned installed go1.27.4 image/color, unchanged independently compiled reference source per sealed pair",
     "generation": "Identical deterministic machine-word state/byte extraction and explicit alpha0/partial/opaque distributions; source/model/palette setup before timing",
     "sizes": [
-      64,
-      4096
+      16,
+      256
     ],
     "full_checksums": "Hash Option discriminator, model identity, every raw field and canonical channel for every result; retain original query/source/palette hashes afterward",
     "nil_and_empty": "Empty palette conversion and custom absent model output both hash explicit absent outcomes; no fabricated color",
@@ -188,7 +187,11 @@
     "warmups": 1,
     "processes": 756,
     "hard_wall_seconds": 20,
-    "exclusive_root_grant_pending": true
+    "exclusive_root_grant_pending": false
   },
-  "timing_executed": false
+  "timing_executed": true,
+  "actual_timing_receipt": "experiments/image-color-v1/performance-results.json",
+  "actual_timing_sha256": "e33f0def32c9cae2bef1e0cefa9d2b354a44b5a64e323a1b30156c6514a89437",
+  "timing_observations": 756,
+  "control_review": "experiments/image-color-v1/control-code-review.json"
 }

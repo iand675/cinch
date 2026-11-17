@@ -1,5 +1,5 @@
 {
-  "scope": "Dependency-minimal additive Root experiment/SDK-free test import proposal; production and Native/performance selection remain unclaimed.",
+  "scope": "Dependency-minimal additive experiment and SDK-free test import; sealed public timings and control review are additive evidence, with production and full Native selection unclaimed.",
   "review_base": "40ae975bb96136760064578b42af54e7fa15fca4",
   "required_imports": [
     {
@@ -137,8 +137,8 @@
     {
       "from": "experiments/image-color-v1/performance-plan.json",
       "to": "experiments/image-color-v1/performance-plan.json",
-      "bytes": 7481,
-      "sha256": "65f62eaa834aae2024b9252d99185ec449ce7b8111d7d8d288ad1b42c002c9b8"
+      "bytes": 7717,
+      "sha256": "589c4b2bbec642ddf6ddeddee70a4f5f3fc94c607fc5d20c59f067e1581f4136"
     }
   ],
   "optional_reproduction_imports": [
@@ -276,14 +276,15 @@
     ],
     "sdk_required": false,
     "current_rust_only": true,
-    "actual_parent_execution_pending": true,
+    "actual_parent_execution_pending": false,
     "failed_projects_retained_on_assertion_panic": true,
     "runtime_initialization": "Normal current compiler build and exact locked archive snapshot; provider initialization separately scoped from functional cap.",
     "functional_heap_profiles": [
       "32M normal/8M stack",
       "256M poisoned/8M stack"
     ],
-    "compiler_host_stack": "64MiB"
+    "compiler_host_stack": "64MiB",
+    "receipt": "experiments/image-color-v1/parent-gate.json"
   },
   "standalone_complete": [
     "Full78-record mapping",
@@ -291,11 +292,11 @@
     "51,052,544 actual-body scalar comparisons and3 verified portable objects",
     "All3 callback IO-erasure refusals",
     "All95 declarations canonical",
-    "Actual full-entrypoint-to-nine-kernel paths and optimized instruction evidence"
+    "Actual full-entrypoint-to-nine-kernel paths and optimized instruction evidence",
+    "756 sealed public timing observations, all complete output/owner checks match,504 Cinch zero-leak runs, raw regressions and actual quota facts retained"
   ],
   "pending": [
-    "Root maintained Cargo target execution",
-    "Root-granted paired elapsed timing; actual matched public drivers/full preflights/code gates now passed",
+    "Dynamic allocation census and repeatability confirmation of observed control regressions",
     "Full Native qualification and genuine source-absent client gate",
     "Production selection/shared inventory/docs integration"
   ],
@@ -304,5 +305,49 @@
     "Frozen compiler/runtime/provider copies",
     "Generated functional ELF/IR/interface cache copies",
     "All failure artifacts (remain plain in original projects)"
+  ],
+  "historical_parent_import": {
+    "root_commit": "15a6f22f",
+    "original_lane_checkpoint": "224a1fa2",
+    "required_imports_at_that_checkpoint": 23,
+    "maintained_tests": "2/2 PASS5.45s C2/d91; separate from standalone3dae/d91"
+  },
+  "additive_review_imports": [
+    {
+      "from": "experiments/image-color-v1/performance-results.json",
+      "to": "experiments/image-color-v1/performance-results.json",
+      "bytes": 340539,
+      "sha256": "e33f0def32c9cae2bef1e0cefa9d2b354a44b5a64e323a1b30156c6514a89437"
+    },
+    {
+      "from": "experiments/image-color-v1/performance-results.md",
+      "to": "experiments/image-color-v1/performance-results.md",
+      "bytes": 4194,
+      "sha256": "9ceece694968f9fc19b4d2062ce9ce013975e2b467ddcde637e894c02730c5bb"
+    },
+    {
+      "from": "experiments/image-color-v1/control-code-review.json",
+      "to": "experiments/image-color-v1/control-code-review.json",
+      "bytes": 16472,
+      "sha256": "1b9faa355e0e610ad011d987506e5861764ee9ee23f98d78677bf0dbf9d7c3f2"
+    },
+    {
+      "from": "experiments/image-color-v1/control-code-review.md",
+      "to": "experiments/image-color-v1/control-code-review.md",
+      "bytes": 4056,
+      "sha256": "da510056c67e859d8df3617249b6bf727e8e54a53f1268f9baeb4d4b39004cdd"
+    },
+    {
+      "from": "experiments/image-color-v1/parent-gate.json",
+      "to": "experiments/image-color-v1/parent-gate.json",
+      "bytes": 510,
+      "sha256": "d193bbe520e400c45d46c3cd35ead43243123b29e66c206dfaa3b6bf67291125"
+    },
+    {
+      "from": "tooling/inspect_color_controls.py",
+      "to": "tooling/inspect_color_controls.py",
+      "bytes": 7902,
+      "sha256": "b7926d0efb60097916144fd32bc325c99f45e42becbf093801cdca777ca4b6b5"
+    }
   ]
 }
