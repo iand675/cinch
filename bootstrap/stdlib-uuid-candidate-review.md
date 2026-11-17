@@ -1,45 +1,93 @@
 # Isolated UUID candidate
 
-This lane is based on published Rootc2441661 and does not modify the map candidate, existing module homes, shared inventory or generated website references. `Data.Uuid` and `Effect.Uuid` implement the reviewed identifier capabilities as an unselected candidate. No package completion or Native-family qualification is claimed.
+All 13 installed public declarations now have an operation-level mapping in
+[stdlib-uuid-operation-mapping.md](stdlib-uuid-operation-mapping.md), with exact
+source declarations, behavior, adaptations, tests and benchmark coverage. The
+machine-readable companion records the installed source and candidate hashes.
+This is a partial distribution proposal, not a package-completion claim.
 
-Values contain two immutable network-order U64 words. All128-bit patterns remain valid, including nil/max and unfamiliar version/variant bits. Input/output byte buffers are copied into or out of those words. Parsing accepts exactly canonical36-byte, compact32-byte, brace38-byte and exact lowercase `urn:uuid:`45-byte forms, with mixed-case hexadecimal and fixed dash positions. It does not trim whitespace or accept wrapper combinations. The parser and canonical formatter reuse `Text.Hex`'s existing checked inline LLVM SIMD kernels; byte word reads use `Data.Bytes.Word`. Unsigned two-word comparison is a pure inline LLVM operation. No generic128-bit arithmetic bridge is used.
+Root's published `ae09257f` integration contains the byte-identical candidate
+sources under `experiments/uuid-candidate-v1/sources` and maintained SDK-free
+tests. Tests write explicit project-local `Data.Uuid`/`Effect.Uuid` modules.
+There is no Root prelude or Native-family promotion. The minimal integration
+manifest and its 14 input hashes remain unchanged by benchmark work.
 
-The checked-parser convenience is represented by `uuid-validate-text` and opaque `ParsedUuid`, followed by total `uuid-required`. Invalid input remains an explicit `Result` error; there is no runtime panic parser. Mutable text unmarshalling is adapted to immutable `uuid-unmarshal-text previous bytes`, returning a complete replacement on success and the unchanged original plus an error on failure. These are deliberate total/immutable adaptations of the two imperative/error-raising surface entries, not missing implementations hidden behind aliases.
+Values preserve all 128 bits as two immutable network-order U64 words. Bytes
+enter or leave through checked copying conversions. Parsing accepts exactly
+compact, canonical, brace and lowercase-URN forms, with mixed-case hex digits.
+Canonical rendering and parsing reuse the existing checked Hex SIMD workers;
+comparison uses unsigned packed LLVM words. Every public/private declaration,
+constructor, primitive and instance has canonical documentation: 47 nodes,
+zero diagnostics or orphans.
 
-Version4 has a pure supplied-entropy constructor and actual system-random IO adapters. Version7 has explicit pure state, a separate state-advance function and a complete pure construction step. It retains whole Unix seconds and the60-bit logical timestamp; same-second rollback/equal samples increment the logical fraction, while whole-second rollback resets its ordering constraint. Carry between milliseconds is preserved. Checked range/exhaustion errors return no replacement state.
+Three adaptations are explicit. The strict parser returns an opaque checked
+witness and permits total extraction instead of raising a runtime panic.
+Unmarshal returns an immutable replacement and preserves the previous value
+on refusal. V7 sequences have explicitly owned generator state instead of
+implicit process-global state. One generator serializes actual wall-clock
+state transitions under MVar; equal or backward samples in the same second
+advance the logical tick, whole-second rollback resets its ordering constraint,
+and fractional carry is preserved. Actual secure entropy is acquired after
+committing and releasing the state. No random/time substitutions are used.
 
-The IO generator owns a private MVar state cell and retains the complete `{MVar, IO r, Diverge}` row. It samples actual wall time while holding the state, restores the previous state on a checked refusal, commits a successful transition, then obtains real secure entropy after releasing the state cell. One shared generator defines one sequence; independent generators define independent sequences. Overlapping calls are ordered at their state transition, not necessarily by completion time. Neither random nor time providers are replaced with deterministic functions.
+The independent pinned-SDK oracle records 660 parser/receiver/strict-parser
+observations, 204 arbitrary-prefix append cases, 370 full-value comparisons,
+nine controlled-clock sequences including 4,097 ties, and 48 actual secure
+generations. The exact executed oracle source and bytes remain preserved;
+a subsequently formatted generator has not been relabeled as that execution.
+Standalone qualification on frozen `330adb4d`/runtime `d91ce012` passes the
+complete matrix, immutable ownership/hash/range controls and real generator
+IO under normal 32 MiB and poisoned 256 MiB heaps with 8 MiB stacks, zero
+leaks. Root separately reports its maintained release target passed 8/8,
+including actual full-adapter wasm, ARM and custom big-endian PPC objects.
+That parent compiler identity is distinct from the frozen CLI, whose PPC
+unsupported-target refusal remains preserved.
 
-Source qualification on exact330/d91 passed in3.539 seconds with2,420,732 output bytes. A preceding parser-layout diagnostic is preserved in `build/uuid-source-a1`; the corrected source-only snapshot is `build/uuid-source-a2`. A later documentation-only correction changed instance-body comments to ordinary comments, because the documentation model does not treat method implementations as separate declarations. Current canonical extraction passes all47 declaration/constructor/primitive/instance nodes with zero diagnostics/orphans. The tested source and runtime input snapshots remain unchanged, and current documentation-source hashes are recorded separately.
+The first clock-boundary control failure remains plain. Its input had three
+extra decimal zeros; the exact limit is 2^48 milliseconds times 1,000,000
+nanoseconds. Only the fixture was corrected. Library source and independent
+vectors did not change. The original source-only parser-layout failure and
+subsequent successful snapshots also remain separate.
 
-The independent existing-SDK oracle built in9.598 seconds and ran successfully, producing660 parse/receiver/strict-parser observations,204 append cases,370 full-value comparisons,9 V7 clock sequences and48 actual generations. The controlled clock scopes are independent reference fixtures for pure state transitions; their entropy remains real cryptographic entropy, captured from actual generated values. They include4097 repeated timestamps, fractional carry, same-second backward time and whole-second rollback. `stdlib-uuid-reference-results.json` records the exact executable/source/vector hashes. The exact executed generator source is preserved under `bootstrap/repros/uuid-reference-initial`; the formatted/commented maintained generator is present separately and has not yet been rebuilt.
+Historical Native evidence is narrower: exact compiler `2f077`/provider
+`46a7`/runtime `80bd` accepts the full pure source bundle and passes 256 of
+660 parser observations under both heap modes. Its full pure matrix and
+current IO/MVar family remain pending. Closed successful functional artifacts
+have verified lossless archive mappings; failures, frozen inputs and every
+benchmark input stay plain.
 
-The first authorized runtime unit passes all9 independent V7 sequences on exact330/d91, normal32MiB and separately poisoned256MiB heaps with8MiB stacks, exit0 and zero leaks in both runs. It built in3.590 seconds and produced8,374,262 bytes. `stdlib-uuid-v7-results.json` preserves the result and full diagnostics. This was the initial runtime boundary; the completed independent matrix is recorded below.
+Public pipeline preflights compare separate SIMD/scalar source copies with
+one independent SDK reference. The original and direct-argument harnesses each
+pass all 180 conditions and 900 processes. Real default/V4/V7 generation passes
+nine conditions and 27 processes using invariant counts, without comparing
+random payloads. Matching-count preflights add all 13 measured workloads at
+4,096 pure operations and 256 real generations, normal/poison, 99 processes.
 
-Maintained paths are `compiler/tests/lib_uuid.rs`, independent templates under `compiler/tests/fixtures/uuid-*`, `tooling/generate_uuid_cases.py` and `tooling/validate_uuid.py`. They cover all committed parser/append/compare observations, immutable owner/refusal boundaries and actual entropy/clock/generator behavior. Standalone Rust runtime gates are now completed below; the maintained Cargo target itself remains pending and no own Cargo build was started. The validator requires explicit compiler/runtime/LLVM20 identities, one bounded CPU, fresh350MiB and250MiB reserve, normal/poison separation and at most20MiB functional outputs per unit.
+The exclusive CPU0 timing window completed all 336 observations in 1.276 s.
+Original SIMD medians were approximately 491 ns for canonical parsing versus
+1,109 ns for scalar and 57 ns for the reference; rendering was 221 ns versus
+315/63 ns. Original prepared comparison was 5.5 ns versus the reference's
+18.6 ns, while the direct harness was 10.6 ns. Appending a 4,096-byte prefix
+was 339 ns versus 655 ns; short-prefix cases favor the reference. Generation
+medians were about 1.14–1.47 us versus 0.27–0.30 us. All raw samples are
+retained. One comparison sample is a large outlier, generation varies, and
+there is no pre-start cgroup snapshot, so no exact throttle-delta or
+zero-throttle claim is made. Neither harness is selected from static code
+size or call counts.
 
-Public benchmark inputs are prepared at `tooling/data/uuid-benchmark.cinch` and `tooling/bench_uuid_reference.go`. They cover complete parse plus a fresh mutable value snapshot, canonical byte formatting, immutable prefix append, and comparison of prepared values. Inputs are prepared outside the measured interval, with bounded machine iteration/checksum metadata and independently matching output fingerprints. These are source paths only; no benchmark build, preflight or timing result is claimed. Scalar-hex comparison, big-endian API-profile objects, assembly/allocation inspection, current formatted-oracle rebuild, Native capability evidence and matched timings remain required before selection.
+Ordinary-RC allocation diagnostics normalize argv0 and subtract 0/1/20
+baselines. SIMD canonical parsing uses approximately 32 fewer allocated
+blocks per iteration than scalar decoding. Direct arguments do not materially
+improve the heap slopes. Remaining parse/render gaps include intermediate
+compact/decoded/render buffers; secure generation also opens, reads and
+closes the OS entropy device on every draw in the matched runtime. A separate
+packed parser is authorized for investigation; runtime-provider changes have
+separate ownership and are deferred. No optimization candidate is selected.
 
-The prepared benchmark runner is `tooling/bench_uuid.py`, with separate `build`, `preflight` and `measure` actions. It retains immutable source/IR/assembly/executable identities, creates separate SIMD/scalar Hex source copies without editing `Text.Hex`, and uses the same complete public UUID APIs in both variants. Packed comparison is unchanged in the two variants as a control. The scalar copy disables only the private vector block dispatch and uses the existing scalar workers; it changes no public acceptance or ownership contract.
-
-Preflights use0/1/17 bounded iterations and independent reference fingerprints, with both heap profiles and zero-leak checks for each Cinch condition. Measurement refuses conditions without recorded exact-snapshot preflights and explicitly disables allocation/poison/leak instrumentation while fixing normal32MiB heap and8MiB stack settings. Actual sampling still requires a separately coordinated exclusive timing window. No benchmark action has yet been run.
-
-The actual-generation consumer now covers all48 committed secure-provider observations, checking full canonical values, RFC fields and supplied-entropy repacking without asserting that future entropy calls repeat those payloads. The maintained test path also includes content-equality/hash-law controls. These additions subsequently passed both heap profiles as part of the completed matrix below.
-
-Root's next single-producer exception permits an explicit320MiB fresh start with the same250MiB reserve and20MiB runtime-output cap; it does not change compiler contracts or authorize new reference builds. The first128parse unit paused before creating its functional directory because only328,597,504 bytes were free, below335,544,320 required bytes. No compiler/link/runtime executed and no genuine UUID failure occurred. `stdlib-uuid-parse-resource-pause.json` records the observation. The shared output token was returned to Root for the next queued lane. The default validator threshold remains350MiB; the320 option is explicit and scoped.
-
-
-The full independent Rust matrix now passes660 parser/receiver/trusted-extraction observations,204 append/owner observations,370 complete-value comparisons and48 actual-generation payload observations, plus ownership/hash/range controls and real system entropy/wall-clock/serialized-generator IO. All28 processes passed normal32MiB and poisoned256MiB heaps with8MiB stacks and zero leaks. Every bounded unit stayed below20MiB and each completed ELF/IR/disposable interface cache was durably archived before the next unit. `stdlib-uuid-runtime-matrix-results.json` records the exact330/d91 tuple, current source hashes, per-unit reports and archive mapping. The earlier nine V7 sequences remain a separately preserved two-process proof from before documentation-only comment correction.
-
-The first clock-boundary control failure is retained plain. The test's supposed nanosecond boundary contained three extra decimal zeros; the exact bound is2^48 milliseconds×1,000,000 nanoseconds=281474976710656000000, and the last valid nanosecond is one less. Correcting only those fixture inputs made the control pass; the rollback assertion was also strengthened to exact canonical tick0. Library source, independent SDK vectors and compiler contracts did not change. `stdlib-uuid-clock-fixture-diagnosis.json` records that grounded correction and the original failing consumer hash.
-
-Actual full immutable adapters also emitted and compiled to objects forwasm32 andAArch64 under the frozen330 compiler, retaining reachable Hex vector, endian and packed-comparison bodies. The frozen CLI honestly refuses PowerPC beforeIR because its target table lacks that triple. `stdlib-uuid-portable-results.json` preserves both supported objects and the unsupported-target refusal; it does not relabel little-endian output as big-endian qualification. The maintained `uuid_full_adapters_compile_for_portable_targets` test supplies a real custom big-endian PPC Rust API profile, matching the repository's established pattern, and still needs Parent's Cargo gate. No own Cargo or new compiler build was started.
-
-`stdlib-uuid-integration-manifest.json` is a minimal file/hash proposal for candidate modules and SDK-free maintained tests plus required fixtures/generator only. It excludes all map work, unrelated Root production edits, diagnostics, oracle builds and benchmark artifacts from the minimal integration set. `apply_now` remainsfalse: both candidates stay isolated until the portable and benchmark review, and actual Native/MVar family evidence remains separate.
-
-Generation performance has a separate prepared public pipeline at `tooling/data/uuid-generation-benchmark.cinch` and `tooling/bench_uuid_generation_reference.go`. Both call actual default/V4/V7 operations, retain a fresh mutable value snapshot, check reserved version/variant fields, and report elapsed time, accepted count and a variable random-output fingerprint separately. Random fingerprints must not be equal across implementations or runs. One explicit V7 generator is prepared outside timing; generation itself remains inside. No entropy/clock substitution, benchmark build, new SDK job or timing has been performed. Before measurements, IR/assembly must confirm the actual random and wall-clock operations remain in their intended call loops.
-
-
-The admitted historical Native pure-data pairing has now been checked separately: compiler2f077, runtime80bd, interfaces1d22, objects22ab and provider46a7. The full `Data.Uuid`/Hex/Word source bundle passes without diagnostics, and its first128 independent parse observations emitted, linked and passed normal32MiB and poisoned256MiB heaps,8MiB stacks and zero leaks. Emission took8.524 seconds and linking0.620 seconds; functional outputs were14,246,878 bytes. Matched old provider/runtime paths were used throughout. `Effect.Uuid`, MVar, the new66 family and Rustd91 were excluded.
-
-That representative Native success was archived with exact member hashes/sizes/modes and durable mapping before removal, under the same hard10MiB scratch cap. `stdlib-uuid-native-runtime-results.json` records its separate epoch and partial scope; the full historical pure-data matrix and new-family IO are not claimed. Minimal integration selection remains unchanged; Native and generation benchmark paths are review inputs only. Root's production checkout, compiler/prelude tree and release-build inputs were not modified.
+Open boundaries include production availability, full historical Native pure
+coverage, current Native IO/MVar transport, concurrent shared-generator stress,
+and individual timing of String/witness/unmarshal convenience wrappers. Error
+acceptance and receiver behavior are covered; structured error values do not
+promise SDK message identity. Existing entropy failure behavior is inherited
+from the platform primitive. Detailed receipts and the full gap list are in
+the operation mapping and integration manifest.

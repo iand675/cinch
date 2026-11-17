@@ -1,5 +1,5 @@
 {
-  "status": "isolated-candidate-full-independent-Rust-runtime-passed-portable-and-performance-review-pending",
+  "status": "isolated-all13-capabilities-mapped-Rust-portable-public-pipeline-qualified-pending-adaptation-and-distribution-review",
   "source_basis": "c244166183e6be61f0bace69e5b9c5a87a2fceda",
   "modules": [
     "Data.Uuid",
@@ -17,10 +17,13 @@
     "UnmarshalText returns a replacement immutable receiver and preserves the original on refusal"
   ],
   "pending": [
-    "maintained Cargo target including actual custom-profile PPC object gate",
-    "actual Native capability/transport evidence",
-    "matched public pipeline benchmark build/preflight/measurement review",
-    "concurrent shared-generator stress if separately required",
-    "candidate selection"
-  ]
+    "review total/immutable/explicit-state adaptations and isolated availability",
+    "full historical Native pure matrix and separate current Native IO/MVar family",
+    "concurrent shared-generator stress if required",
+    "separate packed parser candidate qualification and measured selection",
+    "candidate production selection"
+  ],
+  "operation_mapping": "bootstrap/stdlib-uuid-operation-mapping.json",
+  "parent_maintained_gate": "Root published ae09257f, lib_uuid release8/8PASS, including actual full-adapter custom-profile PPC; distinct parent compiler identity",
+  "benchmark_results": "bootstrap/stdlib-uuid-benchmark-timing-results.json"
 }

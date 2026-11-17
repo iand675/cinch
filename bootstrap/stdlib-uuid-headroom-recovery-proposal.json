@@ -1,0 +1,116 @@
+{
+  "kind": "own-qualified-cold-functional-output-recovery-proposal",
+  "files": [
+    {
+      "path": "/workspace/dasl-stdlib-collections/build/linked-list-control-word-native/control/consumer",
+      "bytes": 11468376,
+      "sha256": "0820ddbe1b6d21e48d983853bec6eac843c56897f9bfe9eb51d3e1356964cb2c",
+      "mode": 448,
+      "receipt": "/workspace/dasl-stdlib-collections/build/linked-list-control-word-native/results.json",
+      "receipt_sha256": "ebd88a2d014e457759615f4c36bdc13b84604f3ec6f0aff5699f00279086181a",
+      "verdict": "Both normal32M/8M and poison256M/8M exit0 with zero leaks",
+      "input_exclusion": "Closed functional consumer only; source/benchmark/compiler/provider/runtime/frozen inputs remain plain"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-collections/build/linked-list-control-word-native/control/consumer.ll",
+      "bytes": 365104,
+      "sha256": "97282911ca28975b5e60fa06562b8227a89460c50f77c18933b3cd8bd5de6d9c",
+      "mode": 384,
+      "receipt": "/workspace/dasl-stdlib-collections/build/linked-list-control-word-native/results.json",
+      "receipt_sha256": "ebd88a2d014e457759615f4c36bdc13b84604f3ec6f0aff5699f00279086181a",
+      "verdict": "Both normal32M/8M and poison256M/8M exit0 with zero leaks",
+      "input_exclusion": "Closed functional consumer only; source/benchmark/compiler/provider/runtime/frozen inputs remain plain"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-rust-growth-final/growth/consumer",
+      "bytes": 5882808,
+      "sha256": "5c430724bc32358b0403f28ec53ef7fc0e9127bd33b742832ad6d000ba5728e9",
+      "mode": 448,
+      "receipt": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-rust-growth-final-results.json",
+      "receipt_sha256": "40bfd05fe8cc3ec0f5dabb566aafd63bea586d126f9c20694d238b6d77ff796b",
+      "verdict": "Both normal32M/8M and poison256M/8M exit0 with zero leaks",
+      "input_exclusion": "Closed functional consumer only; source/benchmark/compiler/provider/runtime/frozen inputs remain plain"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-rust-growth-final/growth/consumer.ll",
+      "bytes": 41359,
+      "sha256": "4693031ee43c5dfe663d6a13fe415dadadb37e817c7e95b69821d45f648ddb95",
+      "mode": 384,
+      "receipt": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-rust-growth-final-results.json",
+      "receipt_sha256": "40bfd05fe8cc3ec0f5dabb566aafd63bea586d126f9c20694d238b6d77ff796b",
+      "verdict": "Both normal32M/8M and poison256M/8M exit0 with zero leaks",
+      "input_exclusion": "Closed functional consumer only; source/benchmark/compiler/provider/runtime/frozen inputs remain plain"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-rust-growth-opaque/growth/consumer",
+      "bytes": 5878792,
+      "sha256": "e9afb7da0c4be35ab15bc97d7acb59f88231854b51d481f97af224ff69a41da0",
+      "mode": 448,
+      "receipt": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-rust-growth-opaque-results.json",
+      "receipt_sha256": "8fb552a5980df90a38bcae6159a269228498143d67def66f5bd9a19bc0810d8c",
+      "verdict": "Both normal32M/8M and poison256M/8M exit0 with zero leaks",
+      "input_exclusion": "Closed functional consumer only; source/benchmark/compiler/provider/runtime/frozen inputs remain plain"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-rust-growth-opaque/growth/consumer.ll",
+      "bytes": 41023,
+      "sha256": "86a41b267d8c43255a31aa201df6afc7e4f1b17b6e9b3f5dad1aa0693a8461b7",
+      "mode": 384,
+      "receipt": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-rust-growth-opaque-results.json",
+      "receipt_sha256": "8fb552a5980df90a38bcae6159a269228498143d67def66f5bd9a19bc0810d8c",
+      "verdict": "Both normal32M/8M and poison256M/8M exit0 with zero leaks",
+      "input_exclusion": "Closed functional consumer only; source/benchmark/compiler/provider/runtime/frozen inputs remain plain"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-native-growth-opaque/growth/consumer",
+      "bytes": 11567888,
+      "sha256": "ba1a9d1a23389c582b9245b3bd22e07e58cd7eb6d2ae01b480fc023f11fd9dc9",
+      "mode": 448,
+      "receipt": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-native-growth-opaque-results.json",
+      "receipt_sha256": "0d979904ee492b6813962b47872db0479dec8765b96e993b33eea190248449d6",
+      "verdict": "Both normal32M/8M and poison256M/8M exit0 with zero leaks",
+      "input_exclusion": "Closed functional consumer only; source/benchmark/compiler/provider/runtime/frozen inputs remain plain"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-native-growth-opaque/growth/consumer.ll",
+      "bytes": 33491,
+      "sha256": "8c069edb32352cf46ea805097b33367466e0d478fc42367ffad21366bc7d3112",
+      "mode": 384,
+      "receipt": "/workspace/dasl-stdlib-list-capacity/build/list-capacity-native-growth-opaque-results.json",
+      "receipt_sha256": "0d979904ee492b6813962b47872db0479dec8765b96e993b33eea190248449d6",
+      "verdict": "Both normal32M/8M and poison256M/8M exit0 with zero leaks",
+      "input_exclusion": "Closed functional consumer only; source/benchmark/compiler/provider/runtime/frozen inputs remain plain"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-maps-audit/build/maps-role-slots-runtime-a1/consumer",
+      "bytes": 6236632,
+      "sha256": "f99e9be008c082090ca5129fc1ab163a4fe16af30e20afb8f46fee292f0d58cd",
+      "mode": 448,
+      "receipt": "/workspace/dasl-stdlib-maps-audit/build/maps-role-slots-runtime-a1-results.json",
+      "receipt_sha256": "37be0c3c0be8dadd5f641add1f001a470cedcbc73040c64e7b52e83ae8a5327e",
+      "verdict": "Both normal32M/8M and poison256M/8M exit0 with zero leaks",
+      "input_exclusion": "Closed functional consumer only; source/benchmark/compiler/provider/runtime/frozen inputs remain plain"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-maps-audit/build/maps-role-slots-runtime-a1/consumer.ll",
+      "bytes": 1637382,
+      "sha256": "a6c77e8a1b4bd010c0235e71aaa893071b9697f4c78b0f9ca482d7c2d58579e6",
+      "mode": 384,
+      "receipt": "/workspace/dasl-stdlib-maps-audit/build/maps-role-slots-runtime-a1-results.json",
+      "receipt_sha256": "37be0c3c0be8dadd5f641add1f001a470cedcbc73040c64e7b52e83ae8a5327e",
+      "verdict": "Both normal32M/8M and poison256M/8M exit0 with zero leaks",
+      "input_exclusion": "Closed functional consumer only; source/benchmark/compiler/provider/runtime/frozen inputs remain plain"
+    }
+  ],
+  "original_bytes": 43152855,
+  "excluded": [],
+  "archive_started": false,
+  "root_ledger_touched": false,
+  "exclusions": [
+    "All frozen compilers/providers/runtimes and experimental compiler inputs",
+    "All source/interface/fixture/log/report inputs",
+    "All benchmark source/IR/ASM/executable inputs",
+    "Every genuine failing diagnostic project",
+    "Old LinkedList corpus whose current hashes do not match preserved original receipts"
+  ]
+}
