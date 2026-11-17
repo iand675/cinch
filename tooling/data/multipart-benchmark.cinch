@@ -1,0 +1,188 @@
+-- | Measure complete public multipart reads, field writes and disposition formatting.
+module Main where
+  import Text.Multipart
+  import Effect.Multipart
+  import Text.QuotedPrintable
+  import Effect.Clock
+  import Effect.Process
+  import Effect.Io
+  import Data.Bytes
+  import Data.Char
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show
+
+  -- | Parse harness sizes before the measurement begins.
+  decimal :: String -> Nat
+  decimal input = digits (unpack input) 0
+  -- | Accumulate validated decimal digits without a fixed-width size limit.
+  digits :: List Char -> Nat -> Nat
+  digits input value = case input of Nil -> value; Cons char rest -> case digit-value char of None -> 0; Some digit -> digits rest (value * 10 + digit)
+
+  -- | Select complete public field-write measurements.
+  write-mode :: String -> Bool
+  write-mode mode = mode == "write-body" || mode == "write-sparse" || mode == "write-dense"
+  -- | Select incremental body, long-header and decoded-part measurements.
+  read-mode :: String -> Bool
+  read-mode mode = mode == "read" || mode == "read-header" || mode == "read-qp"
+  -- | Select sparse or dense disposition rendering with the same input policy.
+  disposition-mode :: String -> Bool
+  disposition-mode mode = mode == "disposition-sparse" || mode == "disposition-dense"
+  -- | Select inputs which deliberately exercise disposition escaping.
+  escaped-mode :: String -> Bool
+  escaped-mode mode = disposition-mode mode || mode == "write-sparse" || mode == "write-dense"
+  -- | Select the deliberately adverse all-special-byte distribution.
+  dense-mode :: String -> Bool
+  dense-mode mode = mode == "disposition-dense" || mode == "write-dense"
+
+  -- | Fill deterministic binary, ordinary-header or sparse/dense escaping inputs.
+  fill :: String -> Bytes -> Nat -> Unit
+  fill mode output at = if at < bytes-len output then
+    let escaped = escaped-mode mode in
+    let byte = if mode == "read-header" then 65 + nat-rem at 26 else if escaped then (if dense-mode mode || nat-rem at 31 == 0 then (if nat-rem at 4 == 0 then 13 else if nat-rem at 4 == 1 then 10 else if nat-rem at 4 == 2 then 34 else 92) else 97 + nat-rem at 26) else nat-rem (at * 37 + 11) 256 in
+    let stored = if byte <= 255 then bytes-set output at byte else () in fill mode output (at + 1)
+    else ()
+
+  -- | Join complete prepared spans outside the timed interval.
+  joined :: Bytes -> Bytes -> Bytes
+  joined first second =
+    let output = bytes-new (bytes-len first + bytes-len second) in
+    let copiedFirst = bytes-copy-range output first 0 0 (bytes-len first) in
+    let copiedSecond = bytes-copy-range output second (bytes-len first) 0 (bytes-len second) in output
+
+  -- | Consume every returned byte with the same bounded scalar observation as the reference.
+  checksum :: Bytes -> Nat -> I64 -> I64
+  checksum input at value = if at < bytes-len input then
+    checksum input (at + 1) (bit-and-i64 (wrapping-add-i64 (wrapping-mul-i64 value 131) (nat-to-i64 (bytes-get input at))) 2147483647)
+    else value
+
+  -- | Restart a borrowed source whose input remains live until the post-clock retention check.
+  foreign import ccall "multipart_bench_input" raw-input :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+  -- | Read one actual prefix into a language-owned fresh destination.
+  foreign import ccall "multipart_bench_read" raw-read :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+  -- | Restart only the observed sink digest, leaving the reusable writer context intact.
+  foreign import ccall "multipart_bench_reset" raw-reset :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Accept and observe every byte of one complete borrowed writer offer.
+  foreign import ccall "multipart_bench_write" raw-write :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+  -- | Observe all accepted output after successful public finalization.
+  foreign import ccall "multipart_bench_digest" raw-digest :: forall (r :: Region). I64 ->{IO r} I64
+
+  -- | Keep a borrowed byte span live until its foreign observation has returned.
+  held :: forall a. Bytes -> a -> a
+  held input result = case bytes-len input of _ -> result
+
+  -- | Publish an independently owned exact destination prefix after the foreign read.
+  prefix :: Bytes -> Nat -> Bytes
+  prefix input count = if count <= bytes-len input then
+    let output = bytes-new count in let copied = bytes-copy-range output input 0 0 count in output
+    else bytes-new 0
+
+  -- | Advance a source with the ordinary positive-prefix and subsequent-empty-EOF policy.
+  source-step :: forall (r :: Region). Nat ->{IO r} ((Bytes, MultipartReadStatus I64), MultipartSource r I64)
+  source-step wanted =
+    let output = bytes-new wanted in
+    let count = raw-read (bytes-data output) (nat-to-i64 (bytes-len output)) in
+    let bytes = if count >= 0 then prefix output (nat-from-i64 count) else bytes-new 0 in
+    ((bytes, if eq-i64 count 0 then MultipartEnd else if count < 0 then MultipartReadFailure count else MultipartMore), source ())
+
+  -- | Keep every ordinary source callback fully applied across the foreign ABI.
+  source :: forall (r :: Region). Unit -> MultipartSource r I64
+  source unit = multipart-source (\wanted -> source-step wanted)
+
+  -- | Preserve a full writer count and the explicitly advanced observing sink.
+  sink-step :: forall (r :: Region). Bytes ->{IO r} ((Nat, Option I64), MultipartSink r I64)
+  sink-step input =
+    let count = held input (raw-write (bytes-data input) (nat-to-i64 (bytes-len input))) in
+    ((if count >= 0 then nat-from-i64 count else 0, if count < 0 then Some count else None), sink ())
+
+  -- | Retain an ordinary checked first-class sink callback.
+  sink :: forall (r :: Region). Unit -> MultipartSink r I64
+  sink unit = multipart-sink (\input -> sink-step input)
+
+  -- | Consume every body prefix before checking its independent terminal status.
+  body :: forall (r :: Region). MultipartPart r I64 -> I64 ->{IO r, Mut r} I64
+  body borrowed value = case multipart-part-read borrowed 4096 of
+    (output, status) ->
+      let next = checksum output 0 value in
+      case status of MultipartMore -> body borrowed next; MultipartEnd -> next; MultipartReadFailure error -> -1
+
+  -- | Parse each public part and observe its lazy name, selected header and complete body.
+  parts :: forall (r :: Region). MultipartReader r I64 -> I64 ->{IO r, Mut r} I64
+  parts reader value = case multipart-next-part reader of
+    Err error -> -1
+    Ok None -> value
+    Ok (Some borrowed) ->
+      let name = multipart-part-form-name borrowed in
+      let headers = multipart-part-headers borrowed in
+      let pad = multipart-header-get (string-to-bytes "X-Pad") headers in
+      let next = body borrowed (checksum pad 0 (checksum name 0 value)) in
+      if next >= 0 then parts reader next else -1
+
+  -- | Execute complete public operations with an explicitly reused post-close writer context.
+  operation :: forall (r :: Region). String -> Bytes -> Option (MultipartWriter r I64) ->{IO r, Mut r} I64
+  operation mode input context =
+    if disposition-mode mode then checksum (multipart-file-disposition input input) 0 0
+    else if write-mode mode then case context of
+      None -> -1
+      Some writer ->
+        let reset = raw-reset 0 in
+        let written = multipart-write-field writer (if mode == "write-body" then string-to-bytes "field" else input) (if mode == "write-body" then input else string-to-bytes "value") in
+        let closed = multipart-writer-finish writer in
+        case written of Err error -> -1; Ok unit -> case closed of Err error -> -1; Ok unit -> raw-digest 0
+    else
+      let initialized = raw-input (bytes-data input) (nat-to-i64 (bytes-len input)) in
+      let reader = multipart-reader (source ()) (string-to-bytes "bench-boundary") in
+      parts reader 0
+
+  -- | Repeat complete outputs and observations before the next operation begins.
+  repeat :: forall (r :: Region). String -> Bytes -> Option (MultipartWriter r I64) -> I64 -> I64 ->{IO r, Mut r} I64
+  repeat mode input context count value = if count > 0 then
+    let result = operation mode input context in
+    if result < 0 then -1 else repeat mode input context (wrapping-sub-i64 count 1) (bit-and-i64 (wrapping-add-i64 value result) 2147483647)
+    else value
+
+  -- | Build the complete wire fixture before timing public reader operations.
+  prepared :: String -> Bytes -> Bytes
+  prepared mode raw = if read-mode mode then
+    let header = string-to-bytes "--bench-boundary\r\nContent-Disposition: form-data; name=\"field\"\r\n" in
+    let extended = if mode == "read-header" then joined (joined header (string-to-bytes "X-Pad: ")) (joined raw (string-to-bytes "\r\n")) else if mode == "read-qp" then joined header (string-to-bytes "Content-Transfer-Encoding: quoted-printable\r\n") else header in
+    let payload = if mode == "read-header" then string-to-bytes "value" else if mode == "read-qp" then quoted-printable-encode-bytes QuotedPrintableBinary raw else raw in
+    joined (joined (joined extended (string-to-bytes "\r\n")) payload) (string-to-bytes "\r\n--bench-boundary--\r\n")
+    else raw
+
+  -- | Prepare shared writer state without charging unrelated entropy to field-write measurements.
+  context :: forall (r :: Region). String ->{Mut r} Option (MultipartWriter r I64)
+  context mode = if write-mode mode then (case multipart-writer-boundary (string-to-bytes "bench-boundary") (sink ()) of Ok writer -> Some writer; Err error -> None) else None
+
+  -- | Observe mode and writer ownership after the end clock so teardown stays outside it.
+  retained-context :: forall (r :: Region). String -> Option (MultipartWriter r I64) -> I64 ->{Mut r} I64
+  retained-context mode context value =
+    let named = checksum (string-to-bytes mode) 0 value in
+    case context of None -> named; Some writer -> checksum (multipart-writer-get-boundary writer) 0 named
+
+  -- | Keep input preparation and retained-input traversal outside the exact measured loop.
+  measure :: forall (r :: Region). using (io :: Io r) => String -> Nat -> Nat ->{IO r, Mut r} Int
+  measure mode size count = if count <= 9223372036854775807 then
+    let raw = bytes-new size in
+    let initialized = fill mode raw 0 in
+    let input = prepared mode raw in
+    let writer = context mode in
+    let iterations = nat-to-i64 count in
+    let start = clock-monotonic-ns () in
+    let result = repeat mode input writer iterations 0 in
+    let end = clock-monotonic-ns () in
+    let retained = retained-context mode writer (checksum input 0 (checksum raw 0 0)) in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (int-to-string (int-from-i64 result)) (string-concat " " (string-concat (int-to-string (int-from-i64 retained)) "\n")))))) in
+    if result >= 0 then 0 else 3
+    else 2
+
+  -- | Accept the public pipeline name, runtime byte count and repetition count.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons mode (Cons size (Cons count Nil))) -> measure mode (decimal size) (decimal count)
+    _ -> 2
