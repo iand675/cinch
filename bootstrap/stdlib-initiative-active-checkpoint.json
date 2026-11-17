@@ -1,0 +1,102 @@
+{
+  "goal": "Full public reference surface, idiomatic documented Cinch libraries, actual tests and benchmarks; goal remains active.",
+  "published_root_checkpoint": "f30db145",
+  "coverage": {
+    "unreviewed": 102,
+    "partial": 55,
+    "complete": 23,
+    "total": 180
+  },
+  "latest_passes": {
+    "compiler_units_after_source_identity_repair": "343/343,105.35s",
+    "quoted_printable_maintained_target": "2/2,22.06s",
+    "quoted_printable_current_subset": "214 observations/12 zero-leak profiles",
+    "library_reference": "191 modules,4996 value exports,115 methods,zero doc diagnostics/orphans",
+    "packed_uuid_parent": "8/8 currentad6/d91,21.39s,selected41c8 dataSource,actualPPC;unselectedcandidate",
+    "compiler_units_current_c2": "343/343,109.05s",
+    "projector_focus": "48simplify+7inlinecopy,ownedO0/O2normalpoison",
+    "effect_identity": "8/8independent,14.42s;10sourcecontrols20.85s",
+    "image_color_parent": "2/2C2/d91,5.45s;isolatedcandidateRoot15a6",
+    "private_usage_release_units": "344/344,113.89s;modelincluded",
+    "private_usage_source_profile": "11/11,21.02s",
+    "private_usage_native": "8/8,304.13s;realNatpositive,Bytesnegative,privateheaders,legacyandadversarial",
+    "palette_parent": "2/2currentffb5/BDF,4.82stest,209.59sCargo+test; all472entries/1024queries/32factoryrounds,2zero-leakprofiles",
+    "json_child": "All902+29 plus1494+retained1+owner4 on current21a/75c/19b,36memoryprocesses; actualRoot parentpending",
+    "json_parent_no_run": "PASS214.63s; actualtestELF0255/currentCLI040a/BDF,source8d7;45discovered=42owned+3sharedhelpers",
+    "json_parent_partial": "15/45PASS; allclosed/archived/sourceCIFplain. Dynamictwo-projecttest64MiB exception passed. Index15stoppedBEFOREchild at350MiB start guard.",
+    "pcg": "Newisolatedimmutablee04fcaa4;2048 independentwords+24snapshots/appends,formalPythonmodel, O0/O2\u00d7normal/poison4zero-leakprofiles,14canonicaldocs;performance/Nativeopen",
+    "suffixarray": "Complete153literalinputs/10710observationsperO0/O2,612zero-leakprofiles; firstcallback8inputs/120observations/16profiles; Rootffb5sourcePASS",
+    "tabwriter": "Adapt12+ErrorOwner3groups actual330/D91O2normal+poisonpassed;OfferOwner/layer/stream/kernel/portable/perfopen"
+  },
+  "root_unpublished_work": [
+    "Exact3 JSON syntax partial-update modules and11 fixtures imported; generated191/5008/115reference matches current sources; actual new040a/BDF parent no-run passed.15/45 actual tests passed then prestartresourceguard; remaining30 resume pending without repeating15.",
+    "Isolated suffixarray source and fullO0/O2 literal receipts imported; parentffb5 source check passed; inventory palette/suffixarray honestlypartial."
+  ],
+  "active_native_gate": {
+    "status": "PASS8/8,304.13s,no pauses",
+    "receipt": "bootstrap/repros/private-usage-native-v2/receipt.json",
+    "native_checker_sha256": "70f6150d9f3f7f4ba784c81011063ee01ce374620706f64bbdd558b986dbef80",
+    "actual_supplied_bootstrap_modules": 32,
+    "global_source52_sha256": "4eff89639337c80964431969e41f3ffa351d28ff5c9f988e6781c864c5cb7dd5",
+    "full52_native_provider_family_admitted": false
+  },
+  "first_native_failures": "bootstrap/repros/mvar-contract-parent-v1/receipt.json",
+  "pending_visibility_repair": "Published and qualified in d9a92f70; see current C2 frozen compiler.",
+  "rejected_performance_candidate": "UTF8f516 reassociation:730 profiles+650preflight+104timings+24allocation controls, no dominant allocation reduction; production unchanged. Published lane9b8a15f0.",
+  "parallel_work": {
+    "codegen": "ActualO2PCGunique-state free+alloc confirmed; safeWidepayloadreuse13-file32KBisolatedpatchproposal, noRusttypecheck/build yet; unrelatedwordstorecontractassessed.",
+    "path": "LiteralO0/O2complete plusfirstcallbackunit; broadercallback/owner/effects/persistence/benchopen.",
+    "compare": "Full3-recordHKDFstaticcandidate; replacinginvalidpurestorekernelwithvalueSWAR+checkedwrites before sourcecheck.",
+    "html": "TabwriterAdapt12+ErrorOwner runtimepassed; nextOfferOwner andrestpending.",
+    "json": "Childall1494regressiondone,Root45parent15pass; source-only resumehelper beingprepared withoutCargo/repeats.",
+    "entropy": "Full5-objectcrypto/randaudit/statictemplates; rawread/Nat/uniform/correctedToken source+docsPASSED; fullPrimefoundationsgapexplicit.",
+    "collections": "Tar85-recordmap; metadata/blocksourcePASS; independent73+22oracles;first32O0/O2normalpoisonPASS,remainingruntimeguardpaused;derivedchecksumclassificationfixexactdiffpreserved.",
+    "storage": "Root170registry-artifactexact-reference193MBplanapproved,zero-newpayload,Rootbuildattributionunknown; genuinefailed/local/currentartifactsplain."
+  },
+  "protection": "All source/frozen/runtime/provider/benchmark inputs and genuine failed LLVM/ELF projects remain plain. Completed cold host Cargo/functional outputs have verified durable archive indices.",
+  "root_applied_untyped_batch": [],
+  "matched_benchmark_compiler": {
+    "path": "build/stdlib-effect-identity-frozen/cinch",
+    "sha256": "ad6e72f9cb4b946c7864b088062a2413974ca7b965153e1d7a413a97e0554e14",
+    "runtime": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf"
+  },
+  "resource": "Current~332MB. All runtime and source-only guards holding. Approved193MB zero-payload registry-intermediate recovery underway. MUSTrestorecurrentnormalrlib/rmeta from segmented1e2 index beforeANYRootCargo. NoRootheavychild.",
+  "running_root_gate": null,
+  "pending_after_focus": [
+    "Completeactual45RootJSONparent tests fromverified15-testprefix without repeats/Cargo.",
+    "BenchmarkPCG/publicpalettes/suffixarray/tabwriter; investigateactualcodegenoverhead, qualifyWide-reusepatchbeforeapplication.",
+    "ContinueHKDF/secure-random/Tar source/runtime matrices and effect/owner tests.",
+    "CompletecurrentNative52provider/exporter/fixed-point gates, streamingJSON/IOcontracts andallremainingpackagefamilies."
+  ],
+  "current_compiler": {
+    "warm_path": "compiler/target/release/cinch",
+    "sha256": "040ade18c762dc9e4e150a32d76363ad06ed4927d236b25bedbbb9022c139662",
+    "runtime": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+    "scope": "FreshRootJSON source no-run build;15/45currenttests passed, restresourcepaused; notfrozenyet/notNativefamilyadmission",
+    "qualified_frozen_previous": "build/stdlib-entropy-docs-producer-frozen/cinch",
+    "qualified_frozen_previous_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+    "old1de_D91_and_all_older_frozen_inputs_unchanged": true
+  },
+  "next_work": {
+    "path": "Root5679fd7f imported Fields104+24alloc+650x2preflight and confirmation60+25. Prior4KiB/visit regressions not repeated; Unicode64k1.049x/visit1.077x with range caveats; sourcef516 unselected. Next suffixarray fullsurface static candidate.",
+    "color": "Roota3ce29a1 imported Color756+census189+preflight20+confirmation72. LongerRGBA0.940,NYCbCrA1.010,PaletteModel1.162,Index1.151 scalar/SIMD; residualcontrolgap/noattribution. Source151b isolated. Palette472 static work.",
+    "uuid": "Root37355packedcandidate+hook+parent8/PPCand99b369matched180timingimported;parse36\u201376%faster,controls2\u201310%slower;unselected",
+    "usage": "PublishedRootc7e9133b privateownership/closedrow transport; exactNative32subset70f withfreshRustproducer1de+D91 passed8;Rust344+11pass. Full52Nativeexporter/provider/fixedpoint+emittedwordruntime/wide/genericnominaldependencies remainopen.",
+    "json": "Publishedisolatedcandidate412ce5d1 exact21a/75c303/19b7:CURRENT902+focused29pass22memoryprocesses,docs866canonicalpass,strictaggregate andminimal3source/11fixture/testfragment importmanifest. Affected1494 unchangedc452 plan7serialunits ready butunexecuted; full92/Effect.Json/Native/promotionopen. CPU2released.",
+    "tabwriter": "Published1cb67c48 pure549+stream51 and4f188c5b fourrefusals runtimepass;Adapt12sourcev4 961e69bf+ErrorOwner/OfferOwner source4b82aedf pass, respective runtimeunqualified. Inputsconsolidated11newepochs. Layer/kernel/portable/stream/fullNative/perfopen. Current320sourceonlyguardmaypause at~310MiB.",
+    "entropy": "Fullbalancedbenchmark COMPLETE1365obs(195warm+1170timed),11.269s,33inputhashesunchanged,noquotaThrottle. Rootrawmedians baseline/candidate:random1/16/32~3.797/3.734/3.766x,2561.892x,40961.081x,v43.063x,v72.640x;controlsnearneutral(allocation4096.982x). Actual325structuralpreflights pass. SDKvDSOproviderdifferenceproven. Agentsealinganalysis/minimalpromotionmanifest; no extra timing/build.",
+    "palette": "Full472/1024+32ownerO0/O2normalpoisonpass3dae/d91;portablepublichostARMwasmIR+objects pass(noforeignexec). LatestqualifiedCI8requiredmanifest needsRootimport/parentCargo.8modebenchmarksourceprepared;driverbuild/perf/Nativeopen. Prior3functionaloutputsarchivednet9.4MB.",
+    "suffixarray": "08d13142:48/153inputs3360literalobs/96normalpoisonO0PASS; callbackPythonmodel2295observations agrees, actualcallback/owner/IO+Mut runtimeunqualified;20corpusgroupsprepared; normal350guardpausesnext48. Persistence/rawregex adaptationopen. OwnlanepublicationpendingRootauth."
+  },
+  "last_resource": "Current~332MB. All runtime and source-only guards holding. Approved193MB zero-payload registry-intermediate recovery underway. MUSTrestorecurrentnormalrlib/rmeta from segmented1e2 index beforeANYRootCargo. NoRootheavychild.",
+  "restore_before_any_root_cargo": {
+    "normal_rlib_and_rmeta_index": "build/private-usage-closed-normal-library-archive-v1/index.json",
+    "integration_test_elf_index": "build/private-usage-completed-integration-archive-v1/index.json",
+    "unit_test_elf_index": "build/private-usage-qualified-functional-archives-v1/index.json",
+    "policy": "Restoreonlyneededexactbytes/mode/uidgid/mtime beforeCargo; otherwiseCargo willunnecessarilyrebuild. Nativeactualcompiler/source/CIF/LLVM+allfrozen/runtime/provider/benchmark/failureinputsplain.",
+    "current_normal_rlib_and_rmeta_index": "build/json-parent-closed-normal-library-archive-v2/index.json",
+    "current_normal_index_sha256": "1e2c0ab4749f66216fee34fefa8f79931bf6b9fc58824fac0184d96251f661b9",
+    "previous_normal_index_is_historical_only": "build/private-usage-closed-normal-library-archive-v1/index.json"
+  },
+  "goal_status": "active-incomplete"
+}

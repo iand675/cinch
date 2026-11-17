@@ -1,0 +1,257 @@
+-- | Immutable byte suffix indexes with logarithmic prefix lookup.
+-- Construction snapshots its input and uses O(N log N) time and O(N) scratch space.
+-- No operation exposes the index's mutable backing. Returned byte buffers are fresh.
+module Data.Index.SuffixArray where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.View
+  import Data.Bytes.Word
+  import Data.Bytes.Utf8 as Utf8
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  export SuffixIndex, SuffixLimit, AllSuffixMatches, AtMostSuffixMatches
+  export SuffixIndexError, SuffixIndexTooLarge, SuffixSpanReversed, SuffixSpanPastEnd
+  export SuffixMatch, suffix-match, suffix-match-start, suffix-match-end
+  export SuffixScanError, SuffixCallbackFailed, SuffixMatchBeforeCursor, SuffixInvalidMatch
+  export suffix-index, suffix-index-length, suffix-index-bytes, suffix-index-byte-at
+  export suffix-index-lookup, suffix-index-find-all
+
+  -- | A sealed snapshot and its packed lexicographically ordered suffix offsets.
+  data SuffixIndex where
+    -- | Keep both private owners and the number of nonempty suffixes.
+    Index :: Bytes -> Bytes -> Nat -> SuffixIndex
+
+  -- | An explicit match count with no overloaded negative sentinel.
+  data SuffixLimit where
+    -- | Request every matching position.
+    AllSuffixMatches :: SuffixLimit
+    -- | Request at most the supplied number; zero invokes no matcher.
+    AtMostSuffixMatches :: Nat -> SuffixLimit
+
+  -- | Named capacity and match-range refusals.
+  data SuffixIndexError where
+    -- | The packed scratch representation cannot address this input length.
+    SuffixIndexTooLarge :: Nat -> SuffixIndexError
+    -- | A proposed end precedes its start.
+    SuffixSpanReversed :: Nat -> Nat -> SuffixIndexError
+    -- | A proposed span exceeds the indexed snapshot.
+    SuffixSpanPastEnd :: Nat -> Nat -> SuffixIndexError
+
+  -- | A half-open byte range; it contains no backing reference.
+  data SuffixMatch where
+    -- | Store offsets validated against a supplied index at construction.
+    Match :: Nat -> Nat -> SuffixMatch
+
+  -- | A search callback failure retaining already accepted matches in order.
+  data SuffixScanError error where
+    -- | Preserve the callback's own typed error and the accepted prefix.
+    SuffixCallbackFailed :: error -> List SuffixMatch -> SuffixScanError error
+    -- | A callback returned a start before the requested search cursor.
+    SuffixMatchBeforeCursor :: Nat -> Nat -> List SuffixMatch -> SuffixScanError error
+    -- | A range made for another index is invalid for the current snapshot.
+    SuffixInvalidMatch :: SuffixIndexError -> List SuffixMatch -> SuffixScanError error
+
+  -- | Copy once through the checked bulk primitive, including the empty case.
+  snapshot :: Bytes -> Bytes
+  snapshot source = let out = bytes-new (bytes-len source) in
+    let copied = bytes-copy-range out source 0 0 (bytes-len source) in out
+
+  -- | Read one private packed nonnegative word; zero is the out-of-table sentinel.
+  slot :: Bytes -> Nat -> Nat
+  slot table index = let offset = index * 8 in
+    if offset + 8 <= bytes-len table then
+      let word = bytes-read-le64 table offset in let signed = wrapping-u64-to-i64 word in
+      if signed >= 0 then nat-from-i64 signed else 0
+    else 0
+
+  -- | Store only within a checked packed buffer and the signed address range.
+  store :: Bytes -> Nat -> Nat -> Unit
+  store table index value = let offset = index * 8 in
+    if offset + 8 <= bytes-len table && value <= 9223372036854775807 then
+      let signed = nat-to-i64 value in let word = wrapping-i64-to-u64 signed in
+      bytes-write-le64 table offset word
+    else ()
+
+  -- | Initialize every suffix position and its first-byte rank without recursion on unwind.
+  initialize :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Unit
+  initialize source offsets ranks at size = if at < size && at < bytes-len source then
+    let a = store offsets at at in let byte = bytes-get source at in
+    let b = store ranks at (byte + 1) in initialize source offsets ranks (at + 1) size
+    else ()
+
+  -- | Reset only the active counting range before a radix pass.
+  clear :: Bytes -> Nat -> Nat -> Unit
+  clear counts at end = if at < end then
+    let written = store counts at 0 in clear counts (at + 1) end else ()
+
+  -- | Observe a rank or the unique zero rank beyond the end of a suffix.
+  key :: Bytes -> Nat -> Nat -> Nat -> Nat
+  key ranks position shift size = let at = position + shift in
+    if at < size then slot ranks at else 0
+
+  -- | Count one rank component of the current stable suffix order.
+  frequencies :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  frequencies ranks input counts shift at size = if at < size then
+    let position = slot input at in let rank = key ranks position shift size in
+    let count = slot counts rank in let written = store counts rank (count + 1) in
+    frequencies ranks input counts shift (at + 1) size else ()
+
+  -- | Turn frequencies into exclusive stable output positions.
+  prefix :: Bytes -> Nat -> Nat -> Nat -> Unit
+  prefix counts at end total = if at < end then
+    let count = slot counts at in let written = store counts at total in
+    prefix counts (at + 1) end (total + count) else ()
+
+  -- | Scatter in input order using ordinary checked stores, preserving equal-key order.
+  scatter :: Bytes -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  scatter ranks input output counts shift at size = if at < size then
+    let position = slot input at in let rank = key ranks position shift size in
+    let destination = slot counts rank in let a = store output destination position in
+    let b = store counts rank (destination + 1) in
+    scatter ranks input output counts shift (at + 1) size else ()
+
+  -- | Perform one linear stable counting pass over a bounded integer alphabet.
+  radix :: Bytes -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  radix ranks input output counts shift maximum size =
+    let a = clear counts 0 (maximum + 1) in
+    let b = frequencies ranks input counts shift 0 size in
+    let c = prefix counts 0 (maximum + 1) 0 in
+    scatter ranks input output counts shift 0 size
+
+  -- | Compare both complete rank components without changing their source table.
+  same-ranks :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bool
+  same-ranks ranks first second width size =
+    let a = key ranks first 0 size in let b = key ranks second 0 size in
+    let c = key ranks first width size in let d = key ranks second width size in
+    a == b && c == d
+
+  -- | Assign the next equivalence classes after sorting both prefix components.
+  classify :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat
+  classify order ranks next width at classes size = if at < size then
+    let position = slot order at in
+    let same = if at > 0 then (let previous = slot order (at - 1) in same-ranks ranks position previous width size) else False in
+    let number = if same then classes else classes + 1 in
+    let written = store next position number in
+    classify order ranks next width (at + 1) number size
+    else classes
+
+  -- | Double the distinguished prefix until every suffix has its own rank.
+  rounds :: Bytes -> Bytes -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Bytes
+  rounds order scratch ranks next counts width maximum size =
+    let a = radix ranks order scratch counts width maximum size in
+    let b = radix ranks scratch order counts 0 maximum size in
+    let classes = classify order ranks next width 0 0 size in
+    if classes == size || width >= size then order
+    else rounds order scratch next ranks counts (width * 2) classes size
+
+  -- | Snapshot arbitrary bytes and build a private suffix order; no empty suffix is stored.
+  suffix-index :: Bytes -> Result SuffixIndexError SuffixIndex
+  suffix-index input = let size = bytes-len input in
+    if size > 1152921504606846974 then Err (SuffixIndexTooLarge size) else
+      let source = snapshot input in let order = bytes-new (size * 8) in
+      if size == 0 then Ok (Index source order 0) else
+        let scratch = bytes-new (size * 8) in let ranks = bytes-new (size * 8) in
+        let next = bytes-new (size * 8) in let bins = if size + 1 > 257 then size + 1 else 257 in
+        let counts = bytes-new (bins * 8) in
+        let ready = initialize source order ranks 0 size in
+        let sorted = rounds order scratch ranks next counts 1 256 size in
+        Ok (Index source sorted size)
+
+  -- | Return the exact indexed byte length.
+  suffix-index-length :: SuffixIndex -> Nat
+  suffix-index-length index = case index of Index source order size -> size
+
+  -- | Return a fresh mutable copy without exposing the sealed snapshot.
+  suffix-index-bytes :: SuffixIndex -> Bytes
+  suffix-index-bytes index = case index of Index source order size -> snapshot source
+
+  -- | Observe one byte without returning a view of the backing owner.
+  suffix-index-byte-at :: SuffixIndex -> Nat -> Option U8
+  suffix-index-byte-at index at = case index of
+    Index source order size -> byte-view-get (bytes-view source) at
+
+  -- | Compare only the available prefix through the qualified SWAR/SIMD view comparator.
+  compare-query :: Bytes -> Nat -> Bytes -> I64
+  compare-query source position needle =
+    let suffix = byte-view-drop position (bytes-view source) in
+    let prefix = byte-view-take (bytes-len needle) suffix in
+    byte-view-compare prefix (bytes-view needle)
+
+  -- | Locate the first suffix not below the query, or the first strictly above its prefix range.
+  bound :: Bytes -> Bytes -> Bytes -> Bool -> Nat -> Nat -> Nat
+  bound source order needle upper low high = if low < high then
+    let middle = low + nat-div (high - low) 2 in let offset = slot order middle in
+    let compared = compare-query source offset needle in
+    if lt-i64 compared 0 || (upper && eq-i64 compared 0) then
+      bound source order needle upper (middle + 1) high
+    else bound source order needle upper low middle
+    else low
+
+  -- | Intersect an explicit public count with the available match count.
+  limited :: SuffixLimit -> Nat -> Nat
+  limited limit available = case limit of
+    AllSuffixMatches -> available
+    AtMostSuffixMatches count -> if count < available then count else available
+
+  -- | Accumulate lexicographic suffix offsets in order without copying the indexed data.
+  gather :: Bytes -> Nat -> Nat -> List Nat -> List Nat
+  gather order at end reversed = if at < end then
+    gather order (at + 1) end (Cons (slot order at) reversed) else reverse reversed
+
+  -- | Return overlapping literal occurrences in suffix order; an empty query returns no positions.
+  suffix-index-lookup :: SuffixIndex -> Bytes -> SuffixLimit -> List Nat
+  suffix-index-lookup index needle limit = if bytes-len needle == 0 then Nil else case index of
+    Index source order size -> if limited limit size == 0 then Nil else
+      let first = bound source order needle False 0 size in
+      let end = bound source order needle True first size in
+      if first <= end then
+        let count = limited limit (end - first) in gather order first (first + count) Nil
+      else Nil
+
+  -- | Construct a checked half-open range against this immutable snapshot.
+  suffix-match :: SuffixIndex -> Nat -> Nat -> Result SuffixIndexError SuffixMatch
+  suffix-match index start end = if start > end then Err (SuffixSpanReversed start end)
+    else if end > suffix-index-length index then Err (SuffixSpanPastEnd end (suffix-index-length index))
+    else Ok (Match start end)
+
+  -- | Return the included start offset of a match.
+  suffix-match-start :: SuffixMatch -> Nat
+  suffix-match-start found = case found of Match start end -> start
+
+  -- | Return the excluded end offset of a match.
+  suffix-match-end :: SuffixMatch -> Nat
+  suffix-match-end found = case found of Match start end -> end
+
+  -- | Advance an empty match by one decoded scalar, with one-byte replacement progress for malformed input.
+  empty-next :: SuffixIndex -> Nat -> Nat
+  empty-next index at = case index of
+    Index source order size ->
+      let step = Utf8.utf8-decode-at source at in
+      let width = Utf8.utf8-step-width step in at + (if width > 0 then width else 1)
+
+  -- | Search left to right through a genuine effectful search-from callback, preserving its typed failure.
+  scan :: forall (e :: Row) error. SuffixIndex -> (SuffixIndex -> Nat ->{|e} Result error (Option SuffixMatch)) -> Nat -> Nat -> Option Nat -> List SuffixMatch ->{|e} Result (SuffixScanError error) (List SuffixMatch)
+  scan index search cursor remaining previous reversed =
+    if remaining == 0 || cursor > suffix-index-length index then Ok (reverse reversed) else
+      case search index cursor of
+        Err error -> Err (SuffixCallbackFailed error (reverse reversed))
+        Ok None -> Ok (reverse reversed)
+        Ok (Some found) -> case found of
+          Match start end -> if start < cursor then Err (SuffixMatchBeforeCursor cursor start (reverse reversed))
+            else if start > end then Err (SuffixInvalidMatch (SuffixSpanReversed start end) (reverse reversed))
+            else if end > suffix-index-length index then Err (SuffixInvalidMatch (SuffixSpanPastEnd end (suffix-index-length index)) (reverse reversed))
+            else let suppressed = start == end && (case previous of None -> False; Some before -> before == start) in
+              let next = if start == end then empty-next index start else end in
+              if suppressed then scan index search next remaining (Some end) reversed
+              else scan index search next (remaining - 1) (Some end) (Cons found reversed)
+
+  -- | Collect sorted non-overlapping search-from results. The callback must return its leftmost match at or after the cursor.
+  -- Empty matches immediately after another match are suppressed; an empty match advances by one UTF8 scalar.
+  suffix-index-find-all :: forall (e :: Row) error. SuffixIndex -> (SuffixIndex -> Nat ->{|e} Result error (Option SuffixMatch)) -> SuffixLimit ->{|e} Result (SuffixScanError error) (List SuffixMatch)
+  suffix-index-find-all index search limit =
+    let maximum = suffix-index-length index + 1 in
+    scan index search 0 (limited limit maximum) None Nil

@@ -1,0 +1,15 @@
+{
+  "scope": "Independent Python semantic preparation only; no candidate source/runtime or built-in regex claim",
+  "vectors_sha256": "9eeff6e14c5ca60315782cd75aa15e1a32cdfb57019f35ef04ab1533e8988de6",
+  "generator_sha256": "a493ffb432282794586438bf7ad8ebaa6f70a40c0073af020b13ddab30e6024f",
+  "inputs": 153,
+  "patterns": [
+    "",
+    "a?",
+    "a*"
+  ],
+  "observations": 2295,
+  "normal_leftmost_reference_equal": true,
+  "bounded_suffix_reference_differences": 0,
+  "future_candidate_runtime": "pending"
+}

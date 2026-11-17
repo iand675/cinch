@@ -1,0 +1,21 @@
+{
+  "scope": "Fresh parent currentffb5 source-only imported suffix-index consumer; no Root runtime/Native/promotion claim.",
+  "command": [
+    "taskset",
+    "-c",
+    "1",
+    "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-io/build/suffixarray-root-source-v1/Main.cinch"
+  ],
+  "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78",
+  "entry_sha256": "907388c5d71043add311803a05fa5ba23534158b60cd4f33ae41fbc8b7cb094d",
+  "returncode": 0,
+  "stdout": "",
+  "stderr": "",
+  "seconds": 1.2777194080117624,
+  "resource_exception": "320MiB start/250MiB reserve/5MiB fresh/15s source-only",
+  "fresh_bytes": 2787610,
+  "end_free_bytes": 351227904
+}

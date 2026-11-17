@@ -1,0 +1,43 @@
+-- | Public construction, overlapping lookup, cloned bytes and typed search-from callback smoke consumer.
+module Main where
+  import Data.Index.SuffixArray
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  -- | Return the next empty byte-boundary match without exposing any subject backing.
+  next-empty :: SuffixIndex -> Nat -> Result Unit (Option SuffixMatch)
+  next-empty index cursor = if cursor <= suffix-index-length index then
+    case suffix-match index cursor cursor of
+      Err failure -> Err ()
+      Ok found -> Ok (Some found)
+    else Ok None
+
+  -- | Observe exact overlapping suffix order and the explicit zero-count behavior.
+  literal-check :: SuffixIndex -> Bool
+  literal-check index =
+    let needle = bytes-from-list [97,110,97] in
+    let found = suffix-index-lookup index needle AllSuffixMatches in
+    let ordered = case found of Cons first (Cons second Nil) -> first == 3 && second == 1; other -> False in
+    let zero = case suffix-index-lookup index needle (AtMostSuffixMatches 0) of Nil -> True; other -> False in
+    let empty = case suffix-index-lookup index (bytes-new 0) AllSuffixMatches of Nil -> True; other -> False in
+    ordered && zero && empty
+
+  -- | Instantiate the callback's error type while inspecting all seven empty boundaries.
+  callback-check :: SuffixIndex -> Bool
+  callback-check index = case suffix-index-find-all index next-empty AllSuffixMatches of
+    Err failure -> False
+    Ok matches -> list-length matches == 7
+
+  -- | Source-check every public operation needed by the first functional checkpoint.
+  main :: Int
+  main = case suffix-index (bytes-from-list [98,97,110,97,110,97]) of
+    Err failure -> 1
+    Ok index -> if suffix-index-length index == 6 && literal-check index && callback-check index
+      && bytes-len (suffix-index-bytes index) == 6
+      && (case suffix-index-byte-at index 0 of None -> False; Some byte -> eq-u8 byte 98)
+      then 0 else 2
