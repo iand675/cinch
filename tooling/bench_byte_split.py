@@ -75,6 +75,8 @@ def main() -> None:
     report = {'driver_sha256':hashlib.sha256(driver.encode()).hexdigest(), 'compiler_sha256':digest(args.compiler),
               'runtime_sha256':digest(args.runtime_archive), 'cpu':args.cpu, 'source_sha256':digest(args.split_source),
               'scope':'complete changed-input public split/list/fold/cursor pipelines including normal per-operation output cleanup; retained input/setup/digests outside clocks',
+              'compiled_rc_debug':bool(args.native_interfaces),
+              'rust_cli_profile_note':'Default rc_debug=false; dynamic normal/poison profiles are separate',
               'program_stack_bytes':8388608,'compiler_stack_bytes':67108864,'executables':{},'dependencies':{},'checked_sources':{},'results':[]}
     report['iteration_scale'] = args.iteration_scale
     report['samples_per_variant'] = 1 if args.preflight_only else args.samples
@@ -127,7 +129,7 @@ def main() -> None:
                      str(args.runtime_archive.resolve()), '-o', str(exe), '-ldl', '-lpthread', '-lm'])
             else:
                 run([str(args.compiler.resolve()), 'build', str(entry.resolve()), '-o', str(exe), '--opt-level', '2',
-                     '--rc-debug', '--runtime-archive', str(args.runtime_archive.resolve())])
+                     '--runtime-archive', str(args.runtime_archive.resolve())])
         report['executables'][variant] = {'executable_sha256':digest(exe),'llvm_sha256':digest(exe.with_suffix('.ll')),
                                           'view_sha256':hashlib.sha256(source.encode()).hexdigest(),
                                           'split_sha256':hashlib.sha256(split_source.encode()).hexdigest()}

@@ -77,6 +77,7 @@ def main() -> None:
               'entry_sha256':hashlib.sha256(source.encode()).hexdigest(),
               'dependencies':{name:digest(path) for name,path in deps.items()},
               'compiler_stack_bytes':67108864,'program_stack_bytes':8388608,
+              'compiled_rc_debug':False,'runtime_profile_note':'Dynamic normal/poison runs do not enable compiled per-operation RC assertions',
               'status':'prepared','results':[],'ppc_scope':'maintained Rust API gate; unsupported by frozen CLI'}
     def save() -> None:
         """Preserve the current exact portability boundary before assertions or object emission."""
@@ -96,7 +97,7 @@ def main() -> None:
             opt = target[-1]
             exe = work/'consumer'
             result = run([str(args.compiler.resolve()),'build',str(entry),'-o',str(exe),'--opt-level',opt,
-                          '--rc-debug','--runtime-archive',str(args.runtime_archive.resolve())])
+                          '--runtime-archive',str(args.runtime_archive.resolve())])
             (work/'compile.log').write_text(result.stdout+result.stderr)
             profiles=[]
             for debug in [0,1]:

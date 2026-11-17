@@ -1,0 +1,83 @@
+{
+  "scope": "Compiler memory-effect diagnostic; no library workaround or candidate selection",
+  "production_split_sha256": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+  "main_sha256": "9247646d51e094f468331d1457dd9657358bfacd8a090abcd00eaa6a17bff804",
+  "all_five_dependencies_match_cli_controls": true,
+  "before": {
+    "checked_rc_debug": true,
+    "reclaim": true,
+    "api_profile": "TargetProfile { name: \"native64\", triple: \"x86_64-unknown-linux-gnu\", os: \"linux\", arch: \"x86_64\", libc: \"glibc\", os_version: None, word_size: 64, endian: \"little\", vector_shape: Fixed(8), features: [\"u32.wrappingAdd\"], fuel: 8, measure: 8, allow_eval: true, artifact: Native, required: [], jpl: false, rc_debug: true, reclaim: true, no_cpr: false }",
+    "o0_and_o2_ir_sha256": "7ecc5fb3c9968c2f4ed87f6d144b7e00a30a1252094cb88725a76e23b9b84188",
+    "o0_exe_sha256": "9d98fca2f409b456692974f9bd850aaef336ddf4663e4cfaf4f07ba7c7d88b2d",
+    "o2_exe_sha256": "a430ead7dca1648cc7eb26e0c7b3c5a0171ab6375305c76bcb3fea2667eac335",
+    "o0_profiles": "normal 32M and poison 256M pass, stack 8M, leaked=0",
+    "o2_profiles": "normal 32M and poison 256M fail with exit 71, stack 8M",
+    "fault": "cinch_nat_cmp+0x154 from progress-roundtrips+0x25b; callreturnPC0x256cb",
+    "failing_value": 9223372036854775808,
+    "incorrect_declaration": "cinch_nat_cmp(i64,i64) readnone nounwind willreturn",
+    "source_order": "compare left/right then release owned left",
+    "optimized_order": "cinch_drop(r13) at0x256a2 before cinch_nat_cmp(r13,r12) at0x256c6",
+    "reason": "readnone hides reads of immutable boxed Nat header/limbs, allowing release before comparison",
+    "failing_value_explanation": "All preceding values fit Nat immediates; the final 2^63 roundtrip is boxed and its owned left comparison operand is released early."
+  },
+  "private_ir_only_treatment": {
+    "ir_sha256": "f6083d07e0d64abfb964eb1b0c184d993ad686403e177ee147256c30cbd572ac",
+    "exe_sha256": "0aeb0e99cec40139254cecb87365be90477a7f72e3f0057d857e16e0007d1599",
+    "change": "only NatCmp declaration readnone\u2192readonly",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "link": {
+      "command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-byte-split/build/split-progress-regression/nat-cmp-readonly-treatment/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/explicit-region-mutation-frozen/libcinchruntime.a",
+        "-o",
+        "/workspace/dasl-stdlib-byte-split/build/split-progress-regression/nat-cmp-readonly-treatment/consumer",
+        "-ldl",
+        "-lpthread",
+        "-lm"
+      ],
+      "exit": 0,
+      "seconds": 0.9118348869960755
+    },
+    "profiles": [
+      {
+        "debug": 0,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "debug": 1,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    "seconds": 0.9252096989948768,
+    "production_change": false
+  },
+  "parent_production_fix": {
+    "commit": "2ab93c5b",
+    "change": "remove false readnone declaration attribute; no library change",
+    "public_boxed_nat_regression_profiles": 32,
+    "maintained_lib_byte_split": "9/9 pass including checked-RC private O0/O2 and actual PPC; 56.72 seconds",
+    "new_cli_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "reported_by": "parent, source/CLI freeze separate"
+  },
+  "cli_profile_correction": {
+    "compiler_controls": "Same source, 9dc/7e CLI O0 controls both pass; no compiler-epoch regression established.",
+    "unsupported_argument": "Rust CLI --rc-debug after the entry was stored as program_args, not a profile option.",
+    "actual_rust_cli_profile_rc_debug": false,
+    "actual_maintained_api_profile_rc_debug": true,
+    "dynamic_CINCH_RC_DEBUG_profiles": "Normal/poison heaps, quarantine and leaked=0 claims remain valid; compiled checked-RC is separate.",
+    "tooling_change": "remove ignored argument from RustCLI branches and label compiled profile explicitly; retain actual Native flag"
+  },
+  "evidence_files": {
+    "stdlib-byte-split-nat-cmp-before.ll": "72c9c68f2fed25e4b46673373edc784052bc4d629653cdb07e2ee78badc2f2d9",
+    "stdlib-byte-split-nat-cmp-before.s": "4f534df0c5d32d72696752e4846ac13bffeb8000591c95565b138611616cd751",
+    "stdlib-byte-split-nat-cmp-readonly.s": "6e882fd1d27f7c9afca142d3534f43b898d75a9e799ef2600b905ab245df5000",
+    "stdlib-byte-split-nat-cmp-trace.txt": "f9d6dec86b0cf96638046a55b7c911c3f319caf6317c13fa25832131deb64751"
+  },
+  "assembly_note": "Disassembly whitespace is normalized; instruction addresses/bytes are unchanged. Original raw objdump outputs remain under build/split-progress-regression."
+}

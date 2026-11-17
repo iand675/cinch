@@ -81,5 +81,19 @@ profiles return the expected boundaries and zero leaks. This maintained fixture
 uses the current source View dependency (`966efd5c`), recorded separately from
 the frozen initial View (`2b7bfa41`) in the full Native corpus. The parent API
 target adds actual PPC object compilation using its newer target-convention fix;
-that parent gate remains required. This is a source-distributed increment;
+that parent gate has passed with the compiler correction recorded below.
+This is a source-distributed increment;
 no embedded-base or complete strings/bytes coverage is claimed.
+
+The Rust CLI's default compiled profile uses inline RC helpers. The earlier
+`--rc-debug` token after its entry filename was a program argument, not a
+compiler option; the tooling now omits it and records that build distinction.
+Dynamic normal/poison heaps and leak checks remain actual executed profiles.
+The maintained Rust API tests explicitly set `rc_debug=true` and check every
+count operation out of line. That stronger gate exposed a compiler declaration
+bug: `cinch_nat_cmp` was falsely marked `readnone`, so clang O2 could release a
+boxed comparison operand before reading it. The original IR, reordered assembly,
+trace and single-declaration diagnostic treatment are retained in the compact
+`bootstrap/stdlib-byte-split-nat-cmp-*` evidence. Parent fix `2ab93c5b` removes the
+false attribute; the public boxed-Nat regression and all nine Split tests,
+including checked-RC O0/O2 and actual PPC objects, pass. Split source is unchanged.

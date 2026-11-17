@@ -60,7 +60,9 @@ def main() -> None:
     report = {'frontend_sha256':digest(args.compiler), 'runtime_sha256':digest(args.runtime_archive),
               'fixture_sha256':digest(FIXTURE), 'source_sha256':digest(args.module_source),
               'source_distributed_only':True, 'compiler_stack_bytes':67108864, 'program_stack_bytes':8388608,
-              'opt_level':args.opt_level, 'results':[], 'view_sha256':digest(args.view_source), 'status':'prepared'}
+              'opt_level':args.opt_level, 'results':[], 'view_sha256':digest(args.view_source), 'status':'prepared',
+              'compiled_rc_debug':bool(args.native_interfaces),
+              'rust_cli_profile_note':'Default rc_debug=false; dynamic normal/poison profiles are separate'}
     def save() -> None:
         """Retain the exact current gate boundary before expensive work and after each observation."""
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -96,7 +98,7 @@ def main() -> None:
                        '--objects', str(args.native_objects.resolve()), str(bundle.resolve()), str(exe.with_suffix('.ll'))]
         else:
             command = [str(args.compiler.resolve()), 'build', str(entry.resolve()), '-o', str(exe), '--opt-level', args.opt_level,
-                       '--rc-debug', '--runtime-archive', str(args.runtime_archive.resolve())]
+                       '--runtime-archive', str(args.runtime_archive.resolve())]
         report['status'] = 'preparing-' + group
         report['pending_group'] = {'group':group,'entry_sha256':digest(entry),
                                    'dependencies':{name:digest(path) for name,path in deps.items()},'command':command}

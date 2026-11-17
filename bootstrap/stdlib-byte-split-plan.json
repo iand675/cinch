@@ -36,7 +36,7 @@
     "deep chunk lists O0/8MiB, bounded normal32MiB and per-assertion poison256MiB, zero leaks both frontends",
     "public split/list/fold pipelines with existing SIMD/SWAR search kernels and assembly review"
   ],
-  "status": "Tested initial source-distributed checkpoint: fullRust/qualifiedNative O0/O2 corpus/owner/deep4232 +privateprotocol8 +Nativepublic68 profiles; actualwasm/ARM publicobjects/host4 pass; parentCargo/PPC remains",
+  "status": "Initial source-distributed checkpoint passes full CLI reference/owner/deep gates plus parent checked-RC API 9/9, including actual PPC, after compiler-only Nat comparison memory-effect fix 2ab93c5b. Both optimization candidates remain separate and unselected.",
   "capability_mapping": {
     "Split": "bytes-split / byte-view-split -> List ByteView retained aliases",
     "SplitAfter": "bytes-split-after / byte-view-split-after -> List ByteView including separators",
@@ -59,5 +59,6 @@
     "original_driver": "c511a74451fea8919b60d6102e03492cc95888c8289826d36354127609115c41",
     "separate_counter": "b68124de2856063194928a587eab26043a160f8e4e603dd1c141bdb38b98ecfd",
     "separate_native_fixture": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573"
-  }
+  },
+  "cli_profile_note": "Rust CLI builds use rc_debug=false; dynamic normal/poison/leak profiles are distinct from parent API rc_debug=true builds."
 }
