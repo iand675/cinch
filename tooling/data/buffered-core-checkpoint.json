@@ -598,5 +598,17 @@
     "No new runtime ABI, pointer/array exposure, checker exception, or shared Stream source change",
     "Private intrinsic signatures retain exact checked ABI; all exposed cell operations require IO r",
     "Rust b004/c4 phase1String is explicit; Native2f/80bd uses admittede5 provider, no source shadow"
-  ]
+  ],
+  "additive_text_write": {
+    "source_commit": "105b6109",
+    "parent_commit": "ce82be05",
+    "parent_tests_passed": 6,
+    "core_sha256": "10f5c2ae23a9171d1cf967de98f6b9e6300c93b7fbb5a8fb45b389d6f411c4b1",
+    "scope": "Optional raw-text sink writes preserve advanced transfer proxies. Earlier foundation tuples remain unchanged."
+  },
+  "known_ownership_cycle": {
+    "status": "open; full80 package promotion held",
+    "evidence": "compiler/runtime/repros/buffered-transfer-cycle/receipt.json",
+    "observation": "Reciprocal transfer callback retention creates a22-block strong ownership cycle, including the valid EOF scenario. Test-only quiescent reclamation experiments are separate from the production runtime."
+  }
 }

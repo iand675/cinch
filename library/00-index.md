@@ -81,6 +81,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Bool](Data.Bool.md) | Embedded | Boolean operations and their comparison instances. |
 | [Data.Bytes.Build](Data.Bytes.Build.md) | Ship source | Fresh byte cloning, doubling repetition, concatenation and separator-aware joining. |
 | [Data.Bytes.Search](Data.Bytes.Search.md) | Ship source | Exact first, last, containment and count queries over raw bytes with bounded SWAR traversals. |
+| [Data.Bytes.Split](Data.Bytes.Split.md) | Ship source | Retained byte splitting, persistent producer traversals, shared pull cursors and line iteration. |
 | [Data.Bytes.Utf8](Data.Bytes.Utf8.md) | Ship source | Raw UTF-8 validation, forward and reverse decoding, scalar counting, fresh repair and atomic encoding. |
 | [Data.Bytes.View](Data.Bytes.View.md) | Ship source | Owner-retaining checked byte views, relative UTF-8 observations, stable compiled substring patterns and bounded search, cut and comparison operations. |
 | [Data.Bytes.Word](Data.Bytes.Word.md) | Ship source | Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing. |
@@ -173,6 +174,8 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Html](Text.Html.md) | Ship source | HTML text/byte escaping, complete HTML5 character references, exact escaped sizing and SIMD/SWAR scanning. |
 | [Text.Json.Binary32](Text.Json.Binary32.md) | Ship source | Exact decimal rounding and shortest finite binary32 JSON coefficients, with preserved signed zero and midpoint comparisons. |
 | [Text.Json.Codec](Text.Json.Codec.md) | Ship source | Typed JSON codecs for records, persistent maps, explicit key capabilities, machine integers, binary buffers and exact binary32/binary64 values. |
+| [Text.Json.Dynamic](Text.Json.Dynamic.md) | Ship source | Owned dynamic JSON trees, separate encoding and decoding descriptors, typed payloads and bounded construction. |
+| [Text.Json.Legacy](Text.Json.Legacy.md) | Ship source | Explicit legacy codec policy and descriptor bridges over owned dynamic values. |
 | [Text.Json.Value](Text.Json.Value.md) | Ship source | Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting. |
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
 | [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for compiler/parser clients. |
@@ -252,7 +255,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **185 source modules**: **65 embedded** and **120 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **188 source modules**: **65 embedded** and **123 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

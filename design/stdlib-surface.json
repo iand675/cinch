@@ -47,7 +47,8 @@
         "Data.Bytes.Search",
         "Data.Bytes.Word",
         "Data.StringIo",
-        "Data.Bytes.View"
+        "Data.Bytes.View",
+        "Data.Bytes.Split"
       ],
       "remaining": [
         "Complete the 102-record capability review, including splitting, iteration, replacement, Unicode operations and buffer APIs",
@@ -56,10 +57,12 @@
       "reference_declarations": 102,
       "tests": [
         "lib_byte_search",
-        "lib_byte_build"
+        "lib_byte_build",
+        "lib_byte_split"
       ],
       "benchmarks": [
-        "bootstrap/stdlib-byte-view-selected-results.json"
+        "bootstrap/stdlib-byte-view-selected-results.json",
+        "bootstrap/stdlib-byte-split-results.json"
       ],
       "capabilities": {
         "IndexByte": "Data.Bytes.Search.bytes-index-byte; Data.Bytes.View.byte-view-index-byte additionally queries owner-retaining bounded views with relative offsets",
@@ -78,9 +81,18 @@
         "CutPrefix": "Data.Bytes.View.bytes-cut-prefix",
         "CutSuffix": "Data.Bytes.View.bytes-cut-suffix",
         "Compare": "Data.Bytes.bytes-compare; byte-view-compare is additionally available",
-        "Equal": "Data.Bytes Eq_Bytes; byte-view-equal is additionally available"
+        "Equal": "Data.Bytes Eq_Bytes; byte-view-equal is additionally available",
+        "Split": "Data.Bytes.Split.bytes-split; retained mutable ByteView fragments",
+        "SplitN": "Data.Bytes.Split.bytes-split-limit; None is unlimited and Some zero yields no fragments",
+        "SplitAfter": "Data.Bytes.Split.bytes-split-after; separators remain in the preceding fragment",
+        "SplitAfterN": "Data.Bytes.Split.bytes-split-after-limit; final permitted fragment is the unsplit remainder",
+        "SplitSeq": "Data.Bytes.Split.bytes-split-seq; persistent explicit producer state, with separately named shared cursors",
+        "SplitAfterSeq": "Data.Bytes.Split.bytes-split-after-seq; persistent delimiter-including traversal",
+        "Lines": "Data.Bytes.Split.bytes-lines; LF-inclusive traversal, no trailing empty fragment"
       },
-      "byte_view_index_evidence": "bootstrap/stdlib-byte-view-index-byte-results.json"
+      "byte_view_index_evidence": "bootstrap/stdlib-byte-view-index-byte-results.json",
+      "split_evidence": "bootstrap/stdlib-byte-split-results.json",
+      "split_review": "Initial source and retained-owner outputs are implemented and benchmarked. All9 maintained parent tests pass, including public outputs, owners, deep input, private full-width progress atO0/O2, and actual wasm32/AArch64/big-endian objects. The parent compiler repair2ab93c5b removes a false LLVM memory-free assertion that had moved boxed Nat comparisons after owner release. Candidate acceleration and full package completion remain separate."
     },
     {
       "reference_package": "cmp",
@@ -815,11 +827,13 @@
         "Text.Json",
         "Text.Json.Binary32",
         "Text.Json.Codec",
-        "Text.Json.Value"
+        "Text.Json.Value",
+        "Text.Json.Dynamic",
+        "Text.Json.Legacy"
       ],
       "remaining": [
-        "Dynamic values, legacy bridges and complete error/capability mapping",
-        "Effectful incremental encoder/decoder adapters and complete streaming contracts",
+        "Complete directional-kind, method, error and legacy-policy operation mappings",
+        "Effectful incremental encoder/decoder adapters, disabled-policy syntax partial mutation and complete streaming contracts",
         "Full public-pipeline benchmarks and final92-record review"
       ],
       "reference_declarations": 92,
@@ -829,8 +843,9 @@
       ],
       "benchmarks": [],
       "capability_mapping": "bootstrap/stdlib-json-capability-plan.json (all92 records remain in scope)",
-      "review": "The owned source/tape core, machine integer/binary codecs, exact binary32/binary64 conversion, record policies, persistent maps and raw numeric result/error adapters are implemented. Raw Number construction preserves arbitrary bytes, conversion outcomes retain both numeric values and exact input-bearing syntax/range errors, and strict marshaling validates spellings. Both frozen frontends pass the selected raw/edge/kernel/owner and affected conversion matrices; 652 declarations have canonical documentation. Dynamic values and legacy bridges, complete error/method mappings, effectful streaming, paired public pipelines and final92-record review remain open.",
-      "raw_number_evidence": "bootstrap/stdlib-json-raw-number-evidence.json"
+      "review": "Owned source/tape values, binary codecs, exact binary32/binary64 conversion, record policies, persistent maps and raw numeric adapters are implemented. Dynamic owned trees, opaque typed payloads, separate read/write descriptor capabilities and explicit legacy bridges now pass470 independent observations plus10 lifecycle/ownership controls on both frozen frontends.758 declarations have canonical documentation. Full92 mapping, complete methods/errors and policy semantics, bounded effectful streaming and public pipeline benchmarks remain open.",
+      "raw_number_evidence": "bootstrap/stdlib-json-raw-number-evidence.json",
+      "dynamic_evidence": "bootstrap/stdlib-json-dynamic-evidence.json"
     },
     {
       "reference_package": "encoding/json/jsontext",

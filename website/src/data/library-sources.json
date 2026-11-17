@@ -155,6 +155,14 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Bytes.Split",
+      "path": "compiler/prelude/Data/Bytes/Split.cinch",
+      "sha256": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+      "embedded": false,
+      "values": 23,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Bytes.Utf8",
       "path": "compiler/prelude/Data/Bytes/Utf8.cinch",
       "sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
@@ -733,9 +741,9 @@
     {
       "module": "Effect.Buffered.Core",
       "path": "compiler/prelude/Effect/Buffered/Core.cinch",
-      "sha256": "39a906a4139c7603caf63d75a09cba0443f01c01825b39e145501160975557e2",
+      "sha256": "10f5c2ae23a9171d1cf967de98f6b9e6300c93b7fbb5a8fb45b389d6f411c4b1",
       "embedded": false,
-      "values": 15,
+      "values": 18,
       "public_methods": 0
     },
     {
@@ -1229,17 +1237,33 @@
     {
       "module": "Text.Json.Codec",
       "path": "compiler/prelude/Text/Json/Codec.cinch",
-      "sha256": "a82979e9c5b8039b3438411419242ba5623dc1b81bbd23744d5c85241a6d0603",
+      "sha256": "86cf9e0a6a660893a1eb8b42eaf4ab1bda7dbea901f7e723b64ddbbed73a4364",
       "embedded": false,
-      "values": 101,
+      "values": 102,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Json.Dynamic",
+      "path": "compiler/prelude/Text/Json/Dynamic.cinch",
+      "sha256": "21fec7f0e682aac080882e8f8875a187528e58773fa121f70aff815c81985ca5",
+      "embedded": false,
+      "values": 23,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Json.Legacy",
+      "path": "compiler/prelude/Text/Json/Legacy.cinch",
+      "sha256": "c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826",
+      "embedded": false,
+      "values": 3,
       "public_methods": 0
     },
     {
       "module": "Text.Json.Value",
       "path": "compiler/prelude/Text/Json/Value.cinch",
-      "sha256": "5b44b8760e6733e9f30f08082649a85faaf74d6f39e10741c10b3842a6cc86f7",
+      "sha256": "376488101b0f438023f1a6ff8556d78009f799d5549305033523a9ba1fa03db6",
       "embedded": false,
-      "values": 69,
+      "values": 76,
       "public_methods": 0
     },
     {

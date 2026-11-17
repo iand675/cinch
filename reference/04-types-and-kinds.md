@@ -94,6 +94,8 @@ Row and region variables are variables of their own kinds and need their own qua
 
 `Type` is stratified: `Type 0` is the universe of ordinary types, `Type 1` holds `Type 0`, and `Type : Type` is never admitted. `Prop` is the separate universe of propositions; its inhabitants are erased at runtime, and [dependent types](08-dependent-types-and-proofs.md) documents the proofs built there. `Nat` is the kind of index values, and `Row` is the kind of effect rows.
 
+Function quantifiers also accept `Region`, the kind of runtime identities: `forall (r :: Region). ...`. An explicit identity kind is useful for a pure factory that captures an effectful action without running it. The annotation preserves the identity in the returned handle even when the factory itself has no effect row. It also works in nested `forall` arguments. A region cannot be used as an inhabited value type, a numeric index, or an effect-row tail, and distinct quantified identities cannot be exchanged. Kernel capability constraints such as `using (io :: Io r)` retain the same identity.
+
 The REPL reports the kind of a source declaration:
 
 ```text

@@ -32,7 +32,7 @@ Buffered adapters validate those counts before reading or copying caller storage
 
 A stream boundary, capacity refusal, invalid operation or retained transport failure.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 30
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 31
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BufferEnd</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferError</span></code></pre>
 
@@ -66,7 +66,7 @@ A stream boundary, capacity refusal, invalid operation or retained transport fai
 
 A sink continuation with an optional direct-from-source transfer capability.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 98
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 99
 
 <a id="type-427566666572536f75726365"></a>
 
@@ -76,7 +76,7 @@ A sink continuation with an optional direct-from-source transfer capability.
 
 A source continuation with an optional direct-to-sink transfer capability.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 89
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 90
 
 <a id="type-526561644576656e74"></a>
 
@@ -86,7 +86,7 @@ A source continuation with an optional direct-to-sink transfer capability.
 
 Report a signed count, supplied bytes and optional terminal status without losing partial progress.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 76
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 77
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ReadEvent</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">ReadEvent</span>)))</code></pre>
 
@@ -98,7 +98,7 @@ Report a signed count, supplied bytes and optional terminal status without losin
 
 Preserve the transport's complete signed64-bit count independently of byte-buffer indexing.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 86
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 87
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TransferEvent</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">TransferEvent</span>))</code></pre>
 
@@ -110,7 +110,7 @@ Preserve the transport's complete signed64-bit count independently of byte-buffe
 
 Report a signed accepted count and optional failure; adapters validate its range.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 81
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 82
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">WriteEvent</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">WriteEvent</span>))</code></pre>
 
@@ -124,7 +124,7 @@ Report a signed accepted count and optional failure; adapters validate its range
 
 Describe a buffered operation while preserving typed metadata in its original error value.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 57
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 58
 
 <a id="value-6275666665722d726561642d6163636570746564"></a>
 
@@ -134,7 +134,7 @@ Describe a buffered operation while preserving typed metadata in its original er
 
 Validate a source's signed report before using it as a byte count or buffer index.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 235
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 242
 
 <a id="value-6275666665722d73696e6b"></a>
 
@@ -144,7 +144,7 @@ Validate a source's signed report before using it as a byte count or buffer inde
 
 Construct a sink whose raw signed counts remain observable to buffered consumers.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 111
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 114
 
 <a id="value-6275666665722d73696e6b2d66726f6d2d73747265616d"></a>
 
@@ -155,7 +155,17 @@ Construct a sink whose raw signed counts remain observable to buffered consumers
 Adapt an existing sink, preserving its original structured errors and authoritative next handle.
 A failure-only stream result reports zero progress; richer raw callbacks can report data and error together.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 261
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 268
+
+<a id="value-6275666665722d73696e6b2d6861732d74657874"></a>
+
+## `buffer-sink-has-text`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">buffer-sink-has-text</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferSink</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)</code></pre>
+
+Observe whether the current sink supports an independent raw-text write operation.
+
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 286
 
 <a id="value-6275666665722d73696e6b2d6861732d7472616e73666572"></a>
 
@@ -165,7 +175,7 @@ A failure-only stream result reports zero progress; richer raw callbacks can rep
 
 Observe the current direct-transfer capability without invoking any transport operation.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 136
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 140
 
 <a id="value-6275666665722d73696e6b2d7472616e73666572"></a>
 
@@ -175,7 +185,19 @@ Observe the current direct-transfer capability without invoking any transport op
 
 Invoke an optional sink transfer; retained read callbacks and the returned source share coherent progress.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 227
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 234
+
+<a id="value-6275666665722d73696e6b2d776974682d74657874"></a>
+
+## `buffer-sink-with-text`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">buffer-sink-with-text</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferSink</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">WriteEvent</span>, (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferSink</span> <span class="tok-variable">r</span>))) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferSink</span> <span class="tok-variable">r</span>)))</code></pre>
+
+Attach an optional text-write operation receiving arbitrary bytes, including malformed UTF-8.
+Its returned sink is authoritative. Ordinary byte writes retain only capabilities
+advertised by their own returned sink, just like direct transfer callbacks.
+
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 280
 
 <a id="value-6275666665722d73696e6b2d776974682d7472616e73666572"></a>
 
@@ -185,7 +207,7 @@ Invoke an optional sink transfer; retained read callbacks and the returned sourc
 
 Attach a direct transfer; the supplied read operation preserves the other handle's progress.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 122
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 125
 
 <a id="value-6275666665722d73696e6b2d7772697465"></a>
 
@@ -195,7 +217,17 @@ Attach a direct transfer; the supplied read operation preserves the other handle
 
 Invoke one raw sink callback with caller-owned bytes, retaining its advanced handle on every outcome.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 150
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 155
+
+<a id="value-6275666665722d73696e6b2d77726974652d74657874"></a>
+
+## `buffer-sink-write-text`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">buffer-sink-write-text</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferSink</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">WriteEvent</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferSink</span> <span class="tok-variable">r</span>))))</code></pre>
+
+Invoke only an explicitly advertised raw-text operation; absence performs no transport I/O.
+
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 293
 
 <a id="value-6275666665722d736f75726365"></a>
 
@@ -205,7 +237,7 @@ Invoke one raw sink callback with caller-owned bytes, retaining its advanced han
 
 Construct a source whose raw events are validated by each buffered consumer before copying.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 107
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 110
 
 <a id="value-6275666665722d736f757263652d66726f6d2d73747265616d"></a>
 
@@ -216,7 +248,7 @@ Construct a source whose raw events are validated by each buffered consumer befo
 Adapt an existing source while preserving its original failures and explicit next continuation.
 A successful empty positive read becomes end-of-input; a zero request remains nonterminal.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 249
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 256
 
 <a id="value-6275666665722d736f757263652d6861732d7472616e73666572"></a>
 
@@ -226,7 +258,7 @@ A successful empty positive read becomes end-of-input; a zero request remains no
 
 Observe the current direct-transfer capability, including after a retained callback advances a proxy.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 129
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 133
 
 <a id="value-6275666665722d736f757263652d72656164"></a>
 
@@ -236,7 +268,7 @@ Observe the current direct-transfer capability, including after a retained callb
 
 Invoke one raw source callback, retaining its event and advanced handle even for malformed counts.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 143
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 148
 
 <a id="value-6275666665722d736f757263652d7472616e73666572"></a>
 
@@ -246,7 +278,7 @@ Invoke one raw source callback, retaining its event and advanced handle even for
 
 Invoke an optional source transfer; absence performs no transport I/O and returns the original handles.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 219
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 226
 
 <a id="value-6275666665722d736f757263652d776974682d7472616e73666572"></a>
 
@@ -256,7 +288,7 @@ Invoke an optional source transfer; absence performs no transport I/O and return
 
 Attach a direct transfer; the supplied write operation preserves the other handle's progress.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 115
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 118
 
 <a id="value-6275666665722d77726974652d6163636570746564"></a>
 
@@ -266,8 +298,8 @@ Attach a direct transfer; the supplied write operation preserves the other handl
 
 Validate a sink's signed report before advancing any buffered byte interval.
 
-[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 242
+[Source](/reference-sources/Effect.Buffered.Core.cinch) · line 249
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Buffered/Core.cinch`. Source SHA-256: `39a906a4139c7603caf63d75a09cba0443f01c01825b39e145501160975557e2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Buffered/Core.cinch`. Source SHA-256: `10f5c2ae23a9171d1cf967de98f6b9e6300c93b7fbb5a8fb45b389d6f411c4b1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

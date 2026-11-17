@@ -51,7 +51,7 @@ written before the array is returned, so no read meets an empty slot.
 
 ## `mut-array-fill`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-fill</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-fill</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
 
 Every element becomes `x`.
 
@@ -61,7 +61,7 @@ Every element becomes `x`.
 
 ## `mut-array-fold`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-fold</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">r</span> . ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-variable">b</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-fold</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-variable">b</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.Array.cinch)
 
@@ -69,7 +69,7 @@ Every element becomes `x`.
 
 ## `mut-array-freeze`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-freeze</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-freeze</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))</code></pre>
 
 An immutable copy (a fresh block).
 
@@ -79,7 +79,7 @@ An immutable copy (a fresh block).
 
 ## `mut-array-from-list`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-from-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.Array.cinch)
 
@@ -87,7 +87,7 @@ An immutable copy (a fresh block).
 
 ## `mut-array-get`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-get</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.Array.cinch)
 
@@ -95,7 +95,7 @@ An immutable copy (a fresh block).
 
 ## `mut-array-length`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-length</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Mutable.Array.cinch)
 
@@ -103,7 +103,7 @@ An immutable copy (a fresh block).
 
 ## `mut-array-modify`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-modify</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-modify</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
 
 Rewrite element `i` through `f`, moving it out and back.
 
@@ -113,7 +113,7 @@ Rewrite element `i` through `f`, moving it out and back.
 
 ## `mut-array-new`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-new</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)))</code></pre>
 
 `n` copies of `x`.
 
@@ -123,7 +123,7 @@ Rewrite element `i` through `f`, moving it out and back.
 
 ## `mut-array-set`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-set</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
 
 Replace element `i`: `False` (and nothing written) when out of range.
 
@@ -133,7 +133,7 @@ Replace element `i`: `False` (and nothing written) when out of range.
 
 ## `mut-array-swap`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-swap</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-swap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.Array.cinch)
 
@@ -141,7 +141,7 @@ Replace element `i`: `False` (and nothing written) when out of range.
 
 ## `mut-array-tabulate`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-tabulate</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Nat</span> -&gt; <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-tabulate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Nat</span> -&gt; <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)))</code></pre>
 
 Element i is `f i`.
 
@@ -151,7 +151,7 @@ Element i is `f i`.
 
 ## `mut-array-thaw`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-thaw</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-thaw</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
 
 A mutable copy of an immutable array.
 
@@ -161,7 +161,7 @@ A mutable copy of an immutable array.
 
 ## `mut-array-to-list`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-to-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.Array.cinch)
 

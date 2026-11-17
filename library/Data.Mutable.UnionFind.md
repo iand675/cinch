@@ -52,7 +52,7 @@ words: parent of element i at 2i, size of the set rooted at i at
 
 ## `union-find-add`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-add</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-add</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 A new singleton set: its element.
 
@@ -62,7 +62,7 @@ A new singleton set: its element.
 
 ## `union-find-find`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-find</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-find</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
 
 The representative of x's set (`None` when x is not an element).
 
@@ -72,7 +72,7 @@ The representative of x's set (`None` when x is not an element).
 
 ## `union-find-length`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-length</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Mutable.UnionFind.cinch)
 
@@ -80,7 +80,7 @@ The representative of x's set (`None` when x is not an element).
 
 ## `union-find-new`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-new</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>))</code></pre>
 
 `n` singleton sets.
 
@@ -90,7 +90,7 @@ The representative of x's set (`None` when x is not an element).
 
 ## `union-find-same`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-same</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-same</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.UnionFind.cinch)
 
@@ -98,7 +98,7 @@ The representative of x's set (`None` when x is not an element).
 
 ## `union-find-set-count`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-set-count</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-set-count</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 The number of disjoint sets.
 
@@ -108,7 +108,7 @@ The number of disjoint sets.
 
 ## `union-find-set-size`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-set-size</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-set-size</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>))</code></pre>
 
 The size of x's set (0 when x is not an element).
 
@@ -118,7 +118,7 @@ The size of x's set (0 when x is not an element).
 
 ## `union-find-union`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-union</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-union</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
 
 Merge the sets of x and y: `True` when they were separate (and both
 are elements).
