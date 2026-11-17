@@ -1,0 +1,34 @@
+-- | Prepared public modular-arithmetic edge checks; no compilation or execution is claimed by this fixture.
+module Main where
+  import Data.Nat.Modular
+  import Data.Bool
+  import Data.Int
+  import Data.Nat
+  import Data.Result
+
+  -- | Compare the complete successful residue while keeping any named refusal observable.
+  residue :: Result ModularError Nat -> Nat -> Bool
+  residue result expected = case result of Err failure -> False; Ok value -> value == expected
+
+  -- | Preserve an exact non-coprime divisor through a checked inverse failure.
+  obstructed :: Result ModularError Nat -> Nat -> Bool
+  obstructed result expected = case result of Err (NotCoprime divisor) -> divisor == expected; other -> False
+
+  -- | Observe the checked zero-modulus policy without ever invoking an unchecked zero divisor.
+  zero-refused :: Result ModularError Nat -> Bool
+  zero-refused result = case result of Err ZeroModulus -> True; other -> False
+
+  -- | Check modulus one, zero exponent, negative inversion, unsigned fringes and arbitrary-size fallback.
+  main :: Unit -> Int
+  main unit =
+    let a = residue (checked-nat-power-mod 0 0 1) 0 in
+    let b = residue (checked-nat-power-mod 0 0 17) 1 in
+    let c = residue (checked-int-inverse-mod (-3) 11) 7 in
+    let d = obstructed (checked-int-inverse-mod (-6) 15) 3 in
+    let e = zero-refused (checked-nat-mul-mod 3 7 0) in
+    let f = residue (checked-nat-mul-mod 18446744073709551615 18446744073709551615 18446744073709551557) 3364 in
+    let g = residue (checked-nat-mul-mod 18446744073709551628 18446744073709551628 18446744073709551629) 1 in
+    let h = residue (checked-int-power-mod 3 (-2) 11) 5 in
+    let i = residue (checked-int-power-mod 0 (-1) 1) 0 in
+    let j = case nat-extended-gcd 0 0 of result -> bezout-gcd result == 0 && bezout-first result == 0 && bezout-second result == 0 in
+    if a && b && c && d && e && f && g && h && i && j && nat-gcd 0 0 == 0 then 0 else 1
