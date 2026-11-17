@@ -3,3 +3,5 @@
 /actual-syscall-v1/run-1/actual-entropy
 # Raw actual entropy remains plain locally; committed receipts identify every record.
 /actual-syscall-v1/run-1/real-entropy.capture
+# Successful full-runtime test executable remains plain with its recorded hash.
+/runtime-boundary-v1/run-1/runtime-tests

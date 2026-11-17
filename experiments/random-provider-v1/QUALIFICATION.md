@@ -1,6 +1,6 @@
 # Entropy helper qualification
 
-The isolated proposal now passes six deterministic loop tests and actual x86_64 Linux backend/helper execution. These qualify the copied sources only. No candidate runtime archive, Cargo build, public `cinch_random_bytes` ABI/ownership gate, cross-target execution, or benchmark has run. The production runtime source and frozen D91 archive remain unchanged.
+The isolated proposal now passes six deterministic loop tests, actual x86_64 Linux backend/helper execution, and the public random-byte boundary/ownership tests in a directly built runtime test executable. No candidate runtime archive, Cargo build, cross-target execution, or benchmark has run. Root's runtime source and frozen D91 archive remain unchanged. The candidate is applied only in this lane. See `runtime-boundary-v1/RESULTS.md` for the latest gate.
 
 `REVIEW.md`, `manifest.json`, and `static-review-receipt.json` are retained as the original static stage. Their statements that code had not run describe that earlier stage. The copied Linux backend's header also contains a historical statement that no Linux column had run; it remains plain and unmodified as baseline provenance. The new evidence executes only this proposed x86_64 backend/helper path, with no new aarch64/x86 execution claim.
 
