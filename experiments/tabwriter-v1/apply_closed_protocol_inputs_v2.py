@@ -6,9 +6,20 @@ import os
 import shutil
 import check
 from consolidate_success_inputs import identity, sync_directory, durable_json
-from apply_protocol_input_plan import allocated
 
 PLAN_SHA = '79d2334253f670b4127e1167c961539cf1326eb55e17ee58a5b2572f64dabbe4'
+
+
+def allocated(paths):
+    """Count allocated blocks once per physical inode across the complete reviewed target/canonical union."""
+    seen, size = set(), 0
+    for path in paths:
+        information = path.stat()
+        key = information.st_dev, information.st_ino
+        if key not in seen:
+            seen.add(key)
+            size += information.st_blocks * 512
+    return size
 
 
 def verify_units(units):
