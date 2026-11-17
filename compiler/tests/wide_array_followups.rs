@@ -102,6 +102,6 @@ fn wide_parallel_payloads_remain_a_named_refusal() {
     ]);
     let result = common::drive(Mode::EmitIr, &dir, "Main.cinch", Some(dir.join("refused.ll")));
     let message = result.expect_err("wide parallel payload must remain refused");
-    assert!(message.contains("parallel task") && message.contains("not lowered yet"), "{message}");
+    assert!(message.contains("parallel task's payload") && message.contains("code generation does not lower yet"), "{message}");
     common::cleanup(&dir);
 }

@@ -1,0 +1,7 @@
+{
+  "passed": 18,
+  "failed": 1,
+  "boundary": "Standalone Builtin fixture omitted its genuine Bootstrap.Parse dependency after the rebase; actual self-hosted array runtime/ownership/forged-layout cases passed.",
+  "log_sha256": "be1ee28007c204b20db980239661f2cac24b426526f9a737c81ccc7b54bbfceb",
+  "repair": "Add the actual parser source to this fixture; no production or compiler-check change."
+}

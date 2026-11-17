@@ -235,6 +235,7 @@ fn self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations() {
         ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),
         ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),
         ("Bootstrap.Builtin.cinch", include_str!("../../bootstrap/Bootstrap.Builtin.cinch")),
+        ("Bootstrap.Parse.cinch", include_str!("../../bootstrap/Bootstrap.Parse.cinch")),
         ("Bootstrap.RuntimeAbi.cinch", "module Bootstrap.RuntimeAbi where\n  export runtime-abi, runtime-abi-int\n  runtime-abi :: Nat\n  runtime-abi = 5\n  runtime-abi-int :: Int\n  runtime-abi-int = 5\n"),
         ("Main.cinch", r#"module Main where
   import Bootstrap.Builtin
