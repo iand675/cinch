@@ -1,0 +1,23 @@
+--- compiler/prelude/Data/Mutable/HashTable.cinch
++++ build/maps-nominal-region-static/common/Data.Mutable.HashTable.cinch
+@@ -97 +97 @@
+-  data HashTable r k v where
++  data HashTable (r :: Region) k v where
+--- compiler/prelude/Data/Mutable/Var.cinch
++++ build/maps-nominal-region-static/common/Data.Mutable.Var.cinch
+@@ -21 +21 @@
+-  data Var r a where
++  data Var (r :: Region) a where
+--- compiler/prelude/Data/Mutable/Map.cinch
++++ build/maps-nominal-region-static/baseline/Data.Mutable.Map.cinch
+@@ -43 +43 @@
+-  data MutableMap r k v where
++  data MutableMap (r :: Region) k v where
+--- compiler/prelude/Data/Mutable/LinkedList.cinch
++++ build/maps-nominal-region-static/baseline/Data.Mutable.LinkedList.cinch
+@@ -52 +52 @@
+-  data LinkedList r a where
++  data LinkedList (r :: Region) a where
+@@ -57 +57 @@
+-  data ListElement r a where
++  data ListElement (r :: Region) a where

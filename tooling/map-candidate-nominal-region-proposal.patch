@@ -1,0 +1,18 @@
+--- build/maps-entry-candidate/sources/Data.Mutable.Map.cinch
++++ build/maps-nominal-region-static/candidate/Data.Mutable.Map.cinch
+@@ -47 +47 @@
+-  data MapEntry r k v where
++  data MapEntry (r :: Region) k v where
+@@ -52 +52 @@
+-  data MutableMap r k v where
++  data MutableMap (r :: Region) k v where
+--- compiler/prelude/Data/Mutable/HashTable.cinch
++++ build/maps-nominal-region-static/common/Data.Mutable.HashTable.cinch
+@@ -97 +97 @@
+-  data HashTable r k v where
++  data HashTable (r :: Region) k v where
+--- compiler/prelude/Data/Mutable/Var.cinch
++++ build/maps-nominal-region-static/common/Data.Mutable.Var.cinch
+@@ -21 +21 @@
+-  data Var r a where
++  data Var (r :: Region) a where
