@@ -10,7 +10,12 @@ deadlines without a diagnostic or verdict; the full source gate remains open.
 The longer observation consumed179.52 sampled CPU seconds, peaked near1.13GiB
 RSS, and produced no new full51 interface set. The default check command runs
 specialization and optimization before returning, so these observations do not
-isolate source elaboration cost. The original
+isolate source elaboration cost. A separately frozen diagnostic compiler75c/d91 then recorded source loading
+ending at3.297528s and the multi-module checker still active at its separate
+60-second deadline. Driver optimization and artifact serialization had not
+started. The checker itself includes interface construction and Core
+verification, so this does not yet isolate an elaboration bottleneck. The
+original
 RuntimeIr layout/parser failure and the corrected candidate are preserved
 separately. These checks type the compiler source; they do not execute the
 candidate MVar checker or emitter. Existing published Rust MVar qualification is not

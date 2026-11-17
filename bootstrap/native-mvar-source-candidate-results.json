@@ -35,6 +35,45 @@
   "runtime_sources_changed": false,
   "rust_metadata_allowlist_changed": false,
   "schema": 1,
+  "separate_driver_phase_observation": {
+    "attribution": "After3.297528s source loading, call check_program_multi_full_with_preludes remained active through60-second deadline. Its internal checking, law/contract verification, interface construction and prepared.finish costs are not yet separated. Driver optimization/contracts/artifact serialization had not started.",
+    "inputs": "build/native-mvar-phase-diagnostic-v1/inputs.json",
+    "log": "build/native-mvar-phase-diagnostic-v1/source-check.log",
+    "markers": [
+      "cinch.driver.phase driver.begin elapsed_seconds=0.000003",
+      "cinch.driver.phase check.begin elapsed_seconds=3.297528"
+    ],
+    "new_source_directory": "build/native-mvar-phase-diagnostic-v1/sources",
+    "old330_results_unchanged": true,
+    "receipt": {
+      "command": [
+        "taskset",
+        "-c",
+        "1",
+        "/workspace/dasl-stdlib-io/build/stdlib-driver-phase-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-native-mvar/build/native-mvar-phase-diagnostic-v1/sources/Main.cinch"
+      ],
+      "compiler_sha256": "75c24ebe648007082891a43f54ad9ccb0de407710dc1134e861915e3fde6cfa9",
+      "elapsed_seconds": 60.11516958399443,
+      "end_free_bytes": 324726784,
+      "exit_code": -15,
+      "input_receipt_sha256": "d3f81c0d71c69ef30784f15e60eb8cc7eba38d503b0ad75bd8618d94573703fa",
+      "ir_or_runtime": false,
+      "limit_reason": "60-second invocation deadline",
+      "log_sha256": "4b78cc7de16e6ee644db4464eb46ca701ad36ea8685277a70749d1df7c962662",
+      "native_mvar_adoption": false,
+      "new_retained_bytes": 3215825,
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "samples_sha256": "4a20f38ddf6f82867e6245c21f72c2eaf9b0a557ef9db5791947d83708b4bbd2",
+      "schema": 1,
+      "source51_sha256": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465",
+      "start_free_bytes": 324952064,
+      "status": "resource/deadline limit"
+    },
+    "same_source51_bytes": true,
+    "samples": "build/native-mvar-phase-diagnostic-v1/samples.json"
+  },
   "separate_phase_instrumentation": {
     "base_revision": "c2441661",
     "candidate_commit": "dc6e2d9f",
