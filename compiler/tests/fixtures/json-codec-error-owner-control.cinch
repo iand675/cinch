@@ -1,0 +1,89 @@
+-- | Encoding refusal outcomes preserve original error families and independent mutable byte exports.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Data.Machine
+
+  -- | Keep test inputs opaque to frontend evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %result = or i32 %0, 0
+      ret i32 %result
+    }
+
+  -- | Allocate fresh runtime-sized source bytes.
+  input :: String -> Bytes
+  input text = let source = string-to-bytes text in
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len source)))) in
+    let result = bytes-new size in
+    if bytes-len source <= bytes-len result then let copied = bytes-copy-range result source 0 0 (bytes-len source) in result else bytes-new 0
+
+  -- | Compare an entire source or output prefix.
+  same :: Bytes -> String -> Bool
+  same output expected = eq-i64 (bytes-compare output (string-to-bytes expected)) 0
+
+  -- | Mutate only a proven first byte, preserving the original owner for later observations.
+  change-first :: Bytes -> Unit
+  change-first bytes = if bytes-len bytes > 0 then bytes-set bytes 0 91 else ()
+
+  -- | Written and logical context are separate immutable snapshots with copied exports.
+  write-owners :: Unit -> Bool
+  write-owners unit =
+    let written = input "{\"value\"" in let logical = input "{\"value\":" in
+    let info = json-write-info written logical in
+    let changed-written = change-first written in let changed-logical = change-first logical in
+    let exported-written = json-write-written-bytes info in let exported-logical = json-write-logical-prefix info in
+    let initial = same exported-written "{\"value\"" && same exported-logical "{\"value\":" in
+    let changed-export = change-first exported-written in let changed-context = change-first exported-logical in
+    initial && same (json-write-written-bytes info) "{\"value\"" && same (json-write-logical-prefix info) "{\"value\":"
+
+  -- | A context-only offset replacement shares immutable token metadata while exports stay independent.
+  semantic-owners :: Unit -> Bool
+  semantic-owners unit =
+    let source = input "true" in let reported = input "false" in
+    let original = json-semantic-info-with-value "marshal" 2 "/inner" source "Application" 116 reported in
+    let next = json-semantic-with-offset original 37 in
+    let changed-source = change-first source in let changed-reported = change-first reported in
+    let exported = json-semantic-bytes next in let changed-export = change-first exported in
+    json-semantic-offset original == 2 && json-semantic-offset next == 37
+      && json-semantic-pointer next == "/inner" && json-semantic-type next == "Application"
+      && eq-u8 (json-semantic-kind-byte next) 116 && same (json-semantic-bytes original) "true"
+      && same (json-semantic-bytes next) "true" && same (json-semantic-reported-bytes next) "false"
+
+  -- | One quoted bool field refuses an invalid tag before emitting its colon.
+  descriptor :: JsonType Bool
+  descriptor = json-record-type "Record" (\unit -> False) not [json-field-with "value" (json-field-options False False True 0 False JsonFieldDefaultMatch) json-bool-type (\value -> value) (\next prior -> next)]
+
+  -- | Select stopped error reporting and nonlegacy primitive quoting.
+  options :: JsonWriteOptions
+  options = json-write-options True False "" "" (json-policies [json-continue-after-type-errors False, json-quote-scalar-fields False])
+
+  -- | A partial outcome exports independent output while its structured error family stays directly inspectable.
+  failure-owners :: Unit -> Bool
+  failure-owners unit =
+    let outcome = json-marshal-attempt descriptor options True in
+    let first = json-encoded-bytes outcome in
+    let initial = same first "{\"value\"" in let changed = change-first first in
+    initial && same (json-encoded-bytes outcome) "{\"value\""
+      && (case json-encoded-error outcome of
+        None -> False
+        Some error -> case error of JsonSemanticError info cause -> json-semantic-offset info == 9 && json-semantic-pointer info == "/value"; other -> False)
+      && (case json-encoded-result outcome of
+        Ok output -> False
+        Err error -> case error of JsonSemanticError info cause -> json-semantic-offset info == 9; other -> False)
+      && (case json-marshal-with descriptor options True of
+        Ok output -> False
+        Err error -> case error of JsonSemanticError info cause -> json-semantic-offset info == 9; other -> False)
+
+  -- | Successful outcome and Result exports do not alias retained output storage.
+  success-owners :: Unit -> Bool
+  success-owners unit =
+    let outcome = json-marshal-attempt json-string-type json-default-write-options "hello" in
+    let first = json-encoded-bytes outcome in let changed = change-first first in
+    same (json-encoded-bytes outcome) "\"hello\""
+      && (case json-encoded-error outcome of None -> True; Some error -> False)
+      && (case json-encoded-result outcome of Err error -> False; Ok output -> let changed-result = change-first output in same (json-encoded-bytes outcome) "\"hello\"")
+
+  -- | Preserve the first ownership or error-family group as a nonzero process result.
+  main :: Int
+  main = if not (write-owners ()) then 1 else if not (semantic-owners ()) then 2 else if not (failure-owners ()) then 3 else if not (success-owners ()) then 4 else 0

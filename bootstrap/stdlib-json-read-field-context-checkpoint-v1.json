@@ -1,0 +1,47 @@
+{
+  "status": "focused-compatibility-candidate-qualified",
+  "base_published_commit": "b29b37ba",
+  "changed_production": {
+    "compiler/prelude/Text/Json/Value.cinch": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+    "compiler/prelude/Text/Json/Codec.cinch": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3"
+  },
+  "minimal_patch": "bootstrap/repros/json-read-field-context-v1/minimal.patch.json",
+  "minimal_patch_sha256": "39a97069348ea0e3cb834bddaeb21cd2b9603a834364406f02b24f0bd0be0bdc",
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "proofs": {
+    "focused": {
+      "receipt": "bootstrap/stdlib-json-read-field-focused-rust-v1-results.json",
+      "sha256": "92144f4c31f14791bc37208ebd28e864ea061378cd57a15fe7079189c1dc2dc3",
+      "control_groups": 6,
+      "source_input": "build/json-error-read-field-focused-v1/source",
+      "archive_index": "bootstrap/stdlib-json-read-field-focused-v1-functional-archive.json",
+      "archive_index_sha256": "29195ba53788bff78a3e0c93eaea98d6097a34c04b41028cb179150137d93eca"
+    },
+    "codec": {
+      "receipt": "bootstrap/stdlib-json-read-field-codec-rust-v1-results.json",
+      "sha256": "5eb520959016a8d7c8598e3038afd9229055e789a34bd439637412fe8812f839",
+      "control_groups": 14,
+      "source_input": "build/json-error-read-field-codec-v1/source",
+      "archive_index": "bootstrap/stdlib-json-read-field-codec-v1-functional-archive.json",
+      "archive_index_sha256": "7bbac55050b465c0cfa15290e3fe6d8fe17d2bd5601e2f471ef4c4677c2454e3"
+    }
+  },
+  "fixture_unchanged_original14_sha256": "5f7d06aaa96ae365975895d6a8f7bc6568b6c42afcf28fa91b06addf09b4d159",
+  "focused_fixture": "compiler/tests/fixtures/json-codec-read-field-context.cinch",
+  "focused_fixture_sha256": "59ee4baf36fe4e1dd219c1f31fe955c40447b95112b57258aba2294b48682c38",
+  "SDK8_vectors_sha256": "46e8786c3cb7d40b9fee5eb6253be898385f03b8dfc2cc3577bb7a9ef59982cd",
+  "SDK8_receipt": "bootstrap/stdlib-json-stop-context-reference-v2.json",
+  "canonical_declarations": 857,
+  "required_inherited_Dynamic": {
+    "sha256": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93",
+    "behavior": "json-any-typed clears inherited addressability; published765 line required"
+  },
+  "scope": "Ordinary library-created stopped read semantic errors retain conventional fields independently from precise pointers; user-supplied None stays None. No fixture/oracle/precise-pointer normalization. SourceRuntime default350/250 andbounded30MiB; closed success ELF/IR archives verified before unlink.",
+  "historical_1494": "e4d3d166 currentc121/4808 proof remains immutable and is not restamped as matching this candidate. Parent full33 and affected1494 refresh pending.",
+  "syntax_partial_status": "Unimplemented; SDK8 includes2 incomplete-syntax outcomes retained for mandatory next epoch, never counted as passing here.",
+  "Native_executed": false,
+  "production_promoted": false,
+  "full92_complete": false,
+  "minimal_patch_raw_sha256": "3e895ce8e771908c08da01af04113fb8e7824492435b938e15a74933529994b6"
+}

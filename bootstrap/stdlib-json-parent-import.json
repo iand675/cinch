@@ -1,0 +1,91 @@
+{
+  "source_commit": "e4d3d166",
+  "scope": "Current Value/Codec plus previously qualified Dynamic typed-interface dependency, additive maintained fixtures and panic-preserving parent test wiring. Full33 release parent passed; package remains partial.",
+  "files": [
+    {
+      "path": "compiler/prelude/Text/Json/Value.cinch",
+      "before_sha256": "376488101b0f438023f1a6ff8556d78009f799d5549305033523a9ba1fa03db6",
+      "after_sha256": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+      "bytes": 133508
+    },
+    {
+      "path": "compiler/prelude/Text/Json/Codec.cinch",
+      "before_sha256": "86cf9e0a6a660893a1eb8b42eaf4ab1bda7dbea901f7e723b64ddbbed73a4364",
+      "after_sha256": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3",
+      "bytes": 156253
+    },
+    {
+      "path": "compiler/tests/lib_json_codec.rs",
+      "before_sha256": "d8276c4a7fc2e0da0290c1abb1d6bbdca13d510d951eddce99eea2b06eb32144",
+      "after_sha256": "89c2fa198bfea24340fa1df27fa63c856005641fa759b7239efcd40d8778e44e",
+      "bytes": 16244
+    },
+    {
+      "path": "compiler/tests/fixtures/json-codec-method-owner-control.cinch",
+      "before_sha256": null,
+      "after_sha256": "0a2a714b235703e2d9965c37886a51b914d87de28d36700f74051afb43cc5aed",
+      "bytes": 8758
+    },
+    {
+      "path": "compiler/tests/fixtures/json-codec-method-protocol.cinch",
+      "before_sha256": null,
+      "after_sha256": "02ecfc7fa839b150d9920dc00139349b10a124ec6aa80d38f4815c641c11a916",
+      "bytes": 9034
+    },
+    {
+      "path": "compiler/tests/fixtures/json-codec-addressability.cinch",
+      "before_sha256": null,
+      "after_sha256": "45a353eb640b2648c1cf9169fb4291ca47c32a9355a2d3549fed65d686519d85",
+      "bytes": 42180
+    },
+    {
+      "path": "compiler/tests/fixtures/json-codec-error-bool.cinch",
+      "before_sha256": null,
+      "after_sha256": "8daa94232b5ffe1876a0e11da9eb41af9df1aa6f5d63c482d334391b517ce93b",
+      "bytes": 43897
+    },
+    {
+      "path": "compiler/tests/fixtures/json-codec-error-pointer.cinch",
+      "before_sha256": null,
+      "after_sha256": "b3bbca26eca6b0f93a12681ad8ca0892f1e32e6666e174c1fda7bd09e4d49d69",
+      "bytes": 45980
+    },
+    {
+      "path": "compiler/tests/fixtures/json-codec-error-string.cinch",
+      "before_sha256": null,
+      "after_sha256": "8dc85df3d1aa8cb16fef71b91c17a9685c2ffc62dbb1bfee86786327d3fe8634",
+      "bytes": 45384
+    },
+    {
+      "path": "compiler/tests/fixtures/json-codec-error-integer.cinch",
+      "before_sha256": null,
+      "after_sha256": "04964c2eeab2081fc7fdfee461d1dd62d3ed89babf5cdb9cb6fe6bfa07198358",
+      "bytes": 44185
+    },
+    {
+      "path": "compiler/tests/fixtures/json-codec-error-owner-control.cinch",
+      "before_sha256": null,
+      "after_sha256": "130289ba144caa43c494d8cddac9b663d4f74e01cc82b0ca63bebbe4a049d736",
+      "bytes": 5379
+    },
+    {
+      "path": "compiler/tests/fixtures/json-codec-error-methods.cinch",
+      "before_sha256": null,
+      "after_sha256": "067ace595f5e039b08258ff2271f0ad453115b72770e67cfdb7125c25fb821d4",
+      "bytes": 47540
+    },
+    {
+      "path": "compiler/tests/fixtures/json-codec-error-updates.cinch",
+      "before_sha256": null,
+      "after_sha256": "39e4bf1bb0ac9f94e5729a5ede7ef552a746542de41020cacf271a6df91631ae",
+      "bytes": 23780
+    }
+  ],
+  "additional_required_source": {
+    "path": "compiler/prelude/Text/Json/Dynamic.cinch",
+    "sha256": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93",
+    "source_dependency_commit": "765ad059"
+  },
+  "compatibility_commit": "5bf2e4b2",
+  "qualification": "bootstrap/stdlib-json-parent-results.json"
+}

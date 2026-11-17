@@ -27,10 +27,16 @@ module Text.Json.Codec where
   export JsonAddressableMethodsOnly, JsonByteArrayNumbers, JsonNamedBytesAsBinary, JsonDurationNanoseconds, JsonPreserveNameDelimiters, JsonPreserveScalarNull, JsonOmitEmptyApplicationValues, JsonLooseBase64Padding, JsonLooseTimestamps, JsonContinueAfterTypeErrors, JsonQuoteScalarFields, JsonAllowArrayLengthMismatch
   export json-addressable-methods-only, json-byte-array-numbers, json-named-bytes-as-binary, json-duration-nanoseconds, json-preserve-name-delimiters, json-preserve-scalar-null, json-omit-empty-application-values, json-loose-base64-padding, json-loose-timestamps, json-continue-after-type-errors, json-quote-scalar-fields, json-allow-array-length-mismatch
   export json-write-stringify-numbers, json-write-with-stringify-numbers, json-read-stringify-numbers, json-read-with-stringify-numbers
+  export json-write-addressable, json-write-with-addressability, json-type-write-kind-with
+  export json-type-with-addressable-encoder, json-type-with-addressable-text-encoder
   export JsonWriteOptions, json-write-options, json-default-write-options, json-write-html, json-write-pretty, json-write-prefix, json-write-step, json-write-policies
   export JsonReadOptions, json-read-options, json-default-read-options, json-read-use-number, json-read-reject-unknown, json-read-policies
-  export JsonType, json-type-kind, json-type-label, json-type-default, json-type-is-zero, json-type-is-empty, json-custom-type, json-structural-type
+  export json-type-read-name, json-type-with-read-identity
+  export JsonType, json-type-kind, json-type-label, json-type-default, json-type-is-zero, json-type-is-empty, json-custom-type, json-structural-type, json-type-write-kind, json-type-read-kind
+  export json-type-with-encoder, json-type-with-decoder, json-type-with-text-encoder, json-type-with-text-decoder
+  export JsonMethods, json-methods, json-no-methods, json-methods-with-receiver-types, json-type-with-methods
   export JsonDecoded, json-decoded-value, json-decoded-error, json-decoded-fatal, json-decoded-result
+  export JsonEncoded, json-encoded-bytes, json-encoded-error, json-encoded-result, json-marshal-attempt
   export json-decoded-ok, json-decoded-failure, json-decoded-with-error
   export json-marshal, json-marshal-with, json-marshal-indent, json-unmarshal, json-unmarshal-with, json-update, json-update-with, json-update-value, json-marshal-value
   export JsonFieldMatch, JsonFieldDefaultMatch, JsonFieldExactMatch, JsonFieldFoldMatch
@@ -167,44 +173,53 @@ module Text.Json.Codec where
 
   -- | Encoding configuration shared by nested descriptors and the final formatter.
   data JsonWriteOptions where
-    -- | HTML escaping, pretty mode, line prefix, indentation and typed policies.
-    WriteOptions :: Bool -> Bool -> String -> String -> JsonPolicies -> Bool -> JsonWriteOptions
+    -- | HTML escaping, pretty mode, line prefix, indentation, typed policies and nested addressability.
+    WriteOptions :: Bool -> Bool -> String -> String -> JsonPolicies -> Bool -> Bool -> JsonWriteOptions
 
   -- | Construct explicit options; pretty mode remains distinct from an empty indentation string.
   json-write-options :: Bool -> Bool -> String -> String -> JsonPolicies -> JsonWriteOptions
-  json-write-options html pretty prefix step policies = WriteOptions html pretty prefix step policies False
+  json-write-options html pretty prefix step policies = WriteOptions html pretty prefix step policies False False
 
   -- | Compact encoding with HTML escaping and established typed semantics.
   json-default-write-options :: JsonWriteOptions
-  json-default-write-options = WriteOptions True False "" "" json-default-policies False
+  json-default-write-options = WriteOptions True False "" "" json-default-policies False False
 
   -- | Whether string and raw fragments escape HTML-sensitive characters.
   json-write-html :: JsonWriteOptions -> Bool
-  json-write-html options = case options of WriteOptions html pretty prefix step policies quoted -> html
+  json-write-html options = case options of WriteOptions html pretty prefix step policies quoted addressable -> html
 
   -- | Whether a final whole-value indentation pass is requested.
   json-write-pretty :: JsonWriteOptions -> Bool
-  json-write-pretty options = case options of WriteOptions html pretty prefix step policies quoted -> pretty
+  json-write-pretty options = case options of WriteOptions html pretty prefix step policies quoted addressable -> pretty
 
   -- | Prefix inserted before each continuation line.
   json-write-prefix :: JsonWriteOptions -> String
-  json-write-prefix options = case options of WriteOptions html pretty prefix step policies quoted -> prefix
+  json-write-prefix options = case options of WriteOptions html pretty prefix step policies quoted addressable -> prefix
 
   -- | Indentation inserted once per container depth.
   json-write-step :: JsonWriteOptions -> String
-  json-write-step options = case options of WriteOptions html pretty prefix step policies quoted -> step
+  json-write-step options = case options of WriteOptions html pretty prefix step policies quoted addressable -> step
 
   -- | Typed conversion choices used while constructing a value fragment.
   json-write-policies :: JsonWriteOptions -> JsonPolicies
-  json-write-policies options = case options of WriteOptions html pretty prefix step policies quoted -> policies
+  json-write-policies options = case options of WriteOptions html pretty prefix step policies quoted addressable -> policies
 
   -- | Whether numeric descriptors encode their values as JSON strings in this nested context.
   json-write-stringify-numbers :: JsonWriteOptions -> Bool
-  json-write-stringify-numbers options = case options of WriteOptions html pretty prefix step policies quoted -> quoted
+  json-write-stringify-numbers options = case options of WriteOptions html pretty prefix step policies quoted addressable -> quoted
 
   -- | Select nested numeric quoting without changing HTML or indentation configuration.
   json-write-with-stringify-numbers :: JsonWriteOptions -> Bool -> JsonWriteOptions
-  json-write-with-stringify-numbers options enabled = case options of WriteOptions html pretty prefix step policies quoted -> WriteOptions html pretty prefix step policies enabled
+  json-write-with-stringify-numbers options enabled = case options of WriteOptions html pretty prefix step policies quoted addressable -> WriteOptions html pretty prefix step policies enabled addressable
+
+  -- | Whether the current application value permits an addressable-only encoding method.
+  json-write-addressable :: JsonWriteOptions -> Bool
+  json-write-addressable options = case options of WriteOptions html pretty prefix step policies quoted addressable -> addressable
+
+  -- | Select an explicit application reference boundary while retaining every other encoding option.
+  -- This metadata permits method selection without exposing an application address.
+  json-write-with-addressability :: JsonWriteOptions -> Bool -> JsonWriteOptions
+  json-write-with-addressability options enabled = case options of WriteOptions html pretty prefix step policies quoted addressable -> WriteOptions html pretty prefix step policies quoted enabled
 
   -- | Decoding configuration independent of any particular application type.
   data JsonReadOptions where
@@ -274,41 +289,164 @@ module Text.Json.Codec where
 
   -- | Explicit type metadata and conversion callbacks replace implicit runtime reflection.
   data JsonType a where
-    -- | Label, default factory, zero/empty classifiers, fragment encoder and update decoder.
-    Type :: String -> JsonKind -> (Unit -> a) -> (a -> Bool) -> (a -> Bool) -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> JsonType a
+    -- | Label, context-sensitive write category, read category, default factory, omission classifiers, fragment encoder and update decoder.
+    Type :: String -> String -> (JsonWriteOptions -> JsonKind) -> JsonKind -> (Unit -> a) -> (a -> Bool) -> (a -> Bool) -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> JsonType a
 
-  -- | Declared representation category; custom/raw fragments use the explicit invalid/unspecified category.
+  -- | Established write representation category; custom/raw fragments use the explicit unspecified category.
   json-type-kind :: forall a. JsonType a -> JsonKind
-  json-type-kind descriptor = case descriptor of Type label category initial zero empty encode update -> category
+  json-type-kind descriptor = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> write-category json-default-write-options
+
+  -- | Inspect the encoding category independently of decoding methods and their field-quoting behavior.
+  json-type-write-kind :: forall a. JsonType a -> JsonKind
+  json-type-write-kind descriptor = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> write-category json-default-write-options
+
+  -- | Inspect the encoding category in the exact context used to select an encoding method.
+  json-type-write-kind-with :: forall a. JsonType a -> JsonWriteOptions -> JsonKind
+  json-type-write-kind-with descriptor options = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> write-category options
+
+  -- | Inspect the decoding category independently of encoding methods and their field-quoting behavior.
+  json-type-read-kind :: forall a. JsonType a -> JsonKind
+  json-type-read-kind descriptor = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> read-category
 
   -- | Application type name attached to structured conversion failures.
   json-type-label :: forall a. JsonType a -> String
-  json-type-label descriptor = case descriptor of Type label category initial zero empty encode update -> label
+  json-type-label descriptor = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> label
+
+  -- | Inspect the independent root name used when reporting an application field path.
+  json-type-read-name :: forall a. JsonType a -> String
+  json-type-read-name descriptor = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> root-name
+
+  -- | Relabel ordinary scalar refusals without changing nested application identities or returned method causes.
+  named-read-error :: String -> String -> JsonError -> JsonError
+  named-read-error prior next error = case error of
+    JsonTypeError expected actual offset path -> if expected == prior && path == "" then JsonTypeError next actual offset path else error
+    JsonTypeCause expected actual offset path cause -> if expected == prior && path == "" then JsonTypeCause next actual offset path cause else error
+    JsonSemanticError info cause -> case json-semantic-type-option info of
+      None -> error
+      Some expected -> if expected == prior && json-semantic-pointer info == "" then JsonSemanticError (json-semantic-with-type info (Some next)) cause else error
+    other -> error
+
+  -- | Retain partial application updates while attaching an explicitly named ordinary read identity.
+  named-read-update :: forall a. String -> String -> (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> JsonReadOptions -> JsonValue -> a -> JsonDecoded a
+  named-read-update prior next update options source value = case update options source value of
+    Decoded updated error fatal -> Decoded updated (case error of None -> None; Some cause -> Some (named-read-error prior next cause)) fatal
+
+  -- | Supply independent application and root reporting names without inferring identities from display labels.
+  json-type-with-read-identity :: forall a. String -> String -> JsonType a -> JsonType a
+  json-type-with-read-identity label root-name descriptor = case descriptor of
+    Type prior prior-root write-category read-category initial zero empty encode update -> Type label root-name write-category read-category initial zero empty encode (named-read-update prior label update)
 
   -- | Construct a fresh default application value through its descriptor capability.
   json-type-default :: forall a. JsonType a -> a
-  json-type-default descriptor = case descriptor of Type label category initial zero empty encode update -> initial ()
+  json-type-default descriptor = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> initial ()
 
   -- | Apply the descriptor's application zero classifier.
   json-type-is-zero :: forall a. JsonType a -> a -> Bool
-  json-type-is-zero descriptor value = case descriptor of Type label category initial zero empty encode update -> zero value
+  json-type-is-zero descriptor value = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> zero value
 
   -- | Apply the descriptor's application empty classifier.
   json-type-is-empty :: forall a. JsonType a -> a -> Bool
-  json-type-is-empty descriptor value = case descriptor of Type label category initial zero empty encode update -> empty value
+  json-type-is-empty descriptor value = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> empty value
 
-  -- | Encode one compact fragment for use inside another descriptor.
+  -- | Retain error-only output transport between library-owned descriptor boundaries.
+  marshal-fragment :: forall a. JsonType a -> JsonWriteOptions -> a -> Result JsonError Bytes
+  marshal-fragment descriptor options value = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> encode options value
+
+  -- | Remove only private origin protection after all encoding container context has been settled.
+  write-public-cause :: JsonError -> JsonError
+  write-public-cause error = case json-error-preserved-context error of None -> error; Some cause -> cause
+
+  -- | Encode one compact fragment with a directly inspectable original error family.
+  -- Complete-fragment callbacks return their own refusal without exposing the
+  -- private partial-output transport used between ordinary containers.
   json-marshal-value :: forall a. JsonType a -> JsonWriteOptions -> a -> Result JsonError Bytes
-  json-marshal-value descriptor options value = case descriptor of Type label category initial zero empty encode update -> encode options value
+  json-marshal-value descriptor options value = case marshal-fragment descriptor options value of
+    Ok output -> Ok output
+    Err error ->
+      let compact = json-write-options (json-write-html options) False "" "" (json-write-policies options) in
+      case write-final-error compact error of JsonWrittenError info cause -> Err (write-public-cause cause); other -> Err (write-public-cause other)
 
   -- | Apply one already validated source value through an immutable descriptor.
   json-update-value :: forall a. JsonType a -> JsonReadOptions -> JsonValue -> a -> JsonDecoded a
-  json-update-value descriptor options source prior = case descriptor of Type label category initial zero empty encode update -> update options source prior
+  json-update-value descriptor options source prior = case descriptor of Type label root-name write-category read-category initial zero empty encode update -> read-context-result options source (update options source prior)
+
+  -- | Attach source-local semantic metadata to an ordinary stopped type refusal before containing paths are added.
+  read-context-error :: JsonReadOptions -> JsonValue -> JsonError -> JsonError
+  read-context-error options source error =
+    if json-policy-enabled (json-read-policies options) JsonContinueAfterTypeErrors then error
+    else case error of
+      JsonTypeError label actual offset path -> JsonSemanticError (json-semantic-with-field-path (json-semantic-info "unmarshal" (json-value-start source) "" (json-value-source source) label) (Some path)) error
+      JsonTypeCause label actual offset path cause -> JsonSemanticError (json-semantic-with-field-path (json-semantic-info "unmarshal" (json-value-start source) "" (json-value-source source) label) (Some path)) error
+      other -> error
+
+  -- | Preserve an advanced application value while assigning source context to its ordinary refusal.
+  read-context-result :: forall a. JsonReadOptions -> JsonValue -> JsonDecoded a -> JsonDecoded a
+  read-context-result options source decoded = case decoded of
+    Decoded value error fatal -> Decoded value (case error of None -> None; Some cause -> Some (read-context-error options source cause)) fatal
+
+  -- | Compose already written container fragments with a failing child's retained output only on an error path.
+  write-next-error :: List Bytes -> Bytes -> JsonError -> JsonError
+  write-next-error reversed delimiter error =
+    let before = join-fragments (reverse reversed) in
+    case error of
+      JsonWrittenError info cause ->
+        let written = json-write-written-bytes info in
+        let actual = if bytes-len written > 0 then join-fragments [before, delimiter, written] else before in
+        let logical = join-fragments [before, delimiter, json-write-logical-prefix info] in
+        JsonWrittenError (json-write-info actual logical) cause
+      other -> JsonWrittenError (json-write-info before (join-fragments [before, delimiter])) error
+
+  -- | Add formatted next-value context only to semantic errors created for the current encoding operation.
+  write-error-position :: Nat -> JsonError -> JsonError
+  write-error-position offset error = case error of
+    JsonSemanticError info cause -> JsonSemanticError (json-semantic-with-offset info (offset + json-semantic-offset info)) cause
+    other -> error
+
+  -- | Format a retained prefix once at the public boundary while preserving its original diagnostic and logical context.
+  write-final-error :: JsonWriteOptions -> JsonError -> JsonError
+  write-final-error options error = case error of
+    JsonWrittenError info cause ->
+      let written = json-write-written-bytes info in let logical = json-write-logical-prefix info in
+      case json-prefix-next-offset logical (json-write-pretty options) (json-write-prefix options) (json-write-step options) of
+        Err ignored -> error
+        Ok offset ->
+          let formatted = if json-write-pretty options then json-indent-prefix written (json-write-prefix options) (json-write-step options) else Ok written in
+          case formatted of
+            Err ignored -> error
+            Ok output -> JsonWrittenError (json-write-info output logical) (write-error-position offset cause)
+    other -> error
+
+  -- | An encoding outcome retains successful output or the exact prefix emitted before its first refusal.
+  data JsonEncoded where
+    -- | Private immutable output bytes and an optional original structured diagnostic.
+    Encoded :: Bytes -> Option JsonError -> JsonEncoded
+
+  -- | Export an independent copy of successful output or the retained partial prefix.
+  json-encoded-bytes :: JsonEncoded -> Bytes
+  json-encoded-bytes encoded = case encoded of Encoded output error -> codec-part output 0 (bytes-len output)
+
+  -- | Inspect the original diagnostic without exposing internal output-transport wrappers.
+  json-encoded-error :: JsonEncoded -> Option JsonError
+  json-encoded-error encoded = case encoded of Encoded output error -> error
+
+  -- | Require successful encoding when a partial output prefix is not useful.
+  json-encoded-result :: JsonEncoded -> Result JsonError Bytes
+  json-encoded-result encoded = case encoded of Encoded output error -> case error of None -> Ok (codec-part output 0 (bytes-len output)); Some cause -> Err cause
+
+  -- | Marshal with policy-selected partial output and the original error family on failure.
+  json-marshal-attempt :: forall a. JsonType a -> JsonWriteOptions -> a -> JsonEncoded
+  json-marshal-attempt descriptor options value = case marshal-fragment descriptor options value of
+    Err error -> case write-final-error options error of
+      JsonWrittenError info cause -> Encoded (if json-policy-enabled (json-write-policies options) JsonContinueAfterTypeErrors then bytes-new 0 else json-write-written-bytes info) (Some (write-public-cause cause))
+      other -> Encoded (bytes-new 0) (Some (write-public-cause other))
+    Ok output ->
+      let formatted = if json-write-pretty options then json-indent output (json-write-prefix options) (json-write-step options) else Ok output in
+      case formatted of Err error -> Encoded (bytes-new 0) (Some error); Ok bytes -> Encoded bytes None
 
   -- | Marshal one complete value using explicit HTML, indentation and conversion policies.
   json-marshal-with :: forall a. JsonType a -> JsonWriteOptions -> a -> Result JsonError Bytes
-  json-marshal-with descriptor options value = case json-marshal-value descriptor options value of
-    Err error -> Err error
+  json-marshal-with descriptor options value = case marshal-fragment descriptor options value of
+    Err error -> case write-final-error options error of JsonWrittenError info cause -> Err (write-public-cause cause); other -> Err (write-public-cause other)
     Ok output -> if json-write-pretty options then json-indent output (json-write-prefix options) (json-write-step options) else Ok output
 
   -- | Marshal one complete compact value with established defaults.
@@ -317,13 +455,48 @@ module Text.Json.Codec where
 
   -- | Marshal one value with an explicit indentation pass, including empty prefix and step strings.
   json-marshal-indent :: forall a. JsonType a -> a -> String -> String -> Result JsonError Bytes
-  json-marshal-indent descriptor value prefix step = json-marshal-with descriptor (WriteOptions True True prefix step json-default-policies False) value
+  json-marshal-indent descriptor value prefix step = json-marshal-with descriptor (WriteOptions True True prefix step json-default-policies False False) value
 
   -- | Validate all source syntax before applying any update to an application value.
   json-update-with :: forall a. JsonType a -> JsonReadOptions -> Bytes -> a -> JsonDecoded a
   json-update-with descriptor options input prior = case json-document input of
     Err error -> json-decoded-failure prior error
-    Ok document -> json-update-value descriptor options (json-document-value document) prior
+    Ok document -> read-final-result (json-type-read-name descriptor) options (json-update-value descriptor options (json-document-value document) prior)
+
+  -- | Convert an escaped pointer to the established dotted field representation without decoding its components.
+  semantic-field-path :: String -> String
+  semantic-field-path pointer =
+    let chars = unpack pointer in
+    let rest = case chars of Nil -> Nil; Cons first tail -> if char-code first == 47 then tail else chars in
+    pack (map (\character -> if char-code character == 47 then '.' else character) rest)
+
+  -- | Describe a semantic kind and independently supplied value without inferring an application type.
+  semantic-type-description :: JsonSemanticInfo -> String
+  semantic-type-description info =
+    let kind = u8-to-nat (json-semantic-kind-byte info) in
+    let category = if kind == 110 then "null" else if kind == 34 then "string" else if kind == 48 then "number" else if kind == 116 || kind == 102 then "bool" else if kind == 91 || kind == 93 then "array" else if kind == 123 || kind == 125 then "object" else "" in
+    let reported = json-semantic-reported-bytes info in
+    if bytes-len reported == 0 then category else string-concat-all [category, " ", (case string-from-bytes reported of None -> ""; Some text -> text)]
+
+  -- | Adapt final read reporting while retaining absent type identity and the original structured cause.
+  read-final-error :: String -> JsonReadOptions -> JsonError -> JsonError
+  read-final-error root-name options error =
+    if not (json-policy-enabled (json-read-policies options) JsonContinueAfterTypeErrors) then write-public-cause error
+    else case json-error-type-info error of
+      Some info ->
+        let field-path = json-type-error-field info in
+        if root-name == "" || field-path == "" then error else JsonTypeInfoError (json-type-info-with-record-field info root-name field-path) error
+      None -> case json-error-semantic error of
+        None -> error
+        Some info ->
+          let field-path = semantic-field-path (json-semantic-pointer info) in
+          let owner-name = if field-path == "" then "" else root-name in
+          JsonTypeInfoError (json-type-info (json-semantic-type-option info) (semantic-type-description info) (json-semantic-offset info) owner-name field-path) error
+
+  -- | Export an advanced value and a directly observable final error under the selected read policy.
+  read-final-result :: forall a. String -> JsonReadOptions -> JsonDecoded a -> JsonDecoded a
+  read-final-result root-name options decoded = case decoded of
+    Decoded value error fatal -> Decoded value (case error of None -> None; Some cause -> Some (read-final-error root-name options cause)) fatal
 
   -- | Decode into an existing application value with established defaults and partial-update reporting.
   json-update :: forall a. JsonType a -> Bytes -> a -> JsonDecoded a
@@ -367,7 +540,7 @@ module Text.Json.Codec where
 
   -- | Construct a custom typed capability with explicit defaults, omission tests and update outcomes.
   json-custom-type :: forall a. String -> (Unit -> a) -> (a -> Bool) -> (a -> Bool) -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> JsonType a
-  json-custom-type label initial zero empty encode update = Type label JsonInvalidKind initial zero empty (custom-encode label encode) update
+  json-custom-type label initial zero empty encode update = Type label "" (\options -> JsonInvalidKind) JsonInvalidKind initial zero empty (custom-encode label encode) update
 
   -- | Validate successful structural fragments while preserving an existing child conversion error.
   structural-encode :: forall a. String -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonWriteOptions -> a -> Result JsonError Bytes
@@ -381,7 +554,196 @@ module Text.Json.Codec where
   -- The category controls containing-field quoting. Successful callback fragments
   -- are checked as complete JSON values before entering a containing descriptor.
   json-structural-type :: forall a. String -> JsonKind -> (Unit -> a) -> (a -> Bool) -> (a -> Bool) -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> JsonType a
-  json-structural-type label category initial zero empty encode update = Type label category initial zero empty (structural-encode label encode) update
+  json-structural-type label category initial zero empty encode update = Type label "" (\options -> category) category initial zero empty (structural-encode label encode) update
+
+  -- | Replace only JSON encoding, preserving ordinary decoding, defaults and application omission predicates.
+  -- Successful method fragments are validated and snapshotted before joining a
+  -- containing value. A method controls its own encoding representation.
+  json-type-with-encoder :: forall a. JsonType a -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonType a
+  json-type-with-encoder descriptor callback = case descriptor of
+    Type label root-name write-category read-category initial zero empty encode update -> Type label root-name (\options -> JsonInvalidKind) read-category initial zero empty (custom-encode label callback) update
+
+  -- | Select an addressable method using the current application context and explicit conversion policy.
+  addressable-method-selected :: JsonWriteOptions -> Bool
+  addressable-method-selected options = json-write-addressable options || not (json-policy-enabled (json-write-policies options) JsonAddressableMethodsOnly)
+
+  -- | Keep fallback representation and encoding selection identical for an addressable-only method.
+  addressable-method-type :: forall a. JsonType a -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonType a
+  addressable-method-type descriptor callback = case descriptor of
+    Type label root-name write-category read-category initial zero empty encode update ->
+      Type label root-name (\options -> if addressable-method-selected options then JsonInvalidKind else write-category options) read-category initial zero empty
+        (\options value -> if addressable-method-selected options then callback options value else encode options value) update
+
+  -- | Add an addressable-only JSON encoder with ordinary fallback for nonaddressable application values.
+  json-type-with-addressable-encoder :: forall a. JsonType a -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonType a
+  json-type-with-addressable-encoder descriptor callback = addressable-method-type descriptor (custom-encode (json-type-label descriptor) callback)
+
+  -- | Add an addressable-only text encoder with ordinary fallback and the current HTML escaping policy.
+  json-type-with-addressable-text-encoder :: forall a. JsonType a -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonType a
+  json-type-with-addressable-text-encoder descriptor callback = addressable-method-type descriptor (text-method-encode (json-type-label descriptor) callback)
+
+  -- | Replace only JSON decoding, preserving ordinary encoding and its containing-field quoting behavior.
+  json-type-with-decoder :: forall a. JsonType a -> (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> JsonType a
+  json-type-with-decoder descriptor callback = case descriptor of
+    Type label root-name write-category read-category initial zero empty encode update -> Type label root-name write-category JsonInvalidKind initial zero empty encode callback
+
+  -- | Quote complete method text with byte-wise malformed UTF-8 repair and current HTML policy.
+  text-method-encode :: forall a. String -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonWriteOptions -> a -> Result JsonError Bytes
+  text-method-encode label callback options value = case callback options value of
+    Err error -> Err (JsonCustomError label error)
+    Ok text -> Ok (json-quote-bytes text (json-write-html options))
+
+  -- | Replace only text encoding; method output is a JSON string and ordinary decoding retains its original kind.
+  json-type-with-text-encoder :: forall a. JsonType a -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonType a
+  json-type-with-text-encoder descriptor callback = case descriptor of
+    Type label root-name write-category read-category initial zero empty encode update -> Type label root-name (\options -> JsonInvalidKind) read-category initial zero empty (text-method-encode label callback) update
+
+  -- | Call a text decoder only for strings; null follows the underlying descriptor without invoking the method.
+  text-method-update :: forall a. JsonType a -> (JsonReadOptions -> Bytes -> a -> JsonDecoded a) -> JsonReadOptions -> JsonValue -> a -> JsonDecoded a
+  text-method-update descriptor callback options source prior = case json-value-kind source of
+    JsonNullKind -> json-update-value descriptor options source prior
+    other -> case json-value-string source of
+      Some text -> callback options (string-to-bytes text) prior
+      None -> type-mismatch (json-type-label descriptor) source prior
+
+  -- | Replace only text decoding, preserving encoding and passing independently owned decoded string bytes.
+  json-type-with-text-decoder :: forall a. JsonType a -> (JsonReadOptions -> Bytes -> a -> JsonDecoded a) -> JsonType a
+  json-type-with-text-decoder descriptor callback = case descriptor of
+    Type label root-name write-category read-category initial zero empty encode update -> Type label root-name write-category JsonInvalidKind initial zero empty encode (text-method-update descriptor callback)
+
+  -- | Independent JSON/text conversion methods with explicit encoding addressability requirements.
+  data JsonMethods a where
+    -- | Private JSON/text writers and JSON/text readers; a writer pair names its addressable-only requirement.
+    Methods :: Option (Bool, JsonWriteOptions -> a -> Result JsonError Bytes) -> Option (Bool, JsonWriteOptions -> a -> Result JsonError Bytes) -> Option (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> Option (JsonReadOptions -> Bytes -> a -> JsonDecoded a) -> Option String -> Option String -> JsonMethods a
+
+  -- | Compose optional methods; JSON takes precedence over text in each direction when its encoding receiver is eligible.
+  json-methods :: forall a. Option (Bool, JsonWriteOptions -> a -> Result JsonError Bytes) -> Option (Bool, JsonWriteOptions -> a -> Result JsonError Bytes) -> Option (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> Option (JsonReadOptions -> Bytes -> a -> JsonDecoded a) -> JsonMethods a
+  json-methods json-write text-write json-read text-read = Methods json-write text-write json-read text-read None None
+
+  -- | An empty method set preserves every ordinary descriptor capability.
+  json-no-methods :: forall a. JsonMethods a
+  json-no-methods = Methods None None None None None None
+
+  -- | Set the independently named JSON and text encoding receivers without changing the application value type.
+  json-methods-with-receiver-types :: forall a. String -> String -> JsonMethods a -> JsonMethods a
+  json-methods-with-receiver-types json-receiver text-receiver methods = case methods of
+    Methods json-write text-write json-read text-read prior-json prior-text -> Methods json-write text-write json-read text-read (Some json-receiver) (Some text-receiver)
+
+  -- | Retain the application type when no independent method receiver name was supplied.
+  method-receiver-type :: String -> Option String -> String
+  method-receiver-type label receiver = case receiver of None -> label; Some selected -> selected
+
+  -- | Test one writer's declared receiver requirement without calling an application method.
+  method-writer-eligible :: Bool -> JsonWriteOptions -> Bool
+  method-writer-eligible needs-address options = not needs-address || addressable-method-selected options
+
+  -- | Choose a text method's category or retain the ordinary encoding representation.
+  methods-text-kind :: forall a. (JsonWriteOptions -> JsonKind) -> Option (Bool, JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonWriteOptions -> JsonKind
+  methods-text-kind ordinary method options = case method of
+    None -> ordinary options
+    Some selected -> case selected of (needs-address, callback) -> if method-writer-eligible needs-address options then JsonInvalidKind else ordinary options
+
+  -- | Keep JSON-first method eligibility and effective field representation in agreement.
+  methods-write-kind :: forall a. (JsonWriteOptions -> JsonKind) -> JsonMethods a -> JsonWriteOptions -> JsonKind
+  methods-write-kind ordinary methods options = case methods of
+    Methods json-write text-write json-read text-read json-receiver text-receiver -> case json-write of
+      None -> methods-text-kind ordinary text-write options
+      Some selected -> case selected of (needs-address, callback) -> if method-writer-eligible needs-address options then JsonInvalidKind else methods-text-kind ordinary text-write options
+
+  -- | A read method controls its own source representation without changing ordinary encoding.
+  methods-read-kind :: forall a. JsonKind -> JsonMethods a -> JsonKind
+  methods-read-kind ordinary methods = case methods of
+    Methods json-write text-write json-read text-read json-receiver text-receiver -> case json-read of
+      Some callback -> JsonInvalidKind
+      None -> case text-read of None -> ordinary; Some callback -> JsonInvalidKind
+
+  -- | Retain a returned marshal cause using the selected reporting policy and explicit application label.
+  methods-write-error :: String -> String -> JsonWriteOptions -> Bytes -> JsonError -> JsonError
+  methods-write-error label receiver options source cause =
+    if json-policy-enabled (json-write-policies options) JsonContinueAfterTypeErrors then JsonCustomError receiver (JsonReturnedError cause)
+    else case json-error-semantic cause of
+      Some info -> cause
+      None -> JsonSemanticError (json-semantic-info-with-value "marshal" 0 "" source label 0 (bytes-new 0)) cause
+
+  -- | Validate a complete JSON method result before it enters a containing value.
+  methods-json-encode :: forall a. String -> String -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonWriteOptions -> a -> Result JsonError Bytes
+  methods-json-encode label receiver callback options value = case callback options value of
+    Err cause -> Err (methods-write-error label receiver options (bytes-new 0) cause)
+    Ok raw -> case json-compact raw of
+      Err cause -> Err (methods-write-error label receiver options raw cause)
+      Ok output -> Ok (if json-write-html options then json-html-escape output else output)
+
+  -- | Preserve a text method's directly returned semantic context independently of containing output position.
+  methods-text-write-error :: String -> String -> JsonWriteOptions -> JsonError -> JsonError
+  methods-text-write-error label receiver options cause =
+    if json-policy-enabled (json-write-policies options) JsonContinueAfterTypeErrors then methods-write-error label receiver options (bytes-new 0) cause
+    else case cause of
+      JsonSemanticError info original -> json-preserve-error-context cause
+      other -> methods-write-error label receiver options (bytes-new 0) cause
+
+  -- | Select an eligible text writer or retain the ordinary fragment encoder.
+  methods-text-encode :: forall a. String -> String -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> Option (Bool, JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonWriteOptions -> a -> Result JsonError Bytes
+  methods-text-encode label receiver ordinary method options value = case method of
+    None -> ordinary options value
+    Some selected -> case selected of
+      (needs-address, callback) ->
+        if method-writer-eligible needs-address options then
+          case callback options value of
+            Err cause -> Err (methods-text-write-error label receiver options cause)
+            Ok text -> Ok (json-quote-bytes text (json-write-html options))
+        else ordinary options value
+
+  -- | Select an eligible JSON writer before considering text and ordinary fallback.
+  methods-encode :: forall a. String -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonMethods a -> JsonWriteOptions -> a -> Result JsonError Bytes
+  methods-encode label ordinary methods options value = case methods of
+    Methods json-write text-write json-read text-read json-receiver text-receiver -> case json-write of
+      None -> methods-text-encode label (method-receiver-type label text-receiver) ordinary text-write options value
+      Some selected -> case selected of (needs-address, callback) -> if method-writer-eligible needs-address options then methods-json-encode label (method-receiver-type label json-receiver) callback options value else methods-text-encode label (method-receiver-type label text-receiver) ordinary text-write options value
+
+  -- | Distinguish a directly returned syntax refusal from an ordinary semantic method error.
+  methods-read-syntax :: JsonError -> Bool
+  methods-read-syntax error = case error of JsonSyntaxError offset message -> True; JsonReturnedError cause -> methods-read-syntax cause; other -> False
+
+  -- | A method-returned read error retains its advanced value and follows the configured continuation policy.
+  methods-read-result :: forall a. String -> Bool -> JsonReadOptions -> JsonValue -> JsonDecoded a -> JsonDecoded a
+  methods-read-result label preserve-syntax options source decoded = case decoded of
+    Decoded value error fatal -> case error of
+      None -> Decoded value None fatal
+      Some cause ->
+        if json-policy-enabled (json-read-policies options) JsonContinueAfterTypeErrors then Decoded value (Some (JsonReturnedError cause)) (methods-read-syntax cause)
+        else if preserve-syntax && methods-read-syntax cause then Decoded value (Some (JsonReturnedError cause)) True
+        else case json-error-semantic cause of
+          Some info -> case cause of
+            JsonSemanticError owned original ->
+              if preserve-syntax then Decoded value (Some (json-preserve-error-context cause)) True
+              else Decoded value (Some (JsonSemanticError (json-semantic-with-offset owned (json-value-start source + json-semantic-offset owned)) original)) True
+            other -> Decoded value (Some cause) True
+          None -> Decoded value (Some (JsonSemanticError (json-semantic-info "unmarshal" (json-value-start source) "" (json-value-source source) label) (JsonReturnedError cause))) True
+
+  -- | Select a text reader for strings, preserve ordinary null policy and retain a typed non-string refusal.
+  methods-text-update :: forall a. String -> (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> Option (JsonReadOptions -> Bytes -> a -> JsonDecoded a) -> JsonReadOptions -> JsonValue -> a -> JsonDecoded a
+  methods-text-update label ordinary method options source prior = case method of
+    None -> ordinary options source prior
+    Some callback -> case json-value-kind source of
+      JsonNullKind -> ordinary options source prior
+      other -> case json-value-string source of
+        Some text -> methods-read-result label True options source (callback options (string-to-bytes text) prior)
+        None ->
+          let cause = JsonEncodingError (json-value-start source) "JSON value must be string type" in
+          if json-policy-enabled (json-read-policies options) JsonContinueAfterTypeErrors then json-decoded-with-error prior (JsonTypeCause label (case json-value-kind source of JsonBooleanKind -> "bool"; other -> source-description source) (source-error-offset source) "" cause)
+          else json-decoded-failure prior (JsonSemanticError (json-semantic-info "unmarshal" (json-value-start source) "" (json-value-source source) label) cause)
+
+  -- | JSON readers receive complete original values and take precedence over text readers, including on null.
+  methods-update :: forall a. String -> (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> JsonMethods a -> JsonReadOptions -> JsonValue -> a -> JsonDecoded a
+  methods-update label ordinary methods options source prior = case methods of
+    Methods json-write text-write json-read text-read json-receiver text-receiver -> case json-read of
+      Some callback -> methods-read-result label False options source (callback options source prior)
+      None -> methods-text-update label ordinary text-read options source prior
+
+  -- | Install independent methods while preserving defaults, omission predicates and ordinary fallback capabilities.
+  json-type-with-methods :: forall a. JsonType a -> JsonMethods a -> JsonType a
+  json-type-with-methods descriptor methods = case descriptor of
+    Type label root-name write-category read-category initial zero empty encode update -> Type label root-name (methods-write-kind write-category methods) (methods-read-kind read-category methods) initial zero empty (methods-encode label encode methods) (methods-update label update methods)
 
   -- | Encode a boolean without scalar text conversions.
   bool-encode :: JsonWriteOptions -> Bool -> Result JsonError Bytes
@@ -395,7 +757,7 @@ module Text.Json.Codec where
 
   -- | The boolean descriptor with false as both zero and empty.
   json-bool-type :: JsonType Bool
-  json-bool-type = Type "Bool" JsonBooleanKind (\unit -> False) not not bool-encode bool-update
+  json-bool-type = Type "Bool" "" (\options -> JsonBooleanKind) JsonBooleanKind (\unit -> False) not not bool-encode bool-update
 
   -- | Encode a scalar string using the shared bounded quoting pipeline.
   string-encode :: JsonWriteOptions -> String -> Result JsonError Bytes
@@ -409,7 +771,7 @@ module Text.Json.Codec where
 
   -- | The scalar-string descriptor with empty text as both zero and empty.
   json-string-type :: JsonType String
-  json-string-type = Type "String" JsonStringKind (\unit -> "") (\text -> text == "") (\text -> text == "") string-encode string-update
+  json-string-type = Type "String" "" (\options -> JsonStringKind) JsonStringKind (\unit -> "") (\text -> text == "") (\text -> text == "") string-encode string-update
 
   -- | Encode exact numeric text under the current nested stringification policy.
   numeric-encoded :: JsonWriteOptions -> String -> Bytes
@@ -446,7 +808,7 @@ module Text.Json.Codec where
 
   -- | The exact signed 64-bit integer descriptor.
   json-int64-type :: JsonType I64
-  json-int64-type = Type "I64" JsonNumberKind (\unit -> 0) (\value -> eq-i64 value 0) (\value -> eq-i64 value 0) int64-encode int64-update
+  json-int64-type = Type "I64" "" (\options -> JsonNumberKind) JsonNumberKind (\unit -> 0) (\value -> eq-i64 value 0) (\value -> eq-i64 value 0) int64-encode int64-update
 
   -- | Construct the absent-spelling default without a partial constructor.
   default-number :: Unit -> JsonNumber
@@ -479,7 +841,7 @@ module Text.Json.Codec where
 
   -- | Exact number lexemes with checked conversions and an absent-spelling zero default.
   json-number-type :: JsonType JsonNumber
-  json-number-type = Type "JsonNumber" JsonNumberKind default-number number-zero number-zero number-encode number-update
+  json-number-type = Type "JsonNumber" "" (\options -> JsonNumberKind) JsonNumberKind default-number number-zero number-zero number-encode number-update
 
   -- | Emit null for an absent raw message, otherwise validate, compact and apply the HTML policy.
   raw-encode :: JsonWriteOptions -> JsonRawMessage -> Result JsonError Bytes
@@ -501,11 +863,11 @@ module Text.Json.Codec where
 
   -- | Owned raw JSON fragments with copying assignment and validated marshaling.
   json-raw-type :: JsonType JsonRawMessage
-  json-raw-type = Type "JsonRawMessage" JsonInvalidKind (\unit -> json-raw-null) raw-zero raw-empty raw-encode raw-update
+  json-raw-type = Type "JsonRawMessage" "" (\options -> JsonInvalidKind) JsonInvalidKind (\unit -> json-raw-null) raw-zero raw-empty raw-encode raw-update
 
   -- | Encode an explicit absent/present value without fabricating mutable pointers.
   nullable-encode :: forall a. JsonType a -> JsonWriteOptions -> Option a -> Result JsonError Bytes
-  nullable-encode descriptor options value = case value of None -> Ok (string-to-bytes "null"); Some present -> json-marshal-value descriptor options present
+  nullable-encode descriptor options value = case value of None -> Ok (string-to-bytes "null"); Some present -> marshal-fragment descriptor (json-write-with-addressability options True) present
 
   -- | Null clears an optional value; a non-null value updates its previous pointee when present.
   nullable-update :: forall a. JsonType a -> JsonReadOptions -> JsonValue -> Option a -> JsonDecoded (Option a)
@@ -521,7 +883,7 @@ module Text.Json.Codec where
 
   -- | Compose an explicit nullable/pointee descriptor with ordinary typed update semantics.
   json-nullable-type :: forall a. JsonType a -> JsonType (Option a)
-  json-nullable-type descriptor = Type (string-concat "Option " (json-type-label descriptor)) (json-type-kind descriptor) (\unit -> None) nullable-empty nullable-empty (nullable-encode descriptor) (nullable-update descriptor)
+  json-nullable-type descriptor = Type (string-concat "Option " (json-type-label descriptor)) (json-type-read-name descriptor) (\options -> json-type-write-kind-with descriptor (json-write-with-addressability options True)) (json-type-read-kind descriptor) (\unit -> None) nullable-empty nullable-empty (nullable-encode descriptor) (nullable-update descriptor)
 
   -- | Sum immutable byte fragments with a tail traversal before allocating an output.
   fragment-size :: List Bytes -> Nat -> Nat
@@ -547,21 +909,49 @@ module Text.Json.Codec where
   stop-decoding :: forall a. JsonReadOptions -> JsonDecoded a -> Bool
   stop-decoding options decoded = json-decoded-fatal decoded || (not (json-policy-enabled (json-read-policies options) JsonContinueAfterTypeErrors) && (case json-decoded-error decoded of None -> False; Some error -> True))
 
+  -- | Escape one pointer component without repeatedly copying a growing prefix.
+  method-pointer-component :: List Char -> List String -> String
+  method-pointer-component characters pieces = case characters of
+    Nil -> string-concat-all (reverse pieces)
+    Cons first rest -> method-pointer-component rest (Cons (if char-code first == 126 then "~0" else if char-code first == 47 then "~1" else pack (Cons first Nil)) pieces)
+
+  -- | Extend precise pointers and explicitly supplied conventional field context independently.
+  semantic-context-info :: String -> String -> JsonSemanticInfo -> JsonSemanticInfo
+  semantic-context-info name conventional info =
+    let pointer = string-concat-all ["/", method-pointer-component (unpack name) Nil, json-semantic-pointer info] in
+    let updated = json-semantic-with-pointer info pointer in
+    case json-semantic-field-path info of
+      None -> updated
+      Some inner ->
+        let path = if inner == "" then conventional else case string-char-at inner 0 of Some character -> if char-code character == 91 then string-concat conventional inner else string-concat-all [conventional, ".", inner]; None -> conventional in
+        json-semantic-with-field-path updated (Some path)
+
+  -- | Prepend one semantic pointer component while retaining its owned source and original cause.
+  semantic-member-cause :: String -> JsonSemanticInfo -> JsonError -> JsonError
+  semantic-member-cause name info cause = JsonSemanticError (semantic-context-info name name info) cause
+
+  -- | Preserve returned method errors and use numeric pointer components for semantic sequence failures.
+  index-cause :: Nat -> JsonError -> JsonError
+  index-cause at error = case error of
+    JsonWrittenError info cause -> JsonWrittenError info (index-cause at cause)
+    JsonSemanticError info cause -> JsonSemanticError (semantic-context-info (nat-to-string at) (string-concat-all ["[", nat-to-string at, "]"]) info) cause
+    other -> case json-error-returned error of Some cause -> error; None -> record-member-path (string-concat-all ["[", nat-to-string at, "]"]) error
+
   -- | Add one sequence position to an existing structured error without losing its source offset.
   index-error :: Nat -> Option JsonError -> Option JsonError
-  index-error at error = case error of None -> None; Some cause -> Some (record-member-path (string-concat-all ["[", nat-to-string at, "]"]) cause)
+  index-error at error = case error of None -> None; Some cause -> Some (index-cause at cause)
 
   -- | Encode a sequence into ordered fragments without repeatedly copying its prefix.
   list-encode-from :: forall a. JsonType a -> JsonWriteOptions -> List a -> Nat -> List Bytes -> Result JsonError Bytes
   list-encode-from descriptor options values at pieces = case values of
     Nil -> Ok (join-fragments (reverse (Cons (string-to-bytes "]") pieces)))
-    Cons first rest -> case json-marshal-value descriptor options first of
-      Err error -> Err (JsonPathError (string-concat-all ["[", nat-to-string at, "]"]) error)
+    Cons first rest -> case marshal-fragment descriptor options first of
+      Err error -> Err (write-next-error pieces (string-to-bytes (if at > 0 then "," else "")) (index-cause at error))
       Ok output -> list-encode-from descriptor options rest (at + 1) (Cons output (if at > 0 then Cons (string-to-bytes ",") pieces else pieces))
 
   -- | Begin a non-null JSON array using the supplied element capability.
   list-encode :: forall a. JsonType a -> JsonWriteOptions -> List a -> Result JsonError Bytes
-  list-encode descriptor options values = list-encode-from descriptor options values 0 (Cons (string-to-bytes "[") Nil)
+  list-encode descriptor options values = list-encode-from descriptor (json-write-with-addressability options True) values 0 (Cons (string-to-bytes "[") Nil)
 
   -- | Complete unvisited elements after an explicitly stopping error using the proper prior/default values.
   list-fill-rest :: forall a. JsonType a -> Bool -> Nat -> List a -> List a -> List a
@@ -600,7 +990,7 @@ module Text.Json.Codec where
 
   -- | Compose non-null arrays represented by ordinary immutable lists.
   json-list-type :: forall a. JsonType a -> JsonType (List a)
-  json-list-type descriptor = Type (string-concat "List " (json-type-label descriptor)) JsonArrayKind (\unit -> Nil) list-empty list-empty (list-encode descriptor) (list-update descriptor)
+  json-list-type descriptor = Type (string-concat "List " (json-type-label descriptor)) "" (\options -> JsonArrayKind) JsonArrayKind (\unit -> Nil) list-empty list-empty (list-encode descriptor) (list-update descriptor)
 
   -- | Distinguish a null sequence from a present empty array using an explicit optional list.
   json-slice-type :: forall a. JsonType a -> JsonType (Option (List a))
@@ -636,7 +1026,7 @@ module Text.Json.Codec where
 
   -- | Marshal fixed arrays while refusing an application value with the wrong declared length.
   fixed-array-encode :: forall a. JsonType a -> Nat -> JsonWriteOptions -> Array a -> Result JsonError Bytes
-  fixed-array-encode descriptor size options values = if array-length values == size then list-encode descriptor options (codec-array-list values)
+  fixed-array-encode descriptor size options values = if array-length values == size then list-encode-from descriptor options (codec-array-list values) 0 (Cons (string-to-bytes "[") Nil)
     else Err (JsonValueError "Array" "application array length differs from its JSON descriptor")
 
   -- | Update exactly the declared array positions, zeroing any positions absent from the source.
@@ -666,7 +1056,7 @@ module Text.Json.Codec where
 
   -- | Compose an exact fixed-array descriptor with immutable element defaults and checked lengths.
   json-fixed-array-type :: forall a. JsonType a -> Nat -> JsonType (Array a)
-  json-fixed-array-type descriptor size = Type (string-concat-all ["Array ", nat-to-string size, " ", json-type-label descriptor]) JsonArrayKind (fixed-array-default descriptor size) (\values -> fixed-array-zero-from descriptor values 0) fixed-array-empty (fixed-array-encode descriptor size) (fixed-array-update descriptor size)
+  json-fixed-array-type descriptor size = Type (string-concat-all ["Array ", nat-to-string size, " ", json-type-label descriptor]) "" (\options -> JsonArrayKind) JsonArrayKind (fixed-array-default descriptor size) (\values -> fixed-array-zero-from descriptor values 0) fixed-array-empty (fixed-array-encode descriptor size) (fixed-array-update descriptor size)
 
   -- | Observe floating-point exponent bits without changing NaN payloads or signed zero.
   prim float64-bits :: F64 -> U64 where
@@ -764,7 +1154,7 @@ module Text.Json.Codec where
 
   -- | The finite binary64 descriptor with shortest JSON decimal formatting.
   json-float64-type :: JsonType F64
-  json-float64-type = Type "F64" JsonNumberKind (\unit -> (i64-to-f64 0)) (\value -> feq-f64 value (i64-to-f64 0)) (\value -> feq-f64 value (i64-to-f64 0)) float64-encode float64-update
+  json-float64-type = Type "F64" "" (\options -> JsonNumberKind) JsonNumberKind (\unit -> (i64-to-f64 0)) (\value -> feq-f64 value (i64-to-f64 0)) (\value -> feq-f64 value (i64-to-f64 0)) float64-encode float64-update
 
   -- | Encode finite binary32 values with shortest exact decimal coefficients.
   float32-encode :: JsonWriteOptions -> F32 -> Result JsonError Bytes
@@ -788,7 +1178,7 @@ module Text.Json.Codec where
 
   -- | The finite binary32 descriptor with exact rounding and shortest JSON decimal formatting.
   json-float32-type :: JsonType F32
-  json-float32-type = Type "F32" JsonNumberKind (\unit -> (i64-to-f32 0)) (\value -> feq-f32 value (i64-to-f32 0)) (\value -> feq-f32 value (i64-to-f32 0)) float32-encode float32-update
+  json-float32-type = Type "F32" "" (\options -> JsonNumberKind) JsonNumberKind (\unit -> (i64-to-f32 0)) (\value -> feq-f32 value (i64-to-f32 0)) (\value -> feq-f32 value (i64-to-f32 0)) float32-encode float32-update
 
   -- | Private persistent AVL nodes support bounded lookup and update paths for typed object keys.
   data JsonTree k v where
@@ -914,20 +1304,27 @@ module Text.Json.Codec where
     Field name bytes options zero empty encode update -> case options of
       FieldOptions omit-empty omit-zero quoted depth named matching -> case matching of JsonFieldExactMatch -> False; other -> True
 
-  -- | Encode one field value, applying scalar quoting only to supported declared categories.
+  -- | Encode a field with declared quoting semantics and refuse incompatible tags under stopped reporting.
   field-encode-value :: forall b. JsonType b -> Bool -> JsonWriteOptions -> b -> Result JsonError Bytes
   field-encode-value descriptor quoted options value =
-    if quoted && json-policy-enabled (json-write-policies options) JsonQuoteScalarFields then
-      case json-type-kind descriptor of
-        JsonNumberKind -> scalar-quote-value descriptor options value
-        JsonBooleanKind -> scalar-quote-value descriptor options value
-        JsonStringKind -> scalar-quote-value descriptor options value
-        other -> json-marshal-value descriptor options value
-    else json-marshal-value descriptor (if quoted then json-write-with-stringify-numbers options True else options) value
+    if not quoted then marshal-fragment descriptor options value
+    else
+      let legacy-quote = json-policy-enabled (json-write-policies options) JsonQuoteScalarFields in
+      let reject = not (json-policy-enabled (json-write-policies options) JsonContinueAfterTypeErrors) in
+      let category = json-type-write-kind-with descriptor options in
+      let invalid = case category of JsonBooleanKind -> not legacy-quote; JsonStringKind -> not legacy-quote; JsonArrayKind -> True; JsonObjectKind -> True; other -> False in
+      if reject && invalid then Err (JsonSemanticError (json-semantic-info-with-value "marshal" 0 "" (bytes-new 0) (json-type-label descriptor) 0 (bytes-new 0)) (JsonEncodingError 0 "invalid use of `string` tag option"))
+      else if legacy-quote then
+        case category of
+          JsonNumberKind -> scalar-quote-value descriptor options value
+          JsonBooleanKind -> scalar-quote-value descriptor options value
+          JsonStringKind -> scalar-quote-value descriptor options value
+          other -> marshal-fragment descriptor options value
+      else marshal-fragment descriptor (json-write-with-stringify-numbers options True) value
 
   -- | Wrap an ordinary scalar's complete lexical spelling as text while keeping null unquoted.
   scalar-quote-value :: forall b. JsonType b -> JsonWriteOptions -> b -> Result JsonError Bytes
-  scalar-quote-value descriptor options value = case json-marshal-value descriptor (json-write-with-stringify-numbers options False) value of
+  scalar-quote-value descriptor options value = case marshal-fragment descriptor (json-write-with-stringify-numbers options False) value of
     Err error -> Err error
     Ok output -> if bytes-len output > 0 && bytes-get output 0 == 110 then Ok output else Ok (json-quote-bytes output (json-write-html options))
 
@@ -957,7 +1354,7 @@ module Text.Json.Codec where
   field-update-value :: forall b. JsonType b -> Bool -> JsonReadOptions -> JsonValue -> b -> JsonDecoded b
   field-update-value descriptor quoted options source prior =
     if quoted && json-policy-enabled (json-read-policies options) JsonQuoteScalarFields then
-      case json-type-kind descriptor of
+      case json-type-read-kind descriptor of
         JsonNumberKind -> json-update-value descriptor (json-read-with-stringify-numbers options True) source prior
         JsonBooleanKind -> scalar-quoted-update descriptor options source prior
         JsonStringKind -> scalar-quoted-update descriptor options source prior
@@ -1035,7 +1432,7 @@ module Text.Json.Codec where
       FieldOptions omit-empty omit-zero quoted depth named matching ->
         if (omit-zero && zero value) || (omit-empty && json-policy-enabled (json-write-policies options) JsonOmitEmptyApplicationValues && empty value) then Ok None
         else case encode options value of
-          Err error -> Err (JsonPathError name error)
+          Err error -> Err (record-member-path name error)
           Ok output -> if omit-empty && not (json-policy-enabled (json-write-policies options) JsonOmitEmptyApplicationValues) && encoded-empty output then Ok None else Ok (Some output)
 
   -- | Render visible record fields without copying the growing object prefix.
@@ -1043,7 +1440,11 @@ module Text.Json.Codec where
   record-encode-from fields options value count pieces = case fields of
     Nil -> Ok (join-fragments (reverse (Cons (string-to-bytes "}") pieces)))
     Cons first rest -> case record-field-output first options value of
-      Err error -> Err error
+      Err error -> case first of
+        Field name name-bytes field-options zero empty encode update ->
+          let prefix = if count > 0 then Cons (string-to-bytes ",") pieces else pieces in
+          let key = json-quote-bytes name-bytes (json-write-html options) in
+          Err (write-next-error (Cons key prefix) (string-to-bytes ":") error)
       Ok absent -> case absent of
         None -> record-encode-from rest options value count pieces
         Some output -> case first of
@@ -1144,10 +1545,16 @@ module Text.Json.Codec where
 
   -- | Combine nested member/index path context without discarding an existing conversion cause.
   record-member-path :: String -> JsonError -> JsonError
-  record-member-path name error =
-    let inner = json-error-path error in
-    let path = if inner == "" then name else case string-char-at inner 0 of Some character -> if char-code character == 91 then string-concat name inner else string-concat-all [name, ".", inner]; None -> name in
-    JsonPathError path error
+  record-member-path name error = case error of
+    JsonWrittenError info cause -> JsonWrittenError info (record-member-path name cause)
+    JsonSemanticError info cause -> semantic-member-cause name info cause
+    other -> case json-error-returned error of
+      Some cause -> error
+      None ->
+        let inner = json-error-path error in
+        let escaped = method-pointer-component (unpack name) Nil in
+        let path = if inner == "" then escaped else case string-char-at inner 0 of Some character -> if char-code character == 91 then string-concat escaped inner else string-concat-all [escaped, ".", inner]; None -> escaped in
+        JsonPathError path error
 
   -- | Apply each object member in source order, preserving later duplicate updates and the first error.
   record-update-members :: forall a. JsonTree String (FieldCandidate a) -> List (JsonField a) -> JsonReadOptions -> List JsonMember -> a -> Option JsonError -> JsonDecoded a
@@ -1177,7 +1584,7 @@ module Text.Json.Codec where
   json-record-type label initial zero fields =
     let candidates = record-candidates fields 0 TreeEmpty in
     let visible = record-visible-fields fields 0 candidates Nil in
-    Type label JsonObjectKind initial zero (\value -> False) (record-encode visible) (record-update label initial candidates visible)
+    Type label "" (\options -> JsonObjectKind) JsonObjectKind initial zero (\value -> False) (record-encode visible) (record-update label initial candidates visible)
 
   -- | Decode eight validated ASCII decimal lanes in parallel, returning 100000000 for malformed input.
   -- The input word is explicitly little-endian, independent of the target byte order.
@@ -1244,7 +1651,7 @@ module Text.Json.Codec where
 
   -- | Full-range unsigned64 numbers with checked parsing and SWAR decimal blocks.
   json-uint64-type :: JsonType U64
-  json-uint64-type = Type "U64" JsonNumberKind (\unit -> 0) (\value -> eq-u64 value 0) (\value -> eq-u64 value 0) uint64-encode uint64-update
+  json-uint64-type = Type "U64" "" (\options -> JsonNumberKind) JsonNumberKind (\unit -> 0) (\value -> eq-u64 value 0) (\value -> eq-u64 value 0) uint64-encode uint64-update
 
   -- | Specialize a numeric error's declared label without discarding its value, path, offset or cause.
   numeric-error-label :: String -> JsonError -> JsonError
@@ -1271,7 +1678,7 @@ module Text.Json.Codec where
 
   -- | Compose a signed machine-width descriptor from exact widening and checked narrowing capabilities.
   narrow-signed-type :: forall a. String -> a -> (a -> I64) -> (I64 -> Option a) -> JsonType a
-  narrow-signed-type label initial widen convert-width = Type label JsonNumberKind (\unit -> initial) (\value -> eq-i64 (widen value) 0) (\value -> eq-i64 (widen value) 0) (\options value -> int64-encode options (widen value)) (narrow-signed-update label widen convert-width)
+  narrow-signed-type label initial widen convert-width = Type label "" (\options -> JsonNumberKind) JsonNumberKind (\unit -> initial) (\value -> eq-i64 (widen value) 0) (\value -> eq-i64 (widen value) 0) (\options value -> int64-encode options (widen value)) (narrow-signed-update label widen convert-width)
 
   -- | Apply unsigned SWAR parsing before a supplied checked application-width conversion.
   narrow-unsigned-update :: forall a. String -> (a -> U64) -> (U64 -> Option a) -> JsonReadOptions -> JsonValue -> a -> JsonDecoded a
@@ -1282,7 +1689,7 @@ module Text.Json.Codec where
 
   -- | Compose an unsigned machine-width descriptor from exact widening and checked narrowing capabilities.
   narrow-unsigned-type :: forall a. String -> a -> (a -> U64) -> (U64 -> Option a) -> JsonType a
-  narrow-unsigned-type label initial widen convert-width = Type label JsonNumberKind (\unit -> initial) (\value -> eq-u64 (widen value) 0) (\value -> eq-u64 (widen value) 0) (\options value -> uint64-encode options (widen value)) (narrow-unsigned-update label widen convert-width)
+  narrow-unsigned-type label initial widen convert-width = Type label "" (\options -> JsonNumberKind) JsonNumberKind (\unit -> initial) (\value -> eq-u64 (widen value) 0) (\value -> eq-u64 (widen value) 0) (\options value -> uint64-encode options (widen value)) (narrow-unsigned-update label widen convert-width)
 
   -- | Signed eight-bit integers with exact range refusal.
   json-int8-type :: JsonType I8
@@ -1414,7 +1821,7 @@ module Text.Json.Codec where
 
   -- | Non-null binary bytes; null clears to an empty buffer and marshaling always emits binary text.
   json-bytes-type :: JsonType Bytes
-  json-bytes-type = Type "Bytes" JsonStringKind (\unit -> bytes-new 0) bytes-empty bytes-empty binary-encode binary-update
+  json-bytes-type = Type "Bytes" "" (\options -> JsonStringKind) JsonStringKind (\unit -> bytes-new 0) bytes-empty bytes-empty binary-encode binary-update
 
   -- | Distinguish an absent byte slice from a present empty slice during marshaling.
   byte-slice-encode :: JsonWriteOptions -> Option Bytes -> Result JsonError Bytes
@@ -1446,7 +1853,7 @@ module Text.Json.Codec where
 
   -- | Nullable binary byte slices preserve the null/empty distinction and numeric-array update behavior.
   json-byte-slice-type :: JsonType (Option Bytes)
-  json-byte-slice-type = Type "Bytes" JsonStringKind (\unit -> None) byte-slice-zero byte-slice-empty byte-slice-encode byte-slice-update
+  json-byte-slice-type = Type "Bytes" "" (\options -> JsonStringKind) JsonStringKind (\unit -> None) byte-slice-zero byte-slice-empty byte-slice-encode byte-slice-update
 
   -- | Encode a fixed byte array using explicit numeric-array or binary-text policy.
   fixed-bytes-encode :: Nat -> JsonWriteOptions -> Bytes -> Result JsonError Bytes
@@ -1483,7 +1890,7 @@ module Text.Json.Codec where
 
   -- | Fixed-size owned byte buffers, numeric by default, with explicit binary-string alternate policy.
   json-fixed-bytes-type :: Nat -> JsonType Bytes
-  json-fixed-bytes-type size = Type (string-concat "FixedBytes " (nat-to-string size)) JsonArrayKind (\unit -> bytes-new size) (\value -> bytes-len value == size && bytes-zero-from value 0) bytes-empty (fixed-bytes-encode size) (fixed-bytes-update size)
+  json-fixed-bytes-type size = Type (string-concat "FixedBytes " (nat-to-string size)) "" (\options -> JsonArrayKind) JsonArrayKind (\unit -> bytes-new size) (\value -> bytes-len value == size && bytes-zero-from value 0) bytes-empty (fixed-bytes-encode size) (fixed-bytes-update size)
 
   -- | Private key results distinguish scalar text from caller-owned arbitrary encoded bytes.
   data JsonKeyName where
@@ -1584,7 +1991,7 @@ module Text.Json.Codec where
 
   -- | Encode a typed key as JSON, requiring the resulting token to be a member-name string.
   key-encode-json :: forall k. JsonType k -> JsonWriteOptions -> k -> Result JsonError JsonKeyName
-  key-encode-json descriptor options key = case json-marshal-value descriptor (json-write-with-stringify-numbers options True) key of
+  key-encode-json descriptor options key = case marshal-fragment descriptor (json-write-with-stringify-numbers options True) key of
     Err error -> Ok (InvalidKeyName error)
     Ok output -> case json-document output of
       Err error -> Ok (InvalidKeyName error)
@@ -1716,7 +2123,7 @@ module Text.Json.Codec where
     Cons first rest -> case first of
       (key, value) -> case descriptor of
         UnsupportedKey label compare -> Err (JsonUnsupportedType (string-concat "object key " label))
-        KeySpec label compare encode decode -> case encode options key of
+        KeySpec label compare encode decode -> case encode (json-write-with-addressability options False) key of
           Err error -> Err (JsonCustomError label error)
           Ok name -> case key-name-bytes name of
             Err error -> Err error
@@ -1728,8 +2135,12 @@ module Text.Json.Codec where
     Nil -> Ok (join-fragments (reverse (Cons (string-to-bytes "}") pieces)))
     Cons first rest -> case first of
       (key, value) -> case key of
-        NameKey name ordinal -> case json-marshal-value descriptor options value of
-          Err error -> Err error
+        NameKey name ordinal -> case marshal-fragment descriptor (json-write-with-addressability options False) value of
+          Err error ->
+            let before = if count == 0 then pieces else Cons (string-to-bytes ",") pieces in
+            let key = json-quote-bytes name (json-write-html options) in
+            let label = case string-from-bytes name of Some text -> text; None -> "" in
+            Err (write-next-error (Cons key before) (string-to-bytes ":") (record-member-path label error))
           Ok output -> let before = if count == 0 then pieces else Cons (string-to-bytes ",") pieces in
             map-encode-entries descriptor options rest (count + 1) (Cons output (Cons (string-to-bytes ":") (Cons (json-quote-bytes name (json-write-html options)) before)))
 
@@ -1791,4 +2202,4 @@ module Text.Json.Codec where
   json-map-type :: forall k v. JsonKey k -> JsonType v -> JsonType (JsonMap k v)
   json-map-type key descriptor =
     let label = map-type-label key descriptor in
-    Type label JsonObjectKind (\unit -> json-map-null key) json-map-is-null map-empty (map-encode key descriptor) (map-update key descriptor label)
+    Type label "" (\options -> JsonObjectKind) JsonObjectKind (\unit -> json-map-null key) json-map-is-null map-empty (map-encode key descriptor) (map-update key descriptor label)

@@ -11,3 +11,4 @@ bootstrap/repros/current-release-qualified/*.log -whitespace
 bootstrap/repros/byte-fields-parent-qualified/*.log -whitespace
 bootstrap/repros/uuid-parent-qualified/*.log -whitespace
 bootstrap/repros/json-parent-v2-failures/*.log -whitespace
+bootstrap/repros/json-parent-qualified/*.log -whitespace

@@ -94,7 +94,7 @@ module Text.Json.Dynamic where
   -- present for omission, including a typed value whose descriptor emits null.
   -- Mutable application data follows the supplied descriptor's aliasing contract.
   json-any-typed :: forall a. JsonType a -> a -> JsonAny
-  json-any-typed descriptor value = AnyTyped (json-type-label descriptor) (\options -> json-marshal-value descriptor options value)
+  json-any-typed descriptor value = AnyTyped (json-type-label descriptor) (\options -> json-marshal-value descriptor (json-write-with-addressability options False) value)
 
   -- | Inspect an opaque typed payload's label without fabricating a decoded representation.
   json-any-typed-label :: JsonAny -> Option String

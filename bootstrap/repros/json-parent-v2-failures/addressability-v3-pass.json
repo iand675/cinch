@@ -1,0 +1,14 @@
+{
+  "scope": "Previously qualified Dynamic dependency correction; no observation/fixture weakening.",
+  "source_dependency_commit": "765ad059",
+  "file": "compiler/prelude/Text/Json/Dynamic.cinch",
+  "file_sha256": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93",
+  "change": "Clear inherited addressability on an opaque typed interface payload.",
+  "test": "json_method_addressability_outputs_and_callback_counts_match_observations",
+  "passed": 1,
+  "failed": 0,
+  "runtime_seconds": 5.87,
+  "log": "bootstrap/repros/json-parent-v2-failures/addressability-v3-pass.log",
+  "log_sha256": "e21d9e28692e739c0302bcd5d749e87aa49348aae081e54b7eadeabccc550bb2",
+  "remaining_parent_failure": "Conventional read-error field path versus dedicated semantic pointer (control9)"
+}

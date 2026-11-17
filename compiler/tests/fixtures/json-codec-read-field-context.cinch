@@ -1,0 +1,116 @@
+-- | Conventional field compatibility and precise semantic pointers retain independent ownership and meaning.
+module Main where
+  import Text.Json.Codec
+  import Text.Json.Value
+  import Data.Machine
+
+  -- | Inspect a pair's first scalar.
+  left :: (I64, I64) -> I64
+  left pair = case pair of (a, b) -> a
+
+  -- | Inspect a pair's later scalar.
+  right :: (I64, I64) -> I64
+  right pair = case pair of (a, b) -> b
+
+  -- | Replace only the first scalar.
+  set-left :: I64 -> (I64, I64) -> (I64, I64)
+  set-left next prior = case prior of (a, b) -> (next, b)
+
+  -- | Replace only the later scalar.
+  set-right :: I64 -> (I64, I64) -> (I64, I64)
+  set-right next prior = case prior of (a, b) -> (a, next)
+
+  -- | Construct a record while retaining literal conventional member names.
+  pair-type :: String -> JsonType I64 -> JsonType (I64, I64)
+  pair-type name value-type = json-record-type "Pair" (\unit -> (7,8)) (\pair -> False) [json-field name value-type left set-left, json-field "b" json-int64-type right set-right]
+
+  -- | Stop after the first typed refusal without changing the prior policy's fatal classification.
+  options :: JsonReadOptions
+  options = json-read-options False False (json-configure-policies json-default-policies [json-continue-after-type-errors False])
+
+  -- | Observe a precise pointer and an explicitly supplied conventional field path independently.
+  ordinary-context :: JsonError -> String -> String -> Nat -> Bool
+  ordinary-context error field pointer offset =
+    json-error-path error == field && json-error-offset error == offset && (case json-error-semantic error of
+      None -> False
+      Some info -> json-semantic-pointer info == pointer && (case json-semantic-field-path info of None -> False; Some path -> path == field))
+
+  -- | Preserve the exact original stopped pair control and independently check its dedicated pointer.
+  ordinary :: Unit -> Bool
+  ordinary unit =
+    let decoded = json-update-with (pair-type "a" json-int64-type) options (string-to-bytes "{\"a\":\"bad\",\"b\":2}") (7,8) in
+    eq-i64 (left (json-decoded-value decoded)) 7 && eq-i64 (right (json-decoded-value decoded)) 8 && not (json-decoded-fatal decoded)
+      && (case json-decoded-error decoded of None -> False; Some error -> ordinary-context error "a" "/a" 5)
+
+  -- | Escape only the precise pointer while preserving the literal conventional field component.
+  escaped :: Unit -> Bool
+  escaped unit =
+    let decoded = json-update-with (pair-type "a/b~" json-int64-type) options (string-to-bytes "{\"a/b~\":\"bad\",\"b\":2}") (7,8) in
+    eq-i64 (left (json-decoded-value decoded)) 7 && eq-i64 (right (json-decoded-value decoded)) 8
+      && (case json-decoded-error decoded of None -> False; Some error -> ordinary-context error "a/b~" "/a~1b~0" 8)
+
+  -- | Inspect the independently retained prior array elements.
+  first-list :: (List I64, I64) -> List I64
+  first-list pair = case pair of (values, after) -> values
+
+  -- | Inspect the later scalar outside an array.
+  after-list :: (List I64, I64) -> I64
+  after-list pair = case pair of (values, after) -> after
+
+  -- | Install updated array elements without changing the later scalar.
+  set-list :: List I64 -> (List I64, I64) -> (List I64, I64)
+  set-list next prior = case prior of (values, after) -> (next, after)
+
+  -- | Install only the scalar following an array.
+  set-after-list :: I64 -> (List I64, I64) -> (List I64, I64)
+  set-after-list next prior = case prior of (values, after) -> (values, next)
+
+  -- | Keep conventional array indexes distinct from pointer components.
+  array-context :: Unit -> Bool
+  array-context unit =
+    let descriptor = json-record-type "ArrayPair" (\unit -> ([7,8],8)) (\pair -> False) [json-field "a" (json-list-type json-int64-type) first-list set-list, json-field "b" json-int64-type after-list set-after-list] in
+    let decoded = json-update-with descriptor options (string-to-bytes "{\"a\":[\"bad\"],\"b\":2}") ([7,8],8) in
+    eq-i64 (after-list (json-decoded-value decoded)) 8 && (case first-list (json-decoded-value decoded) of Cons value Nil -> eq-i64 value 7; other -> False) && (case json-decoded-error decoded of None -> False; Some error -> ordinary-context error "a[0]" "/a/0" 6)
+
+  -- | Construct a user-owned semantic error with no conventional path or application identity.
+  returned :: JsonError
+  returned = JsonSemanticError (json-semantic-info-with-optional-type "" 2 "/owned~0" (string-to-bytes "12") None 48 (string-to-bytes "12")) (JsonEncodingError 0 "owned")
+
+  -- | Return a user error from a JSON callback without changing the prior value.
+  json-read :: JsonReadOptions -> JsonValue -> I64 -> JsonDecoded I64
+  json-read options source prior = json-decoded-with-error prior returned
+
+  -- | Return the same user error from a text callback without changing the prior value.
+  text-read :: JsonReadOptions -> Bytes -> I64 -> JsonDecoded I64
+  text-read options source prior = json-decoded-with-error prior returned
+
+  -- | Preserve user-supplied absence while observing its original or composed precise pointer.
+  user-context :: JsonError -> String -> Nat -> Bool
+  user-context error pointer offset =
+    json-error-path error == pointer && json-error-offset error == offset && (case json-error-type error of None -> True; Some label -> False)
+      && (case json-error-semantic error of None -> False; Some info -> json-semantic-pointer info == pointer && (case json-semantic-field-path info of None -> True; Some path -> False))
+
+  -- | Compose JSON user pointers while preserving their independently absent conventional context.
+  json-user :: Unit -> Bool
+  json-user unit =
+    let value-type = json-type-with-methods json-int64-type (json-methods None None (Some json-read) None) in
+    let decoded = json-update-with (pair-type "a" value-type) options (string-to-bytes "{\"a\":\"bad\",\"b\":2}") (7,8) in
+    case json-decoded-error decoded of None -> False; Some error -> user-context error "/a/owned~0" 7
+
+  -- | Preserve text user context verbatim through a containing record.
+  text-user :: Unit -> Bool
+  text-user unit =
+    let value-type = json-type-with-methods json-int64-type (json-methods None None None (Some text-read)) in
+    let decoded = json-update-with (pair-type "a" value-type) options (string-to-bytes "{\"a\":\"bad\",\"b\":2}") (7,8) in
+    case json-decoded-error decoded of None -> False; Some error -> user-context error "/owned~0" 2
+
+  -- | Replace unrelated immutable metadata without losing an explicitly supplied conventional path.
+  sharing :: Unit -> Bool
+  sharing unit =
+    let info = json-semantic-with-field-path (json-semantic-info-with-optional-type "unmarshal" 2 "/a" (string-to-bytes "12") None 48 (string-to-bytes "12")) (Some "a") in
+    let updated = json-semantic-with-type (json-semantic-with-offset (json-semantic-with-pointer info "/b") 3) (Some "Named") in
+    (case json-semantic-field-path updated of None -> False; Some path -> path == "a") && json-semantic-pointer updated == "/b" && json-semantic-offset updated == 3
+
+  -- | Return the first focused compatibility control without altering any original oracle or fixture.
+  main :: Int
+  main = if not (ordinary ()) then 1 else if not (escaped ()) then 2 else if not (array-context ()) then 3 else if not (json-user ()) then 4 else if not (text-user ()) then 5 else if not (sharing ()) then 6 else 0

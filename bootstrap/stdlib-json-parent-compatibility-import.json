@@ -1,0 +1,18 @@
+{
+  "scope": "Exact source candidate already passed focused6 + unchanged14 controls and857 canonical docs; public conventional path compatibility remains distinct from precise semantic pointer.",
+  "source_publication": "5bf2e4b2",
+  "files": [
+    {
+      "path": "compiler/prelude/Text/Json/Value.cinch",
+      "old_sha256": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+      "new_sha256": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758"
+    },
+    {
+      "path": "compiler/prelude/Text/Json/Codec.cinch",
+      "old_sha256": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595",
+      "new_sha256": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3"
+    }
+  ],
+  "parent_gate": "Full33 release pass,134.95s; bootstrap/stdlib-json-parent-results.json",
+  "source_checkpoint": "bootstrap/stdlib-json-read-field-context-checkpoint-v1.json"
+}

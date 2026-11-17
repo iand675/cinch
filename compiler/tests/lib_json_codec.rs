@@ -3,9 +3,33 @@ mod common;
 
 use cinch::driver::Mode;
 
+/// Retain complete generated inputs and diagnostics if a qualification assertion fails.
+struct QualificationDirectory(Option<tempfile::TempDir>);
+
+impl QualificationDirectory {
+    /// Borrow the owned project path without transferring cleanup responsibility.
+    fn path(&self) -> &std::path::Path {
+        self.0.as_ref().unwrap().path()
+    }
+}
+
+impl Drop for QualificationDirectory {
+    /// Preserve source, interfaces and executable evidence while unwinding a failed test.
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            if let Some(directory) = self.0.take() {
+                eprintln!(
+                    "retained failed JSON qualification: {}",
+                    directory.keep().display()
+                );
+            }
+        }
+    }
+}
+
 /// Build a source-distributed JSON consumer and check ordinary and poisoned reclamation.
 fn run(source: &str) {
-    let directory = tempfile::tempdir().unwrap();
+    let directory = QualificationDirectory(Some(tempfile::tempdir().unwrap()));
     for (name, contents) in [
         (
             "Text.Json.Binary32",
@@ -145,6 +169,26 @@ fn json_dynamic_owners_and_legacy_bridges_are_bounded() {
     run(include_str!("fixtures/json-codec-dynamic-control.cinch"));
 }
 
+/// Independently selected method directions and semantic token/value exports retain bounded owners.
+#[test]
+fn json_method_categories_and_semantic_owners_are_bounded() {
+    run(include_str!(
+        "fixtures/json-codec-method-owner-control.cinch"
+    ));
+}
+
+/// Method priority, returned causes, advanced values and first-error continuation remain observable.
+#[test]
+fn json_method_priority_errors_and_continuation_match_observations() {
+    run(include_str!("fixtures/json-codec-method-protocol.cinch"));
+}
+
+/// Every successful addressability context preserves exact output and method invocation counts.
+#[test]
+fn json_method_addressability_outputs_and_callback_counts_match_observations() {
+    run(include_str!("fixtures/json-codec-addressability.cinch"));
+}
+
 /// Every vector mismatch lane and Unicode boundary follows independent exact-first name matching.
 #[test]
 fn json_record_name_matching_matches_independent_observations() {
@@ -277,7 +321,7 @@ fn rust_json_field_kernel_compiles_for_wasm_arm_and_big_endian_targets() {
     }
 
     kernels.push_str("\n  -- | Retain the source owner through its checked private load.\n  keep :: Bytes -> U8 -> U8\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep the complete classifier reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 16 in let a = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 0) in let b = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 1) in let ascii = keep bytes (key-ascii16 (bytes-data bytes)) in let fringe = keep bytes (key-ascii-byte (bytes-data bytes)) in let bits = wrapping-i64-to-u32 (bytes-data bytes) in if eq-u8 a b && eq-u8 ascii 1 && eq-u8 fringe 1 && eq-u32 (binary32-bits (binary32-value bits)) bits then 0 else 1\n");
-    let directory = tempfile::tempdir().unwrap();
+    let directory = QualificationDirectory(Some(tempfile::tempdir().unwrap()));
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -326,4 +370,48 @@ fn rust_json_field_kernel_compiles_for_wasm_arm_and_big_endian_targets() {
             String::from_utf8_lossy(&output.stderr)
         );
     }
+}
+
+/// Ordinary bool fields retain every quoted policy, partial-prefix and formatting observation.
+#[test]
+fn json_quoted_bool_errors_and_prefixes_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-error-bool.cinch"));
+}
+
+/// Addressable methods preserve callback counts and the original reporting-disabled descriptor refusal.
+#[test]
+fn json_quoted_pointer_methods_and_retained_refusal_match_observations() {
+    run(include_str!("fixtures/json-codec-error-pointer.cinch"));
+}
+
+/// Quoted strings retain scalar policy, exact escaped output and semantic context.
+#[test]
+fn json_quoted_string_errors_and_prefixes_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-error-string.cinch"));
+}
+
+/// Quoted integral fields retain all policy and formatting combinations.
+#[test]
+fn json_quoted_integer_outputs_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-error-integer.cinch"));
+}
+
+/// Public encoding outcomes retain independent bytes and directly inspectable error families.
+#[test]
+fn json_encoding_outcome_owners_and_error_families_are_bounded() {
+    run(include_str!(
+        "fixtures/json-codec-error-owner-control.cinch"
+    ));
+}
+
+/// JSON and text methods retain independent receiver identity and exact original semantic context.
+#[test]
+fn json_method_error_families_prefixes_and_context_match_observations() {
+    run(include_str!("fixtures/json-codec-error-methods.cinch"));
+}
+
+/// Named reads retain optional type metadata, root records, partial values and callback input bytes.
+#[test]
+fn json_update_error_identity_records_and_continuation_match_observations() {
+    run(include_str!("fixtures/json-codec-error-updates.cinch"));
 }
