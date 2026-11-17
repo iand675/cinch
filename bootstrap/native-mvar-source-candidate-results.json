@@ -14,6 +14,7 @@
     "status": "parser failure; no type/emitter/runtime verdict"
   },
   "full_gate_pending": true,
+  "latest_source51_sha256": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465",
   "modified_source_claims": {
     "bootstrap/Bootstrap.Builtin.cinch": "61b8a3e2fef66d26d3e23b5fb976fc5747346763457282b364edc8a0a1601a2e",
     "bootstrap/Bootstrap.Export.cinch": "1d53cf52d044ff9d2d69c8dacb183e4ab17a6812afb6b83ba33c7753fea10571",
@@ -39,9 +40,76 @@
   "source_owned_effect_identity": "plain source effect MVar remains distinct from internal kernel #kernel.MVar; custom effect resolved transport remains ungranted",
   "static_delimiter_scan_is_not_parser_or_typecheck": true,
   "static_delimiter_scan_passed": true,
-  "status": "static source-only candidate; no parser/type/emitter/runtime gate executed for modified Native compiler",
+  "status": "source-only candidate; Builtin dependency closure passes qualified source typing; full51 timed out without a verdict; emitter/runtime/admission gates remain pending",
+  "v2_modified_source_claims": {
+    "bootstrap/Bootstrap.Builtin.cinch": "61b8a3e2fef66d26d3e23b5fb976fc5747346763457282b364edc8a0a1601a2e",
+    "bootstrap/Bootstrap.Export.cinch": "1d53cf52d044ff9d2d69c8dacb183e4ab17a6812afb6b83ba33c7753fea10571",
+    "bootstrap/Bootstrap.ExportNominal.cinch": "0343a532664878f372ff36fed4d3a9681efe81778fb501bc5938fe07605013c3",
+    "bootstrap/Bootstrap.ExportType.cinch": "21bbf1307ebdadeb0e5a19318cdaab82a94372506e45445628553618464f892f",
+    "bootstrap/Bootstrap.Infer.cinch": "ded87f51dacf38de6011cd34e74a37f67cf769b0e292bfa8a7194d832ca88c94",
+    "bootstrap/Bootstrap.Nominal.cinch": "0a43f19e0189e52a0d999fa4bfd3b35e9fc3be22ce9f7c66211dd861f5cddbed",
+    "bootstrap/Bootstrap.Resolve.cinch": "6a0f404419960f43700368eded966bf31970a74b150e9e0757499f9712d1c0fd",
+    "bootstrap/Bootstrap.RuntimeIr.cinch": "595caf0d1a6d49d43093c3caa8a50d2afc0769a7f800460d828e6936fd9a8f19",
+    "bootstrap/Bootstrap.Typing.cinch": "c35066a2f6dc3bfdc82daa1dd7ec6d8ee8426ea7c8eb84819d62d6547d15c7c7"
+  },
   "v2_parser_fix": "Give the multiline call-string a complete local RHS before the accessed let; the prior continuation was outside the implicit let binding column.",
-  "v2_status": "prepared parser grouping correction only; retry not launched yet",
+  "v2_source_gate": {
+    "builtin_dependency_closure": {
+      "candidate_revision": "95792ff39788b14e1d9a4945eca081905da27cc0",
+      "command": [
+        "taskset",
+        "-c",
+        "1",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-native-mvar/build/native-mvar-source-check-v2/sources/Bootstrap.Builtin.cinch"
+      ],
+      "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+      "consumer_ir": false,
+      "consumer_runtime": false,
+      "elapsed_seconds": 9.48426808899967,
+      "end_free_bytes": 457388032,
+      "exit_code": 0,
+      "limit_reason": null,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "native_mvar_adopted": false,
+      "phase": "changed-module Bootstrap.Builtin",
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "schema": 1,
+      "source51_sha256": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465",
+      "start_free_bytes": 460709888,
+      "status": "passed source check"
+    },
+    "full51": {
+      "candidate_revision": "95792ff39788b14e1d9a4945eca081905da27cc0",
+      "command": [
+        "taskset",
+        "-c",
+        "1",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-native-mvar/build/native-mvar-source-check-v2/sources/Main.cinch"
+      ],
+      "consumer_ir": false,
+      "consumer_runtime": false,
+      "elapsed_seconds": 60.10268847900443,
+      "end_free_bytes": 417284096,
+      "exit_code": -15,
+      "input_receipt_sha256": "ed951f49c00e3eb83d14377c9e1021d3ae274a7a603fdc04202007d35f466412",
+      "limit_reason": "60-second invocation deadline",
+      "native_mvar_adopted": false,
+      "retained_bytes": 3213975,
+      "schema": 1,
+      "source51_sha256": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465",
+      "source_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "start_free_bytes": 417386496,
+      "status": "resource/deadline limit"
+    },
+    "inputs": "build/native-mvar-source-check-v2/inputs.json",
+    "inputs_sha256": "ed951f49c00e3eb83d14377c9e1021d3ae274a7a603fdc04202007d35f466412",
+    "scope": "source checker accepts candidate compiler source only; this does not execute its MVar checker or emitter"
+  },
+  "v2_status": "full51 invocation reached60-second deadline with empty log; no type verdict; smaller Builtin entry passed9.484s",
   "wide_payloads": "explicit named MVar I128/U128 boxed-wide-bridge refusal before worker emission; support remains open",
   "word_payloads": "raw, object and tagged/counted classes0/1/2; actual future semantic/ownership gates required"
 }

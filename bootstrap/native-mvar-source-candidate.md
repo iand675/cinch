@@ -1,8 +1,13 @@
 # Native MVar source candidate
 
 This separate patch is based on the reviewed source/pin proposal3804. It is
-source-only: no new Native compiler, provider, parser/type gate, LLVM or runtime
-execution has occurred. Existing published Rust MVar qualification is not
+source-only: no new Native compiler, provider, LLVM or runtime execution has
+occurred. The qualified330/d91 checker accepts the changed Builtin module and
+its dependency closure. The complete51-source check reached its60-second
+deadline without a diagnostic or verdict; it remains open. The original
+RuntimeIr layout/parser failure and the corrected candidate are preserved
+separately. These checks type the compiler source; they do not execute the
+candidate MVar checker or emitter. Existing published Rust MVar qualification is not
 relabelled as evidence for this candidate. The pin proposal is inherited and
 unchanged; no Rust metadata allowlist or runtime source is edited here.
 
