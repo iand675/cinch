@@ -1,5 +1,5 @@
 {
-  "scope": "Functional source-distributed dependency checkpoint; performance and parent PPC/checked-RC gate remain pending",
+  "scope": "Functional source-distributed dependency with parent checked-RC/PPC gates passed; public pipeline performance review remains separate",
   "source_sha256": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
   "public_api": "byte-view-ascii-space-run-end :: ByteView -> Nat -> Bool -> Option Nat",
   "semantics": {
@@ -240,14 +240,23 @@
     "byte-view-ascii-space-run-end"
   ],
   "pending": [
-    "Parent lib_byte_view_ascii_run checked-RC API gate including actual big-endian PPC object",
     "Changed-input public pipeline comparison and codegen review",
-    "Any production adoption/optimization selection"
+    "Any production optimization selection"
   ],
   "unchanged_split_sha256": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
   "fields_runtime_qualified": false,
   "recovery_indexes": [
     "build/byte-ascii-functional-recovery/index.json",
     "build/old-functional-recovery/index.json"
-  ]
+  ],
+  "parent_integrated_gate": {
+    "source_commit": "4bbbfc6b",
+    "reported_tests": 6,
+    "status": "passed",
+    "seconds": 24.9,
+    "log": "/tmp/cinch-stdlib-ascii-run-parent-gate.log",
+    "log_sha256": "7cd7d15ea9adda19c801562d1a1a479082c0b9566e6ee89ffe60b683b1d1af53",
+    "scope": "checked-RC Rust API O0/O2/full matrix, actual wasm/ARM/PPC full adapter objects, canonical docs",
+    "distinct_from_historical_native_family": true
+  }
 }

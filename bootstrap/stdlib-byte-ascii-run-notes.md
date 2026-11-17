@@ -54,11 +54,15 @@ records in `build/byte-ascii-functional-recovery/index.json`.
 Exact source identities, artifact hashes, individual receipt paths and pending
 checks are in `stdlib-byte-ascii-run-results.json` beside this note.
 
-## Remaining gates
+## Parent integration and remaining work
 
-Parent integration must run `lib_byte_view_ascii_run`, including its checked-RC
-Rust API builds and actual big-endian PPC full-adapter object. The frozen CLI's
-supported target set is unchanged; PPC was not simulated by retargeting IR.
+Parent `lib_byte_view_ascii_run` passed all six tests on Root source `4bbbfc6b`
+in 24.90 seconds: the three maintained ASCII tests plus three shared frontend
+profile contracts. This closes checked-RC Rust API O0/O2/full-matrix builds,
+actual wasm/ARM/big-endian PPC full-adapter objects and canonical documentation.
+The log hash is recorded in the results JSON. This integrated Rust/API epoch
+does not relabel the historical Native family. The frozen CLI's supported target
+set is unchanged; PPC was not simulated by retargeting IR.
 
 Changed-input public pipeline comparison and codegen review are still pending.
 The prepared benchmark compares this exact source with a scalar source that
