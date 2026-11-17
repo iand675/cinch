@@ -1,0 +1,66 @@
+{
+  "status": "Prepared actual runtime fixture; fresh pre-Role Rust66 source gate passed. Emission/runtime queued until coordinated350MiB start/250MiB pause/20MiB growth guard permits. Production unchanged.",
+  "source_gate_path": "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/report.json",
+  "source_gate_sha256": "316dc805296fe2dd6d967eb9aa116c10202787d2a6286355cab8efddb5b994be",
+  "source_gate": {
+    "scope": "Prepare and qualify one live both-effect fixture without changing production.\n\nSource checks precede any separately requested runtime stage. Every stage uses\nexplicit compiler identities and preserves the reviewed unannotated headers.\n",
+    "production_adopted": false,
+    "runtime_claim": false,
+    "compiler_host_stack_bytes": 67108864,
+    "consumer_stack": "8M",
+    "source_sha256": "eaedd759bb87955422b0dbbe55d9172b668b5d13201aeed3e6ceb162eaa93a81",
+    "bundle_sha256": "b055dd68d0b7d66a136c5be63b6399e63ae9fb9a8d68e9f4c34ac390512d1f47",
+    "sources": {
+      "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+      "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+      "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "Text.Mime": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+      "Text.Multipart": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2",
+      "Text.QuotedPrintable": "cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb",
+      "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+      "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+      "Effect.Multipart": "b9e813899b592e69016e92d4292d2e19e96b4eec077b2f7511633d6e78d45af8"
+    },
+    "independent_sink_oracle": {
+      "trace": 4549259990752696552,
+      "output": 8855595116188151881,
+      "size": 56,
+      "calls": 4
+    },
+    "checks": [
+      {
+        "frontend": "rust",
+        "compiler_sha256": "bfacd9af23b3a6770da9ecfb55c12547bf38bcd530399fad82ab00022257e1a9",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-rebased-main-frozen/cinch",
+          "check",
+          "/workspace/dasl-stdlib-multipart/build/multipart/live-effects-source-rust66-v2/Main.cinch"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "diagnostics": ""
+      }
+    ],
+    "future_rust_runtime": {
+      "path": "/workspace/dasl-stdlib-io/build/stdlib-rebased-main-frozen/libcinchruntime.a",
+      "sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf"
+    },
+    "artifact_bytes": 2309658
+  },
+  "covers": [
+    "All three richer factories use actual native handles/managed backend state.",
+    "Live Part and real File stale/advanced aliases share actual cursors.",
+    "Real File callback preserves positive prefixes plus typed errors.",
+    "Output-part callback preserves accepted short prefixes plus errors, latest sticky error, repeatable close and finished old aliases.",
+    "All8 real scratch capabilities mutate a caller Var; exact state/Var/C-call progress and OS cleanup are checked."
+  ],
+  "not_claimed": [
+    "Runtime success before execution",
+    "Source-absent nominal header support",
+    "Any static carrier-annotation check",
+    "A newer Native family"
+  ]
+}

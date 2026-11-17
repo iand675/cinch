@@ -1,0 +1,123 @@
+
+  -- | Retained heap payloads make every backend state, key and handle nonmachine data.
+  data ManagedToken where
+    -- | Exact host identity plus an independently allocated owned tag.
+    ManagedToken :: I64 -> Bytes -> ManagedToken
+
+  -- | Allocate a fresh payload whose lifetime must follow its generic owner.
+  managed-token :: I64 -> ManagedToken
+  managed-token identity = ManagedToken identity (string-to-bytes "retained backend token")
+
+  -- | Refuse corrupted or prematurely reclaimed generic backend payloads.
+  managed-identity :: ManagedToken -> I64
+  managed-identity token = case token of ManagedToken identity payload -> if same payload (string-to-bytes "retained backend token") then identity else -900
+
+  -- | Wrap only successfully created identities without changing a typed caller failure.
+  managed-created :: Result FixtureError (I64, I64) -> Result FixtureError (ManagedToken, ManagedToken)
+  managed-created result = case result of Err error -> Err error; Ok pair -> case pair of (key, file) -> Ok (managed-token key, managed-token file)
+
+  -- | Wrap real exclusive creation without discarding managed key/handle ownership.
+  managed-create :: forall (r :: Region). ManagedToken ->{IO r} (Result FixtureError (ManagedToken, ManagedToken), ManagedToken)
+  managed-create state = case fs-create (managed-identity state) of
+    (result, advanced) -> (managed-created result, managed-token advanced)
+
+  -- | Forward real write while preserving the exact advanced managed state.
+  managed-write :: forall (r :: Region). ManagedToken -> ManagedToken -> Bytes ->{IO r} ((Nat, Option FixtureError), ManagedToken)
+  managed-write state file input = case fs-write (managed-identity state) (managed-identity file) input of
+    (result, advanced) -> (result, managed-token advanced)
+
+  -- | Forward real read while preserving the exact advanced managed state.
+  managed-read :: forall (r :: Region). ManagedToken -> ManagedToken -> Nat ->{IO r} ((Bytes, MultipartReadStatus FixtureError), ManagedToken)
+  managed-read state file wanted = case fs-read (managed-identity state) (managed-identity file) wanted of
+    (result, advanced) -> (result, managed-token advanced)
+
+  -- | Forward real read-at while preserving the exact advanced managed state.
+  managed-read-at :: forall (r :: Region). ManagedToken -> ManagedToken -> Nat -> I64 ->{IO r} ((Bytes, MultipartReadStatus FixtureError), ManagedToken)
+  managed-read-at state file wanted offset = case fs-read-at (managed-identity state) (managed-identity file) wanted offset of
+    (result, advanced) -> (result, managed-token advanced)
+
+  -- | Forward real seek while preserving the exact advanced managed state.
+  managed-seek :: forall (r :: Region). ManagedToken -> ManagedToken -> I64 -> I64 ->{IO r} (Result FixtureError I64, ManagedToken)
+  managed-seek state file offset whence = case fs-seek (managed-identity state) (managed-identity file) offset whence of
+    (result, advanced) -> (result, managed-token advanced)
+
+  -- | Forward real close while preserving the exact advanced managed state.
+  managed-close :: forall (r :: Region). ManagedToken -> ManagedToken ->{IO r} (Result FixtureError Unit, ManagedToken)
+  managed-close state file = case fs-close (managed-identity state) (managed-identity file) of
+    (result, advanced) -> (result, managed-token advanced)
+
+  -- | Wrap a distinct reopened handle while retaining the exact original error payload.
+  managed-opened :: Result FixtureError I64 -> Result FixtureError ManagedToken
+  managed-opened result = case result of Err error -> Err error; Ok file -> Ok (managed-token file)
+
+  -- | Forward real open while preserving the exact advanced managed state.
+  managed-open :: forall (r :: Region). ManagedToken -> ManagedToken ->{IO r} (Result FixtureError ManagedToken, ManagedToken)
+  managed-open state key = case fs-open (managed-identity state) (managed-identity key) of
+    (result, advanced) -> (managed-opened result, managed-token advanced)
+
+  -- | Forward real remove while preserving the exact advanced managed state.
+  managed-remove :: forall (r :: Region). ManagedToken -> ManagedToken ->{IO r} (Result FixtureError Bool, ManagedToken)
+  managed-remove state key = case fs-remove (managed-identity state) (managed-identity key) of
+    (result, advanced) -> (result, managed-token advanced)
+
+  -- | Instantiate all three generic backend identities with actual managed payloads.
+  managed-storage :: forall (r :: Region). Unit ->{Mut r} MultipartStorage r FixtureError ManagedToken ManagedToken ManagedToken
+  managed-storage unit = multipart-storage (managed-token 0) managed-create managed-write managed-read managed-read-at managed-seek managed-close managed-open managed-remove
+
+  -- | Compare one live managed-backend prefix and its independent status.
+  managed-read-is :: (Bytes, MultipartReadStatus (MultipartError FixtureError)) -> Bytes -> String -> Bool
+  managed-read-is result expected message = case result of (output, status) -> same output expected && status-message status == message
+
+  -- | Check complete positioned/sequential/seek/close operations on an unlinked live handle.
+  managed-file-is :: forall (r :: Region). MultipartFile r FixtureError ManagedToken ManagedToken ManagedToken ->{IO r, Mut r} Bool
+  managed-file-is file =
+    let positioned = multipart-file-read-at file 3 1 in
+    let sequential = multipart-file-read file 2 in
+    let sought = multipart-file-seek file (-2) 2 in
+    let tail = multipart-file-read file 99 in
+    let eof = multipart-file-read file 1 in
+    let closed = multipart-file-close file in
+    let again = multipart-file-close file in
+    managed-read-is positioned (string-to-bytes "bcd") "" && managed-read-is sequential (string-to-bytes "ab") "" &&
+      (case sought of Ok offset -> eq-i64 offset 4; Err error -> False) && managed-read-is tail (string-to-bytes "ef") "" &&
+      managed-read-is eof (bytes-new 0) "EOF" && result-message closed == "" && result-message again == "close <scratch>: file already closed"
+
+  -- | Remove only the current file map, then restore a detached header while its handle stays live.
+  managed-detached-is :: forall (r :: Region). MultipartForm r FixtureError ManagedToken ManagedToken ManagedToken -> MultipartFileHeader r FixtureError ManagedToken ManagedToken ManagedToken ->{IO r, Mut r} Bool
+  managed-detached-is form first =
+    let detached = multipart-form-drop-files form (string-to-bytes "first") in
+    let removed = multipart-form-remove-all form in
+    case multipart-file-open first of
+      Err error -> False
+      Ok file ->
+        let restored = multipart-form-set-files form (string-to-bytes "first") (Cons first Nil) in
+        let unlinked = multipart-form-remove-all form in
+        let matched = managed-file-is file in
+        let reopened = multipart-file-open first in
+        let missing = case reopened of Err error -> error-message error == "open <scratch>: no such file or directory"; Ok leaked -> let closed = multipart-file-close leaked in False in
+        let repeated = multipart-form-remove-all form in
+        result-message removed == "" && result-message unlinked == "" && matched && missing && result-message repeated == ""
+
+  -- | Retain every managed backend component through form replacement, unlink and old-handle use.
+  managed-storage-is :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Bool
+  managed-storage-is unit =
+    let wire = string-to-bytes "--form-boundary\r\nContent-Disposition: form-data; name=\"first\"; filename=\"one\"\r\n\r\nabcdef\r\n--form-boundary\r\nContent-Disposition: form-data; name=\"second\"; filename=\"two\"\r\n\r\nghij\r\n--form-boundary--\r\n" in
+    let original = fixture-part wire (bytes-len wire) in
+    let begun = raw-fs-begin 0 in
+    let initialized = raw-source-init (bytes-data wire) (nat-to-i64 (bytes-len wire)) 7 1 in
+    let policy = multipart-policy 10485760 10000 1000 False multipart-posix-filename in
+    let reader = multipart-reader-with-policy (fixture-source ()) (string-to-bytes "form-boundary") policy in
+    let storage = managed-storage () in
+    let outcome = multipart-read-form reader 0 storage in
+    let matched = case multipart-form-read-form outcome of
+          None -> False
+          Some form -> case multipart-form-files-at form (string-to-bytes "first") of
+            Cons first Nil -> managed-detached-is form first
+            _ -> False in
+    let primary = case multipart-form-read-error outcome of None -> True; Some error -> False in
+    let advanced = multipart-storage-state storage in
+    let calls = raw-fs-calls 0 in
+    let sourceFinished = raw-source-finish 0 in
+    let finished = raw-fs-finish 0 in
+    matched && primary && eq-i64 (managed-identity advanced) calls && eq-i64 begun 0 && eq-i64 initialized 0 &&
+      eq-i64 sourceFinished 0 && eq-i64 finished 0 && same wire original
