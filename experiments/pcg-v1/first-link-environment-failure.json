@@ -1,0 +1,72 @@
+{
+  "scope": "PCG independent2048 outputs plus snapshots/ownership/refusals; no wider random-package completion/performance claim.",
+  "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "optimization": "0",
+  "source_sha256": "e04fcaa48fe2d6a15c26a6d26d5945bc2e4d98c9f51fc5e9b7fc91f692c36c76",
+  "consumer_sha256": "84e7d47c261b9abbbb7e62c8c513aedcb0398b75c3124a142c17fbb37a4ecd32",
+  "sources": {
+    "Data.Random.Pcg.cinch": "e04fcaa48fe2d6a15c26a6d26d5945bc2e4d98c9f51fc5e9b7fc91f692c36c76",
+    "Main.cinch": "84e7d47c261b9abbbb7e62c8c513aedcb0398b75c3124a142c17fbb37a4ecd32",
+    "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+  },
+  "commands": [
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "3",
+        "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-io/build/pcg-functional-o0-v1/Main.cinch"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "seconds": 1.6988073600223288
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "3",
+        "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-io/build/pcg-functional-o0-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-io/build/pcg-functional-o0-v1/consumer.ll"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "seconds": 1.0142313260002993
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "3",
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "/workspace/dasl-stdlib-io/build/pcg-functional-o0-v1/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/stdlib-entropy-runtime-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-io/build/pcg-functional-o0-v1/consumer"
+      ],
+      "returncode": 127,
+      "stdout": "",
+      "stderr": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang: error while loading shared libraries: libLLVM.so.20.1: cannot open shared object file: No such file or directory\n",
+      "seconds": 0.0034978020121343434
+    }
+  ],
+  "runs": [],
+  "status": "failed",
+  "initial_free_bytes": 503836672,
+  "error": "AssertionError({'command': ['taskset', '-c', '3', '/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang', '-O0', '/workspace/dasl-stdlib-io/build/pcg-functional-o0-v1/consumer.ll', '/workspace/dasl-stdlib-io/build/stdlib-entropy-runtime-frozen/libcinchruntime.a', '-ldl', '-lpthread', '-lm', '-o', '/workspace/dasl-stdlib-io/build/pcg-functional-o0-v1/consumer'], 'returncode': 127, 'stdout': '', 'stderr': '/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang: error while loading shared libraries: libLLVM.so.20.1: cannot open shared object file: No such file or directory\\n', 'seconds': 0.0034978020121343434})",
+  "all_failed_artifacts_retained_plain": true,
+  "end_free_bytes": 522866688
+}

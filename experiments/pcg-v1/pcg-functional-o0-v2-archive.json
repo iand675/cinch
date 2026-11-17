@@ -1,0 +1,36 @@
+{
+  "scope": "Archive only closed successful PCG functional outputs; retain every input and failed epoch plain.",
+  "execution_receipt_sha256": "c4dde100c9414de1d51b75e2040a77ba0b90e50587aa502ef6a5817c121a052d",
+  "files": [
+    {
+      "path": "/workspace/dasl-stdlib-io/build/pcg-functional-o0-v2/consumer.ll",
+      "sha256": "30568ecf424284d7f0053eddef54426dc1e3da111b11ee67da2294c06af386fa",
+      "bytes": 452477,
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794941435199381952,
+      "original_device": 27,
+      "original_inode": 568793,
+      "archive": "/workspace/dasl-stdlib-io/build/pcg-functional-o0-v2/closed-output-archive/consumer.ll.zst",
+      "compressed_sha256": "8bb8892f15e787def7a78f4fad450b48b515d1dfd544c4a0cdc7a0773882724e",
+      "decoded_sha256_verified": true
+    },
+    {
+      "path": "/workspace/dasl-stdlib-io/build/pcg-functional-o0-v2/consumer",
+      "sha256": "1c1c5e17c2c2205143ace5053b60afe72352a7f5e91e8b971f288b1c527fd729",
+      "bytes": 5973056,
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794941435451385907,
+      "original_device": 27,
+      "original_inode": 568794,
+      "archive": "/workspace/dasl-stdlib-io/build/pcg-functional-o0-v2/closed-output-archive/consumer.zst",
+      "compressed_sha256": "c92a7c62ff3c4869b93e5b796088101bbefa8d4dc5d65620a614be36ef9e2ab2",
+      "decoded_sha256_verified": true
+    }
+  ],
+  "ordering": "Full decoded identity, compressed SHA, original metadata and durable payload/index verified before unlink. Restore decompresses exact bytes, then reapplies mode/uid/gid/nsmtime.",
+  "sources_and_interfaces_remain_plain": true
+}

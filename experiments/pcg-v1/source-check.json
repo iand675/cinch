@@ -1,0 +1,21 @@
+{
+  "command": [
+    "taskset",
+    "-c",
+    "1",
+    "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-io/build/pcg-source-v1/Main.cinch"
+  ],
+  "returncode": 0,
+  "stdout": "",
+  "stderr": "",
+  "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "sources": {
+    "Data.Random.Pcg.cinch": "e04fcaa48fe2d6a15c26a6d26d5945bc2e4d98c9f51fc5e9b7fc91f692c36c76",
+    "Main.cinch": "4e42fa0647573dcee4f3a9fa830f6e66ac4aa8a17f97d320f8269928daa9b16e",
+    "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+  },
+  "runtime_claim": false
+}
