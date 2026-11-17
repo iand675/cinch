@@ -158,10 +158,27 @@ passed. The public API and its effect rows remain unchanged.
 Both public-workload Rust variants now build with ordinary generated RC
 and pass60 independent normal/poison fingerprint runs across three
 workloads and five sizes. `stdlib-maps-benchmark-results.json` records
-exact artifacts and allocation counters; no timings have run. The
+exact artifacts, allocation counters and subsequent paired baseline timing. The
 construction pipeline at4096 entries/eight iterations allocates754388
 blocks/22694906 cumulative bytes/1000943 peak bytes in the façade versus
 131597/6305868/246667 in the public HashTable baseline. These process-wide
 counters include startup, preparation and teardown. Stable entry owners,
 the extra digest index and snapshot behavior are material costs requiring
 review, rather than an assumed acceleration claim.
+
+The parent-granted baseline timing has180 warmup/sample processes with
+independent fingerprints, zero leaks, allocation counters disabled and no
+new shared-cgroup throttling. The4096-entry/eight-iteration construction
+pipeline median is30.675ms for the façade versus6.938ms for HashTable.
+The separate typed-Var entry candidate remains unselected and unqualified;
+its exact source/patch hashes and invariants are documented independently.
+
+Completed fa3 functional ELF bytes were archived losslessly to recover
+50378123 bytes during filesystem pressure. Their original/report/archive/
+decompressed SHA and byte counts are retained in
+`stdlib-maps-functional-archive-results.json` and the immutable build index.
+The source, LLVM and benchmark/frozen/provider/runtime inputs are unchanged.
+`restore_map_functional_elf.py --original <recorded-relative-path>` restores
+one verified owner-executable ELF on demand. The new supplemental value-NaN
+and predicate-mutation edge consumer has not yet run; the established24
+functional process verdicts remain tied to their original exact fixtures.
