@@ -41,6 +41,8 @@ JSON into the supplemental consumer template. The maintained Cargo test
 and frontend runner both use this renderer. Existing eight trace and two
 IEEE-key rendered consumers were checked byte-for-byte against their
 original successful receipt hashes and remain unchanged. The new edge
-consumer has still not run on either library representation. Existing
+consumer now passes on both baseline0fc and C839 with exact855/c4/LLVM20,
+normal32M/8M and poison256M/8M, four zero-leak processes. Its exact separate
+qualification is recorded in `stdlib-maps-855-edge-results.json`. Existing
 successful matrices and baseline timings are not rerun or relabeled by
 this independent-reference generation.

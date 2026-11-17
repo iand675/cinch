@@ -55,7 +55,8 @@ IO callbacks and independent-region source composition, in bounded normal
 and separate poisoned profiles. The supplemental edge consumer also pins
 value-NaN comparisons, deletion of callback-reinserted current keys and
 current right-side lookups after an equality callback clears that map;
-that new consumer is not yet runtime qualified on either representation.
+that new consumer now passes both representations on exact855/c4/LLVM20,
+normal/poison with zero leaks; its receipt is `stdlib-maps-855-edge-results.json`.
 Only after those pass may a new immutable
 workload artifact be compared with the preserved baseline. No Native gain
 or general source-absent interface admission follows from this candidate.
@@ -69,8 +70,9 @@ source-only gates. `stdlib-maps-855-control-results.json` records their
 separate12-control consumers, four zero-leak processes and exact LLVM20
 linker identities. Each unit stayed below20MiB new output. Subsequent
 work stops before compilation when free disk is below250MiB; runtime
-units must preserve200MiB reserve. The supplemental SDK-edge consumer was
-resource-paused before any compile and therefore has no semantic verdict.
+units must preserve200MiB reserve. The first supplemental SDK-edge attempt was
+resource-paused before compilation. Its subsequent fresh units now pass
+both representations in both profiles; the earlier pause remains preserved.
 Closed unit ELF, LLVM and generated cache bytes are recoverable from their
 durable verified archive index; sources, baseline benchmark artifacts,
 source-absent interface evidence and frozen inputs are unchanged.

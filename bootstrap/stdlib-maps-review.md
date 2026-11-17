@@ -115,3 +115,11 @@ fa3 full matrix or performance measurements. The new baseline SDK-edge
 consumer paused at the disk guard before any compilation. Full per-
 representation800/IEEE/edge/IO/region/negative and remaining Native gates
 are still required before representation selection.
+
+The subsequent actual-SDK edge consumers now also pass both representations
+on exact855/c4/LLVM20, normal32M8M and poison256M8M, four zero-leak processes.
+They cover value-NaN comparisons, deletion of a callback-reinserted current
+key and current right-side equality lookup after clear. The separate receipt
+is `stdlib-maps-855-edge-results.json`; earlier disk-only pauses and Native
+row/interface refusals remain preserved. This does not complete the pending
+800/IEEE/IO/region/negative/Native/candidate-performance gates.
