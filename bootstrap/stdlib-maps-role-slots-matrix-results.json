@@ -1,0 +1,40 @@
+{
+  "kind": "qualified-tuple-annotated-map-runtime-matrix-progress",
+  "package_complete": false,
+  "candidate_selected": false,
+  "native_family_relabelled": false,
+  "runtime_epoch": "qualified330/d91; annotated declaration-only C8397085 proposal",
+  "progress": {
+    "kind": "partial-annotated-C839-Role-Slots-runtime-matrix",
+    "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "source_sha256": "7085aebe4c10dcd0cf27be6ffc0348a239398b07d54f60cb098722802b244c65",
+    "candidate_selected": false,
+    "package_complete": false,
+    "units": {
+      "control": {
+        "status": "passed",
+        "exit": 0,
+        "report": "build/maps-role-slots-matrix-control-a1-results.json",
+        "report_sha256": "0002688567b328d063520064d00c2de1930a5f76c719be742b5b3197d1d05ea3",
+        "trace_observations": 0,
+        "ownership_control_groups": 12
+      },
+      "trace-0": {
+        "status": "passed",
+        "exit": 0,
+        "report": "build/maps-role-slots-matrix-trace-0-a1-results.json",
+        "report_sha256": "0c83f0f128372246620922433a9dcb33cb58d709b3de1315f72e9d5158863fa0",
+        "trace_observations": 100,
+        "ownership_control_groups": 0
+      }
+    }
+  },
+  "trace_observations": 100,
+  "ownership_control_groups": 12,
+  "normal_poison_processes": 4,
+  "full_independent800_complete": false,
+  "archive_index": "build/maps-role-slots-closed-unit-archive/index.json",
+  "archive_index_sha256": "e8ca372f9315d87b91e79cf721b3aa03264e715eb285fa708d8f4c2e9b0318fd",
+  "pending": "Remaining trace1\u20137; source-absent capability transport, Native qualification, matched performance and candidate selection stay separate."
+}

@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import ast
 import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
 
-from generate_maps_cases import edge_source, float_source
+from generate_maps_cases import edge_source, float_source, source
 from qualify_maps_nominal_source import COMPILER_SHA, FROZEN, ROOT, RUNTIME_SHA, digest
 from validate_maps import execute
 
@@ -61,6 +60,9 @@ def main() -> int:
     """Run a single qualified runtime fixture after the unmodified350MiB start guard passes."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cpu', type=int, required=True)
+    parser.add_argument('--unit', choices=('combined', 'control', 'trace'), default='combined')
+    parser.add_argument('--case', type=int, choices=range(8), default=0)
+    parser.add_argument('--maximum-new-output-mib', type=int, choices=(20, 30), default=20)
     parser.add_argument('--artifacts', type=Path, default=ROOT / 'build/maps-role-slots-runtime-a1')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/maps-role-slots-runtime-a1-results.json')
     args = parser.parse_args()
@@ -86,7 +88,8 @@ def main() -> int:
               'cpu_affinity': [args.cpu], 'candidate_selected': False, 'production_promoted': False,
               'native_family_relabelled': False, 'historical_interfaces_modified': False,
               'fresh_start_minimum_bytes': 350 * 1024 * 1024, 'minimum_reserve_bytes': 250 * 1024 * 1024,
-              'maximum_new_output_bytes': 20 * 1024 * 1024, 'runs': [],
+              'maximum_new_output_bytes': args.maximum_new_output_mib * 1024 * 1024, 'runs': [],
+              'unit': f'trace-{args.case}' if args.unit == 'trace' else args.unit,
               'failure_indices': {'101-103': 'independent value-NaN and callback-mutation edge cases',
                                   '201-207': 'independent full-bit IEEE64 multiset observations',
                                   '301-303': 'mixed IO+Mut source, value and EqualBy callback contracts'}}
@@ -111,17 +114,24 @@ def main() -> int:
         target = args.artifacts / (module + '.cinch')
         target.write_bytes(path.read_bytes())
         report['sources'][module] = {'original': str(path), 'sha256': digest(target)}
-    probes = {'MapProbe.Edge': edge_source(), 'MapProbe.IEEE64': float_source(64),
-              'MapProbe.Mixed': (ROOT / 'compiler/tests/fixtures/mutable-map-effect-control.cinch').read_text()}
     report['fixtures'] = {}
-    for module, text in probes.items():
-        target = args.artifacts / (module + '.cinch')
-        target.write_text(export_probe(text, module))
-        report['fixtures'][module] = {'original_consumer_sha256': hashlib.sha256(text.encode()).hexdigest(),
-                                     'selected_module_sha256': digest(target),
-                                     'only_transformation': 'Rename Main module and export its existing main entry; every assertion and helper is unchanged.'}
+    if args.unit == 'combined':
+        probes = {'MapProbe.Edge': edge_source(), 'MapProbe.IEEE64': float_source(64),
+                  'MapProbe.Mixed': (ROOT / 'compiler/tests/fixtures/mutable-map-effect-control.cinch').read_text()}
+        for module, text in probes.items():
+            target = args.artifacts / (module + '.cinch')
+            target.write_text(export_probe(text, module))
+            report['fixtures'][module] = {'original_consumer_sha256': hashlib.sha256(text.encode()).hexdigest(),
+                                         'selected_module_sha256': digest(target),
+                                         'only_transformation': 'Rename Main module and export its existing main entry; every assertion and helper is unchanged.'}
+        consumer = ENTRY
+    else:
+        consumer = source(args.case) if args.unit == 'trace' else (ROOT / 'compiler/tests/fixtures/mutable-map-control.cinch').read_text()
+        report['failure_indices'] = {'index': 'The original independent trace step or ownership/control group; no transformation.'}
+        report['fixtures']['Main'] = {'original_consumer_sha256': hashlib.sha256(consumer.encode()).hexdigest(),
+                                      'only_transformation': 'None; exact original generated trace or ownership/control consumer.'}
     entry = args.artifacts / 'Main.cinch'
-    entry.write_text(ENTRY)
+    entry.write_text(consumer)
     report['entry_sha256'] = digest(entry)
     for name in ('maps-vectors.json', 'maps-edge-vectors.json'):
         report[name] = digest(ROOT / 'compiler/tests/fixtures' / name)
@@ -154,7 +164,7 @@ def main() -> int:
         report.update(status='passed', output_bytes=output_bytes(args.artifacts), free_bytes_after=shutil.disk_usage(ROOT).free)
         assert report['output_bytes'] <= report['maximum_new_output_bytes']
         assert report['free_bytes_after'] >= report['minimum_reserve_bytes']
-        print('Combined independent edge+IEEE64+mixedIO/Mut fixture passed normal+poison with zero leaks')
+        print(f"{report['unit']} fixture passed normal+poison with zero leaks")
         return 0
     except BaseException as error:
         report.update(status='failed', failure=repr(error), output_bytes=output_bytes(args.artifacts))
