@@ -1,0 +1,23 @@
+--- a/compiler/runtime/src/sys/linux.rs
++++ b/compiler/runtime/src/sys/linux.rs
+@@ -6,13 +6,14 @@
+ //! at all, which is what will let a static Cinch binary drop glibc
+ //! (design/base-as-a-package.md section 5).
+ //!
+-//! # Coverage, and what is untested
++//! # Coverage
+ //!
+-//! The table carries `x86_64` and `aarch64`. NEITHER COLUMN HAS EVER
+-//! RUN: this project's development machine is macOS arm64, so this
+-//! module is written from the kernel's tables and checked only by
+-//! `cargo check` against the Linux target. Treat every number here as
+-//! unverified until a Linux machine runs `cargo test` in this crate.
++//! The table supports `x86_64`, `aarch64` and 32-bit `x86`. The entropy
++//! syscall path has been executed on x86_64 through isolated provider,
++//! runtime ABI and public consumer checks. That evidence does not
++//! qualify every operation in this module. The aarch64 and x86 entropy
++//! numbers have been checked against kernel UAPI tables, with no new
++//! runtime execution claim for those targets.
+ //!
+ //! # The two sections
+ //!

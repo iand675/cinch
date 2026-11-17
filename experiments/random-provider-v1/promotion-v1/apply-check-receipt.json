@@ -1,0 +1,28 @@
+{
+  "scope": "observed read-only patch applicability; no Root mutation",
+  "root_baseline_commit": "c7e9133bfcbd58cf1aafb882f53f3433bbf00214",
+  "baseline_platform_sha256": "f4f0e6519e526590ae2f779b9ba5b81b3c5cd685f14abf901eeeed7e9f60477b",
+  "checks": [
+    {
+      "cwd": "/workspace/dasl-stdlib-io",
+      "command": [
+        "git",
+        "apply",
+        "--check",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/promotion-v1/runtime-provider.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "cwd": "/workspace/dasl-stdlib-io",
+      "command": [
+        "git",
+        "apply",
+        "--check",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/promotion-v1/optional-provider-docs.patch"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "production_patch_sha256": "9dfdfd372fe8d8828ce62ad1cd2b012ae6cbef0546aef246ab8be9189216768a"
+}
