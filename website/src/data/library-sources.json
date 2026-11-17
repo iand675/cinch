@@ -1357,7 +1357,7 @@
     {
       "module": "Text.QuotedPrintable",
       "path": "compiler/prelude/Text/QuotedPrintable.cinch",
-      "sha256": "cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb",
+      "sha256": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00",
       "embedded": false,
       "values": 20,
       "public_methods": 0

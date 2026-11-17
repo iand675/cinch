@@ -1,5 +1,29 @@
 //! Canonical documentation and real public-CLI quoted-printable runtime regressions.
 
+/// Keep generated sources, foreign objects and diagnostics when a qualification fails.
+struct QualificationDirectory(Option<tempfile::TempDir>);
+
+impl QualificationDirectory {
+    /// Borrow the owned project while retaining cleanup responsibility.
+    fn path(&self) -> &std::path::Path {
+        self.0.as_ref().unwrap().path()
+    }
+}
+
+impl Drop for QualificationDirectory {
+    /// Retain the complete project during unwinding so a failed consumer can be replayed.
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            if let Some(directory) = self.0.take() {
+                eprintln!(
+                    "retained failed quoted-printable qualification: {}",
+                    directory.keep().display()
+                );
+            }
+        }
+    }
+}
+
 /// Every public/private codec, adapter and constructor has canonical prose.
 #[test]
 fn quoted_printable_declarations_have_canonical_documentation() {
@@ -51,7 +75,7 @@ fn rust_cli_executes_quoted_printable_with_normal_and_poison_profiles() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let repository = compiler_root.parent().unwrap();
     let runtime = compiler_root.join("runtime/target/release/libcinchruntime.a");
-    let work = tempfile::tempdir().unwrap();
+    let work = QualificationDirectory(Some(tempfile::tempdir().unwrap()));
     let result = Command::new("python3")
         .arg(repository.join("tooling/check_quoted_printable.py"))
         .arg("--work")
@@ -64,6 +88,8 @@ fn rust_cli_executes_quoted_printable_with_normal_and_poison_profiles() {
         .args([
             "--only",
             "values-0000",
+            "values-0256",
+            "values-0896",
             "readers-0000",
             "writers-0000",
             "ownership",
@@ -74,6 +100,8 @@ fn rust_cli_executes_quoted_printable_with_normal_and_poison_profiles() {
         .current_dir(repository)
         .output()
         .expect("execute committed codec corpus through the current Rust CLI");
+    std::fs::write(work.path().join("parent.stdout"), &result.stdout).unwrap();
+    std::fs::write(work.path().join("parent.stderr"), &result.stderr).unwrap();
     assert!(
         result.status.success(),
         "Rust quoted-printable regression failed:\n{}\n{}",
@@ -98,7 +126,7 @@ fn rust_cli_executes_quoted_printable_with_normal_and_poison_profiles() {
         report["runtime_initialization"]["archive_sha256"]
     );
     let rows = report["runs"].as_array().unwrap();
-    assert_eq!(rows.len(), 4);
+    assert_eq!(rows.len(), 6);
     for row in rows {
         assert_eq!(row["frontend"], "rust");
         let profiles = row["profiles"].as_array().unwrap();

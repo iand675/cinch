@@ -96,7 +96,7 @@ Return fresh decoded bytes or the first failure under the decoder
 acceptance rules. Lowercase hex and malformed non-newline escapes are accepted.
 Use decode-prefix when the successfully decoded bytes before an error matter.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 545
+[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 553
 
 <a id="value-71756f7465642d7072696e7461626c652d6465636f64652d707265666978"></a>
 
@@ -106,7 +106,7 @@ Use decode-prefix when the successfully decoded bytes before an error matter.
 
 Decode a complete buffer to fresh bytes and an optional first error.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 536
+[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 544
 
 <a id="value-71756f7465642d7072696e7461626c652d6465636f646572"></a>
 
@@ -138,7 +138,7 @@ current physical-line buffer capacity. Failed decoders request no input.
 End an unfinished physical line, distinguishing genuine EOF from an
 interrupted source. A codec error may supersede a pending source failure.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 525
+[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 533
 
 <a id="value-71756f7465642d7072696e7461626c652d6465636f6465722d6572726f72"></a>
 
@@ -160,7 +160,7 @@ Decode complete physical lines from a feed, returning fresh prefix bytes,
 the consumed input count, and an advanced immutable continuation. Input after
 a terminal error remains unconsumed; previously returned buffers never alias state.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 517
+[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 525
 
 <a id="value-71756f7465642d7072696e7461626c652d6465636f6465722d66696e697368"></a>
 
@@ -170,7 +170,7 @@ a terminal error remains unconsumed; previously returned buffers never alias sta
 
 Finish at genuine EOF, preserving decoded prefix bytes before a final error.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 532
+[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 540
 
 <a id="value-71756f7465642d7072696e7461626c652d6465636f6465722d706f736974696f6e"></a>
 
@@ -298,4 +298,4 @@ The absolute original input position associated with a codec failure.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/QuotedPrintable.cinch`. Source SHA-256: `cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/QuotedPrintable.cinch`. Source SHA-256: `ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

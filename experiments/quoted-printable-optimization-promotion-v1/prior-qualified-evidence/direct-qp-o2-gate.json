@@ -1,0 +1,3032 @@
+{
+  "format": 1,
+  "runner_sha256": "3b6a53ff0d93ec4fdf71e04fcc3eaf244c7c9d18f7a4db69634e1e0726fefd49",
+  "vectors_sha256": "11b5622d6b743509304a19cde8e85118917ea7ed9c739ad549795d704967ebd2",
+  "compiler_host_stack_bytes": 67108864,
+  "counts": {
+    "values-0000": 64,
+    "values-0064": 64,
+    "values-0128": 64,
+    "values-0192": 64,
+    "values-0256": 64,
+    "values-0320": 64,
+    "values-0384": 64,
+    "values-0448": 64,
+    "values-0512": 64,
+    "values-0576": 64,
+    "values-0640": 64,
+    "values-0704": 64,
+    "values-0768": 64,
+    "values-0832": 64,
+    "values-0896": 64,
+    "values-0960": 64,
+    "values-1024": 64,
+    "values-1088": 64,
+    "values-1152": 64,
+    "values-1216": 64,
+    "values-1280": 64,
+    "values-1344": 24,
+    "readers-0000": 8,
+    "readers-0008": 8,
+    "readers-0016": 8,
+    "readers-0024": 8,
+    "readers-0032": 8,
+    "readers-0040": 1,
+    "writers-0000": 8,
+    "writers-0008": 8,
+    "writers-0016": 8,
+    "writers-0024": 8,
+    "writers-0032": 8,
+    "writers-0040": 8,
+    "writers-0048": 8,
+    "writers-0056": 4,
+    "ownership": 6
+  },
+  "consumer_sha256": {
+    "values-0000": "e40007d9d2d987fd763dc22c09917765a38d409253657c65d335b9730f20236b",
+    "values-0064": "91f550e785393b324f3b51ed469987d9c2aa3c526058d44bcdbece9e4ac60de3",
+    "values-0128": "0bd24298816b10fdbfc12434ec0c481fa7484365503cfc9f07e0a1729c365885",
+    "values-0192": "05fe15c156143ab51c26d12f752160e25f21fc9b93405c67d9bb5031b287eaca",
+    "values-0256": "9d4d8da2a5c31c557117732e320f991156d45d7ce1bb8bef9d6ffd25771b4b08",
+    "values-0320": "91636abdf838fa627f54723cd6b572cc408fcb3f7397f7fb776b17dcc2278c08",
+    "values-0384": "dbef461778af72af9cd924a3405c8e936f815d9c0f07eec1df237991fff9d095",
+    "values-0448": "80af3cc1fe6ffc123302c6671d19c13dc6bd30c59b9732dfb5a1baacb2d7c00e",
+    "values-0512": "34e655c7f1bc17a58b65f84e019891ea2a7a51e86cfb68a52cfab0733bb703de",
+    "values-0576": "1317c4f304e325d2c0508be6aae3b90d0269e3a21eff4ab7a8f36b3f096b5b83",
+    "values-0640": "38883d6f11227e79d904669c2c56f593f26814670458b7b70541aab9c803eaf1",
+    "values-0704": "4f4a6a2af85d07ac8c75a5d3832672cf61c05ccfcb9380da5e589fb1c83b6651",
+    "values-0768": "1dff55ccd1768e38ede1fc0aa1dd16993ca595aaa021c367a0fb1ef91a78648a",
+    "values-0832": "b21a655654f9df037db9f69495e19c52c5ea7ea052332091c0d150e74e9c807b",
+    "values-0896": "da2b08f1825464fb02957a52e6a1235961a7b663274c5ab26b3536bf3c037222",
+    "values-0960": "818d3f8ef3306f49893dc948217dc71081e1bfeea1f8b86322bf6bc3c9a30a85",
+    "values-1024": "b086bca3ad452f04af586e58570af6f576cf31e4ffae7b049ef0fa5a5830a048",
+    "values-1088": "e825440e687728ea07280dbd3b118815929fc00275fbec57291734a042c06d7b",
+    "values-1152": "f700f1b57e02b40cd7274f426105a74c7b77225299dff5bb23648cefc92b4eae",
+    "values-1216": "e7e80811b64175e5a947c8f9b84f487da3554b51ab41de5a1f16d26e63e2baa9",
+    "values-1280": "e695544cda4a57936b48f6e4800f35f77030c43cde7116572fa95d8875db30de",
+    "values-1344": "2c9aabfa2a29c4b9114590b5c461d4697491927ac1e5adf0a265d8d5844671a2",
+    "readers-0000": "84c59f88de40873e68ef58bf9f011f7bd02341c232a97fe83ff0a604712e9aa2",
+    "readers-0008": "f78692302e86f2dbe9dd015f1e9471a4a17c1e6e37bdfd337dd286c9eacba351",
+    "readers-0016": "b4901c4e4ad8eac43253afdacd40ec2aa8051e3b5155212e2cfcfb6b08914aea",
+    "readers-0024": "4d4552c78e7d18adfaa6092960b3769d23b9e305832e8e314544b45b39512fb6",
+    "readers-0032": "7dc5187acf93c10401b48510c7a38b7b76983878b8a120857a9079a803b4dd47",
+    "readers-0040": "3ce6997df6719088911d428d420c0c62fe422feaa2d757125b558babf5b4301c",
+    "writers-0000": "bbd0429f3a55626b7d934748202b3d8593d3d0c35a69e1dbf79706122050f934",
+    "writers-0008": "c4e388f9d2e95ba1b7f34dac7916194ee4cec6017dcf00957989a94b739834a7",
+    "writers-0016": "3a39ae0ccb8e11e930bf56b4e6e9f4f4e50208f6041ee431cf06d6ab729504d6",
+    "writers-0024": "d83820092b231fa44caf8e43b89f533afa7bc4905ba93e899ecd1beeecd2eba9",
+    "writers-0032": "d19d260ba04ea22d877d559b9ea307da164a00f961ac8ef5297808b1d3a48912",
+    "writers-0040": "836c498218b32259e142a08d78e55fa00d846b75b93a1356954e1d7b2e994115",
+    "writers-0048": "6ec57c6e15c885750a407b8de893233da4375174f929361b3b9bfbf96dce5d9a",
+    "writers-0056": "ea3344633aaa7464f0d495f315c592c49e466ccbf28e0b90ff9baad8bb1f0939",
+    "ownership": "d812c508f23e3a41ab508274f763ec89ca30698e0849c5ce60bf8e9c52002c4d"
+  },
+  "reference_source_sha256": "10ebf2f0f5d80065c859bef00901de6933ca49fd1819dedcc2d09530667b50e9",
+  "sources": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Text.QuotedPrintable": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00",
+    "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+    "Effect.QuotedPrintable": "10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97"
+  },
+  "frontends": {
+    "rust": {
+      "compiler": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+      "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+      "runtime": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "compile_rc_debug": false
+    }
+  },
+  "runs": [
+    {
+      "frontend": "rust",
+      "case": "values-0000",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0000.ll"
+      ],
+      "compile_seconds": 3.659038453013636,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "e40007d9d2d987fd763dc22c09917765a38d409253657c65d335b9730f20236b",
+      "bundle_sha256": "aec8cacc905bac5a9ffb6d8361648530f184cc403f03fe8cf78010ef42bbfb47",
+      "ir_sha256": "c37863274315f09461b53d5ba353612e6a5eb923854f781cb9bcf26a701550a6",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "9495423734bc8be8db6c38b3056ac8170f4cfad8fb44397f2a39d88a46f7e462"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0064",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0064.ll"
+      ],
+      "compile_seconds": 3.369861213985132,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "91f550e785393b324f3b51ed469987d9c2aa3c526058d44bcdbece9e4ac60de3",
+      "bundle_sha256": "ea8ec82eb50e1e7ca2444e819c66b24613c86094bac84c8236753b448c9aa3cb",
+      "ir_sha256": "9cd0edcb61c4d77248db165cba36092a6eb369644b6f0be9f76582054a95f59a",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "853cefe27f20176ac8bfdf1dd07585f82066d5f3678a887c146c2785126cad88"
+    },
+    {
+      "frontend": "rust",
+      "case": "ownership",
+      "count": 6,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-ownership.ll"
+      ],
+      "compile_seconds": 3.6133648099785205,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "d812c508f23e3a41ab508274f763ec89ca30698e0849c5ce60bf8e9c52002c4d",
+      "bundle_sha256": "4ddb77eb14ad0be2727256f8ba8fde7440ab312a096ac1ce023cd687f185cc2f",
+      "ir_sha256": "53e10f1a6131e6444cd36ed23e4371a71c327407fbd1878a048ae1ea9338f516",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "b184891f807f51c008109725617c2d0758a89684ec6ed2b80447683820a9c6b0"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0128",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0128.ll"
+      ],
+      "compile_seconds": 3.4134619499964174,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "0bd24298816b10fdbfc12434ec0c481fa7484365503cfc9f07e0a1729c365885",
+      "bundle_sha256": "6cedcdb55c71b9e2d6acc07e2bd853efa1ce6fbc8e8809f728e61f80a9688a7e",
+      "ir_sha256": "29fb5f8b2412f0b0562c824df969dc06e663d4f8504beca1ab795b9fb4127279",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "a2cd5db18fa394887f08691169d9c82aeaf9aa8fb991ff4cdc5f725e043ae322"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0192",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0192.ll"
+      ],
+      "compile_seconds": 3.5740176280087326,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "05fe15c156143ab51c26d12f752160e25f21fc9b93405c67d9bb5031b287eaca",
+      "bundle_sha256": "54bb203bcfdf3c525f0e7764a7393e3cb4dd1724c2a2df0ab34b1a35760abc17",
+      "ir_sha256": "32bfb232c4dad03a0bafa90477c0ca327b35f12c9fa79afb96c70a4a0417f0d5",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "10fa19d368e3d561be1c7d8c8ff324915a81955ed93630f473d7420a1669ca2f"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0256",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0256.ll"
+      ],
+      "compile_seconds": 5.414729998999974,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "9d4d8da2a5c31c557117732e320f991156d45d7ce1bb8bef9d6ffd25771b4b08",
+      "bundle_sha256": "fe4bba2b73122ad0c4c346906bafe112b66a58432c396cb7dc4d7c7e6b8b334a",
+      "ir_sha256": "533a82ff8176441a276efd8dcc7a9034f498d835d2a8b5532b9c32a50ec6c179",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "cfd9d7f86cd2d3432f744ef3c360a8911eafa25ba0f2e01d6abca846c787dafe"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0320",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0320.ll"
+      ],
+      "compile_seconds": 4.485687589010922,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "91636abdf838fa627f54723cd6b572cc408fcb3f7397f7fb776b17dcc2278c08",
+      "bundle_sha256": "d6fa86870ab52fd5afbda5e83660f8cf32844315e5ce0e0a6280c22d4f168fa2",
+      "ir_sha256": "30b53fad8bd94302163d281d2703d622c1366195436a929736406a3431b5447a",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "8f9b74e82113ca9563d0acb3b03980de8c339c002507550f441afbe7e5a7e607"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0384",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0384.ll"
+      ],
+      "compile_seconds": 3.48594788700575,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "dbef461778af72af9cd924a3405c8e936f815d9c0f07eec1df237991fff9d095",
+      "bundle_sha256": "03ed54926d6959d6bbcbd62f56d95ed7821a351d5a68af0b2cbdd17131894f44",
+      "ir_sha256": "233610db6f3f1aeb89277dfb9e6bc8016b63a9639891a82ef458c38a714a3d7a",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "29c21f18e02cb98405ebf48f144e662130ce18f1aedd4229514f1fdfbf77a247"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0448",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0448.ll"
+      ],
+      "compile_seconds": 4.129691461013863,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "80af3cc1fe6ffc123302c6671d19c13dc6bd30c59b9732dfb5a1baacb2d7c00e",
+      "bundle_sha256": "0ab6b0eae93bb9bbc9221fb5eb475ad0488ffd5bd2f59c64b8ab2003bb2555e1",
+      "ir_sha256": "c24501896c0b5b68772366249e3c0c5aa2ffb7980b19759eb97abebccfecd3d5",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "3dc64df5dd96a8f306bec8bee9f5612eae05db108470827738d5a2a3bed0cfd5"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0512",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0512.ll"
+      ],
+      "compile_seconds": 3.8600961829943117,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "34e655c7f1bc17a58b65f84e019891ea2a7a51e86cfb68a52cfab0733bb703de",
+      "bundle_sha256": "ea8dae859b5b0b86e1203726a4a4971f6f6f0352577d5ce27de9d93800215315",
+      "ir_sha256": "4d3afb9f9da2dbd51103cac02ee503929a975b9b63c9170e4ef2ea30e792c824",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "85dfb7d9372038760759a146483f5cb2c4d12ceff4a3dce47a4e08f10d77eeb0"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0576",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0576.ll"
+      ],
+      "compile_seconds": 3.693734086002223,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "1317c4f304e325d2c0508be6aae3b90d0269e3a21eff4ab7a8f36b3f096b5b83",
+      "bundle_sha256": "381d03fc14927054fdb587f11e01005c7c6ed0bff7e5ddb0a8651b3f5741aeda",
+      "ir_sha256": "32cffa3b8d576503435c1c8a744b6a7217b481a422cce327bd5486f05f1f8e25",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "7aea8577b3645909c09524992be2c17ff0a1c5ed65487f082b8b28ba19cab5d4"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0640",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0640.ll"
+      ],
+      "compile_seconds": 3.3555138719966635,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "38883d6f11227e79d904669c2c56f593f26814670458b7b70541aab9c803eaf1",
+      "bundle_sha256": "4b835b55ca0692f5cf37ce2548e756525441d25cc75502e5f0d0117fbcda1d42",
+      "ir_sha256": "229d737206489abd76aae1d1b1e5c7b6afec7f663e06f2945dbc3f5b29c0bead",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "65feaff0ccca0731ed6399854d248a832076edd7f34b0d2f011ff9a3b2de5633"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0704",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0704.ll"
+      ],
+      "compile_seconds": 3.1532865460030735,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "4f4a6a2af85d07ac8c75a5d3832672cf61c05ccfcb9380da5e589fb1c83b6651",
+      "bundle_sha256": "48050d3f728546d1ba6424fac3011b38f44568a6ffdc19ecca29ce99534a89d9",
+      "ir_sha256": "a5bd33122837bbc8bd596efefc16f2fd54ed541fdbbc3595ad8b7416daa83916",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "1e4b023b57657d0a204d76590bc92338df0f11bb217fc2553b0865fb2ef735ce"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0768",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0768.ll"
+      ],
+      "compile_seconds": 3.589999682008056,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "1dff55ccd1768e38ede1fc0aa1dd16993ca595aaa021c367a0fb1ef91a78648a",
+      "bundle_sha256": "d0921978b2dd0dea0368933e59801606d8e9c11c169bb7aecfad1d610f0dc435",
+      "ir_sha256": "50515e453664aed621ee78dd6a71fa9b393d60fab3fdc79aa2dde5c8f58d788b",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "687732a3dedda51d454399e35773828315db4029248b87d55cdf5fffa5f2f21a"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0832",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0832.ll"
+      ],
+      "compile_seconds": 3.9678347220178694,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "b21a655654f9df037db9f69495e19c52c5ea7ea052332091c0d150e74e9c807b",
+      "bundle_sha256": "afb3ac387dc5167473f8405975cd8e5d7ff979b3c95fb2629cfae2c1387858c2",
+      "ir_sha256": "bf58dd73fcb926bb041044529babfc036f983fbaec06046944c604ce8b9dddfa",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "3f86f666774888fc63cd850ae22ec3fa0b9ca19c99285b431802db123a88915a"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0896",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0896.ll"
+      ],
+      "compile_seconds": 3.951564311981201,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "da2b08f1825464fb02957a52e6a1235961a7b663274c5ab26b3536bf3c037222",
+      "bundle_sha256": "32526218fceecb4beda8e5d814980adddbde53cc1d38bece3df733bf4e20bfe6",
+      "ir_sha256": "98ab46ceeda9db2131b3cf6e1a0d2e6e6bc5990563bb8e34baa1a815ddd9e69c",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "3d11846a116e799212584732e9c79606bc640bb2f49cd9257d0e3d0ec370f2f0"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-0960",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0960.ll"
+      ],
+      "compile_seconds": 3.7196666919917334,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "818d3f8ef3306f49893dc948217dc71081e1bfeea1f8b86322bf6bc3c9a30a85",
+      "bundle_sha256": "01ce91244e73e9332a74a37ac298317c6d74636cfa01c6a8e217dead10d82ce1",
+      "ir_sha256": "ce0363bb5ab85e11a6e17335853bfb605b14e006a9d2743bdd7f22103a0fc837",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "0ffa19a4ca45a95609c7fce32e382137fca135c8b105849432837d65160e98b9"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1024",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1024.ll"
+      ],
+      "compile_seconds": 3.7259788799856324,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "b086bca3ad452f04af586e58570af6f576cf31e4ffae7b049ef0fa5a5830a048",
+      "bundle_sha256": "430c453c7dc9670ea7a5952f4534cf4e1dd02f1a5db282ec9fa3239f2eb1b27a",
+      "ir_sha256": "be1bfb850a829e5b1aaa7fd6507b911ed89af078835caa257172d9bd5423f968",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "b2de92f161f72b9f8c1df4f505aa8c5e8bc535cbd3de2e4e4fa15b74841d6756"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1088",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1088.ll"
+      ],
+      "compile_seconds": 3.557956586009823,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "e825440e687728ea07280dbd3b118815929fc00275fbec57291734a042c06d7b",
+      "bundle_sha256": "ac0795dc0d21f2b43cf1a6cea4c3ee8bc628693543cf44b6557d167dc36e75c6",
+      "ir_sha256": "2a579eaec0f7b90013c6a487a6355a0184923ee5ecc76a1c3c6b156c2ac003bd",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "7813f45f68eb162701d04b1ea6d088d3bb51674f800f1acdd1dcb20fd8144665"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1152",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1152.ll"
+      ],
+      "compile_seconds": 4.0868616420193575,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "f700f1b57e02b40cd7274f426105a74c7b77225299dff5bb23648cefc92b4eae",
+      "bundle_sha256": "0640eb71c4a5313f312a8f448f6de92690613e1bff2fc7f6aec2f6847d1fc6d6",
+      "ir_sha256": "b920068d68dc9f048c01d69e713be25b1b6c0625dd599f20d5083ee2fd33210e",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "758ebea7aa9b5157fdb5d2a9d57ee3f0ea31d5b4b3a5ebbba895be282b96a0c1"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1216",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1216.ll"
+      ],
+      "compile_seconds": 4.3101257419912145,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "e7e80811b64175e5a947c8f9b84f487da3554b51ab41de5a1f16d26e63e2baa9",
+      "bundle_sha256": "a386a1f5919566dc39acef2ca8823cea2ca235f239b61acc73f8632546d653f9",
+      "ir_sha256": "ff8a4b47bab679f4fa6d45df62548382afe20d18b8880831c77d7d094e5a36a1",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "9fbe94a634908730e70c050f5b3072973af0f65adcca9d20c1c9fcfc3b50e7aa"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1280",
+      "count": 64,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1280.ll"
+      ],
+      "compile_seconds": 5.559767482976895,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "e695544cda4a57936b48f6e4800f35f77030c43cde7116572fa95d8875db30de",
+      "bundle_sha256": "a17bc987bef90cf294ec228721eb54633c3157117aeb709d252562ec5cafd608",
+      "ir_sha256": "76c7e2af5b6674f68b583e143a4be0101b0b9cf6bd49bb4acf2c2717857df5d8",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "8491528b7df7539fe93ca48adb24e181d19ca9b81ff209e81fa04f0db4dee170"
+    },
+    {
+      "frontend": "rust",
+      "case": "values-1344",
+      "count": 24,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1344.ll"
+      ],
+      "compile_seconds": 3.4092594840039965,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "2c9aabfa2a29c4b9114590b5c461d4697491927ac1e5adf0a265d8d5844671a2",
+      "bundle_sha256": "014700bc61a21677f46ffe84aecb04ef2e73762406b51ec2e7e0399282a201d3",
+      "ir_sha256": "b3fa4e63da15f24972d219a9ef6d1e578563abe71a8f720126b7cced91357b56",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "6dfc7c90a022b9da06dc0825f28ea00605431437ad4db1a2f33d5f6c416887d1"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0000",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0000.ll"
+      ],
+      "compile_seconds": 3.2718330140050966,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "84c59f88de40873e68ef58bf9f011f7bd02341c232a97fe83ff0a604712e9aa2",
+      "bundle_sha256": "90f066f041889428e25a63e2f44b842c889a43f2cccd56d77aa8c97be008af8e",
+      "ir_sha256": "edfea14680b7e687a44e834f2718c345d61b6c76d82f7347465dc2ace083f566",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "5fc01cc919088c70774839d5c7724e3afa5ada1dadbee440978aa3529ce22d39"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0008",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0008.ll"
+      ],
+      "compile_seconds": 3.110179863986559,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "f78692302e86f2dbe9dd015f1e9471a4a17c1e6e37bdfd337dd286c9eacba351",
+      "bundle_sha256": "beecfb04c823b2645ccaf588112693eea8bebfb5470095f147dfc9af1f77caa9",
+      "ir_sha256": "f35c8fe330ef1fe357e82807d0034adbae370ce329ac93b27ce4137006f5448a",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "8a6514d9f571a66d36a2c5ef7c7e657ac1a498186625993ed6bacb5114a7d86e"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0016",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0016.ll"
+      ],
+      "compile_seconds": 3.0815510700049344,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "b4901c4e4ad8eac43253afdacd40ec2aa8051e3b5155212e2cfcfb6b08914aea",
+      "bundle_sha256": "afcacd354eacfb6a70206d3887f153033c5f74051939069a5a8aeb69bdf4253f",
+      "ir_sha256": "a3af0af4748d827f26b16a9b077b74203107517158e79a524b7bc30cebca1c85",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "98909bcc47af8d4ae51a01ddf71d39c1aea39f5f41afbf9accaeb19ca23446d6"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0024",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0024.ll"
+      ],
+      "compile_seconds": 3.363993372011464,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "4d4552c78e7d18adfaa6092960b3769d23b9e305832e8e314544b45b39512fb6",
+      "bundle_sha256": "19e634cf905f3939aa207ccdbc0c276d3e91cda8dc16b460c0fb57bdf79c1668",
+      "ir_sha256": "26485de15a87e8df514bd60ef41413ddd54365f8001c9dd0f2487e53bea3dc8c",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "0dab8d9d30d37af48900cadb21d61c4e4926a17419790586c74fe8efa7c0e9df"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0032",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0032.ll"
+      ],
+      "compile_seconds": 3.4705055140075274,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "7dc5187acf93c10401b48510c7a38b7b76983878b8a120857a9079a803b4dd47",
+      "bundle_sha256": "35e1819415afd5e2346d9f1865858891d4bf62336c1efd95e7b6553c87a59018",
+      "ir_sha256": "c861c3c749fc167d1cec49b16ba7e21fd6aa53b45b6f16131c7e59e865360004",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "e746f39618eb70f1fb900b4e5434752aa0f2fd2f149bd6923f093eff7030ed00"
+    },
+    {
+      "frontend": "rust",
+      "case": "readers-0040",
+      "count": 1,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0040.ll"
+      ],
+      "compile_seconds": 3.200809465983184,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "3ce6997df6719088911d428d420c0c62fe422feaa2d757125b558babf5b4301c",
+      "bundle_sha256": "46ad8c4f35c33ef7507b2d23e089663770da33e493e4fb736b5a9434ee54b1e3",
+      "ir_sha256": "454abc8debb90d3f4a6dd48176f230c741ac05be75104a40ab410516c723f70c",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "5011fc6f8cc2d5c9bc1fb85a5821fd049037b9af765eefc4e8cf31428afabf11"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0000",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0000.ll"
+      ],
+      "compile_seconds": 3.4143816589785274,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "bbd0429f3a55626b7d934748202b3d8593d3d0c35a69e1dbf79706122050f934",
+      "bundle_sha256": "5fa8785006ada8b3cc9e0833e6dfb82e34b15b6478101c67f9ddc1ad38241699",
+      "ir_sha256": "553a6ac8da26b9f3ccfb640207a3f0df27d6a332d90051fde5ac6d9292d94b59",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "fedee797e88501773114188a7957a21c2871b03ee4f6c9645fb4d6cff17e7fcd"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0008",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0008.ll"
+      ],
+      "compile_seconds": 3.172442105016671,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "c4e388f9d2e95ba1b7f34dac7916194ee4cec6017dcf00957989a94b739834a7",
+      "bundle_sha256": "7e8e3c5f324648e01db4f506dd4d25961b6608d9daf066953667e1fd7e8038f4",
+      "ir_sha256": "61c0a6101d523f3ef623fead2931239ecb16c9c92a55e73f08119ba82c85482e",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "315862aea0ea79a4e07b46c4efc4bc8c7aadd34d4d2da995992125d686f96e62"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0016",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0016.ll"
+      ],
+      "compile_seconds": 3.2985773700056598,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "3a39ae0ccb8e11e930bf56b4e6e9f4f4e50208f6041ee431cf06d6ab729504d6",
+      "bundle_sha256": "593817047e49ad30fad945ec1ded7b68c8935d131abcdade780f8d434960a116",
+      "ir_sha256": "c8207dcb1262636ee37e4f15e38b954fc0bfd81aac74827fa552069d17b4061b",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "9e61f73708da7955d6f0a7387b8e660761479bf0b5384a1beeec57a7ab20a50b"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0024",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0024.ll"
+      ],
+      "compile_seconds": 3.330298604007112,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "d83820092b231fa44caf8e43b89f533afa7bc4905ba93e899ecd1beeecd2eba9",
+      "bundle_sha256": "f282ecd03cf62bfeb1aa6680532d5edd7b4f732ed7c1d7d68fbafd054bf87250",
+      "ir_sha256": "f3e9e0dec14b5606ffb811cc8f3f7654594e30813a6c7185c6cd0be7b02cafa8",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "bd367fbcf84943f8c6999281fe3636ab98b764710dc89f661127043272f1a16d"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0032",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0032.ll"
+      ],
+      "compile_seconds": 3.0084035669860896,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "d19d260ba04ea22d877d559b9ea307da164a00f961ac8ef5297808b1d3a48912",
+      "bundle_sha256": "45f8d8ce83ac2409411a0a096794c31c77b7f9a7380926f660da6778f04e05cd",
+      "ir_sha256": "45b425c95310a74fbce53d7e708b9c13ae518559081ada075fc4b5f46bf6e4ba",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "9374522b8d9e940dba57cd25b4b0afecaa2d17d130e4e3be944020e84b5c4f93"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0040",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0040.ll"
+      ],
+      "compile_seconds": 3.5893287710205186,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "836c498218b32259e142a08d78e55fa00d846b75b93a1356954e1d7b2e994115",
+      "bundle_sha256": "d9bc7a7d552cef8a4d64bf2bf7fff060a9f0730fa5910e7a05809d2cd06979bd",
+      "ir_sha256": "de18e89e00e3584e4aff836097b06c764f17e2db50a2b2fc61fe48f922286628",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "ae41b4fc6f42affa48b29da1ee50a279615a6a635a31dc8fde51443beeaba265"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0048",
+      "count": 8,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0048.ll"
+      ],
+      "compile_seconds": 4.453001825982938,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "6ec57c6e15c885750a407b8de893233da4375174f929361b3b9bfbf96dce5d9a",
+      "bundle_sha256": "47180551610e43e6b931a6556b757e58c646a5a478ce6e8aa401f4846b24a24e",
+      "ir_sha256": "9231fbeba895faf3b7f4623ffc3e460cdc5de4d754e8372214ebd0fd03ab28d5",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "427e35c81918b73dafba1e02cd794957bb147b51a2d31d3e93d5d001fc72a619"
+    },
+    {
+      "frontend": "rust",
+      "case": "writers-0056",
+      "count": 4,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0056.ll"
+      ],
+      "compile_seconds": 3.075514314987231,
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_sha256": "ea3344633aaa7464f0d495f315c592c49e466ccbf28e0b90ff9baad8bb1f0939",
+      "bundle_sha256": "d02dcdc44467a63925ec1a0bcbd2ed2dec664303f0c084dd36bcd77a75a9fc28",
+      "ir_sha256": "d60fdd1a428e820b68ed9ea73d88128dbffcd3c33e0e3b6cfea4c91b13a53b8a",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "executable_sha256": "47c23c9895d56bb6d64341371febe5fe855ff3cdcacf7b9dd3410186ba467a65"
+    }
+  ],
+  "kernel_cases_per_invocation": 32768,
+  "kernel_ir_sha256": "e91e28e6840840eddd5c85b78479e3714c4feedb0afdc55d87b15442605b4108",
+  "kernel_object_sha256": "b66029cad2b8f9d50f9bca931d314d9da1d036589de0be08d32dd7d196a53ae3",
+  "fixture_source_sha256": "d44c8c69c48adfbd161d8a597625a68072992ff83820589367006e5b1b6f1059",
+  "fixture_object_sha256": "891da98d8477095017f590478c86d170471e053baacc7d80d365ee179c7025a1",
+  "resource_boundaries": [
+    {
+      "free_bytes": 665989120,
+      "plain_bytes": 1441097,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0000.ll"
+      ]
+    },
+    {
+      "free_bytes": 662691840,
+      "plain_bytes": 4569752,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0000.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0000"
+      ]
+    },
+    {
+      "free_bytes": 656560128,
+      "plain_bytes": 10698310,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0000"
+      ]
+    },
+    {
+      "free_bytes": 656560128,
+      "plain_bytes": 10699484,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0000"
+      ]
+    },
+    {
+      "free_bytes": 661528576,
+      "plain_bytes": 3623896,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0064.ll"
+      ]
+    },
+    {
+      "free_bytes": 660635648,
+      "plain_bytes": 4516248,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0064.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0064"
+      ]
+    },
+    {
+      "free_bytes": 651550720,
+      "plain_bytes": 10632054,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0064"
+      ]
+    },
+    {
+      "free_bytes": 651550720,
+      "plain_bytes": 10633226,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0064"
+      ]
+    },
+    {
+      "free_bytes": 656490496,
+      "plain_bytes": 3616918,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-ownership.ll"
+      ]
+    },
+    {
+      "free_bytes": 638955520,
+      "plain_bytes": 4943304,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-ownership.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-ownership"
+      ]
+    },
+    {
+      "free_bytes": 632741888,
+      "plain_bytes": 11151386,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-ownership"
+      ]
+    },
+    {
+      "free_bytes": 632741888,
+      "plain_bytes": 11152552,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-ownership"
+      ]
+    },
+    {
+      "free_bytes": 631832576,
+      "plain_bytes": 3653933,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0128.ll"
+      ]
+    },
+    {
+      "free_bytes": 630878208,
+      "plain_bytes": 4607896,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0128.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0128"
+      ]
+    },
+    {
+      "free_bytes": 624742400,
+      "plain_bytes": 10744470,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0128"
+      ]
+    },
+    {
+      "free_bytes": 624738304,
+      "plain_bytes": 10745643,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0128"
+      ]
+    },
+    {
+      "free_bytes": 629719040,
+      "plain_bytes": 3680508,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0192.ll"
+      ]
+    },
+    {
+      "free_bytes": 628752384,
+      "plain_bytes": 4645946,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0192.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0192"
+      ]
+    },
+    {
+      "free_bytes": 622608384,
+      "plain_bytes": 10788952,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0192"
+      ]
+    },
+    {
+      "free_bytes": 622608384,
+      "plain_bytes": 10790125,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0192"
+      ]
+    },
+    {
+      "free_bytes": 627589120,
+      "plain_bytes": 3713507,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0256.ll"
+      ]
+    },
+    {
+      "free_bytes": 584368128,
+      "plain_bytes": 4725167,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0256.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0256"
+      ]
+    },
+    {
+      "free_bytes": 575193088,
+      "plain_bytes": 10876589,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0256"
+      ]
+    },
+    {
+      "free_bytes": 575193088,
+      "plain_bytes": 10877761,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0256"
+      ]
+    },
+    {
+      "free_bytes": 583233536,
+      "plain_bytes": 3733821,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0320.ll"
+      ]
+    },
+    {
+      "free_bytes": 581251072,
+      "plain_bytes": 4660641,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0320.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0320"
+      ]
+    },
+    {
+      "free_bytes": 575123456,
+      "plain_bytes": 10784967,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0320"
+      ]
+    },
+    {
+      "free_bytes": 575123456,
+      "plain_bytes": 10786139,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0320"
+      ]
+    },
+    {
+      "free_bytes": 580059136,
+      "plain_bytes": 3758640,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0384.ll"
+      ]
+    },
+    {
+      "free_bytes": 580206592,
+      "plain_bytes": 4687090,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0384.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0384"
+      ]
+    },
+    {
+      "free_bytes": 574083072,
+      "plain_bytes": 10811416,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0384"
+      ]
+    },
+    {
+      "free_bytes": 574078976,
+      "plain_bytes": 10812587,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0384"
+      ]
+    },
+    {
+      "free_bytes": 579002368,
+      "plain_bytes": 3790156,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0448.ll"
+      ]
+    },
+    {
+      "free_bytes": 577142784,
+      "plain_bytes": 4741000,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0448.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0448"
+      ]
+    },
+    {
+      "free_bytes": 571047936,
+      "plain_bytes": 10865430,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0448"
+      ]
+    },
+    {
+      "free_bytes": 571047936,
+      "plain_bytes": 10866602,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0448"
+      ]
+    },
+    {
+      "free_bytes": 575983616,
+      "plain_bytes": 3828404,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0512.ll"
+      ]
+    },
+    {
+      "free_bytes": 575033344,
+      "plain_bytes": 4779083,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0512.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0512"
+      ]
+    },
+    {
+      "free_bytes": 568909824,
+      "plain_bytes": 10903329,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0512"
+      ]
+    },
+    {
+      "free_bytes": 568909824,
+      "plain_bytes": 10904502,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0512"
+      ]
+    },
+    {
+      "free_bytes": 563560448,
+      "plain_bytes": 3866829,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0576.ll"
+      ]
+    },
+    {
+      "free_bytes": 562634752,
+      "plain_bytes": 4792482,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0576.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0576"
+      ]
+    },
+    {
+      "free_bytes": 556511232,
+      "plain_bytes": 10912712,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0576"
+      ]
+    },
+    {
+      "free_bytes": 556511232,
+      "plain_bytes": 10913884,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0576"
+      ]
+    },
+    {
+      "free_bytes": 561426432,
+      "plain_bytes": 3906797,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0640.ll"
+      ]
+    },
+    {
+      "free_bytes": 560472064,
+      "plain_bytes": 4859702,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0640.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0640"
+      ]
+    },
+    {
+      "free_bytes": 554348544,
+      "plain_bytes": 10983948,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0640"
+      ]
+    },
+    {
+      "free_bytes": 554344448,
+      "plain_bytes": 10985121,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0640"
+      ]
+    },
+    {
+      "free_bytes": 559271936,
+      "plain_bytes": 3953441,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0704.ll"
+      ]
+    },
+    {
+      "free_bytes": 558346240,
+      "plain_bytes": 4879095,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0704.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0704"
+      ]
+    },
+    {
+      "free_bytes": 552218624,
+      "plain_bytes": 10999325,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0704"
+      ]
+    },
+    {
+      "free_bytes": 552218624,
+      "plain_bytes": 11000498,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0704"
+      ]
+    },
+    {
+      "free_bytes": 557117440,
+      "plain_bytes": 4004063,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0768.ll"
+      ]
+    },
+    {
+      "free_bytes": 556081152,
+      "plain_bytes": 4988890,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0768.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0768"
+      ]
+    },
+    {
+      "free_bytes": 548532224,
+      "plain_bytes": 11131008,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0768"
+      ]
+    },
+    {
+      "free_bytes": 548532224,
+      "plain_bytes": 11132180,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0768"
+      ]
+    },
+    {
+      "free_bytes": 553504768,
+      "plain_bytes": 4059307,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0832.ll"
+      ]
+    },
+    {
+      "free_bytes": 552501248,
+      "plain_bytes": 5059388,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0832.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0832"
+      ]
+    },
+    {
+      "free_bytes": 546344960,
+      "plain_bytes": 11212418,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0832"
+      ]
+    },
+    {
+      "free_bytes": 546340864,
+      "plain_bytes": 11213591,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0832"
+      ]
+    },
+    {
+      "free_bytes": 551333888,
+      "plain_bytes": 4113132,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0896.ll"
+      ]
+    },
+    {
+      "free_bytes": 556064768,
+      "plain_bytes": 5113210,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0896.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0896"
+      ]
+    },
+    {
+      "free_bytes": 549908480,
+      "plain_bytes": 11266240,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0896"
+      ]
+    },
+    {
+      "free_bytes": 549908480,
+      "plain_bytes": 11267412,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0896"
+      ]
+    },
+    {
+      "free_bytes": 554897408,
+      "plain_bytes": 4170005,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0960.ll"
+      ]
+    },
+    {
+      "free_bytes": 553893888,
+      "plain_bytes": 5170085,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0960.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0960"
+      ]
+    },
+    {
+      "free_bytes": 547737600,
+      "plain_bytes": 11323115,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0960"
+      ]
+    },
+    {
+      "free_bytes": 547737600,
+      "plain_bytes": 11324288,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-0960"
+      ]
+    },
+    {
+      "free_bytes": 533524480,
+      "plain_bytes": 4229918,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1024.ll"
+      ]
+    },
+    {
+      "free_bytes": 532504576,
+      "plain_bytes": 5229997,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1024.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1024"
+      ]
+    },
+    {
+      "free_bytes": 526344192,
+      "plain_bytes": 11383027,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1024"
+      ]
+    },
+    {
+      "free_bytes": 526344192,
+      "plain_bytes": 11384200,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1024"
+      ]
+    },
+    {
+      "free_bytes": 531333120,
+      "plain_bytes": 4292755,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1088.ll"
+      ]
+    },
+    {
+      "free_bytes": 530329600,
+      "plain_bytes": 5292833,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1088.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1088"
+      ]
+    },
+    {
+      "free_bytes": 524173312,
+      "plain_bytes": 11445863,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1088"
+      ]
+    },
+    {
+      "free_bytes": 524169216,
+      "plain_bytes": 11447035,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1088"
+      ]
+    },
+    {
+      "free_bytes": 529154048,
+      "plain_bytes": 4358594,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1152.ll"
+      ]
+    },
+    {
+      "free_bytes": 525922304,
+      "plain_bytes": 5358674,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1152.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1152"
+      ]
+    },
+    {
+      "free_bytes": 519766016,
+      "plain_bytes": 11511704,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1152"
+      ]
+    },
+    {
+      "free_bytes": 519766016,
+      "plain_bytes": 11512877,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1152"
+      ]
+    },
+    {
+      "free_bytes": 524738560,
+      "plain_bytes": 4427441,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1216.ll"
+      ]
+    },
+    {
+      "free_bytes": 517464064,
+      "plain_bytes": 5427519,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1216.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1216"
+      ]
+    },
+    {
+      "free_bytes": 511307776,
+      "plain_bytes": 11580549,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1216"
+      ]
+    },
+    {
+      "free_bytes": 511307776,
+      "plain_bytes": 11581722,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1216"
+      ]
+    },
+    {
+      "free_bytes": 516263936,
+      "plain_bytes": 4520877,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1280.ll"
+      ]
+    },
+    {
+      "free_bytes": 509030400,
+      "plain_bytes": 5575788,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1280.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1280"
+      ]
+    },
+    {
+      "free_bytes": 502857728,
+      "plain_bytes": 11744306,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1280"
+      ]
+    },
+    {
+      "free_bytes": 502857728,
+      "plain_bytes": 11745478,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1280"
+      ]
+    },
+    {
+      "free_bytes": 507465728,
+      "plain_bytes": 5007093,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1344.ll"
+      ]
+    },
+    {
+      "free_bytes": 491708416,
+      "plain_bytes": 5966324,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1344.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1344"
+      ]
+    },
+    {
+      "free_bytes": 485339136,
+      "plain_bytes": 12272562,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1344"
+      ]
+    },
+    {
+      "free_bytes": 485335040,
+      "plain_bytes": 12273735,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-values-1344"
+      ]
+    },
+    {
+      "free_bytes": 490803200,
+      "plain_bytes": 4600290,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0000.ll"
+      ]
+    },
+    {
+      "free_bytes": 489705472,
+      "plain_bytes": 5696632,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0000.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0000"
+      ]
+    },
+    {
+      "free_bytes": 483536896,
+      "plain_bytes": 11864208,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0000"
+      ]
+    },
+    {
+      "free_bytes": 483536896,
+      "plain_bytes": 11865383,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0000"
+      ]
+    },
+    {
+      "free_bytes": 488542208,
+      "plain_bytes": 4686716,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0008.ll"
+      ]
+    },
+    {
+      "free_bytes": 487436288,
+      "plain_bytes": 5777460,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0008.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0008"
+      ]
+    },
+    {
+      "free_bytes": 481267712,
+      "plain_bytes": 11945036,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0008"
+      ]
+    },
+    {
+      "free_bytes": 481267712,
+      "plain_bytes": 11946210,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0008"
+      ]
+    },
+    {
+      "free_bytes": 486289408,
+      "plain_bytes": 4771357,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0016.ll"
+      ]
+    },
+    {
+      "free_bytes": 485195776,
+      "plain_bytes": 5862479,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0016.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0016"
+      ]
+    },
+    {
+      "free_bytes": 479023104,
+      "plain_bytes": 12030055,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0016"
+      ]
+    },
+    {
+      "free_bytes": 479023104,
+      "plain_bytes": 12031230,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0016"
+      ]
+    },
+    {
+      "free_bytes": 483909632,
+      "plain_bytes": 4987464,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0024.ll"
+      ]
+    },
+    {
+      "free_bytes": 490598400,
+      "plain_bytes": 6143182,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0024.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0024"
+      ]
+    },
+    {
+      "free_bytes": 484368384,
+      "plain_bytes": 12372198,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0024"
+      ]
+    },
+    {
+      "free_bytes": 484364288,
+      "plain_bytes": 12373372,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0024"
+      ]
+    },
+    {
+      "free_bytes": 489541632,
+      "plain_bytes": 5010876,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0032.ll"
+      ]
+    },
+    {
+      "free_bytes": 525524992,
+      "plain_bytes": 6109239,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0032.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0032"
+      ]
+    },
+    {
+      "free_bytes": 519327744,
+      "plain_bytes": 12304015,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0032"
+      ]
+    },
+    {
+      "free_bytes": 519327744,
+      "plain_bytes": 12305190,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0032"
+      ]
+    },
+    {
+      "free_bytes": 524443648,
+      "plain_bytes": 5029595,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0040.ll"
+      ]
+    },
+    {
+      "free_bytes": 523583488,
+      "plain_bytes": 5885414,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0040.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0040"
+      ]
+    },
+    {
+      "free_bytes": 517455872,
+      "plain_bytes": 12013406,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0040"
+      ]
+    },
+    {
+      "free_bytes": 517455872,
+      "plain_bytes": 12014580,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-readers-0040"
+      ]
+    },
+    {
+      "free_bytes": 522211328,
+      "plain_bytes": 5126104,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0000.ll"
+      ]
+    },
+    {
+      "free_bytes": 521445376,
+      "plain_bytes": 5890546,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0000.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0000"
+      ]
+    },
+    {
+      "free_bytes": 515379200,
+      "plain_bytes": 11955954,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0000"
+      ]
+    },
+    {
+      "free_bytes": 515375104,
+      "plain_bytes": 11957129,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0000"
+      ]
+    },
+    {
+      "free_bytes": 520052736,
+      "plain_bytes": 5211690,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0008.ll"
+      ]
+    },
+    {
+      "free_bytes": 519270400,
+      "plain_bytes": 5990444,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0008.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0008"
+      ]
+    },
+    {
+      "free_bytes": 513204224,
+      "plain_bytes": 12055852,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0008"
+      ]
+    },
+    {
+      "free_bytes": 513200128,
+      "plain_bytes": 12057026,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0008"
+      ]
+    },
+    {
+      "free_bytes": 517877760,
+      "plain_bytes": 5314664,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0016.ll"
+      ]
+    },
+    {
+      "free_bytes": 517128192,
+      "plain_bytes": 6060780,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0016.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0016"
+      ]
+    },
+    {
+      "free_bytes": 511066112,
+      "plain_bytes": 12121412,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0016"
+      ]
+    },
+    {
+      "free_bytes": 511066112,
+      "plain_bytes": 12122587,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0016"
+      ]
+    },
+    {
+      "free_bytes": 515715072,
+      "plain_bytes": 5419393,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0024.ll"
+      ]
+    },
+    {
+      "free_bytes": 514953216,
+      "plain_bytes": 6179457,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0024.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0024"
+      ]
+    },
+    {
+      "free_bytes": 508887040,
+      "plain_bytes": 12240361,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0024"
+      ]
+    },
+    {
+      "free_bytes": 508887040,
+      "plain_bytes": 12241535,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0024"
+      ]
+    },
+    {
+      "free_bytes": 513544192,
+      "plain_bytes": 5525616,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0032.ll"
+      ]
+    },
+    {
+      "free_bytes": 512749568,
+      "plain_bytes": 6317567,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0032.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0032"
+      ]
+    },
+    {
+      "free_bytes": 506683392,
+      "plain_bytes": 12383247,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0032"
+      ]
+    },
+    {
+      "free_bytes": 506679296,
+      "plain_bytes": 12384422,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0032"
+      ]
+    },
+    {
+      "free_bytes": 511356928,
+      "plain_bytes": 5644587,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0040.ll"
+      ]
+    },
+    {
+      "free_bytes": 510558208,
+      "plain_bytes": 6438425,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0040.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0040"
+      ]
+    },
+    {
+      "free_bytes": 504344576,
+      "plain_bytes": 12515633,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0040"
+      ]
+    },
+    {
+      "free_bytes": 504344576,
+      "plain_bytes": 12516808,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0040"
+      ]
+    },
+    {
+      "free_bytes": 509005824,
+      "plain_bytes": 5773309,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0048.ll"
+      ]
+    },
+    {
+      "free_bytes": 498876416,
+      "plain_bytes": 6598587,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0048.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0048"
+      ]
+    },
+    {
+      "free_bytes": 492625920,
+      "plain_bytes": 12703739,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0048"
+      ]
+    },
+    {
+      "free_bytes": 492625920,
+      "plain_bytes": 12704913,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0048"
+      ]
+    },
+    {
+      "free_bytes": 496484352,
+      "plain_bytes": 5866947,
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0056.ll"
+      ]
+    },
+    {
+      "free_bytes": 495824896,
+      "plain_bytes": 6501060,
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0056.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/classifier.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0056"
+      ]
+    },
+    {
+      "free_bytes": 489775104,
+      "plain_bytes": 12547124,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0056"
+      ]
+    },
+    {
+      "free_bytes": 489775104,
+      "plain_bytes": 12548298,
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-direct-qp-o2-v1/rust-writers-0056"
+      ]
+    }
+  ]
+}

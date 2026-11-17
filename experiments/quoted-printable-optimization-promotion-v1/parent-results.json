@@ -1,0 +1,69 @@
+{
+  "source_sha256": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00",
+  "source_commit": "1ab02633",
+  "scope": "Private word classifier with unchanged public declarations; standalone complete reference matrix and current Root parent subset have separate actual compiler identities.",
+  "parent_source_consumers": [
+    {
+      "case": "ownership",
+      "report": "experiments/quoted-printable-optimization-promotion-v1/parent-source-evidence/ownership.json",
+      "sha256": "7ca8881c338ce28ff89ea7a3ea31c4a3092b5cf2389dc569c0d2346131da3952",
+      "observations": 6
+    },
+    {
+      "case": "readers-0000",
+      "report": "experiments/quoted-printable-optimization-promotion-v1/parent-source-evidence/readers-0000.json",
+      "sha256": "4104ce581ccf78a24b9830ac37de24818050f1f905ec7b4310cc34031b5f75d7",
+      "observations": 8
+    },
+    {
+      "case": "values-0000",
+      "report": "experiments/quoted-printable-optimization-promotion-v1/parent-source-evidence/values-0000.json",
+      "sha256": "3f066f9db47e2abd30c6cc005f972538c69ccf98b5882ab736fbb02b435ddc2d",
+      "observations": 64
+    },
+    {
+      "case": "values-0256",
+      "report": "experiments/quoted-printable-optimization-promotion-v1/parent-source-evidence/values-0256.json",
+      "sha256": "5803e06f47c3bd78dd2386752bb45d9ab749cff6004b7288b53b1a1c494d2335",
+      "observations": 64
+    },
+    {
+      "case": "values-0896",
+      "report": "experiments/quoted-printable-optimization-promotion-v1/parent-source-evidence/values-0896.json",
+      "sha256": "62f9a049e40637c964e28cfd3fde85f0fe6f0b1f1ce071e16c8fa4e73dec0db7",
+      "observations": 64
+    },
+    {
+      "case": "writers-0000",
+      "report": "experiments/quoted-printable-optimization-promotion-v1/parent-source-evidence/writers-0000.json",
+      "sha256": "a7f589a94e2a65bb2ea2336775fae1066b1343d24dde49e0b08d29eb658d0767",
+      "observations": 8
+    }
+  ],
+  "parent_source_observations": 214,
+  "parent_source_memory_processes": 12,
+  "parent_source_compiler": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+  "parent_release_tests": {
+    "passed": 2,
+    "failed": 0,
+    "runtime_seconds": 22.06,
+    "compiler_sha256": "ad6e72f9cb4b946c7864b088062a2413974ca7b965153e1d7a413a97e0554e14",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "log": "experiments/quoted-printable-optimization-promotion-v1/parent-release.log",
+    "log_sha256": "4a48a1c964c9e4dff0fefb9fe1572e26998f76f05ea26072d5e59b7448991724"
+  },
+  "limits": [
+    "Fresh parent CLI includes separate, still-unpublished source-effect identity repair; published3dae independently executes all214 subset observations.",
+    "Full1475 O0/O2 and actual256/65536 kernel gate retain original330/d91 epoch.",
+    "Current Native family not admitted; earlier combined-candidate pipeline timings do not assert every quoted-printable workload improves."
+  ],
+  "library_reference": {
+    "modules": 191,
+    "value_exports": 4996,
+    "public_methods": 115,
+    "doc_diagnostics": 0,
+    "orphan_docs": 0,
+    "generation_log": "experiments/quoted-printable-optimization-promotion-v1/reference-generation.log",
+    "validation_log": "experiments/quoted-printable-optimization-promotion-v1/doc-validation.log"
+  }
+}

@@ -1,0 +1,299 @@
+{
+  "scope": "Read-only dependency-minimal shared quoted-printable promotion proposal; no Root edit or production selection.",
+  "root_base": "820d234b784f459eaf8e99dc82871105c8731086",
+  "required_imports": [
+    {
+      "from": "experiments/multipart-optimization-v1/sources/Text.QuotedPrintable.cinch",
+      "to": "compiler/prelude/Text/QuotedPrintable.cinch",
+      "sha256": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00",
+      "bytes": 39599,
+      "prior_root_sha256": "cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb"
+    }
+  ],
+  "source_change": "Private unpacked hexadecimal classifier and pair decoder; original malformed-equals path remains authoritative. No Multipart, Stream or Effect codec change.",
+  "public_surface_unchanged": true,
+  "public_surface": {
+    "names": [
+      "QuotedPrintableMode",
+      "QuotedPrintableText",
+      "QuotedPrintableBinary",
+      "QuotedPrintableEncoder",
+      "quoted-printable-encoder",
+      "quoted-printable-encoder-mode",
+      "quoted-printable-encoder-policy",
+      "quoted-printable-encoder-feed",
+      "quoted-printable-encoder-finish",
+      "quoted-printable-encoder-events",
+      "quoted-printable-encoder-finish-events",
+      "quoted-printable-encode",
+      "quoted-printable-encode-bytes",
+      "QuotedPrintableError",
+      "QuotedPrintableInvalidByte",
+      "QuotedPrintableInvalidHex",
+      "QuotedPrintableIncompleteEscape",
+      "QuotedPrintableInvalidSoftBreak",
+      "QuotedPrintableLineTooLong",
+      "quoted-printable-error-offset",
+      "quoted-printable-error-message",
+      "QuotedPrintableDecoder",
+      "quoted-printable-decoder",
+      "quoted-printable-decoder-feed",
+      "quoted-printable-decoder-error",
+      "quoted-printable-decoder-capacity",
+      "quoted-printable-decoder-position",
+      "quoted-printable-decoder-end",
+      "quoted-printable-decoder-finish",
+      "quoted-printable-decode-prefix",
+      "quoted-printable-decode-bytes"
+    ],
+    "declarations": {
+      "QuotedPrintableMode": "data QuotedPrintableMode where",
+      "QuotedPrintableText": "QuotedPrintableText :: QuotedPrintableMode",
+      "QuotedPrintableBinary": "QuotedPrintableBinary :: QuotedPrintableMode",
+      "QuotedPrintableEncoder": "data QuotedPrintableEncoder where",
+      "quoted-printable-encoder": "quoted-printable-encoder :: QuotedPrintableMode -> QuotedPrintableEncoder",
+      "quoted-printable-encoder-mode": "quoted-printable-encoder-mode :: QuotedPrintableMode -> QuotedPrintableEncoder -> QuotedPrintableEncoder",
+      "quoted-printable-encoder-policy": "quoted-printable-encoder-policy :: QuotedPrintableEncoder -> QuotedPrintableMode",
+      "quoted-printable-encoder-feed": "quoted-printable-encoder-feed :: QuotedPrintableEncoder -> Bytes -> (Bytes, QuotedPrintableEncoder)",
+      "quoted-printable-encoder-finish": "quoted-printable-encoder-finish :: QuotedPrintableEncoder -> Bytes",
+      "quoted-printable-encoder-events": "quoted-printable-encoder-events :: QuotedPrintableEncoder -> Bytes -> (List (Nat, Bytes), QuotedPrintableEncoder)",
+      "quoted-printable-encoder-finish-events": "quoted-printable-encoder-finish-events :: QuotedPrintableEncoder -> List (Nat, Bytes)",
+      "quoted-printable-encode": "quoted-printable-encode :: QuotedPrintableMode -> Bytes -> String",
+      "quoted-printable-encode-bytes": "quoted-printable-encode-bytes :: QuotedPrintableMode -> Bytes -> Bytes",
+      "QuotedPrintableError": "data QuotedPrintableError where",
+      "QuotedPrintableInvalidByte": "QuotedPrintableInvalidByte :: Nat -> InRange 0 255 Nat -> QuotedPrintableError",
+      "QuotedPrintableInvalidHex": "QuotedPrintableInvalidHex :: Nat -> InRange 0 255 Nat -> QuotedPrintableError",
+      "QuotedPrintableIncompleteEscape": "QuotedPrintableIncompleteEscape :: Nat -> QuotedPrintableError",
+      "QuotedPrintableInvalidSoftBreak": "QuotedPrintableInvalidSoftBreak :: Nat -> String -> QuotedPrintableError",
+      "QuotedPrintableLineTooLong": "QuotedPrintableLineTooLong :: Nat -> QuotedPrintableError",
+      "quoted-printable-error-offset": "quoted-printable-error-offset :: QuotedPrintableError -> Nat",
+      "quoted-printable-error-message": "quoted-printable-error-message :: QuotedPrintableError -> String",
+      "QuotedPrintableDecoder": "data QuotedPrintableDecoder where",
+      "quoted-printable-decoder": "quoted-printable-decoder :: QuotedPrintableDecoder",
+      "quoted-printable-decoder-feed": "quoted-printable-decoder-feed :: QuotedPrintableDecoder -> Bytes -> (Bytes, (Nat, QuotedPrintableDecoder))",
+      "quoted-printable-decoder-error": "quoted-printable-decoder-error :: QuotedPrintableDecoder -> Option QuotedPrintableError",
+      "quoted-printable-decoder-capacity": "quoted-printable-decoder-capacity :: QuotedPrintableDecoder -> Nat",
+      "quoted-printable-decoder-position": "quoted-printable-decoder-position :: QuotedPrintableDecoder -> Nat",
+      "quoted-printable-decoder-end": "quoted-printable-decoder-end :: Bool -> QuotedPrintableDecoder -> (Bytes, Option QuotedPrintableError)",
+      "quoted-printable-decoder-finish": "quoted-printable-decoder-finish :: QuotedPrintableDecoder -> (Bytes, Option QuotedPrintableError)",
+      "quoted-printable-decode-prefix": "quoted-printable-decode-prefix :: Bytes -> (Bytes, Option QuotedPrintableError)",
+      "quoted-printable-decode-bytes": "quoted-printable-decode-bytes :: Bytes -> Result QuotedPrintableError Bytes"
+    }
+  },
+  "all_data_declarations_and_constructor_schemes_byte_identical": true,
+  "direct_imports_at_root": [
+    {
+      "module": "Algebra.Semigroup",
+      "path": "compiler/prelude/Algebra/Semigroup.cinch",
+      "root_sha256": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e"
+    },
+    {
+      "module": "Data.Bool",
+      "path": "compiler/prelude/Data/Bool.cinch",
+      "root_sha256": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5"
+    },
+    {
+      "module": "Data.Bytes",
+      "path": "compiler/prelude/Data/Bytes.cinch",
+      "root_sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+    },
+    {
+      "module": "Data.Bytes.Word",
+      "path": "compiler/prelude/Data/Bytes/Word.cinch",
+      "root_sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+    },
+    {
+      "module": "Data.List",
+      "path": "compiler/prelude/Data/List.cinch",
+      "root_sha256": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d"
+    },
+    {
+      "module": "Data.Machine",
+      "path": "compiler/prelude/Data/Machine.cinch",
+      "root_sha256": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032"
+    },
+    {
+      "module": "Data.Nat",
+      "path": "compiler/prelude/Data/Nat.cinch",
+      "root_sha256": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b"
+    },
+    {
+      "module": "Data.Option",
+      "path": "compiler/prelude/Data/Option.cinch",
+      "root_sha256": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01"
+    },
+    {
+      "module": "Data.Result",
+      "path": "compiler/prelude/Data/Result.cinch",
+      "root_sha256": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d"
+    },
+    {
+      "module": "Data.String",
+      "path": "compiler/prelude/Data/String.cinch",
+      "root_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+    },
+    {
+      "module": "Text.Show",
+      "path": "compiler/prelude/Text/Show.cinch",
+      "root_sha256": "0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7"
+    }
+  ],
+  "qualified_nonbuiltin_source_dependencies": [
+    {
+      "module": "Data.Bytes.Word",
+      "root_path": "compiler/prelude/Data/Bytes/Word.cinch",
+      "qualified_sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "root_sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "unchanged": true
+    },
+    {
+      "module": "Effect.Stream",
+      "root_path": "compiler/prelude/Effect/Stream.cinch",
+      "qualified_sha256": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+      "root_sha256": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+      "unchanged": true
+    },
+    {
+      "module": "Effect.QuotedPrintable",
+      "root_path": "compiler/prelude/Effect/QuotedPrintable.cinch",
+      "qualified_sha256": "10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97",
+      "root_sha256": "10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97",
+      "unchanged": true
+    }
+  ],
+  "existing_fixtures_unchanged_at_root": [
+    {
+      "path": "compiler/tests/fixtures/quoted-printable-vectors.json",
+      "sha256": "11b5622d6b743509304a19cde8e85118917ea7ed9c739ad549795d704967ebd2"
+    },
+    {
+      "path": "tooling/data/quoted-printable-reference.go",
+      "sha256": "10ebf2f0f5d80065c859bef00901de6933ca49fd1819dedcc2d09530667b50e9"
+    },
+    {
+      "path": "tooling/data/quoted-printable-consumer.cinchpart",
+      "sha256": "8df45ad3f36b703c4ea9521fdbd3d549830813eab07af2059ce92322f55c54d5"
+    },
+    {
+      "path": "tooling/data/quoted-printable-ownership.cinchpart",
+      "sha256": "c2e98b5f2cc929fce8c611812c96aabcf76440d8fb431a2761241d769828408f"
+    },
+    {
+      "path": "tooling/data/quoted-printable-fixture.c",
+      "sha256": "d44c8c69c48adfbd161d8a597625a68072992ff83820589367006e5b1b6f1059"
+    }
+  ],
+  "compiler_epoch": {
+    "compiler": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+    "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+    "runtime": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "compile_rc_debug": false
+  },
+  "compiler_host_stack_bytes": 67108864,
+  "direct_corpus": {
+    "distinct_observations": 1475,
+    "values": 1368,
+    "reader_traces": 41,
+    "writer_traces": 60,
+    "ownership_controls": 6,
+    "consumers_per_optimization": 37,
+    "optimization_levels": [
+      0,
+      2
+    ],
+    "normal_and_poison_processes": 148,
+    "heap_profiles": [
+      "32M ordinary",
+      "256M poisoned-free"
+    ],
+    "runtime_stack": "8M",
+    "all_zero_leaks": true,
+    "oracle_sha256": "11b5622d6b743509304a19cde8e85118917ea7ed9c739ad549795d704967ebd2",
+    "independent_reference_source_sha256": "10ebf2f0f5d80065c859bef00901de6933ca49fd1819dedcc2d09530667b50e9",
+    "reference_examples_unchanged": true
+  },
+  "receipts": {
+    "full_o2": {
+      "path": "experiments/multipart-optimization-v1/direct-qp-o2-gate.json",
+      "sha256": "f4b480ceea45515cb170cdb04d78e8b49f2536b330679b02346f5ff0dcfdf241",
+      "evidence_commit": "0b900f67"
+    },
+    "exact_ir_o0_relink": {
+      "path": "experiments/multipart-optimization-v1/direct-qp-o0-gate.json",
+      "sha256": "42d5bcbf289e0caa67f066755ef58e6a2252cb01348c05dc7fc41dac279070f5",
+      "evidence_commit": "0b900f67"
+    },
+    "actual_hex_kernel": {
+      "path": "experiments/multipart-optimization-v1/hex-kernel.json",
+      "sha256": "cd033c0f1012e01997652acf6b01c9354b202b4b1daf57a2ef6bd1ecbbf8427a",
+      "evidence_commit": "0b900f67"
+    },
+    "canonical_docs": {
+      "path": "experiments/multipart-optimization-v1/canonical-docs.json",
+      "sha256": "b99ef80c60fea5e45498559daa145efe558d7c2296b1eeb1a1f000a2bab5a5d2",
+      "evidence_commit": "0b900f67"
+    }
+  },
+  "canonical_docs": {
+    "module": "Text.QuotedPrintable",
+    "declarations": 76,
+    "diagnostics": 0,
+    "orphans": 0,
+    "canonical_for_all_declarations": true
+  },
+  "actual_kernel": {
+    "byte_cases": 256,
+    "pair_cases": 65536,
+    "host_actual_body_passed": true,
+    "actual_foreign_objects": [
+      "aarch64-unknown-linux-gnu",
+      "wasm32-unknown-unknown"
+    ],
+    "foreign_execution_claim": false
+  },
+  "optional_maintained_kernel_imports": [
+    {
+      "from": "tooling/check_qp_hex_kernel.py",
+      "to": "tooling/check_qp_hex_kernel.py",
+      "sha256": "f41c8a136da35e1596f3984473553e82bdfdb0c4648b151e9eee51a47c2cc705",
+      "root_already_present": false
+    },
+    {
+      "from": "compiler/tests/fixtures/quoted-printable-hex-kernel.c",
+      "to": "compiler/tests/fixtures/quoted-printable-hex-kernel.c",
+      "sha256": "2bb29f66e021e1aeb5dc97d72fc24f3c72bd2addcefb054c775e2a1b10f54ec6",
+      "root_already_present": false
+    }
+  ],
+  "existing_root_ci": {
+    "target": "lib_quoted_printable",
+    "test_names": [
+      "quoted_printable_declarations_have_canonical_documentation",
+      "rust_cli_executes_quoted_printable_with_normal_and_poison_profiles"
+    ],
+    "selected_groups": {
+      "values-0000": 64,
+      "readers-0000": 8,
+      "writers-0000": 8,
+      "ownership": 6
+    },
+    "covers_changed_paths": [
+      "Malformed pair with invalid first digit (=G0) and invalid second digit (=0G) through original recovery",
+      "Valid uppercase pair (=3D) through stream prefix handling and chunk sizes1/2/7/4096",
+      "Numeric valid pair and forked decoder state (=30), retained inputs/output mutation, precise error prefix/offsets",
+      "Encoder and short/error writer control behavior remains checked"
+    ],
+    "limits": "The four existing groups do not contain lowercase valid pairs. The full unchanged1475 corpus and actual exhaustive256-byte/65536-pair kernel gate cover those. Optional extra existing groups values-0256 (=00 and =0a) and values-0896 (=a0) add explicit lowercase low/high-nibble CI coverage without changing fixtures. Root owns harness retention and final target execution."
+  },
+  "pending": [
+    "Root current parent source/CI gate after import",
+    "Root explicit production selection and documentation integration",
+    "No newly admitted Native family qualification claimed"
+  ],
+  "excluded_imports": [
+    "Effect.Multipart/Text.Multipart candidates and their API/Region changes",
+    "Effect.Stream/Effect.QuotedPrintable modifications",
+    "Historical experiments, archive machinery, public benchmark outputs or timing input copies"
+  ]
+}

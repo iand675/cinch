@@ -369,21 +369,28 @@ module Text.QuotedPrintable where
     if whitespace (bytes-get line at) then skip-horizontal line (at + 1) end else at
     else at
 
-  -- | A hexadecimal digit of either case, with its retained four-bit range.
-  hex-value :: Nat -> Option (InRange 0 15 Nat)
-  hex-value byte =
-    if byte >= 48 && byte <= 57 then Some ((byte - 48) :: Nat)
-    else if byte >= 65 && byte <= 70 then Some ((byte - 55) :: Nat)
-    else if byte >= 97 && byte <= 102 then Some ((byte - 87) :: Nat)
-    else None
+  -- | Classify one ASCII hexadecimal digit as an unpacked value or the sentinel sixteen.
+  prim hex-value-word :: U8 -> U32 where
+    llvm {
+      %digit = sub i8 %0, 48
+      %decimal = icmp ult i8 %digit, 10
+      %folded = or i8 %0, 32
+      %letter = sub i8 %folded, 97
+      %hexadecimal = icmp ult i8 %letter, 6
+      %upper = add i8 %letter, 10
+      %value = select i1 %decimal, i8 %digit, i8 %upper
+      %valid = or i1 %decimal, %hexadecimal
+      %selected = select i1 %valid, i8 %value, i8 16
+      %wide = zext i8 %selected to i32
+      ret i32 %wide
+    }
 
-  -- | Decode a complete pair after an equals marker, without consuming malformed input.
-  escape-value :: using (at + 3 <= end, end <= 4096) => DecoderLine -> (at :: Nat) -> (end :: Nat) -> Option (InRange 0 255 Nat)
-  escape-value line at end = case hex-value (bytes-get line (at + 1)) of
-    None -> None
-    Some high -> case hex-value (bytes-get line (at + 2)) of
-      None -> None
-      Some low -> Some (((high :: Nat) * 16 + (low :: Nat)) :: Nat)
+  -- | Decode both bounded bytes with the shared unpacked classifier; 256 means invalid.
+  escape-value :: using (at + 3 <= end, end <= 4096) => DecoderLine -> (at :: Nat) -> (end :: Nat) -> U32
+  escape-value line at end =
+    let high = hex-value-word (wrapping-i64-to-u8 (nat-to-i64 (bytes-get line (at + 1)))) in
+    let low = hex-value-word (wrapping-i64-to-u8 (nat-to-i64 (bytes-get line (at + 2)))) in
+    if lt-u32 high 16 && lt-u32 low 16 then bit-or-u32 (wrapping-shl-u32 high 4) low else 256
 
   -- | Recover a malformed non-newline escape as literal equals, or retain the precise error.
   decode-equals :: using (at < end, end <= 4096, written <= at) => DecoderLine -> DecoderOutput -> Nat -> (at :: Nat) -> (end :: Nat) -> (written :: InRange 0 4096 Nat) -> DecodeWork
@@ -410,11 +417,12 @@ module Text.QuotedPrintable where
       else
         let byte = bytes-get line at in
         if byte == 61 then
-          if at + 3 <= end then case escape-value line at end of
-            Some decoded ->
+          if at + 3 <= end then
+            let decoded = u32-to-nat (escape-value line at end) in
+            if decoded <= 255 then
               let stored = bytes-set out written decoded in
               decode-inline line out origin (at + 3) end ((written + 1) :: Nat)
-            None -> decode-equals line out origin at end written
+            else decode-equals line out origin at end written
           else decode-equals line out origin at end written
         else if good-byte 2 byte then
           let stored = bytes-set out written byte in

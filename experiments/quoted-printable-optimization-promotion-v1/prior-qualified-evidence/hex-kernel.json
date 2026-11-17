@@ -1,0 +1,104 @@
+{
+  "scope": "Test the actual candidate hexadecimal primitive with exhaustive scalar fixtures.\n\nThe precise inline LLVM body becomes a linked host object and real AArch64 and\nwasm32 objects. The oracle uses independent literal table lookup. This does not\nclaim whole decoder or foreign-target execution qualification.\n",
+  "selected_source_sha256": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00",
+  "actual_ir_sha256": "f8950c9dfe4c15db2941510ee8e58dfec0a798b81d03939252afaa9d33de0003",
+  "fixture_sha256": "2bb29f66e021e1aeb5dc97d72fc24f3c72bd2addcefb054c775e2a1b10f54ec6",
+  "cpu_affinity": [
+    1
+  ],
+  "commands": [
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/hex.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/hex.o"
+      ],
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n",
+      "passed": true
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "-fno-vectorize",
+        "-fno-slp-vectorize",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/fixture.c",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/hex.o",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/check"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/check"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "-S",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/hex.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/hex.s"
+      ],
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n",
+      "passed": true
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=aarch64-unknown-linux-gnu",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/hex.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/aarch64-unknown-linux-gnu.o"
+      ],
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n",
+      "passed": true
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=wasm32-unknown-unknown",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/hex.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/optimization-330-hex-v1/wasm32-unknown-unknown.o"
+      ],
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with wasm32-unknown-unknown [-Woverride-module]\n1 warning generated.\n",
+      "passed": true
+    }
+  ],
+  "byte_cases": 256,
+  "pair_cases": 65536,
+  "foreign_targets": [
+    "aarch64-unknown-linux-gnu",
+    "wasm32-unknown-unknown"
+  ],
+  "artifacts": {
+    "check": "af79ba07ab7a9954482b35f3cb84ea771dc9f9153986fd22f8d4f912501deabd",
+    "hex.s": "bbdb3f8214304437ef7918940d770696bfc3dd2239d1b57d1cea24f104c2f3c4",
+    "fixture.c": "2bb29f66e021e1aeb5dc97d72fc24f3c72bd2addcefb054c775e2a1b10f54ec6",
+    "aarch64-unknown-linux-gnu.o": "50b541c9ec3865e133da15a9884379824832a9410e84e12f044e9b826d5f0fa1",
+    "hex.o": "cdd6b5b65c83c82a56fa29a915c824b8b90dbcf15da39afbd445d8799008993a",
+    "hex.ll": "f8950c9dfe4c15db2941510ee8e58dfec0a798b81d03939252afaa9d33de0003",
+    "wasm32-unknown-unknown.o": "552cf9b1da9c9815bb0eb8d4934873875fb599a33c7d4ee129dddd7da6003fac"
+  },
+  "portable_execution_claim": false
+}
