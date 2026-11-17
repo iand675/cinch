@@ -134,6 +134,24 @@ module Main where
       let d = case held of None -> False; Some saved -> first-byte (suffix-index-bytes saved) == 97 in
       a && b && c && d && n0 == 0 && n1 == 2 && n2 == 4
 
+  -- | Record even the callback whose empty result is suppressed after a nonempty match.
+  observed-suppression :: forall (r :: Region) (s :: Region). Io r -> Var s Nat -> SuffixIndex -> Nat ->{IO r, Mut s} Result Unit (Option SuffixMatch)
+  observed-suppression capability count index cursor = with (io = capability) in
+    let before = var-read count in let incremented = var-write count (before + 1) in
+    let output = ioWrite (string-to-bytes "s ") in
+    let end = if cursor == 0 then 1 else cursor in
+    case suffix-match index cursor end of Err failure -> Err (); Ok found -> Ok (Some found)
+
+  -- | Count suppressed observations without counting them toward the accepted-result limit.
+  suppression :: forall (r :: Region) (s :: Region). Io r ->{IO r, Mut s} Bool
+  suppression capability = case suffix-index (bytes-from-list [97,98,99]) of
+    Err failure -> False
+    Ok index ->
+      let count = var-new 0 in
+      let found = suffix-index-find-all index (observed-suppression capability count) (AtMostSuffixMatches 2) in
+      let calls = var-read count in
+      case found of Err failure -> False; Ok accepted -> calls == 3 && same-ranges accepted [(0,1),(2,2)]
+
   -- | Select one bounded assertion; the effects assertion must print exactly four callback markers.
   main :: Unit ->{IO r, Mut s} Int
   main unit = let capability = newIO () in with (io = capability) in case process-args () of
@@ -143,5 +161,6 @@ module Main where
       else if mode == "cross" then (if cross-index () then 0 else 3)
       else if mode == "deep" then (if deep () then 0 else 4)
       else if mode == "effects" then (let accepted = effects capability in if accepted then 0 else 5)
+      else if mode == "suppression" then (let accepted = suppression capability in if accepted then 0 else 8)
       else 6
     other -> 7

@@ -67,6 +67,6 @@
   "resource_paused_before_next_compiler": true,
   "recovery_index": "build/suffixarray-v1-functional-recovery/index.json",
   "recovery_scope": "Only passed matching consumer ELF/LLVM, complete hash/size/mode/uid/gid/nsmtime, compressed+decoded verification and archive/index fsync before unlink; sources/interfaces/oracle/frozen/failed inputs plain",
-  "controls_source_sha256": "e283b4b2bf44a715700539b85058d5193fac65b3cd8633d69607b6e40180ecc3",
+  "controls_source_sha256": "7fb3447275fc5fbb7b033467237b9e1d954ed33684e138875f890af555aa8104",
   "controls_status": "prepared-static-untyped-not-run"
 }

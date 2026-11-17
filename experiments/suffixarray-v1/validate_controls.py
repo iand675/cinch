@@ -69,14 +69,14 @@ def main() -> None:
             r.update(executable_sha256=digest(executable), llvm_sha256=digest(work / 'consumer.ll'), status='running')
             report.write_text(json.dumps(r, indent=2) + '\n')
             for poison in [False, True]:
-                for mode in ['aliases', 'callbacks', 'cross', 'deep', 'effects']:
+                for mode in ['aliases', 'callbacks', 'cross', 'deep', 'effects', 'suppression']:
                     env = {**os.environ, 'CINCH_RC_DEBUG': str(int(poison)),
                            'CINCH_HEAP_LIMIT': '256M' if poison else '32M',
                            'CINCH_STACK_SIZE': '8M', 'CINCH_LEAK_CHECK': '1'}
                     result = subprocess.run([str(executable), mode], env=env, capture_output=True, text=True, timeout=60)
                     (work / f'run-{poison}-{mode}.stdout').write_text(result.stdout)
                     (work / f'run-{poison}-{mode}.stderr').write_text(result.stderr)
-                    expected = 'c c c c ' if mode == 'effects' else ''
+                    expected = 'c c c c ' if mode == 'effects' else ('s s s ' if mode == 'suppression' else '')
                     assert result.returncode == 0 and result.stdout == expected and 'leaked=0' in result.stderr, (mode, result.returncode, result.stdout, result.stderr)
                     r['profiles'].append(dict(poison=poison, mode=mode, stdout=result.stdout, zero_leaks=True))
                     report.write_text(json.dumps(r, indent=2) + '\n')
