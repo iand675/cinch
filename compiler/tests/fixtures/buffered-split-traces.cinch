@@ -1,0 +1,1336 @@
+-- | Independent split/scanner observations preserve malformed bytes and absent versus empty tokens.
+module Main where
+  import Effect.Scanner
+  import Effect.Scanner.Split
+  import Effect.Buffered.Core
+  import Effect.Buffered.Internal.Cell as Cell
+  import Effect.Io
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show
+
+  -- | Compare arbitrary bytes without applying a text conversion.
+  same :: Bytes -> Bytes -> Bool
+  same first second = eq-i64 (bytes-compare first second) 0
+
+  -- | Decode one generator-owned lowercase hexadecimal digit.
+  hex-digit :: Nat -> Nat
+  hex-digit value = if value >= 97 then value - 87 else if value >= 48 then value - 48 else 0
+
+  -- | Fill exact byte pairs from an ASCII hexadecimal fixture, with both intervals checked.
+  unhex-from :: Bytes -> Bytes -> Nat -> Unit
+  unhex-from input output at = if at < bytes-len output && at * 2 + 1 < bytes-len input then
+    let high = hex-digit (bytes-get input (at * 2)) in let low = hex-digit (bytes-get input (at * 2 + 1)) in
+    let value = high * 16 + low in
+    if value <= 255 then let written = bytes-set output at value in unhex-from input output (at + 1) else ()
+    else ()
+
+  -- | Reconstruct an arbitrary byte fixture without a deeply nested numeric constructor list.
+  unhex :: String -> Bytes
+  unhex text = let input = string-to-bytes text in let output = bytes-new (u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) / 2) in
+    let written = unhex-from input output 0 in output
+
+  -- | Copy one checked raw source interval into a fresh event.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let output = bytes-new count in let copied = bytes-copy-range output input 0 at count in output
+    else bytes-new 0
+
+  -- | Preserve actual source request widths in initialized private I/O storage.
+  source :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r
+  source input at chunk together empties calls logging fast = let plain = buffer-source (\wanted -> source-read input at chunk together empties calls logging fast wanted) in
+    if fast then buffer-source-with-transfer plain (\write -> source-transfer input at chunk together empties calls logging write) else plain
+
+  -- | Advance the immutable transport cursor and distinguish transient emptiness from end-of-input.
+  source-read :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)
+  source-read input at chunk together empties calls logging fast wanted =
+    let logged = if logging then Cell.cell-write calls (Cons (nat-to-int wanted) (Cell.cell-read calls)) else () in
+    if empties > 0 then (ReadEvent 0 (bytes-new 0) None, source input at chunk together (empties - 1) calls logging fast)
+    else if wanted == 0 then (ReadEvent 0 (bytes-new 0) None, source input at chunk together 0 calls logging fast)
+    else if at < bytes-len input then
+      let remaining = bytes-len input - at in let limited = if remaining < wanted then remaining else wanted in
+      let count = if chunk > 0 && chunk < limited then chunk else limited in
+      let status = if together && at + count == bytes-len input then Some BufferEnd else None in
+      (ReadEvent (nat-to-int count) (part input at count) status, source input (at + count) chunk together 0 calls logging fast)
+    else (ReadEvent 0 (bytes-new 0) (Some BufferEnd), source input at chunk together 0 calls logging fast)
+
+  -- | Expose a direct source transfer whose request log remains distinguishable from ordinary reads.
+  source-transfer :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)
+  source-transfer input at chunk together empties calls logging write =
+    let logged = if logging then Cell.cell-write calls (Cons (-1) (Cell.cell-read calls)) else () in
+    let remaining = if at <= bytes-len input then bytes-len input - at else 0 in
+    let payload = part input at remaining in
+    case write payload of
+      event -> case buffer-write-accepted remaining event of
+        Err failure -> (TransferEvent 0 (Some failure), source input at chunk together empties calls logging True)
+        Ok accepted -> case event of
+          WriteEvent actual status -> if accepted <= 9223372036854775807 then
+            (TransferEvent (nat-to-i64 accepted) status, source input (at + accepted) chunk together empties calls logging True)
+            else (TransferEvent 0 (Some (BufferInvalidWriteCount remaining actual)), source input at chunk together empties calls logging True)
+
+  -- | Produce an independently configured invalid source count without inventing initialized payload bytes.
+  fault-source :: forall r. using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r
+  fault-source fault calls = buffer-source (\wanted -> let logged = Cell.cell-write calls (Cons (nat-to-int wanted) (Cell.cell-read calls)) in
+    let actual = if fault < 0 then (-1) else nat-to-int wanted + 1 in
+    (ReadEvent actual (bytes-new 0) None, fault-source fault calls))
+
+  -- | Compare complete callback histories rather than only the final byte result.
+  same-calls :: List Int -> List Int -> Bool
+  same-calls first second = case first of
+    Nil -> case second of Nil -> True; other -> False
+    Cons value rest -> case second of
+      Cons expected tail -> value == expected && same-calls rest tail
+      Nil -> False
+
+
+  -- | Normalize every failure to exit1 after printing its full independent observation index.
+  report-failure :: forall r. using (io :: Io r) => Int ->{IO r} Int
+  report-failure index = let printed = ioWrite (string-to-bytes (string-concat (int-to-string index) "\n")) in 1
+
+  -- | Keep byte reconstruction opaque to compile-time evaluation so public splitter calls execute at runtime.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Normalize structural scanner failures independently of their native presentation strings.
+  error-code :: Option ScanError -> Nat
+  error-code error = case error of
+    None -> 0
+    Some ScanTooLong -> 1
+    Some (ScanNegativeAdvance count) -> 2
+    Some (ScanAdvanceTooFar count available) -> 3
+    Some (ScanBadReadCount wanted actual supplied) -> 4
+    Some ScanNoProgress -> 5
+    Some (ScanEmptyTokens count) -> 6
+    Some (ScanEmptyTokensAfter count prior) -> 6
+    other -> 99
+
+  -- | Compare optional tokens, preserving Some empty independently of None.
+  same-token :: Option Bytes -> Option Bytes -> Bool
+  same-token actual expected = case actual of
+    None -> case expected of None -> True; other -> False
+    Some payload -> case expected of None -> False; Some wanted -> same payload wanted
+
+  -- | Select actual built-in functions or explicit adversarial pure split callbacks.
+  splitter :: Nat -> ScanSplit
+  splitter kind = if kind == 0 then scan-split scan-bytes
+    else if kind == 1 then scan-split scan-lines
+    else if kind == 2 then scan-split scan-runes
+    else if kind == 3 then scan-split scan-words
+    else if kind == 4 then scan-split (\input terminal -> ScanStep (-1) None None)
+    else if kind == 5 then scan-split (\input terminal -> ScanStep (nat-to-int (bytes-len input + 1)) None None)
+    else if kind == 6 then scan-split (\input terminal -> ScanStep 0 None (Some ScanFinalToken))
+    else if kind == 7 then scan-split (\input terminal -> ScanStep 0 (Some (bytes-new 0)) (Some ScanFinalToken))
+    else scan-split (\input terminal -> ScanStep 0 (Some (bytes-new 0)) None)
+
+  -- | An independently observed direct split, including optional token identity and exact signed advance.
+  data SplitCheck where
+    -- | Function, input, terminal flag, expected advance, optional token and error family.
+    SplitCheck :: Nat -> Bytes -> Bool -> Int -> Option Bytes -> Nat -> SplitCheck
+
+  -- | Execute every supplied public split pipeline at runtime and return the first absolute mismatch.
+  direct-checks :: List SplitCheck -> Nat -> Int
+  direct-checks rows index = case rows of
+    Nil -> 0
+    Cons row rest -> case row of
+      SplitCheck kind input terminal advance token error ->
+        case scan-apply (splitter kind) input terminal of
+          ScanStep actual payload status ->
+            if actual == advance && same-token payload token && error-code status == error then direct-checks rest (index + 1)
+            else nat-to-int index
+
+  -- | Independent direct observations 1 through 16; invalid empty nonterminal calls safely request more data.
+  batchcase0 :: Unit -> Int
+  batchcase0 unit = direct-checks [
+    (SplitCheck 0 (unhex "") False 0 None 0),
+    (SplitCheck 1 (unhex "") False 0 None 0),
+    (SplitCheck 2 (unhex "") False 0 None 0),
+    (SplitCheck 3 (unhex "") False 0 None 0),
+    (SplitCheck 0 (unhex "") True 0 None 0),
+    (SplitCheck 1 (unhex "") True 0 None 0),
+    (SplitCheck 2 (unhex "") True 0 None 0),
+    (SplitCheck 3 (unhex "") True 0 None 0),
+    (SplitCheck 0 (unhex "") False 0 None 0),
+    (SplitCheck 1 (unhex "") False 0 None 0),
+    (SplitCheck 2 (unhex "") False 0 None 0),
+    (SplitCheck 3 (unhex "") False 0 None 0),
+    (SplitCheck 0 (unhex "") True 0 None 0),
+    (SplitCheck 1 (unhex "") True 0 None 0),
+    (SplitCheck 2 (unhex "") True 0 None 0),
+    (SplitCheck 3 (unhex "") True 0 None 0)
+  ] 1
+
+  -- | Independent direct observations 17 through 32; invalid empty nonterminal calls safely request more data.
+  batchcase1 :: Unit -> Int
+  batchcase1 unit = direct-checks [
+    (SplitCheck 0 (unhex "41") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "41") False 0 None 0),
+    (SplitCheck 2 (unhex "41") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "41") False 0 None 0),
+    (SplitCheck 0 (unhex "41") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "41") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "41") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "41") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d") False 0 None 0),
+    (SplitCheck 2 (unhex "410d") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d") False 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d") True 2 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d") True 2 (Some (unhex "41")) 0)
+  ] 17
+
+  -- | Independent direct observations 33 through 48; invalid empty nonterminal calls safely request more data.
+  batchcase2 :: Unit -> Int
+  batchcase2 unit = direct-checks [
+    (SplitCheck 0 (unhex "410d0a") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a") False 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a") False 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d0a") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a") True 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a") True 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d0a42") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a42") False 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a42") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a42") False 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d0a42") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a42") True 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a42") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a42") True 2 (Some (unhex "41")) 0)
+  ] 33
+
+  -- | Independent direct observations 49 through 64; invalid empty nonterminal calls safely request more data.
+  batchcase3 :: Unit -> Int
+  batchcase3 unit = direct-checks [
+    (SplitCheck 0 (unhex "410d0a4243") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a4243") False 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a4243") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a4243") False 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d0a4243") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a4243") True 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a4243") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a4243") True 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d0a42430a") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a42430a") False 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a42430a") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a42430a") False 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d0a42430a") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a42430a") True 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a42430a") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a42430a") True 2 (Some (unhex "41")) 0)
+  ] 49
+
+  -- | Independent direct observations 65 through 80; invalid empty nonterminal calls safely request more data.
+  batchcase4 :: Unit -> Int
+  batchcase4 unit = direct-checks [
+    (SplitCheck 0 (unhex "410d0a42430a0a") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a42430a0a") False 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a42430a0a") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a42430a0a") False 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d0a42430a0a") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a42430a0a") True 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a42430a0a") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a42430a0a") True 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d0a42430a0a5a") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a42430a0a5a") False 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a42430a0a5a") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a42430a0a5a") False 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d0a42430a0a5a") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a42430a0a5a") True 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a42430a0a5a") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a42430a0a5a") True 2 (Some (unhex "41")) 0)
+  ] 65
+
+  -- | Independent direct observations 81 through 96; invalid empty nonterminal calls safely request more data.
+  batchcase5 :: Unit -> Int
+  batchcase5 unit = direct-checks [
+    (SplitCheck 0 (unhex "410d0a42430a0a5a0d") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a42430a0a5a0d") False 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a42430a0a5a0d") False 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a42430a0a5a0d") False 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "410d0a42430a0a5a0d") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 1 (unhex "410d0a42430a0a5a0d") True 3 (Some (unhex "41")) 0),
+    (SplitCheck 2 (unhex "410d0a42430a0a5a0d") True 1 (Some (unhex "41")) 0),
+    (SplitCheck 3 (unhex "410d0a42430a0a5a0d") True 2 (Some (unhex "41")) 0),
+    (SplitCheck 0 (unhex "") False 0 None 0),
+    (SplitCheck 1 (unhex "") False 0 None 0),
+    (SplitCheck 2 (unhex "") False 0 None 0),
+    (SplitCheck 3 (unhex "") False 0 None 0),
+    (SplitCheck 0 (unhex "") True 0 None 0),
+    (SplitCheck 1 (unhex "") True 0 None 0),
+    (SplitCheck 2 (unhex "") True 0 None 0),
+    (SplitCheck 3 (unhex "") True 0 None 0)
+  ] 81
+
+  -- | Independent direct observations 97 through 112; invalid empty nonterminal calls safely request more data.
+  batchcase6 :: Unit -> Int
+  batchcase6 unit = direct-checks [
+    (SplitCheck 0 (unhex "61") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61") False 0 None 0),
+    (SplitCheck 2 (unhex "61") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61") False 0 None 0),
+    (SplitCheck 0 (unhex "61") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 2 (unhex "61") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 0 (unhex "61c3") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3") False 0 None 0),
+    (SplitCheck 2 (unhex "61c3") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3") False 0 None 0),
+    (SplitCheck 0 (unhex "61c3") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3") True 2 (Some (unhex "61c3")) 0),
+    (SplitCheck 2 (unhex "61c3") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3") True 2 (Some (unhex "61c3")) 0)
+  ] 97
+
+  -- | Independent direct observations 113 through 128; invalid empty nonterminal calls safely request more data.
+  batchcase7 :: Unit -> Int
+  batchcase7 unit = direct-checks [
+    (SplitCheck 0 (unhex "61c3a9") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9") False 0 None 0),
+    (SplitCheck 2 (unhex "61c3a9") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9") False 0 None 0),
+    (SplitCheck 0 (unhex "61c3a9") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9") True 3 (Some (unhex "61c3a9")) 0),
+    (SplitCheck 2 (unhex "61c3a9") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9") True 3 (Some (unhex "61c3a9")) 0),
+    (SplitCheck 0 (unhex "61c3a9f0") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f0") False 0 None 0),
+    (SplitCheck 2 (unhex "61c3a9f0") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f0") False 0 None 0),
+    (SplitCheck 0 (unhex "61c3a9f0") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f0") True 4 (Some (unhex "61c3a9f0")) 0),
+    (SplitCheck 2 (unhex "61c3a9f0") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f0") True 4 (Some (unhex "61c3a9f0")) 0)
+  ] 113
+
+  -- | Independent direct observations 129 through 144; invalid empty nonterminal calls safely request more data.
+  batchcase8 :: Unit -> Int
+  batchcase8 unit = direct-checks [
+    (SplitCheck 0 (unhex "61c3a9f09f") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f") False 0 None 0),
+    (SplitCheck 2 (unhex "61c3a9f09f") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f") False 0 None 0),
+    (SplitCheck 0 (unhex "61c3a9f09f") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f") True 5 (Some (unhex "61c3a9f09f")) 0),
+    (SplitCheck 2 (unhex "61c3a9f09f") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f") True 5 (Some (unhex "61c3a9f09f")) 0),
+    (SplitCheck 0 (unhex "61c3a9f09f8c") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c") False 0 None 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c") False 0 None 0),
+    (SplitCheck 0 (unhex "61c3a9f09f8c") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c") True 6 (Some (unhex "61c3a9f09f8c")) 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c") True 6 (Some (unhex "61c3a9f09f8c")) 0)
+  ] 129
+
+  -- | Independent direct observations 145 through 160; invalid empty nonterminal calls safely request more data.
+  batchcase9 :: Unit -> Int
+  batchcase9 unit = direct-checks [
+    (SplitCheck 0 (unhex "61c3a9f09f8c8d") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c8d") False 0 None 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c8d") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c8d") False 0 None 0),
+    (SplitCheck 0 (unhex "61c3a9f09f8c8d") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c8d") True 7 (Some (unhex "61c3a9f09f8c8d")) 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c8d") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c8d") True 7 (Some (unhex "61c3a9f09f8c8d")) 0),
+    (SplitCheck 0 (unhex "61c3a9f09f8c8dff") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c8dff") False 0 None 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c8dff") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c8dff") False 0 None 0),
+    (SplitCheck 0 (unhex "61c3a9f09f8c8dff") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c8dff") True 8 (Some (unhex "61c3a9f09f8c8dff")) 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c8dff") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c8dff") True 8 (Some (unhex "61c3a9f09f8c8dff")) 0)
+  ] 145
+
+  -- | Independent direct observations 161 through 176; invalid empty nonterminal calls safely request more data.
+  batchcase10 :: Unit -> Int
+  batchcase10 unit = direct-checks [
+    (SplitCheck 0 (unhex "61c3a9f09f8c8dff80") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c8dff80") False 0 None 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c8dff80") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c8dff80") False 0 None 0),
+    (SplitCheck 0 (unhex "61c3a9f09f8c8dff80") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c8dff80") True 9 (Some (unhex "61c3a9f09f8c8dff80")) 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c8dff80") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c8dff80") True 9 (Some (unhex "61c3a9f09f8c8dff80")) 0),
+    (SplitCheck 0 (unhex "61c3a9f09f8c8dff80e2") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c8dff80e2") False 0 None 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c8dff80e2") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c8dff80e2") False 0 None 0),
+    (SplitCheck 0 (unhex "61c3a9f09f8c8dff80e2") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c8dff80e2") True 10 (Some (unhex "61c3a9f09f8c8dff80e2")) 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c8dff80e2") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c8dff80e2") True 10 (Some (unhex "61c3a9f09f8c8dff80e2")) 0)
+  ] 161
+
+  -- | Independent direct observations 177 through 192; invalid empty nonterminal calls safely request more data.
+  batchcase11 :: Unit -> Int
+  batchcase11 unit = direct-checks [
+    (SplitCheck 0 (unhex "61c3a9f09f8c8dff80e282") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c8dff80e282") False 0 None 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c8dff80e282") False 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c8dff80e282") False 0 None 0),
+    (SplitCheck 0 (unhex "61c3a9f09f8c8dff80e282") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 1 (unhex "61c3a9f09f8c8dff80e282") True 11 (Some (unhex "61c3a9f09f8c8dff80e282")) 0),
+    (SplitCheck 2 (unhex "61c3a9f09f8c8dff80e282") True 1 (Some (unhex "61")) 0),
+    (SplitCheck 3 (unhex "61c3a9f09f8c8dff80e282") True 11 (Some (unhex "61c3a9f09f8c8dff80e282")) 0),
+    (SplitCheck 0 (unhex "") False 0 None 0),
+    (SplitCheck 1 (unhex "") False 0 None 0),
+    (SplitCheck 2 (unhex "") False 0 None 0),
+    (SplitCheck 3 (unhex "") False 0 None 0),
+    (SplitCheck 0 (unhex "") True 0 None 0),
+    (SplitCheck 1 (unhex "") True 0 None 0),
+    (SplitCheck 2 (unhex "") True 0 None 0),
+    (SplitCheck 3 (unhex "") True 0 None 0)
+  ] 177
+
+  -- | Independent direct observations 193 through 208; invalid empty nonterminal calls safely request more data.
+  batchcase12 :: Unit -> Int
+  batchcase12 unit = direct-checks [
+    (SplitCheck 0 (unhex "30") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30") False 0 None 0),
+    (SplitCheck 2 (unhex "30") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30") False 0 None 0),
+    (SplitCheck 0 (unhex "30") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 2 (unhex "30") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 0 (unhex "3031") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031") False 0 None 0),
+    (SplitCheck 2 (unhex "3031") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031") False 0 None 0),
+    (SplitCheck 0 (unhex "3031") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031") True 2 (Some (unhex "3031")) 0),
+    (SplitCheck 2 (unhex "3031") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031") True 2 (Some (unhex "3031")) 0)
+  ] 193
+
+  -- | Independent direct observations 209 through 224; invalid empty nonterminal calls safely request more data.
+  batchcase13 :: Unit -> Int
+  batchcase13 unit = direct-checks [
+    (SplitCheck 0 (unhex "303132") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132") False 0 None 0),
+    (SplitCheck 2 (unhex "303132") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132") False 0 None 0),
+    (SplitCheck 0 (unhex "303132") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132") True 3 (Some (unhex "303132")) 0),
+    (SplitCheck 2 (unhex "303132") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132") True 3 (Some (unhex "303132")) 0),
+    (SplitCheck 0 (unhex "30313233") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233") True 4 (Some (unhex "30313233")) 0),
+    (SplitCheck 2 (unhex "30313233") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233") True 4 (Some (unhex "30313233")) 0)
+  ] 209
+
+  -- | Independent direct observations 225 through 240; invalid empty nonterminal calls safely request more data.
+  batchcase14 :: Unit -> Int
+  batchcase14 unit = direct-checks [
+    (SplitCheck 0 (unhex "3031323334") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334") True 5 (Some (unhex "3031323334")) 0),
+    (SplitCheck 2 (unhex "3031323334") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334") True 5 (Some (unhex "3031323334")) 0),
+    (SplitCheck 0 (unhex "303132333435") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435") True 6 (Some (unhex "303132333435")) 0),
+    (SplitCheck 2 (unhex "303132333435") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435") True 6 (Some (unhex "303132333435")) 0)
+  ] 225
+
+  -- | Independent direct observations 241 through 256; invalid empty nonterminal calls safely request more data.
+  batchcase15 :: Unit -> Int
+  batchcase15 unit = direct-checks [
+    (SplitCheck 0 (unhex "30313233343536") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536") True 7 (Some (unhex "30313233343536")) 0),
+    (SplitCheck 2 (unhex "30313233343536") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536") True 7 (Some (unhex "30313233343536")) 0),
+    (SplitCheck 0 (unhex "3031323334353637") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637") True 8 (Some (unhex "3031323334353637")) 0),
+    (SplitCheck 2 (unhex "3031323334353637") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637") True 8 (Some (unhex "3031323334353637")) 0)
+  ] 241
+
+  -- | Independent direct observations 257 through 272; invalid empty nonterminal calls safely request more data.
+  batchcase16 :: Unit -> Int
+  batchcase16 unit = direct-checks [
+    (SplitCheck 0 (unhex "303132333435363738") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738") True 9 (Some (unhex "303132333435363738")) 0),
+    (SplitCheck 2 (unhex "303132333435363738") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738") True 9 (Some (unhex "303132333435363738")) 0),
+    (SplitCheck 0 (unhex "30313233343536373839") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839") True 10 (Some (unhex "30313233343536373839")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839") True 10 (Some (unhex "30313233343536373839")) 0)
+  ] 257
+
+  -- | Independent direct observations 273 through 288; invalid empty nonterminal calls safely request more data.
+  batchcase17 :: Unit -> Int
+  batchcase17 unit = direct-checks [
+    (SplitCheck 0 (unhex "3031323334353637383930") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930") True 11 (Some (unhex "3031323334353637383930")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930") True 11 (Some (unhex "3031323334353637383930")) 0),
+    (SplitCheck 0 (unhex "303132333435363738393031") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031") True 12 (Some (unhex "303132333435363738393031")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031") True 12 (Some (unhex "303132333435363738393031")) 0)
+  ] 273
+
+  -- | Independent direct observations 289 through 304; invalid empty nonterminal calls safely request more data.
+  batchcase18 :: Unit -> Int
+  batchcase18 unit = direct-checks [
+    (SplitCheck 0 (unhex "30313233343536373839303132") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132") True 13 (Some (unhex "30313233343536373839303132")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132") True 13 (Some (unhex "30313233343536373839303132")) 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233") True 14 (Some (unhex "3031323334353637383930313233")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233") True 14 (Some (unhex "3031323334353637383930313233")) 0)
+  ] 289
+
+  -- | Independent direct observations 305 through 320; invalid empty nonterminal calls safely request more data.
+  batchcase19 :: Unit -> Int
+  batchcase19 unit = direct-checks [
+    (SplitCheck 0 (unhex "303132333435363738393031323334") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334") True 15 (Some (unhex "303132333435363738393031323334")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334") True 15 (Some (unhex "303132333435363738393031323334")) 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435") True 16 (Some (unhex "30313233343536373839303132333435")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435") True 16 (Some (unhex "30313233343536373839303132333435")) 0)
+  ] 305
+
+  -- | Independent direct observations 321 through 336; invalid empty nonterminal calls safely request more data.
+  batchcase20 :: Unit -> Int
+  batchcase20 unit = direct-checks [
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536") True 17 (Some (unhex "3031323334353637383930313233343536")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536") True 17 (Some (unhex "3031323334353637383930313233343536")) 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637") True 18 (Some (unhex "303132333435363738393031323334353637")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637") True 18 (Some (unhex "303132333435363738393031323334353637")) 0)
+  ] 321
+
+  -- | Independent direct observations 337 through 352; invalid empty nonterminal calls safely request more data.
+  batchcase21 :: Unit -> Int
+  batchcase21 unit = direct-checks [
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738") True 19 (Some (unhex "30313233343536373839303132333435363738")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738") True 19 (Some (unhex "30313233343536373839303132333435363738")) 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839") True 20 (Some (unhex "3031323334353637383930313233343536373839")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839") True 20 (Some (unhex "3031323334353637383930313233343536373839")) 0)
+  ] 337
+
+  -- | Independent direct observations 353 through 368; invalid empty nonterminal calls safely request more data.
+  batchcase22 :: Unit -> Int
+  batchcase22 unit = direct-checks [
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930") True 21 (Some (unhex "303132333435363738393031323334353637383930")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930") True 21 (Some (unhex "303132333435363738393031323334353637383930")) 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031") True 22 (Some (unhex "30313233343536373839303132333435363738393031")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031") True 22 (Some (unhex "30313233343536373839303132333435363738393031")) 0)
+  ] 353
+
+  -- | Independent direct observations 369 through 384; invalid empty nonterminal calls safely request more data.
+  batchcase23 :: Unit -> Int
+  batchcase23 unit = direct-checks [
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132") True 23 (Some (unhex "3031323334353637383930313233343536373839303132")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132") True 23 (Some (unhex "3031323334353637383930313233343536373839303132")) 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233") True 24 (Some (unhex "303132333435363738393031323334353637383930313233")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233") True 24 (Some (unhex "303132333435363738393031323334353637383930313233")) 0)
+  ] 369
+
+  -- | Independent direct observations 385 through 400; invalid empty nonterminal calls safely request more data.
+  batchcase24 :: Unit -> Int
+  batchcase24 unit = direct-checks [
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334") True 25 (Some (unhex "30313233343536373839303132333435363738393031323334")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334") True 25 (Some (unhex "30313233343536373839303132333435363738393031323334")) 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435") True 26 (Some (unhex "3031323334353637383930313233343536373839303132333435")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435") True 26 (Some (unhex "3031323334353637383930313233343536373839303132333435")) 0)
+  ] 385
+
+  -- | Independent direct observations 401 through 416; invalid empty nonterminal calls safely request more data.
+  batchcase25 :: Unit -> Int
+  batchcase25 unit = direct-checks [
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536") True 27 (Some (unhex "303132333435363738393031323334353637383930313233343536")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536") True 27 (Some (unhex "303132333435363738393031323334353637383930313233343536")) 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637") True 28 (Some (unhex "30313233343536373839303132333435363738393031323334353637")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637") True 28 (Some (unhex "30313233343536373839303132333435363738393031323334353637")) 0)
+  ] 401
+
+  -- | Independent direct observations 417 through 432; invalid empty nonterminal calls safely request more data.
+  batchcase26 :: Unit -> Int
+  batchcase26 unit = direct-checks [
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738") True 29 (Some (unhex "3031323334353637383930313233343536373839303132333435363738")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738") True 29 (Some (unhex "3031323334353637383930313233343536373839303132333435363738")) 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839") True 30 (Some (unhex "303132333435363738393031323334353637383930313233343536373839")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839") True 30 (Some (unhex "303132333435363738393031323334353637383930313233343536373839")) 0)
+  ] 417
+
+  -- | Independent direct observations 433 through 448; invalid empty nonterminal calls safely request more data.
+  batchcase27 :: Unit -> Int
+  batchcase27 unit = direct-checks [
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930") True 31 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930") True 31 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930")) 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031") True 32 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031") True 32 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031")) 0)
+  ] 433
+
+  -- | Independent direct observations 449 through 464; invalid empty nonterminal calls safely request more data.
+  batchcase28 :: Unit -> Int
+  batchcase28 unit = direct-checks [
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132") True 33 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132") True 33 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132")) 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233") True 34 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233") True 34 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233")) 0)
+  ] 449
+
+  -- | Independent direct observations 465 through 480; invalid empty nonterminal calls safely request more data.
+  batchcase29 :: Unit -> Int
+  batchcase29 unit = direct-checks [
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334") True 35 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334") True 35 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334")) 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435") True 36 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132333435")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435") True 36 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132333435")) 0)
+  ] 465
+
+  -- | Independent direct observations 481 through 496; invalid empty nonterminal calls safely request more data.
+  batchcase30 :: Unit -> Int
+  batchcase30 unit = direct-checks [
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536") True 37 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536") True 37 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536")) 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637") True 38 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637") True 38 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637")) 0)
+  ] 481
+
+  -- | Independent direct observations 497 through 512; invalid empty nonterminal calls safely request more data.
+  batchcase31 :: Unit -> Int
+  batchcase31 unit = direct-checks [
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738") True 39 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738") True 39 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738")) 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839") True 40 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839") True 40 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839")) 0)
+  ] 497
+
+  -- | Independent direct observations 513 through 528; invalid empty nonterminal calls safely request more data.
+  batchcase32 :: Unit -> Int
+  batchcase32 unit = direct-checks [
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930") True 41 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930") True 41 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930")) 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031") True 42 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031") True 42 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031")) 0)
+  ] 513
+
+  -- | Independent direct observations 529 through 544; invalid empty nonterminal calls safely request more data.
+  batchcase33 :: Unit -> Int
+  batchcase33 unit = direct-checks [
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132") True 43 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132") True 43 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132")) 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233") True 44 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233") True 44 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233")) 0)
+  ] 529
+
+  -- | Independent direct observations 545 through 560; invalid empty nonterminal calls safely request more data.
+  batchcase34 :: Unit -> Int
+  batchcase34 unit = direct-checks [
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334") True 45 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334") True 45 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334")) 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435") True 46 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435") True 46 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435")) 0)
+  ] 545
+
+  -- | Independent direct observations 561 through 576; invalid empty nonterminal calls safely request more data.
+  batchcase35 :: Unit -> Int
+  batchcase35 unit = direct-checks [
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536") True 47 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536") True 47 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536")) 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637") False 0 None 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637") False 0 None 0),
+    (SplitCheck 0 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637") True 48 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637")) 0),
+    (SplitCheck 2 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637") True 48 (Some (unhex "303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637")) 0)
+  ] 561
+
+  -- | Independent direct observations 577 through 592; invalid empty nonterminal calls safely request more data.
+  batchcase36 :: Unit -> Int
+  batchcase36 unit = direct-checks [
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738") False 0 None 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738") False 0 None 0),
+    (SplitCheck 0 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738") True 49 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738")) 0),
+    (SplitCheck 2 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738") True 49 (Some (unhex "30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738")) 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839") False 0 None 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839") False 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839") False 0 None 0),
+    (SplitCheck 0 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 1 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839") True 50 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839")) 0),
+    (SplitCheck 2 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839") True 1 (Some (unhex "30")) 0),
+    (SplitCheck 3 (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839") True 50 (Some (unhex "3031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839")) 0)
+  ] 577
+
+  -- | Independent direct observations 593 through 608; invalid empty nonterminal calls safely request more data.
+  batchcase37 :: Unit -> Int
+  batchcase37 unit = direct-checks [
+    (SplitCheck 0 (unhex "") False 0 None 0),
+    (SplitCheck 1 (unhex "") False 0 None 0),
+    (SplitCheck 2 (unhex "") False 0 None 0),
+    (SplitCheck 3 (unhex "") False 0 None 0),
+    (SplitCheck 0 (unhex "") True 0 None 0),
+    (SplitCheck 1 (unhex "") True 0 None 0),
+    (SplitCheck 2 (unhex "") True 0 None 0),
+    (SplitCheck 3 (unhex "") True 0 None 0),
+    (SplitCheck 0 (unhex "00") False 1 (Some (unhex "00")) 0),
+    (SplitCheck 1 (unhex "00") False 0 None 0),
+    (SplitCheck 2 (unhex "00") False 1 (Some (unhex "00")) 0),
+    (SplitCheck 3 (unhex "00") False 0 None 0),
+    (SplitCheck 0 (unhex "00") True 1 (Some (unhex "00")) 0),
+    (SplitCheck 1 (unhex "00") True 1 (Some (unhex "00")) 0),
+    (SplitCheck 2 (unhex "00") True 1 (Some (unhex "00")) 0),
+    (SplitCheck 3 (unhex "00") True 1 (Some (unhex "00")) 0)
+  ] 593
+
+  -- | Independent direct observations 609 through 624; invalid empty nonterminal calls safely request more data.
+  batchcase38 :: Unit -> Int
+  batchcase38 unit = direct-checks [
+    (SplitCheck 0 (unhex "000a") False 1 (Some (unhex "00")) 0),
+    (SplitCheck 1 (unhex "000a") False 2 (Some (unhex "00")) 0),
+    (SplitCheck 2 (unhex "000a") False 1 (Some (unhex "00")) 0),
+    (SplitCheck 3 (unhex "000a") False 2 (Some (unhex "00")) 0),
+    (SplitCheck 0 (unhex "000a") True 1 (Some (unhex "00")) 0),
+    (SplitCheck 1 (unhex "000a") True 2 (Some (unhex "00")) 0),
+    (SplitCheck 2 (unhex "000a") True 1 (Some (unhex "00")) 0),
+    (SplitCheck 3 (unhex "000a") True 2 (Some (unhex "00")) 0),
+    (SplitCheck 0 (unhex "000a0d") False 1 (Some (unhex "00")) 0),
+    (SplitCheck 1 (unhex "000a0d") False 2 (Some (unhex "00")) 0),
+    (SplitCheck 2 (unhex "000a0d") False 1 (Some (unhex "00")) 0),
+    (SplitCheck 3 (unhex "000a0d") False 2 (Some (unhex "00")) 0),
+    (SplitCheck 0 (unhex "000a0d") True 1 (Some (unhex "00")) 0),
+    (SplitCheck 1 (unhex "000a0d") True 2 (Some (unhex "00")) 0),
+    (SplitCheck 2 (unhex "000a0d") True 1 (Some (unhex "00")) 0),
+    (SplitCheck 3 (unhex "000a0d") True 2 (Some (unhex "00")) 0)
+  ] 609
+
+  -- | Independent direct observations 625 through 640; invalid empty nonterminal calls safely request more data.
+  batchcase39 :: Unit -> Int
+  batchcase39 unit = direct-checks [
+    (SplitCheck 0 (unhex "000a0dff") False 1 (Some (unhex "00")) 0),
+    (SplitCheck 1 (unhex "000a0dff") False 2 (Some (unhex "00")) 0),
+    (SplitCheck 2 (unhex "000a0dff") False 1 (Some (unhex "00")) 0),
+    (SplitCheck 3 (unhex "000a0dff") False 2 (Some (unhex "00")) 0),
+    (SplitCheck 0 (unhex "000a0dff") True 1 (Some (unhex "00")) 0),
+    (SplitCheck 1 (unhex "000a0dff") True 2 (Some (unhex "00")) 0),
+    (SplitCheck 2 (unhex "000a0dff") True 1 (Some (unhex "00")) 0),
+    (SplitCheck 3 (unhex "000a0dff") True 2 (Some (unhex "00")) 0),
+    (SplitCheck 0 (unhex "") False 0 None 0),
+    (SplitCheck 1 (unhex "") False 0 None 0),
+    (SplitCheck 2 (unhex "") False 0 None 0),
+    (SplitCheck 3 (unhex "") False 0 None 0),
+    (SplitCheck 0 (unhex "") True 0 None 0),
+    (SplitCheck 1 (unhex "") True 0 None 0),
+    (SplitCheck 2 (unhex "") True 0 None 0),
+    (SplitCheck 3 (unhex "") True 0 None 0)
+  ] 625
+
+  -- | Independent direct observations 641 through 656; invalid empty nonterminal calls safely request more data.
+  batchcase40 :: Unit -> Int
+  batchcase40 unit = direct-checks [
+    (SplitCheck 0 (unhex "78") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78") False 0 None 0),
+    (SplitCheck 2 (unhex "78") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78") False 0 None 0),
+    (SplitCheck 0 (unhex "78") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 2 (unhex "78") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2") False 0 None 0),
+    (SplitCheck 0 (unhex "78c2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2") True 2 (Some (unhex "78c2")) 0),
+    (SplitCheck 2 (unhex "78c2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2") True 2 (Some (unhex "78c2")) 0)
+  ] 641
+
+  -- | Independent direct observations 657 through 672; invalid empty nonterminal calls safely request more data.
+  batchcase41 :: Unit -> Int
+  batchcase41 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0") True 3 (Some (unhex "78c2a0")) 0),
+    (SplitCheck 2 (unhex "78c2a0") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e1") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e1") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e1") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e1") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e1") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e1") True 4 (Some (unhex "78c2a0e1")) 0),
+    (SplitCheck 2 (unhex "78c2a0e1") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e1") True 3 (Some (unhex "78")) 0)
+  ] 657
+
+  -- | Independent direct observations 673 through 688; invalid empty nonterminal calls safely request more data.
+  batchcase42 :: Unit -> Int
+  batchcase42 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a") True 5 (Some (unhex "78c2a0e19a")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80") True 6 (Some (unhex "78c2a0e19a80")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80") True 3 (Some (unhex "78")) 0)
+  ] 673
+
+  -- | Independent direct observations 689 through 704; invalid empty nonterminal calls safely request more data.
+  batchcase43 :: Unit -> Int
+  batchcase43 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a80e2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e2") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e2") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e2") True 7 (Some (unhex "78c2a0e19a80e2")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e2") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e280") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e280") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e280") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e280") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e280") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e280") True 8 (Some (unhex "78c2a0e19a80e280")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e280") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e280") True 3 (Some (unhex "78")) 0)
+  ] 689
+
+  -- | Independent direct observations 705 through 720; invalid empty nonterminal calls safely request more data.
+  batchcase44 :: Unit -> Int
+  batchcase44 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080") True 9 (Some (unhex "78c2a0e19a80e28080")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e2") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e2") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e2") True 10 (Some (unhex "78c2a0e19a80e28080e2")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e2") True 3 (Some (unhex "78")) 0)
+  ] 705
+
+  -- | Independent direct observations 721 through 736; invalid empty nonterminal calls safely request more data.
+  batchcase45 :: Unit -> Int
+  batchcase45 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e280") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e280") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e280") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e280") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e280") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e280") True 11 (Some (unhex "78c2a0e19a80e28080e280")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e280") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e280") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083") True 12 (Some (unhex "78c2a0e19a80e28080e28083")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083") True 3 (Some (unhex "78")) 0)
+  ] 721
+
+  -- | Independent direct observations 737 through 752; invalid empty nonterminal calls safely request more data.
+  batchcase46 :: Unit -> Int
+  batchcase46 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e2") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e2") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e2") True 13 (Some (unhex "78c2a0e19a80e28080e28083e2")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e2") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280") True 14 (Some (unhex "78c2a0e19a80e28080e28083e280")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280") True 3 (Some (unhex "78")) 0)
+  ] 737
+
+  -- | Independent direct observations 753 through 768; invalid empty nonterminal calls safely request more data.
+  batchcase47 :: Unit -> Int
+  batchcase47 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8") True 15 (Some (unhex "78c2a0e19a80e28080e28083e280a8")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e2") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e2") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e2") True 16 (Some (unhex "78c2a0e19a80e28080e28083e280a8e2")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e2") True 3 (Some (unhex "78")) 0)
+  ] 753
+
+  -- | Independent direct observations 769 through 784; invalid empty nonterminal calls safely request more data.
+  batchcase48 :: Unit -> Int
+  batchcase48 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280") True 17 (Some (unhex "78c2a0e19a80e28080e28083e280a8e280")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280af") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280af") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280af") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280af") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280af") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280af") True 18 (Some (unhex "78c2a0e19a80e28080e28083e280a8e280af")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280af") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280af") True 3 (Some (unhex "78")) 0)
+  ] 769
+
+  -- | Independent direct observations 785 through 800; invalid empty nonterminal calls safely request more data.
+  batchcase49 :: Unit -> Int
+  batchcase49 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2") True 19 (Some (unhex "78c2a0e19a80e28080e28083e280a8e280afe2")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe281") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe281") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe281") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe281") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe281") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe281") True 20 (Some (unhex "78c2a0e19a80e28080e28083e280a8e280afe281")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe281") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe281") True 3 (Some (unhex "78")) 0)
+  ] 785
+
+  -- | Independent direct observations 801 through 816; invalid empty nonterminal calls safely request more data.
+  batchcase50 :: Unit -> Int
+  batchcase50 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819f") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819f") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819f") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819f") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819f") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819f") True 21 (Some (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819f")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819f") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819f") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe3") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe3") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe3") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe3") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe3") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe3") True 22 (Some (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe3")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe3") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe3") True 3 (Some (unhex "78")) 0)
+  ] 801
+
+  -- | Independent direct observations 817 through 832; invalid empty nonterminal calls safely request more data.
+  batchcase51 :: Unit -> Int
+  batchcase51 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380") True 23 (Some (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380") True 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe38080") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe38080") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe38080") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe38080") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe38080") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe38080") True 24 (Some (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe38080")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe38080") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe38080") True 3 (Some (unhex "78")) 0)
+  ] 817
+
+  -- | Independent direct observations 833 through 840; invalid empty nonterminal calls safely request more data.
+  batchcase52 :: Unit -> Int
+  batchcase52 unit = direct-checks [
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380807a") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380807a") False 0 None 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380807a") False 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380807a") False 3 (Some (unhex "78")) 0),
+    (SplitCheck 0 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380807a") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 1 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380807a") True 25 (Some (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380807a")) 0),
+    (SplitCheck 2 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380807a") True 1 (Some (unhex "78")) 0),
+    (SplitCheck 3 (unhex "78c2a0e19a80e28080e28083e280a8e280afe2819fe380807a") True 3 (Some (unhex "78")) 0)
+  ] 833
+
+  -- | Run independent observations 1 through 16 without a deep generated let spine.
+  run-group0 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  run-group0 unit =
+    let result0 = batchcase0 () in if not (result0 == 0) then result0
+    else let result1 = batchcase1 () in if not (result1 == 0) then result1
+    else let result2 = batchcase2 () in if not (result2 == 0) then result2
+    else let result3 = batchcase3 () in if not (result3 == 0) then result3
+    else let result4 = batchcase4 () in if not (result4 == 0) then result4
+    else let result5 = batchcase5 () in if not (result5 == 0) then result5
+    else let result6 = batchcase6 () in if not (result6 == 0) then result6
+    else let result7 = batchcase7 () in if not (result7 == 0) then result7
+    else let result8 = batchcase8 () in if not (result8 == 0) then result8
+    else let result9 = batchcase9 () in if not (result9 == 0) then result9
+    else let result10 = batchcase10 () in if not (result10 == 0) then result10
+    else let result11 = batchcase11 () in if not (result11 == 0) then result11
+    else let result12 = batchcase12 () in if not (result12 == 0) then result12
+    else let result13 = batchcase13 () in if not (result13 == 0) then result13
+    else let result14 = batchcase14 () in if not (result14 == 0) then result14
+    else let result15 = batchcase15 () in if not (result15 == 0) then result15
+    else 0
+
+  -- | Run independent observations 17 through 32 without a deep generated let spine.
+  run-group1 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  run-group1 unit =
+    let result0 = batchcase16 () in if not (result0 == 0) then result0
+    else let result1 = batchcase17 () in if not (result1 == 0) then result1
+    else let result2 = batchcase18 () in if not (result2 == 0) then result2
+    else let result3 = batchcase19 () in if not (result3 == 0) then result3
+    else let result4 = batchcase20 () in if not (result4 == 0) then result4
+    else let result5 = batchcase21 () in if not (result5 == 0) then result5
+    else let result6 = batchcase22 () in if not (result6 == 0) then result6
+    else let result7 = batchcase23 () in if not (result7 == 0) then result7
+    else let result8 = batchcase24 () in if not (result8 == 0) then result8
+    else let result9 = batchcase25 () in if not (result9 == 0) then result9
+    else let result10 = batchcase26 () in if not (result10 == 0) then result10
+    else let result11 = batchcase27 () in if not (result11 == 0) then result11
+    else let result12 = batchcase28 () in if not (result12 == 0) then result12
+    else let result13 = batchcase29 () in if not (result13 == 0) then result13
+    else let result14 = batchcase30 () in if not (result14 == 0) then result14
+    else let result15 = batchcase31 () in if not (result15 == 0) then result15
+    else 0
+
+  -- | Run independent observations 33 through 48 without a deep generated let spine.
+  run-group2 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  run-group2 unit =
+    let result0 = batchcase32 () in if not (result0 == 0) then result0
+    else let result1 = batchcase33 () in if not (result1 == 0) then result1
+    else let result2 = batchcase34 () in if not (result2 == 0) then result2
+    else let result3 = batchcase35 () in if not (result3 == 0) then result3
+    else let result4 = batchcase36 () in if not (result4 == 0) then result4
+    else let result5 = batchcase37 () in if not (result5 == 0) then result5
+    else let result6 = batchcase38 () in if not (result6 == 0) then result6
+    else let result7 = batchcase39 () in if not (result7 == 0) then result7
+    else let result8 = batchcase40 () in if not (result8 == 0) then result8
+    else let result9 = batchcase41 () in if not (result9 == 0) then result9
+    else let result10 = batchcase42 () in if not (result10 == 0) then result10
+    else let result11 = batchcase43 () in if not (result11 == 0) then result11
+    else let result12 = batchcase44 () in if not (result12 == 0) then result12
+    else let result13 = batchcase45 () in if not (result13 == 0) then result13
+    else let result14 = batchcase46 () in if not (result14 == 0) then result14
+    else let result15 = batchcase47 () in if not (result15 == 0) then result15
+    else 0
+
+  -- | Run independent observations 49 through 53 without a deep generated let spine.
+  run-group3 :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  run-group3 unit =
+    let result0 = batchcase48 () in if not (result0 == 0) then result0
+    else let result1 = batchcase49 () in if not (result1 == 0) then result1
+    else let result2 = batchcase50 () in if not (result2 == 0) then result2
+    else let result3 = batchcase51 () in if not (result3 == 0) then result3
+    else let result4 = batchcase52 () in if not (result4 == 0) then result4
+    else 0
+
+  -- | Print the full first mismatch and normalize every failing process exit.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let result0 = run-group0 () in if not (result0 == 0) then report-failure result0
+    else let result1 = run-group1 () in if not (result1 == 0) then report-failure result1
+    else let result2 = run-group2 () in if not (result2 == 0) then report-failure result2
+    else let result3 = run-group3 () in if not (result3 == 0) then report-failure result3
+    else 0

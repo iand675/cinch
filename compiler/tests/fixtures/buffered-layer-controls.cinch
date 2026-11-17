@@ -1,0 +1,295 @@
+-- | Fresh observations, immutable retained handles, bounded reservations and explicit nested flush-through controls.
+module Main where
+  import Effect.Buffered
+  import Effect.Buffered.Internal.Cell as Cell
+  import Effect.Buffered.Core
+  import Effect.Buffered.Reader
+  import Effect.Buffered.Writer
+  import Effect.Scanner
+  import Effect.Scanner.Split
+  import Effect.Io
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Char
+  import Data.Int
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Compare arbitrary owned bytes without interpreting malformed UTF-8 as text.
+  same :: Bytes -> Bytes -> Bool
+  same first second = eq-i64 (bytes-compare first second) 0
+
+  -- | Snapshot a checked byte interval into independently mutable storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let output = bytes-new count in let copied = bytes-copy-range output input 0 at count in output
+    else bytes-new 0
+
+  -- | Produce a plain source whose authoritative cursor lives in its returned continuation.
+  source :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> BufferSource r
+  source input at chunk = buffer-source (\wanted -> source-read input at chunk wanted)
+
+  -- | Return bounded fragments and report ordinary end-of-input only after all source bytes have been delivered.
+  source-read :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Nat ->{IO r} (ReadEvent, BufferSource r)
+  source-read input at chunk wanted = if at < bytes-len input then
+    let remaining = bytes-len input - at in let limited = if remaining < wanted then remaining else wanted in
+    let count = if chunk > 0 && chunk < limited then chunk else limited in
+    (ReadEvent (nat-to-int count) (part input at count) None, source input (at + count) chunk)
+    else (ReadEvent 0 (bytes-new 0) (Some BufferEnd), source input at chunk)
+
+  -- | Count actual source callbacks without changing their authoritative continuation behavior.
+  counted-source :: forall r. using (io :: Io r) => BufferSource r -> Cell.IoCell r Nat -> BufferSource r
+  counted-source current calls = buffer-source (\wanted -> let saved = Cell.cell-write calls (Cell.cell-read calls + 1) in
+    case buffer-source-read current wanted of (event, next) -> (event, counted-source next calls))
+
+  -- | Construct a sink with an immutable output cursor; ordinary writes advertise no hidden transfer or flush capabilities.
+  sink :: forall r. using (io :: Io r) => Bytes -> Nat -> BufferSink r
+  sink output at = buffer-sink (\input -> sink-write output at input)
+
+  -- | Copy a complete offer into the current transport cursor and return the exact advanced sink.
+  sink-write :: forall r. using (io :: Io r) => Bytes -> Nat -> Bytes ->{IO r} (WriteEvent, BufferSink r)
+  sink-write output at input = let count = bytes-len input in
+    if at + count <= bytes-len output then
+      let copied = bytes-copy-range output input at 0 count in
+      (WriteEvent (nat-to-int count) None, sink output (at + count))
+    else (WriteEvent 0 (Some (BufferCustomError "fixture output capacity")), sink output at)
+
+  -- | Refuse after one confirmed byte, returning the sink's advanced continuation with the failure.
+  partial-sink :: forall r. using (io :: Io r) => Bytes -> Nat -> BufferSink r
+  partial-sink output at = buffer-sink (\input -> partial-write output at input)
+
+  -- | Preserve the accepted prefix and original failure without consuming the offered suffix.
+  partial-write :: forall r. using (io :: Io r) => Bytes -> Nat -> Bytes ->{IO r} (WriteEvent, BufferSink r)
+  partial-write output at input = if at < bytes-len output && bytes-len input > 0 then
+    let copied = bytes-copy-range output input at 0 1 in
+    (WriteEvent 1 (Some (BufferCustomError "partial-once")), sink output (at + 1))
+    else (WriteEvent 0 (Some (BufferCustomError "partial-once")), sink output at)
+
+  -- | Check a complete successful raw write independently of later output flushing.
+  written :: WriteEvent -> Int -> Bool
+  written event expected = case event of WriteEvent count None -> count == expected; other -> False
+
+  -- | Observe a successful single byte through its exact unsigned carrier.
+  byte-is :: Result BufferError U8 -> U8 -> Bool
+  byte-is event expected = case event of Ok value -> eq-u8 value expected; other -> False
+
+  -- | A peek's mutation and a source's later mutation cannot change already buffered unread bytes.
+  reader-observations :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  reader-observations unit = let input = string-to-bytes "A\nB" in
+    let original = buffered-reader-sized 16 (source input 0 0) in
+    case buffered-peek original 1 of
+      (ReadEvent count observed None, next) ->
+        if 0 < bytes-len observed && 1 < bytes-len input then
+          let changed = bytes-set observed 0 88 in let mutated = bytes-set input 1 90 in
+          case buffered-read-byte next of
+            (byte, after) -> case buffered-read-line after of
+              (LineEvent line prefix None, final) -> byte-is byte 65 && bytes-len line == 0 && not prefix && buffered-reader-buffered original == 0 && buffered-reader-buffered final == 1
+              other -> False
+        else False
+      other -> False
+
+  -- | A direct read retains the actual last byte independently of the caller's subsequently mutable result buffer.
+  direct-unread :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  direct-unread unit = let reader = buffered-reader-sized 16 (source (string-to-bytes "ABCD") 0 0) in
+    case buffered-read reader 40 of
+      (ReadEvent count observed None, next) ->
+        if count == 4 && 3 < bytes-len observed then
+          let changed = bytes-set observed 3 88 in
+          case buffered-unread-byte next of
+            (Ok restored, after) -> case buffered-read-byte after of (value, final) -> byte-is value 68
+            other -> False
+        else False
+      other -> False
+
+  -- | A zero read and nonpositive discard preserve rune rewind permission without moving the underlying stream.
+  rune-history :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  rune-history unit = let reader = buffered-reader-sized 16 (source (string-to-bytes "éX") 0 1) in
+    case buffered-read-rune reader of
+      (Ok (value, width), next) -> case buffered-read next 0 of
+        (ReadEvent count payload None, after-zero) -> case buffered-discard after-zero (-1) of
+          (CountEvent ignored (Some (BufferNegativeCount negative)), after-negative) -> case buffered-discard after-negative 0 of
+            (CountEvent discarded None, after-empty) -> case buffered-unread-rune after-empty of
+              (Ok restored, rewound) -> case buffered-read-rune rewound of
+                (Ok (again, again-width), final) -> char-code value == 233 && width == 2 && count == 0 && discarded == 0 && eq-char value again && again-width == 2
+                other -> False
+              other -> False
+            other -> False
+          other -> False
+        other -> False
+      other -> False
+
+  -- | Check invalid destination intervals before reading or mutation, then copy exactly the accepted valid interval.
+  read-into-bounds :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  read-into-bounds unit = let calls = Cell.cell-new (0 :: Nat) in
+    let initial = buffered-reader-sized 16 (counted-source (source (string-to-bytes "ABC") 0 0) calls) in
+    let output = string-to-bytes "zzzzz" in
+    case buffered-read-into initial output 999999999999999999999999 1 of
+      (CountEvent 0 (Some failure), untouched) ->
+        if same output (string-to-bytes "zzzzz") && buffered-reader-buffered untouched == 0 && Cell.cell-read calls == 0 then
+          case buffered-read-into untouched output 1 3 of
+            (CountEvent 3 None, next) -> same output (string-to-bytes "zABCz") && buffered-reader-buffered next == 0 && Cell.cell-read calls == 1
+            other -> False
+        else False
+      other -> False
+
+  -- | Buffered inputs and reservation observations remain independent of caller mutation and prior writer handles.
+  writer-observations :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  writer-observations unit = let output = bytes-new 6 in let input = string-to-bytes "AB" in
+    let original = buffered-writer-sized 8 (sink output 0) in
+    case buffered-write original input of
+      (event, pending) ->
+        if 0 < bytes-len input then
+          let changed = bytes-set input 0 88 in
+          let reservation = buffered-writer-space pending in let raw = string-to-bytes "CD" in
+          case buffer-space-append reservation raw of
+            Err failure -> False
+            Ok appended -> let exposed = buffer-space-bytes appended in
+              if 0 < bytes-len exposed && 0 < bytes-len raw then
+                let altered = bytes-set exposed 0 89 in let mutated = bytes-set raw 0 90 in
+                case buffered-write pending (string-to-bytes "EF") of
+                  (middle, advanced) -> case buffered-write-space advanced appended of
+                    (last, final) -> case buffered-flush final of
+                      (None, flushed) -> written event 2 && written middle 2 && written last 2 && same output (string-to-bytes "ABEFCD") && buffered-writer-buffered original == 0 && buffered-writer-buffered pending == 2 && same (buffer-space-bytes appended) (string-to-bytes "CD")
+                      other -> False
+              else False
+        else False
+      other -> False
+
+  -- | Bounded append refuses overflow while explicit growth preserves all earlier reservation observations.
+  reservation-bounds :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  reservation-bounds unit = let writer = buffered-writer-sized 2 (sink (bytes-new 0) 0) in
+    let original = buffered-writer-space writer in let input = string-to-bytes "ABC" in
+    case buffer-space-append original input of
+      Err (BufferFull capacity requested) ->
+        let grown = buffer-space-reserve original 3 in
+        case buffer-space-append grown input of
+          Ok appended -> let exported = buffer-space-bytes appended in
+            if 0 < bytes-len exported then
+              let changed = bytes-set exported 0 88 in
+              capacity == 2 && requested == 3 && buffer-space-length original == 0 && buffer-space-capacity original == 2
+                && buffer-space-length appended == 3 && same (buffer-space-bytes appended) input
+            else False
+          other -> False
+      other -> False
+
+  -- | Nested single-layer flush leaves inner bytes pending; explicit flush-through drains their advanced sink exactly once.
+  nested-finish :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  nested-finish unit = let output = bytes-new 6 in let inner = buffered-writer-sized 8 (sink output 0) in
+    let outer = buffered-writer-rebuffer 16 inner in
+    case buffered-write outer (string-to-bytes "AB") of
+      (event, pending) -> case buffered-flush pending of
+        (None, advanced) -> let not-yet = same output (bytes-new 6) in
+          case buffered-flush-through advanced of
+            (None, drained) -> case buffered-write drained (string-to-bytes "CD") of
+              (second, next) -> case buffered-writer-finish next of
+                (None, transport) -> case buffer-sink-write-text transport (string-to-bytes "EF") of
+                  (Some last, after-text) -> case buffer-sink-flush after-text of
+                    (Some None, final) -> written event 2 && written second 2 && written last 2 && not-yet && same output (string-to-bytes "ABCDEF") && buffered-writer-buffered inner == 0 && buffered-writer-buffered outer == 0
+                    other -> False
+                  other -> False
+                other -> False
+            other -> False
+        other -> False
+      other -> False
+
+  -- | A nested partial failure confirms one byte, retains the original error and never retries after sticky failure.
+  nested-failure :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  nested-failure unit = let output = bytes-new 2 in let inner = buffered-writer-sized 8 (partial-sink output 0) in
+    let outer = buffered-writer-rebuffer 16 inner in
+    case buffered-write outer (string-to-bytes "AB") of
+      (event, pending) -> case buffered-flush-through pending of
+        (Some (BufferCustomError message), failed) -> case buffered-write failed (string-to-bytes "C") of
+          (WriteEvent 0 (Some (BufferCustomError repeated)), still-failed) ->
+            let reset = buffered-writer-reset still-failed (sink output 1) in
+            case buffered-write reset (string-to-bytes "D") of
+              (last, advanced) -> case buffered-flush-through advanced of
+                (None, final) -> message == "partial-once" && repeated == message && same output (string-to-bytes "AD") && written last 1 && buffered-writer-buffered inner == 0
+                other -> False
+          other -> False
+        other -> False
+      other -> False
+
+  -- | A final token wins over invalid advance, snapshots callback storage and preserves configuration refusal after scanning starts.
+  scanner-ownership :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  scanner-ownership unit = let input = string-to-bytes "X" in let held = string-to-bytes "AB" in
+    let calls = Cell.cell-new (0 :: Nat) in let initial = scanner (counted-source (source input 0 0) calls) in
+    case scanner-split initial (scan-split (\payload terminal -> ScanStep (-99) (Some held) (Some ScanFinalToken))) of
+      Err failure -> False
+      Ok configured -> case scanner-next configured of
+        (more, next) ->
+          if 0 < bytes-len held then
+            let changed = bytes-set held 0 88 in let exported = scanner-bytes next in
+            if 0 < bytes-len exported then
+              let mutated = bytes-set exported 0 89 in
+              let late = case scanner-buffer-size next 1 1 of Err (ScanStarted operation) -> True; other -> False in
+              let forbidden = case scanner-split next (scan-split scan-bytes) of Err (ScanStarted operation) -> True; other -> False in
+              case scanner-next next of
+                (again, final) -> more && not again && late && forbidden && same (scanner-bytes next) (string-to-bytes "AB") && same input (string-to-bytes "X") && Cell.cell-read calls == 1
+            else False
+          else False
+
+  -- | Deliberately mutate a callback input snapshot, then observe the next callback's still-unmodified private source prefix.
+  mutation-split :: Bytes -> Bytes -> Bool -> ScanStep
+  mutation-split marker input terminal = if 0 < bytes-len marker && 0 < bytes-len input then
+    if bytes-get marker 0 == 0 then
+      let marked = bytes-set marker 0 1 in let changed = bytes-set input 0 255 in
+      ScanStep 0 (Some (string-to-bytes "first")) None
+    else if bytes-get input 0 == 88 then ScanStep 1 (Some (string-to-bytes "second")) (Some ScanFinalToken)
+    else ScanStep 1 (Some (string-to-bytes "corrupt")) (Some ScanFinalToken)
+    else ScanStep 0 None (Some ScanFinalToken)
+
+  -- | Callback mutation cannot change the scanner's private buffer, even when its first token leaves the input unconsumed.
+  scanner-callback-isolation :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  scanner-callback-isolation unit = let marker = bytes-new 1 in
+    let initial = scanner (source (string-to-bytes "X") 0 0) in
+    case scanner-split initial (scan-split (mutation-split marker)) of
+      Err failure -> False
+      Ok configured -> case scanner-next configured of
+        (first, next) -> case scanner-next next of
+          (second, final) -> first && second && same (scanner-bytes next) (string-to-bytes "first") && same (scanner-bytes final) (string-to-bytes "second")
+
+  -- | Updating one paired component preserves the other component's unread bytes or pending output independently.
+  paired-components :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  paired-components unit = let output = bytes-new 1 in
+    let reader = buffered-reader-sized 16 (source (string-to-bytes "AB") 0 0) in
+    let writer = buffered-writer-sized 16 (sink output 0) in
+    let pair = buffered-read-writer reader writer in
+    case buffered-read-byte (buffered-read-writer-reader pair) of
+      (first, after-read) -> case buffered-write-byte (buffered-read-writer-writer pair) 88 of
+        (None, after-write) ->
+          let changed = buffered-read-writer-with-writer (buffered-read-writer-with-reader pair after-read) after-write in
+          let snapshots = buffered-reader-buffered (buffered-read-writer-reader pair) == 0 && buffered-writer-buffered (buffered-read-writer-writer pair) == 0 && buffered-reader-buffered (buffered-read-writer-reader changed) == 1 && buffered-writer-buffered (buffered-read-writer-writer changed) == 1 in
+          case buffered-read-byte (buffered-read-writer-reader changed) of
+            (second, exhausted) ->
+              let ready = buffered-read-writer-with-reader changed exhausted in
+              case buffered-flush (buffered-read-writer-writer ready) of
+                (None, flushed) ->
+                  let final = buffered-read-writer-with-writer ready flushed in
+                  if 0 < bytes-len output then snapshots && byte-is first 65 && byte-is second 66 && bytes-get output 0 == 88 && buffered-reader-buffered (buffered-read-writer-reader final) == 0 && buffered-writer-buffered (buffered-read-writer-writer final) == 0 else False
+                other -> False
+        other -> False
+
+  -- | Repeat nested adapters and their advanced flush routes without retaining an automatic ownership cycle.
+  reclaim :: forall r. using (io :: Io r) => Nat ->{IO r} Bool
+  reclaim count = if count == 0 then True
+    else if nested-finish () && nested-failure () && scanner-ownership () then reclaim (count - 1) else False
+
+  -- | Check owner isolation, unread history, bounds, reservations, nested finalization and repeated adapter reclamation.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    if not (reader-observations ()) then 1
+    else if not (direct-unread ()) then 2
+    else if not (rune-history ()) then 3
+    else if not (read-into-bounds ()) then 4
+    else if not (writer-observations ()) then 5
+    else if not (reservation-bounds ()) then 6
+    else if not (nested-finish ()) then 7
+    else if not (nested-failure ()) then 8
+    else if not (scanner-ownership ()) then 9
+    else if not (scanner-callback-isolation ()) then 10
+    else if not (paired-components ()) then 11
+    else if reclaim 64 then 0 else 12

@@ -1,0 +1,290 @@
+{
+  "status": "All80 concrete operation routes source-admitted by both frontends; staged full runtime/performance/retention qualification remains open. No package completion or production cycle collection claim.",
+  "baseline_commit": "7969c10e76e9306e875ff62cda13cb7b2e2da7fe",
+  "capability_mapping_sha256": "67e2dff395eb23a19671a919c891ebdb246e71d348ce5a4127faa8f10d278a06",
+  "owned_modules": {
+    "Effect.Buffered": {
+      "source_sha256": "a9669f4c6996da84707ead19c237498e0b043fcac8dc1e4cc945ccaecff22054",
+      "declarations": 7,
+      "json_sha256": "32a6696cd0eb046a85562ae08626504e8176cc91832328d489b853fe52044962",
+      "diagnostics": [],
+      "orphans": []
+    },
+    "Effect.Buffered.Core": {
+      "source_sha256": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+      "declarations": 69,
+      "json_sha256": "afb6a916be33ffdb429822c8e80ae8d5dd8ed0065ec98f541625c3674e8507ee",
+      "diagnostics": [],
+      "orphans": []
+    },
+    "Effect.Buffered.Internal.Cell": {
+      "source_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+      "declarations": 8,
+      "json_sha256": "8ea401f259fa71a80e44da2089e1a27f287749c77bcd9425ec26963344bd34b0",
+      "diagnostics": [],
+      "orphans": []
+    },
+    "Effect.Buffered.Internal.Scan": {
+      "source_sha256": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+      "declarations": 10,
+      "json_sha256": "c522ec133edf505ec3423532ccb1260b5e9fda67fc6136e86e0dfb05efd0eb83",
+      "diagnostics": [],
+      "orphans": []
+    },
+    "Effect.Buffered.Reader": {
+      "source_sha256": "b0eb53793ea2111749580e5726abaec76f84fb3a1df3b9f3706d1240b696b160",
+      "declarations": 62,
+      "json_sha256": "fc1c385c34a3c4a0b2275ba7fb917fe3feff5387a48147eb2f06f62b4f9d4801",
+      "diagnostics": [],
+      "orphans": []
+    },
+    "Effect.Buffered.Writer": {
+      "source_sha256": "bf3bda7ec2866c61b178b17ff37b7a52a202a9e0d86b0a44cea0069cd2e2382a",
+      "declarations": 47,
+      "json_sha256": "cb1f5063237d8e55297271d1d8a71bc18af1d5416e0b0fa3e4121d3983e5b0bc",
+      "diagnostics": [],
+      "orphans": []
+    },
+    "Effect.Scanner": {
+      "source_sha256": "dd6d190f2b53e1fb80b10e48d64a29363b82041895660675d2b383c637be06aa",
+      "declarations": 29,
+      "json_sha256": "62eb71b85bd9ee7d9591f52e5d06315ac2b5fc69d7e2a8a911d0a9831e3f175f",
+      "diagnostics": [],
+      "orphans": []
+    },
+    "Effect.Scanner.Split": {
+      "source_sha256": "5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e",
+      "declarations": 28,
+      "json_sha256": "d62c52d0fb2efe8b5e147dc6d069046315f5e0390624b1013be13f117dcfa293",
+      "diagnostics": [],
+      "orphans": []
+    }
+  },
+  "canonical_declarations": 260,
+  "sdk_free_ci_target": "lib_buffered_io",
+  "ci_source_sha256": "1751a5c2845475a4ddb81e2ac2bbdc85a393bf21d286d6a69b0278808048f0db",
+  "maintained_fixtures": {
+    "buffered-reader-traces.cinch": "e0a58c08cb7d876701aff9b642116626f3bfedb567ee99d3b74a6246777b1356",
+    "buffered-writer-traces.cinch": "afd0538048806271e8936ec326419a8066fec5598647ef5685e63de8ed499316",
+    "buffered-scanner-traces.cinch": "6f3a8550fcbd8486faff478e74c223cfcdb77e7f978d1adc2ce41bfd7b6d9b8f",
+    "buffered-split-traces.cinch": "c6198f6e29a6c924a0a89ed8da803eb78e9d9f772c30a86d98120b3cdae5dcfd",
+    "buffered-layer-controls.cinch": "3b2fbaec12fb2ec8485205b411fd06fb1d32994aa46d4dc43a8d27628d3dba34"
+  },
+  "maintained_observations": {
+    "reader": 360,
+    "writer": 170,
+    "scanner": 219,
+    "direct_split": 840,
+    "layer_control_groups": 12,
+    "layer_repeat_count": 64
+  },
+  "ci_execution": "SDK-free Cargo target supplied for parent serial gate; no Cargo or full compiler/bootstrap chain launched in this lane.",
+  "independent_reference": {
+    "sdk": "go1.27.4",
+    "generator_sha256": "afe636a7f5dc4ccf9760903f92034e7568d79c764850a63a6b82b6017f679d96",
+    "vectors_sha256": "c2dbe1d1bf4dbbff8929da16189cbcb12344c35a12b02223bebe6e1ad1603a0f",
+    "full_observations": {
+      "reader_histories": 220,
+      "reader_observations": 6488,
+      "writer_histories": 162,
+      "writer_observations": 2708,
+      "scanner_histories": 124,
+      "scanner_observations": 1771,
+      "direct_split": 840
+    }
+  },
+  "matrix": {
+    "buffered-family-native-source-v1": {
+      "frontend": "native",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "snapshot_sha256": "879f629db2de1b84919dfe0bf571c705ebcef2abb857fda836ec4bd5d27e2502",
+      "string_epoch": "combined e5; explicit admitted interfaces/object; no source shadow",
+      "sources": {
+        "Effect.Scanner.Split.cinch": "5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e",
+        "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Effect.Buffered.Internal.Scan.cinch": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+        "Effect.Buffered.Core.cinch": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Scanner.cinch": "dd6d190f2b53e1fb80b10e48d64a29363b82041895660675d2b383c637be06aa",
+        "Effect.Buffered.Writer.cinch": "bf3bda7ec2866c61b178b17ff37b7a52a202a9e0d86b0a44cea0069cd2e2382a",
+        "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+        "Effect.Buffered.Reader.cinch": "b0eb53793ea2111749580e5726abaec76f84fb3a1df3b9f3706d1240b696b160",
+        "Effect.Buffered.cinch": "a9669f4c6996da84707ead19c237498e0b043fcac8dc1e4cc945ccaecff22054",
+        "Main.cinch": "525b2184b8f0dabe1c035f27b0fb798c7a5238525ee8ca4e26b7e81569218788"
+      },
+      "source_sha256": "525b2184b8f0dabe1c035f27b0fb798c7a5238525ee8ca4e26b7e81569218788",
+      "phase": "complete source declaration/type/proof check; no link or consumer execution",
+      "seconds": 22.439856351003982,
+      "all_passed": true,
+      "receipt_sha256": "9bfb5786ec4b8e28e6dede6fee59c9f315c7c81393b8567b5e3fea9147974f4d"
+    },
+    "buffered-reader-all-rust-v2": {
+      "frontend": "rust",
+      "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "snapshot_sha256": "efddf04be6b84092832f2d1f0d3a174964c2bcc27418aa84ffcfb3105c611577",
+      "string_epoch": {
+        "description": "Rust frontend with repaired scalar semantics and embedded phase2 String/Bytes after full parent gates",
+        "embedded_sources": {
+          "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+          "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+        },
+        "source_checkpoint": "cafee61a"
+      },
+      "sources": {
+        "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Effect.Buffered.Core.cinch": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Buffered.Reader.cinch": "b0eb53793ea2111749580e5726abaec76f84fb3a1df3b9f3706d1240b696b160",
+        "Effect.Buffered.Internal.Scan.cinch": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Main.cinch": "31e630ca8a5e2c6925f1c488dff11d34101133a5787e4fc08d06230ed8b5c446"
+      },
+      "source_sha256": "31e630ca8a5e2c6925f1c488dff11d34101133a5787e4fc08d06230ed8b5c446",
+      "opt_level": "2",
+      "compile_seconds": 44.298723815009,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "allocation_statistics": true,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=133412 bytes=4137018 peak=7734 header-blocks=118742 header-bytes=4003696 immortal=0 freed=118742 live=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "allocation_statistics": true,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=133412 bytes=4137018 peak=4003949 header-blocks=118742 header-bytes=4003696 immortal=0 freed=118742 live=0\n"
+        }
+      ],
+      "all_passed": true,
+      "receipt_sha256": "e42de714a19d11592b33df47ffd126a7eb8c7b06ced2831037c8f09670a5beba"
+    },
+    "buffered-writer-all-rust-v1": {
+      "frontend": "rust",
+      "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "snapshot_sha256": "efddf04be6b84092832f2d1f0d3a174964c2bcc27418aa84ffcfb3105c611577",
+      "string_epoch": {
+        "description": "Rust frontend with repaired scalar semantics and embedded phase2 String/Bytes after full parent gates",
+        "embedded_sources": {
+          "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+          "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+        },
+        "source_checkpoint": "cafee61a"
+      },
+      "sources": {
+        "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Effect.Buffered.Core.cinch": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Buffered.Writer.cinch": "bf3bda7ec2866c61b178b17ff37b7a52a202a9e0d86b0a44cea0069cd2e2382a",
+        "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "d2fc3f97fc4f746ae60583bf7bb9fb7beb4f6a51e8b4f9b8e253da881bb7ba89"
+      },
+      "source_sha256": "d2fc3f97fc4f746ae60583bf7bb9fb7beb4f6a51e8b4f9b8e253da881bb7ba89",
+      "opt_level": "2",
+      "compile_seconds": 34.48159959499026,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "allocation_statistics": true,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=54573 bytes=1425580 peak=10911 header-blocks=44355 header-bytes=1345472 immortal=0 freed=44355 live=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "allocation_statistics": true,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=54573 bytes=1425580 peak=1345701 header-blocks=44355 header-bytes=1345472 immortal=0 freed=44355 live=0\n"
+        }
+      ],
+      "all_passed": true,
+      "receipt_sha256": "1fd618b041ad28634e3644553a25c09166745e2ad64661161c57cb323469c3f9"
+    },
+    "buffered-layer-rust-v5": {
+      "frontend": "rust",
+      "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "snapshot_sha256": "efddf04be6b84092832f2d1f0d3a174964c2bcc27418aa84ffcfb3105c611577",
+      "string_epoch": {
+        "description": "Rust frontend with repaired scalar semantics and embedded phase2 String/Bytes after full parent gates",
+        "embedded_sources": {
+          "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+          "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+        },
+        "source_checkpoint": "cafee61a"
+      },
+      "sources": {
+        "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+        "Effect.Scanner.Split.cinch": "5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e",
+        "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Effect.Buffered.Internal.Scan.cinch": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+        "Effect.Buffered.Core.cinch": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Scanner.cinch": "dd6d190f2b53e1fb80b10e48d64a29363b82041895660675d2b383c637be06aa",
+        "Effect.Buffered.Writer.cinch": "bf3bda7ec2866c61b178b17ff37b7a52a202a9e0d86b0a44cea0069cd2e2382a",
+        "Effect.Buffered.Reader.cinch": "b0eb53793ea2111749580e5726abaec76f84fb3a1df3b9f3706d1240b696b160",
+        "Effect.Buffered.cinch": "a9669f4c6996da84707ead19c237498e0b043fcac8dc1e4cc945ccaecff22054",
+        "Main.cinch": "3b2fbaec12fb2ec8485205b411fd06fb1d32994aa46d4dc43a8d27628d3dba34"
+      },
+      "source_sha256": "3b2fbaec12fb2ec8485205b411fd06fb1d32994aa46d4dc43a8d27628d3dba34",
+      "opt_level": "2",
+      "compile_seconds": 12.706428297999082,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "allocation_statistics": true,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=23248 bytes=1137411 peak=9067 header-blocks=18661 header-bytes=585432 immortal=0 freed=18661 live=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "allocation_statistics": true,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=23248 bytes=1137411 peak=593323 header-blocks=18661 header-bytes=585432 immortal=0 freed=18661 live=0\n"
+        }
+      ],
+      "all_passed": true,
+      "receipt_sha256": "3b0657c6c590eabeb29d3d632019f10d1e2455ad46ed9703b2ab7c21442add2f"
+    }
+  },
+  "prior_receipts": [
+    "buffered-reader-native-v2.json records333 reader observations with an earlier Core source; not current complete-family runtime qualification.",
+    "buffered-split-rust-v1.json and buffered-scanner-rust-v1.json use the prior raw cttz source. The selected kernel uses checked trailing-zeros-u32, and must retain separate final-source runtime/portable/performance qualification."
+  ],
+  "known_blocker": {
+    "kind": "ordinary ARC cross-retained source/sink transfer callback cycle",
+    "original_and_valid_eof_live_blocks": 22,
+    "evidence_commit": "60c4119c6b06f55602cbb38f8ea673775a65f1bb",
+    "test_only_prototype_commit": "5a0586eaf2a130214cb904b1c91f4d84092dee29",
+    "production_collector_enabled": false,
+    "retention_contract_narrowed": false
+  },
+  "remaining": [
+    "Final-source Scanner1771 and directSplit840 functional matrix",
+    "Full admittedNative Reader6488/Writer2708/Scanner1771/directSplit840 and layered controls",
+    "Current maintained fixtures and supplied Rust target at parent exact epoch/default optimization",
+    "Actual production scan kernel portability/word alignment and malformed fringe controls",
+    "Public Reader/Writer/Scanner and complete pipeline benchmark preflights, paired measurements and hot-code review",
+    "Retention-correct cycle solution and reviewed production safepoints before promotion"
+  ]
+}

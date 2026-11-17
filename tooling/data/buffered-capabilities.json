@@ -2,7 +2,7 @@
   "pinned_sdk": "go1.27.4",
   "package": "bufio",
   "declaration_count": 80,
-  "status": "full80 capability implementation in progress; no exclusions",
+  "status": "all80 operation routes source-declared and both-front proof checked; full runtime/performance/retention qualification remains in progress; no exclusions",
   "rows": [
     {
       "declaration": "const MaxScanTokenSize = 65536",
@@ -10,9 +10,9 @@
         "Effect.Scanner.scanner-max-token-size"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.scanner-max-token-size": false
+        "Effect.Scanner.scanner-max-token-size": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "const MaxScanTokenSize ideal-int",
@@ -20,9 +20,9 @@
         "Effect.Scanner.scanner-max-token-size"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.scanner-max-token-size": false
+        "Effect.Scanner.scanner-max-token-size": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "func NewReadWriter(*Reader, *Writer) *ReadWriter",
@@ -30,21 +30,23 @@
         "Effect.Buffered.buffered-read-writer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer": false
+        "Effect.Buffered.buffered-read-writer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "func NewReader(io.Reader) *Reader",
       "capabilities": [
         "Effect.Buffered.Reader.buffered-reader",
-        "Effect.Buffered.Reader.buffered-reader-from-stream"
+        "Effect.Buffered.Reader.buffered-reader-from-stream",
+        "Effect.Buffered.Reader.buffered-reader-rebuffer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-reader": false,
-        "Effect.Buffered.Reader.buffered-reader-from-stream": false
+        "Effect.Buffered.Reader.buffered-reader": true,
+        "Effect.Buffered.Reader.buffered-reader-from-stream": true,
+        "Effect.Buffered.Reader.buffered-reader-rebuffer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "func NewReaderSize(io.Reader, int) *Reader",
@@ -54,11 +56,11 @@
         "Effect.Buffered.Reader.buffered-reader-rebuffer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-reader-sized": false,
-        "Effect.Buffered.Reader.buffered-reader-from-stream-sized": false,
-        "Effect.Buffered.Reader.buffered-reader-rebuffer": false
+        "Effect.Buffered.Reader.buffered-reader-sized": true,
+        "Effect.Buffered.Reader.buffered-reader-from-stream-sized": true,
+        "Effect.Buffered.Reader.buffered-reader-rebuffer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "func NewScanner(io.Reader) *Scanner",
@@ -67,22 +69,24 @@
         "Effect.Scanner.scanner-from-stream"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.scanner": false,
-        "Effect.Scanner.scanner-from-stream": false
+        "Effect.Scanner.scanner": true,
+        "Effect.Scanner.scanner-from-stream": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "func NewWriter(io.Writer) *Writer",
       "capabilities": [
         "Effect.Buffered.Writer.buffered-writer",
-        "Effect.Buffered.Writer.buffered-writer-from-stream"
+        "Effect.Buffered.Writer.buffered-writer-from-stream",
+        "Effect.Buffered.Writer.buffered-writer-rebuffer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-writer": false,
-        "Effect.Buffered.Writer.buffered-writer-from-stream": false
+        "Effect.Buffered.Writer.buffered-writer": true,
+        "Effect.Buffered.Writer.buffered-writer-from-stream": true,
+        "Effect.Buffered.Writer.buffered-writer-rebuffer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "func NewWriterSize(io.Writer, int) *Writer",
@@ -92,11 +96,11 @@
         "Effect.Buffered.Writer.buffered-writer-rebuffer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-writer-sized": false,
-        "Effect.Buffered.Writer.buffered-writer-from-stream-sized": false,
-        "Effect.Buffered.Writer.buffered-writer-rebuffer": false
+        "Effect.Buffered.Writer.buffered-writer-sized": true,
+        "Effect.Buffered.Writer.buffered-writer-from-stream-sized": true,
+        "Effect.Buffered.Writer.buffered-writer-rebuffer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "func ScanBytes([]uint8, bool) (int, []uint8, error)",
@@ -104,9 +108,9 @@
         "Effect.Scanner.Split.scan-bytes"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Split.scan-bytes": false
+        "Effect.Scanner.Split.scan-bytes": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "func ScanLines([]uint8, bool) (int, []uint8, error)",
@@ -114,9 +118,9 @@
         "Effect.Scanner.Split.scan-lines"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Split.scan-lines": false
+        "Effect.Scanner.Split.scan-lines": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "func ScanRunes([]uint8, bool) (int, []uint8, error)",
@@ -124,9 +128,9 @@
         "Effect.Scanner.Split.scan-runes"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Split.scan-runes": false
+        "Effect.Scanner.Split.scan-runes": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "func ScanWords([]uint8, bool) (int, []uint8, error)",
@@ -134,9 +138,9 @@
         "Effect.Scanner.Split.scan-words"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Split.scan-words": false
+        "Effect.Scanner.Split.scan-words": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) Buffered() int",
@@ -144,9 +148,9 @@
         "Effect.Buffered.Reader.buffered-reader-buffered"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-reader-buffered": false
+        "Effect.Buffered.Reader.buffered-reader-buffered": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) Discard(int) (int, error)",
@@ -154,9 +158,9 @@
         "Effect.Buffered.Reader.buffered-discard"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-discard": false
+        "Effect.Buffered.Reader.buffered-discard": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) Peek(int) ([]uint8, error)",
@@ -164,9 +168,9 @@
         "Effect.Buffered.Reader.buffered-peek"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-peek": false
+        "Effect.Buffered.Reader.buffered-peek": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) Read([]uint8) (int, error)",
@@ -175,10 +179,10 @@
         "Effect.Buffered.Reader.buffered-read-into"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-read": false,
-        "Effect.Buffered.Reader.buffered-read-into": false
+        "Effect.Buffered.Reader.buffered-read": true,
+        "Effect.Buffered.Reader.buffered-read-into": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) ReadByte() (uint8, error)",
@@ -186,19 +190,19 @@
         "Effect.Buffered.Reader.buffered-read-byte"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-read-byte": false
+        "Effect.Buffered.Reader.buffered-read-byte": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) ReadBytes(uint8) ([]uint8, error)",
       "capabilities": [
-        "Effect.Buffered.Reader.buffered-read-delimited"
+        "Effect.Buffered.Reader.buffered-read-bytes"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-read-delimited": false
+        "Effect.Buffered.Reader.buffered-read-bytes": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) ReadLine() ([]uint8, bool, error)",
@@ -206,9 +210,9 @@
         "Effect.Buffered.Reader.buffered-read-line"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-read-line": false
+        "Effect.Buffered.Reader.buffered-read-line": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) ReadRune() (int32, int, error)",
@@ -216,9 +220,9 @@
         "Effect.Buffered.Reader.buffered-read-rune"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-read-rune": false
+        "Effect.Buffered.Reader.buffered-read-rune": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) ReadSlice(uint8) ([]uint8, error)",
@@ -226,21 +230,21 @@
         "Effect.Buffered.Reader.buffered-read-slice"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-read-slice": false
+        "Effect.Buffered.Reader.buffered-read-slice": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) ReadString(uint8) (string, error)",
       "capabilities": [
-        "Effect.Buffered.Reader.buffered-read-delimited",
-        "Effect.Buffered.Reader.buffer-read-text"
+        "Effect.Buffered.Reader.buffered-read-string",
+        "Effect.Buffered.Reader.TextEvent"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-read-delimited": false,
-        "Effect.Buffered.Reader.buffer-read-text": false
+        "Effect.Buffered.Reader.buffered-read-string": true,
+        "Effect.Buffered.Reader.TextEvent": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) Reset(io.Reader)",
@@ -249,10 +253,10 @@
         "Effect.Buffered.Reader.buffered-reader-reset-self"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-reader-reset": false,
-        "Effect.Buffered.Reader.buffered-reader-reset-self": false
+        "Effect.Buffered.Reader.buffered-reader-reset": true,
+        "Effect.Buffered.Reader.buffered-reader-reset-self": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) Size() int",
@@ -260,9 +264,9 @@
         "Effect.Buffered.Reader.buffered-reader-size"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-reader-size": false
+        "Effect.Buffered.Reader.buffered-reader-size": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) UnreadByte() error",
@@ -270,9 +274,9 @@
         "Effect.Buffered.Reader.buffered-unread-byte"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-unread-byte": false
+        "Effect.Buffered.Reader.buffered-unread-byte": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) UnreadRune() error",
@@ -280,9 +284,9 @@
         "Effect.Buffered.Reader.buffered-unread-rune"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-unread-rune": false
+        "Effect.Buffered.Reader.buffered-unread-rune": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Reader) WriteTo(io.Writer) (int64, error)",
@@ -290,9 +294,9 @@
         "Effect.Buffered.Reader.buffered-write-to"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.buffered-write-to": false
+        "Effect.Buffered.Reader.buffered-write-to": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Scanner) Buffer([]uint8, int)",
@@ -301,10 +305,10 @@
         "Effect.Scanner.scanner-buffer-size"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.scanner-buffer": false,
-        "Effect.Scanner.scanner-buffer-size": false
+        "Effect.Scanner.scanner-buffer": true,
+        "Effect.Scanner.scanner-buffer-size": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Scanner) Bytes() []uint8",
@@ -313,10 +317,10 @@
         "Effect.Scanner.scanner-token"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.scanner-bytes": false,
-        "Effect.Scanner.scanner-token": false
+        "Effect.Scanner.scanner-bytes": true,
+        "Effect.Scanner.scanner-token": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Scanner) Err() error",
@@ -324,9 +328,9 @@
         "Effect.Scanner.scanner-error"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.scanner-error": false
+        "Effect.Scanner.scanner-error": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Scanner) Scan() bool",
@@ -334,9 +338,9 @@
         "Effect.Scanner.scanner-next"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.scanner-next": false
+        "Effect.Scanner.scanner-next": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Scanner) Split(SplitFunc)",
@@ -344,9 +348,9 @@
         "Effect.Scanner.scanner-split"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.scanner-split": false
+        "Effect.Scanner.scanner-split": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Scanner) Text() string",
@@ -355,10 +359,10 @@
         "Effect.Scanner.scanner-bytes"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.scanner-text": false,
-        "Effect.Scanner.scanner-bytes": false
+        "Effect.Scanner.scanner-text": true,
+        "Effect.Scanner.scanner-bytes": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) Available() int",
@@ -366,25 +370,29 @@
         "Effect.Buffered.Writer.buffered-writer-available"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-writer-available": false
+        "Effect.Buffered.Writer.buffered-writer-available": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) AvailableBuffer() []uint8",
       "capabilities": [
         "Effect.Buffered.Writer.buffered-writer-space",
+        "Effect.Buffered.Writer.buffer-space-capacity",
         "Effect.Buffered.Writer.buffer-space-append",
+        "Effect.Buffered.Writer.buffer-space-reserve",
         "Effect.Buffered.Writer.buffer-space-bytes",
         "Effect.Buffered.Writer.buffered-write-space"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-writer-space": false,
-        "Effect.Buffered.Writer.buffer-space-append": false,
-        "Effect.Buffered.Writer.buffer-space-bytes": false,
-        "Effect.Buffered.Writer.buffered-write-space": false
+        "Effect.Buffered.Writer.buffered-writer-space": true,
+        "Effect.Buffered.Writer.buffer-space-capacity": true,
+        "Effect.Buffered.Writer.buffer-space-append": true,
+        "Effect.Buffered.Writer.buffer-space-reserve": true,
+        "Effect.Buffered.Writer.buffer-space-bytes": true,
+        "Effect.Buffered.Writer.buffered-write-space": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) Buffered() int",
@@ -392,9 +400,9 @@
         "Effect.Buffered.Writer.buffered-writer-buffered"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-writer-buffered": false
+        "Effect.Buffered.Writer.buffered-writer-buffered": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) Flush() error",
@@ -402,9 +410,9 @@
         "Effect.Buffered.Writer.buffered-flush"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-flush": false
+        "Effect.Buffered.Writer.buffered-flush": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) ReadFrom(io.Reader) (int64, error)",
@@ -412,9 +420,9 @@
         "Effect.Buffered.Writer.buffered-read-from"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-read-from": false
+        "Effect.Buffered.Writer.buffered-read-from": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) Reset(io.Writer)",
@@ -423,10 +431,10 @@
         "Effect.Buffered.Writer.buffered-writer-reset-self"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-writer-reset": false,
-        "Effect.Buffered.Writer.buffered-writer-reset-self": false
+        "Effect.Buffered.Writer.buffered-writer-reset": true,
+        "Effect.Buffered.Writer.buffered-writer-reset-self": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) Size() int",
@@ -434,9 +442,9 @@
         "Effect.Buffered.Writer.buffered-writer-size"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-writer-size": false
+        "Effect.Buffered.Writer.buffered-writer-size": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) Write([]uint8) (int, error)",
@@ -444,9 +452,9 @@
         "Effect.Buffered.Writer.buffered-write"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-write": false
+        "Effect.Buffered.Writer.buffered-write": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) WriteByte(uint8) error",
@@ -454,9 +462,9 @@
         "Effect.Buffered.Writer.buffered-write-byte"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-write-byte": false
+        "Effect.Buffered.Writer.buffered-write-byte": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) WriteRune(int32) (int, error)",
@@ -465,10 +473,10 @@
         "Effect.Buffered.Writer.buffered-write-char"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-write-rune": false,
-        "Effect.Buffered.Writer.buffered-write-char": false
+        "Effect.Buffered.Writer.buffered-write-rune": true,
+        "Effect.Buffered.Writer.buffered-write-char": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (*Writer) WriteString(string) (int, error)",
@@ -477,10 +485,10 @@
         "Effect.Buffered.Writer.buffered-write"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.buffered-write-text": false,
-        "Effect.Buffered.Writer.buffered-write": false
+        "Effect.Buffered.Writer.buffered-write-text": true,
+        "Effect.Buffered.Writer.buffered-write": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) Available() int",
@@ -490,31 +498,35 @@
         "Effect.Buffered.buffered-read-writer-with-writer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-writer": false,
-        "Effect.Buffered.Writer.buffered-writer-available": false,
-        "Effect.Buffered.buffered-read-writer-with-writer": false
+        "Effect.Buffered.buffered-read-writer-writer": true,
+        "Effect.Buffered.Writer.buffered-writer-available": true,
+        "Effect.Buffered.buffered-read-writer-with-writer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) AvailableBuffer() []uint8",
       "capabilities": [
         "Effect.Buffered.buffered-read-writer-writer",
         "Effect.Buffered.Writer.buffered-writer-space",
+        "Effect.Buffered.Writer.buffer-space-capacity",
         "Effect.Buffered.Writer.buffer-space-append",
+        "Effect.Buffered.Writer.buffer-space-reserve",
         "Effect.Buffered.Writer.buffer-space-bytes",
         "Effect.Buffered.Writer.buffered-write-space",
         "Effect.Buffered.buffered-read-writer-with-writer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-writer": false,
-        "Effect.Buffered.Writer.buffered-writer-space": false,
-        "Effect.Buffered.Writer.buffer-space-append": false,
-        "Effect.Buffered.Writer.buffer-space-bytes": false,
-        "Effect.Buffered.Writer.buffered-write-space": false,
-        "Effect.Buffered.buffered-read-writer-with-writer": false
+        "Effect.Buffered.buffered-read-writer-writer": true,
+        "Effect.Buffered.Writer.buffered-writer-space": true,
+        "Effect.Buffered.Writer.buffer-space-capacity": true,
+        "Effect.Buffered.Writer.buffer-space-append": true,
+        "Effect.Buffered.Writer.buffer-space-reserve": true,
+        "Effect.Buffered.Writer.buffer-space-bytes": true,
+        "Effect.Buffered.Writer.buffered-write-space": true,
+        "Effect.Buffered.buffered-read-writer-with-writer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) Discard(int) (int, error)",
@@ -524,11 +536,11 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-discard": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-discard": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) Flush() error",
@@ -538,11 +550,11 @@
         "Effect.Buffered.buffered-read-writer-with-writer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-writer": false,
-        "Effect.Buffered.Writer.buffered-flush": false,
-        "Effect.Buffered.buffered-read-writer-with-writer": false
+        "Effect.Buffered.buffered-read-writer-writer": true,
+        "Effect.Buffered.Writer.buffered-flush": true,
+        "Effect.Buffered.buffered-read-writer-with-writer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) Peek(int) ([]uint8, error)",
@@ -552,11 +564,11 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-peek": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-peek": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) Read([]uint8) (int, error)",
@@ -567,12 +579,12 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-read": false,
-        "Effect.Buffered.Reader.buffered-read-into": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-read": true,
+        "Effect.Buffered.Reader.buffered-read-into": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) ReadByte() (uint8, error)",
@@ -582,25 +594,25 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-read-byte": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-read-byte": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) ReadBytes(uint8) ([]uint8, error)",
       "capabilities": [
         "Effect.Buffered.buffered-read-writer-reader",
-        "Effect.Buffered.Reader.buffered-read-delimited",
+        "Effect.Buffered.Reader.buffered-read-bytes",
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-read-delimited": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-read-bytes": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) ReadFrom(io.Reader) (int64, error)",
@@ -610,11 +622,11 @@
         "Effect.Buffered.buffered-read-writer-with-writer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-writer": false,
-        "Effect.Buffered.Writer.buffered-read-from": false,
-        "Effect.Buffered.buffered-read-writer-with-writer": false
+        "Effect.Buffered.buffered-read-writer-writer": true,
+        "Effect.Buffered.Writer.buffered-read-from": true,
+        "Effect.Buffered.buffered-read-writer-with-writer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) ReadLine() ([]uint8, bool, error)",
@@ -624,11 +636,11 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-read-line": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-read-line": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) ReadRune() (int32, int, error)",
@@ -638,11 +650,11 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-read-rune": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-read-rune": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) ReadSlice(uint8) ([]uint8, error)",
@@ -652,27 +664,27 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-read-slice": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-read-slice": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) ReadString(uint8) (string, error)",
       "capabilities": [
         "Effect.Buffered.buffered-read-writer-reader",
-        "Effect.Buffered.Reader.buffered-read-delimited",
-        "Effect.Buffered.Reader.buffer-read-text",
+        "Effect.Buffered.Reader.buffered-read-string",
+        "Effect.Buffered.Reader.TextEvent",
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-read-delimited": false,
-        "Effect.Buffered.Reader.buffer-read-text": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-read-string": true,
+        "Effect.Buffered.Reader.TextEvent": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) UnreadByte() error",
@@ -682,11 +694,11 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-unread-byte": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-unread-byte": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) UnreadRune() error",
@@ -696,11 +708,11 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-unread-rune": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-unread-rune": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) Write([]uint8) (int, error)",
@@ -710,11 +722,11 @@
         "Effect.Buffered.buffered-read-writer-with-writer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-writer": false,
-        "Effect.Buffered.Writer.buffered-write": false,
-        "Effect.Buffered.buffered-read-writer-with-writer": false
+        "Effect.Buffered.buffered-read-writer-writer": true,
+        "Effect.Buffered.Writer.buffered-write": true,
+        "Effect.Buffered.buffered-read-writer-with-writer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) WriteByte(uint8) error",
@@ -724,11 +736,11 @@
         "Effect.Buffered.buffered-read-writer-with-writer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-writer": false,
-        "Effect.Buffered.Writer.buffered-write-byte": false,
-        "Effect.Buffered.buffered-read-writer-with-writer": false
+        "Effect.Buffered.buffered-read-writer-writer": true,
+        "Effect.Buffered.Writer.buffered-write-byte": true,
+        "Effect.Buffered.buffered-read-writer-with-writer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) WriteRune(int32) (int, error)",
@@ -739,12 +751,12 @@
         "Effect.Buffered.buffered-read-writer-with-writer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-writer": false,
-        "Effect.Buffered.Writer.buffered-write-rune": false,
-        "Effect.Buffered.Writer.buffered-write-char": false,
-        "Effect.Buffered.buffered-read-writer-with-writer": false
+        "Effect.Buffered.buffered-read-writer-writer": true,
+        "Effect.Buffered.Writer.buffered-write-rune": true,
+        "Effect.Buffered.Writer.buffered-write-char": true,
+        "Effect.Buffered.buffered-read-writer-with-writer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) WriteString(string) (int, error)",
@@ -755,12 +767,12 @@
         "Effect.Buffered.buffered-read-writer-with-writer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-writer": false,
-        "Effect.Buffered.Writer.buffered-write-text": false,
-        "Effect.Buffered.Writer.buffered-write": false,
-        "Effect.Buffered.buffered-read-writer-with-writer": false
+        "Effect.Buffered.buffered-read-writer-writer": true,
+        "Effect.Buffered.Writer.buffered-write-text": true,
+        "Effect.Buffered.Writer.buffered-write": true,
+        "Effect.Buffered.buffered-read-writer-with-writer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "method (ReadWriter) WriteTo(io.Writer) (int64, error)",
@@ -770,11 +782,11 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.Reader.buffered-write-to": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.Reader.buffered-write-to": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "type ReadWriter struct",
@@ -782,9 +794,9 @@
         "Effect.Buffered.BufferedReadWriter"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.BufferedReadWriter": false
+        "Effect.Buffered.BufferedReadWriter": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "type ReadWriter struct, embedded *Reader",
@@ -793,10 +805,10 @@
         "Effect.Buffered.buffered-read-writer-with-reader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-reader": false,
-        "Effect.Buffered.buffered-read-writer-with-reader": false
+        "Effect.Buffered.buffered-read-writer-reader": true,
+        "Effect.Buffered.buffered-read-writer-with-reader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "type ReadWriter struct, embedded *Writer",
@@ -805,10 +817,10 @@
         "Effect.Buffered.buffered-read-writer-with-writer"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.buffered-read-writer-writer": false,
-        "Effect.Buffered.buffered-read-writer-with-writer": false
+        "Effect.Buffered.buffered-read-writer-writer": true,
+        "Effect.Buffered.buffered-read-writer-with-writer": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "type Reader struct",
@@ -816,9 +828,9 @@
         "Effect.Buffered.Reader.BufferedReader"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Reader.BufferedReader": false
+        "Effect.Buffered.Reader.BufferedReader": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "type Scanner struct",
@@ -826,9 +838,9 @@
         "Effect.Scanner.Scanner"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Scanner": false
+        "Effect.Scanner.Scanner": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "type SplitFunc func([]uint8, bool) (int, []uint8, error)",
@@ -837,10 +849,10 @@
         "Effect.Scanner.Split.ScanStep"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Split.ScanSplit": false,
-        "Effect.Scanner.Split.ScanStep": false
+        "Effect.Scanner.Split.ScanSplit": true,
+        "Effect.Scanner.Split.ScanStep": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "type Writer struct",
@@ -848,9 +860,9 @@
         "Effect.Buffered.Writer.BufferedWriter"
       ],
       "source_declarations_present": {
-        "Effect.Buffered.Writer.BufferedWriter": false
+        "Effect.Buffered.Writer.BufferedWriter": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "var ErrAdvanceTooFar error",
@@ -858,9 +870,9 @@
         "Effect.Scanner.Split.ScanAdvanceTooFar"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Split.ScanAdvanceTooFar": false
+        "Effect.Scanner.Split.ScanAdvanceTooFar": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "var ErrBadReadCount error",
@@ -868,9 +880,9 @@
         "Effect.Scanner.Split.ScanBadReadCount"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Split.ScanBadReadCount": false
+        "Effect.Scanner.Split.ScanBadReadCount": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "var ErrBufferFull error",
@@ -888,9 +900,9 @@
         "Effect.Scanner.Split.ScanFinalToken"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Split.ScanFinalToken": false
+        "Effect.Scanner.Split.ScanFinalToken": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "var ErrInvalidUnreadByte error",
@@ -918,9 +930,9 @@
         "Effect.Scanner.Split.ScanNegativeAdvance"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Split.ScanNegativeAdvance": false
+        "Effect.Scanner.Split.ScanNegativeAdvance": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     },
     {
       "declaration": "var ErrNegativeCount error",
@@ -938,19 +950,23 @@
         "Effect.Scanner.Split.ScanTooLong"
       ],
       "source_declarations_present": {
-        "Effect.Scanner.Split.ScanTooLong": false
+        "Effect.Scanner.Split.ScanTooLong": true
       },
-      "status": "in progress"
+      "status": "implemented; validation pending"
     }
   ],
   "policies": [
     "Raw source/sink events preserve signed counts, byte prefixes and simultaneous error; existing stream adapters retain their narrower Result contracts.",
-    "Optional direct transfer callbacks preserve dispatch and advanced handles through private managed IO continuation cells; no negative recursive data types or checker exceptions.",
+    "Optional direct transfer and raw-text sink callbacks preserve dispatch and advanced handles through private managed IO continuation cells; no negative recursive data types or checker exceptions.",
     "Buffered storage is private. Externally mutable observations are fresh; callback input snapshots cannot mutate retained state.",
     "ReadWriter promoted operations route through concrete component getters and setters, preserving the other component.",
-    "AvailableBuffer is an owned bounded append builder/reservation; it exposes capacity and a fresh used prefix without private backing aliases.",
-    "Byte data is primary. Text conversions explicitly validate UTF8 or replace invalid bytes; invalid input is never silently converted to an empty String.",
-    "Scanner distinguishes absent and empty tokens, final-token termination, signed advance errors, source count errors and checked nonprogress/configuration refusals."
+    "AvailableBuffer is an owned bounded append builder/reservation; it exposes capacity and a fresh used prefix without private backing aliases. Explicit reserve supports growth beyond the originally advertised capacity.",
+    "Byte data is primary. Reader TextEvent retains raw bytes, optional validated text and independent source error. Scanner raw optional token preserves absence versus empty; text validates UTF8. Invalid data is never silently converted to empty String.",
+    "Scanner distinguishes absent and empty tokens, final-token termination, signed advance errors, source count errors and checked nonprogress/configuration refusals.",
+    "Ordinary buffered-flush drains exactly one owned layer; buffered-flush-through and buffered-writer-finish explicitly advance and flush nested owned layers.",
+    "Arbitrary cross-retained transfer callbacks currently form a strong reference cycle under ordinary ARC. Package promotion is held; the separate test-only cycle prototype has not changed runtime behavior.",
+    "The invalid zero-progress sink fixture uses an explicit observer watchdog. A named checked short-write refusal is an adaptation, not a claim that the reference call terminated.",
+    "Malformed signed source/sink counts produce named checked refusals without trusting an oversized payload or mutating outside valid bounds. Empty nonterminal direct byte/rune splits safely request more input despite violating the reference scanner invocation protocol."
   ],
   "reference_sources": {
     "bufio.go": "01cda8edce0b23c41fc64bb20a28c8a13cbd0a44f8535fe10555e6ba65711676",
