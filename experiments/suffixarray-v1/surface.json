@@ -82,6 +82,13 @@
     "zero_leak_profiles": 306,
     "optimization": "O0 only",
     "receipt": "literal-o0-receipt.json",
-    "O2": "pending"
+    "O2": {
+      "status": "partial",
+      "inputs_passed": 32,
+      "inputs_total": 153,
+      "observations": 2240,
+      "zero_leak_profiles": 64,
+      "receipt": "literal-o2-first-four-receipt.json"
+    }
   }
 }
