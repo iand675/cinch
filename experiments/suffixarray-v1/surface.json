@@ -1,0 +1,65 @@
+{
+  "reference_package": "index/suffixarray",
+  "reference_sdk": "go1.27.4",
+  "go_binary_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "implementation_source_sha256": "ef987768189cd2a30ce72ee5eb70ae322360b6397fe81b78106e2ed3ffe646f6",
+  "declarations": [
+    "func New([]uint8) *Index",
+    "method (*Index) Bytes() []uint8",
+    "method (*Index) FindAllIndex(*regexp.Regexp, int) [][]int",
+    "method (*Index) Lookup([]uint8, int) []int",
+    "method (*Index) Read(io.Reader) error",
+    "method (*Index) Write(io.Writer) error",
+    "type Index struct"
+  ],
+  "capabilities": [
+    {
+      "reference_declaration": "func New([]uint8) *Index",
+      "candidate": "suffix-index",
+      "status": "static-source-unqualified",
+      "adaptation": "Input is snapshotted and construction is O(NlogN), not the reference O(N) bound."
+    },
+    {
+      "reference_declaration": "method (*Index) Bytes() []uint8",
+      "candidate": "suffix-index-bytes",
+      "status": "static-source-unqualified",
+      "adaptation": "Fresh clone replaces a borrowed must-not-mutate backing slice."
+    },
+    {
+      "reference_declaration": "method (*Index) Lookup([]uint8, int) []int",
+      "candidate": "suffix-index-lookup",
+      "status": "static-source-unqualified",
+      "adaptation": "Explicit natural count/all limit, deterministic suffix order; no empty-query matches."
+    },
+    {
+      "reference_declaration": "method (*Index) FindAllIndex(*regexp.Regexp, int) [][]int",
+      "candidate": "suffix-index-find-all",
+      "status": "capability-adaptation-open",
+      "adaptation": "Typed genuine-effect search-from callback, not built-in raw-byte regexp integration; leftmost/empty/malformed semantics await independent qualification."
+    },
+    {
+      "reference_declaration": "method (*Index) Read(io.Reader) error",
+      "candidate": null,
+      "status": "not-implemented",
+      "adaptation": "Future native versioned codec/Effect.Stream adapter; no private-wire compatibility or in-place receiver mutation."
+    },
+    {
+      "reference_declaration": "method (*Index) Write(io.Writer) error",
+      "candidate": null,
+      "status": "not-implemented",
+      "adaptation": "Future Effect.Stream adapter must explicitly account for partial writes and advanced errors."
+    },
+    {
+      "reference_declaration": "type Index struct",
+      "candidate": "SuffixIndex",
+      "status": "static-source-unqualified",
+      "adaptation": "Opaque immutable snapshot rather than mutable zero-value receiver."
+    }
+  ],
+  "candidate_source_sha256": "f878f6ab97559415b5695463524988fb00407bfe00584519292c1578cd8f6761",
+  "oracle_status": "prepared-not-executed",
+  "candidate_status": "static-untyped-no-runtime-no-performance-claim",
+  "registered_library": false,
+  "oracle_sha256": "32d09cb6bf269ae011f1812f11e0181a40e6294c4e69c70b04863978d5ebdca9",
+  "generator_sha256": "a2e6762c0b44bcf7bccc8a3b3360166d228495a270c5839f2308260fde81a611"
+}
