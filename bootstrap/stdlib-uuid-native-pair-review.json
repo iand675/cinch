@@ -1,0 +1,33 @@
+{
+  "kind": "static-historical-pure-UUID-Native-pair-review",
+  "status": "exact-inputs-verified-no-UUID-compile-or-run",
+  "pair_root": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "frontend_sha256": "88c4a6182243547d99d60ae4e19284eb8771dd792cbd9d32fb720c1019b0ddde",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+  "metadata_sha256": "b3c2b20b6e46a9c0b321d19410764e22248df32311bd90a59b9f4e7cc1020d0d",
+  "snapshot_sha256": "879f629db2de1b84919dfe0bf571c705ebcef2abb857fda836ec4bd5d27e2502",
+  "base_modules": 65,
+  "scalar_intrinsic_lowering": false,
+  "array_certificate": false,
+  "supported_target": "x86_64-unknown-linux-gnu",
+  "proposed_source_only_bundle": [
+    "Data.Uuid",
+    "Text.Hex",
+    "Data.Bytes.Word",
+    "one pure dynamic/independent consumer"
+  ],
+  "explicitly_excluded": [
+    "Effect.Uuid",
+    "Effect.Concurrent.MVar",
+    "new66family",
+    "Rust330 runtime d91",
+    "any source/interface reheader or metadata restamp"
+  ],
+  "capability_claims": false,
+  "candidate_selected": false,
+  "qualification": "Historical strict-pair pure-data experiment only; its missing capabilities/refusals must remain separate from currentRust and futureNativefamily proof."
+}
