@@ -1,0 +1,5 @@
+# Successful reproducible executables remain plain local artifacts with hashes.
+/deterministic-v1/run-1/entropy-loop-tests
+/actual-syscall-v1/run-1/actual-entropy
+# Raw actual entropy remains plain locally; committed receipts identify every record.
+/actual-syscall-v1/run-1/real-entropy.capture
