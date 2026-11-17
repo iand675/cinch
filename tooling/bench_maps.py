@@ -33,6 +33,7 @@ def main() -> None:
     parser.add_argument("--runtime", type=Path)
     parser.add_argument("--interfaces", type=Path)
     parser.add_argument("--objects", type=Path)
+    parser.add_argument("--source-override", action="append", default=[], metavar="MODULE=PATH")
     parser.add_argument("--variants", nargs="+", choices=VARIANTS, default=VARIANTS)
     parser.add_argument("--sizes", nargs="+", type=int, default=(0, 1, 31, 256, 4096))
     parser.add_argument("--iterations", type=int, default=8)
@@ -46,6 +47,14 @@ def main() -> None:
         parser.error("building requires explicit compiler and matched runtime")
     if args.action == "build" and args.frontend == "native" and not (args.interfaces and args.objects):
         parser.error("Native building requires explicit matched interface/object manifests")
+    if args.action != "build" and args.source_override:
+        parser.error("source selection happens only when building new artifacts")
+    overrides = {}
+    for entry in args.source_override:
+        name, separator, value = entry.partition("=")
+        if not separator or name not in MODULES or name in overrides:
+            parser.error("source overrides must name each selected module at most once as MODULE=PATH")
+        overrides[name] = Path(value).resolve()
     os.sched_setaffinity(0, {args.cpu})
     artifacts = args.artifacts.resolve()
     artifacts.mkdir(parents=True, exist_ok=True)
@@ -59,13 +68,14 @@ def main() -> None:
             modules = {}
             for name in MODULES:
                 module = directory / (name + ".cinch")
-                module.write_bytes((ROOT / "compiler/prelude" / (name.replace(".", "/") + ".cinch")).read_bytes())
+                module.write_bytes(overrides.get(name, ROOT / "compiler/prelude" / (name.replace(".", "/") + ".cinch")).read_bytes())
                 modules[name] = module
             executable, llvm = directory / "consumer", directory / "consumer.ll"
             report = {"kind": "public-map-benchmark-build", "variant": variant, "frontend": args.frontend,
                       "compiler_sha256": digest(args.compiler), "runtime_sha256": digest(args.runtime),
                       "consumer_sha256": digest(entry), "sources": {name: digest(path) for name, path in modules.items()},
                       "runner_sha256": digest(Path(__file__)), "opt_level": 2, "generated_rc_debug": False,
+                      "source_overrides": {name: str(path) for name, path in overrides.items()},
                       "status": "running", "commands": []}
             output = directory / "build.json"
             try:

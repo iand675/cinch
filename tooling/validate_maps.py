@@ -50,6 +50,7 @@ def main() -> None:
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--interfaces", type=Path)
     parser.add_argument("--objects", type=Path)
+    parser.add_argument("--source-override", action="append", default=[], metavar="MODULE=PATH", help="Select a separate candidate without changing the production library")
     parser.add_argument("--cpu", type=int, default=0)
     parser.add_argument("--opt-level", choices=("0", "2"), default="2")
     parser.add_argument("--modes", nargs="+", choices=("source", "region", "control", "effect", "trace", "float"), default=["control", "effect", "trace", "float"])
@@ -64,10 +65,17 @@ def main() -> None:
     os.sched_setaffinity(0, {args.cpu})
     compiler, runtime = args.compiler.resolve(), args.runtime.resolve()
     environment = {**os.environ, "RUST_MIN_STACK": "67108864", "CINCH_TEST_API_EMIT_INTERFACES": "0"}
-    modules = {name: (ROOT / "compiler/prelude" / (name.replace(".", "/") + ".cinch")).read_bytes() for name in MODULES}
+    overrides = {}
+    for entry in args.source_override:
+        name, separator, value = entry.partition("=")
+        if not separator or name not in MODULES or name in overrides:
+            parser.error("source overrides must name each selected module at most once as MODULE=PATH")
+        overrides[name] = Path(value).resolve()
+    modules = {name: overrides.get(name, ROOT / "compiler/prelude" / (name.replace(".", "/") + ".cinch")).read_bytes() for name in MODULES}
     report = {"format": 1, "frontend": args.frontend, "compiler_sha256": digest(compiler), "runtime_sha256": digest(runtime),
               "runner_sha256": digest(Path(__file__)), "cpu_affinity": [args.cpu], "opt_level": args.opt_level,
               "sources": {name: hashlib.sha256(data).hexdigest() for name, data in modules.items()}, "suites": [], "status": "running"}
+    report["source_overrides"] = {name: str(path) for name, path in overrides.items()}
     provider = None
     if args.frontend == "native":
         provider = Path(json.loads(args.objects.read_text())["object"])

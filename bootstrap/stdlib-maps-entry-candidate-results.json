@@ -1,0 +1,14 @@
+{
+  "kind": "unselected-private-map-entry-candidate",
+  "production_selected": false,
+  "source_checked": false,
+  "runtime_qualified": false,
+  "timing_measured": false,
+  "baseline_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+  "candidate_sha256": "c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078",
+  "patch_sha256": "3cb27877fb90c679b6466ab41a21a85cc31af5985a851ea715c720ead0ad74cd",
+  "documented_declarations": 63,
+  "public_exports_and_signatures_unchanged": true,
+  "private_storage": "Existing typed Var cells; no new raw-slot/foreign ABI",
+  "source_snapshot": "build/maps-entry-candidate/sources/Data.Mutable.Map.cinch"
+}
