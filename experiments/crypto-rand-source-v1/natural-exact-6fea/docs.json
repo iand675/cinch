@@ -1,0 +1,181 @@
+{
+  "declarations": [
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 12,
+        "links": [],
+        "markdown": "Decode a complete unsigned big-endian byte sequence without a machine-size limit.",
+        "math": [],
+        "summary": "Decode a complete unsigned big-endian byte sequence without a machine-size limit.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Nat.Bytes.nat-from-bytes-be",
+      "kind": "value",
+      "name": "nat-from-bytes-be",
+      "parameters": [],
+      "signature": "nat-from-bytes-be :: Bytes -> Nat",
+      "source": {
+        "line": 13
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 16,
+        "links": [],
+        "markdown": "Decode after applying a bit mask to only the first input byte; input is unchanged.\nThis is arithmetic conversion, not a random generator or an entropy guarantee.",
+        "math": [],
+        "summary": "Decode after applying a bit mask to only the first input byte; input is unchanged. This is arithmetic conversion, not a random generator or an entropy guarantee.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Nat.Bytes.nat-from-bytes-be-masked",
+      "kind": "value",
+      "name": "nat-from-bytes-be-masked",
+      "parameters": [],
+      "signature": "nat-from-bytes-be-masked :: U8 -> Bytes -> Nat",
+      "source": {
+        "line": 18
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 21,
+        "links": [],
+        "markdown": "Convert every unsigned word bit, including bit 63, to a mathematical natural.",
+        "math": [],
+        "summary": "Convert every unsigned word bit, including bit 63, to a mathematical natural.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Nat.Bytes.word-to-nat",
+      "kind": "value",
+      "name": "word-to-nat",
+      "parameters": [],
+      "signature": "word-to-nat :: U64 -> Nat",
+      "source": {
+        "line": 22
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 25,
+        "links": [],
+        "markdown": "Normalize a packed little-endian load to the input's big-endian number.",
+        "math": [],
+        "summary": "Normalize a packed little-endian load to the input's big-endian number.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Nat.Bytes.reverse-word",
+      "kind": "prim",
+      "name": "reverse-word",
+      "parameters": [],
+      "signature": "prim reverse-word :: U64 -> U64 where",
+      "source": {
+        "line": 26
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 32,
+        "links": [],
+        "markdown": "Mask the first wire byte without modifying the input or losing other lanes.",
+        "math": [],
+        "summary": "Mask the first wire byte without modifying the input or losing other lanes.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Nat.Bytes.mask-first-word",
+      "kind": "prim",
+      "name": "mask-first-word",
+      "parameters": [],
+      "signature": "prim mask-first-word :: U64 -> U8 -> U64 where",
+      "source": {
+        "line": 33
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 43,
+        "links": [],
+        "markdown": "Apply one exact byte mask for a short first block.",
+        "math": [],
+        "summary": "Apply one exact byte mask for a short first block.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Nat.Bytes.mask-byte",
+      "kind": "prim",
+      "name": "mask-byte",
+      "parameters": [],
+      "signature": "prim mask-byte :: U8 -> U8 -> U8 where",
+      "source": {
+        "line": 44
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 50,
+        "links": [],
+        "markdown": "Accumulate eight-byte blocks followed by the bounded scalar fringe.",
+        "math": [],
+        "summary": "Accumulate eight-byte blocks followed by the bounded scalar fringe.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Nat.Bytes.decode",
+      "kind": "value",
+      "name": "decode",
+      "parameters": [],
+      "signature": "decode :: Bytes -> U8 -> Nat -> Nat -> Nat",
+      "source": {
+        "line": 51
+      },
+      "typeParameters": []
+    }
+  ],
+  "diagnostics": [],
+  "doc": {
+    "legacy": false,
+    "line": 1,
+    "links": [],
+    "markdown": "Arbitrary-precision natural values decoded from owned or borrowed byte buffers.\nDecoding is read only. Empty input denotes zero; leading zero bytes are allowed.\nComplete eight-byte blocks use bounded packed loads and exact 64-bit conversion.",
+    "math": [],
+    "summary": "Arbitrary-precision natural values decoded from owned or borrowed byte buffers. Decoding is read only. Empty input denotes zero; leading zero bytes are allowed. Complete eight-byte blocks use bounded packed loads and exact 64-bit conversion.",
+    "tags": {},
+    "tests": []
+  },
+  "module": "Data.Nat.Bytes",
+  "orphans": [],
+  "schema": 1,
+  "source": "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/natural-exact-6fea/project/Data.Nat.Bytes.cinch",
+  "sourceSha256": "061edfc77ee37fdbad18db598aeb0ddc96c6bdab0bd4a4cc8673e438584f69c6"
+}

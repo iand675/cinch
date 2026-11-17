@@ -1,0 +1,12 @@
+{
+  "scope": "infrastructure launch failure preserved separately from compiler diagnostics",
+  "attempted_command": "python3 experiments/crypto-rand-source-v1/check_unit.py prime-candidate-exact-6fea Data.Prime.Candidate",
+  "workdir": "/workspace/dasl-stdlib-entropy",
+  "tool_error": "CreateProcess: Rejected( Failed to create unified exec process: exec-server transport disconnected )",
+  "process_created": false,
+  "unit_directory_created": false,
+  "read_only_recovery_probe": "pwd returned /workspace/dasl-stdlib-entropy",
+  "pre_actual_run_check": "test ! -e experiments/crypto-rand-source-v1/prime-candidate-exact-6fea",
+  "actual_first_compiler_result": "prime-candidate-exact-6fea/command-1.stderr",
+  "later_correction": "prime-candidate-nat-v2, two explicit Nat literal annotations, no algorithm/oracle change"
+}

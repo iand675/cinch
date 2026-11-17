@@ -1,0 +1,69 @@
+-- | Uniform-alphabet token encoding without an entropy source or security claim.
+-- Each input byte contributes its low five bits as one uppercase alphabet symbol.
+-- This is not Base32 serialization: high input bits are deliberately discarded.
+module Text.Token where
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Nat
+  import Data.Machine
+  import Data.String
+  import Data.Option
+
+  export token-base32-symbols
+
+  -- | Map bytes to equally many A-Z/2-7 symbols without changing or retaining mutable input.
+  -- Output randomness depends entirely on the supplied input; this function adds none.
+  token-base32-symbols :: Bytes -> String
+  token-base32-symbols input =
+    let output = bytes-new (bytes-len input) in
+    let filled = fill input output 0 in
+    case string-from-bytes output of Some text -> text; None -> empty-string
+
+  -- | Map one proved five-bit value to its ASCII alphabet byte.
+  symbol :: using (value < 32) => (value :: Nat) -> InRange 0 255 Nat
+  symbol value = if value < 26 then 65 + value else 24 + value
+
+  -- | Map eight byte lanes independently with no cross-lane carry or borrow.
+  prim symbols8 :: U64 -> U64 where
+    llvm {
+      %value = and i64 %0, 2242545357980376863
+      %letter = add i64 %value, 4702111234474983745
+      %threshold = add i64 %value, 7378697629483820646
+      %high = and i64 %threshold, 9259542123273814144
+      %flags = lshr i64 %high, 7
+      %adjust = mul i64 %flags, 41
+      %result = sub i64 %letter, %adjust
+      ret i64 %result
+    }
+
+  -- | Transform eight independent byte lanes using pure portable LLVM vectors.
+  -- Memory access stays in the existing bounded byte-word operations.
+  prim symbols8-vector :: U64 -> U64 where
+    llvm {
+      %raw = bitcast i64 %0 to <8 x i8>
+      %value = and <8 x i8> %raw, <i8 31,i8 31,i8 31,i8 31,i8 31,i8 31,i8 31,i8 31>
+      %letter = add <8 x i8> %value, <i8 65,i8 65,i8 65,i8 65,i8 65,i8 65,i8 65,i8 65>
+      %digit = add <8 x i8> %value, <i8 24,i8 24,i8 24,i8 24,i8 24,i8 24,i8 24,i8 24>
+      %digits = icmp uge <8 x i8> %value, <i8 26,i8 26,i8 26,i8 26,i8 26,i8 26,i8 26,i8 26>
+      %mapped = select <8 x i1> %digits, <8 x i8> %digit, <8 x i8> %letter
+      %result = bitcast <8 x i8> %mapped to i64
+      ret i64 %result
+    }
+
+  -- | Process proved sixteen/eight-byte blocks, then only in-range scalar bytes.
+  fill :: Bytes -> Bytes -> Nat -> Unit
+  fill input output index =
+    if index + 16 <= bytes-len input && index + 16 <= bytes-len output then
+      let low = symbols8-vector (bytes-read-le64 input index) in
+      let high = symbols8-vector (bytes-read-le64 input (index + 8)) in
+      let first = bytes-write-le64 output index low in
+      let second = bytes-write-le64 output (index + 8) high in
+      fill input output (index + 16)
+    else if index + 8 <= bytes-len input && index + 8 <= bytes-len output then
+      let packed = symbols8 (bytes-read-le64 input index) in
+      let written = bytes-write-le64 output index packed in
+      fill input output (index + 8)
+    else if index < bytes-len input && index < bytes-len output then
+      let written = bytes-set output index (symbol (nat-rem (bytes-get input index) 32)) in
+      fill input output (index + 1)
+    else ()

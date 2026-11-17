@@ -1,0 +1,130 @@
+-- | Uniform arbitrary-bound draws from explicitly advanced byte-source capabilities.
+-- A source must supply independent uniform bytes for the result to be uniform.
+-- Passing a deterministic or biased source does not create cryptographic entropy.
+-- Reader failures preserve the advanced handle. No mutable global source is used.
+module Effect.Random.Uniform where
+  import Data.Core
+  import Data.Nat
+  import Data.Int
+  import Data.Nat.Bytes
+  import Data.Bytes
+  import Data.Machine
+  import Data.Result
+  import Effect.Random
+  import Effect.Stream
+  import Effect.Buffered.Core
+  import Effect.Random.Read
+
+  export RandomInputError, RandomInputEmptyBound, RandomInputInvalidIntegerBound, RandomInputReadError, RandomInputBufferReadError
+  export system-random-reader, random-nat-below-from, random-int-below-from
+  export random-nat-below-buffer-from, random-int-below-buffer-from
+  export random-nat-below-masked, random-int-below
+
+  -- | A caller bound refusal or the source's original structured failure.
+  data RandomInputError where
+    -- | A natural upper bound is zero.
+    RandomInputEmptyBound :: RandomInputError
+    -- | A signed mathematical upper bound is not positive.
+    RandomInputInvalidIntegerBound :: RandomInputError
+    -- | An exact byte draw failed after advancing the borrowed source.
+    RandomInputReadError :: StreamError -> RandomInputError
+    -- | A raw callback preserves its original data/status-aware failure value.
+    RandomInputBufferReadError :: BufferError -> RandomInputError
+
+  -- | Expose actual system entropy through an explicit stream continuation.
+  -- Runtime provider failures retain their runtime boundary; they are not stream errors.
+  system-random-reader :: forall r. using (io :: Io r) => Unit -> ByteReader r
+  system-random-reader unit = stream-reader (\count -> (Ok (random-bytes count), system-random-reader ()))
+
+  -- | Draw uniformly below any positive natural bound using the actual system source.
+  -- Bound one returns zero without consulting a source. The existing legacy surface
+  -- retains its separately documented empty-provider check and is not replaced here.
+  random-nat-below-masked :: forall r. using (io :: Io r) => Nat ->{IO r} Result RandomInputError Nat
+  random-nat-below-masked maximum =
+    if maximum == 0 then Err RandomInputEmptyBound
+    else if maximum == 1 then Ok 0
+    else case shape (maximum - 1) 0 of
+      (width, mask) -> draw-system maximum width mask
+
+  -- | Draw below a positive signed mathematical bound using actual system entropy.
+  -- Invalid bounds return a named refusal; no value is narrowed to a machine integer.
+  random-int-below :: forall r. using (io :: Io r) => Int ->{IO r} Result RandomInputError Int
+  random-int-below maximum =
+    if maximum <= 0 then Err RandomInputInvalidIntegerBound
+    else case random-nat-below-masked (nat-from-int maximum) of
+      Err error -> Err error
+      Ok value -> Ok (nat-to-int value)
+
+  -- | Draw in [0, maximum), retaining the source after every refusal or failure.
+  -- Zero is a named error, one consumes no source bytes, and high bits are masked
+  -- before rejection. No modulo reduction biases the accepted distribution.
+  random-nat-below-from :: forall r. using (io :: Io r) => ByteReader r -> Nat ->{IO r} (Result RandomInputError Nat, ByteReader r)
+  random-nat-below-from source maximum =
+    if maximum == 0 then (Err RandomInputEmptyBound, source)
+    else if maximum == 1 then (Ok 0, source)
+    else case shape (maximum - 1) 0 of
+      (width, mask) -> draw source maximum width mask
+
+  -- | Adapt a signed arbitrary-precision bound without narrowing through a machine integer.
+  random-int-below-from :: forall r. using (io :: Io r) => ByteReader r -> Int ->{IO r} (Result RandomInputError Int, ByteReader r)
+  random-int-below-from source maximum =
+    if maximum <= 0 then (Err RandomInputInvalidIntegerBound, source)
+    else case random-nat-below-from source (nat-from-int maximum) of
+      (Err error, advanced) -> (Err error, advanced)
+      (Ok value, advanced) -> (Ok (nat-to-int value), advanced)
+
+  -- | Draw through a raw source, retaining simultaneous data/error and no-progress behavior.
+  random-nat-below-buffer-from :: forall r. using (io :: Io r) => BufferSource r -> Nat ->{IO r} (Result RandomInputError Nat, BufferSource r)
+  random-nat-below-buffer-from source maximum =
+    if maximum == 0 then (Err RandomInputEmptyBound, source)
+    else if maximum == 1 then (Ok 0, source)
+    else case shape (maximum - 1) 0 of
+      (width, mask) -> draw-buffer source maximum width mask
+
+  -- | Adapt a signed bound through a raw source without any machine narrowing.
+  random-int-below-buffer-from :: forall r. using (io :: Io r) => BufferSource r -> Int ->{IO r} (Result RandomInputError Int, BufferSource r)
+  random-int-below-buffer-from source maximum =
+    if maximum <= 0 then (Err RandomInputInvalidIntegerBound, source)
+    else case random-nat-below-buffer-from source (nat-from-int maximum) of
+      (Err error, advanced) -> (Err error, advanced)
+      (Ok value, advanced) -> (Ok (nat-to-int value), advanced)
+
+  -- | Spread the highest set bit to form the minimum all-ones byte mask.
+  prim high-mask :: U8 -> U8 where
+    llvm {
+      %a = lshr i8 %0, 1
+      %b = or i8 %0, %a
+      %c = lshr i8 %b, 2
+      %d = or i8 %b, %c
+      %e = lshr i8 %d, 4
+      %result = or i8 %d, %e
+      ret i8 %result
+    }
+
+  -- | Find exact byte width and top-byte mask by shrinking the value, not recomputing powers.
+  shape :: Nat -> Nat -> (Nat, U8)
+  shape value width =
+    if value < 256 then (width + 1, high-mask (wrapping-i64-to-u8 (nat-to-i64 value)))
+    else shape (nat-div value 256) (width + 1)
+
+  -- | Read one exact candidate and retry only when its value is outside the bound.
+  draw :: forall r. using (io :: Io r) => ByteReader r -> Nat -> Nat -> U8 ->{IO r} (Result RandomInputError Nat, ByteReader r)
+  draw source maximum width mask = case stream-read-exact source width of
+    (Err error, advanced) -> (Err (RandomInputReadError error), advanced)
+    (Ok input, advanced) ->
+      let value = nat-from-bytes-be-masked mask input in
+      if value < maximum then (Ok value, advanced) else draw advanced maximum width mask
+
+  -- | Use one owned actual entropy draw per attempt, without callback/copy adapter overhead.
+  draw-system :: forall r. using (io :: Io r) => Nat -> Nat -> U8 ->{IO r} Result RandomInputError Nat
+  draw-system maximum width mask =
+    let value = nat-from-bytes-be-masked mask (random-bytes width) in
+    if value < maximum then Ok value else draw-system maximum width mask
+
+  -- | Apply the same arithmetic rejection to exact raw-source reads.
+  draw-buffer :: forall r. using (io :: Io r) => BufferSource r -> Nat -> Nat -> U8 ->{IO r} (Result RandomInputError Nat, BufferSource r)
+  draw-buffer source maximum width mask = case random-read-exact source width of
+    (Err error, advanced) -> (Err (RandomInputBufferReadError error), advanced)
+    (Ok input, advanced) ->
+      let value = nat-from-bytes-be-masked mask input in
+      if value < maximum then (Ok value, advanced) else draw-buffer advanced maximum width mask

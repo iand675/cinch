@@ -1,0 +1,164 @@
+-- | Cryptographic random bytes, uniform integer draws, and hexadecimal tokens.
+--
+-- Every public draw requires an explicit `Io r` capability. Successful byte
+-- requests return a fresh owned buffer of exactly the requested length.
+-- Independent draws may have equal contents; buffer ownership is independent.
+--
+-- Nonempty Linux draws use the initialized kernel generator, with the device
+-- provider retained for kernels without that interface. Empty draws preserve
+-- the device-open check. Other hosted platforms retain their device provider.
+-- Provider and allocation failures belong to the runtime boundary; they are
+-- not represented by `RandomError`, including for an empty byte request.
+--
+-- Bounded draws reject excess values before taking a remainder, avoiding
+-- modulo bias. An empty bound returns `Err EmptyBound`; an empty or inverted
+-- interval returns `Err EmptyRange`. Bound one returns zero after an empty draw.
+-- `random-nat` draws one full 64-bit word. Hexadecimal output uses lowercase.
+--
+-- This module has no seed or replay state. Deterministic generators belong
+-- to separate APIs; draws use the operating-system provider.
+module Effect.Random where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+
+  export RandomError, EmptyBound, EmptyRange
+  export random-bytes, random-nat, random-nat-below, random-nat-in-range
+  export hex-of-bytes, random-hex
+
+
+  -- | Invalid bounds and intervals for otherwise well-formed random draws.
+  data RandomError where
+    EmptyBound :: RandomError
+    EmptyRange :: RandomError
+
+  -- | Obtain an owned entropy buffer through the recognized runtime intrinsic.
+  -- The checker pins this signature exactly (`Nat -> Bytes`), so the
+  -- declaration carries the intrinsic's own empty row, and this module's
+  -- capability lives on the surfaces below (see the header).
+  foreign import ccall "cinch.runtime.randomBytes" raw-random-bytes :: Nat -> Bytes
+
+  -- | Request exactly `n` owned bytes from the operating-system entropy source.
+  -- `n = 0` is the
+  -- legal empty request. Every draw here names this call; nothing holds
+  -- state between calls.
+  random-bytes :: forall r. using (io :: Io r) => Nat ->{IO r} Bytes
+  random-bytes n = raw-random-bytes n
+
+  -- | Draw one full machine word of entropy as a `Nat`, uniform over
+  -- `0 .. 2^64 - 1` (eight bytes, so no acceptance region is needed).
+  -- The draw is bound before it is read (the `draw-below` shape below):
+  -- one binding keeps the value read identical to the value drawn, and
+  -- it preserves the explicit lifetime of the buffer during decoding.
+  random-nat :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  random-nat u =
+    let b = random-bytes 8 in
+    bytes-to-nat b 0 0
+
+  -- | Draw a uniform value below `bound` by rejection sampling over
+  -- `byte-width bound` bytes, accepting only a whole multiple of the bound.
+  -- `bound = 0` is `Err EmptyBound`; bound one makes an empty provider
+  -- request and returns zero. The emptiness test makes the
+  -- bound the draw's `NonZero` divisor.
+  random-nat-below :: forall r. using (io :: Io r) => Nat ->{IO r} Result RandomError Nat
+  random-nat-below bound = case decide (NonZero bound) of
+    No _ -> Err EmptyBound
+    Yes w -> draw-below (NonZero bound w) (byte-width bound 0)
+
+  -- | Draw a uniform value in `lo .. hi - 1` (inclusive lower, exclusive
+  -- upper): the offset draw shifted by `lo`. An empty range (`hi <= lo`,
+  -- which also covers an inverted one) is `Err EmptyRange`; `hi - lo` is
+  -- only formed after that guard, so the subtraction cannot go below
+  -- zero. The inner `Err` arm is unreachable (`hi - lo` is at least 1
+  -- here) and only keeps the propagation total.
+  random-nat-in-range :: forall r. using (io :: Io r) => Nat -> Nat ->{IO r} Result RandomError Nat
+  random-nat-in-range lo hi = case hi <= lo of
+    True -> Err EmptyRange
+    False -> case random-nat-below (hi - lo) of
+      Err e -> Err e
+      Ok d -> Ok (lo + d)
+
+  -- | Render two lowercase hexadecimal characters per input byte.
+  -- Digits are `0`..`9` then `a`..`f`: the
+  -- rendering a token, a digest echo or a temp name reads. A `String` is
+  -- UTF-8 over `Bytes`, and every hex character is ASCII, so the
+  -- conversion cannot fail (the `None` arm is unreachable and only keeps
+  -- it total, the `Data.Sym`/`Data.Complex` convention).
+  hex-of-bytes :: Bytes -> String
+  hex-of-bytes b =
+    let out = bytes-new (2 * bytes-len b) in
+    let u = hex-fill out b 0 in
+    case string-from-bytes out of
+      Some s -> s
+      None -> empty-string
+
+  -- | Request `n` entropy bytes and render them as `2 * n` lowercase hex characters.
+  random-hex :: forall r. using (io :: Io r) => Nat ->{IO r} String
+  random-hex n = hex-of-bytes (random-bytes n)
+
+  -- | Repeat draws until one lies below the largest whole multiple of the bound.
+  -- Each residue then has the same number of accepted inputs. The bound is
+  -- the reduction's divisor, so it arrives already proven non-zero.
+  draw-below :: forall r. using (io :: Io r) => NonZero Nat -> Nat ->{IO r} Result RandomError Nat
+  draw-below bound w =
+    let v = bytes-to-nat (random-bytes w) 0 0 in
+    let top = nat-pow 256 w in
+    -- `top - top % bound`, the largest multiple of `bound` not above
+    -- `top`, written as that multiple (the same number, no subtraction).
+    let limit = nat-mul (nat-div top bound) (unrefine bound) in
+    case v < limit of
+      True -> Ok (nat-rem v bound)
+      False -> draw-below bound w
+
+  -- | Decode the remaining bytes into a big-endian natural-number accumulator.
+  -- The first byte
+  -- is the most significant: this is the reading that
+  -- makes a fresh draw uniform over `0 .. 256^n - 1`. Every caller hands
+  -- it a fresh draw, whose length is exactly the width asked for, so
+  -- reading to the buffer's end is reading the draw; the intrinsic's
+  -- pinned `Nat -> Bytes` signature cannot state that length, and the
+  -- buffer's own length is the bound each read proves.
+  bytes-to-nat :: Bytes -> Nat -> Nat -> Nat
+  bytes-to-nat b i acc = case i < bytes-len b of
+    False -> acc
+    True -> bytes-to-nat b (i + 1) (nat-add (nat-mul acc 256) (bytes-get b i))
+
+  -- | Compute the power used to size a rejection-sampling region.
+  nat-pow :: Nat -> Nat -> Nat
+  nat-pow base k = case k == 0 of
+    True -> 1
+    False -> nat-mul base (nat-pow base (k - 1))
+
+  -- | Find the smallest width with `256 ^ w >= bound`.
+  -- Bounds at most one need no entropy bytes; the provider still checks an empty request.
+  byte-width :: Nat -> Nat -> Nat
+  byte-width bound w = case nat-pow 256 w >= bound of
+    True -> w
+    False -> byte-width bound (w + 1)
+
+  -- | Fill the output with two hexadecimal digits for each remaining input byte.
+  -- `out` holds two bytes for each of `b`'s (the caller sizes it so, and
+  -- that is the obligation), so byte `i` of `b` lands at `2 * i` and
+  -- `2 * i + 1`, both inside `out`.
+  hex-fill :: using (2 * bytes-len b <= bytes-len out) => (out :: Bytes) -> (b :: Bytes) -> (i :: Nat) -> Unit
+  hex-fill out b i = case i < bytes-len b of
+    False -> ()
+    True ->
+      let v = bytes-get b i in
+      -- `v` is a byte, so `v / 16` is already below 16 and the `rem 16`
+      -- leaves it unchanged; it is the range `hex-digit` reads.
+      let hi = bytes-set out (2 * i) (hex-digit (nat-rem (nat-div v 16) 16)) in
+      let lo = bytes-set out (2 * i + 1) (hex-digit (nat-rem v 16)) in
+      hex-fill out b (i + 1)
+
+  -- | Encode one hexadecimal digit as its lowercase ASCII byte.
+  -- `0`..`9` (48..57) then `a`..`f`
+  -- (97..102), lower case.
+  hex-digit :: using (d < 16) => (d :: Nat) -> InRange 0 255 Nat
+  hex-digit d = if d < 10 then 48 + d else 87 + d
