@@ -32,6 +32,7 @@ def main():
     assert check.digest(checked / 'Main.cinch') == admitted['main_sha256']
     for name, row in admitted['source_selection'].items():
         assert check.digest(checked / (name + '.cinch')) == row['sha256'], name
+    source_unit_bytes = sum(path.stat().st_size for path in checked.rglob('*') if path.is_file())
     compiler, runtime = check.SNAPSHOT / 'cinch', check.SNAPSHOT / 'libcinchruntime.a'
     assert check.digest(compiler) == check.COMPILER and check.digest(runtime) == check.RUNTIME
     clang = Path(shutil.which('clang')).resolve()
@@ -57,6 +58,8 @@ def main():
               'resource_policy': {'start_free_mib': args.start_free_mib, 'reserve_mib': 250,
                                   'free_at_start_bytes': free_at_start, 'explicit_scope': args.resource_policy_note},
               'normal_runtime_collection_added': False, 'steps': [], 'runs': []}
+    report['source_artifact_bytes_charged'] = source_unit_bytes
+    report['complete_source_runtime_budget_bytes'] = 20 * 1024 * 1024
 
     def save():
         """Retain every actual diagnostic and partial outcome before considering another phase."""
@@ -66,13 +69,13 @@ def main():
         """Reserve shared free space and cap this unit's complete source, IR, cache, ELF and log outputs."""
         assert shutil.disk_usage(work).free >= 250 * 1024 * 1024, '250MiB pause guard'
         used = sum(p.stat().st_size for p in work.rglob('*') if p.is_file())
-        assert used < 20 * 1024 * 1024, '20MiB complete runtime-unit output cap'
+        assert used + source_unit_bytes < 20 * 1024 * 1024, '20MiB complete source/runtime-unit output cap'
         return used
 
     def invoke(command, name, environment):
         """Bound each external phase, preserve first failure and keep the source-admission epoch immutable."""
         used = guard()
-        allowance = 20 * 1024 * 1024 - used - 128 * 1024
+        allowance = 20 * 1024 * 1024 - source_unit_bytes - used - 128 * 1024
 
         def limits():
             """Use a 64MiB compiler host stack and a strict remaining per-file output ceiling."""
@@ -110,18 +113,31 @@ def main():
         env = {**os.environ, 'CINCH_HEAP_LIMIT': '256M' if poisoned else '32M',
                'CINCH_STACK_SIZE': '8M', 'CINCH_RC_DEBUG': '1' if poisoned else '0',
                'CINCH_LEAK_CHECK': '1', 'CINCH_ALLOC_STATS': '1'}
-        result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=30, env=env)
+        timed_out = False
+        try:
+            result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=30, env=env)
+            code, stdout, stderr = result.returncode, result.stdout, result.stderr
+        except subprocess.TimeoutExpired as error:
+            timed_out = True
+            code = None
+            stdout, stderr = error.stdout or b'', error.stderr or b''
+            stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
+            stderr = stderr.decode() if isinstance(stderr, bytes) else stderr
         row = {'poisoned': poisoned, 'heap': env['CINCH_HEAP_LIMIT'], 'stack': '8M',
-               'returncode': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}
+               'returncode': code, 'stdout': stdout, 'stderr': stderr, 'timeout_without_verdict': timed_out}
         report['runs'].append(row)
+        profile = 'poison' if poisoned else 'normal'
+        (work / (profile + '.stdout')).write_text(stdout)
+        (work / (profile + '.stderr')).write_text(stderr)
         save()
+        assert not timed_out, 'first runtime timeout preserved without a completed verdict'
         if args.retained_cycle_control:
-            leaks = re.search(r'live=(\d+) immortal=(\d+) leaked=(\d+)', result.stderr)
-            assert result.stdout == 'retained-cycle-ready\n', 'cycle control did not confirm both exact transfers and EOF'
-            assert result.returncode == 74 and leaks and int(leaks[3]) > 0, 'expected retained-cycle failure changed; review actual result'
+            leaks = re.search(r'live=(\d+) immortal=(\d+) leaked=(\d+)', stderr)
+            assert stdout == 'retained-cycle-ready\n', 'cycle control did not confirm both exact transfers and EOF'
+            assert code == 74 and leaks and int(leaks[3]) > 0, 'expected retained-cycle failure changed; review actual result'
             row['known_cycle_failure_observed'] = True
         else:
-            assert result.returncode == 0 and 'live=0 immortal=0 leaked=0' in result.stderr, 'first runtime failure retained'
+            assert code == 0 and 'live=0 immortal=0 leaked=0' in stderr, 'first runtime failure retained'
         save()
     report['artifact_bytes'] = guard()
     report['all_passed'] = not args.retained_cycle_control

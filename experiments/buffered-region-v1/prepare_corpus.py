@@ -87,9 +87,11 @@ def main():
     report = {'scope': __doc__, 'suite': args.suite, 'source': str(args.source.resolve()),
               'original_sha256': digest(original), 'output_sha256': digest(output),
               'changes': changed, 'added_imports': additions,
-              'every_observation_and_operation_body_preserved': True,
+              'every_expected_observation_preserved': True,
+              'original_source_exactly_reconstructible': True,
+              'body_adaptation': 'only the listed counted-source factory selects the genuine IO+Mut wrapper' if args.suite == 'layers' else 'operation bodies byte-identical',
               'compiler_source_gate': 'pending', 'runtime_gate': 'pending', 'production_adopted': False,
-              'exclusions': 'Core retained-read controls need an individually reviewed combined-effect fixture; no automatic rewrite or narrowed retention.'}
+              'manual_followup': 'Core retained-read controls remain required as an individually reviewed combined-effect fixture; no automatic rewrite or narrowed retention.'}
     args.output.with_suffix('.preparation.json').write_text(json.dumps(report, indent=2) + '\n')
     print('Prepared reversible consumer signature changes; no compiler or runtime result claimed', flush=True)
 

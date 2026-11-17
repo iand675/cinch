@@ -1,0 +1,1061 @@
+{
+  "status": "Current-source maintained noncycle fixtures; complete corpora and other backends remain open",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "production_adopted": false,
+  "cycle_promotion_blocker": "Known22 remains the explicit failed control in runtime-gates.json",
+  "cases": {
+    "reader": {
+      "observations": 360,
+      "fixture": "corpus-fixtures/reader-maintained.cinch",
+      "fixture_sha256": "7911cabf5055780b3430b9e6213b83cf37b5eb4385a3a25c453a04679238f9ab",
+      "preparation": {
+        "scope": "Prepare complete buffered trace consumers by explicit signature adaptations, preserving every observation and operation body.",
+        "suite": "reader",
+        "source": "/workspace/dasl-stdlib-buffered-io/compiler/tests/fixtures/buffered-reader-traces.cinch",
+        "original_sha256": "e0a58c08cb7d876701aff9b642116626f3bfedb567ee99d3b74a6246777b1356",
+        "output_sha256": "7911cabf5055780b3430b9e6213b83cf37b5eb4385a3a25c453a04679238f9ab",
+        "changes": [
+          {
+            "line": 71,
+            "old": "  source :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r\n",
+            "new": "  source :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r\n"
+          },
+          {
+            "line": 76,
+            "old": "  source-read :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)\n",
+            "new": "  source-read :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)\n"
+          },
+          {
+            "line": 89,
+            "old": "  source-transfer :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)\n",
+            "new": "  source-transfer :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)\n"
+          },
+          {
+            "line": 103,
+            "old": "  fault-source :: forall r. using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r\n",
+            "new": "  fault-source :: forall (r :: Region). using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r\n"
+          },
+          {
+            "line": 139,
+            "old": "  sink :: forall r. using (io :: Io r) => Cell.IoCell r (List Bytes) -> BufferSink r\n",
+            "new": "  sink :: forall (r :: Region). using (io :: Io r) => Cell.IoCell r (List Bytes) -> BufferSink r\n"
+          },
+          {
+            "line": 145,
+            "old": "  action :: forall r. using (io :: Io r) => BufferedReader r -> Nat -> Int -> Bytes -> Cell.IoCell r (List Int) ->{IO r} (Observation, BufferedReader r)\n",
+            "new": "  action :: forall (r :: Region). using (io :: Io r) => BufferedReader r -> Nat -> Int -> Bytes -> Cell.IoCell r (List Int) ->{IO r, Mut r} (Observation, BufferedReader r)\n"
+          },
+          {
+            "line": 178,
+            "old": "  checks :: forall r. using (io :: Io r) => BufferedReader r -> Cell.IoCell r (List Int) -> List Check -> Nat ->{IO r} Int\n",
+            "new": "  checks :: forall (r :: Region). using (io :: Io r) => BufferedReader r -> Cell.IoCell r (List Int) -> List Check -> Nat ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 193,
+            "old": "  report-failure :: forall r. using (io :: Io r) => Int ->{IO r} Int\n",
+            "new": "  report-failure :: forall (r :: Region). using (io :: Io r) => Int ->{IO r} Int\n"
+          },
+          {
+            "line": 197,
+            "old": "  tracecase0 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase0 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 234,
+            "old": "  tracecase1 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase1 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 271,
+            "old": "  tracecase2 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase2 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 308,
+            "old": "  tracecase3 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase3 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 345,
+            "old": "  tracecase4 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase4 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 382,
+            "old": "  tracecase5 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase5 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 419,
+            "old": "  tracecase6 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase6 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 456,
+            "old": "  tracecase7 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase7 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 493,
+            "old": "  tracecase8 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase8 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 530,
+            "old": "  tracecase9 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase9 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 567,
+            "old": "  tracecase10 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase10 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 604,
+            "old": "  tracecase11 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase11 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 641,
+            "old": "  run-group0 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  run-group0 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 658,
+            "old": "  main :: Unit ->{IO r} Int\n",
+            "new": "  main :: Unit ->{IO r, Mut r} Int\n"
+          }
+        ],
+        "added_imports": [
+          "  import Effect.Buffered\n",
+          "  import Effect.Scanner\n"
+        ],
+        "every_observation_and_operation_body_preserved": true,
+        "compiler_source_gate": "pending",
+        "runtime_gate": "pending",
+        "production_adopted": false,
+        "exclusions": "Core retained-read controls need an individually reviewed combined-effect fixture; no automatic rewrite or narrowed retention."
+      },
+      "source_work": "buffered-region-330-reader-maintained-source-v1",
+      "runtime_work": "buffered-region-330-reader-maintained-runtime-v1",
+      "source_report_sha256": "c8612713d773abfa4916e3987caa2bb06d5b771912a63a72c3348acea947b3a9",
+      "runtime_report_sha256": "fa80c31394becc5171252644f7a42a79ac0ea277295063ac3f95495513ffb031",
+      "runtime": {
+        "scope": "Run one exact source-admitted Region consumer with matched tools and explicit retained-cycle failure reporting.",
+        "source_receipt_sha256": "c8612713d773abfa4916e3987caa2bb06d5b771912a63a72c3348acea947b3a9",
+        "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "compiler_source": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+        "clang": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "clang_version": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/.tools/llvm/usr/lib/llvm-20/bin\n",
+        "source_sha256": "7911cabf5055780b3430b9e6213b83cf37b5eb4385a3a25c453a04679238f9ab",
+        "sources": {
+          "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Effect.Scanner.Split.cinch": "5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e",
+          "Main.cinch": "7911cabf5055780b3430b9e6213b83cf37b5eb4385a3a25c453a04679238f9ab",
+          "Effect.Buffered.Reader.cinch": "549c20e79c14b24098693408c6552fd694df1ead4a6e3279751568f40033894d",
+          "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Effect.Buffered.cinch": "72ec8fd831b3e7543e688d3333ff3a1276acc6f0b8004afd8ae53d721d6be959",
+          "Effect.Buffered.Internal.Cell.cinch": "6baf97b15eee0cea2eb0e28f4c541d6329abd81e55f34e5497023302ac19f475",
+          "Effect.Scanner.cinch": "778da262ca95ee57a0983660bd817f6e7e4d5e2586806cf53c0c2186eb530d36",
+          "Effect.Buffered.Internal.Scan.cinch": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+          "Effect.Stream.cinch": "c36045c77c4b5baee21f2756a5abed1de697a318ad549274a2699a6c978c6f8e",
+          "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+          "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Effect.Buffered.Core.cinch": "cfd8b03a03b2ae3efde4f235420efce47ee0901375efc66bfd38698df08dc46d",
+          "Effect.Buffered.Writer.cinch": "3f2ea6deab72b8489b10597aa6cc4ba1382fcd1c5ceca9194e423152c903c9c8"
+        },
+        "production_adopted": false,
+        "retained_cycle_control": false,
+        "resource_policy": {
+          "start_free_mib": 350,
+          "reserve_mib": 250,
+          "free_at_start_bytes": 637943808,
+          "explicit_scope": null
+        },
+        "normal_runtime_collection_added": false,
+        "steps": [
+          {
+            "name": "compile",
+            "command": [
+              "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+              "emit-ir",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-reader-maintained-runtime-v1/project/Main.cinch",
+              "-o",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-reader-maintained-runtime-v1/consumer.ll",
+              "--rc-debug"
+            ],
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "",
+            "seconds": 8.448347808007384,
+            "timeout_without_verdict": false
+          },
+          {
+            "name": "link",
+            "command": [
+              "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+              "-O2",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-reader-maintained-runtime-v1/consumer.ll",
+              "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+              "-ldl",
+              "-lpthread",
+              "-lm",
+              "-o",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-reader-maintained-runtime-v1/consumer"
+            ],
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /tmp/consumer-5da84e.o: warning: relocation against `Effect.Buffered.Core.sink-proxy.lam99.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+            "seconds": 6.036291524011176,
+            "timeout_without_verdict": false
+          }
+        ],
+        "runs": [
+          {
+            "poisoned": false,
+            "heap": "32M",
+            "stack": "8M",
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6270 bytes=202318 peak=5745 header-blocks=5820 header-bytes=197568 immortal=0 freed=5820 live=0\n"
+          },
+          {
+            "poisoned": true,
+            "heap": "256M",
+            "stack": "8M",
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6270 bytes=202318 peak=197839 header-blocks=5820 header-bytes=197568 immortal=0 freed=5820 live=0\n"
+          }
+        ],
+        "llvm_sha256": "56037f45afd41ea4bd7572655155af9c23b4a9183631ec6eb590fb4aa79e02df",
+        "executable_sha256": "9bbdd46fff625a3b063a6cbea4303e6f97eb072d37cd09915dfb68404e61a914",
+        "artifact_bytes": 12467603,
+        "all_passed": true,
+        "known_cycle_failure_reproduced": false
+      },
+      "closed_success_archive_index": {
+        "scope": "Recover only a completed zero-leak control's ELF/IR after exact durable archive verification.",
+        "report": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-reader-maintained-runtime-v1/report.json",
+        "report_sha256": "fa80c31394becc5171252644f7a42a79ac0ea277295063ac3f95495513ffb031",
+        "archive": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-reader-maintained-runtime-v1/closed-success.tar.gz",
+        "compressed_sha256": "489d4c66cb9170f6c579c9800cec465d04aa9b6e3317101daa9d8a97e9c1b52f",
+        "compressed_bytes": 2249859,
+        "decompressed_tar_sha256": "ac8b50730a72e19c70798f76bc19fd83d7708f818889bbbbffefe3c26361ead7",
+        "decompressed_tar_bytes": 9318400,
+        "entries": [
+          {
+            "path": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-reader-maintained-runtime-v1/consumer",
+            "member": "consumer",
+            "report_hash_field": "executable_sha256",
+            "sha256": "9bbdd46fff625a3b063a6cbea4303e6f97eb072d37cd09915dfb68404e61a914",
+            "bytes": 6562496,
+            "mode": 448,
+            "uid": 1000,
+            "gid": 1000,
+            "mtime_ns": 1794916858693239327,
+            "device": 27,
+            "inode": 1316154
+          },
+          {
+            "path": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-reader-maintained-runtime-v1/consumer.ll",
+            "member": "consumer.ll",
+            "report_hash_field": "llvm_sha256",
+            "sha256": "56037f45afd41ea4bd7572655155af9c23b4a9183631ec6eb590fb4aa79e02df",
+            "bytes": 2742436,
+            "mode": 384,
+            "uid": 1000,
+            "gid": 1000,
+            "mtime_ns": 1794916852601107698,
+            "device": 27,
+            "inode": 1316150
+          }
+        ],
+        "originals_removed": true,
+        "net_logical_recovered_bytes": 7055073
+      },
+      "closed_success_index_sha256": "f9f51c440d3df3358e3ef8ed2ddd9d51fa8976e55b3ff4175610334a31c742e5"
+    },
+    "writer": {
+      "observations": 170,
+      "fixture": "corpus-fixtures/writer-maintained.cinch",
+      "fixture_sha256": "615f03abf64982416033f78c8b259498d020c5e2950ae30775ad0e6379de2d42",
+      "preparation": {
+        "scope": "Prepare complete buffered trace consumers by explicit signature adaptations, preserving every observation and operation body.",
+        "suite": "writer",
+        "source": "/workspace/dasl-stdlib-buffered-io/compiler/tests/fixtures/buffered-writer-traces.cinch",
+        "original_sha256": "afd0538048806271e8936ec326419a8066fec5598647ef5685e63de8ed499316",
+        "output_sha256": "615f03abf64982416033f78c8b259498d020c5e2950ae30775ad0e6379de2d42",
+        "changes": [
+          {
+            "line": 57,
+            "old": "  source :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r\n",
+            "new": "  source :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r\n"
+          },
+          {
+            "line": 62,
+            "old": "  source-read :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)\n",
+            "new": "  source-read :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)\n"
+          },
+          {
+            "line": 75,
+            "old": "  source-transfer :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)\n",
+            "new": "  source-transfer :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)\n"
+          },
+          {
+            "line": 89,
+            "old": "  fault-source :: forall r. using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r\n",
+            "new": "  fault-source :: forall (r :: Region). using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r\n"
+          },
+          {
+            "line": 118,
+            "old": "  sink :: forall r. using (io :: Io r) => Cell.IoCell r (List Bytes) -> Cell.IoCell r (List Int) -> Cell.IoCell r Int -> Int -> BufferSink r\n",
+            "new": "  sink :: forall (r :: Region). using (io :: Io r) => Cell.IoCell r (List Bytes) -> Cell.IoCell r (List Int) -> Cell.IoCell r Int -> Int -> BufferSink r\n"
+          },
+          {
+            "line": 122,
+            "old": "  sink-write :: forall r. using (io :: Io r) => Cell.IoCell r (List Bytes) -> Cell.IoCell r (List Int) -> Cell.IoCell r Int -> Int -> Bytes ->{IO r} (WriteEvent, BufferSink r)\n",
+            "new": "  sink-write :: forall (r :: Region). using (io :: Io r) => Cell.IoCell r (List Bytes) -> Cell.IoCell r (List Int) -> Cell.IoCell r Int -> Int -> Bytes ->{IO r} (WriteEvent, BufferSink r)\n"
+          },
+          {
+            "line": 134,
+            "old": "  fault-sink :: forall r. using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSink r\n",
+            "new": "  fault-sink :: forall (r :: Region). using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSink r\n"
+          },
+          {
+            "line": 149,
+            "old": "  write-space :: forall r. using (io :: Io r) => BufferedWriter r -> Bytes ->{IO r} (Observation, BufferedWriter r)\n",
+            "new": "  write-space :: forall (r :: Region). using (io :: Io r) => BufferedWriter r -> Bytes ->{IO r} (Observation, BufferedWriter r)\n"
+          },
+          {
+            "line": 158,
+            "old": "  action :: forall r. using (io :: Io r) => BufferedWriter r -> Nat -> Int -> Bytes -> BufferSink r -> Cell.IoCell r (List Int) ->{IO r} (Observation, BufferedWriter r)\n",
+            "new": "  action :: forall (r :: Region). using (io :: Io r) => BufferedWriter r -> Nat -> Int -> Bytes -> BufferSink r -> Cell.IoCell r (List Int) ->{IO r, Mut r} (Observation, BufferedWriter r)\n"
+          },
+          {
+            "line": 178,
+            "old": "  checks :: forall r. using (io :: Io r) => BufferedWriter r -> BufferSink r -> Cell.IoCell r (List Bytes) -> Cell.IoCell r (List Int) -> List Check -> Nat ->{IO r} Int\n",
+            "new": "  checks :: forall (r :: Region). using (io :: Io r) => BufferedWriter r -> BufferSink r -> Cell.IoCell r (List Bytes) -> Cell.IoCell r (List Int) -> List Check -> Nat ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 193,
+            "old": "  report-failure :: forall r. using (io :: Io r) => Int ->{IO r} Int\n",
+            "new": "  report-failure :: forall (r :: Region). using (io :: Io r) => Int ->{IO r} Int\n"
+          },
+          {
+            "line": 197,
+            "old": "  tracecase0 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase0 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 221,
+            "old": "  tracecase1 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase1 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 245,
+            "old": "  tracecase2 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase2 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 269,
+            "old": "  tracecase3 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase3 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 293,
+            "old": "  tracecase4 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase4 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 317,
+            "old": "  tracecase5 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase5 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 341,
+            "old": "  tracecase6 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase6 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 365,
+            "old": "  tracecase7 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase7 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 389,
+            "old": "  tracecase8 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase8 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 413,
+            "old": "  tracecase9 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  tracecase9 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 437,
+            "old": "  run-group0 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  run-group0 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 452,
+            "old": "  main :: Unit ->{IO r} Int\n",
+            "new": "  main :: Unit ->{IO r, Mut r} Int\n"
+          }
+        ],
+        "added_imports": [
+          "  import Effect.Buffered\n",
+          "  import Effect.Scanner\n"
+        ],
+        "every_observation_and_operation_body_preserved": true,
+        "compiler_source_gate": "pending",
+        "runtime_gate": "pending",
+        "production_adopted": false,
+        "exclusions": "Core retained-read controls need an individually reviewed combined-effect fixture; no automatic rewrite or narrowed retention."
+      },
+      "source_work": "buffered-region-330-writer-maintained-source-v1",
+      "runtime_work": "buffered-region-330-writer-maintained-runtime-v1",
+      "source_report_sha256": "e8f5cfd80951a3ad8b7f59266981030b92ccd5f67525c80913c01f95896687bc",
+      "runtime_report_sha256": "71b63e8f7882f23965454d63e14023f8808fb22ecca7211086fda2db6a36b232",
+      "runtime": {
+        "scope": "Run one exact source-admitted Region consumer with matched tools and explicit retained-cycle failure reporting.",
+        "source_receipt_sha256": "e8f5cfd80951a3ad8b7f59266981030b92ccd5f67525c80913c01f95896687bc",
+        "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "compiler_source": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+        "clang": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "clang_version": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/.tools/llvm/usr/lib/llvm-20/bin\n",
+        "source_sha256": "615f03abf64982416033f78c8b259498d020c5e2950ae30775ad0e6379de2d42",
+        "sources": {
+          "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Effect.Scanner.Split.cinch": "5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e",
+          "Main.cinch": "615f03abf64982416033f78c8b259498d020c5e2950ae30775ad0e6379de2d42",
+          "Effect.Buffered.Reader.cinch": "549c20e79c14b24098693408c6552fd694df1ead4a6e3279751568f40033894d",
+          "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Effect.Buffered.cinch": "72ec8fd831b3e7543e688d3333ff3a1276acc6f0b8004afd8ae53d721d6be959",
+          "Effect.Buffered.Internal.Cell.cinch": "6baf97b15eee0cea2eb0e28f4c541d6329abd81e55f34e5497023302ac19f475",
+          "Effect.Scanner.cinch": "778da262ca95ee57a0983660bd817f6e7e4d5e2586806cf53c0c2186eb530d36",
+          "Effect.Buffered.Internal.Scan.cinch": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+          "Effect.Stream.cinch": "c36045c77c4b5baee21f2756a5abed1de697a318ad549274a2699a6c978c6f8e",
+          "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+          "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Effect.Buffered.Core.cinch": "cfd8b03a03b2ae3efde4f235420efce47ee0901375efc66bfd38698df08dc46d",
+          "Effect.Buffered.Writer.cinch": "3f2ea6deab72b8489b10597aa6cc4ba1382fcd1c5ceca9194e423152c903c9c8"
+        },
+        "production_adopted": false,
+        "retained_cycle_control": false,
+        "resource_policy": {
+          "start_free_mib": 350,
+          "reserve_mib": 250,
+          "free_at_start_bytes": 578969600,
+          "explicit_scope": null
+        },
+        "normal_runtime_collection_added": false,
+        "steps": [
+          {
+            "name": "compile",
+            "command": [
+              "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+              "emit-ir",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-writer-maintained-runtime-v1/project/Main.cinch",
+              "-o",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-writer-maintained-runtime-v1/consumer.ll",
+              "--rc-debug"
+            ],
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "",
+            "seconds": 12.25488388701342,
+            "timeout_without_verdict": false
+          },
+          {
+            "name": "link",
+            "command": [
+              "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+              "-O2",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-writer-maintained-runtime-v1/consumer.ll",
+              "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+              "-ldl",
+              "-lpthread",
+              "-lm",
+              "-o",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-writer-maintained-runtime-v1/consumer"
+            ],
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /tmp/consumer-c27f73.o: warning: relocation against `Main.source.lam119.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+            "seconds": 3.1479606719803996,
+            "timeout_without_verdict": false
+          }
+        ],
+        "runs": [
+          {
+            "poisoned": false,
+            "heap": "32M",
+            "stack": "8M",
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=4813 bytes=127518 peak=4366 header-blocks=3828 header-bytes=113792 immortal=0 freed=3828 live=0\n"
+          },
+          {
+            "poisoned": true,
+            "heap": "256M",
+            "stack": "8M",
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=4813 bytes=127518 peak=114273 header-blocks=3828 header-bytes=113792 immortal=0 freed=3828 live=0\n"
+          }
+        ],
+        "llvm_sha256": "c626a797c2b06aaece66612262b80accae9f88d804484ca06bb083e27b2a3790",
+        "executable_sha256": "2f2c29f593301bd07de3a59e947eeda701847578ac728fc6362696d3b9562d8f",
+        "artifact_bytes": 10818497,
+        "all_passed": true,
+        "known_cycle_failure_reproduced": false
+      },
+      "closed_success_archive_index": {
+        "scope": "Recover only a completed zero-leak control's ELF/IR after exact durable archive verification.",
+        "report": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-writer-maintained-runtime-v1/report.json",
+        "report_sha256": "71b63e8f7882f23965454d63e14023f8808fb22ecca7211086fda2db6a36b232",
+        "archive": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-writer-maintained-runtime-v1/closed-success.tar.gz",
+        "compressed_sha256": "ad41822facf68cac993f4be41630580bc12d55b6d7ca2adbfa567337bad8bcff",
+        "compressed_bytes": 1945713,
+        "decompressed_tar_sha256": "0c5ede8cd1499aade11b2f3596c7ae263a5fe632c8dabba61dda3d4400002f23",
+        "decompressed_tar_bytes": 7700480,
+        "entries": [
+          {
+            "path": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-writer-maintained-runtime-v1/consumer",
+            "member": "consumer",
+            "report_hash_field": "executable_sha256",
+            "sha256": "2f2c29f593301bd07de3a59e947eeda701847578ac728fc6362696d3b9562d8f",
+            "bytes": 6248864,
+            "mode": 448,
+            "uid": 1000,
+            "gid": 1000,
+            "mtime_ns": 1794917104830514971,
+            "device": 27,
+            "inode": 1316642
+          },
+          {
+            "path": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-writer-maintained-runtime-v1/consumer.ll",
+            "member": "consumer.ll",
+            "report_hash_field": "llvm_sha256",
+            "sha256": "c626a797c2b06aaece66612262b80accae9f88d804484ca06bb083e27b2a3790",
+            "bytes": 1437537,
+            "mode": 384,
+            "uid": 1000,
+            "gid": 1000,
+            "mtime_ns": 1794917101586445372,
+            "device": 27,
+            "inode": 1316638
+          }
+        ],
+        "originals_removed": true,
+        "net_logical_recovered_bytes": 5740688
+      },
+      "closed_success_index_sha256": "ed9320ac69783cd0918898f88cf8a4f66898969a3f4a4c9f6cd35ef2253d172e"
+    },
+    "scanner": {
+      "observations": 219,
+      "fixture": "corpus-fixtures/scanner-maintained.cinch",
+      "fixture_sha256": "09b80bf8e7164dc0ac2c3cc951180871e2b951020b227f9ee3207ff6ef1b96af",
+      "preparation": {
+        "scope": "Prepare complete buffered trace consumers by explicit signature adaptations, preserving every observation and operation body.",
+        "suite": "scanner",
+        "source": "/workspace/dasl-stdlib-buffered-io/compiler/tests/fixtures/buffered-scanner-traces.cinch",
+        "original_sha256": "6f3a8550fcbd8486faff478e74c223cfcdb77e7f978d1adc2ce41bfd7b6d9b8f",
+        "output_sha256": "09b80bf8e7164dc0ac2c3cc951180871e2b951020b227f9ee3207ff6ef1b96af",
+        "changes": [
+          {
+            "line": 47,
+            "old": "  source :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r\n",
+            "new": "  source :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r\n"
+          },
+          {
+            "line": 52,
+            "old": "  source-read :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)\n",
+            "new": "  source-read :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)\n"
+          },
+          {
+            "line": 65,
+            "old": "  source-transfer :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)\n",
+            "new": "  source-transfer :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)\n"
+          },
+          {
+            "line": 79,
+            "old": "  fault-source :: forall r. using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r\n",
+            "new": "  fault-source :: forall (r :: Region). using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r\n"
+          },
+          {
+            "line": 94,
+            "old": "  report-failure :: forall r. using (io :: Io r) => Int ->{IO r} Int\n",
+            "new": "  report-failure :: forall (r :: Region). using (io :: Io r) => Int ->{IO r} Int\n"
+          },
+          {
+            "line": 141,
+            "old": "  scan-checks :: forall r. using (io :: Io r) => Scanner r -> List ScanCheck -> Nat ->{IO r} Int\n",
+            "new": "  scan-checks :: forall (r :: Region). using (io :: Io r) => Scanner r -> List ScanCheck -> Nat ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 155,
+            "old": "  batchcase0 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase0 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 167,
+            "old": "  batchcase1 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase1 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 179,
+            "old": "  batchcase2 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase2 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 191,
+            "old": "  batchcase3 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase3 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 203,
+            "old": "  batchcase4 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase4 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 215,
+            "old": "  batchcase5 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase5 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 227,
+            "old": "  batchcase6 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase6 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 239,
+            "old": "  batchcase7 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase7 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 251,
+            "old": "  batchcase8 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase8 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 263,
+            "old": "  batchcase9 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase9 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 275,
+            "old": "  batchcase10 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase10 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 287,
+            "old": "  batchcase11 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase11 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 300,
+            "old": "  batchcase12 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase12 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 313,
+            "old": "  batchcase13 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase13 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 326,
+            "old": "  batchcase14 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase14 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 339,
+            "old": "  batchcase15 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  batchcase15 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 352,
+            "old": "  run-group0 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  run-group0 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Int\n"
+          },
+          {
+            "line": 373,
+            "old": "  main :: Unit ->{IO r} Int\n",
+            "new": "  main :: Unit ->{IO r, Mut r} Int\n"
+          }
+        ],
+        "added_imports": [
+          "  import Effect.Buffered\n"
+        ],
+        "every_observation_and_operation_body_preserved": true,
+        "compiler_source_gate": "pending",
+        "runtime_gate": "pending",
+        "production_adopted": false,
+        "exclusions": "Core retained-read controls need an individually reviewed combined-effect fixture; no automatic rewrite or narrowed retention."
+      },
+      "source_work": "buffered-region-330-scanner-maintained-source-v1",
+      "runtime_work": "buffered-region-330-scanner-maintained-runtime-v1",
+      "source_report_sha256": "1ac545e0758b0c98010666c705882bfe2ddb46d9d25c97d01251e1d48f632bb7",
+      "runtime_report_sha256": "a139f03aef8c8606baa7f822d21e8a08c94d98588e0f4b1e8503ddaa406fe6a7",
+      "runtime": {
+        "scope": "Run one exact source-admitted Region consumer with matched tools and explicit retained-cycle failure reporting.",
+        "source_receipt_sha256": "1ac545e0758b0c98010666c705882bfe2ddb46d9d25c97d01251e1d48f632bb7",
+        "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "compiler_source": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+        "clang": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "clang_version": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/.tools/llvm/usr/lib/llvm-20/bin\n",
+        "source_sha256": "09b80bf8e7164dc0ac2c3cc951180871e2b951020b227f9ee3207ff6ef1b96af",
+        "sources": {
+          "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Effect.Scanner.Split.cinch": "5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e",
+          "Main.cinch": "09b80bf8e7164dc0ac2c3cc951180871e2b951020b227f9ee3207ff6ef1b96af",
+          "Effect.Buffered.Reader.cinch": "549c20e79c14b24098693408c6552fd694df1ead4a6e3279751568f40033894d",
+          "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Effect.Buffered.cinch": "72ec8fd831b3e7543e688d3333ff3a1276acc6f0b8004afd8ae53d721d6be959",
+          "Effect.Buffered.Internal.Cell.cinch": "6baf97b15eee0cea2eb0e28f4c541d6329abd81e55f34e5497023302ac19f475",
+          "Effect.Scanner.cinch": "778da262ca95ee57a0983660bd817f6e7e4d5e2586806cf53c0c2186eb530d36",
+          "Effect.Buffered.Internal.Scan.cinch": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+          "Effect.Stream.cinch": "c36045c77c4b5baee21f2756a5abed1de697a318ad549274a2699a6c978c6f8e",
+          "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+          "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Effect.Buffered.Core.cinch": "cfd8b03a03b2ae3efde4f235420efce47ee0901375efc66bfd38698df08dc46d",
+          "Effect.Buffered.Writer.cinch": "3f2ea6deab72b8489b10597aa6cc4ba1382fcd1c5ceca9194e423152c903c9c8"
+        },
+        "production_adopted": false,
+        "retained_cycle_control": false,
+        "resource_policy": {
+          "start_free_mib": 350,
+          "reserve_mib": 250,
+          "free_at_start_bytes": 529121280,
+          "explicit_scope": null
+        },
+        "normal_runtime_collection_added": false,
+        "steps": [
+          {
+            "name": "compile",
+            "command": [
+              "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+              "emit-ir",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-scanner-maintained-runtime-v1/project/Main.cinch",
+              "-o",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-scanner-maintained-runtime-v1/consumer.ll",
+              "--rc-debug"
+            ],
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "",
+            "seconds": 9.838634393003304,
+            "timeout_without_verdict": false
+          },
+          {
+            "name": "link",
+            "command": [
+              "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+              "-O2",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-scanner-maintained-runtime-v1/consumer.ll",
+              "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+              "-ldl",
+              "-lpthread",
+              "-lm",
+              "-o",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-scanner-maintained-runtime-v1/consumer"
+            ],
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /tmp/consumer-194012.o: warning: relocation against `Effect.Scanner.Split.scan-lines.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+            "seconds": 3.8046222059929278,
+            "timeout_without_verdict": false
+          }
+        ],
+        "runs": [
+          {
+            "poisoned": false,
+            "heap": "32M",
+            "stack": "8M",
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=4497 bytes=162688 peak=9128 header-blocks=4429 header-bytes=141448 immortal=0 freed=4429 live=0\n"
+          },
+          {
+            "poisoned": true,
+            "heap": "256M",
+            "stack": "8M",
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=4497 bytes=162688 peak=148369 header-blocks=4429 header-bytes=141448 immortal=0 freed=4429 live=0\n"
+          }
+        ],
+        "llvm_sha256": "c2a2ac823b72f19d2380a652eaa4536fd9fc35cca4ca69c4141d500c49ab0734",
+        "executable_sha256": "bb7c3166badfae833d598ee718311e0859b923942cad1d164ee1330aa61782b4",
+        "artifact_bytes": 13038759,
+        "all_passed": true,
+        "known_cycle_failure_reproduced": false
+      },
+      "closed_success_archive_index": {
+        "scope": "Recover only a completed zero-leak control's ELF/IR after exact durable archive verification.",
+        "report": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-scanner-maintained-runtime-v1/report.json",
+        "report_sha256": "a139f03aef8c8606baa7f822d21e8a08c94d98588e0f4b1e8503ddaa406fe6a7",
+        "archive": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-scanner-maintained-runtime-v1/closed-success.tar.gz",
+        "compressed_sha256": "33229868a445b65fdfd258d1587b405a3f245a6df8e1cb56b209089f1b23042b",
+        "compressed_bytes": 2083177,
+        "decompressed_tar_sha256": "4414cb1d438353abf62e5c99a6205ab94099370cff732660614a57ca69096b77",
+        "decompressed_tar_bytes": 9943040,
+        "entries": [
+          {
+            "path": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-scanner-maintained-runtime-v1/consumer",
+            "member": "consumer",
+            "report_hash_field": "executable_sha256",
+            "sha256": "bb7c3166badfae833d598ee718311e0859b923942cad1d164ee1330aa61782b4",
+            "bytes": 6199656,
+            "mode": 448,
+            "uid": 1000,
+            "gid": 1000,
+            "mtime_ns": 1794917263063452805,
+            "device": 27,
+            "inode": 1316909
+          },
+          {
+            "path": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-scanner-maintained-runtime-v1/consumer.ll",
+            "member": "consumer.ll",
+            "report_hash_field": "llvm_sha256",
+            "sha256": "c2a2ac823b72f19d2380a652eaa4536fd9fc35cca4ca69c4141d500c49ab0734",
+            "bytes": 3735099,
+            "mode": 384,
+            "uid": 1000,
+            "gid": 1000,
+            "mtime_ns": 1794917259185801339,
+            "device": 27,
+            "inode": 1316901
+          }
+        ],
+        "originals_removed": true,
+        "net_logical_recovered_bytes": 7851578
+      },
+      "closed_success_index_sha256": "f539979490c4850bb3a235aa197c5796a36f2cf52ab1d7f7d164cfd728753f7c"
+    },
+    "split": {
+      "observations": 840,
+      "fixture": "corpus-fixtures/split-maintained.cinch",
+      "fixture_sha256": "69b57221a1b50acf3951a9bb30ef69a6c024226ce23dfba113e5287a34d49b7b",
+      "preparation": {
+        "scope": "Prepare complete buffered trace consumers by explicit signature adaptations, preserving every observation and operation body.",
+        "suite": "split",
+        "source": "/workspace/dasl-stdlib-buffered-io/compiler/tests/fixtures/buffered-split-traces.cinch",
+        "original_sha256": "c6198f6e29a6c924a0a89ed8da803eb78e9d9f772c30a86d98120b3cdae5dcfd",
+        "output_sha256": "69b57221a1b50acf3951a9bb30ef69a6c024226ce23dfba113e5287a34d49b7b",
+        "changes": [
+          {
+            "line": 47,
+            "old": "  source :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r\n",
+            "new": "  source :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> BufferSource r\n"
+          },
+          {
+            "line": 52,
+            "old": "  source-read :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)\n",
+            "new": "  source-read :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> Bool -> Nat ->{IO r} (ReadEvent, BufferSource r)\n"
+          },
+          {
+            "line": 65,
+            "old": "  source-transfer :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)\n",
+            "new": "  source-transfer :: forall (r :: Region). using (io :: Io r) => Bytes -> Nat -> Nat -> Bool -> Nat -> Cell.IoCell r (List Int) -> Bool -> (Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)\n"
+          },
+          {
+            "line": 79,
+            "old": "  fault-source :: forall r. using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r\n",
+            "new": "  fault-source :: forall (r :: Region). using (io :: Io r) => Int -> Cell.IoCell r (List Int) -> BufferSource r\n"
+          },
+          {
+            "line": 94,
+            "old": "  report-failure :: forall r. using (io :: Io r) => Int ->{IO r} Int\n",
+            "new": "  report-failure :: forall (r :: Region). using (io :: Io r) => Int ->{IO r} Int\n"
+          },
+          {
+            "line": 1257,
+            "old": "  run-group0 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  run-group0 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r} Int\n"
+          },
+          {
+            "line": 1278,
+            "old": "  run-group1 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  run-group1 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r} Int\n"
+          },
+          {
+            "line": 1299,
+            "old": "  run-group2 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  run-group2 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r} Int\n"
+          },
+          {
+            "line": 1320,
+            "old": "  run-group3 :: forall r. using (io :: Io r) => Unit ->{IO r} Int\n",
+            "new": "  run-group3 :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r} Int\n"
+          }
+        ],
+        "added_imports": [
+          "  import Effect.Buffered\n"
+        ],
+        "every_observation_and_operation_body_preserved": true,
+        "compiler_source_gate": "pending",
+        "runtime_gate": "pending",
+        "production_adopted": false,
+        "exclusions": "Core retained-read controls need an individually reviewed combined-effect fixture; no automatic rewrite or narrowed retention."
+      },
+      "source_work": "buffered-region-330-split-maintained-source-v1",
+      "runtime_work": "buffered-region-330-split-maintained-runtime-v1",
+      "source_report_sha256": "c4a9cc28515a6b0fb14ab790f476b063d3c032a91c0c10e6388a5c1fe4234c55",
+      "runtime_report_sha256": "5d61e6be12f776a5ff74d23b9531bcaae88f494c81730d26070aa05a5656a96f",
+      "runtime": {
+        "scope": "Run one exact source-admitted Region consumer with matched tools and explicit retained-cycle failure reporting.",
+        "source_receipt_sha256": "c4a9cc28515a6b0fb14ab790f476b063d3c032a91c0c10e6388a5c1fe4234c55",
+        "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "compiler_source": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+        "clang": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "clang_version": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/.tools/llvm/usr/lib/llvm-20/bin\n",
+        "source_sha256": "69b57221a1b50acf3951a9bb30ef69a6c024226ce23dfba113e5287a34d49b7b",
+        "sources": {
+          "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Effect.Scanner.Split.cinch": "5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e",
+          "Main.cinch": "69b57221a1b50acf3951a9bb30ef69a6c024226ce23dfba113e5287a34d49b7b",
+          "Effect.Buffered.Reader.cinch": "549c20e79c14b24098693408c6552fd694df1ead4a6e3279751568f40033894d",
+          "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Effect.Buffered.cinch": "72ec8fd831b3e7543e688d3333ff3a1276acc6f0b8004afd8ae53d721d6be959",
+          "Effect.Buffered.Internal.Cell.cinch": "6baf97b15eee0cea2eb0e28f4c541d6329abd81e55f34e5497023302ac19f475",
+          "Effect.Scanner.cinch": "778da262ca95ee57a0983660bd817f6e7e4d5e2586806cf53c0c2186eb530d36",
+          "Effect.Buffered.Internal.Scan.cinch": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+          "Effect.Stream.cinch": "c36045c77c4b5baee21f2756a5abed1de697a318ad549274a2699a6c978c6f8e",
+          "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+          "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Effect.Buffered.Core.cinch": "cfd8b03a03b2ae3efde4f235420efce47ee0901375efc66bfd38698df08dc46d",
+          "Effect.Buffered.Writer.cinch": "3f2ea6deab72b8489b10597aa6cc4ba1382fcd1c5ceca9194e423152c903c9c8"
+        },
+        "production_adopted": false,
+        "retained_cycle_control": false,
+        "resource_policy": {
+          "start_free_mib": 350,
+          "reserve_mib": 250,
+          "free_at_start_bytes": 437293056,
+          "explicit_scope": null
+        },
+        "normal_runtime_collection_added": false,
+        "steps": [
+          {
+            "name": "compile",
+            "command": [
+              "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+              "emit-ir",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-split-maintained-runtime-v1/project/Main.cinch",
+              "-o",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-split-maintained-runtime-v1/consumer.ll",
+              "--rc-debug"
+            ],
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "",
+            "seconds": 10.384193347010296,
+            "timeout_without_verdict": false
+          },
+          {
+            "name": "link",
+            "command": [
+              "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+              "-O2",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-split-maintained-runtime-v1/consumer.ll",
+              "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+              "-ldl",
+              "-lpthread",
+              "-lm",
+              "-o",
+              "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-split-maintained-runtime-v1/consumer"
+            ],
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /tmp/consumer-22a34e.o: warning: relocation against `Effect.Scanner.Split.scan-lines.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+            "seconds": 4.334368215000723,
+            "timeout_without_verdict": false
+          }
+        ],
+        "runs": [
+          {
+            "poisoned": false,
+            "heap": "32M",
+            "stack": "8M",
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=18785 bytes=477238 peak=3391 header-blocks=13836 header-bytes=404368 immortal=0 freed=13836 live=0\n"
+          },
+          {
+            "poisoned": true,
+            "heap": "256M",
+            "stack": "8M",
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=18785 bytes=477238 peak=404644 header-blocks=13836 header-bytes=404368 immortal=0 freed=13836 live=0\n"
+          }
+        ],
+        "llvm_sha256": "484b6a6d9a9cb35dc3436109ed3396a885fa73d94af35c5288d6fe4c996a13bc",
+        "executable_sha256": "4a616588499ed38d13c6210c1f7738bfcc6287dab0d3fc2bf31ebc8b246c2022",
+        "artifact_bytes": 15677550,
+        "all_passed": true,
+        "known_cycle_failure_reproduced": false
+      },
+      "closed_success_archive_index": {
+        "scope": "Recover only a completed zero-leak control's ELF/IR after exact durable archive verification.",
+        "report": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-split-maintained-runtime-v1/report.json",
+        "report_sha256": "5d61e6be12f776a5ff74d23b9531bcaae88f494c81730d26070aa05a5656a96f",
+        "archive": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-split-maintained-runtime-v1/closed-success.tar.gz",
+        "compressed_sha256": "8aace1bb9b1c5599f106f25a55c68d6f4cb7cfac16728a91dd4b41d395382a65",
+        "compressed_bytes": 2356461,
+        "decompressed_tar_sha256": "2587af2bce86fa03cfc4b73a8e553f2912e18045ed87693bedf1ed6aed330972",
+        "decompressed_tar_bytes": 12472320,
+        "entries": [
+          {
+            "path": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-split-maintained-runtime-v1/consumer",
+            "member": "consumer",
+            "report_hash_field": "executable_sha256",
+            "sha256": "4a616588499ed38d13c6210c1f7738bfcc6287dab0d3fc2bf31ebc8b246c2022",
+            "bytes": 6558416,
+            "mode": 448,
+            "uid": 1000,
+            "gid": 1000,
+            "mtime_ns": 1794918022758174053,
+            "device": 27,
+            "inode": 1317632
+          },
+          {
+            "path": "/workspace/dasl-stdlib-buffered-io/build/buffered-region-330-split-maintained-runtime-v1/consumer.ll",
+            "member": "consumer.ll",
+            "report_hash_field": "llvm_sha256",
+            "sha256": "484b6a6d9a9cb35dc3436109ed3396a885fa73d94af35c5288d6fe4c996a13bc",
+            "bytes": 5905962,
+            "mode": 384,
+            "uid": 1000,
+            "gid": 1000,
+            "mtime_ns": 1794918018342079619,
+            "device": 27,
+            "inode": 1317628
+          }
+        ],
+        "originals_removed": true,
+        "net_logical_recovered_bytes": 10107917
+      },
+      "closed_success_index_sha256": "68fa9a34e714c28aa25c38d1b186b8d19502ba3bedc45fe253bb3e21921a15f7"
+    }
+  },
+  "remaining": [
+    "layer12groups/64repeat source and runtime",
+    "complete Reader220histories/6488obs and Writer162/2708 bounded partitions",
+    "complete generic Scanner124/1771",
+    "current admissible Native source/runtime",
+    "current live Multipart ownership/fileclose and effects",
+    "production retention-correct cycle solution and public pipeline review"
+  ]
+}
