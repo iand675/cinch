@@ -134,7 +134,8 @@ Public state operations are shaped as follows (schematic, not checked source):
   and part cells retain exact progress, including on failure.
 * `multipart-create-part writer headers -> Result failure output-part`;
   `multipart-part-write output-part bytes -> (count, status)`.
-* `multipart-read-form reader policy scratch -> Result failure form`;
+* `multipart-read-form reader max-memory scratch -> form-read-outcome`;
+  form, primary error and pending cleanup are independently observable;
   reader/scratch sessions preserve their advanced state even without a form result.
   Form access/edit operations retain stable file-header handles. Backend key and
   file handle types stay generic, with no assumed global descriptor namespace.
@@ -252,6 +253,14 @@ the public field lists. `RemoveAll` deliberately traverses only current lists,
 matching published field-mutation behavior. An additional explicit release of
 detached headers can prevent leaks without changing `RemoveAll`. No automatic unlink
 is tied to session/context dropping, since it could invalidate retained aliases.
+A final deferred scratch close can return a nonempty form and error together: the
+form has already been returned before the deferred close changes the named error.
+The public outcome therefore carries separate optional form/error fields plus
+cleanup actions. A public Linux oracle source hook now forces that actual close
+failure after all file writes; it confirms one interrupted descriptor, a preserved
+form, and failed disk reopens after deferred unlink. Earlier failures still return
+no form.
+
 Map enumeration/first-error order is explicit in native context; no promise of
 matching randomized reference map iteration. Fixtures should assert all attempted
 cleanup and first error under their explicit order rather than invent cross-run

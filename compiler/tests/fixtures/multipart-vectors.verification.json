@@ -1,0 +1,14 @@
+{
+  "scope": "Independent scalar verification supplements the unchanged pinned SDK generation provenance.",
+  "vectors_sha256": "ebd347f214bd14b55ea0ac23cf2e64d3da19848be80e3345c492213ffe8d017a",
+  "verifier_sha256": "cb5c0e2ffad6337a3f11116b1122b4709e8ea9ed2fe8ed5904c62707ff7c41e7",
+  "counts": {
+    "boundary": 264,
+    "disposition": 256,
+    "writer_scenarios": 40,
+    "reader_observations": 433,
+    "form_observations": 27,
+    "cache_controls": 1,
+    "independent_scalar_scope": "all boundaries/dispositions/writer callback traces, reader prefix accounting, lazy-cache and final-close form/error observations"
+  }
+}

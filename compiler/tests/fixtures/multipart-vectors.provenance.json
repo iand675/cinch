@@ -1,0 +1,22 @@
+{
+  "generator_sha256": "16750406e4cdd05a09b9264a1000356d4c280240cd6a334aff96e2e44fd61fca",
+  "scalar_verifier_sha256": "75a72dd8c397bbc048b89347ed8065561a62e1ce587487cba0ff0faa0195e5ad",
+  "command": [
+    "/tmp/cinch-go-current/go/bin/go",
+    "run",
+    "/workspace/dasl-stdlib-multipart/tooling/data/multipart-reference.go"
+  ],
+  "go_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "stderr": "",
+  "sdk_version": "go1.27.4\ntime 2026-11-02T20:36:20Z\n",
+  "vectors_sha256": "ebd347f214bd14b55ea0ac23cf2e64d3da19848be80e3345c492213ffe8d017a",
+  "counts": {
+    "boundary": 264,
+    "disposition": 256,
+    "writer_scenarios": 40,
+    "reader_observations": 433,
+    "form_observations": 27,
+    "cache_controls": 1,
+    "independent_scalar_scope": "all boundaries/dispositions/writer callback traces and lazy-cache observations"
+  }
+}

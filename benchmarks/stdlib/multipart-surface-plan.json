@@ -86,7 +86,10 @@
     {
       "record": "method (*Reader) ReadForm(int64) (*Form, error)",
       "planned_operations": [
-        "multipart-read-form"
+        "multipart-read-form",
+        "multipart-form-read-form",
+        "multipart-form-read-error",
+        "multipart-form-read-cleanup"
       ],
       "status": "design"
     },
