@@ -1,0 +1,18 @@
+{
+  "compiler_source_checkpoint": "d288439e",
+  "compiler_sha256": "4eddd75ea25a4a44359af57e52209b3041e786e820c717aca27cf47d1fd6d8e0",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "source_sha256": "b8114a94f9e54cc77b4ff3310fb8c79b397047b7936d0a1de429ff435aabc542",
+  "llvm_sha256": "d40705614b84dacfb2fc73fde1af7e4fb3faa7780ab2c33c1f91549332a78886",
+  "executable_sha256": "8faccc144136f602676efc106c63e21d7c3cf35f0c420b188cdd21b56854ec14",
+  "command": "cargo test --test boxed_nat_comparisons",
+  "opt_level": 2,
+  "generated_rc_debug": true,
+  "heap": "32M",
+  "stack": "8M",
+  "dynamic_poison": false,
+  "input": "",
+  "exit": 71,
+  "cause": "The runtime comparison reads boxed Nat headers/limbs. Its readnone declaration permits LLVM to move the call after the last operand owner is dropped.",
+  "scope": "A public arithmetic consumer reproduces the failure without byte splitting, private fields, or huge allocations. The separate retained Split O0/O2 pair has identical input LLVM, with failure only after native O2 optimization."
+}

@@ -1,0 +1,23 @@
+{
+  "repair": "Remove the false readnone assertion from the boxed Nat comparison runtime declaration; existing nounwind/willreturn remain unchanged.",
+  "source_file_sha256": "82ba01117554905aaecb0716a4ddb82c3b1cbb80b478f10e578da83217639876",
+  "public_regression_tests": 1,
+  "memory_processes": 32,
+  "optimization_levels": [
+    0,
+    2
+  ],
+  "generated_rc_debug": [
+    true,
+    false
+  ],
+  "dynamic_poison": [
+    true,
+    false
+  ],
+  "heap_normal": "32M",
+  "heap_poison": "256M",
+  "stack": "8M",
+  "result": "All32 public equality/ordering observations exit0 with live0/immortal0/leaked0. Before repair the same test faults71 at checked-count O2.",
+  "log_sha256": "38bffd520913a0ff6e47ff4227c7879204e748ec33bfd86e42f905f57488346c"
+}

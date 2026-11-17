@@ -488,7 +488,10 @@ fn emit_module(
         "declare i64 @cinch_nat_mul(i64, i64)",
         "declare i64 @cinch_nat_div(i64, i64)",
         "declare i64 @cinch_nat_rem(i64, i64)",
-        "declare i64 @cinch_nat_cmp(i64, i64) readnone nounwind willreturn",
+        // Boxed naturals require header and limb reads. Claiming readnone
+        // permits LLVM to move the comparison after its final owner release.
+        // Keep memory effects conservative, as for the other boxed readers.
+        "declare i64 @cinch_nat_cmp(i64, i64) nounwind willreturn",
         "declare i64 @cinch_nat_from_decimal(ptr, i64)",
         "declare i64 @cinch_int_from_i64(i64)",
         "declare i64 @cinch_int_to_i64(i64)",
