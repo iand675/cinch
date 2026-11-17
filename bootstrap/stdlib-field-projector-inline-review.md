@@ -56,13 +56,21 @@ byte-write arguments. Its maintained runtime gate compiles checked-RC O0/O2
 and runs normal 32 MiB and poisoned 256 MiB memory profiles with 8 MiB stacks,
 retaining the complete project on failure.
 
-This patch and the new tests are prepared in the isolated lane; focused Rust
-tests and the source fixture check have not yet run. The fixture's first source
-check paused before creating a project because free space was below 350 MiB.
-No build or success claim is inferred from the static review. Root's newer
-strict partial-application and nullary-global repairs remain untouched; only
-the isolated projector admission helper/hunk and regression additions should
-be integrated after focused checks.
+The initial proposal was source-only. The fixture's first child source check
+paused before creating a project because free space was below 350 MiB. Root
+then integrated the isolated helper/admission hunk while preserving its newer
+strict partial-application and nullary-global repairs. Its focused gates pass
+all 48 simplifier tests and seven inlining tests, including actual checked-RC
+O0/O2 normal/poison owned-field runs. The separate visibility gate passes ten
+tests. These are parent-reported results, not child Cargo execution.
+
+Root retained two fixture layout failures and corrected only the multiline
+`accepted` binding and the parentheses around the conditional's case. The exact
+accepted fixture is synced here, SHA256
+`f2b1127e8e89fb7086a464f3e3c2ee9f39b984dfa3e686e88c770ac11a48398c`.
+The original proposed source remains in commit `64ef15d7`. Broader parent tests
+and an immutable compiler snapshot remain required before a new performance
+experiment; the mutable warm compiler is not a benchmark input.
 
 After validation, a matched experiment must distinguish production UTF8 plus
 the compiler change from the reassociated UTF8 plus the compiler change. The

@@ -31,17 +31,15 @@ module Main where
     let number = payload-number product in
     let second = payload-bytes product (if bytes-len source > 0 then bytes-set source 0 76 else ()) in
     let again = payload-number product in
-    let accepted = number == again && bytes-len second == 17
-      && (if bytes-len first > 0 then bytes-get first 0 == 76 else False) in
+    let accepted = number == again && bytes-len second == 17 && (if bytes-len first > 0 then bytes-get first 0 == 76 else False) in
     (first, number, accepted)
 
   -- | Churn fresh owners and boxed fields while observing them after the producer returns.
   check :: Nat -> Bool
-  check remaining = if remaining > 0 then case escaped remaining of
+  check remaining = if remaining > 0 then (case escaped remaining of
     (source, number, accepted) -> accepted && number == 18446744073709551616 + remaining
       && (if bytes-len source > 0 then bytes-get source 0 == 76 else False)
-      && check (remaining - 1)
-    else True
+      && check (remaining - 1)) else True
 
   -- | Require every strict argument effect and every escaped counted field to survive.
   main :: Int
