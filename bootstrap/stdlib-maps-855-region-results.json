@@ -1,0 +1,49 @@
+{
+  "kind": "independent-region-source-checks",
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "candidate_selected": false,
+  "package_complete": false,
+  "units": {
+    "baseline:region": {
+      "report": "build/maps-855-baseline-region-a1-results.json",
+      "exit": 0,
+      "source_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+      "status": "passed",
+      "report_sha256": "78ced2af4fb344a87219462b8e631eb15591d1f7ae0368e20e909f1bd6a512ec"
+    },
+    "entry:region": {
+      "report": "build/maps-855-entry-region-a1-results.json",
+      "exit": 0,
+      "source_sha256": "c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078",
+      "status": "passed",
+      "report_sha256": "96b5e4823ae612fcf69b72090b359cdf81ebbf78234dd2f7c2446d22487bf742"
+    }
+  },
+  "source_checks_passed": 4,
+  "runtime_consumers_executed": false,
+  "negative_probe_original": {
+    "report": "build/maps-855-baseline-negative-a1-results.json",
+    "exit": 1,
+    "source_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+    "status": "failed",
+    "report_sha256": "2471e7d97024606d47308fad9ec98941c1584461a3b86e0f0ce0648dca4a804e"
+  },
+  "negative_note": "Original implicit forall-r pure-read fixture refuses with r# mismatch before effect diagnostic; exact input/report retained. Explicit forall(r::Region) plus permitted Mut counterpart now verifies both representations reject onlytheescaped pure read with effect-row mismatch. No oracle weakened.",
+  "explicit_region_negative": {
+    "baseline:negative": {
+      "report": "build/maps-855-baseline-negative-a2-results.json",
+      "exit": 0,
+      "source_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+      "status": "passed",
+      "report_sha256": "d61b47eaf53663eb52c41982d6b91ea1dd64ed85aee1a5b4a877ad699489dbd2"
+    },
+    "entry:negative": {
+      "report": "build/maps-855-entry-negative-a1-results.json",
+      "exit": 0,
+      "source_sha256": "c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078",
+      "status": "passed",
+      "report_sha256": "f3fa99b56b0a043ee614eb734ff8a90e101a4e84ef010ab40aa7f4de4ae488d8"
+    }
+  }
+}

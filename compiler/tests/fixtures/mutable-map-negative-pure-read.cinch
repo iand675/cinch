@@ -4,8 +4,12 @@ module Main where
   import Data.Nat
   import Data.Mutable.Map
 
+  -- | Establish the same explicit region carrier with its required mutable effect.
+  permitted-read :: forall (r :: Region). MutableMap r Nat Nat ->{Mut r} Nat
+  permitted-read map = mutable-map-size map
+
   -- | Deliberately omit the required mutable region effect from this refusal fixture.
-  escaped-read :: forall r. MutableMap r Nat Nat -> Nat
+  escaped-read :: forall (r :: Region). MutableMap r Nat Nat -> Nat
   escaped-read map = mutable-map-size map
 
   -- | Keep the module entry pure while requiring every declaration to be checked.

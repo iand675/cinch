@@ -18,6 +18,9 @@
     "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
     "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
     "sdk_edge_report": "bootstrap/stdlib-maps-855-edge-results.json",
-    "sdk_edge_scope": "3 groups normal32M8M/poison256M8M zero leaks, actual independent value-NaN/current-key replacement/right-clear equality oracle"
+    "sdk_edge_scope": "3 groups normal32M8M/poison256M8M zero leaks, actual independent value-NaN/current-key replacement/right-clear equality oracle",
+    "matrix_report": "bootstrap/stdlib-maps-855-matrix-results.json",
+    "source_regions_and_pure_effect_refusal": "Both representations passed on855; original implicit-r kind refusal preserved separately",
+    "ieee32": "7 actual independent rows per representation normal/poison zero leaks"
   }
 }
