@@ -58,7 +58,7 @@
   ],
   "candidate_source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78",
   "oracle_status": "generated-pinnedSDK-and-independent-literal-crosscheck-passed",
-  "candidate_status": "public-source-docs-and-complete-O0-literal-corpus-passed",
+  "candidate_status": "public-source-docs-and-complete-O0-O2-literal-corpus-passed",
   "registered_library": false,
   "oracle_sha256": "32d09cb6bf269ae011f1812f11e0181a40e6294c4e69c70b04863978d5ebdca9",
   "generator_sha256": "069da04d8ee160b2e9394b29dd13a11723e4c86fe9f2d9e968eb99e706f63100",
@@ -83,12 +83,11 @@
     "optimization": "O0 only",
     "receipt": "literal-o0-receipt.json",
     "O2": {
-      "status": "partial",
-      "inputs_passed": 32,
-      "inputs_total": 153,
-      "observations": 2240,
-      "zero_leak_profiles": 64,
-      "receipt": "literal-o2-first-four-receipt.json"
+      "status": "passed",
+      "inputs": 153,
+      "observations": 10710,
+      "zero_leak_profiles": 306,
+      "receipt": "literal-o2-receipt.json"
     }
   }
 }

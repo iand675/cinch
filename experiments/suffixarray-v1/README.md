@@ -6,9 +6,10 @@ interface-backed documentation extraction pass on frozen C2. Its first small
 O0 public consumer passes normal/poison memory profiles with zero leaks. The
 literal corpus passes all 153 inputs, 10,710 complete ordered lookup results and
 306 normal/poison processes. `literal-o0-receipt.json` and `literal-progress.json`
-record exact reports and successful-output recovery. Fresh O2 epochs pass the
-first 32 inputs, 2,240 lookup observations and 64 memory processes with exactly
-the same consumer bytes as O0. The remaining O2 corpus, adversarial ownership,
+record exact reports and successful-output recovery. Fresh O2 epochs also pass
+all 153 inputs, 10,710 lookup observations and 306 memory processes with exactly
+the same consumer bytes as O0; `literal-o2-receipt.json` records that separate
+epoch. Adversarial ownership,
 effectful callbacks and portable gates remain pending; no performance or
 complete-package claim is made. No Cargo build has
 run in this lane.
@@ -135,3 +136,9 @@ the clock, and keep both index and source owners alive through the end clock.
 Compare the same public pipelines with the pinned reference and a linear-search
 control. Record normal-RC allocation totals independently. No timing or speed
 claim precedes meaningful functional preflights and an exclusive timing grant.
+
+Passed functional ELF/IR files have verified recovery archives. Approved closed
+source/CIF epochs share only exact byte/size/mode/ownership matches, with each
+original path's metadata durably recoverable from separate immutable ledgers.
+All source/interface paths remain plain. Never compile or write in those shared
+closed workdirs; create a fresh epoch or restore independent metadata first.
