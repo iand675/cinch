@@ -83,7 +83,10 @@
     "bootstrap/stdlib-uuid-doc-results.json",
     "bootstrap/stdlib-uuid-benchmark-source-results.json",
     "bootstrap/stdlib-uuid-benchmark-functional-results.json",
-    "bootstrap/stdlib-uuid-benchmark-assembly-review.json"
+    "bootstrap/stdlib-uuid-benchmark-assembly-review.json",
+    "bootstrap/stdlib-uuid-generation-functional-results.json",
+    "bootstrap/stdlib-uuid-benchmark-direct-functional-results.json",
+    "bootstrap/stdlib-uuid-allocation-results.json"
   ],
   "benchmark_review_paths": [
     "tooling/data/uuid-benchmark.cinch",
@@ -91,7 +94,8 @@
     "tooling/bench_uuid.py",
     "tooling/data/uuid-generation-benchmark.cinch",
     "tooling/bench_uuid_generation_reference.go",
-    "tooling/bench_uuid_generation.py"
+    "tooling/bench_uuid_generation.py",
+    "tooling/profile_uuid_benchmarks.py"
   ],
   "reference_provenance_paths": [
     "tooling/go_uuid_vectors_test.go",
@@ -102,7 +106,8 @@
     "bootstrap/stdlib-uuid-native-pair-review.json",
     "bootstrap/stdlib-uuid-native-source-results.json",
     "bootstrap/stdlib-uuid-native-runtime-results.json",
-    "tooling/validate_uuid_native.py"
+    "tooling/validate_uuid_native.py",
+    "tooling/qualify_uuid_native_units.py"
   ],
   "candidate_source_files": [
     "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",

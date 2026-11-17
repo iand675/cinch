@@ -64,44 +64,40 @@ module Main where
   decimal :: List Char -> Nat -> Nat
   decimal chars value = case chars of Nil -> value; Cons char rest -> case digit-value char of None -> 0; Some digit -> decimal rest (value * 10 + digit)
 
-  -- | Select one prepared input text; no string preparation occurs in this helper.
-  selected-text :: Inputs -> Bool -> String
-  selected-text inputs first = case inputs of Prepared a b x y prefix -> if first then x else y
-
-  -- | Select one prepared immutable identifier value.
-  selected-value :: Inputs -> Bool -> Uuid
-  selected-value inputs first = case inputs of Prepared a b x y prefix -> if first then a else b
-
-  -- | Keep complete parse and fresh mutable value-snapshot costs observable.
-  parse-loop :: Inputs -> U32 -> U32 -> U64 -> U64
-  parse-loop inputs count index checksum =
+  -- | Parse prepared texts directly without traversing unrelated setup fields in the measured loop.
+  parse-loop :: String -> String -> U32 -> U32 -> U64 -> U64
+  parse-loop first second count index checksum =
     if before index count then
-      let result = case uuid-parse (selected-text inputs (phase index)) of Err error -> 4294967295; Ok value -> fingerprint (uuid-to-bytes value) in
-      parse-loop inputs count (bump index) (mix checksum result)
+      let input = if phase index then first else second in
+      let result = case uuid-parse input of Err error -> 4294967295; Ok value -> fingerprint (uuid-to-bytes value) in
+      parse-loop first second count (bump index) (mix checksum result)
     else checksum
 
-  -- | Observe the complete canonical byte-rendering pipeline.
-  format-loop :: Inputs -> U32 -> U32 -> U64 -> U64
-  format-loop inputs count index checksum =
-    if before index count then let result = fingerprint (uuid-marshal-text (selected-value inputs (phase index))) in format-loop inputs count (bump index) (mix checksum result)
+  -- | Render prepared identifiers directly, retaining the complete canonical byte-output observation.
+  format-loop :: Uuid -> Uuid -> U32 -> U32 -> U64 -> U64
+  format-loop first second count index checksum =
+    if before index count then
+      let value = if phase index then first else second in
+      let result = fingerprint (uuid-marshal-text value) in
+      format-loop first second count (bump index) (mix checksum result)
     else checksum
 
-  -- | Include immutable prefix copying and canonical suffix generation in the public append cost.
-  append-loop :: Inputs -> U32 -> U32 -> U64 -> U64
-  append-loop inputs count index checksum =
-    if before index count then case inputs of
-      Prepared a b x y prefix ->
-        let result = case uuid-append-text prefix (selected-value inputs (phase index)) of Err error -> 4294967295; Ok bytes -> fingerprint bytes in
-        append-loop inputs count (bump index) (mix checksum result)
+  -- | Include immutable prefix copying and suffix generation while carrying only required prepared arguments.
+  append-loop :: Bytes -> Uuid -> Uuid -> U32 -> U32 -> U64 -> U64
+  append-loop prefix first second count index checksum =
+    if before index count then
+      let value = if phase index then first else second in
+      let result = case uuid-append-text prefix value of Err error -> 4294967295; Ok bytes -> fingerprint bytes in
+      append-loop prefix first second count (bump index) (mix checksum result)
     else checksum
 
-  -- | Compare already prepared complete values without hiding representation conversion inside the loop.
-  compare-loop :: Inputs -> U32 -> U32 -> U64 -> U64
-  compare-loop inputs count index checksum =
-    if before index count then case inputs of
-      Prepared a b x y prefix ->
-        let result = case uuid-compare (selected-value inputs (phase index)) b of LT -> 0; EQ -> 1; GT -> 2 in
-        compare-loop inputs count (bump index) (mix checksum result)
+  -- | Compare prepared identifiers directly without a setup-container traversal on each iteration.
+  compare-loop :: Uuid -> Uuid -> U32 -> U32 -> U64 -> U64
+  compare-loop first second count index checksum =
+    if before index count then
+      let value = if phase index then first else second in
+      let result = case uuid-compare value second of LT -> 0; EQ -> 1; GT -> 2 in
+      compare-loop first second count (bump index) (mix checksum result)
     else checksum
 
   -- | Fill deterministic prefix bytes only during untimed preparation.
@@ -123,7 +119,12 @@ module Main where
 
   -- | Dispatch once to a complete public pipeline with bounded iteration/checksum metadata.
   perform :: String -> Inputs -> U32 -> U64
-  perform mode inputs count = if mode == "parse" then parse-loop inputs count 0 14695981039346656037 else if mode == "format" then format-loop inputs count 0 14695981039346656037 else if mode == "append" then append-loop inputs count 0 14695981039346656037 else compare-loop inputs count 0 14695981039346656037
+  perform mode inputs count = case inputs of
+    Prepared first second x y prefix ->
+      if mode == "parse" then parse-loop x y count 0 14695981039346656037
+      else if mode == "format" then format-loop first second count 0 14695981039346656037
+      else if mode == "append" then append-loop prefix first second count 0 14695981039346656037
+      else compare-loop first second count 0 14695981039346656037
 
   -- | Report real monotonic elapsed time and exact result fingerprint; setup is outside the clock.
   measure :: forall (r :: Region). using (io :: Io r) => String -> Nat -> Nat -> Nat ->{IO r} Int

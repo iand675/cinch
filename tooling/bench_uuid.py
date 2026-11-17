@@ -46,6 +46,7 @@ def main() -> None:
     parser.add_argument('--runtime',type=Path,required=True)
     parser.add_argument('--clang',type=Path,required=True)
     parser.add_argument('--go',type=Path,default=Path('/tmp/cinch-go-current/go/bin/go'))
+    parser.add_argument('--reference-artifacts',type=Path,help='Reuse an immutable reference executable instead of building another SDK program')
     parser.add_argument('--cpu',type=int,required=True)
     parser.add_argument('--artifacts',type=Path,required=True)
     parser.add_argument('--output',type=Path)
@@ -68,13 +69,21 @@ def main() -> None:
         identity.write_text(json.dumps(report,indent=2)+'\n')
         source=directory/'reference.go';source.write_bytes((ROOT/'tooling/bench_uuid_reference.go').read_bytes())
         reference=directory/'reference'
-        plan=execute([str(args.go),'build','-n','-o',str(reference),str(source)],directory,environment)
-        (directory/'reference-plan.log').write_text(plan['stdout']+plan['stderr'])
-        report.update(reference_plan=plan,reference_source_sha256=digest(source),go_sha256=digest(args.go),go_version=execute([str(args.go),'version'],directory,environment))
-        identity.write_text(json.dumps(report,indent=2)+'\n')
-        assert plan['exit']==0,plan
-        compiles=[line for line in (plan['stdout']+plan['stderr']).splitlines() if re.search(r'/compile(?:\s|$)',line)]
-        assert all(' -p main ' in line for line in compiles),'Stop before rebuilding uncached SDK dependencies; retain dry-run plan'
+        if args.reference_artifacts:
+            previous=args.reference_artifacts.resolve();record=json.loads((previous/'identity.json').read_text())
+            assert digest(previous/'reference')==record['reference_executable_sha256']
+            assert digest(previous/'reference.go')==record['reference_source_sha256']==digest(source)
+            shutil.copy2(previous/'reference',reference)
+            report.update(reference_reused_from=str(previous),reference_source_sha256=digest(source),
+                          go_sha256=record['go_sha256'],go_version=record['go_version'])
+        else:
+            plan=execute([str(args.go),'build','-n','-o',str(reference),str(source)],directory,environment)
+            (directory/'reference-plan.log').write_text(plan['stdout']+plan['stderr'])
+            report.update(reference_plan=plan,reference_source_sha256=digest(source),go_sha256=digest(args.go),go_version=execute([str(args.go),'version'],directory,environment))
+            identity.write_text(json.dumps(report,indent=2)+'\n')
+            assert plan['exit']==0,plan
+            compiles=[line for line in (plan['stdout']+plan['stderr']).splitlines() if re.search(r'/compile(?:\s|$)',line)]
+            assert all(' -p main ' in line for line in compiles),'Stop before rebuilding uncached SDK dependencies; retain dry-run plan'
         for variant in ('simd','scalar'):
             project=directory/variant;project.mkdir()
             for module in MODULES:
@@ -94,8 +103,11 @@ def main() -> None:
                                         'sources':{p.name:digest(p) for p in project.glob('*.cinch')}}
             assert cache_bytes(directory)+max(0,cache_bytes(Path(environment['GOCACHE']))-cache_before)<=30*1024*1024
             assert shutil.disk_usage(ROOT).free>=250*1024*1024
-        result=execute([str(args.go),'build','-o',str(reference),str(source)],directory,environment)
-        (directory/'reference-build.log').write_text(result['stdout']+result['stderr'])
+        if args.reference_artifacts:
+            result={'reused':True,'source':str(args.reference_artifacts.resolve()),'exit':0}
+        else:
+            result=execute([str(args.go),'build','-o',str(reference),str(source)],directory,environment)
+            (directory/'reference-build.log').write_text(result['stdout']+result['stderr'])
         report['reference_build']=result;identity.write_text(json.dumps(report,indent=2)+'\n')
         assert result['exit']==0,result
         assert cache_bytes(directory)+max(0,cache_bytes(Path(environment['GOCACHE']))-cache_before)<=30*1024*1024

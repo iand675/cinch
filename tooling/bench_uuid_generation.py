@@ -4,10 +4,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import statistics
-import subprocess
 from bench_uuid import cache_bytes
 from validate_uuid import ROOT, MODULES, digest, execute
 
@@ -66,7 +66,7 @@ def main() -> None:
         identity.write_text(json.dumps(report, indent=2) + '\n')
         assert result['exit'] == 0, result
         for symbol in ('@cinch_random_bytes', '@cinch_clock_wall_ns', '@cinch_clock_monotonic_ns'):
-            assert symbol in llvm.read_text(), f'Missing real provider: {symbol}'
+            assert re.search(r'\bcall\b[^\n]*' + r'@"?' + re.escape(symbol[1:]) + r'"?\(', llvm.read_text()), f'Missing real provider call: {symbol}'
         report.update(status='built-not-preflighted', executable_sha256=digest(executable),
                       llvm_sha256=digest(llvm), assembly_sha256=digest(assembly),
                       sources={p.name: digest(p) for p in directory.glob('*.cinch')},
@@ -78,6 +78,8 @@ def main() -> None:
         return
     assert args.output is not None
     report = json.loads(identity.read_text())
+    assert report['reference_executable_sha256'] == digest(reference)
+    assert report['reference_source_sha256'] == reference_identity['reference_source_sha256']
     assert report['compiler_sha256'] == digest(args.compiler) and report['runtime_sha256'] == digest(args.runtime)
     for key, name in [('executable_sha256', 'bench'), ('llvm_sha256', 'bench.ll'), ('assembly_sha256', 'bench.s')]:
         assert report[key] == digest(directory / name)
