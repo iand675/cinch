@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import resource
+import shutil
 import subprocess
 import time
 
@@ -51,6 +52,9 @@ def main() -> None:
     parser.add_argument("--interfaces", type=Path)
     parser.add_argument("--objects", type=Path)
     parser.add_argument("--source-override", action="append", default=[], metavar="MODULE=PATH", help="Select a separate candidate without changing the production library")
+    parser.add_argument("--minimum-free-mib", type=int, default=0, help="Require this free disk budget before each consumer")
+    parser.add_argument("--minimum-reserve-mib", type=int, default=0, help="Preserve this free disk reserve after each consumer")
+    parser.add_argument("--maximum-unit-mib", type=int, default=0, help="Bound each consumer's new output directory")
     parser.add_argument("--cpu", type=int, default=0)
     parser.add_argument("--opt-level", choices=("0", "2"), default="2")
     parser.add_argument("--modes", nargs="+", choices=("source", "region", "negative", "control", "edge", "effect", "trace", "float"), default=["negative", "control", "edge", "effect", "trace", "float"])
@@ -76,6 +80,10 @@ def main() -> None:
               "runner_sha256": digest(Path(__file__)), "cpu_affinity": [args.cpu], "opt_level": args.opt_level,
               "sources": {name: hashlib.sha256(data).hexdigest() for name, data in modules.items()}, "suites": [], "status": "running"}
     report["source_overrides"] = {name: str(path) for name, path in overrides.items()}
+    clang = Path(environment.get("CINCH_CLANG", shutil.which("clang") or "clang")).resolve()
+    if clang.is_file():
+        report["linker"] = {"path": str(clang), "sha256": digest(clang)}
+    report["disk_budget_mib"] = {"minimum_free": args.minimum_free_mib, "minimum_reserve": args.minimum_reserve_mib, "maximum_unit": args.maximum_unit_mib}
     provider = None
     if args.frontend == "native":
         provider = Path(json.loads(args.objects.read_text())["object"])
@@ -110,6 +118,8 @@ def main() -> None:
     (args.artifacts / "runner.py").write_bytes(Path(__file__).read_bytes())
     try:
         for label, consumer in jobs.items():
+            free_before = shutil.disk_usage(args.artifacts).free
+            assert free_before >= args.minimum_free_mib * 1024 * 1024, (label, "disk start budget", free_before)
             directory = (args.artifacts / label).resolve()
             directory.mkdir(parents=True, exist_ok=True)
             for name, data in modules.items():
@@ -117,7 +127,7 @@ def main() -> None:
             entry = directory / "Main.cinch"
             entry.write_text(consumer)
             executable, llvm = directory / "consumer", directory / "consumer.ll"
-            suite = {"name": label, "consumer_sha256": digest(entry), "runs": []}
+            suite = {"name": label, "consumer_sha256": digest(entry), "runs": [], "free_bytes_before": free_before}
             report["suites"].append(suite)
             check_only = label in ("source", "region", "region-source", "negative-pure-read")
             if args.frontend == "rust":
@@ -159,6 +169,10 @@ def main() -> None:
                     assert run["exit"] == 0, (label, poisoned, run)
                     assert "cinch-leak: live=0 immortal=0 leaked=0" in run["stderr"], (label, poisoned, run)
             suite["status"] = "passed"
+            suite["output_bytes"] = sum(path.stat().st_size for path in directory.rglob("*") if path.is_file())
+            suite["free_bytes_after"] = shutil.disk_usage(directory).free
+            assert not args.maximum_unit_mib or suite["output_bytes"] <= args.maximum_unit_mib * 1024 * 1024, (label, "unit output budget", suite["output_bytes"])
+            assert suite["free_bytes_after"] >= args.minimum_reserve_mib * 1024 * 1024, (label, "disk reserve", suite["free_bytes_after"])
             args.output.write_text(json.dumps(report, indent=2) + "\n")
             print(f"{args.frontend} {label}: {'source check' if check_only else 'normal/poison zero-leak runs'} passed", flush=True)
         report["status"] = "passed"
