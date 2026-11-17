@@ -1,0 +1,293 @@
+{
+  "scope": "Separate longer-loop focused immutable c2/d91 confirmation; production unchanged",
+  "decision": "Earlier4KiB/visitor regressions do not repeat at16iterations; gains remain workload-specific and source selection is pending review/affected semantic gates",
+  "raw_samples": "bootstrap/stdlib-field-projector-confirmation-samples.json",
+  "raw_samples_sha256": "32c272b9b732cb6b19ad8be993ae23a1cfc3e771e19d0c55be1dfb17de3242aa",
+  "sealed_plan": "bootstrap/stdlib-field-projector-confirmation-sealed-plan.json",
+  "sealed_plan_sha256": "5d3669d221c38617df53dfd7c032a1bf9129d90a94e46e1c6e8282a555b9403f",
+  "preflight_receipt": "bootstrap/stdlib-field-projector-confirmation-preflight-results.json",
+  "preflight_receipt_sha256": "5da3ce1ec789f970d9d185a9fa53fb3081e1d0e9e44b9759daba4a0e7e90e02c",
+  "preflight_observations": 25,
+  "preflight_cinch_zero_leak_profiles": 20,
+  "preflight_independent_reference_profiles": 5,
+  "session": {
+    "scope": "Root-granted exclusive CPU0 focused c2/d91 confirmation; existing binaries only",
+    "plan_sha256": "5d3669d221c38617df53dfd7c032a1bf9129d90a94e46e1c6e8282a555b9403f",
+    "before_free_bytes": 405852160,
+    "start_guard_bytes": 314572800,
+    "reserve_bytes": 262144000,
+    "new_report_limit_bytes": 5242880,
+    "build_default_guard_unchanged_bytes": 367001600,
+    "background": "Root explicit START: Entropy/Codegen/HTML/JSON/Compare held with no child; Root no build/recovery/push",
+    "status": "passed",
+    "exit_code": 0,
+    "wall_seconds": 7.248931415000698,
+    "after_free_bytes": 405778432,
+    "new_report_bytes": 64889
+  },
+  "paired_observations": 60,
+  "excluded_warmups": 10,
+  "included_samples": 50,
+  "samples_per_condition": 5,
+  "changed_input_iterations_per_process": 16,
+  "quota_before": {
+    "affinity": [
+      0
+    ],
+    "cpu.max": "400000 100000\n",
+    "cpu.stat": "usage_usec 162093081422\nuser_usec 151975227646\nsystem_usec 10117853776\nnice_usec 481860771\nnr_periods 1242048\nnr_throttled 42006\nthrottled_usec 1757103997\nnr_bursts 0\nburst_usec 0\n",
+    "cpuset.cpus.effective": "0-4\n"
+  },
+  "quota_after": {
+    "affinity": [
+      0
+    ],
+    "cpu.max": "400000 100000\n",
+    "cpu.stat": "usage_usec 162100473428\nuser_usec 151982283981\nsystem_usec 10118189447\nnice_usec 481860771\nnr_periods 1242119\nnr_throttled 42006\nthrottled_usec 1757103997\nnr_bursts 0\nburst_usec 0\n",
+    "cpuset.cpus.effective": "0-4\n"
+  },
+  "throttled_period_delta": 0,
+  "throttled_usec_delta": 0,
+  "summaries": [
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "dense",
+        "size": 4096,
+        "iterations": 16,
+        "expected": {
+          "checksum": 13772376054256864688,
+          "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+          "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 816312.1875,
+        "rust-projector-reassociated": 814954.5625
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          845190.0625,
+          777777.1875,
+          795552.1875,
+          839713.0625,
+          816312.1875
+        ],
+        "rust-projector-reassociated": [
+          771908.375,
+          825196.25,
+          824293.625,
+          742979.75,
+          814954.5625
+        ]
+      },
+      "baseline_over_reassociated": 1.0016658904219584,
+      "range_ns_per_operation": {
+        "rust-projector-baseline": [
+          777777.1875,
+          845190.0625
+        ],
+        "rust-projector-reassociated": [
+          742979.75,
+          825196.25
+        ]
+      }
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "unicode",
+        "size": 4096,
+        "iterations": 16,
+        "expected": {
+          "checksum": 3319180626102064352,
+          "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+          "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 495283.375,
+        "rust-projector-reassociated": 481692.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          469861.3125,
+          497189.375,
+          495283.375,
+          460288.6875,
+          608873.9375
+        ],
+        "rust-projector-reassociated": [
+          439800.9375,
+          456628.1875,
+          484209.1875,
+          481692.25,
+          497698.875
+        ]
+      },
+      "baseline_over_reassociated": 1.028215369875683,
+      "range_ns_per_operation": {
+        "rust-projector-baseline": [
+          460288.6875,
+          608873.9375
+        ],
+        "rust-projector-reassociated": [
+          439800.9375,
+          497698.875
+        ]
+      }
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 16,
+        "expected": {
+          "checksum": 3569429752401071536,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 13620136.9375,
+        "rust-projector-reassociated": 13460683.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          13620136.9375,
+          13534539.5,
+          14020130.75,
+          13356982.5625,
+          13678119.0625
+        ],
+        "rust-projector-reassociated": [
+          13460683.25,
+          13190037.125,
+          14983023.875,
+          14054764.1875,
+          13108510.5625
+        ]
+      },
+      "baseline_over_reassociated": 1.0118458836404163,
+      "range_ns_per_operation": {
+        "rust-projector-baseline": [
+          13356982.5625,
+          14020130.75
+        ],
+        "rust-projector-reassociated": [
+          13108510.5625,
+          14983023.875
+        ]
+      }
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "unicode",
+        "size": 65536,
+        "iterations": 16,
+        "expected": {
+          "checksum": 15828027544093070560,
+          "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+          "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 7902198.4375,
+        "rust-projector-reassociated": 7530484.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          7593060.3125,
+          8222505.8125,
+          7780860.25,
+          7902198.4375,
+          8163680.9375
+        ],
+        "rust-projector-reassociated": [
+          7392518.625,
+          7565039.9375,
+          7596086.75,
+          7495451.3125,
+          7530484.25
+        ]
+      },
+      "baseline_over_reassociated": 1.0493612595365298,
+      "range_ns_per_operation": {
+        "rust-projector-baseline": [
+          7593060.3125,
+          8222505.8125
+        ],
+        "rust-projector-reassociated": [
+          7392518.625,
+          7596086.75
+        ]
+      }
+    },
+    {
+      "condition": {
+        "kind": "visit",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 16,
+        "expected": {
+          "checksum": 3569429752401071536,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 12936197.0,
+        "rust-projector-reassociated": 12007988.875
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          11948947.4375,
+          12936197.0,
+          12683305.1875,
+          13141308.4375,
+          14548364.125
+        ],
+        "rust-projector-reassociated": [
+          11639716.9375,
+          12575497.8125,
+          11934493.4375,
+          12007988.875,
+          12172091.5
+        ]
+      },
+      "baseline_over_reassociated": 1.0772992159355244,
+      "range_ns_per_operation": {
+        "rust-projector-baseline": [
+          11948947.4375,
+          14548364.125
+        ],
+        "rust-projector-reassociated": [
+          11639716.9375,
+          12575497.8125
+        ]
+      }
+    }
+  ],
+  "original104_samples_unchanged": true,
+  "old706_negative_results_unchanged": true,
+  "production_utf8_source_unchanged": true,
+  "limitations": [
+    "This is a different within-process allocator warmup/input mixture from the original four-iteration run; neither run supersedes the other.",
+    "Observed ranges overlap; five samples do not establish a universal speedup or statistical confidence.",
+    "C2 baseline/f516 same-compiler comparison cannot isolate compiler-only speed relative to old706.",
+    "Existing actual IR and whole-process allocation diagnoses retain their separate scope. No new allocation diagnostic was inferred from elapsed values.",
+    "f516 remains unselected, with new-compiler affected full semantic/ownership and historical Native candidate claims unmade."
+  ]
+}

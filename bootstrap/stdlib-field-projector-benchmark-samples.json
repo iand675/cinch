@@ -1,0 +1,2949 @@
+{
+  "plan": {
+    "scope": "Paired public fields baseline/reassociated UTF8 comparison; no production candidate selection",
+    "variants": [
+      {
+        "name": "rust-projector-baseline",
+        "executable": "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "executable_sha256": "7d529b1493e774bf4f593677e653d9b19a47a633ac39c7b5f1521259b2cb41cf",
+        "preflight_receipt": "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline.json",
+        "preflight_sha256": "fc7c719688312887ef9c4a9f21a91c2c512545804d861826b6479c32be90f4b8",
+        "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "entry_sha256": "84d6c81162e56648f54b115d568a99b3d0ad4e51f389d7183ce66777a8bb5f2b",
+        "llvm_sha256": "e82c45ebd4e75b7f53b06754b3898db7dddcad59bdcbb6f5b9979bcdc8fe293a",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        }
+      },
+      {
+        "name": "rust-projector-reassociated",
+        "executable": "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "executable_sha256": "e8963865a3802d79e1ba5b6e72c1db21285d0b78037a9aa274e621eda86dee8a",
+        "preflight_receipt": "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated.json",
+        "preflight_sha256": "29967d1458a9fe87c535a61922646ad4d76365f8ec3620f665fedfbd946cb384",
+        "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
+        "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+        "entry_sha256": "84d6c81162e56648f54b115d568a99b3d0ad4e51f389d7183ce66777a8bb5f2b",
+        "llvm_sha256": "bdfdbbf4c37e02ac79b874fe88eeb604981d45605c4dc80470a608aa249a2382",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        }
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "eager",
+        "pattern": "text",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 4219762,
+          "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+          "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+          "kept_size": 4096
+        }
+      },
+      {
+        "kind": "eager",
+        "pattern": "dense",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3443094013564216172,
+          "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+          "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+          "kept_size": 4096
+        }
+      },
+      {
+        "kind": "eager",
+        "pattern": "unicode",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 5441481174952903992,
+          "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+          "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+          "kept_size": 4096
+        }
+      },
+      {
+        "kind": "eager",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      {
+        "kind": "eager",
+        "pattern": "space",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 9612,
+          "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+          "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+          "kept_size": 65536
+        }
+      },
+      {
+        "kind": "eager",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      {
+        "kind": "eager",
+        "pattern": "unicode",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3957006886023267640,
+          "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+          "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+          "kept_size": 65536
+        }
+      },
+      {
+        "kind": "producer",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      {
+        "kind": "producer",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      {
+        "kind": "visit",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      {
+        "kind": "visit",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      {
+        "kind": "predicate",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      {
+        "kind": "effect",
+        "pattern": "unicode",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3957006906613826872,
+          "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+          "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+          "kept_size": 65536
+        }
+      }
+    ],
+    "samples": 3,
+    "excluded_warmups": 1,
+    "normal_heap": "32M",
+    "program_stack": "8M",
+    "compiled_rc_debug": false,
+    "reference_memory_model": null,
+    "timed_pipeline": "Changed input, complete field consumption and ordinary reclamation; input preparation/retention hashing excluded",
+    "neutral_controls": [],
+    "generic_callback_controls": [
+      "predicate",
+      "effect"
+    ],
+    "generator_sha256": "e2b85c5d7b746d925bdab28755d0e1c7802b770d4e51d9f5d61c9b9072d71655",
+    "raw_variation_must_be_retained": true
+  },
+  "plan_sha256": "0599c26472eeeff8aebb1019b0cee96807e70a1b41d3aa4074b8c6a49802c0b7",
+  "before": {
+    "affinity": [
+      0
+    ],
+    "cpu.max": "400000 100000\n",
+    "cpu.stat": "usage_usec 161886192610\nuser_usec 151797379424\nsystem_usec 10088813186\nnice_usec 481860771\nnr_periods 1236471\nnr_throttled 42006\nthrottled_usec 1757103997\nnr_bursts 0\nburst_usec 0\n",
+    "cpuset.cpus.effective": "0-4\n"
+  },
+  "rows": [
+    {
+      "condition": 0,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "text",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "7571 4219762 af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67 fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 4219762,
+        "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+        "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 7571
+    },
+    {
+      "condition": 0,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "text",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "8012 4219762 af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67 fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 4219762,
+        "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+        "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 8012
+    },
+    {
+      "condition": 0,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "text",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "6570 4219762 af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67 fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 4219762,
+        "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+        "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 6570
+    },
+    {
+      "condition": 0,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "text",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "6840 4219762 af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67 fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 4219762,
+        "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+        "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 6840
+    },
+    {
+      "condition": 0,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "text",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "6179 4219762 af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67 fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 4219762,
+        "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+        "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 6179
+    },
+    {
+      "condition": 0,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "text",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "6399 4219762 af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67 fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 4219762,
+        "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+        "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 6399
+    },
+    {
+      "condition": 0,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "text",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "5078 4219762 af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67 fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 4219762,
+        "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+        "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 5078
+    },
+    {
+      "condition": 0,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "text",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "5989 4219762 af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67 fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 4219762,
+        "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+        "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 5989
+    },
+    {
+      "condition": 1,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "dense",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "4154154 3443094013564216172 7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094 6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3443094013564216172,
+        "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+        "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 4154154
+    },
+    {
+      "condition": 1,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "dense",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "3038692 3443094013564216172 7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094 6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3443094013564216172,
+        "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+        "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 3038692
+    },
+    {
+      "condition": 1,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "dense",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "3630313 3443094013564216172 7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094 6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3443094013564216172,
+        "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+        "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 3630313
+    },
+    {
+      "condition": 1,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "dense",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "4658665 3443094013564216172 7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094 6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3443094013564216172,
+        "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+        "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 4658665
+    },
+    {
+      "condition": 1,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "dense",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "6431993 3443094013564216172 7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094 6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3443094013564216172,
+        "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+        "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 6431993
+    },
+    {
+      "condition": 1,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "dense",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "4994180 3443094013564216172 7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094 6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3443094013564216172,
+        "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+        "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 4994180
+    },
+    {
+      "condition": 1,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "dense",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "3485415 3443094013564216172 7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094 6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3443094013564216172,
+        "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+        "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 3485415
+    },
+    {
+      "condition": 1,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "dense",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "3053955 3443094013564216172 7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094 6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3443094013564216172,
+        "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+        "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 3053955
+    },
+    {
+      "condition": 2,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "unicode",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "2097643 5441481174952903992 c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6 8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 5441481174952903992,
+        "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+        "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 2097643
+    },
+    {
+      "condition": 2,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "unicode",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "1991743 5441481174952903992 c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6 8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 5441481174952903992,
+        "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+        "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 1991743
+    },
+    {
+      "condition": 2,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "unicode",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "1598871 5441481174952903992 c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6 8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 5441481174952903992,
+        "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+        "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 1598871
+    },
+    {
+      "condition": 2,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "unicode",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "2059966 5441481174952903992 c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6 8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 5441481174952903992,
+        "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+        "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 2059966
+    },
+    {
+      "condition": 2,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "unicode",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "2510741 5441481174952903992 c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6 8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 5441481174952903992,
+        "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+        "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 2510741
+    },
+    {
+      "condition": 2,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "unicode",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "2188791 5441481174952903992 c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6 8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 5441481174952903992,
+        "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+        "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 2188791
+    },
+    {
+      "condition": 2,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "unicode",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "2445337 5441481174952903992 c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6 8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 5441481174952903992,
+        "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+        "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 2445337
+    },
+    {
+      "condition": 2,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "unicode",
+        "4096",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "2187648 5441481174952903992 c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6 8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed 4096\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 5441481174952903992,
+        "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+        "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+        "kept_size": 4096
+      },
+      "elapsed_ns": 2187648
+    },
+    {
+      "condition": 3,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17416 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17416
+    },
+    {
+      "condition": 3,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "19129 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 19129
+    },
+    {
+      "condition": 3,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17376 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17376
+    },
+    {
+      "condition": 3,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17105 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17105
+    },
+    {
+      "condition": 3,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "77857 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 77857
+    },
+    {
+      "condition": 3,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "16775 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 16775
+    },
+    {
+      "condition": 3,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "16996 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 16996
+    },
+    {
+      "condition": 3,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17697 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17697
+    },
+    {
+      "condition": 4,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "space",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17607 9612 f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4 d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 9612,
+        "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+        "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17607
+    },
+    {
+      "condition": 4,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "space",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "19279 9612 f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4 d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 9612,
+        "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+        "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 19279
+    },
+    {
+      "condition": 4,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "space",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17056 9612 f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4 d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 9612,
+        "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+        "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17056
+    },
+    {
+      "condition": 4,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "space",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17146 9612 f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4 d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 9612,
+        "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+        "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17146
+    },
+    {
+      "condition": 4,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "space",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "16936 9612 f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4 d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 9612,
+        "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+        "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 16936
+    },
+    {
+      "condition": 4,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "space",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "18908 9612 f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4 d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 9612,
+        "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+        "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 18908
+    },
+    {
+      "condition": 4,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "space",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17576 9612 f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4 d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 9612,
+        "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+        "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17576
+    },
+    {
+      "condition": 4,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "space",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "19369 9612 f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4 d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 9612,
+        "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+        "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 19369
+    },
+    {
+      "condition": 5,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "62098857 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 62098857
+    },
+    {
+      "condition": 5,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "54330019 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 54330019
+    },
+    {
+      "condition": 5,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "58289349 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 58289349
+    },
+    {
+      "condition": 5,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "56517106 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 56517106
+    },
+    {
+      "condition": 5,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "56000507 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 56000507
+    },
+    {
+      "condition": 5,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "50968044 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 50968044
+    },
+    {
+      "condition": 5,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "52149811 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 52149811
+    },
+    {
+      "condition": 5,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "52554933 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 52554933
+    },
+    {
+      "condition": 6,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "29808545 3957006886023267640 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006886023267640,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 29808545
+    },
+    {
+      "condition": 6,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "30297903 3957006886023267640 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006886023267640,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 30297903
+    },
+    {
+      "condition": 6,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "29167999 3957006886023267640 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006886023267640,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 29167999
+    },
+    {
+      "condition": 6,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "30569202 3957006886023267640 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006886023267640,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 30569202
+    },
+    {
+      "condition": 6,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "28745482 3957006886023267640 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006886023267640,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 28745482
+    },
+    {
+      "condition": 6,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "32757221 3957006886023267640 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006886023267640,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 32757221
+    },
+    {
+      "condition": 6,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "eager",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "29413951 3957006886023267640 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006886023267640,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 29413951
+    },
+    {
+      "condition": 6,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "eager",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "33559971 3957006886023267640 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006886023267640,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 33559971
+    },
+    {
+      "condition": 7,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "producer",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "19649 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 19649
+    },
+    {
+      "condition": 7,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "producer",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "20360 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 20360
+    },
+    {
+      "condition": 7,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "producer",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "18798 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 18798
+    },
+    {
+      "condition": 7,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "producer",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "85790 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 85790
+    },
+    {
+      "condition": 7,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "producer",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "20491 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 20491
+    },
+    {
+      "condition": 7,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "producer",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "21793 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 21793
+    },
+    {
+      "condition": 7,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "producer",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "217558 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 217558
+    },
+    {
+      "condition": 7,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "producer",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "20952 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 20952
+    },
+    {
+      "condition": 8,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "producer",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "51739162 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 51739162
+    },
+    {
+      "condition": 8,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "producer",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "56109431 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 56109431
+    },
+    {
+      "condition": 8,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "producer",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "53072518 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 53072518
+    },
+    {
+      "condition": 8,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "producer",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "59007421 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 59007421
+    },
+    {
+      "condition": 8,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "producer",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "53435089 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 53435089
+    },
+    {
+      "condition": 8,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "producer",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "60357652 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 60357652
+    },
+    {
+      "condition": 8,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "producer",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "52896197 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 52896197
+    },
+    {
+      "condition": 8,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "producer",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "56663898 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 56663898
+    },
+    {
+      "condition": 9,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "visit",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "22954 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 22954
+    },
+    {
+      "condition": 9,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "visit",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "24787 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 24787
+    },
+    {
+      "condition": 9,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "visit",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "22454 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 22454
+    },
+    {
+      "condition": 9,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "visit",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "21111 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 21111
+    },
+    {
+      "condition": 9,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "visit",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "18568 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 18568
+    },
+    {
+      "condition": 9,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "visit",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "20261 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 20261
+    },
+    {
+      "condition": 9,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "visit",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "19199 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 19199
+    },
+    {
+      "condition": 9,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "visit",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "20151 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 20151
+    },
+    {
+      "condition": 10,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "visit",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "47148461 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 47148461
+    },
+    {
+      "condition": 10,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "visit",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "52774223 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 52774223
+    },
+    {
+      "condition": 10,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "visit",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "53953521 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 53953521
+    },
+    {
+      "condition": 10,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "visit",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "51381283 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 51381283
+    },
+    {
+      "condition": 10,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "visit",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "46847978 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 46847978
+    },
+    {
+      "condition": 10,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "visit",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "51143965 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 51143965
+    },
+    {
+      "condition": 10,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "visit",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "53839744 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 53839744
+    },
+    {
+      "condition": 10,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "visit",
+        "dense",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "52872090 14727415493382431596 25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6 0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 52872090
+    },
+    {
+      "condition": 11,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "predicate",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17394738 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17394738
+    },
+    {
+      "condition": 11,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "predicate",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "19918402 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 19918402
+    },
+    {
+      "condition": 11,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "predicate",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "19690138 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 19690138
+    },
+    {
+      "condition": 11,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "predicate",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "20937749 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 20937749
+    },
+    {
+      "condition": 11,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "predicate",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "18087402 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 18087402
+    },
+    {
+      "condition": 11,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "predicate",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17041726 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17041726
+    },
+    {
+      "condition": 11,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "predicate",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "17421858 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 17421858
+    },
+    {
+      "condition": 11,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "predicate",
+        "text",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "16981945 67380082 d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39 46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 16981945
+    },
+    {
+      "condition": 12,
+      "sample": -1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "effect",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "34739530 3957006906613826872 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006906613826872,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 34739530
+    },
+    {
+      "condition": 12,
+      "sample": -1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "effect",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "32878604 3957006906613826872 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006906613826872,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 32878604
+    },
+    {
+      "condition": 12,
+      "sample": 0,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "effect",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "33362143 3957006906613826872 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006906613826872,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 33362143
+    },
+    {
+      "condition": 12,
+      "sample": 0,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "effect",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "33221972 3957006906613826872 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006906613826872,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 33221972
+    },
+    {
+      "condition": 12,
+      "sample": 1,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "effect",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "31433365 3957006906613826872 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006906613826872,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 31433365
+    },
+    {
+      "condition": 12,
+      "sample": 1,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "effect",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "32731503 3957006906613826872 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006906613826872,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 32731503
+    },
+    {
+      "condition": 12,
+      "sample": 2,
+      "variant": "rust-projector-reassociated",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+        "effect",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "31118360 3957006906613826872 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006906613826872,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 31118360
+    },
+    {
+      "condition": 12,
+      "sample": 2,
+      "variant": "rust-projector-baseline",
+      "command": [
+        "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+        "effect",
+        "unicode",
+        "65536",
+        "4"
+      ],
+      "exit_code": 0,
+      "stdout": "28390317 3957006906613826872 20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77 65536\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "observed": {
+        "checksum": 3957006906613826872,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "elapsed_ns": 28390317
+    }
+  ],
+  "status": "passed",
+  "background": "Record the actual coordinated background work in the companion session receipt",
+  "after": {
+    "affinity": [
+      0
+    ],
+    "cpu.max": "400000 100000\n",
+    "cpu.stat": "usage_usec 161888773123\nuser_usec 151799842737\nsystem_usec 10088930386\nnice_usec 481860771\nnr_periods 1236498\nnr_throttled 42006\nthrottled_usec 1757103997\nnr_bursts 0\nburst_usec 0\n",
+    "cpuset.cpus.effective": "0-4\n"
+  },
+  "wall_seconds": 2.6346258519915864,
+  "summaries": [
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "text",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 4219762,
+          "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+          "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 1599.75,
+        "rust-projector-reassociated": 1544.75
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          1710.0,
+          1599.75,
+          1497.25
+        ],
+        "rust-projector-reassociated": [
+          1642.5,
+          1544.75,
+          1269.5
+        ]
+      },
+      "baseline_over_reassociated": 1.0356044667421913
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "dense",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3443094013564216172,
+          "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+          "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 907578.25,
+        "rust-projector-reassociated": 1164666.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          907578.25,
+          1607998.25,
+          871353.75
+        ],
+        "rust-projector-reassociated": [
+          1164666.25,
+          1248545.0,
+          763488.75
+        ]
+      },
+      "baseline_over_reassociated": 0.7792603675087176
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "unicode",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 5441481174952903992,
+          "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+          "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 546912.0,
+        "rust-projector-reassociated": 611334.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          514991.5,
+          547197.75,
+          546912.0
+        ],
+        "rust-projector-reassociated": [
+          399717.75,
+          627685.25,
+          611334.25
+        ]
+      },
+      "baseline_over_reassociated": 0.8946202507057309
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 4344.0,
+        "rust-projector-reassociated": 4276.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          4344.0,
+          19464.25,
+          4249.0
+        ],
+        "rust-projector-reassociated": [
+          4276.25,
+          4193.75,
+          4424.25
+        ]
+      },
+      "baseline_over_reassociated": 1.0158433206664719
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "space",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 9612,
+          "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+          "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 4727.0,
+        "rust-projector-reassociated": 4264.0
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          4286.5,
+          4727.0,
+          4842.25
+        ],
+        "rust-projector-reassociated": [
+          4264.0,
+          4234.0,
+          4394.0
+        ]
+      },
+      "baseline_over_reassociated": 1.1085834896810507
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 14000126.75,
+        "rust-projector-reassociated": 13138733.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          14572337.25,
+          14000126.75,
+          13037452.75
+        ],
+        "rust-projector-reassociated": [
+          14129276.5,
+          12742011.0,
+          13138733.25
+        ]
+      },
+      "baseline_over_reassociated": 1.0655613812693854
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "unicode",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3957006886023267640,
+          "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+          "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 8189305.25,
+        "rust-projector-reassociated": 7291999.75
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          7642300.5,
+          8189305.25,
+          8389992.75
+        ],
+        "rust-projector-reassociated": [
+          7291999.75,
+          7186370.5,
+          7353487.75
+        ]
+      },
+      "baseline_over_reassociated": 1.1230534189198238
+    },
+    {
+      "condition": {
+        "kind": "producer",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 5122.75,
+        "rust-projector-reassociated": 5448.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          4699.5,
+          5122.75,
+          54389.5
+        ],
+        "rust-projector-reassociated": [
+          21447.5,
+          5448.25,
+          5238.0
+        ]
+      },
+      "baseline_over_reassociated": 0.9402560455192034
+    },
+    {
+      "condition": {
+        "kind": "producer",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 14751855.25,
+        "rust-projector-reassociated": 13268129.5
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          14751855.25,
+          15089413.0,
+          14165974.5
+        ],
+        "rust-projector-reassociated": [
+          13268129.5,
+          13358772.25,
+          13224049.25
+        ]
+      },
+      "baseline_over_reassociated": 1.11182629397761
+    },
+    {
+      "condition": {
+        "kind": "visit",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 4799.75,
+        "rust-projector-reassociated": 5065.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          5613.5,
+          4642.0,
+          4799.75
+        ],
+        "rust-projector-reassociated": [
+          5277.75,
+          5065.25,
+          5037.75
+        ]
+      },
+      "baseline_over_reassociated": 0.9475840284290016
+    },
+    {
+      "condition": {
+        "kind": "visit",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 12845320.75,
+        "rust-projector-reassociated": 13459936.0
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          12845320.75,
+          12785991.25,
+          13218022.5
+        ],
+        "rust-projector-reassociated": [
+          13488380.25,
+          11711994.5,
+          13459936.0
+        ]
+      },
+      "baseline_over_reassociated": 0.9543374314706994
+    },
+    {
+      "condition": {
+        "kind": "predicate",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 4521850.5,
+        "rust-projector-reassociated": 4260431.5
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          4922534.5,
+          4521850.5,
+          4355464.5
+        ],
+        "rust-projector-reassociated": [
+          5234437.25,
+          4260431.5,
+          4245486.25
+        ]
+      },
+      "baseline_over_reassociated": 1.061359747246259
+    },
+    {
+      "condition": {
+        "kind": "effect",
+        "pattern": "unicode",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3957006906613826872,
+          "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+          "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 8182875.75,
+        "rust-projector-reassociated": 7858341.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          8305493.0,
+          8182875.75,
+          7097579.25
+        ],
+        "rust-projector-reassociated": [
+          8340535.75,
+          7858341.25,
+          7779590.0
+        ]
+      },
+      "baseline_over_reassociated": 1.041298092011466
+    }
+  ]
+}

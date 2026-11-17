@@ -1,0 +1,125 @@
+{
+  "scope": "Proposed focused confirmation after overlapping c2 sample ranges; no timing grant or execution",
+  "variants": [
+    {
+      "name": "rust-projector-baseline",
+      "executable": "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline/consumer",
+      "executable_sha256": "7d529b1493e774bf4f593677e653d9b19a47a633ac39c7b5f1521259b2cb41cf",
+      "preflight_receipt": "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-baseline.json",
+      "preflight_sha256": "fc7c719688312887ef9c4a9f21a91c2c512545804d861826b6479c32be90f4b8",
+      "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "entry_sha256": "84d6c81162e56648f54b115d568a99b3d0ad4e51f389d7183ce66777a8bb5f2b",
+      "llvm_sha256": "e82c45ebd4e75b7f53b06754b3898db7dddcad59bdcbb6f5b9979bcdc8fe293a",
+      "dependencies": {
+        "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+        "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+      }
+    },
+    {
+      "name": "rust-projector-reassociated",
+      "executable": "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated/consumer",
+      "executable_sha256": "e8963865a3802d79e1ba5b6e72c1db21285d0b78037a9aa274e621eda86dee8a",
+      "preflight_receipt": "/workspace/dasl-stdlib-byte-split/build/byte-fields-bench-projector-reassociated.json",
+      "preflight_sha256": "29967d1458a9fe87c535a61922646ad4d76365f8ec3620f665fedfbd946cb384",
+      "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "entry_sha256": "84d6c81162e56648f54b115d568a99b3d0ad4e51f389d7183ce66777a8bb5f2b",
+      "llvm_sha256": "bdfdbbf4c37e02ac79b874fe88eeb604981d45605c4dc80470a608aa249a2382",
+      "dependencies": {
+        "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+        "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+        "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Bytes.Utf8": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+        "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+        "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+      }
+    }
+  ],
+  "conditions": [
+    {
+      "kind": "eager",
+      "pattern": "dense",
+      "size": 4096,
+      "iterations": 16,
+      "expected": {
+        "checksum": 13772376054256864688,
+        "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+        "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+        "kept_size": 4096
+      }
+    },
+    {
+      "kind": "eager",
+      "pattern": "unicode",
+      "size": 4096,
+      "iterations": 16,
+      "expected": {
+        "checksum": 3319180626102064352,
+        "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+        "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+        "kept_size": 4096
+      }
+    },
+    {
+      "kind": "eager",
+      "pattern": "dense",
+      "size": 65536,
+      "iterations": 16,
+      "expected": {
+        "checksum": 3569429752401071536,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      }
+    },
+    {
+      "kind": "eager",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 16,
+      "expected": {
+        "checksum": 15828027544093070560,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      }
+    },
+    {
+      "kind": "visit",
+      "pattern": "dense",
+      "size": 65536,
+      "iterations": 16,
+      "expected": {
+        "checksum": 3569429752401071536,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      }
+    }
+  ],
+  "samples": 5,
+  "excluded_warmups": 1,
+  "normal_heap": "32M",
+  "program_stack": "8M",
+  "compiled_rc_debug": false,
+  "reference_memory_model": null,
+  "timed_pipeline": "Changed input, complete field consumption and ordinary reclamation; input preparation/retention hashing excluded",
+  "neutral_controls": [],
+  "generic_callback_controls": [
+    "predicate",
+    "effect"
+  ],
+  "generator_sha256": "e2b85c5d7b746d925bdab28755d0e1c7802b770d4e51d9f5d61c9b9072d71655",
+  "raw_variation_must_be_retained": true,
+  "preflight_at_sixteen_iterations": "pending separate existing-binary output/owner/leak checks and reused independent reference; elapsed values discarded",
+  "confirmation_grant": "pending Root explicit exclusive CPU0 grant; do not execute this preparation record as a claim"
+}
