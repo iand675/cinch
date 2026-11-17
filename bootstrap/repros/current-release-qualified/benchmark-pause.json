@@ -1,0 +1,10 @@
+{
+  "pid": 800308,
+  "paused_unix": 1794914930.5546079,
+  "reason": "Exclusive public library benchmark window; build timing includes this pause.",
+  "automatic_resume_after_seconds": 60,
+  "automatic_resume_unix": 1794914990.5556352,
+  "manual_resume_acknowledged": true,
+  "manual_pause_seconds_reported_rounded": 42.375,
+  "note": "The fail-safe SIGCONT at60s followed the earlier manual SIGCONT; compilation was not paused for the full60s."
+}

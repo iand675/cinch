@@ -7,3 +7,4 @@ bootstrap/repros/array-fixture-*/**/*.log -whitespace
 bootstrap/repros/byte-ascii-parent-gate/*.log -whitespace
 bootstrap/repros/multipart-parent-qualified/*.log -whitespace
 bootstrap/repros/driver-phase-timing/*.log -whitespace
+bootstrap/repros/current-release-qualified/*.log -whitespace
