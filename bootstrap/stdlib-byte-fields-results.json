@@ -241,5 +241,22 @@
     "llvm_sha256": "92a316c49359f157175a9a85a882580b1f40f3f01b33ac3528ecc6754fab647c",
     "executable_sha256": "31b32d47da4b4e4e2a2cc2520b2731553d15088d6399eba7511f5ecf5c1e3554",
     "no_family_adoption": true
+  },
+  "historical_native_o0_rows": {
+    "scope": "Full1266 independent output and callback rows; mutation scripts/deep/O2 pending",
+    "receipt": "build/byte-fields-rows-runtime-native-v4-o0.json",
+    "receipt_sha256": "1d9c217093f25c1be093493e0ca30dca1e4914143909a5a5807bf57ff52618b1",
+    "context": "build/byte-fields-rows-runtime-native-v4-o0-context.json",
+    "context_sha256": "d9c27958e037e375da180f82e359788daa1125431b99803de60e7650c805eb29",
+    "cases": 1266,
+    "memory_profiles": 318,
+    "compiled_rc_debug": true,
+    "entry_sha256": "10fb3a78900726574030d0ae7eb8f6b7df44db657e32815c70b74a3ab68263c0",
+    "llvm_sha256": "2e4b1da6ee59238df2fb356430c2e1f6d3c601382374002d8915ed407d7ed90b",
+    "executable_sha256": "9e81c3b2f8a187bec372d53928ec75a6f7c5be5fab2c72c38c21e3ba51a84832",
+    "leaked": 0,
+    "source_sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+    "tuple": "same strict historical2f/V4/c4 as historical_native_first_unit",
+    "no_family_adoption": true
   }
 }
