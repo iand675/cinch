@@ -1,0 +1,38 @@
+{
+  "status": "passed",
+  "scope": "Definition-byte comparison only; V4 runtime boundary rerun remains pending",
+  "v3_llvm_sha256": "4d6c1210432e2202e30f310f4bc5c6c309f2cfaa01656f0fbfad5990470037b0",
+  "v4_llvm_sha256": "f3ae4d43dcd9d326187d51a1383ec12d1d07e382803e223db397ee301c2d394e",
+  "worker_definitions": [
+    {
+      "symbol": "Data.Machine.saturating-neg-u64",
+      "byte_identical_definition": true,
+      "v3_definition_sha256": "45255e34cfa3de8fa3eb3c5b00c2079bb59e4dcc3f3b0526c68d2f52335c2402",
+      "v4_definition_sha256": "45255e34cfa3de8fa3eb3c5b00c2079bb59e4dcc3f3b0526c68d2f52335c2402"
+    },
+    {
+      "symbol": "Data.Machine.checked-u64-to-i64",
+      "byte_identical_definition": true,
+      "v3_definition_sha256": "b4656bc52eac0edac0ab30696ef21ce93660f6ca7d16259963b14b37a27d69a2",
+      "v4_definition_sha256": "b4656bc52eac0edac0ab30696ef21ce93660f6ca7d16259963b14b37a27d69a2"
+    },
+    {
+      "symbol": "Data.Machine.saturating-u64-to-i64",
+      "byte_identical_definition": true,
+      "v3_definition_sha256": "1eaa1bd2f74b3fa7e9597b97d589074254d445f1cfaac9ffd23c9147f6d4946e",
+      "v4_definition_sha256": "1eaa1bd2f74b3fa7e9597b97d589074254d445f1cfaac9ffd23c9147f6d4946e"
+    },
+    {
+      "symbol": "Data.Machine.checked-i64-to-u64",
+      "byte_identical_definition": true,
+      "v3_definition_sha256": "1cd37a7fbb2f8975c6e03a55a276051585195b03ec21c2370f54d01f6dfbdf80",
+      "v4_definition_sha256": "1cd37a7fbb2f8975c6e03a55a276051585195b03ec21c2370f54d01f6dfbdf80"
+    },
+    {
+      "symbol": "Data.Machine.saturating-i64-to-u64",
+      "byte_identical_definition": true,
+      "v3_definition_sha256": "2c2b7fe99e8448e8d867c82923cbbe603c65619cb2f99a47d648b07c7eb7d951",
+      "v4_definition_sha256": "2c2b7fe99e8448e8d867c82923cbbe603c65619cb2f99a47d648b07c7eb7d951"
+    }
+  ]
+}

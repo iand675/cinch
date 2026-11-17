@@ -1,0 +1,132 @@
+{
+  "status": "original-owner-probe-passed",
+  "full_family_admission": false,
+  "adoption_approved": false,
+  "performance_claim": false,
+  "provider_epoch": "V4",
+  "pair_sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d",
+  "frontend_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+  "source_bundle_sha256": "84175169eb7d510644d767f9514b38a477a8e6cdd68a1b196274b7a625c95169",
+  "source_inputs": {
+    "Data.Bytes.Split": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+    "Data.Bytes.View": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+    "compatible_driver_Main": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573",
+    "owner_Main": "48f79ed534c601823b338171915f3b8a98de3a723a78a9c4d7ecd7aecad4639f"
+  },
+  "owner_groups": 9,
+  "runtime_processes": 18,
+  "ordinary_heap": "32M",
+  "poison_heap": "256M",
+  "consumer_stack": "8M",
+  "all_exit_zero": true,
+  "all_leaked_zero": true,
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "compiler_host_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "consumer_runtime": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/libcinchruntime.a",
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+  },
+  "object": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.o",
+    "sha256": "b02e2e0e19b3f09a69ee821a16b3c975ac28d443b4a10126acada470fa152214"
+  },
+  "llvm_sha256": "ac21f1f793eedc19f56c7837c502089d90b4e6985ec9b15ff5904881821f4afd",
+  "executable_sha256": "e7e36e56ac7a5eaf74d39893c0af2c486fff80f9f79a21092d6c13f624980b57",
+  "prior_v3_refusal": "bootstrap/stdlib-producer-v3-initial-probe-results.json",
+  "aggregation": "Peer named run records and original per-process logs checked directly; no consumer rerun.",
+  "evidence": [
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/peer-report.json",
+      "sha256": "6bfa93bf1282997d0d2184eb43d87cfd4804584a8f523e367575b589de120e4e"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-0-0.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-0-1.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-0-2.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-0-3.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-0-4.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-0-5.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-0-6.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-0-7.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-0-8.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-1-0.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-1-1.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-1-2.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-1-3.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-1-4.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-1-5.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-1-6.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-1-7.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/run-1-8.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v4-owner-evidence/word-worker-codegen-comparison.json",
+      "sha256": "fb6e7a1f7417548e2140c02a1276417828658fe3b605177195d168f967d49242"
+    }
+  ],
+  "pending": [
+    "actual OOR driver client",
+    "full row/deep/public Producer matrix",
+    "V4 scalar boundary runtime rerun",
+    "fresh repaired Native-family fixed point and final-stage clients"
+  ]
+}

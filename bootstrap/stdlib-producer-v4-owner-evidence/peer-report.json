@@ -1,0 +1,309 @@
+{
+  "status": "passed",
+  "pair_sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d",
+  "wrapper_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+  "bundle_sha256": "84175169eb7d510644d767f9514b38a477a8e6cdd68a1b196274b7a625c95169",
+  "expected_initial_sources": {
+    "Data.Bytes.Split": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+    "Data.Bytes.View": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+    "compatible_driver_Main": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573",
+    "owner_Main": "48f79ed534c601823b338171915f3b8a98de3a723a78a9c4d7ecd7aecad4639f"
+  },
+  "compiler": {
+    "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "interfaces": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json",
+    "sha256": "f10d002f5d4d4be4fcfc08648306e8bbd368fcce579ec47c25b9a56cda321f0b"
+  },
+  "objects": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json",
+    "sha256": "87aa9ec8c8ec6d2802638f00239277b0f76b2a07c3920afb14b4a1d47c072fbd"
+  },
+  "object": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.o",
+    "sha256": "b02e2e0e19b3f09a69ee821a16b3c975ac28d443b4a10126acada470fa152214"
+  },
+  "compiler_host_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "consumer_runtime": {
+    "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/libcinchruntime.a",
+    "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+  },
+  "full_family_admission": false,
+  "source_override": false,
+  "opt_level": 0,
+  "profiles": [
+    {
+      "debug": 0,
+      "owner": 0,
+      "zero_leaks": true
+    },
+    {
+      "debug": 0,
+      "owner": 1,
+      "zero_leaks": true
+    },
+    {
+      "debug": 0,
+      "owner": 2,
+      "zero_leaks": true
+    },
+    {
+      "debug": 0,
+      "owner": 3,
+      "zero_leaks": true
+    },
+    {
+      "debug": 0,
+      "owner": 4,
+      "zero_leaks": true
+    },
+    {
+      "debug": 0,
+      "owner": 5,
+      "zero_leaks": true
+    },
+    {
+      "debug": 0,
+      "owner": 6,
+      "zero_leaks": true
+    },
+    {
+      "debug": 0,
+      "owner": 7,
+      "zero_leaks": true
+    },
+    {
+      "debug": 0,
+      "owner": 8,
+      "zero_leaks": true
+    },
+    {
+      "debug": 1,
+      "owner": 0,
+      "zero_leaks": true
+    },
+    {
+      "debug": 1,
+      "owner": 1,
+      "zero_leaks": true
+    },
+    {
+      "debug": 1,
+      "owner": 2,
+      "zero_leaks": true
+    },
+    {
+      "debug": 1,
+      "owner": 3,
+      "zero_leaks": true
+    },
+    {
+      "debug": 1,
+      "owner": 4,
+      "zero_leaks": true
+    },
+    {
+      "debug": 1,
+      "owner": 5,
+      "zero_leaks": true
+    },
+    {
+      "debug": 1,
+      "owner": 6,
+      "zero_leaks": true
+    },
+    {
+      "debug": 1,
+      "owner": 7,
+      "zero_leaks": true
+    },
+    {
+      "debug": 1,
+      "owner": 8,
+      "zero_leaks": true
+    }
+  ],
+  "emit": {
+    "command": [
+      "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/frontend.py",
+      "--emit-ir",
+      "--rc-debug",
+      "--interfaces",
+      "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json",
+      "--objects",
+      "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json",
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/Bundle.cinch",
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer.ll"
+    ],
+    "exit": 0,
+    "seconds": 12.854697147995466
+  },
+  "link": {
+    "command": [
+      "clang",
+      "-O0",
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer.ll",
+      "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.o",
+      "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/libcinchruntime.a",
+      "-o",
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "-ldl",
+      "-lpthread",
+      "-lm"
+    ],
+    "exit": 0,
+    "seconds": 0.23212153199710883
+  },
+  "run-0-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.0029294710111571476
+  },
+  "run-0-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.002431916000205092
+  },
+  "run-0-2": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.00289941398659721
+  },
+  "run-0-3": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "3"
+    ],
+    "exit": 0,
+    "seconds": 0.0024722969974391162
+  },
+  "run-0-4": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "4"
+    ],
+    "exit": 0,
+    "seconds": 0.002417773997876793
+  },
+  "run-0-5": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "5"
+    ],
+    "exit": 0,
+    "seconds": 0.0021780559909529984
+  },
+  "run-0-6": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "6"
+    ],
+    "exit": 0,
+    "seconds": 0.0021504540054593235
+  },
+  "run-0-7": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "7"
+    ],
+    "exit": 0,
+    "seconds": 0.0020952289924025536
+  },
+  "run-0-8": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "8"
+    ],
+    "exit": 0,
+    "seconds": 0.002190485000028275
+  },
+  "run-1-0": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "0"
+    ],
+    "exit": 0,
+    "seconds": 0.002149191001080908
+  },
+  "run-1-1": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 0.0027675510064000264
+  },
+  "run-1-2": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "2"
+    ],
+    "exit": 0,
+    "seconds": 0.002214161999290809
+  },
+  "run-1-3": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "3"
+    ],
+    "exit": 0,
+    "seconds": 0.002226550001068972
+  },
+  "run-1-4": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "4"
+    ],
+    "exit": 0,
+    "seconds": 0.0022442180052166805
+  },
+  "run-1-5": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "5"
+    ],
+    "exit": 0,
+    "seconds": 0.0027231129934079945
+  },
+  "run-1-6": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "6"
+    ],
+    "exit": 0,
+    "seconds": 0.0022544439998455346
+  },
+  "run-1-7": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "7"
+    ],
+    "exit": 0,
+    "seconds": 0.002155782000045292
+  },
+  "run-1-8": {
+    "command": [
+      "/workspace/dasl-stdlib-byte-split/build/byte-split-v4-initial-owners/consumer",
+      "8"
+    ],
+    "exit": 0,
+    "seconds": 0.002261754998471588
+  },
+  "llvm_sha256": "ac21f1f793eedc19f56c7837c502089d90b4e6985ec9b15ff5904881821f4afd",
+  "exe_sha256": "e7e36e56ac7a5eaf74d39893c0af2c486fff80f9f79a21092d6c13f624980b57"
+}
