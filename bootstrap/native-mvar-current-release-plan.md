@@ -2,8 +2,10 @@
 
 This is a static plan, not build authorization or a qualification receipt.
 Root source checkpoint is `94732a7954ec56ef6bde1e46383a858fa774d93c`.
-Internal checker tracing `63b90a8b` stays isolated and unapplied. The default
-current-release plan includes only the already-qualified coarse driver trace.
+At plan creation, internal checker tracing `63b90a8b` was isolated. Parent
+subsequently reviewed/applied it as `2a558db0`, pending actual compiler gates.
+The next release build must record that distinct source checkpoint and qualify
+the internal trace as well; no existing frozen binary is relabelled.
 All historical compiler, provider, source and timeout epochs remain separate.
 
 ## Inputs and dependency inventory
@@ -102,12 +104,22 @@ samples, not a promised completion time.
    at the first actual diagnostic or completed verdict. No optimizer/check
    bypass, old compiler fallback or source/interface shadow substitution.
 
-5. If the current release check still needs localization, review whether to
-   apply the held internal checker trace before a distinct compiler build.
-   Any such source change receives new hashes and qualification; it is not
-   silently folded into the preceding release epoch.
+5. Include the parent-applied internal checker trace in the new source receipt
+   and inspect its actual phase markers. Every source change receives new
+   hashes and qualification; it is not silently folded into a preceding
+   release or debug epoch.
 
 Even a completed source check qualifies only the compiler source under that
 identified Rust compiler. Native MVar emission/ownership/runtime and genuine
 source-absent/reexport/forgery gates, fresh provider admission, Stage1 and the
 new Native-family fixed point remain open. Proposed pins are unchanged here.
+
+## Approved cache recovery outcome
+
+The separately reviewed180-file cold cache archive completed with full
+encoded/decoded/payload hashes and member metadata verified before unlink.
+It recovered227,540,992 allocated bytes before recovery-ledger overhead,
+retaining all promised executable/provider/runtime/source paths plain. See
+`native-mvar-release-cache-recovery-results.json` for exact index/hash and
+unit-size bounds. End-of-run free space was1,511,419,904 bytes, still below
+the1.5GiB start guard; this outcome does not authorize a release build.

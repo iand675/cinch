@@ -1,0 +1,22 @@
+{
+  "all_old_compiler_paths_kept_plain": true,
+  "allocated_bytes_recovered_excluding_ledger": 227540992,
+  "compressed_allocated_bytes": 77856768,
+  "compressed_bytes": 77502797,
+  "elapsed_seconds": 16.365341901779175,
+  "files": 180,
+  "final_compressed_hashes_and_absent_originals_rechecked": true,
+  "full_decoded_tar_payload_metadata_verification": "passed before each unlink, recorded in index",
+  "index": "/workspace/dasl-stdlib-base-construction/build/current-base-release-cold-cache-archive-v1/index.json",
+  "index_sha256": "1ab80e7e4bfa11a7c2d6aa518eeacec450748375a508001dec38c4932acd8af3",
+  "inventory_sha256": "100c14d8ead83300a5bcd898b5dd815dc3f9e626be28a5ee0a27886eeae29427",
+  "max_compressed_temporary_bytes": 9601532,
+  "max_original_unit_bytes": 41684248,
+  "measured_end_free_bytes": 1511419904,
+  "measured_start_free_bytes": 1304195072,
+  "original_allocated_bytes": 305397760,
+  "original_bytes": 305177397,
+  "plain_exclusions_reverified": true,
+  "root_dependency_cache_copy": false,
+  "schema": 1
+}
