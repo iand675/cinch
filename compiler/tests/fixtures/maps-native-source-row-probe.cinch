@@ -1,0 +1,20 @@
+-- | Isolate higher-order producer row inference without any map implementation dependency.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Mutable.Var
+
+  -- | Supply one natural under the callback's selected effect row.
+  supply :: forall ef. Nat -> (Nat ->{ef} Bool) ->{ef} Unit
+  supply value yield = let accepted = yield value in ()
+
+  -- | Consume a source with an explicitly included destination mutation region.
+  consume :: forall r ef. ((Nat ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Nat
+  consume source =
+    let state = var-new (0 :: Nat) in
+    let consumed = source (\value -> let saved = var-write state value in True) in
+    var-read state
+
+  -- | Require implicit producer composition to close inside the caller's declared region.
+  main :: forall r. Unit ->{Mut r} Int
+  main unit = if consume (supply 7) == 7 then 0 else 1

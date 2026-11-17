@@ -1,0 +1,24 @@
+-- | Distinguish an explicitly closed client producer from generic producer row instantiation.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Mutable.Var
+
+  -- | Supply one natural under the callback's selected effect row.
+  supply :: forall ef. Nat -> (Nat ->{ef} Bool) ->{ef} Unit
+  supply value yield = let accepted = yield value in ()
+
+  -- | Fix the ordinary client's producer row without changing any library declaration.
+  closed-source :: forall r. (Nat ->{Mut r} Bool) ->{Mut r} Unit
+  closed-source yield = supply 7 yield
+
+  -- | Consume a source with an explicitly included destination mutation region.
+  consume :: forall r ef. ((Nat ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Nat
+  consume source =
+    let state = var-new (0 :: Nat) in
+    let consumed = source (\value -> let saved = var-write state value in True) in
+    var-read state
+
+  -- | Check the same higher-order call with an ordinary explicit client signature.
+  main :: forall r. Unit ->{Mut r} Int
+  main unit = if consume closed-source == 7 then 0 else 1
