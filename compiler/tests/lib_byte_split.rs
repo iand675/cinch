@@ -28,7 +28,17 @@ fn run_with_source(
     depth: Option<usize>,
     split_source: &str,
 ) {
-    let directory = tempfile::tempdir().unwrap();
+    let temporary = tempfile::tempdir().unwrap();
+    let directory = temporary.path().to_path_buf();
+    let retain_progress = checks
+        .iter()
+        .any(|check| check == "byte-split-test-progress ()");
+    let _cleanup = if retain_progress {
+        let _ = temporary.keep();
+        None
+    } else {
+        Some(temporary)
+    };
     for (name, text) in [
         ("Data.Bytes.Split", split_source),
         (
@@ -45,16 +55,39 @@ fn run_with_source(
         ),
         ("Text.Hex", include_str!("../prelude/Text/Hex.cinch")),
     ] {
-        std::fs::write(directory.path().join(format!("{name}.cinch")), text).unwrap();
+        std::fs::write(directory.join(format!("{name}.cinch")), text).unwrap();
     }
-    let entry = directory.path().join("Main.cinch");
-    let exe = directory.path().join("consumer");
+    let entry = directory.join("Main.cinch");
+    let exe = directory.join("consumer");
     std::fs::write(&entry, consumer(&checks, width)).unwrap();
     let profile = cinch::core::TargetProfile {
         reclaim: true,
         rc_debug: true,
         ..cinch::core::TargetProfile::native()
     };
+    if retain_progress {
+        let options = cinch::driver::DriverOptions {
+            opt_level: optimized.then_some(2),
+            ..Default::default()
+        };
+        std::fs::write(
+            directory.join("reproduction-profile.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "mode": "Build", "stage": "Refresh", "optimized": optimized,
+                "profile": format!("{profile:?}"), "options": format!("{options:?}"),
+                "compiler_api_crate": env!("CARGO_MANIFEST_DIR"),
+                "test_executable": std::env::current_exe().ok(),
+                "compile_time_runtime_archive": option_env!("CINCH_RUNTIME_ARCHIVE"),
+                "entry": entry, "executable": exe,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        eprintln!(
+            "retained private progress API project: {}",
+            directory.display()
+        );
+    }
     if optimized {
         let output = exe.clone();
         std::thread::Builder::new()
@@ -80,7 +113,7 @@ fn run_with_source(
         common::drive_with_profile(
             Mode::Build,
             cinch::check::StageMode::Refresh,
-            directory.path(),
+            &directory,
             "Main.cinch",
             Some(exe.clone()),
             &profile,
@@ -102,6 +135,28 @@ fn run_with_source(
                 .env("CINCH_LEAK_CHECK", "1")
                 .output()
                 .unwrap();
+            if retain_progress {
+                std::fs::write(
+                    directory.join(format!("run-{debug}-{index}.stdout")),
+                    &output.stdout,
+                )
+                .unwrap();
+                std::fs::write(
+                    directory.join(format!("run-{debug}-{index}.stderr")),
+                    &output.stderr,
+                )
+                .unwrap();
+                std::fs::write(
+                    directory.join(format!("run-{debug}-{index}.json")),
+                    serde_json::to_vec_pretty(&serde_json::json!({
+                        "debug": debug, "index": index, "depth": depth,
+                        "heap_limit": if debug { "256M" } else { "32M" },
+                        "stack_limit": "8M", "leak_check": true, "exit": output.status.code(),
+                    }))
+                    .unwrap(),
+                )
+                .unwrap();
+            }
             assert_eq!(
                 output.status.code(),
                 Some(0),
