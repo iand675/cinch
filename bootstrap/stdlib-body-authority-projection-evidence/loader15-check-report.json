@@ -1,0 +1,15 @@
+{
+  "command": [
+    "taskset",
+    "-c",
+    "4",
+    "/workspace/dasl-stdlib-io/build/staged-word-safe-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-initial/Bundle.cinch"
+  ],
+  "exit": 1,
+  "seconds": 1.7432797249930445,
+  "stdout": "",
+  "stderr": "cinch: `Bootstrap.Total` has no member `total-numeric-operation` to import (as `total-numeric-operation`) (in /workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-initial/Bundle.cinch)\n",
+  "status": "source-check-refused"
+}

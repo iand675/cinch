@@ -1,0 +1,615 @@
+{
+  "purpose": "Lossless retention of newly generated check-only manifest under the approved output budget. Raw source and every generated interface remain unchanged.",
+  "compiler_source_sha256": "bfd69f53c32458eff709c172583a060bebffc913b20bc9d3ed0e300b639ace57",
+  "original_path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bundle.manifest.json",
+  "original_bytes": 5074235,
+  "original_sha256": "ba1e5cfe0d7fbbd6bf926069b7d71968f9ec6222601d72978c210ccb5076e87d",
+  "archive_path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bundle.manifest.json.check-only-v1.zst",
+  "archive_bytes": 213377,
+  "archive_sha256": "a329245b2ba670dde4595c4d9ba4a58edb4cee969ab3dcb871e45d635343f4e0",
+  "verified_decompressed_bytes": 5074235,
+  "verified_decompressed_sha256": "ba1e5cfe0d7fbbd6bf926069b7d71968f9ec6222601d72978c210ccb5076e87d",
+  "compression_command": [
+    "taskset",
+    "-c",
+    "2",
+    "zstd",
+    "-q",
+    "-3",
+    "--stdout",
+    "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bundle.manifest.json"
+  ],
+  "restore_command": [
+    "zstd",
+    "-q",
+    "--decompress",
+    "--stdout",
+    "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bundle.manifest.json.check-only-v1.zst"
+  ],
+  "restore_note": "Write decompressed bytes to original_path and verify original_sha256 before using the historical check-only build manifest.",
+  "raw_interfaces": [
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Algebra.Arithmetic.cinchif",
+      "bytes": 7034,
+      "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Algebra.Bits.cinchif",
+      "bytes": 9863,
+      "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Algebra.Group.cinchif",
+      "bytes": 2464,
+      "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Algebra.Monoid.cinchif",
+      "bytes": 27165,
+      "sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Algebra.Semigroup.cinchif",
+      "bytes": 5861,
+      "sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Algebra.Semiring.cinchif",
+      "bytes": 2642,
+      "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Ast.cinchif",
+      "bytes": 363864,
+      "sha256": "1ef24e64f86d7631a1db74f19fc13dbe11596fce1fc0113ce888fbd23637e1da"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.BodyContract.cinchif",
+      "bytes": 28194,
+      "sha256": "4a21d01c35abd2f557554e10ce0708c11a140df2b6717a8da11c28769e1a884f"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Builtin.cinchif",
+      "bytes": 18580,
+      "sha256": "ab57c3a4a5ba7c7a4f1ab344303e1b23fa54f5c7fd81e5bcfbb73c250d018024"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Check.cinchif",
+      "bytes": 4742,
+      "sha256": "8041da4b1f4caeab4ec77827f121f6e9f5b6d88a9c19c6e721f18a40ecb26323"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Contracts.cinchif",
+      "bytes": 15554,
+      "sha256": "8572aa4d7cbe2db1a50fb39801eaf5bc121812d322b8734c7fbc13be2db9c602"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Core.cinchif",
+      "bytes": 503368,
+      "sha256": "4fbc25cd1f4e5636a36a2bbe1c0b3853568bb7f7119d31e2691d2393a4c49984"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.CoreBody.cinchif",
+      "bytes": 7189,
+      "sha256": "ea3ccab14013de7b91adeac9cd6eb85dc68fd8f60d7d920f696e94955218c671"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Dictionary.cinchif",
+      "bytes": 19769,
+      "sha256": "a0895b16e68fbe1b8c62d8b838f0645cee22e4b5f3a64317be47c1026c07adc5"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Driver.cinchif",
+      "bytes": 23465,
+      "sha256": "4d2b607ce66a7813a971fa91545594002826dc3a904ba6b04e9d2fb8603096e8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Eval.cinchif",
+      "bytes": 22759,
+      "sha256": "28d457788af3f15aa203bbf0851afb249911239dfd3e48d7ca96b5d9d31d87a0"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Expand.cinchif",
+      "bytes": 16670,
+      "sha256": "9d930830a95845ec3b81470f99eaeb0ccd449b218f952f65a2276392fb182b39"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Export.cinchif",
+      "bytes": 5829,
+      "sha256": "96d2c5fde43cdbe3ec2138a0200a827337deedd9eff3ef61cc95474f9c1db7f2"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.ExportNominal.cinchif",
+      "bytes": 19483,
+      "sha256": "c8bf397b8a818460b11f0a15ddbee3d597654cb36407a4d95b20c1e79d871dd2"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.ExportType.cinchif",
+      "bytes": 17369,
+      "sha256": "0238cbc13b4a81dc2e7c4ac58b982771aa3d8f42c0115d35f0ce0f5c4d919c77"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Foreign.cinchif",
+      "bytes": 22490,
+      "sha256": "461d2fac21c0fae9b12881195089d88d7a7dad81ce8eb46b36318c70d0690db0"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Global.cinchif",
+      "bytes": 21644,
+      "sha256": "68c70fe79fb3b0efd19c5490770798baab0e5828998ba8f336f7009c8b5e65ad"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Guarded.cinchif",
+      "bytes": 12007,
+      "sha256": "9c0dd0092809925d5ca02deadb5b74bf7e01c0ed78081342522dec26d1834d47"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Index.cinchif",
+      "bytes": 17648,
+      "sha256": "d5c22fe115b4ebefa15ec72565fda2cfcd14572fb2cf6cd69b562b4bbdeeabe0"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Infer.cinchif",
+      "bytes": 42165,
+      "sha256": "326e808f7ca56218c276d50c20ef5b32dade9fafecd8592db713fe3cc1e6ad72"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Inputs.cinchif",
+      "bytes": 5347,
+      "sha256": "4a1ad57159517a415bed9ab231b000c39c508b3d82afe73729dc37208167a6ec"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Instance.cinchif",
+      "bytes": 42903,
+      "sha256": "0549ec66dd99060d19e7e63b48732faab2aac568033da344138531a91bdf9c8c"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Interface.cinchif",
+      "bytes": 16427,
+      "sha256": "e7912912ca1b3803cd70f2161b1a4ad1a10b21c17bad4403f2317bd4a65fffa3"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Ir.cinchif",
+      "bytes": 4189,
+      "sha256": "270a8e57bd2736acc456ef63cb06adc7f70425e497fa1dea3ac989fa0dde6063"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Kinds.cinchif",
+      "bytes": 24853,
+      "sha256": "46d49f4d75f9b69205171b0467a6383b4fb9e1f422e7e4cca07d408ba7a1d5b0"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Load.cinchif",
+      "bytes": 32740,
+      "sha256": "267fdd8756be917ac335b336aaf81d48c818004a38d0cf754482556be3d50e56"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Manifest.cinchif",
+      "bytes": 8590,
+      "sha256": "07af388e72b54ab8c4de44b9936e40a499fb23afb32f709760ac7310c3ee34d9"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Nominal.cinchif",
+      "bytes": 18756,
+      "sha256": "e08d112fdea8a8d20b0689c5021e618b9eb89ddf8df97292a62ad5900171a0a9"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Object.cinchif",
+      "bytes": 26099,
+      "sha256": "ae027a5e628df8d03a83e0b0a8b01fc914c26a5171c9673653b51ae37e78127f"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Parse.cinchif",
+      "bytes": 15229,
+      "sha256": "2b2682c6d3d462103231cf8f4067c8a6846a9aee7561915cfac2d4e06880f59e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Pipeline.cinchif",
+      "bytes": 98218,
+      "sha256": "19dc858ddd559d26be8955e922a81819c22326963aa4d71d40c26dea4ea771bf"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Proof.cinchif",
+      "bytes": 23735,
+      "sha256": "63b3d9900b0affc87186051ff3a69648d9ab50ca5185c3573343102ed54f8a09"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Report.cinchif",
+      "bytes": 12181,
+      "sha256": "59db4545332d4be7ef54e09bf1d440c39fc422a5bb235b3bee8e0edb8d7d9e6d"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Resolve.cinchif",
+      "bytes": 5791,
+      "sha256": "6092542b6fd8e578846d55fb47a05a940089ad032ddc8e5d6968c7f5f4a4a5a6"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.RuntimeAbi.cinchif",
+      "bytes": 1304,
+      "sha256": "671d6bd91855d8871ca4ea2b97c198a24bfb3df92ac6691c5a8950361009698e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.RuntimeIr.cinchif",
+      "bytes": 29221,
+      "sha256": "c26e290bc64ef09af6646b99637a253849d0d39cf233aaa1caf645aca8c909b2"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Stage.cinchif",
+      "bytes": 2817,
+      "sha256": "1ec2ffebce649d32a4798b7d79bcab6a88cdaf1f233658e8a24737fe45972d4f"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.StageEval.cinchif",
+      "bytes": 12445,
+      "sha256": "58aed463f8aa923fae2f2ff3234a6c45260db22558fafc98cf3c95247f11b01b"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Temporal.cinchif",
+      "bytes": 17984,
+      "sha256": "d4a8fcca270fe921dc47c9406180d4dbe134ce18d28baeadae21a878e70516da"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.TemporalCheck.cinchif",
+      "bytes": 37740,
+      "sha256": "486474bb0e7fc772cf1410d515800164438a2aae7d2961af5209d4cae1eb4cb9"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Test.cinchif",
+      "bytes": 11280,
+      "sha256": "c36db512e542c53a4a00d145994b0b9d07d645c4449e5fe3d49d092e81937e91"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Total.cinchif",
+      "bytes": 18514,
+      "sha256": "7e1db61fcee47b598f22cbb72045a7421fab4cfaa3745f163db87fb9e478377e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.TotalSemantics.cinchif",
+      "bytes": 7956,
+      "sha256": "04bf5fd3efd61b12bdfd5cb855a5697acc8eab106f80626fc32565cf88898751"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Type.cinchif",
+      "bytes": 232962,
+      "sha256": "36db37ad6bba183c9d462c1ad6323ab940b6fbc7442e975047177c6cd52a3fa9"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Bootstrap.Typing.cinchif",
+      "bytes": 25925,
+      "sha256": "5a7d28bddbc55dd53384eb6094dfb32b58bb59280abfe27068d4d284ae414d86"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Category.Alternative.cinchif",
+      "bytes": 2109,
+      "sha256": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Category.Applicative.cinchif",
+      "bytes": 8919,
+      "sha256": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Category.Foldable.cinchif",
+      "bytes": 28589,
+      "sha256": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Category.Functor.cinchif",
+      "bytes": 3955,
+      "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Category.Monad.cinchif",
+      "bytes": 3926,
+      "sha256": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Category.Traversable.cinchif",
+      "bytes": 10234,
+      "sha256": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Array.cinchif",
+      "bytes": 8796,
+      "sha256": "c9b3b6afae6e02bfb10e6f405d907afd9ce25d4ee4c650fe112d8a180da89433"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Ascii.cinchif",
+      "bytes": 1575,
+      "sha256": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Bool.cinchif",
+      "bytes": 19612,
+      "sha256": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Bytes.cinchif",
+      "bytes": 13369,
+      "sha256": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Char.cinchif",
+      "bytes": 14397,
+      "sha256": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Compose.cinchif",
+      "bytes": 2098,
+      "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Const.cinchif",
+      "bytes": 12479,
+      "sha256": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Core.cinchif",
+      "bytes": 3904,
+      "sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Enum.cinchif",
+      "bytes": 4694,
+      "sha256": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.FromList.cinchif",
+      "bytes": 1800,
+      "sha256": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.FromMap.cinchif",
+      "bytes": 2022,
+      "sha256": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Hash.cinchif",
+      "bytes": 1284,
+      "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.HashMap.cinchif",
+      "bytes": 19114,
+      "sha256": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Identity.cinchif",
+      "bytes": 13328,
+      "sha256": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Int.cinchif",
+      "bytes": 29636,
+      "sha256": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Json.cinchif",
+      "bytes": 5424,
+      "sha256": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.List.cinchif",
+      "bytes": 53382,
+      "sha256": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Machine.cinchif",
+      "bytes": 581879,
+      "sha256": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Map.cinchif",
+      "bytes": 15135,
+      "sha256": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Nat.cinchif",
+      "bytes": 29417,
+      "sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.NonEmpty.cinchif",
+      "bytes": 13284,
+      "sha256": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.NonZero.cinchif",
+      "bytes": 8528,
+      "sha256": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Option.cinchif",
+      "bytes": 28860,
+      "sha256": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Ordering.cinchif",
+      "bytes": 7027,
+      "sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Path.cinchif",
+      "bytes": 6270,
+      "sha256": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Producer.cinchif",
+      "bytes": 8542,
+      "sha256": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Result.cinchif",
+      "bytes": 17758,
+      "sha256": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Set.cinchif",
+      "bytes": 15631,
+      "sha256": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Sorted.cinchif",
+      "bytes": 2250,
+      "sha256": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.String.cinchif",
+      "bytes": 31951,
+      "sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Sym.cinchif",
+      "bytes": 8613,
+      "sha256": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Target.cinchif",
+      "bytes": 7264,
+      "sha256": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Data.Wide.cinchif",
+      "bytes": 177190,
+      "sha256": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Clock.cinchif",
+      "bytes": 5643,
+      "sha256": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Concurrent.cinchif",
+      "bytes": 2795,
+      "sha256": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Fs.cinchif",
+      "bytes": 19329,
+      "sha256": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Io.cinchif",
+      "bytes": 4334,
+      "sha256": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Process.cinchif",
+      "bytes": 28556,
+      "sha256": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Sequencing.cinchif",
+      "bytes": 4868,
+      "sha256": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Stm.TBQueue.cinchif",
+      "bytes": 7822,
+      "sha256": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Stm.TMVar.cinchif",
+      "bytes": 8818,
+      "sha256": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Stm.TQueue.cinchif",
+      "bytes": 7322,
+      "sha256": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Stm.TSem.cinchif",
+      "bytes": 4558,
+      "sha256": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Effect.Stm.cinchif",
+      "bytes": 26973,
+      "sha256": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Function.Combinators.cinchif",
+      "bytes": 4656,
+      "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Main.cinchif",
+      "bytes": 11219,
+      "sha256": "37ce83880177fdd42e725b088f541e91b4a190e2fe79ec473f916ecee419f23e"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Prelude.cinchif",
+      "bytes": 419421,
+      "sha256": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Prim.Sys.Darwin.cinchif",
+      "bytes": 27114,
+      "sha256": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Prim.Sys.Linux.cinchif",
+      "bytes": 21362,
+      "sha256": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Prim.Sys.Portable.cinchif",
+      "bytes": 13232,
+      "sha256": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Prim.Sys.cinchif",
+      "bytes": 19276,
+      "sha256": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Relation.Eq.cinchif",
+      "bytes": 1774,
+      "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Relation.Ord.cinchif",
+      "bytes": 6745,
+      "sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Text.Builder.cinchif",
+      "bytes": 6781,
+      "sha256": "0da3ae7845acd251a20727f0823658d377ba73d69fd6aff56bdc46f170277e31"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Text.Codec.cinchif",
+      "bytes": 6572,
+      "sha256": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Text.Json.cinchif",
+      "bytes": 25440,
+      "sha256": "257380b506ac7ddc024ccb1270b1db76ae8eb4f80a49e2e8249f30156345ea62"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Text.Lex.cinchif",
+      "bytes": 36813,
+      "sha256": "e1756adfaa01243be9e7511383babb91ef09256f57b18635c43100c07e655dec"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Text.Parse.cinchif",
+      "bytes": 41828,
+      "sha256": "4880204df61c74bdd850db3a75499045af60db9666a06e3120cde2d9e97b5da7"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Text.Scan.cinchif",
+      "bytes": 18444,
+      "sha256": "232be96f0a467f27175c0968f62c7256ca0f4b93180ab2171d52f0a7adc6bc04"
+    },
+    {
+      "path": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/build/Text.Show.cinchif",
+      "bytes": 6568,
+      "sha256": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397"
+    }
+  ],
+  "raw_interface_bytes": 3983532,
+  "raw_source_preserved": true,
+  "seconds": 0.05396382199251093
+}

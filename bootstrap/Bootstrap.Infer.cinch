@@ -19,7 +19,7 @@ module Bootstrap.Infer where
   import Bootstrap.Instance
   import Bootstrap.Global
   import Bootstrap.Contracts (declaration-references, expr-references)
-  import Bootstrap.Load (InterfaceSet, load-checked-interface-set-from-contracts, interface-set-body, interface-set-has-body)
+  import Bootstrap.Load (InterfaceSet, load-checked-body-interface-set-from-documents, interface-set-body, interface-set-has-body)
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
@@ -6755,7 +6755,7 @@ module Bootstrap.Infer where
 
   elaborate-module :: String -> Module -> Elaboration
   elaborate-module label m =
-    let interfaces = load-checked-interface-set-from-contracts (total-interface-inputs (module-decls m)) in
+    let interfaces = load-checked-body-interface-set-from-documents (total-interface-inputs (module-decls m)) in
     elaborate-module-with-source-bodies interfaces True label m
   -- | Elaborate source with authoritative imported kinds, lexical regions and independently checked Core closure.
   elaborate-module-with-source-bodies :: Result String InterfaceSet -> Bool -> String -> Module -> Elaboration

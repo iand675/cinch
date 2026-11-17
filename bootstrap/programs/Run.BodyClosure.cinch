@@ -1,0 +1,103 @@
+-- | Exercise complete imported proof-body closures and independently damaged contracts.
+module Main where
+  import Bootstrap.Load
+  import Bootstrap.Interface (iface-parse)
+  import Bootstrap.Total (total-body)
+  import Data.Json
+  import Data.Nat (nat-to-int)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Effect.Process (process-args)
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Scan (string-contains)
+
+  -- | Read a named observation field without interpreting absent fields as evidence.
+  field :: String -> Json -> Json
+  field name document = case document of
+    JObj key value rest -> if string-compare name key == 0 then value else field name rest
+    other -> JNull
+
+  -- | Read every exact fixture document before calling the proof-authority loader.
+  read-inputs :: forall r. using (io :: Io r) => Json ->{IO r} Result String (List (String, String, Json))
+  read-inputs rows = case rows of
+    JArr (JArr (JStr name) (JArr (JStr hash) (JArr (JStr path) JArrEnd))) rest ->
+      (case fs-read (path-from-string path) of
+        Err error -> Err "cannot read contract fixture"
+        Ok bytes -> case iface-parse bytes of
+          None -> Err "cannot parse contract fixture"
+          Some document -> case read-inputs rest of
+            Err error -> Err error
+            Ok remaining -> Ok (Cons (name, hash, document) remaining))
+    JArrEnd -> Ok Nil
+    other -> Err "malformed input manifest"
+
+  -- | Observe whether the validated result retained a defining interface.
+  has-member :: String -> List LoadedInterface -> Bool
+  has-member name members = case members of
+    Nil -> False
+    Cons first rest -> string-compare name (loaded-module first) == 0 || has-member name rest
+
+  -- | Require the exact presence or absence of each named interface.
+  members-match :: Json -> Bool -> List LoadedInterface -> Bool
+  members-match names expected members = case names of
+    JArr (JStr name) rest -> has-member name members == expected && members-match rest expected members
+    JArrEnd -> True
+    other -> False
+
+  -- | Check actual numeric body semantics rather than accepting an identity alone.
+  bodies-match :: Json -> InterfaceSet -> Bool
+  bodies-match rows interfaces = case rows of
+    JArr (JArr (JStr identity) (JArr expected JArrEnd)) rest ->
+      (case (interface-set-body identity interfaces, expected) of
+        (None, JNull) -> True
+        (Some function, JStr operation) -> (case (field "node" (total-body function), field "operation" (total-body function)) of
+          (JStr node, JStr actual) -> string-compare node "primitive" == 0 && string-compare actual operation == 0
+          other -> False)
+        other -> False) && bodies-match rest interfaces
+    JArrEnd -> True
+    other -> False
+
+  -- | Require the independently stated member count when the fixture supplies one.
+  count-matches :: Json -> List LoadedInterface -> Bool
+  count-matches expected members = case expected of
+    JNum count -> nat-to-int (list-length members) == count
+    JNull -> True
+    other -> False
+
+  -- | Preserve an unexpected verdict before returning a failing observation.
+  failure :: forall r. using (io :: Io r) => String ->{IO r} Int
+  failure detail = case fs-write (path-from-string "body-closure-detail.txt") (string-to-bytes detail) of
+    Ok unit -> 1
+    Err error -> 2
+
+  -- | Distinguish named contract refusals from successful, semantically checked body observations.
+  observe :: forall r. using (io :: Io r) => Json -> List (String, String, Json) ->{IO r} Int
+  observe manifest inputs = case load-checked-body-interface-set-from-documents inputs of
+    Err message -> (case field "expected_error" manifest of
+      JStr expected -> if string-compare expected "" /= 0 && string-contains message expected then 0 else failure message
+      other -> failure message)
+    Ok interfaces -> (case field "expected_error" manifest of
+      JNull -> let members = interface-set-members interfaces in
+        if count-matches (field "member_count" manifest) members
+          && members-match (field "present_members" manifest) True members
+          && members-match (field "absent_members" manifest) False members
+          && bodies-match (field "bodies" manifest) interfaces then 0
+        else failure "accepted body closure failed semantic observations"
+      other -> failure "damaged body closure was accepted")
+
+  -- | Load one independent observation so poisoned allocations cannot accumulate between fixtures.
+  run-fixture :: forall r. using (io :: Io r) => String ->{IO r} Int
+  run-fixture path = case fs-read (path-from-string path) of
+    Err error -> failure "cannot read fixture manifest"
+    Ok bytes -> case parse-json path bytes of
+      Parsed manifest Nil -> (case read-inputs (field "inputs" manifest) of
+        Err error -> failure error
+        Ok inputs -> observe manifest inputs)
+      other -> failure "cannot parse fixture manifest"
+
+  -- | Select exactly one fixture through the public process argument boundary.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons path Nil) -> run-fixture path
+    other -> failure "expected one fixture manifest path"

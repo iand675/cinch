@@ -1,0 +1,18 @@
+{
+  "command": [
+    "taskset",
+    "-c",
+    "2",
+    "/workspace/dasl-stdlib-io/build/staged-word-safe-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/Bundle.cinch"
+  ],
+  "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+  "bundle_sha256": "16efead63cf658f6094812abbaa64b578544e3cd1bd21157e943aebef9ad85e8",
+  "compiler_source_sha256": "bfd69f53c32458eff709c172583a060bebffc913b20bc9d3ed0e300b639ace57",
+  "status": "source-check-incomplete",
+  "cpu": 2,
+  "deadline_seconds": 118,
+  "seconds": 118.13534120400436,
+  "termination_reason": "Explicit118-second dedicatedCPU2 budget expired without a completed compiler verdict"
+}

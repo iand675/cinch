@@ -1,0 +1,39 @@
+{
+  "command": [
+    "taskset",
+    "-c",
+    "2",
+    "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/cinch",
+    "check",
+    "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/Bundle.cinch"
+  ],
+  "compiler_sha256": "fa97942e3f9da884ab9badd1b0463ae28fb3dacd6f3af71cbe9444e1c14e5c5d",
+  "producer_source_sha256": "684ae3e12d52784ff61abe1dd74bd90ae70394db74b9d07c1c4f64add29b131f",
+  "producer_paired_runtime": {
+    "runtime_abi": 10,
+    "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+  },
+  "provider_receipt_sha256": "a6df3c8aab20edfd7e9eef2136a95ea6834b08ae1ef0efaa70e46697121ed01e",
+  "bundle_sha256": "16efead63cf658f6094812abbaa64b578544e3cd1bd21157e943aebef9ad85e8",
+  "compiler_source_sha256": "bfd69f53c32458eff709c172583a060bebffc913b20bc9d3ed0e300b639ace57",
+  "status": "independent-source-check-passed",
+  "cpu": 2,
+  "deadline_seconds": 118,
+  "scope": "Independent source typing only; this producer is not equivalent to37dc/855 and does not qualify any new production or Native compiler family.",
+  "emitted_program_or_runtime_execution": false,
+  "exit": 0,
+  "seconds": 35.19670940600918,
+  "stdout": "",
+  "stderr": "",
+  "interface_retention": {
+    "recovery_index": "/workspace/dasl-stdlib-source-body-closure/build/body-closure-source-check/interface-recovery-v1.json",
+    "recovery_index_sha256": "44e6c83a9706206e2ab7501c01077029c6c0836dcef6eb028bf238ce78171c97",
+    "raw_interface_count": 116,
+    "raw_interface_bytes": 3983532,
+    "manifest_archive_bytes": 213377,
+    "manifest_archive_sha256": "a329245b2ba670dde4595c4d9ba4a58edb4cee969ab3dcb871e45d635343f4e0",
+    "total_retained_interface_manifest_bytes": 4226192,
+    "manifest_raw_removed_after_verified_recovery_index": true
+  }
+}
