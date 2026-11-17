@@ -1,0 +1,3 @@
+# Preserve exact compiler/test output bytes, including diagnostic spacing.
+bootstrap/repros/nominal-region-*/**/*.log -whitespace
+bootstrap/repros/wide-slots-*/**/*.log -whitespace

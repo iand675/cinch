@@ -1,5 +1,5 @@
 {
-  "status": "Focused payload regressions pass; broader post-fix gates remain pending",
+  "status": "Focused and broad Rust gates pass; generic Array<Wide> remains a separate open boundary",
   "source_patch": "042e5f39",
   "defect": "Wide Slots specialized units accepted/returned i64 while callers supplied/expected i128. The pre-Role legacy and explicit-Role controls produced byte-identical executables and both failed observation15.",
   "baseline_control_sha256": "8bdc3758e3ee1733d7596746cc68ea6d9311b9e9f1a2bef83f30479040577ee2",
@@ -46,5 +46,11 @@
     "elapsed_seconds": 60.49,
     "log": "bootstrap/repros/wide-slots-qualified/existing-wide.log",
     "sha256": "df90cf69fc7fad14eddc7b17e687b6bbcabb4b8e3d23ac7ab65dbe6c2579947b"
+  },
+  "mvar_regression_gate": {
+    "passed": 12,
+    "elapsed_seconds": 32.89,
+    "log": "bootstrap/repros/wide-slots-qualified/mvar.log",
+    "sha256": "9c56d6176df3935fcc809f95bb2154f86d6dedc4bcbcabffc50814e7a8416110"
   }
 }
