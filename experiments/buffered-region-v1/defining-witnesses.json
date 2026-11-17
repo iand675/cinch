@@ -1,0 +1,520 @@
+{
+  "original_audit_sha256": "b4909fcb7e2822dbb77ebf246f720577bac25e4c66c13815d2f0906d30a6e62e",
+  "interface_epoch": "Genuine aggregate190-module Role check before the subsequent Slots/Array codegen-only repairs",
+  "scope": "A complete checked scheme applies a nominal recorded Type parameter to a variable explicitly quantified as Region. Historical headers remain authoritative; propose explicit source declarations and regenerate/requalify each closure.",
+  "inputs": [
+    {
+      "module": "Effect.Buffered.Core",
+      "sha256": "c9a2e846af19ef442e29b12a5bbdc7cc956011e5a09116c0a81e49f603d61647",
+      "source_hash": "16056988877249378404"
+    },
+    {
+      "module": "Effect.Buffered.Internal.Cell",
+      "sha256": "d0d62a059741b36e95b0457296280a8a863ab2033a3ac93147b8450f0461d0e3",
+      "source_hash": "9069963093080302335"
+    },
+    {
+      "module": "Effect.Stream",
+      "sha256": "ce23b02f463dc6dc94bbdbe9dbb049a66fdf4a1aeb46b2ebafdaa19a8af6de7c",
+      "source_hash": "8660256541330008431"
+    }
+  ],
+  "candidates": [
+    {
+      "identity": "Effect.Buffered.Core.BufferSink",
+      "parameter": "r",
+      "position": 0,
+      "recorded_kind": "Type",
+      "uses": [
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). ((Bytes ->{IO r} (Effect.Buffered.Core.WriteEvent, (Effect.Buffered.Core.BufferSink r))) -> (Effect.Buffered.Core.BufferSink r))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink-from-stream",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteWriter r) -> (Effect.Buffered.Core.BufferSink r))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink-has-text",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Buffered.Core.BufferSink r) ->{IO r} Bool)"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink-has-transfer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Buffered.Core.BufferSink r) ->{IO r} Bool)"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink-transfer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Buffered.Core.BufferSink r) -> ((Effect.Buffered.Core.BufferSource r) ->{IO r} ((Data.Core.Option Effect.Buffered.Core.TransferEvent), (Effect.Buffered.Core.BufferSource r), (Effect.Buffered.Core.BufferSink r))))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink-with-text",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). ((Effect.Buffered.Core.BufferSink r) -> ((Bytes ->{IO r} (Effect.Buffered.Core.WriteEvent, (Effect.Buffered.Core.BufferSink r))) -> (Effect.Buffered.Core.BufferSink r)))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink-with-transfer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). ((Effect.Buffered.Core.BufferSink r) -> (((Nat ->{IO r} Effect.Buffered.Core.ReadEvent) ->{IO r} (Effect.Buffered.Core.TransferEvent, (Effect.Buffered.Core.BufferSink r))) -> (Effect.Buffered.Core.BufferSink r)))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink-write",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Buffered.Core.BufferSink r) -> (Bytes ->{IO r} (Effect.Buffered.Core.WriteEvent, (Effect.Buffered.Core.BufferSink r))))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink-write-text",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Buffered.Core.BufferSink r) -> (Bytes ->{IO r} ((Data.Core.Option Effect.Buffered.Core.WriteEvent), (Effect.Buffered.Core.BufferSink r))))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-source-transfer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Buffered.Core.BufferSource r) -> ((Effect.Buffered.Core.BufferSink r) ->{IO r} ((Data.Core.Option Effect.Buffered.Core.TransferEvent), (Effect.Buffered.Core.BufferSource r), (Effect.Buffered.Core.BufferSink r))))"
+        }
+      ]
+    },
+    {
+      "identity": "Effect.Buffered.Core.BufferSource",
+      "parameter": "r",
+      "position": 0,
+      "recorded_kind": "Type",
+      "uses": [
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink-transfer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Buffered.Core.BufferSink r) -> ((Effect.Buffered.Core.BufferSource r) ->{IO r} ((Data.Core.Option Effect.Buffered.Core.TransferEvent), (Effect.Buffered.Core.BufferSource r), (Effect.Buffered.Core.BufferSink r))))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-source",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). ((Nat ->{IO r} (Effect.Buffered.Core.ReadEvent, (Effect.Buffered.Core.BufferSource r))) -> (Effect.Buffered.Core.BufferSource r))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-source-from-stream",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) -> (Effect.Buffered.Core.BufferSource r))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-source-has-transfer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Buffered.Core.BufferSource r) ->{IO r} Bool)"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-source-read",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Buffered.Core.BufferSource r) -> (Nat ->{IO r} (Effect.Buffered.Core.ReadEvent, (Effect.Buffered.Core.BufferSource r))))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-source-transfer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Buffered.Core.BufferSource r) -> ((Effect.Buffered.Core.BufferSink r) ->{IO r} ((Data.Core.Option Effect.Buffered.Core.TransferEvent), (Effect.Buffered.Core.BufferSource r), (Effect.Buffered.Core.BufferSink r))))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-source-with-transfer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). ((Effect.Buffered.Core.BufferSource r) -> (((Bytes ->{IO r} Effect.Buffered.Core.WriteEvent) ->{IO r} (Effect.Buffered.Core.TransferEvent, (Effect.Buffered.Core.BufferSource r))) -> (Effect.Buffered.Core.BufferSource r)))"
+        }
+      ]
+    },
+    {
+      "identity": "Effect.Buffered.Internal.Cell.IoCell",
+      "parameter": "r",
+      "position": 0,
+      "recorded_kind": "Type",
+      "uses": [
+        {
+          "module": "Effect.Buffered.Internal.Cell",
+          "value": "cell-new",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region) (a :: Type). (a ->{IO r} ((Effect.Buffered.Internal.Cell.IoCell r) a))"
+        },
+        {
+          "module": "Effect.Buffered.Internal.Cell",
+          "value": "cell-read",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region) (a :: Type). (((Effect.Buffered.Internal.Cell.IoCell r) a) ->{IO r} a)"
+        },
+        {
+          "module": "Effect.Buffered.Internal.Cell",
+          "value": "cell-write",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region) (a :: Type). (((Effect.Buffered.Internal.Cell.IoCell r) a) -> (a ->{IO r} Unit))"
+        }
+      ]
+    },
+    {
+      "identity": "Effect.Stream.ByteReader",
+      "parameter": "r",
+      "position": 0,
+      "recorded_kind": "Type",
+      "uses": [
+        {
+          "module": "Effect.Adler32",
+          "value": "adler32-copy",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Nat -> ((Effect.Stream.ByteReader r) -> (Text.Adler32.Adler32State ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), ((Effect.Stream.ByteReader r), Text.Adler32.Adler32State)))))"
+        },
+        {
+          "module": "Effect.Ascii85",
+          "value": "ascii85-reader",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) -> (Effect.Stream.ByteReader r))"
+        },
+        {
+          "module": "Effect.Base32",
+          "value": "base32-reader",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Text.Base32.Base32Encoding -> ((Effect.Stream.ByteReader r) -> (Effect.Stream.ByteReader r)))"
+        },
+        {
+          "module": "Effect.Base64",
+          "value": "base64-reader",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Text.Base64.Encoding.Base64Encoding -> ((Effect.Stream.ByteReader r) -> (Effect.Stream.ByteReader r)))"
+        },
+        {
+          "module": "Effect.Binary",
+          "value": "binary-read",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region) (a :: Type). using (io :: Io r) => ((Text.Binary.Layout.BinaryLayout a) -> (Text.Binary.Layout.BinaryOrder -> ((Effect.Stream.ByteReader r) ->{IO r} (((Data.Core.Result Effect.Binary.BinaryStreamError) a), (Effect.Stream.ByteReader r)))))"
+        },
+        {
+          "module": "Effect.Binary",
+          "value": "binary-read-uvarint",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) ->{IO r} (((Data.Core.Result Effect.Binary.BinaryStreamError) (U64, Nat)), (Effect.Stream.ByteReader r)))"
+        },
+        {
+          "module": "Effect.Binary",
+          "value": "binary-read-varint",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) ->{IO r} (((Data.Core.Result Effect.Binary.BinaryStreamError) (I64, Nat)), (Effect.Stream.ByteReader r)))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-source-from-stream",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) -> (Effect.Buffered.Core.BufferSource r))"
+        },
+        {
+          "module": "Effect.Crc64",
+          "value": "crc64-copy",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Nat -> ((Effect.Stream.ByteReader r) -> (Text.Crc64.Crc64State ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), ((Effect.Stream.ByteReader r), Text.Crc64.Crc64State)))))"
+        },
+        {
+          "module": "Effect.Fnv",
+          "value": "fnv-copy",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Nat -> ((Effect.Stream.ByteReader r) -> (Effect.Fnv.FnvWriter ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), ((Effect.Stream.ByteReader r), Effect.Fnv.FnvWriter)))))"
+        },
+        {
+          "module": "Effect.Hex",
+          "value": "hex-reader",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) -> (Effect.Stream.ByteReader r))"
+        },
+        {
+          "module": "Effect.Mime",
+          "value": "mime-charset-reader-from-stream",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region) (e :: Type). using (io :: Io r) => ((Effect.Stream.StreamError -> e) -> ((Effect.Stream.ByteReader r) -> ((Effect.Mime.MimeCharsetReader r) e)))"
+        },
+        {
+          "module": "Effect.Mime",
+          "value": "mime-word-decoder",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region) (e :: Type). ((Data.Core.Option (Data.String.String -> ((Effect.Stream.ByteReader r) ->{IO r} ((Data.Core.Result e) ((Effect.Mime.MimeCharsetReader r) e))))) -> ((Effect.Mime.MimeWordDecoder r) e))"
+        },
+        {
+          "module": "Effect.Mime",
+          "value": "mime-word-decoder-charset-reader",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region) (e :: Type). (((Effect.Mime.MimeWordDecoder r) e) -> (Data.Core.Option (Data.String.String -> ((Effect.Stream.ByteReader r) ->{IO r} ((Data.Core.Result e) ((Effect.Mime.MimeCharsetReader r) e))))))"
+        },
+        {
+          "module": "Effect.Mime",
+          "value": "mime-word-decoder-with-charset-reader",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region) (old :: Type) (fresh :: Type). ((Data.Core.Option (Data.String.String -> ((Effect.Stream.ByteReader r) ->{IO r} ((Data.Core.Result fresh) ((Effect.Mime.MimeCharsetReader r) fresh))))) -> (((Effect.Mime.MimeWordDecoder r) old) -> ((Effect.Mime.MimeWordDecoder r) fresh)))"
+        },
+        {
+          "module": "Effect.QuotedPrintable",
+          "value": "quoted-printable-reader-as-stream",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.QuotedPrintable.QuotedPrintableReader r) -> (Effect.Stream.ByteReader r))"
+        },
+        {
+          "module": "Effect.Sha256",
+          "value": "sha256-copy",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Nat -> ((Effect.Stream.ByteReader r) -> (Text.Sha256.Sha256State ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), ((Effect.Stream.ByteReader r), Text.Sha256.Sha256State)))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "reader-concat",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Data.Core.List (Effect.Stream.ByteReader r)) -> (Effect.Stream.ByteReader r))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "reader-from-bytes",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Bytes -> (Effect.Stream.ByteReader r))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "reader-from-fd",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (I64 -> (Effect.Stream.ByteReader r))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "reader-from-string",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Data.String.String -> (Effect.Stream.ByteReader r))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "reader-limit",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Nat -> ((Effect.Stream.ByteReader r) -> (Effect.Stream.ByteReader r)))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "reader-tee",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) -> ((Effect.Stream.ByteWriter r) -> (Effect.Stream.ByteReader r)))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-copy",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Nat -> ((Effect.Stream.ByteReader r) -> ((Effect.Stream.ByteWriter r) ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), ((Effect.Stream.ByteReader r), (Effect.Stream.ByteWriter r))))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-copy-n",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Nat -> (Nat -> ((Effect.Stream.ByteReader r) -> ((Effect.Stream.ByteWriter r) ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), ((Effect.Stream.ByteReader r), (Effect.Stream.ByteWriter r)))))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-read",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) -> (Nat ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Bytes), (Effect.Stream.ByteReader r))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-read-all",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Nat -> ((Effect.Stream.ByteReader r) ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Bytes), (Effect.Stream.ByteReader r))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-read-at-least",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) -> (Nat -> (Nat ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Bytes), (Effect.Stream.ByteReader r)))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-read-exact",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) -> (Nat ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Bytes), (Effect.Stream.ByteReader r))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-reader",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). ((Nat ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Bytes), (Effect.Stream.ByteReader r))) -> (Effect.Stream.ByteReader r))"
+        }
+      ]
+    },
+    {
+      "identity": "Effect.Stream.ByteWriter",
+      "parameter": "r",
+      "position": 0,
+      "recorded_kind": "Type",
+      "uses": [
+        {
+          "module": "Effect.Adler32",
+          "value": "adler32-hashing-writer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Text.Adler32.Adler32State -> (Effect.Stream.ByteWriter r))"
+        },
+        {
+          "module": "Effect.Ascii85",
+          "value": "ascii85-finish",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Ascii85.Ascii85Writer r) ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Unit), (Effect.Stream.ByteWriter r)))"
+        },
+        {
+          "module": "Effect.Base32",
+          "value": "base32-finish",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Base32.Base32Writer r) ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Unit), (Effect.Stream.ByteWriter r)))"
+        },
+        {
+          "module": "Effect.Base64",
+          "value": "base64-finish",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Base64.Base64Writer r) ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Unit), (Effect.Stream.ByteWriter r)))"
+        },
+        {
+          "module": "Effect.Binary",
+          "value": "binary-write",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region) (a :: Type). using (io :: Io r) => ((Text.Binary.Layout.BinaryLayout a) -> (Text.Binary.Layout.BinaryOrder -> ((Effect.Stream.ByteWriter r) -> (a ->{IO r} (((Data.Core.Result Effect.Binary.BinaryStreamError) Nat), (Effect.Stream.ByteWriter r))))))"
+        },
+        {
+          "module": "Effect.Binary",
+          "value": "binary-write-uvarint",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteWriter r) -> (U64 ->{IO r} (((Data.Core.Result Effect.Binary.BinaryStreamError) Nat), (Effect.Stream.ByteWriter r))))"
+        },
+        {
+          "module": "Effect.Binary",
+          "value": "binary-write-varint",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteWriter r) -> (I64 ->{IO r} (((Data.Core.Result Effect.Binary.BinaryStreamError) Nat), (Effect.Stream.ByteWriter r))))"
+        },
+        {
+          "module": "Effect.Buffered.Core",
+          "value": "buffer-sink-from-stream",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteWriter r) -> (Effect.Buffered.Core.BufferSink r))"
+        },
+        {
+          "module": "Effect.Crc64",
+          "value": "crc64-hashing-writer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Text.Crc64.Crc64State -> (Effect.Stream.ByteWriter r))"
+        },
+        {
+          "module": "Effect.Fnv",
+          "value": "fnv-hashing-writer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Text.Fnv.State.FnvState -> (Effect.Stream.ByteWriter r))"
+        },
+        {
+          "module": "Effect.Hex",
+          "value": "hex-encoding-writer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteWriter r) -> (Effect.Stream.ByteWriter r))"
+        },
+        {
+          "module": "Effect.Mime",
+          "value": "mime-header-write",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region) (e :: Type). using (io :: Io r) => (((Effect.Mime.MimeWordDecoder r) e) -> (Bytes -> ((Effect.Stream.ByteWriter r) ->{IO r} (((Data.Core.Result (Effect.Mime.MimeDecodeFailure e)) Nat), (Effect.Stream.ByteWriter r)))))"
+        },
+        {
+          "module": "Effect.Mime",
+          "value": "mime-word-write",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Text.Mime.MimeWordEncoder -> (Bytes -> (Bytes -> ((Effect.Stream.ByteWriter r) ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), (Effect.Stream.ByteWriter r))))))"
+        },
+        {
+          "module": "Effect.Pem",
+          "value": "pem-write",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteWriter r) -> (Text.Pem.PemBlock ->{IO r} (((Data.Core.Result Text.Pem.PemError) Unit), (Effect.Stream.ByteWriter r))))"
+        },
+        {
+          "module": "Effect.QuotedPrintable",
+          "value": "quoted-printable-finish",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.QuotedPrintable.QuotedPrintableWriter r) ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Unit), (Effect.Stream.ByteWriter r)))"
+        },
+        {
+          "module": "Effect.Sha256",
+          "value": "sha256-hashing-writer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Text.Sha256.Sha256State -> (Effect.Stream.ByteWriter r))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "reader-tee",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteReader r) -> ((Effect.Stream.ByteWriter r) -> (Effect.Stream.ByteReader r)))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-copy",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Nat -> ((Effect.Stream.ByteReader r) -> ((Effect.Stream.ByteWriter r) ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), ((Effect.Stream.ByteReader r), (Effect.Stream.ByteWriter r))))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-copy-n",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (Nat -> (Nat -> ((Effect.Stream.ByteReader r) -> ((Effect.Stream.ByteWriter r) ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), ((Effect.Stream.ByteReader r), (Effect.Stream.ByteWriter r)))))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-write",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteWriter r) -> (Bytes ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), (Effect.Stream.ByteWriter r))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-write-all",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteWriter r) -> (Bytes ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), (Effect.Stream.ByteWriter r))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-write-string",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteWriter r) -> (Data.String.String ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), (Effect.Stream.ByteWriter r))))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "stream-writer",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). ((Bytes ->{IO r} (((Data.Core.Result Effect.Stream.StreamError) Nat), (Effect.Stream.ByteWriter r))) -> (Effect.Stream.ByteWriter r))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "writer-concat",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Data.Core.List (Effect.Stream.ByteWriter r)) -> (Effect.Stream.ByteWriter r))"
+        },
+        {
+          "module": "Effect.Stream",
+          "value": "writer-from-fd",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => (I64 -> (Effect.Stream.ByteWriter r))"
+        },
+        {
+          "module": "Text.Pem",
+          "value": "pem-write",
+          "region_argument": "r",
+          "scheme": "forall (r :: Region). using (io :: Io r) => ((Effect.Stream.ByteWriter r) -> (Text.Pem.PemBlock ->{IO r} (((Data.Core.Result Text.Pem.PemError) Unit), (Effect.Stream.ByteWriter r))))"
+        }
+      ]
+    }
+  ]
+}
