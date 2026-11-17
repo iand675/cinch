@@ -1,0 +1,645 @@
+{
+  "scope": "Separate UTF8 owner-touch reassociation, matched public performance and ordinary-RC allocation diagnosis",
+  "decision": "Do not adopt: aggregate return is immediately reboxed in all three scanner call sites; measured target regressions and no dominant allocation reduction",
+  "production_unchanged": true,
+  "production_utf8_sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+  "candidate_utf8_sha256": "f516885ab530fcbe083e6c80d59e8ef724daee6dade0f99710a77ce92cb0a8a1",
+  "raw_samples": "bootstrap/stdlib-byte-fields-cpr-benchmark-samples.json",
+  "raw_samples_sha256": "72648ff312b2cd83036e389cfbed67f1f72a931800ad1ba01dc59fd81c156959",
+  "allocation_diagnostics": "bootstrap/stdlib-byte-fields-cpr-allocation-diagnostics.json",
+  "allocation_diagnostics_sha256": "62e6e89bd932b50214111ebef9081821dc558eb692f26bb82f8a810b0bcc4e48",
+  "paired_observations": 104,
+  "warmups": 26,
+  "included_samples": 78,
+  "conditions": 13,
+  "samples_per_condition": 3,
+  "script_wall_seconds": 2.6603136789926793,
+  "session": {
+    "scope": "Root-granted exclusiveCPU0 existing-binary paired UTF8 reassociation; no compilation",
+    "plan_sha256": "5ce66edcd009960ef47aee6ba6dd349617794f81c965d2c7355f24c88c11ce12",
+    "before_free_bytes": 945434624,
+    "start_guard_bytes": 314572800,
+    "reserve_bytes": 262144000,
+    "new_report_limit_bytes": 5242880,
+    "build_default_guard_unchanged_bytes": 367001600,
+    "background": "Root explicit START: all peers held, JSON completed inactive, Root process inspection no heavy jobs/no Cargo",
+    "status": "passed",
+    "exit_code": 0,
+    "wall_seconds": 2.789227163011674,
+    "after_free_bytes": 945315840,
+    "new_report_bytes": 108760
+  },
+  "quota_before": {
+    "affinity": [
+      0
+    ],
+    "cpu.max": "400000 100000\n",
+    "cpu.stat": "usage_usec 159608695843\nuser_usec 149757004713\nsystem_usec 9851691129\nnice_usec 481860771\nnr_periods 1204168\nnr_throttled 42005\nthrottled_usec 1757103457\nnr_bursts 0\nburst_usec 0\n",
+    "cpuset.cpus.effective": "0-4\n"
+  },
+  "quota_after": {
+    "affinity": [
+      0
+    ],
+    "cpu.max": "400000 100000\n",
+    "cpu.stat": "usage_usec 159611298988\nuser_usec 149759488168\nsystem_usec 9851810819\nnice_usec 481860771\nnr_periods 1204195\nnr_throttled 42005\nthrottled_usec 1757103457\nnr_bursts 0\nburst_usec 0\n",
+    "cpuset.cpus.effective": "0-4\n"
+  },
+  "throttled_period_delta": 0,
+  "throttled_usec_delta": 0,
+  "all_output_owner_and_leak_controls_pass": true,
+  "summaries": [
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "text",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 4219762,
+          "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+          "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 1477.25,
+        "rust706-reassociated": 1337.0
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          1332.0,
+          1477.25,
+          1514.75
+        ],
+        "rust706-reassociated": [
+          1287.0,
+          1364.5,
+          1337.0
+        ]
+      },
+      "baseline_over_reassociated": 1.1048990276738968
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "dense",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3443094013564216172,
+          "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+          "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 774943.0,
+        "rust706-reassociated": 866140.5
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          774943.0,
+          746129.5,
+          851406.0
+        ],
+        "rust706-reassociated": [
+          850534.75,
+          866140.5,
+          952476.25
+        ]
+      },
+      "baseline_over_reassociated": 0.8947081911075628
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "unicode",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 5441481174952903992,
+          "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+          "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 487316.0,
+        "rust706-reassociated": 491602.5
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          487316.0,
+          556074.75,
+          484980.0
+        ],
+        "rust706-reassociated": [
+          584084.5,
+          459191.0,
+          491602.5
+        ]
+      },
+      "baseline_over_reassociated": 0.9912805569540432
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 4504.25,
+        "rust706-reassociated": 4071.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          4532.0,
+          4504.25,
+          4133.75
+        ],
+        "rust706-reassociated": [
+          11610.0,
+          4016.25,
+          4071.25
+        ]
+      },
+      "baseline_over_reassociated": 1.1063555419097328
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "space",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 9612,
+          "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+          "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 4614.5,
+        "rust706-reassociated": 4712.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          4541.75,
+          4614.5,
+          5172.75
+        ],
+        "rust706-reassociated": [
+          4336.5,
+          4712.25,
+          5270.5
+        ]
+      },
+      "baseline_over_reassociated": 0.9792561939625445
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 13888439.0,
+        "rust706-reassociated": 14891465.0
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          13381104.0,
+          15183692.75,
+          13888439.0
+        ],
+        "rust706-reassociated": [
+          13348601.0,
+          16434091.25,
+          14891465.0
+        ]
+      },
+      "baseline_over_reassociated": 0.9326442361446641
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "unicode",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3957006886023267640,
+          "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+          "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 7670184.5,
+        "rust706-reassociated": 8021210.0
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          8622373.0,
+          7470119.75,
+          7670184.5
+        ],
+        "rust706-reassociated": [
+          9681374.75,
+          7842111.75,
+          8021210.0
+        ]
+      },
+      "baseline_over_reassociated": 0.9562378369348266
+    },
+    {
+      "condition": {
+        "kind": "producer",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 5210.5,
+        "rust706-reassociated": 4639.5
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          5623.5,
+          5085.25,
+          5210.5
+        ],
+        "rust706-reassociated": [
+          4614.5,
+          4639.5,
+          51883.5
+        ]
+      },
+      "baseline_over_reassociated": 1.1230736070697274
+    },
+    {
+      "condition": {
+        "kind": "producer",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 14433532.25,
+        "rust706-reassociated": 13491176.5
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          14433532.25,
+          13285228.0,
+          14613887.25
+        ],
+        "rust706-reassociated": [
+          13346590.5,
+          13491176.5,
+          13599294.75
+        ]
+      },
+      "baseline_over_reassociated": 1.069849782930347
+    },
+    {
+      "condition": {
+        "kind": "visit",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 5037.5,
+        "rust706-reassociated": 4829.75
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          5037.5,
+          5135.25,
+          4794.75
+        ],
+        "rust706-reassociated": [
+          4877.25,
+          4722.25,
+          4829.75
+        ]
+      },
+      "baseline_over_reassociated": 1.0430146487913452
+    },
+    {
+      "condition": {
+        "kind": "visit",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 13206504.0,
+        "rust706-reassociated": 13083242.75
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          12571488.75,
+          13206504.0,
+          13282931.75
+        ],
+        "rust706-reassociated": [
+          12274198.25,
+          14364157.5,
+          13083242.75
+        ]
+      },
+      "baseline_over_reassociated": 1.0094213072672675
+    },
+    {
+      "condition": {
+        "kind": "predicate",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 4375839.0,
+        "rust706-reassociated": 4875686.5
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          4375839.0,
+          4173806.25,
+          4639377.25
+        ],
+        "rust706-reassociated": [
+          4594156.25,
+          4875686.5,
+          5955891.75
+        ]
+      },
+      "baseline_over_reassociated": 0.8974816161785627
+    },
+    {
+      "condition": {
+        "kind": "effect",
+        "pattern": "unicode",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3957006906613826872,
+          "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+          "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust706-simd": 7700032.5,
+        "rust706-reassociated": 7805576.75
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust706-simd": [
+          7700032.5,
+          7874300.5,
+          7620649.75
+        ],
+        "rust706-reassociated": [
+          7621511.0,
+          7805576.75,
+          8396880.0
+        ]
+      },
+      "baseline_over_reassociated": 0.9864783534413393
+    }
+  ],
+  "assembly_review": {
+    "scope": "Matched actual linked O2 disassembly; static calls only, not dynamic allocation counts",
+    "functions": [
+      {
+        "variant": "simd",
+        "function": "Data.Bytes.Fields.scan-space",
+        "start": 184352,
+        "end": 190864,
+        "scope": "entry through next distinct named function, including private tail body",
+        "assembly": "build/byte-fields-bench-rust706-simd/scan-space-cpr-review.asm",
+        "assembly_sha256": "97549f3a7bacf387dc7878da6b7e4d77640ad118954030936819984ce2a6c2c4",
+        "calls": {
+          "cinch_alloc_ctor": 12,
+          "cinch_dup_mt": 11,
+          "cinch_nat_sub": 6,
+          "cinch_drop_slow": 31,
+          "cinch_drop_mt": 31,
+          "cinch_nat_cmp": 10,
+          "Data.Bytes.View.byte-view-ascii-space-run-end": 1,
+          "cinch_free": 5,
+          "Data.Bytes.Fields.ascii-run-end": 1,
+          "Data.Bytes.View.byte-view-utf8-at": 1,
+          "cinch_nat_add": 5,
+          "Data.Unicode.Tables.unicode-data-class": 2,
+          "Data.Bytes.Utf8.utf8-decode-between": 1,
+          "cinch.rc.dup.obj": 5,
+          "cinch.rc.dup.tobj": 5,
+          "cinch.rc.drop.tobj": 15,
+          "cinch.rc.drop.obj": 7,
+          "cinch_bytes_len": 2,
+          "Data.Bytes.View.byte-view-drop": 1,
+          "Data.Bytes.View.byte-view-take": 1
+        }
+      },
+      {
+        "variant": "simd",
+        "function": "Data.Bytes.Fields.scan-with",
+        "start": 176864,
+        "end": 183632,
+        "scope": "entry through next distinct named function, including private tail body",
+        "assembly": "build/byte-fields-bench-rust706-simd/scan-with-cpr-review.asm",
+        "assembly_sha256": "5cfe9816e591b871053c011fff290a300be555bfdcecd67c880bbc03f1c70155",
+        "calls": {
+          "cinch_dup_mt": 13,
+          "cinch_nat_sub": 7,
+          "cinch_drop_slow": 34,
+          "cinch_drop_mt": 34,
+          "cinch_nat_cmp": 9,
+          "cinch_nat_add": 5,
+          "Data.Bytes.Utf8.utf8-decode-between": 1,
+          "cinch_free": 4,
+          "cinch_alloc_ctor": 12,
+          "Data.Bytes.View.byte-view-utf8-at": 1,
+          "cinch.rc.dup.obj": 5,
+          "cinch.rc.dup.tobj": 5,
+          "Data.Bytes.Fields.finish-field": 1,
+          "Data.Bytes.View.byte-view-drop": 1,
+          "Data.Bytes.View.byte-view-take": 1,
+          "cinch.rc.drop.tobj": 15,
+          "cinch.rc.drop.obj": 7,
+          "cinch_bytes_len": 2
+        }
+      },
+      {
+        "variant": "simd",
+        "function": "Data.Bytes.Utf8.utf8-decode-between",
+        "start": 154000,
+        "end": 155632,
+        "scope": "entry through next distinct named function, including private tail body",
+        "assembly": "build/byte-fields-bench-rust706-simd/utf8-decode-between-cpr-review.asm",
+        "assembly_sha256": "aae867f3e2f40d9b88c6a536d06be622d6f08d8f784514e6db62d4824ffb92b9",
+        "calls": {
+          "cinch_nat_cmp": 5,
+          "cinch_bytes_len": 4,
+          "cinch_dup_mt": 1,
+          "cinch_drop_slow": 8,
+          "cinch_drop_mt": 8,
+          "cinch_alloc_ctor": 4,
+          "cinch_nat_to_i64": 2,
+          "cinch_bytes_data": 1,
+          "Data.Bytes.Utf8.decode-word.llvm": 1,
+          "cinch.rc.drop.obj": 2,
+          "cinch_free": 1,
+          "cinch_nat_mul": 1,
+          "cinch_nat_add": 1
+        }
+      },
+      {
+        "variant": "reassociated",
+        "function": "Data.Bytes.Fields.scan-space",
+        "start": 184928,
+        "end": 192048,
+        "scope": "entry through next distinct named function, including private tail body",
+        "assembly": "build/byte-fields-bench-rust706-reassociated/scan-space-cpr-review.asm",
+        "assembly_sha256": "0aac62d72721d9a8e01182638f899552f3c9e3fc03d1f19c9008bb96fe39d79f",
+        "calls": {
+          "cinch_alloc_ctor": 15,
+          "cinch_dup_mt": 11,
+          "cinch_nat_sub": 6,
+          "cinch_drop_slow": 33,
+          "cinch_drop_mt": 33,
+          "cinch_nat_cmp": 10,
+          "Data.Bytes.View.byte-view-ascii-space-run-end": 1,
+          "cinch_free": 5,
+          "Data.Bytes.Fields.ascii-run-end": 1,
+          "Data.Bytes.View.byte-view-utf8-at#cc": 1,
+          "cinch_nat_add": 6,
+          "Data.Unicode.Tables.unicode-data-class": 2,
+          "Data.Bytes.Utf8.utf8-decode-between#cc": 2,
+          "cinch.rc.dup.obj": 5,
+          "cinch.rc.dup.tobj": 5,
+          "cinch.rc.drop.tobj": 15,
+          "cinch.rc.drop.obj": 7,
+          "cinch_bytes_len": 2,
+          "Data.Bytes.View.byte-view-drop": 1,
+          "Data.Bytes.View.byte-view-take": 1
+        }
+      },
+      {
+        "variant": "reassociated",
+        "function": "Data.Bytes.Fields.scan-with",
+        "start": 177024,
+        "end": 184208,
+        "scope": "entry through next distinct named function, including private tail body",
+        "assembly": "build/byte-fields-bench-rust706-reassociated/scan-with-cpr-review.asm",
+        "assembly_sha256": "f2653b1f847996ed45b86a1749af96024175534cae194b9c12a2d7619c075a2c",
+        "calls": {
+          "cinch_dup_mt": 13,
+          "cinch_nat_sub": 7,
+          "cinch_drop_slow": 35,
+          "cinch_drop_mt": 35,
+          "cinch_nat_cmp": 9,
+          "cinch_nat_add": 6,
+          "Data.Bytes.Utf8.utf8-decode-between#cc": 2,
+          "cinch_alloc_ctor": 15,
+          "cinch_free": 4,
+          "Data.Bytes.View.byte-view-utf8-at#cc": 1,
+          "cinch.rc.dup.obj": 5,
+          "cinch.rc.dup.tobj": 5,
+          "Data.Bytes.Fields.finish-field": 1,
+          "Data.Bytes.View.byte-view-drop": 1,
+          "Data.Bytes.View.byte-view-take": 1,
+          "cinch.rc.drop.tobj": 15,
+          "cinch.rc.drop.obj": 7,
+          "cinch_bytes_len": 2
+        }
+      },
+      {
+        "variant": "reassociated",
+        "function": "Data.Bytes.Utf8.utf8-decode-between#cc",
+        "start": 154544,
+        "end": 155648,
+        "scope": "entry through next distinct named function, including private tail body",
+        "assembly": "build/byte-fields-bench-rust706-reassociated/utf8-decode-between-cc-cpr-review.asm",
+        "assembly_sha256": "c819c8e5464054ce3bdca65de25e74eca9a7777db1dc2863ed7049743728083c",
+        "calls": {
+          "cinch_nat_cmp": 5,
+          "cinch_bytes_len": 4,
+          "cinch_dup_mt": 1,
+          "cinch_drop_slow": 6,
+          "cinch_drop_mt": 6,
+          "cinch_nat_to_i64": 2,
+          "cinch_bytes_data": 1,
+          "Data.Bytes.Utf8.decode-word.llvm": 1
+        }
+      }
+    ]
+  },
+  "allocation_observations": 24,
+  "allocation_result": "At counts0/1/4 dense eager,Unicode eager and generic predicate have identical matched process totals; effectUnicode counts0/4 identical, count1 candidate14blocks/276bytes fewer. These are whole-process diagnostics, not allocations measured inside the clock interval.",
+  "limitations": [
+    "Three samples plus excluded warmup; all microsecond outliers and millisecond variation retained. No statistical confidence or universal regression claim.",
+    "Only matched currentRust706/d91 is measured. Candidate historical Native and checked-RC API qualification remain unclaimed because this candidate is unselected.",
+    "All scanner allocation site counts are static O2 disassembly counts, not runtime event counts. Runtime process totals are separately retained.",
+    "Candidate semantic fixtures730 and public preflight650 remain separately versioned evidence; production source not edited."
+  ]
+}

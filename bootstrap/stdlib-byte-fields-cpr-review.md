@@ -46,10 +46,12 @@ caller identities are retained in
 the entry module's lowered Core; a dependency-module Core dump is a separate
 stage and is not claimed by the entry dump.
 
-This does not eliminate every Fields allocation. Its first expanded scanner
-paths consume the aggregate directly. A residual path calls the aggregate view
-adapter, reconstructs `DecodedStep`, then invokes non-inlined scalar/width
-getters. Its effect on dense/default and generic paths requires measurement.
+This does not eliminate the Fields decoded-step allocation. The aggregate view
+adapter forwards the decoded aggregate directly, but all three decoder/view
+call sites in each Fields scanner reconstruct `DecodedStep`. The residual
+scanner path then invokes non-inlined scalar/width getters. The exact built
+benchmark IR and linked O2 assembly confirm that the product allocation moves
+into the caller rather than disappearing.
 
 A general compiler improvement could recognize a fresh, nonescaping local
 constructed product returned after strict sequencing. It must preserve the
@@ -84,5 +86,24 @@ processes. Candidate Fields passes all 1,266 rows plus mutable callback, early
 stop, factory replay, deep traversal and distinct IO/Mut controls in 342 further
 processes. All 730 processes report zero leaks; the CLI compilation profile has
 checked-RC instrumentation disabled and runtime poison is enabled separately.
-This is a semantic checkpoint, with current candidate checked-RC API, historical
-Native qualification and fresh matched performance comparison still pending.
+The separate public benchmark preflight adds 650 matching output/retained-owner
+observations, all zero leaks, using the same Rust706/d91 tuple. Its built LLVM
+has the same hash as the original aggregate/lifetime probe. Current candidate
+checked-RC API and historical Native qualification remain unclaimed.
+
+The fresh matched comparison completed all 104 observations in 2.66 seconds:
+13 workloads, two binaries, one excluded warmup and three rotated/interleaved
+samples. The raw receipt is
+`bootstrap/stdlib-byte-fields-cpr-benchmark-samples.json`. No cgroup throttling
+occurred while all peer heavy work was paused. Dense eager, Unicode eager and
+the generic predicate workload regress in their sample medians; producer dense
+improves and visitor dense is near neutral. The microsecond ASCII workloads
+retain large individual outliers. Three samples cannot establish the cause of
+every small difference, and the mixed result does not support production
+adoption. The candidate remains unselected; production UTF8/Fields is unchanged.
+
+The linked assembly review counts static constructor allocation call sites:
+12 to 15 in each scanner and four to zero in the decoder. These are static code
+sites, not dynamic allocation totals. A further compiler experiment would need
+to carry the known product through the field-projector calls and late locals;
+the owner-touch tail rearrangement alone does not solve the consumer's boxing.

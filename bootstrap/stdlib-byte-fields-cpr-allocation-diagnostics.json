@@ -1,0 +1,635 @@
+{
+  "scope": "Existing qualified binaries ordinary-RC allocation diagnostics; all elapsed values discarded",
+  "status": "passed",
+  "before_free_bytes": 903208960,
+  "normalized_argv0": "byte-fields",
+  "compiler_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "profiles": [
+    {
+      "variant": "rust706-simd",
+      "kind": "eager",
+      "pattern": "dense",
+      "size": 65536,
+      "iterations": 0,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 0,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 170,
+        "bytes": 201503,
+        "peak": 131556,
+        "header-blocks": 134,
+        "header-bytes": 2768,
+        "immortal": 0,
+        "freed": 134,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=110 bytes=2184\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=58 bytes=928\ncinch-alloc-size: upto=24 blocks=74 bytes=1776\ncinch-alloc-size: upto=32 blocks=2 bytes=64\ncinch-alloc: blocks=170 bytes=201503 peak=131556 header-blocks=134 header-bytes=2768 immortal=0 freed=134 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "eager",
+      "pattern": "dense",
+      "size": 65536,
+      "iterations": 1,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 7433125411963333542,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "fb400ef4fee69ff910eaf0b15cf29903d6ffc26a2aa69050a9e2725dbe690972",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 491688,
+        "bytes": 11211603,
+        "peak": 1901122,
+        "header-blocks": 491652,
+        "header-bytes": 11012776,
+        "immortal": 0,
+        "freed": 491652,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=491628 bytes=11012192\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=262201 bytes=4195216\ncinch-alloc-size: upto=24 blocks=65609 bytes=1574616\ncinch-alloc-size: upto=32 blocks=163842 bytes=5242944\ncinch-alloc: blocks=491688 bytes=11211603 peak=1901122 header-blocks=491652 header-bytes=11012776 immortal=0 freed=491652 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "eager",
+      "pattern": "dense",
+      "size": 65536,
+      "iterations": 4,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 1966260,
+        "bytes": 44241919,
+        "peak": 1901122,
+        "header-blocks": 1966216,
+        "header-bytes": 44043024,
+        "immortal": 0,
+        "freed": 1966216,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=1966190 bytes=44042376\ncinch-alloc-kind: kind=nat blocks=2 bytes=64\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=1048634 bytes=16778144\ncinch-alloc-size: upto=24 blocks=262218 bytes=6293232\ncinch-alloc-size: upto=32 blocks=655364 bytes=20971648\ncinch-alloc: blocks=1966260 bytes=44241919 peak=1901122 header-blocks=1966216 header-bytes=44043024 immortal=0 freed=1966216 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "eager",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 0,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 0,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 174,
+        "bytes": 201589,
+        "peak": 131558,
+        "header-blocks": 138,
+        "header-bytes": 2848,
+        "immortal": 0,
+        "freed": 138,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=114 bytes=2264\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=60 bytes=960\ncinch-alloc-size: upto=24 blocks=76 bytes=1824\ncinch-alloc-size: upto=32 blocks=2 bytes=64\ncinch-alloc: blocks=174 bytes=201589 peak=131558 header-blocks=138 header-bytes=2848 immortal=0 freed=138 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "eager",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 1,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 1276757776499753283,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 267801,
+        "bytes": 6144061,
+        "peak": 983644,
+        "header-blocks": 267765,
+        "header-bytes": 5945232,
+        "immortal": 0,
+        "freed": 267765,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=267741 bytes=5944648\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=147527 bytes=2360432\ncinch-alloc-size: upto=24 blocks=32852 bytes=788448\ncinch-alloc-size: upto=32 blocks=87386 bytes=2796352\ncinch-alloc: blocks=267801 bytes=6144061 peak=983644 header-blocks=267765 header-bytes=5945232 immortal=0 freed=267765 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "eager",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 4,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 3957006886023267640,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 1070632,
+        "bytes": 23970217,
+        "peak": 983644,
+        "header-blocks": 1070596,
+        "header-bytes": 23771384,
+        "immortal": 0,
+        "freed": 1070596,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=1070572 bytes=23770800\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=589903 bytes=9438448\ncinch-alloc-size: upto=24 blocks=131155 bytes=3147720\ncinch-alloc-size: upto=32 blocks=349538 bytes=11185216\ncinch-alloc: blocks=1070632 bytes=23970217 peak=983644 header-blocks=1070596 header-bytes=23771384 immortal=0 freed=1070596 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "predicate",
+      "pattern": "text",
+      "size": 65536,
+      "iterations": 0,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 0,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 160,
+        "bytes": 201312,
+        "peak": 131563,
+        "header-blocks": 124,
+        "header-bytes": 2568,
+        "immortal": 0,
+        "freed": 124,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=100 bytes=1984\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=53 bytes=848\ncinch-alloc-size: upto=24 blocks=69 bytes=1656\ncinch-alloc-size: upto=32 blocks=2 bytes=64\ncinch-alloc: blocks=160 bytes=201312 peak=131563 header-blocks=124 header-bytes=2568 immortal=0 freed=124 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "predicate",
+      "pattern": "text",
+      "size": 65536,
+      "iterations": 1,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 16845012,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "4b4d18e2747d7aa3f38d89472fde3cb6237b0086a3169d9330384de2a14cd384",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 131247,
+        "bytes": 3347412,
+        "peak": 131563,
+        "header-blocks": 131211,
+        "header-bytes": 3148624,
+        "immortal": 0,
+        "freed": 131211,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=131187 bytes=3148040\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=65596 bytes=1049536\ncinch-alloc-size: upto=24 blocks=74 bytes=1776\ncinch-alloc-size: upto=32 blocks=65541 bytes=2097312\ncinch-alloc: blocks=131247 bytes=3347412 peak=131563 header-blocks=131211 header-bytes=3148624 immortal=0 freed=131211 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "predicate",
+      "pattern": "text",
+      "size": 65536,
+      "iterations": 4,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 524476,
+        "bytes": 12784944,
+        "peak": 131563,
+        "header-blocks": 524440,
+        "header-bytes": 12586152,
+        "immortal": 0,
+        "freed": 524440,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=524416 bytes=12585568\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=262209 bytes=4195344\ncinch-alloc-size: upto=24 blocks=73 bytes=1752\ncinch-alloc-size: upto=32 blocks=262158 bytes=8389056\ncinch-alloc: blocks=524476 bytes=12784944 peak=131563 header-blocks=524440 header-bytes=12586152 immortal=0 freed=524440 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "effect",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 0,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 0,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 176,
+        "bytes": 201632,
+        "peak": 131560,
+        "header-blocks": 140,
+        "header-bytes": 2888,
+        "immortal": 0,
+        "freed": 140,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=116 bytes=2304\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=61 bytes=976\ncinch-alloc-size: upto=24 blocks=77 bytes=1848\ncinch-alloc-size: upto=32 blocks=2 bytes=64\ncinch-alloc: blocks=176 bytes=201632 peak=131560 header-blocks=140 header-bytes=2888 immortal=0 freed=140 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "effect",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 1,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 1276757781647393091,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 245960,
+        "bytes": 5969424,
+        "peak": 983734,
+        "header-blocks": 245924,
+        "header-bytes": 5770592,
+        "immortal": 0,
+        "freed": 245924,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=245898 bytes=5769936\ncinch-alloc-kind: kind=closure blocks=1 bytes=40\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=2 bytes=64\ncinch-alloc-size: upto=16 blocks=114760 bytes=1836160\ncinch-alloc-size: upto=24 blocks=32853 bytes=788472\ncinch-alloc-size: upto=32 blocks=98310 bytes=3145920\ncinch-alloc-size: upto=40 blocks=1 bytes=40\ncinch-alloc: blocks=245960 bytes=5969424 peak=983734 header-blocks=245924 header-bytes=5770592 immortal=0 freed=245924 live=0\n"
+    },
+    {
+      "variant": "rust706-simd",
+      "kind": "effect",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 4,
+      "executable_sha256": "3172c6818c145b008d20d27b68a5ee6f271f0fb8f0a67faa2d95517ddc611382",
+      "observed": {
+        "checksum": 3957006906613826872,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 983262,
+        "bytes": 23271540,
+        "peak": 983734,
+        "header-blocks": 983226,
+        "header-bytes": 23072704,
+        "immortal": 0,
+        "freed": 983226,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=983194 bytes=23071832\ncinch-alloc-kind: kind=closure blocks=4 bytes=160\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=5 bytes=160\ncinch-alloc-size: upto=16 blocks=458832 bytes=7341312\ncinch-alloc-size: upto=24 blocks=131156 bytes=3147744\ncinch-alloc-size: upto=32 blocks=393234 bytes=12583488\ncinch-alloc-size: upto=40 blocks=4 bytes=160\ncinch-alloc: blocks=983262 bytes=23271540 peak=983734 header-blocks=983226 header-bytes=23072704 immortal=0 freed=983226 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "eager",
+      "pattern": "dense",
+      "size": 65536,
+      "iterations": 0,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 0,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 170,
+        "bytes": 201503,
+        "peak": 131556,
+        "header-blocks": 134,
+        "header-bytes": 2768,
+        "immortal": 0,
+        "freed": 134,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=110 bytes=2184\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=58 bytes=928\ncinch-alloc-size: upto=24 blocks=74 bytes=1776\ncinch-alloc-size: upto=32 blocks=2 bytes=64\ncinch-alloc: blocks=170 bytes=201503 peak=131556 header-blocks=134 header-bytes=2768 immortal=0 freed=134 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "eager",
+      "pattern": "dense",
+      "size": 65536,
+      "iterations": 1,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 7433125411963333542,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "fb400ef4fee69ff910eaf0b15cf29903d6ffc26a2aa69050a9e2725dbe690972",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 491688,
+        "bytes": 11211603,
+        "peak": 1901122,
+        "header-blocks": 491652,
+        "header-bytes": 11012776,
+        "immortal": 0,
+        "freed": 491652,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=491628 bytes=11012192\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=262201 bytes=4195216\ncinch-alloc-size: upto=24 blocks=65609 bytes=1574616\ncinch-alloc-size: upto=32 blocks=163842 bytes=5242944\ncinch-alloc: blocks=491688 bytes=11211603 peak=1901122 header-blocks=491652 header-bytes=11012776 immortal=0 freed=491652 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "eager",
+      "pattern": "dense",
+      "size": 65536,
+      "iterations": 4,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 14727415493382431596,
+        "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+        "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 1966260,
+        "bytes": 44241919,
+        "peak": 1901122,
+        "header-blocks": 1966216,
+        "header-bytes": 44043024,
+        "immortal": 0,
+        "freed": 1966216,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=1966190 bytes=44042376\ncinch-alloc-kind: kind=nat blocks=2 bytes=64\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=1048634 bytes=16778144\ncinch-alloc-size: upto=24 blocks=262218 bytes=6293232\ncinch-alloc-size: upto=32 blocks=655364 bytes=20971648\ncinch-alloc: blocks=1966260 bytes=44241919 peak=1901122 header-blocks=1966216 header-bytes=44043024 immortal=0 freed=1966216 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "eager",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 0,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 0,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 174,
+        "bytes": 201589,
+        "peak": 131558,
+        "header-blocks": 138,
+        "header-bytes": 2848,
+        "immortal": 0,
+        "freed": 138,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=114 bytes=2264\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=60 bytes=960\ncinch-alloc-size: upto=24 blocks=76 bytes=1824\ncinch-alloc-size: upto=32 blocks=2 bytes=64\ncinch-alloc: blocks=174 bytes=201589 peak=131558 header-blocks=138 header-bytes=2848 immortal=0 freed=138 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "eager",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 1,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 1276757776499753283,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 267801,
+        "bytes": 6144061,
+        "peak": 983644,
+        "header-blocks": 267765,
+        "header-bytes": 5945232,
+        "immortal": 0,
+        "freed": 267765,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=267741 bytes=5944648\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=147527 bytes=2360432\ncinch-alloc-size: upto=24 blocks=32852 bytes=788448\ncinch-alloc-size: upto=32 blocks=87386 bytes=2796352\ncinch-alloc: blocks=267801 bytes=6144061 peak=983644 header-blocks=267765 header-bytes=5945232 immortal=0 freed=267765 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "eager",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 4,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 3957006886023267640,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 1070632,
+        "bytes": 23970217,
+        "peak": 983644,
+        "header-blocks": 1070596,
+        "header-bytes": 23771384,
+        "immortal": 0,
+        "freed": 1070596,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=1070572 bytes=23770800\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=589903 bytes=9438448\ncinch-alloc-size: upto=24 blocks=131155 bytes=3147720\ncinch-alloc-size: upto=32 blocks=349538 bytes=11185216\ncinch-alloc: blocks=1070632 bytes=23970217 peak=983644 header-blocks=1070596 header-bytes=23771384 immortal=0 freed=1070596 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "predicate",
+      "pattern": "text",
+      "size": 65536,
+      "iterations": 0,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 0,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 160,
+        "bytes": 201312,
+        "peak": 131563,
+        "header-blocks": 124,
+        "header-bytes": 2568,
+        "immortal": 0,
+        "freed": 124,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=100 bytes=1984\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=53 bytes=848\ncinch-alloc-size: upto=24 blocks=69 bytes=1656\ncinch-alloc-size: upto=32 blocks=2 bytes=64\ncinch-alloc: blocks=160 bytes=201312 peak=131563 header-blocks=124 header-bytes=2568 immortal=0 freed=124 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "predicate",
+      "pattern": "text",
+      "size": 65536,
+      "iterations": 1,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 16845012,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "4b4d18e2747d7aa3f38d89472fde3cb6237b0086a3169d9330384de2a14cd384",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 131247,
+        "bytes": 3347412,
+        "peak": 131563,
+        "header-blocks": 131211,
+        "header-bytes": 3148624,
+        "immortal": 0,
+        "freed": 131211,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=131187 bytes=3148040\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=65596 bytes=1049536\ncinch-alloc-size: upto=24 blocks=74 bytes=1776\ncinch-alloc-size: upto=32 blocks=65541 bytes=2097312\ncinch-alloc: blocks=131247 bytes=3347412 peak=131563 header-blocks=131211 header-bytes=3148624 immortal=0 freed=131211 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "predicate",
+      "pattern": "text",
+      "size": 65536,
+      "iterations": 4,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 67380082,
+        "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+        "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 524476,
+        "bytes": 12784944,
+        "peak": 131563,
+        "header-blocks": 524440,
+        "header-bytes": 12586152,
+        "immortal": 0,
+        "freed": 524440,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=524416 bytes=12585568\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=262209 bytes=4195344\ncinch-alloc-size: upto=24 blocks=73 bytes=1752\ncinch-alloc-size: upto=32 blocks=262158 bytes=8389056\ncinch-alloc: blocks=524476 bytes=12784944 peak=131563 header-blocks=524440 header-bytes=12586152 immortal=0 freed=524440 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "effect",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 0,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 0,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 176,
+        "bytes": 201632,
+        "peak": 131560,
+        "header-blocks": 140,
+        "header-bytes": 2888,
+        "immortal": 0,
+        "freed": 140,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=116 bytes=2304\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=1 bytes=32\ncinch-alloc-size: upto=16 blocks=61 bytes=976\ncinch-alloc-size: upto=24 blocks=77 bytes=1848\ncinch-alloc-size: upto=32 blocks=2 bytes=64\ncinch-alloc: blocks=176 bytes=201632 peak=131560 header-blocks=140 header-bytes=2888 immortal=0 freed=140 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "effect",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 1,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 1276757781647393091,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 245946,
+        "bytes": 5969148,
+        "peak": 983734,
+        "header-blocks": 245910,
+        "header-bytes": 5770312,
+        "immortal": 0,
+        "freed": 245910,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=245884 bytes=5769656\ncinch-alloc-kind: kind=closure blocks=1 bytes=40\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=2 bytes=64\ncinch-alloc-size: upto=16 blocks=114753 bytes=1836048\ncinch-alloc-size: upto=24 blocks=32846 bytes=788304\ncinch-alloc-size: upto=32 blocks=98310 bytes=3145920\ncinch-alloc-size: upto=40 blocks=1 bytes=40\ncinch-alloc: blocks=245946 bytes=5969148 peak=983734 header-blocks=245910 header-bytes=5770312 immortal=0 freed=245910 live=0\n"
+    },
+    {
+      "variant": "rust706-reassociated",
+      "kind": "effect",
+      "pattern": "unicode",
+      "size": 65536,
+      "iterations": 4,
+      "executable_sha256": "d49d41d6fa2587be3b523c7b981734962865397a5348bd276fe3e78d369b20da",
+      "observed": {
+        "checksum": 3957006906613826872,
+        "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+        "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+        "kept_size": 65536
+      },
+      "zero_leaks": true,
+      "allocations": {
+        "blocks": 983262,
+        "bytes": 23271540,
+        "peak": 983734,
+        "header-blocks": 983226,
+        "header-bytes": 23072704,
+        "immortal": 0,
+        "freed": 983226,
+        "live": 0
+      },
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc-kind: kind=ctor blocks=983194 bytes=23071832\ncinch-alloc-kind: kind=closure blocks=4 bytes=160\ncinch-alloc-kind: kind=bytes blocks=23 bytes=552\ncinch-alloc-kind: kind=array blocks=5 bytes=160\ncinch-alloc-size: upto=16 blocks=458832 bytes=7341312\ncinch-alloc-size: upto=24 blocks=131156 bytes=3147744\ncinch-alloc-size: upto=32 blocks=393234 bytes=12583488\ncinch-alloc-size: upto=40 blocks=4 bytes=160\ncinch-alloc: blocks=983262 bytes=23271540 peak=983734 header-blocks=983226 header-bytes=23072704 immortal=0 freed=983226 live=0\n"
+    }
+  ],
+  "after_free_bytes": 903176192
+}
