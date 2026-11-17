@@ -1,0 +1,14 @@
+-- | Refuse mutation erasure through an unchanged IO-only factory.
+module Main where
+  import Effect.Multipart
+  import Data.Bytes
+  import Data.Option
+  import Data.Result
+
+  -- | Borrow a live file while preserving its explicit generic backing and cursor.
+  live-file-source :: forall (r :: Region) e key fileHandle state. MultipartFile r e key fileHandle state -> MultipartSource r (MultipartError e)
+  live-file-source file = multipart-source (\wanted ->
+    let result = multipart-file-read file wanted in (result, live-file-source file))
+  -- | Check an intended refusal without executing or fabricating a handle.
+  main :: Int
+  main = 0

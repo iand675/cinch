@@ -1,0 +1,14 @@
+-- | Refuse mutation erasure through an unchanged IO-only factory.
+module Main where
+  import Effect.Multipart
+  import Data.Bytes
+  import Data.Option
+  import Data.Result
+
+  -- | Borrow a live part without buffering, closing or discarding its mutation effect.
+  live-part-source :: forall (r :: Region) e. MultipartPart r e -> MultipartSource r (MultipartError e)
+  live-part-source part = multipart-source (\wanted ->
+    let result = multipart-part-read part wanted in (result, live-part-source part))
+  -- | Check an intended refusal without executing or fabricating a handle.
+  main :: Int
+  main = 0

@@ -1,0 +1,59 @@
+{
+  "status": "review experiment only; production source unchanged",
+  "base_commit": "f0e8fc8c",
+  "baseline_sha256": {
+    "Effect.Multipart": "1969a6077e1aafb84226e9f4457ceb0b17395bdd9ad82a3a8256ec02e22a8044",
+    "Text.Multipart": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2"
+  },
+  "candidate_sha256": {
+    "Effect.Multipart": "b9e813899b592e69016e92d4292d2e19e96b4eec077b2f7511633d6e78d45af8",
+    "Text.Multipart": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2"
+  },
+  "changed_signatures": [
+    {
+      "name": "multipart-source-read",
+      "visibility": "public",
+      "before": "forall (r :: Region) e. MultipartSource r e -> Nat ->{IO r} ((Bytes, MultipartReadStatus e), MultipartSource r e)",
+      "after": "forall (r :: Region) e. MultipartSource r e -> Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), MultipartSource r e)"
+    },
+    {
+      "name": "multipart-sink-write",
+      "visibility": "public",
+      "before": "forall (r :: Region) e. MultipartSink r e -> Bytes ->{IO r} ((Nat, Option e), MultipartSink r e)",
+      "after": "forall (r :: Region) e. MultipartSink r e -> Bytes ->{IO r, Mut r} ((Nat, Option e), MultipartSink r e)"
+    },
+    {
+      "name": "random-read",
+      "visibility": "private",
+      "before": "forall (r :: Region) e. MultipartSource r e -> Nat -> List Bytes ->{IO r} (Result (MultipartError e) Bytes, MultipartSource r e)",
+      "after": "forall (r :: Region) e. MultipartSource r e -> Nat -> List Bytes ->{IO r, Mut r} (Result (MultipartError e) Bytes, MultipartSource r e)"
+    }
+  ],
+  "public_changed_count": 2,
+  "private_changed_count": 1,
+  "additive_public_factories": [
+    {
+      "name": "multipart-source-with-mutation",
+      "signature": "forall (r :: Region) e. (Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), MultipartSource r e)) -> MultipartSource r e"
+    },
+    {
+      "name": "multipart-sink-with-mutation",
+      "signature": "forall (r :: Region) e. (Bytes ->{IO r, Mut r} ((Nat, Option e), MultipartSink r e)) -> MultipartSink r e"
+    },
+    {
+      "name": "multipart-storage-with-mutation",
+      "signature": "forall (r :: Region) e key fileHandle state.\n    state ->\n    (state ->{IO r, Mut r} (Result e (key, fileHandle), state)) ->\n    (state -> fileHandle -> Bytes ->{IO r, Mut r} ((Nat, Option e), state)) ->\n    (state -> fileHandle -> Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), state)) ->\n    (state -> fileHandle -> Nat -> I64 ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), state)) ->\n    (state -> fileHandle -> I64 -> I64 ->{IO r, Mut r} (Result e I64, state)) ->\n    (state -> fileHandle ->{IO r, Mut r} (Result e Unit, state)) ->\n    (state -> key ->{IO r, Mut r} (Result e fileHandle, state)) ->\n    (state -> key ->{IO r, Mut r} (Result e Bool, state)) ->\n    {Mut r} MultipartStorage r e key fileHandle state"
+    }
+  ],
+  "unchanged_io_only_factories": [
+    "multipart-source",
+    "multipart-sink",
+    "multipart-storage"
+  ],
+  "private_representation_changes": [
+    "Append MutableSource, MutableSink and MutableStorageOps alternatives. Existing constructor shapes and IO-only callback types remain.",
+    "Eight storage dispatchers already require IO r+Mut r; new branches retain exact advanced state and single-call behavior."
+  ],
+  "region_policy": "The same explicit r names IO and Mut, matching native Part/File/output-part operations. No mutation is erased or source eagerly snapshotted.",
+  "gates": "prepared; source checks, intended refusals and parent review pending; no runtime or production adoption claimed"
+}
