@@ -155,6 +155,14 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Bytes.Fields",
+      "path": "compiler/prelude/Data/Bytes/Fields.cinch",
+      "sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+      "embedded": false,
+      "values": 20,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Bytes.Search",
       "path": "compiler/prelude/Data/Bytes/Search.cinch",
       "sha256": "65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256",

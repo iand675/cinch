@@ -65,7 +65,19 @@
     ]
   },
   "pending": [
-    "Generated reference refresh",
     "Public pipeline performance review and optimization selection"
-  ]
+  ],
+  "reference_generation": {
+    "modules": 191,
+    "embedded": 66,
+    "isolated_source_imports": 125,
+    "value_exports": 4945,
+    "public_methods": 115,
+    "doc_diagnostics": 0,
+    "orphan_docs": 0,
+    "source_downloads_checked": true,
+    "log": "bootstrap/repros/byte-fields-parent-qualified/library-reference.log",
+    "log_sha256": "44c85a687736902522d91514aefe9cbbd5c38cfa188c06bf4d670c7d3e717083",
+    "first_generator_description_failure_preserved": "bootstrap/repros/byte-fields-parent-qualified/library-reference-v1-failure.log"
+  }
 }
