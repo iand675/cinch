@@ -438,9 +438,14 @@ module Text.Json.Codec where
   default-number :: Unit -> JsonNumber
   default-number unit = json-empty-number
 
-  -- | Encode a validated exact number without floating-point conversion.
+  -- | Validate raw number spellings before exact encoding, representing an absent spelling as zero.
   number-encode :: JsonWriteOptions -> JsonNumber -> Result JsonError Bytes
-  number-encode options number = Ok (numeric-encoded options (if json-number-text number == "" then "0" else json-number-text number))
+  number-encode options number =
+    let input = json-number-bytes number in
+    if bytes-len input == 0 then Ok (numeric-encoded options "0") else case json-number-check number of
+      Ok checked -> Ok (numeric-encoded options (json-number-text checked))
+      Err error -> Err (JsonCustomError "JsonNumber" (JsonNumberError (json-numeric-error-info "MarshalJSONTo" input JsonNumericSyntax)))
+
 
   -- | Decode exact numeric text or preserve its prior spelling for null.
   number-update :: JsonReadOptions -> JsonValue -> JsonNumber -> JsonDecoded JsonNumber

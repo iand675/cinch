@@ -1,6 +1,6 @@
 # Text.Json.Value
 
-Owned JSON documents and navigation tapes, exact source spans and numbers, resumable lexical state, and byte-preserving formatting.
+Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -33,7 +33,7 @@ and unmatched surrogate escapes while number spellings remain exact.
 
 An immutable document retaining one owned source snapshot and its navigation tape.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 232
+[Source](/reference-sources/Text.Json.Value.cinch) · line 334
 
 <a id="type-4a736f6e4572726f72"></a>
 
@@ -43,7 +43,7 @@ An immutable document retaining one owned source snapshot and its navigation tap
 
 Structured JSON syntax, type, configuration and custom conversion diagnostics.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 45
+[Source](/reference-sources/Text.Json.Value.cinch) · line 66
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonSyntaxError</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonError</span>))</code></pre>
 
@@ -67,6 +67,8 @@ Structured JSON syntax, type, configuration and custom conversion diagnostics.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonInvalidValueError</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonError</span>)</code></pre>
 
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonNumberError</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonError</span>)</code></pre>
+
 <a id="type-4a736f6e4b696e64"></a>
 
 ## `JsonKind`
@@ -75,7 +77,7 @@ Structured JSON syntax, type, configuration and custom conversion diagnostics.
 
 Public value categories, including an explicit invalid internal representation category.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 180
+[Source](/reference-sources/Text.Json.Value.cinch) · line 282
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonNullKind</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonKind</span></code></pre>
 
@@ -99,7 +101,7 @@ Public value categories, including an explicit invalid internal representation c
 
 An immutable resumable lexer state; source bytes remain owned by its caller.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 484
+[Source](/reference-sources/Text.Json.Value.cinch) · line 586
 
 <a id="type-4a736f6e4c657853746570"></a>
 
@@ -109,7 +111,7 @@ An immutable resumable lexer state; source bytes remain owned by its caller.
 
 Incremental lexical progress distinguishes a complete token, clean EOF and a required continuation.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 507
+[Source](/reference-sources/Text.Json.Value.cinch) · line 609
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonLexEnd</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonLexStep</span>)</code></pre>
 
@@ -127,7 +129,7 @@ Incremental lexical progress distinguishes a complete token, clean EOF and a req
 
 Lexical categories shared by immutable documents and incremental stream readers.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 423
+[Source](/reference-sources/Text.Json.Value.cinch) · line 525
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonLexNull</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonLexTag</span></code></pre>
 
@@ -159,7 +161,7 @@ Lexical categories shared by immutable documents and incremental stream readers.
 
 One lexical token's original byte interval.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 448
+[Source](/reference-sources/Text.Json.Value.cinch) · line 550
 
 <a id="type-4a736f6e4d656d626572"></a>
 
@@ -169,7 +171,7 @@ One lexical token's original byte interval.
 
 An object member retains its decoded name and source-backed value view.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 242
+[Source](/reference-sources/Text.Json.Value.cinch) · line 344
 
 <a id="type-4a736f6e4e756d626572"></a>
 
@@ -177,9 +179,43 @@ An object member retains its decoded name and source-backed value view.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JsonNumber</span></code></pre>
 
-An exact grammar-validated JSON number spelling, or an explicit absent-spelling default.
+An exact number spelling with checked, raw-scalar and owned-byte construction.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 148
+[Source](/reference-sources/Text.Json.Value.cinch) · line 221
+
+<a id="type-4a736f6e4e756d657269634572726f72"></a>
+
+## `JsonNumericError`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JsonNumericError</span></code></pre>
+
+Immutable original function, input bytes and numeric refusal reason.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 56
+
+<a id="type-4a736f6e4e756d657269634572726f724b696e64"></a>
+
+## `JsonNumericErrorKind`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JsonNumericErrorKind</span></code></pre>
+
+The independent syntax or representability reason for a numeric conversion refusal.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 49
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonNumericSyntax</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericErrorKind</span></code></pre>
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonNumericRange</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericErrorKind</span></code></pre>
+
+<a id="type-4a736f6e4e756d65726963526573756c74"></a>
+
+## `JsonNumericResult`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JsonNumericResult</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+
+A numeric value and its optional refusal, preserving saturated and infinite outcomes.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 61
 
 <a id="type-4a736f6e5261774d657373616765"></a>
 
@@ -189,7 +225,7 @@ An exact grammar-validated JSON number spelling, or an explicit absent-spelling 
 
 An immutable raw JSON message; null and a non-null empty buffer are distinct.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 157
+[Source](/reference-sources/Text.Json.Value.cinch) · line 259
 
 <a id="type-4a736f6e56616c7565"></a>
 
@@ -199,7 +235,7 @@ An immutable raw JSON message; null and a non-null empty buffer are distinct.
 
 An immutable value view retaining its document and selected node without copying the input.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 237
+[Source](/reference-sources/Text.Json.Value.cinch) · line 339
 
 # Values
 
@@ -211,7 +247,7 @@ An immutable value view retaining its document and selected node without copying
 
 Append compact validated JSON while retaining numeric spellings and original string escape bytes.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1504
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1844
 
 <a id="value-6a736f6e2d617070656e642d68746d6c2d657363617065"></a>
 
@@ -221,7 +257,7 @@ Append compact validated JSON while retaining numeric spellings and original str
 
 Append escaped source bytes to an independent copy of an existing destination prefix.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1382
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1722
 
 <a id="value-6a736f6e2d617070656e642d696e64656e74"></a>
 
@@ -231,7 +267,7 @@ Append escaped source bytes to an independent copy of an existing destination pr
 
 Append indented JSON, dropping leading whitespace and preserving original trailing whitespace.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1512
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1852
 
 <a id="value-6a736f6e2d617070656e642d696e64656e742d6279746573"></a>
 
@@ -241,7 +277,7 @@ Append indented JSON, dropping leading whitespace and preserving original traili
 
 Append indented JSON with arbitrary byte prefixes, preserving malformed bytes and embedded NUL.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1521
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1861
 
 <a id="value-6a736f6e2d61727261792d676574"></a>
 
@@ -251,7 +287,7 @@ Append indented JSON with arbitrary byte prefixes, preserving malformed bytes an
 
 Read one direct array element by zero-based index, retaining its original document owner.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1100
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1440
 
 <a id="value-6a736f6e2d61727261792d6c656e677468"></a>
 
@@ -261,7 +297,7 @@ Read one direct array element by zero-based index, retaining its original docume
 
 Read the element count without traversing nested values or copying the source.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1092
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1432
 
 <a id="value-6a736f6e2d61727261792d76616c756573"></a>
 
@@ -271,7 +307,7 @@ Read the element count without traversing nested values or copying the source.
 
 Collect array element views in source order without copying their payload bytes.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1112
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1452
 
 <a id="value-6a736f6e2d636f6d70616374"></a>
 
@@ -281,7 +317,7 @@ Collect array element views in source order without copying their payload bytes.
 
 Remove insignificant whitespace from one complete validated JSON value.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1508
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1848
 
 <a id="value-6a736f6e2d646f63756d656e74"></a>
 
@@ -291,7 +327,7 @@ Remove insignificant whitespace from one complete validated JSON value.
 
 Validate and snapshot one complete JSON document, preserving all original source spellings.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 880
+[Source](/reference-sources/Text.Json.Value.cinch) · line 982
 
 <a id="value-6a736f6e2d646f63756d656e742d696e707574"></a>
 
@@ -301,7 +337,7 @@ Validate and snapshot one complete JSON document, preserving all original source
 
 Copy the complete original document bytes before exposing mutable storage.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 259
+[Source](/reference-sources/Text.Json.Value.cinch) · line 361
 
 <a id="value-6a736f6e2d646f63756d656e742d76616c7565"></a>
 
@@ -311,7 +347,7 @@ Copy the complete original document bytes before exposing mutable storage.
 
 Obtain the validated root view without copying document storage.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 255
+[Source](/reference-sources/Text.Json.Value.cinch) · line 357
 
 <a id="value-6a736f6e2d656d7074792d6e756d626572"></a>
 
@@ -322,7 +358,7 @@ Obtain the validated root view without copying document storage.
 An explicitly absent number spelling; typed marshaling represents this default as zero.
 Checked integer and float conversions reject the empty spelling.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1024
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1126
 
 <a id="value-6a736f6e2d6572726f722d6361757365"></a>
 
@@ -332,7 +368,7 @@ Checked integer and float conversions reject the empty spelling.
 
 Inspect a wrapped custom conversion or path diagnostic without flattening it.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 132
+[Source](/reference-sources/Text.Json.Value.cinch) · line 157
 
 <a id="value-6a736f6e2d6572726f722d696e76616c69642d76616c7565"></a>
 
@@ -342,7 +378,7 @@ Inspect a wrapped custom conversion or path diagnostic without flattening it.
 
 Whether a value failure lacks a valid application value, after custom/path context is removed.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 140
+[Source](/reference-sources/Text.Json.Value.cinch) · line 165
 
 <a id="value-6a736f6e2d6572726f722d6d657373616765"></a>
 
@@ -352,7 +388,17 @@ Whether a value failure lacks a valid application value, after custom/path conte
 
 Render a diagnostic using JSON and application type names.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 70
+[Source](/reference-sources/Text.Json.Value.cinch) · line 93
+
+<a id="value-6a736f6e2d6572726f722d6e756d65726963"></a>
+
+## `json-error-numeric`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-error-numeric</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonError</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span>))</code></pre>
+
+Recover numeric metadata through custom, path and typed-cause wrappers.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 173
 
 <a id="value-6a736f6e2d6572726f722d6f6666736574"></a>
 
@@ -362,7 +408,7 @@ Render a diagnostic using JSON and application type names.
 
 Original byte offset when one exists, otherwise zero.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 85
+[Source](/reference-sources/Text.Json.Value.cinch) · line 109
 
 <a id="value-6a736f6e2d6572726f722d70617468"></a>
 
@@ -372,7 +418,7 @@ Original byte offset when one exists, otherwise zero.
 
 Application member/index path carried by a diagnostic.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 100
+[Source](/reference-sources/Text.Json.Value.cinch) · line 125
 
 <a id="value-6a736f6e2d6572726f722d74797065"></a>
 
@@ -382,7 +428,7 @@ Application member/index path carried by a diagnostic.
 
 Application type label associated with a conversion failure.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 110
+[Source](/reference-sources/Text.Json.Value.cinch) · line 135
 
 <a id="value-6a736f6e2d6572726f722d76616c7565"></a>
 
@@ -392,7 +438,7 @@ Application type label associated with a conversion failure.
 
 Actual value description associated with a conversion failure.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 121
+[Source](/reference-sources/Text.Json.Value.cinch) · line 146
 
 <a id="value-6a736f6e2d68746d6c2d657363617065"></a>
 
@@ -402,7 +448,7 @@ Actual value description associated with a conversion failure.
 
 Escape HTML-sensitive bytes and line separators without validating the source as JSON.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1388
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1728
 
 <a id="value-6a736f6e2d696e64656e74"></a>
 
@@ -412,7 +458,7 @@ Escape HTML-sensitive bytes and line separators without validating the source as
 
 Indent one complete JSON value with arbitrary per-line prefix and indentation strings.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1516
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1856
 
 <a id="value-6a736f6e2d696e64656e742d6279746573"></a>
 
@@ -422,7 +468,7 @@ Indent one complete JSON value with arbitrary per-line prefix and indentation st
 
 Indent one complete value with byte-exact line-prefix and indentation fragments.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1525
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1865
 
 <a id="value-6a736f6e2d6c65782d72656164"></a>
 
@@ -433,7 +479,7 @@ Indent one complete value with byte-exact line-prefix and indentation fragments.
 Scan at most one token from a checked owned buffer interval, resuming a partial prior token.
 Base is the absolute position of buffer byte zero; returned cursors are local to this buffer.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 623
+[Source](/reference-sources/Text.Json.Value.cinch) · line 725
 
 <a id="value-6a736f6e2d6c65782d7374617274"></a>
 
@@ -443,7 +489,7 @@ Base is the absolute position of buffer byte zero; returned cursors are local to
 
 Begin scanning one token without assuming any source chunk is already available.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 503
+[Source](/reference-sources/Text.Json.Value.cinch) · line 605
 
 <a id="value-6a736f6e2d6c6578656d652d656e64"></a>
 
@@ -453,7 +499,7 @@ Begin scanning one token without assuming any source chunk is already available.
 
 Observe a lexical token's original exclusive end.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 457
+[Source](/reference-sources/Text.Json.Value.cinch) · line 559
 
 <a id="value-6a736f6e2d6c6578656d652d7374617274"></a>
 
@@ -463,7 +509,7 @@ Observe a lexical token's original exclusive end.
 
 Observe a lexical token's original start.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 453
+[Source](/reference-sources/Text.Json.Value.cinch) · line 555
 
 <a id="value-6a736f6e2d6c6578656d652d746167"></a>
 
@@ -473,7 +519,7 @@ Observe a lexical token's original start.
 
 Observe a lexical category without decoding its source bytes.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 461
+[Source](/reference-sources/Text.Json.Value.cinch) · line 563
 
 <a id="value-6a736f6e2d6d656d6265722d6b6579"></a>
 
@@ -483,7 +529,7 @@ Observe a lexical category without decoding its source bytes.
 
 Retain the exact original quoted member-name token as an immutable source-backed string view.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1543
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1883
 
 <a id="value-6a736f6e2d6d656d6265722d6e616d65"></a>
 
@@ -493,7 +539,7 @@ Retain the exact original quoted member-name token as an immutable source-backed
 
 Observe a decoded object member name.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 247
+[Source](/reference-sources/Text.Json.Value.cinch) · line 349
 
 <a id="value-6a736f6e2d6d656d6265722d76616c7565"></a>
 
@@ -503,7 +549,7 @@ Observe a decoded object member name.
 
 Observe the member value while retaining its source document.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 251
+[Source](/reference-sources/Text.Json.Value.cinch) · line 353
 
 <a id="value-6a736f6e2d6e756d626572"></a>
 
@@ -513,7 +559,27 @@ Observe the member value while retaining its source document.
 
 Validate a complete number spelling without accepting surrounding whitespace or another value.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1036
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1138
+
+<a id="value-6a736f6e2d6e756d6265722d6279746573"></a>
+
+## `json-number-bytes`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-number-bytes</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumber</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+
+Export a fresh exact spelling independently of scalar text projection.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 242
+
+<a id="value-6a736f6e2d6e756d6265722d636865636b"></a>
+
+## `json-number-check`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-number-check</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumber</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumber</span>))</code></pre>
+
+Validate the exact spelling of a raw number without accepting repaired or surrounding text.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1378
 
 <a id="value-6a736f6e2d6e756d6265722d666c6f61743332"></a>
 
@@ -523,7 +589,7 @@ Validate a complete number spelling without accepting surrounding whitespace or 
 
 Round an exact number directly to finite binary32, rejecting empty spellings and overflow.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1056
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1393
 
 <a id="value-6a736f6e2d6e756d6265722d666c6f61743634"></a>
 
@@ -533,7 +599,37 @@ Round an exact number directly to finite binary32, rejecting empty spellings and
 
 Convert an exact number to a finite binary float, naming overflow instead of returning infinity.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1049
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1385
+
+<a id="value-6a736f6e2d6e756d6265722d666c6f617436342d726573756c74"></a>
+
+## `json-number-float64-result`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-number-float64-result</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumber</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericResult</span> <span class="tok-constructor">F64</span>))</code></pre>
+
+Convert arbitrary decimal, hexadecimal, separator and special spellings with exact original outcomes.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1360
+
+<a id="value-6a736f6e2d6e756d6265722d66726f6d2d6279746573"></a>
+
+## `json-number-from-bytes`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-number-from-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumber</span>)</code></pre>
+
+Snapshot an arbitrary byte spelling, preserving malformed UTF-8 for conversion diagnostics.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 238
+
+<a id="value-6a736f6e2d6e756d6265722d66726f6d2d74657874"></a>
+
+## `json-number-from-text`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-number-from-text</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumber</span>)</code></pre>
+
+Preserve an arbitrary scalar spelling without treating its construction as numeric validation.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 234
 
 <a id="value-6a736f6e2d6e756d6265722d696e743634"></a>
 
@@ -543,7 +639,17 @@ Convert an exact number to a finite binary float, naming overflow instead of ret
 
 Convert an integer-only exact spelling to a signed machine integer with explicit range checks.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1063
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1401
+
+<a id="value-6a736f6e2d6e756d6265722d696e7436342d726573756c74"></a>
+
+## `json-number-int64-result`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-number-int64-result</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumber</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericResult</span> <span class="tok-constructor">I64</span>))</code></pre>
+
+Convert arbitrary signed decimal spellings, returning saturated range outcomes and original metadata.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1171
 
 <a id="value-6a736f6e2d6e756d6265722d74657874"></a>
 
@@ -551,9 +657,109 @@ Convert an integer-only exact spelling to a signed machine integer with explicit
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-number-text</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumber</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
-Observe the original number spelling without conversion or rounding.
+Project the original spelling to scalar text; the byte view retains malformed UTF-8 exactly.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 153
+[Source](/reference-sources/Text.Json.Value.cinch) · line 230
+
+<a id="value-6a736f6e2d6e756d657269632d6572726f72"></a>
+
+## `json-numeric-error`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-numeric-error</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericResult</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span>))</code></pre>
+
+Inspect an optional original numeric refusal without discarding its completed value.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 213
+
+<a id="value-6a736f6e2d6e756d657269632d6572726f722d6279746573"></a>
+
+## `json-numeric-error-bytes`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-numeric-error-bytes</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+
+Export an independent copy of the original input, including malformed UTF-8.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 186
+
+<a id="value-6a736f6e2d6e756d657269632d6572726f722d66756e6374696f6e"></a>
+
+## `json-numeric-error-function`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-numeric-error-function</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+
+Inspect the original operation label associated with a numeric refusal.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 182
+
+<a id="value-6a736f6e2d6e756d657269632d6572726f722d696e666f"></a>
+
+## `json-numeric-error-info`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-numeric-error-info</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericErrorKind</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span>)))</code></pre>
+
+Snapshot explicit operation, original bytes and refusal reason for an application error adapter.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1151
+
+<a id="value-6a736f6e2d6e756d657269632d6572726f722d696e707574"></a>
+
+## `json-numeric-error-input`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-numeric-error-input</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+
+Project the original input to scalar text, replacing malformed UTF-8 while its byte view stays exact.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 190
+
+<a id="value-6a736f6e2d6e756d657269632d6572726f722d6b696e64"></a>
+
+## `json-numeric-error-kind`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-numeric-error-kind</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericErrorKind</span>)</code></pre>
+
+Inspect the exact syntax or range classification independently of its message.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 194
+
+<a id="value-6a736f6e2d6e756d657269632d6572726f722d6d657373616765"></a>
+
+## `json-numeric-error-message`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-numeric-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+
+Render numeric metadata using the original operation and a scalar-safe quoted input.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 202
+
+<a id="value-6a736f6e2d6e756d657269632d69732d72616e6765"></a>
+
+## `json-numeric-is-range`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-numeric-is-range</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+
+Whether a numeric refusal reports representability rather than syntax.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 198
+
+<a id="value-6a736f6e2d6e756d657269632d726573756c74"></a>
+
+## `json-numeric-result`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-numeric-result</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericResult</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericError</span> <span class="tok-variable">a</span>))</code></pre>
+
+Select an ordinary success or refusal when the caller does not need a partial numeric value.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 217
+
+<a id="value-6a736f6e2d6e756d657269632d76616c7565"></a>
+
+## `json-numeric-value`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-numeric-value</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Value</span>.<span class="tok-constructor">JsonNumericResult</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
+
+Inspect the completed value even when conversion also reports an error.
+
+[Source](/reference-sources/Text.Json.Value.cinch) · line 209
 
 <a id="value-6a736f6e2d6f626a6563742d6c6f6f6b7570"></a>
 
@@ -563,7 +769,7 @@ Observe the original number spelling without conversion or rounding.
 
 Find the final exact decoded member name; later duplicates replace earlier matches.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1147
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1487
 
 <a id="value-6a736f6e2d6f626a6563742d6d656d62657273"></a>
 
@@ -573,7 +779,7 @@ Find the final exact decoded member name; later duplicates replace earlier match
 
 Read object members in original order, preserving repeated decoded names.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1124
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1464
 
 <a id="value-6a736f6e2d71756f7465"></a>
 
@@ -583,7 +789,7 @@ Read object members in original order, preserving repeated decoded names.
 
 Encode an immutable scalar string with explicit HTML escaping policy.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1344
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1684
 
 <a id="value-6a736f6e2d71756f74652d6279746573"></a>
 
@@ -593,7 +799,7 @@ Encode an immutable scalar string with explicit HTML escaping policy.
 
 Encode arbitrary byte-string contents as valid quoted JSON, replacing each malformed UTF-8 byte.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1337
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1677
 
 <a id="value-6a736f6e2d7261772d6279746573"></a>
 
@@ -603,7 +809,7 @@ Encode arbitrary byte-string contents as valid quoted JSON, replacing each malfo
 
 Obtain an independent copy of raw storage, preserving the distinction between null and empty.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 170
+[Source](/reference-sources/Text.Json.Value.cinch) · line 272
 
 <a id="value-6a736f6e2d7261772d66726f6d2d6279746573"></a>
 
@@ -613,7 +819,7 @@ Obtain an independent copy of raw storage, preserving the distinction between nu
 
 Snapshot an arbitrary raw message without changing whitespace or validating its syntax.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 166
+[Source](/reference-sources/Text.Json.Value.cinch) · line 268
 
 <a id="value-6a736f6e2d7261772d6e756c6c"></a>
 
@@ -623,7 +829,7 @@ Snapshot an arbitrary raw message without changing whitespace or validating its 
 
 The absent raw message, which encodes as the JSON null literal.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 162
+[Source](/reference-sources/Text.Json.Value.cinch) · line 264
 
 <a id="value-6a736f6e2d7261772d7265706c616365"></a>
 
@@ -633,7 +839,7 @@ The absent raw message, which encodes as the JSON null literal.
 
 Replace a raw message with a fresh snapshot while retained earlier messages stay independent.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 176
+[Source](/reference-sources/Text.Json.Value.cinch) · line 278
 
 <a id="value-6a736f6e2d76616c6964"></a>
 
@@ -643,7 +849,7 @@ Replace a raw message with a fresh snapshot while retained earlier messages stay
 
 Validate JSON byte grammar without constructing a document or decoding scalar strings.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 889
+[Source](/reference-sources/Text.Json.Value.cinch) · line 991
 
 <a id="value-6a736f6e2d76616c75652d626f6f6c"></a>
 
@@ -653,7 +859,7 @@ Validate JSON byte grammar without constructing a document or decoding scalar st
 
 Read a boolean literal without treating other categories as false.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 302
+[Source](/reference-sources/Text.Json.Value.cinch) · line 404
 
 <a id="value-6a736f6e2d76616c75652d656e64"></a>
 
@@ -663,7 +869,7 @@ Read a boolean literal without treating other categories as false.
 
 Observe the selected value's original exclusive source end.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 275
+[Source](/reference-sources/Text.Json.Value.cinch) · line 377
 
 <a id="value-6a736f6e2d76616c75652d6b696e64"></a>
 
@@ -673,7 +879,7 @@ Observe the selected value's original exclusive source end.
 
 Observe a value category without traversing or decoding its subtree.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 279
+[Source](/reference-sources/Text.Json.Value.cinch) · line 381
 
 <a id="value-6a736f6e2d76616c75652d6e756d626572"></a>
 
@@ -683,7 +889,7 @@ Observe a value category without traversing or decoding its subtree.
 
 Read a validated exact number from a source-backed scalar view.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1028
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1130
 
 <a id="value-6a736f6e2d76616c75652d736f75726365"></a>
 
@@ -693,7 +899,7 @@ Read a validated exact number from a source-backed scalar view.
 
 Copy exactly the selected value's original bytes, preserving duplicate members and number spellings.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 294
+[Source](/reference-sources/Text.Json.Value.cinch) · line 396
 
 <a id="value-6a736f6e2d76616c75652d7374617274"></a>
 
@@ -703,7 +909,7 @@ Copy exactly the selected value's original bytes, preserving duplicate members a
 
 Observe the selected value's zero-based original source start.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 271
+[Source](/reference-sources/Text.Json.Value.cinch) · line 373
 
 <a id="value-6a736f6e2d76616c75652d737472696e67"></a>
 
@@ -713,7 +919,7 @@ Observe the selected value's zero-based original source start.
 
 Decode a string value without exposing mutable source storage.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1157
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1497
 
 <a id="value-6a736f6e2d7a65726f2d6e756d626572"></a>
 
@@ -723,8 +929,8 @@ Decode a string value without exposing mutable source storage.
 
 The invariant exact integer-zero number, usable as a total descriptor default.
 
-[Source](/reference-sources/Text.Json.Value.cinch) · line 1019
+[Source](/reference-sources/Text.Json.Value.cinch) · line 1121
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json/Value.cinch`. Source SHA-256: `57f516647f493fa1433c066649f00c406a8eb1040b9ed5c50f096086e2c40b54`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json/Value.cinch`. Source SHA-256: `5b44b8760e6733e9f30f08082649a85faaf74d6f39e10741c10b3842a6cc86f7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -173,7 +173,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Html](Text.Html.md) | Ship source | HTML text/byte escaping, complete HTML5 character references, exact escaped sizing and SIMD/SWAR scanning. |
 | [Text.Json.Binary32](Text.Json.Binary32.md) | Ship source | Exact decimal rounding and shortest finite binary32 JSON coefficients, with preserved signed zero and midpoint comparisons. |
 | [Text.Json.Codec](Text.Json.Codec.md) | Ship source | Typed JSON codecs for records, persistent maps, explicit key capabilities, machine integers, binary buffers and exact binary32/binary64 values. |
-| [Text.Json.Value](Text.Json.Value.md) | Ship source | Owned JSON documents and navigation tapes, exact source spans and numbers, resumable lexical state, and byte-preserving formatting. |
+| [Text.Json.Value](Text.Json.Value.md) | Ship source | Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting. |
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
 | [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for compiler/parser clients. |
 | [Text.Mime](Text.Mime.md) | Ship source | Byte-preserving media types, encoded words, immutable parameter maps and explicit extension registries. |
@@ -215,6 +215,8 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Base64](Effect.Base64.md) | Ship source | Explicitly finalized Base64 writers and bounded decoding readers with sticky errors and isolated output chunks. |
 | [Effect.Benchmark](Effect.Benchmark.md) | Ship source | Benchmark case execution and timing/reporting helpers over runtime clocks. |
 | [Effect.Binary](Effect.Binary.md) | Ship source | Explicit fixed and variable binary stream codecs preserving progress and advanced handles after failures. |
+| [Effect.Buffered.Core](Effect.Buffered.Core.md) | Ship source | Byte-stream events with signed progress, simultaneous failures, shared advanced continuations and explicit transfer capabilities. |
+| [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md) | Ship source | Initialized opaque continuation cells whose allocation, observation and replacement require their I/O region. |
 | [Effect.Clock](Effect.Clock.md) | Embedded | Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs. |
 | [Effect.Concurrent](Effect.Concurrent.md) | Embedded | Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations. |
 | [Effect.Coverage](Effect.Coverage.md) | Ship source | Coverage collection/reporting utilities with explicit runtime and source metadata. |
@@ -250,7 +252,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **183 source modules**: **65 embedded** and **118 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **185 source modules**: **65 embedded** and **120 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 
