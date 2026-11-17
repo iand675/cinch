@@ -1,0 +1,252 @@
+-- Lane F: Data.Time.Zoned.Arithmetic, civil days in a zone. Tomorrow
+-- and yesterday (the same civil time, 25 or 23 hours away on the
+-- transition days, and what happens when that time does not exist or
+-- occurs twice), the start of the next civil day and the exact length
+-- of a day (23, 24 and 25 hours in America/New_York; days whose
+-- midnight does not exist or whose last hour repeats in
+-- America/Santiago; the day before the one Pacific/Apia skipped), and
+-- lane B's month, year and weekday operations carried to a zone.
+-- Expected instants were computed independently with Python's
+-- zoneinfo (tzdata 2026e).
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Weekday (Weekday, Monday, Friday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Zoned.Arithmetic
+  import Effect.Time.Zone
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s ns of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- A civil reading in the zone, `Compatible`.
+  zc :: TimeZone -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Zoned
+  zc z y mo d h mi s ns = case zoned-from-datetime Compatible z (at y mo d h mi s ns) of
+    Err _ -> zoned-from-timestamp z timestamp-epoch
+    Ok x -> x
+
+  -- The instant at a Unix second, in the zone.
+  zt :: TimeZone -> I64 -> Zoned
+  zt z s = case timestamp-from-unix-seconds s of
+    None -> zoned-from-timestamp z timestamp-epoch
+    Some t -> zoned-from-timestamp z t
+
+  -- A zoned value at this Unix second (and no fraction) and offset.
+  is :: Zoned -> I64 -> I64 -> Bool
+  is x secs offset =
+    timestamp-to-unix-seconds (zoned-timestamp x) == secs
+    && timestamp-subsec-nanos (zoned-timestamp x) == 0
+    && offset-to-seconds (zoned-offset x) == offset
+
+  ok-is :: Result ZonedError Zoned -> I64 -> I64 -> Bool
+  ok-is r secs offset = case r of
+    Err _ -> False
+    Ok x -> is x secs offset
+
+  some-is :: Option Zoned -> I64 -> I64 -> Bool
+  some-is r secs offset = case r of
+    None -> False
+    Some x -> is x secs offset
+
+  -- 0 accepted, then one code per refusal.
+  code :: forall a. Result ZonedError a -> I64
+  code r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      ZonedOutOfRange -> 1
+      ZonedRejectedGap _ _ -> 2
+      ZonedRejectedFold _ _ -> 3
+      ZonedZonesDiffer -> 4
+      ZonedBadUnits -> 5
+      ZonedBadIncrement -> 6
+      ZonedUnitLimit -> 7
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  ok-fields :: Result ZonedError (Span Calendar) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ok-fields r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  load :: forall r. using (io :: Io r) => String ->{IO r} Result TzLookupError TimeZone
+  load name = tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") name
+
+  hours :: Option Duration -> I64
+  hours o = case o of
+    None -> -1
+    Some d -> case duration-to-seconds d of
+      None -> -1
+      Some s -> s
+
+  apart :: Zoned -> Result ZonedError Zoned -> I64
+  apart a r = case r of
+    Err _ -> -1
+    Ok b -> case duration-to-seconds (timestamp-until (zoned-timestamp a) (zoned-timestamp b)) of
+      None -> -1
+      Some s -> s
+
+  -- 1: tomorrow and yesterday keep the civil time. Across the autumn
+  -- transition the two instants are 25 hours apart, across the spring
+  -- one 23, otherwise 24.
+  check-tomorrow :: TimeZone -> Int
+  check-tomorrow z =
+    let x = zc z 2024 11 2 17 25 0 0 in
+    if is x 1730582700 (-14400)
+       && ok-is (zoned-tomorrow x) 1730672700 (-18000)
+       && apart x (zoned-tomorrow x) == 90000
+       && ok-is (zoned-yesterday (zt z 1730672700)) 1730582700 (-14400)
+       && ok-is (zoned-yesterday x) 1730496300 (-14400)
+       && apart x (zoned-yesterday x) == -86400
+       && ok-is (zoned-tomorrow (zc z 2024 3 9 17 25 0 0)) 1710105900 (-14400)
+       && apart (zc z 2024 3 9 17 25 0 0) (zoned-tomorrow (zc z 2024 3 9 17 25 0 0)) == 82800
+       && (case zoned-tomorrow x of
+             Err _ -> False
+             Ok r -> zoned-datetime r == at 2024 11 3 17 25 0 0)
+    then 0 else 1
+
+  -- 2: tomorrow into the fold is the first occurrence and into the
+  -- gap the shifted reading (`Compatible`); yesterday likewise.
+  check-ambiguous :: TimeZone -> Int
+  check-ambiguous z =
+    if ok-is (zoned-tomorrow (zc z 2024 11 2 1 30 0 0)) 1730611800 (-14400)
+       && ok-is (zoned-tomorrow (zc z 2024 3 9 2 30 0 0)) 1710055800 (-14400)
+       && ok-is (zoned-yesterday (zc z 2024 11 4 1 30 0 0)) 1730611800 (-14400)
+       && ok-is (zoned-yesterday (zc z 2024 3 11 2 30 0 0)) 1710055800 (-14400)
+       && ok-is (zoned-tomorrow (zt z 1730615400)) 1730701800 (-18000)
+       && code (zoned-tomorrow (zoned-from-timestamp z max-timestamp)) == 1
+       && code (zoned-yesterday (zoned-from-timestamp z min-timestamp)) == 1
+    then 0 else 2
+
+  -- 3: a day's length in New York: 23 hours on 2024-03-10, 25 on
+  -- 2024-11-03, 24 otherwise, whatever the time of day asked from.
+  check-length :: TimeZone -> Int
+  check-length z =
+    if hours (zoned-day-length (zc z 2024 3 10 12 0 0 0)) == 82800
+       && hours (zoned-day-length (zc z 2024 3 10 0 0 0 0)) == 82800
+       && hours (zoned-day-length (zc z 2024 3 10 23 59 59 999999999)) == 82800
+       && hours (zoned-day-length (zc z 2024 11 3 12 0 0 0)) == 90000
+       && hours (zoned-day-length (zt z 1730611800)) == 90000
+       && hours (zoned-day-length (zt z 1730615400)) == 90000
+       && hours (zoned-day-length (zc z 2024 3 9 12 0 0 0)) == 86400
+       && hours (zoned-day-length (zc z 2024 3 11 12 0 0 0)) == 86400
+       && hours (zoned-day-length (zc z 2024 11 2 12 0 0 0)) == 86400
+       && hours (zoned-day-length (zc z 2024 6 15 8 0 0 0)) == 86400
+       && hours (zoned-day-length (zoned-from-timestamp zone-utc timestamp-epoch)) == 86400
+       && is-none (zoned-day-length (zoned-from-timestamp z max-timestamp))
+    then 0 else 4
+
+  -- 4: the start of the next day.
+  check-next-day :: TimeZone -> Int
+  check-next-day z =
+    if some-is (zoned-start-of-next-day (zc z 2024 11 3 12 0 0 0)) 1730696400 (-18000)
+       && some-is (zoned-start-of-next-day (zc z 2024 11 2 23 59 59 0)) 1730606400 (-14400)
+       && some-is (zoned-start-of-next-day (zc z 2024 3 10 1 0 0 0)) 1710129600 (-14400)
+       && some-is (zoned-start-of-next-day (zc z 2024 3 9 1 0 0 0)) 1710046800 (-18000)
+       && some-is (zoned-start-of-next-day (zc z 2024 6 15 0 0 0 0)) 1718510400 (-14400)
+       && is-none (zoned-start-of-next-day (zoned-from-timestamp z max-timestamp))
+    then 0 else 8
+
+  -- 5: America/Santiago. Daylight time begins at midnight, so
+  -- 2024-09-08 has no 00:00: it starts at 01:00 -03:00 and is 23 hours
+  -- long, and the day before is an ordinary 24 hours ending at that
+  -- instant. Daylight time ends at midnight too (24:00 on 2024-04-06
+  -- becomes 23:00), so 6 April is 25 hours long and 7 April 24.
+  check-santiago :: TimeZone -> Int
+  check-santiago z =
+    if hours (zoned-day-length (zc z 2024 9 8 12 0 0 0)) == 82800
+       && some-is (zoned-start-of-day (zc z 2024 9 8 12 0 0 0)) 1725768000 (-10800)
+       && some-is (zoned-start-of-next-day (zc z 2024 9 7 12 0 0 0)) 1725768000 (-10800)
+       && some-is (zoned-start-of-next-day (zc z 2024 9 8 12 0 0 0)) 1725850800 (-10800)
+       && hours (zoned-day-length (zc z 2024 9 7 12 0 0 0)) == 86400
+       && hours (zoned-day-length (zc z 2024 4 6 12 0 0 0)) == 90000
+       && hours (zoned-day-length (zc z 2024 4 7 12 0 0 0)) == 86400
+       && some-is (zoned-start-of-next-day (zc z 2024 4 6 12 0 0 0)) 1712462400 (-14400)
+       && ok-is (zoned-tomorrow (zc z 2024 9 7 0 0 0 0)) 1725768000 (-10800)
+       && ok-is (zoned-add-span (span-of-days 1) (zc z 2024 9 7 0 30 0 0)) 1725769800 (-10800)
+    then 0 else 16
+
+  -- 6: Pacific/Apia skipped 2011-12-30. The day after the 29th starts
+  -- at 2011-12-31T00:00 +14:00, the 29th is an ordinary 24 hours, and
+  -- tomorrow of noon on the 29th is noon on the 31st (the reading on
+  -- the 30th does not exist and `Compatible` shifts it by the gap).
+  check-apia :: TimeZone -> Int
+  check-apia z =
+    let x = zc z 2011 12 29 12 0 0 0 in
+    if some-is (zoned-start-of-next-day x) 1325239200 50400
+       && hours (zoned-day-length x) == 86400
+       && hours (zoned-day-length (zc z 2011 12 31 12 0 0 0)) == 86400
+       && ok-is (zoned-tomorrow x) 1325282400 50400
+       && ok-is (zoned-yesterday (zc z 2011 12 31 12 0 0 0)) 1325282400 50400
+       && some-is (zoned-start-of-day (zc z 2011 12 31 12 0 0 0)) 1325239200 50400
+    then 0 else 32
+
+  -- 7: the ends of the month and of the year, the time of day kept.
+  check-month-year :: TimeZone -> Int
+  check-month-year z =
+    let x = zc z 2024 3 20 2 30 0 0 in
+    if is x 1710916200 (-14400)
+       && ok-is (zoned-first-of-month x) 1709278200 (-18000)
+       && ok-is (zoned-last-of-month x) 1711866600 (-14400)
+       && ok-is (zoned-first-of-year x) 1704094200 (-18000)
+       && ok-is (zoned-last-of-year x) 1735630200 (-18000)
+       && ok-is (zoned-first-of-month (zt z 1730615400)) 1730439000 (-14400)
+    then 0 else 64
+
+  -- 8: weekdays. 2024-03-20 is a Wednesday; the second Sunday of that
+  -- March is the 10th, where 02:30 does not exist.
+  check-weekdays :: TimeZone -> Int
+  check-weekdays z =
+    let x = zc z 2024 3 20 2 30 0 0 in
+    if ok-is (zoned-nth-weekday 1 Friday x) 1711089000 (-14400)
+       && ok-is (zoned-nth-weekday 1 Monday x) 1711348200 (-14400)
+       && ok-is (zoned-nth-weekday (-2) Sunday x) 1710055800 (-14400)
+       && code (zoned-nth-weekday 0 Monday x) == 1
+       && ok-is (zoned-nth-weekday-of-month 2 Sunday x) 1710055800 (-14400)
+       && ok-is (zoned-nth-weekday-of-month 3 Friday x) 1710484200 (-14400)
+       && ok-is (zoned-nth-weekday-of-month (-1) Friday x) 1711693800 (-14400)
+       && code (zoned-nth-weekday-of-month 5 Monday x) == 1
+       && code (zoned-nth-weekday-of-month 0 Monday x) == 1
+    then 0 else 128
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case load "America/New_York" of
+      Err _ -> 255
+      Ok ny -> case load "Pacific/Apia" of
+        Err _ -> 255
+        Ok apia -> case load "America/Santiago" of
+          Err _ -> 255
+          Ok santiago -> check-tomorrow ny + check-ambiguous ny + check-length ny
+            + check-next-day ny + check-santiago santiago + check-apia apia
+            + check-month-year ny + check-weekdays ny

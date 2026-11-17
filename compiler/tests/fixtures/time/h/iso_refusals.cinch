@@ -1,0 +1,187 @@
+-- Lane H: Text.Time.Duration, every ISO 8601 duration refusal, each by
+-- its named constructor and byte position (`refusal` is the
+-- constructor's number * 1000 + the position): shape (empty, no `P`,
+-- nothing after `P`, `T` with no time component, no designator), order
+-- and repeats, fractions (not last, on a date unit, empty, too long),
+-- signs and white space, lower case in the strict parser, numbers and
+-- unit limits.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Span
+  import Text.Time.Duration
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- A parse result is the span with these ten fields.
+  is :: forall (c :: SpanClass). Result DurationTextError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  -- A parse result is the duration of this many nanoseconds.
+  dur-is :: Result DurationTextError Duration -> I128 -> Bool
+  dur-is r n = case r of
+    Err _ -> False
+    Ok x -> eq-i128 (duration-total-nanos x) n
+
+  code :: DurationTextError -> I64
+  code e = case e of
+    DurationTextEmpty _ -> 1
+    DurationTextMissingP _ -> 2
+    DurationTextLowercaseDesignator _ -> 3
+    DurationTextMissingComponent _ -> 4
+    DurationTextExpectedNumber _ -> 5
+    DurationTextBadDesignator _ -> 6
+    DurationTextUnitsOutOfOrder _ -> 7
+    DurationTextRepeatedUnit _ -> 8
+    DurationTextFractionNotLast _ -> 9
+    DurationTextFractionOnUnit _ -> 10
+    DurationTextTooManyFractionDigits _ -> 11
+    DurationTextEmptyFraction _ -> 12
+    DurationTextNumberTooLarge _ -> 13
+    DurationTextUnitLimit _ -> 14
+    DurationTextTimeWithoutComponent _ -> 15
+    DurationTextSignTwice _ -> 16
+    DurationTextTrailingInput _ -> 17
+    DurationTextCalendarUnit _ -> 18
+    DurationTextExpectedColon _ -> 19
+    DurationTextOutOfRange _ -> 20
+
+  -- A refusal as constructor code * 1000 + byte position; 0 for `Ok`.
+  refusal :: forall a. Result DurationTextError a -> I64
+  refusal r = case r of
+    Ok _ -> 0
+    Err e -> wrapping-add-i64 (wrapping-mul-i64 (code e) 1000) (duration-text-error-position e)
+
+  check-shape :: Int
+  check-shape =
+    if refusal (span-from-iso-string "") == 1000
+       && refusal (span-from-iso-string "P") == 4001
+       && refusal (span-from-iso-string "-P") == 4002
+       && refusal (span-from-iso-string "PT") == 15002
+       && refusal (span-from-iso-string "P1DT") == 15004
+       && refusal (span-from-iso-string "P1") == 6002
+       && refusal (span-from-iso-string "PT1") == 6003
+       && refusal (span-from-iso-string "1Y") == 2000
+       && refusal (span-from-iso-string "T1H") == 2000
+       && refusal (span-from-iso-string "1 year") == 2000
+       && refusal (span-from-iso-string "-") == 2001
+    then 0 else 1
+
+  check-designators :: Int
+  check-designators =
+    if refusal (span-from-iso-string "P1H") == 6002
+       && refusal (span-from-iso-string "P1S") == 6002
+       && refusal (span-from-iso-string "PT1D") == 6003
+       && refusal (span-from-iso-string "PT1Y") == 6003
+       && refusal (span-from-iso-string "PT1W") == 6003
+       && refusal (span-from-iso-string "P1X") == 6002
+       && refusal (span-from-iso-string "P1 D") == 6002
+       && refusal (span-from-iso-string "PT1.5") == 6005
+       && refusal (span-from-iso-string "PX") == 5001
+       && refusal (span-from-iso-string "PTX") == 5002
+       && refusal (span-from-iso-string "PTT1H") == 5002
+    then 0 else 2
+
+  check-order :: Int
+  check-order =
+    if refusal (span-from-iso-string "P1Y1Y") == 8004
+       && refusal (span-from-iso-string "P1M1Y") == 7004
+       && refusal (span-from-iso-string "PT1S1M") == 7005
+       && refusal (span-from-iso-string "P1D1W") == 7004
+       && refusal (span-from-iso-string "P1W1M") == 7004
+       && refusal (span-from-iso-string "PT1M1H") == 7005
+       && refusal (span-from-iso-string "PT1H1H") == 8005
+       && refusal (span-from-iso-string "PT1S1S") == 8005
+       && refusal (span-from-iso-string "P1D1D") == 8004
+       && refusal (span-from-iso-string "PT1HT1M") == 17004
+    then 0 else 4
+
+  check-fractions :: Int
+  check-fractions =
+    if refusal (span-from-iso-string "PT1.5H30M") == 9006
+       && refusal (span-from-iso-string "PT1.5M30S") == 9006
+       && refusal (span-from-iso-string "PT1.5H0.5M") == 9006
+       && refusal (span-from-iso-string "P1.5D") == 10002
+       && refusal (span-from-iso-string "P1.5Y") == 10002
+       && refusal (span-from-iso-string "P1,5M") == 10002
+       && refusal (span-from-iso-string "P1.5W") == 10002
+       && refusal (span-from-iso-string "PT1.1234567890S") == 11004
+       && refusal (span-from-iso-string "PT1.12345678901234567890S") == 11004
+       && is (span-from-iso-string "PT1.123456789S") 0 0 0 0 0 0 1 123 456 789
+       && refusal (span-from-iso-string "PT1.S") == 12004
+       && refusal (span-from-iso-string "PT1,S") == 12004
+       && refusal (span-from-iso-string "PT1.") == 12004
+       && refusal (span-from-iso-string "PT.5S") == 5002
+    then 0 else 8
+
+  check-sign-and-space :: Int
+  check-sign-and-space =
+    if refusal (span-from-iso-string "P-1D") == 5001
+       && refusal (span-from-iso-string "PT-1H") == 5002
+       && refusal (span-from-iso-string "P1DT-1H") == 5004
+       && refusal (span-from-iso-string "--P1D") == 2001
+       && refusal (span-from-iso-string "+-P1D") == 2001
+       && refusal (span-from-iso-string " P1D") == 2000
+       && refusal (span-from-iso-string "P1D ") == 17003
+       && refusal (span-from-iso-string "P 1D") == 5001
+       && refusal (span-from-iso-string "P1D-") == 17003
+       && refusal (span-from-iso-string "PT1S ") == 17004
+       && refusal (span-from-iso-string "PT1.5S ") == 17006
+       && refusal (span-from-iso-string "PT1Sx") == 17004
+       && refusal (span-from-iso-string "P1D\n") == 17003
+       && refusal (span-from-iso-string "P1D ago") == 17003
+    then 0 else 16
+
+  -- The strict parsers name a lower case designator; a letter that is
+  -- no designator in either case is a bad designator.
+  check-lowercase :: Int
+  check-lowercase =
+    if refusal (span-from-iso-string "p1d") == 3000
+       && refusal (span-from-iso-string "-p1d") == 3001
+       && refusal (span-from-iso-string "P1d") == 3002
+       && refusal (span-from-iso-string "P1y") == 3002
+       && refusal (span-from-iso-string "P1Dt1H") == 3003
+       && refusal (span-from-iso-string "Pt1H") == 3001
+       && refusal (span-from-iso-string "PT1h") == 3003
+       && refusal (span-from-iso-string "PT1.5s") == 3005
+       && refusal (span-from-iso-string "P1x") == 6002
+       && refusal (span-from-iso-string "P1h") == 6002
+       && refusal (duration-from-iso-string "pt1h") == 3000
+    then 0 else 32
+
+  -- A number of 38 digits is read (and is then over the unit's limit);
+  -- 39 digits are refused as a number. Each unit is checked against its
+  -- limit where it stands.
+  check-numbers :: Int
+  check-numbers =
+    if refusal (span-from-iso-string "P19999Y") == 14001
+       && refusal (span-from-iso-string "P1YT175307617H") == 14004
+       && refusal (span-from-iso-string "P99999999999999999999999999999999999999Y") == 14001
+       && refusal (span-from-iso-string "P999999999999999999999999999999999999999Y") == 13001
+       && refusal (span-from-iso-string "PT999999999999999999999999999999999999999S") == 13002
+       && refusal (span-from-iso-string "P00000000000000000000000000000000000000001Y") == 13001
+       && is (span-from-iso-string "P00000000000000000000000000000000000001Y") 1 0 0 0 0 0 0 0 0 0
+       && is (span-from-iso-string "P19998Y") 19998 0 0 0 0 0 0 0 0 0
+    then 0 else 64
+
+  main :: Int
+  main = check-shape + check-designators + check-order + check-fractions + check-sign-and-space + check-lowercase + check-numbers

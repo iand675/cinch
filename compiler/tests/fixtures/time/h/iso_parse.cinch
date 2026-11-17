@@ -1,0 +1,171 @@
+-- Lane H: Text.Time.Duration, ISO 8601 durations read. The accepted
+-- forms as a `Span` (each unit as written, fieldwise), the sign, zero,
+-- the fraction on the last time component converted exactly into the
+-- smaller units (hours, minutes and seconds; `.` and `,`), the lenient
+-- lower case forms, the clock-span reader, and `span-from-string`
+-- choosing ISO by the leading `P`.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Span
+  import Text.Time.Duration
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- A parse result is the span with these ten fields.
+  is :: forall (c :: SpanClass). Result DurationTextError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  -- A parse result is the duration of this many nanoseconds.
+  dur-is :: Result DurationTextError Duration -> I128 -> Bool
+  dur-is r n = case r of
+    Err _ -> False
+    Ok x -> eq-i128 (duration-total-nanos x) n
+
+  code :: DurationTextError -> I64
+  code e = case e of
+    DurationTextEmpty _ -> 1
+    DurationTextMissingP _ -> 2
+    DurationTextLowercaseDesignator _ -> 3
+    DurationTextMissingComponent _ -> 4
+    DurationTextExpectedNumber _ -> 5
+    DurationTextBadDesignator _ -> 6
+    DurationTextUnitsOutOfOrder _ -> 7
+    DurationTextRepeatedUnit _ -> 8
+    DurationTextFractionNotLast _ -> 9
+    DurationTextFractionOnUnit _ -> 10
+    DurationTextTooManyFractionDigits _ -> 11
+    DurationTextEmptyFraction _ -> 12
+    DurationTextNumberTooLarge _ -> 13
+    DurationTextUnitLimit _ -> 14
+    DurationTextTimeWithoutComponent _ -> 15
+    DurationTextSignTwice _ -> 16
+    DurationTextTrailingInput _ -> 17
+    DurationTextCalendarUnit _ -> 18
+    DurationTextExpectedColon _ -> 19
+    DurationTextOutOfRange _ -> 20
+
+  -- A refusal as constructor code * 1000 + byte position; 0 for `Ok`.
+  refusal :: forall a. Result DurationTextError a -> I64
+  refusal r = case r of
+    Ok _ -> 0
+    Err e -> wrapping-add-i64 (wrapping-mul-i64 (code e) 1000) (duration-text-error-position e)
+
+  check-whole :: Int
+  check-whole =
+    if is (span-from-iso-string "PT5H30M") 0 0 0 0 5 30 0 0 0 0
+       && is (span-from-iso-string "P11Y2M28DT5H30M") 11 2 0 28 5 30 0 0 0 0
+       && is (span-from-iso-string "P1Y2M3W4DT5H6M7S") 1 2 3 4 5 6 7 0 0 0
+       && is (span-from-iso-string "P1Y") 1 0 0 0 0 0 0 0 0 0
+       && is (span-from-iso-string "P1M") 0 1 0 0 0 0 0 0 0 0
+       && is (span-from-iso-string "PT1M") 0 0 0 0 0 1 0 0 0 0
+       && is (span-from-iso-string "P1W") 0 0 1 0 0 0 0 0 0 0
+       && is (span-from-iso-string "P40D") 0 0 0 40 0 0 0 0 0 0
+       && is (span-from-iso-string "PT36H") 0 0 0 0 36 0 0 0 0 0
+       && is (span-from-iso-string "PT90S") 0 0 0 0 0 0 90 0 0 0
+       && is (span-from-iso-string "P1YT1S") 1 0 0 0 0 0 1 0 0 0
+       && is (span-from-iso-string "P0001Y") 1 0 0 0 0 0 0 0 0 0
+    then 0 else 1
+
+  check-sign-and-zero :: Int
+  check-sign-and-zero =
+    if is (span-from-iso-string "-P1D") 0 0 0 (-1) 0 0 0 0 0 0
+       && is (span-from-iso-string "+P1D") 0 0 0 1 0 0 0 0 0 0
+       && is (span-from-iso-string "-P1Y2M3W4DT5H6M7.5S") (-1) (-2) (-3) (-4) (-5) (-6) (-7) (-500) 0 0
+       && is (span-from-iso-string "P0D") 0 0 0 0 0 0 0 0 0 0
+       && is (span-from-iso-string "PT0S") 0 0 0 0 0 0 0 0 0 0
+       && is (span-from-iso-string "-PT0S") 0 0 0 0 0 0 0 0 0 0
+       && is (span-from-iso-string "P0Y0M0W0DT0H0M0S") 0 0 0 0 0 0 0 0 0 0
+       && is (span-from-iso-string "PT0.0S") 0 0 0 0 0 0 0 0 0 0
+    then 0 else 2
+
+  check-second-fractions :: Int
+  check-second-fractions =
+    if is (span-from-iso-string "P1Y2M3W4DT5H6M7.5S") 1 2 3 4 5 6 7 500 0 0
+       && is (span-from-iso-string "PT1.5S") 0 0 0 0 0 0 1 500 0 0
+       && is (span-from-iso-string "PT1,5S") 0 0 0 0 0 0 1 500 0 0
+       && is (span-from-iso-string "PT2S") 0 0 0 0 0 0 2 0 0 0
+       && is (span-from-iso-string "PT0.000000001S") 0 0 0 0 0 0 0 0 0 1
+       && is (span-from-iso-string "PT1.000001S") 0 0 0 0 0 0 1 0 1 0
+       && is (span-from-iso-string "PT0.123456789S") 0 0 0 0 0 0 0 123 456 789
+       && is (span-from-iso-string "PT7.100S") 0 0 0 0 0 0 7 100 0 0
+       && is (span-from-iso-string "-PT0.25S") 0 0 0 0 0 0 0 (-250) 0 0
+    then 0 else 4
+
+  check-hour-and-minute-fractions :: Int
+  check-hour-and-minute-fractions =
+    if is (span-from-iso-string "PT1.5H") 0 0 0 0 1 30 0 0 0 0
+       && is (span-from-iso-string "PT0.5M") 0 0 0 0 0 0 30 0 0 0
+       && is (span-from-iso-string "PT0,5H") 0 0 0 0 0 30 0 0 0 0
+       && is (span-from-iso-string "PT1H0.5M") 0 0 0 0 1 0 30 0 0 0
+       && is (span-from-iso-string "PT1.25M") 0 0 0 0 0 1 15 0 0 0
+       && is (span-from-iso-string "PT0.000000001H") 0 0 0 0 0 0 0 0 3 600
+       && is (span-from-iso-string "PT0.000000001M") 0 0 0 0 0 0 0 0 0 60
+       && is (span-from-iso-string "PT0.999999999H") 0 0 0 0 0 59 59 999 996 400
+       && is (span-from-iso-string "P1DT0.1H") 0 0 0 1 0 6 0 0 0 0
+    then 0 else 8
+
+  check-lenient :: Int
+  check-lenient =
+    if is (span-from-iso-string-lenient "p1y2m3w4dt5h6m7.000000001s") 1 2 3 4 5 6 7 0 0 1
+       && is (span-from-iso-string-lenient "P1Y2M3W4DT5H6M7S") 1 2 3 4 5 6 7 0 0 0
+       && is (span-from-iso-string-lenient "-pT1h") 0 0 0 0 (-1) 0 0 0 0 0
+       && is (span-from-iso-string-lenient "Pt1m") 0 0 0 0 0 1 0 0 0 0
+       && refusal (span-from-iso-string-lenient "p") == 4001
+       && refusal (span-from-iso-string-lenient "pt") == 15002
+       && refusal (span-from-iso-string-lenient "p1x") == 6002
+       && refusal (span-from-iso-string-lenient " p1d") == 2000
+    then 0 else 16
+
+  check-clock :: Int
+  check-clock =
+    if is (span-clock-from-iso-string "PT5H30M") 0 0 0 0 5 30 0 0 0 0
+       && is (span-clock-from-iso-string "-PT1.5S") 0 0 0 0 0 0 (-1) (-500) 0 0
+       && is (span-clock-from-iso-string "PT0S") 0 0 0 0 0 0 0 0 0 0
+       && refusal (span-clock-from-iso-string "P1DT1H") == 18001
+       && refusal (span-clock-from-iso-string "P0D") == 18001
+       && refusal (span-clock-from-iso-string "P1Y") == 18001
+       && refusal (span-clock-from-iso-string "P1W") == 18001
+       && refusal (span-clock-from-iso-string "P1M") == 18001
+    then 0 else 32
+
+  -- `span-from-string` reads ISO when the first byte after an optional
+  -- sign is `P` or `p` (strict, so the lower case form is refused by
+  -- name) and the friendly format otherwise.
+  check-either :: Int
+  check-either =
+    if is (span-from-string "P1Y2M") 1 2 0 0 0 0 0 0 0 0
+       && is (span-from-string "-PT2H30M") 0 0 0 0 (-2) (-30) 0 0 0 0
+       && is (span-from-string "1y 2mo") 1 2 0 0 0 0 0 0 0 0
+       && is (span-from-string "-2h30m") 0 0 0 0 (-2) (-30) 0 0 0 0
+       && is (span-clock-from-string "PT2H") 0 0 0 0 2 0 0 0 0 0
+       && is (span-clock-from-string "2h") 0 0 0 0 2 0 0 0 0 0
+       && refusal (span-from-string "p1y") == 3000
+       && refusal (span-from-string "") == 1000
+       && refusal (span-from-string "P") == 4001
+       && refusal (span-from-string "x") == 5000
+       && refusal (span-clock-from-string "P1D") == 18001
+       && refusal (span-clock-from-string "1d") == 18000
+    then 0 else 64
+
+  main :: Int
+  main = check-whole + check-sign-and-zero + check-second-fractions + check-hour-and-minute-fractions + check-lenient + check-clock + check-either

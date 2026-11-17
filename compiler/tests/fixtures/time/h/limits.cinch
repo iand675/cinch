@@ -1,0 +1,167 @@
+-- Lane H: Text.Time.Duration at the unit limits. The largest value of
+-- each unit reads in both formats, prints in both, and one more is
+-- refused with `DurationTextUnitLimit` at the number's position (the
+-- limits are Data.Time.Span's); negative limits; the number-size rule
+-- (38 digits read, 39 refused); and the clock span's limits.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Span
+  import Text.Time.Duration
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- A parse result is the span with these ten fields.
+  is :: forall (c :: SpanClass). Result DurationTextError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  -- A parse result is the duration of this many nanoseconds.
+  dur-is :: Result DurationTextError Duration -> I128 -> Bool
+  dur-is r n = case r of
+    Err _ -> False
+    Ok x -> eq-i128 (duration-total-nanos x) n
+
+  code :: DurationTextError -> I64
+  code e = case e of
+    DurationTextEmpty _ -> 1
+    DurationTextMissingP _ -> 2
+    DurationTextLowercaseDesignator _ -> 3
+    DurationTextMissingComponent _ -> 4
+    DurationTextExpectedNumber _ -> 5
+    DurationTextBadDesignator _ -> 6
+    DurationTextUnitsOutOfOrder _ -> 7
+    DurationTextRepeatedUnit _ -> 8
+    DurationTextFractionNotLast _ -> 9
+    DurationTextFractionOnUnit _ -> 10
+    DurationTextTooManyFractionDigits _ -> 11
+    DurationTextEmptyFraction _ -> 12
+    DurationTextNumberTooLarge _ -> 13
+    DurationTextUnitLimit _ -> 14
+    DurationTextTimeWithoutComponent _ -> 15
+    DurationTextSignTwice _ -> 16
+    DurationTextTrailingInput _ -> 17
+    DurationTextCalendarUnit _ -> 18
+    DurationTextExpectedColon _ -> 19
+    DurationTextOutOfRange _ -> 20
+
+  -- A refusal as constructor code * 1000 + byte position; 0 for `Ok`.
+  refusal :: forall a. Result DurationTextError a -> I64
+  refusal r = case r of
+    Ok _ -> 0
+    Err e -> wrapping-add-i64 (wrapping-mul-i64 (code e) 1000) (duration-text-error-position e)
+
+  check-iso-largest :: Int
+  check-iso-largest =
+    if is (span-from-iso-string "P19998Y") 19998 0 0 0 0 0 0 0 0 0
+       && is (span-from-iso-string "P239976M") 0 239976 0 0 0 0 0 0 0 0
+       && is (span-from-iso-string "P1043497W") 0 0 1043497 0 0 0 0 0 0 0
+       && is (span-from-iso-string "P7304484D") 0 0 0 7304484 0 0 0 0 0 0
+       && is (span-from-iso-string "PT175307616H") 0 0 0 0 175307616 0 0 0 0 0
+       && is (span-from-iso-string "PT10518456960M") 0 0 0 0 0 10518456960 0 0 0 0
+       && is (span-from-iso-string "PT631107417600S") 0 0 0 0 0 0 631107417600 0 0 0
+       && is (span-from-iso-string "PT631107417600.999999999S") 0 0 0 0 0 0 631107417600 999 999 999
+       && is (span-from-iso-string "-P19998Y239976M1043497W7304484DT175307616H10518456960M631107417600S") (-19998) (-239976) (-1043497) (-7304484) (-175307616) (-10518456960) (-631107417600) 0 0 0
+    then 0 else 1
+
+  check-iso-over :: Int
+  check-iso-over =
+    if refusal (span-from-iso-string "P19999Y") == 14001
+       && refusal (span-from-iso-string "P239977M") == 14001
+       && refusal (span-from-iso-string "P1043498W") == 14001
+       && refusal (span-from-iso-string "P7304485D") == 14001
+       && refusal (span-from-iso-string "PT175307617H") == 14002
+       && refusal (span-from-iso-string "PT10518456961M") == 14002
+       && refusal (span-from-iso-string "PT631107417601S") == 14002
+       && refusal (span-from-iso-string "-P19999Y") == 14002
+       && refusal (span-from-iso-string "P1Y239977M") == 14003
+       && refusal (span-clock-from-iso-string "PT175307617H") == 14002
+    then 0 else 2
+
+  check-friendly-largest :: Int
+  check-friendly-largest =
+    if is (span-from-friendly-string "19998y") 19998 0 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "239976mo") 0 239976 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "1043497w") 0 0 1043497 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "7304484d") 0 0 0 7304484 0 0 0 0 0 0
+       && is (span-from-friendly-string "175307616h") 0 0 0 0 175307616 0 0 0 0 0
+       && is (span-from-friendly-string "10518456960m") 0 0 0 0 0 10518456960 0 0 0 0
+       && is (span-from-friendly-string "631107417600s") 0 0 0 0 0 0 631107417600 0 0 0
+       && is (span-from-friendly-string "631107417600000ms") 0 0 0 0 0 0 0 631107417600000 0 0
+       && is (span-from-friendly-string "631107417600000000us") 0 0 0 0 0 0 0 0 631107417600000000 0
+       && is (span-from-friendly-string "9223372036854775807ns") 0 0 0 0 0 0 0 0 0 9223372036854775807
+       && is (span-from-friendly-string "9223372036854775807ns ago") 0 0 0 0 0 0 0 0 0 (-9223372036854775807)
+       && is (span-from-friendly-string "175307616.999999999h") 0 0 0 0 175307616 59 59 999 996 400
+       && is (span-from-friendly-string "175307616:10518456960:631107417600.999999999") 0 0 0 0 175307616 10518456960 631107417600 999 999 999
+    then 0 else 4
+
+  check-friendly-over :: Int
+  check-friendly-over =
+    if refusal (span-from-friendly-string "19999y") == 14000
+       && refusal (span-from-friendly-string "239977mo") == 14000
+       && refusal (span-from-friendly-string "1043498w") == 14000
+       && refusal (span-from-friendly-string "7304485d") == 14000
+       && refusal (span-from-friendly-string "175307617h") == 14000
+       && refusal (span-from-friendly-string "10518456961m") == 14000
+       && refusal (span-from-friendly-string "631107417601s") == 14000
+       && refusal (span-from-friendly-string "631107417600001ms") == 14000
+       && refusal (span-from-friendly-string "631107417600000001us") == 14000
+       && refusal (span-from-friendly-string "9223372036854775808ns") == 14000
+       && refusal (span-from-friendly-string "-9223372036854775808ns") == 14001
+       && refusal (span-from-friendly-string "1y 2mo 9223372036854775808ns") == 14007
+       && refusal (span-clock-from-friendly-string "175307617 hours") == 14000
+    then 0 else 8
+
+  all-largest :: Span Calendar
+  all-largest = sp 19998 239976 1043497 7304484 175307616 10518456960 631107417600 631107417600000 631107417600000000 9223372036854775807
+
+  check-print-largest :: Int
+  check-print-largest =
+    if span-to-friendly-string all-largest == "19998y 239976mo 1043497w 7304484d 175307616h 10518456960m 631107417600s 631107417600000ms 631107417600000000us 9223372036854775807ns"
+       && span-to-friendly-string (span-negate all-largest) == "19998y 239976mo 1043497w 7304484d 175307616h 10518456960m 631107417600s 631107417600000ms 631107417600000000us 9223372036854775807ns ago"
+       && is (span-from-friendly-string (span-to-friendly-string all-largest)) 19998 239976 1043497 7304484 175307616 10518456960 631107417600 631107417600000 631107417600000000 9223372036854775807
+       && span-to-iso-string (sp 19998 239976 1043497 7304484 175307616 10518456960 631107417600 0 0 0) == "P19998Y239976M1043497W7304484DT175307616H10518456960M631107417600S"
+       && span-to-iso-string (sp 0 0 0 0 0 0 0 0 0 9223372036854775807) == "PT9223372036.854775807S"
+       && span-to-iso-string (sp 0 0 0 0 0 0 0 0 0 (-9223372036854775807)) == "-PT9223372036.854775807S"
+       && span-to-iso-string (sp 0 0 0 0 0 0 0 631107417600000 0 0) == "PT631107417600S"
+       && span-to-iso-string (sp 0 0 0 0 0 0 0 0 631107417600000000 0) == "PT631107417600S"
+       && span-print-friendly (friendly-with-clock-form True friendly-printer-default) all-largest == "19998y 239976mo 1043497w 7304484d 175307616:10518456960:1902545624836.854775807"
+       && span-print-friendly (friendly-with-fractional FractionalHour friendly-printer-default) (sp 0 0 0 0 175307616 0 0 0 0 9223372036854775807) == "177869663.788015215h"
+    then 0 else 16
+
+  -- A number may have 38 digits (leading zeros count); it is then
+  -- checked against the unit's limit.
+  check-number-size :: Int
+  check-number-size =
+    if is (span-from-friendly-string "00000000000000000000000000000000000001h") 0 0 0 0 1 0 0 0 0 0
+       && refusal (span-from-friendly-string "000000000000000000000000000000000000001h") == 13000
+       && refusal (span-from-friendly-string "99999999999999999999999999999999999999h") == 14000
+       && is (span-from-iso-string "PT00000000000000000000000000000000000001H") 0 0 0 0 1 0 0 0 0 0
+       && refusal (span-from-iso-string "PT000000000000000000000000000000000000001H") == 13002
+       && is (span-from-friendly-string "00000000000000000000000000000000000001:00000000000000000000000000000000000002:3") 0 0 0 0 1 2 3 0 0 0
+       && refusal (span-from-friendly-string "0000000000000000000000000000000000000001:02:03") == 13000
+       && refusal (span-from-friendly-string "01:000000000000000000000000000000000000002:03") == 13003
+       && refusal (span-from-friendly-string "01:02:000000000000000000000000000000000000003") == 13006
+       && is (span-from-friendly-string "1.000000000s") 0 0 0 0 0 0 1 0 0 0
+    then 0 else 32
+
+  main :: Int
+  main = check-iso-largest + check-iso-over + check-friendly-largest + check-friendly-over + check-print-largest + check-number-size

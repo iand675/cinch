@@ -1,0 +1,220 @@
+-- Lane H: Text.Time.Duration, printing. The ISO 8601 form of a span
+-- (sub-second units folded into fractional seconds: the stated loss)
+-- and the friendly form with default options (lossless), then every
+-- knob of `FriendlyPrinter`: designator style with singular forms,
+-- spacing, the comma, the four sign styles, the fractional unit with
+-- shortest and fixed precision, the clock form, the zero unit and the
+-- Unicode micro sign.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Span
+  import Text.Time.Duration
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- A parse result is the span with these ten fields.
+  is :: forall (c :: SpanClass). Result DurationTextError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  -- A parse result is the duration of this many nanoseconds.
+  dur-is :: Result DurationTextError Duration -> I128 -> Bool
+  dur-is r n = case r of
+    Err _ -> False
+    Ok x -> eq-i128 (duration-total-nanos x) n
+
+  code :: DurationTextError -> I64
+  code e = case e of
+    DurationTextEmpty _ -> 1
+    DurationTextMissingP _ -> 2
+    DurationTextLowercaseDesignator _ -> 3
+    DurationTextMissingComponent _ -> 4
+    DurationTextExpectedNumber _ -> 5
+    DurationTextBadDesignator _ -> 6
+    DurationTextUnitsOutOfOrder _ -> 7
+    DurationTextRepeatedUnit _ -> 8
+    DurationTextFractionNotLast _ -> 9
+    DurationTextFractionOnUnit _ -> 10
+    DurationTextTooManyFractionDigits _ -> 11
+    DurationTextEmptyFraction _ -> 12
+    DurationTextNumberTooLarge _ -> 13
+    DurationTextUnitLimit _ -> 14
+    DurationTextTimeWithoutComponent _ -> 15
+    DurationTextSignTwice _ -> 16
+    DurationTextTrailingInput _ -> 17
+    DurationTextCalendarUnit _ -> 18
+    DurationTextExpectedColon _ -> 19
+    DurationTextOutOfRange _ -> 20
+
+  -- A refusal as constructor code * 1000 + byte position; 0 for `Ok`.
+  refusal :: forall a. Result DurationTextError a -> I64
+  refusal r = case r of
+    Ok _ -> 0
+    Err e -> wrapping-add-i64 (wrapping-mul-i64 (code e) 1000) (duration-text-error-position e)
+
+  ck :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Clock
+  ck h mi s ms us ns = case span-clock-from-units h mi s ms us ns of
+    Err _ -> span-zero
+    Ok x -> x
+
+  check-iso :: Int
+  check-iso =
+    if span-to-iso-string (sp 0 0 0 0 5 30 0 0 0 0) == "PT5H30M"
+       && span-to-iso-string (sp 11 2 0 28 5 30 0 0 0 0) == "P11Y2M28DT5H30M"
+       && span-to-iso-string (sp 1 2 3 4 5 6 7 0 0 0) == "P1Y2M3W4DT5H6M7S"
+       && span-to-iso-string (sp 0 0 0 0 0 0 0 2000 0 0) == "PT2S"
+       && span-to-iso-string (sp 0 0 0 0 0 0 1 500 0 0) == "PT1.5S"
+       && span-to-iso-string (sp 0 0 0 0 0 0 0 0 0 1) == "PT0.000000001S"
+       && span-to-iso-string (sp 0 0 0 0 0 0 0 123 456 789) == "PT0.123456789S"
+       && span-to-iso-string (sp 0 0 0 0 0 0 59 999 999 1001) == "PT60.000000001S"
+       && span-to-iso-string (sp 0 0 0 0 0 0 0 0 0 0) == "PT0S"
+       && span-to-iso-string (ck 0 0 0 0 0 0) == "PT0S"
+       && span-to-iso-string (sp 1 0 0 0 0 0 0 0 0 0) == "P1Y"
+       && span-to-iso-string (sp 0 0 0 40 0 0 0 0 0 0) == "P40D"
+       && span-to-iso-string (sp 0 0 (-3) 0 0 0 (-1) (-500) 0 0) == "-P3WT1.5S"
+       && span-to-iso-string (sp 0 0 0 0 0 90 0 0 0 0) == "PT90M"
+       && span-to-iso-string (sp 0 0 0 1 0 0 0 0 1 0) == "P1DT0.000001S"
+    then 0 else 1
+
+  check-default :: Int
+  check-default =
+    if span-to-friendly-string (sp 6 10 0 3 23 0 0 0 0 0) == "6y 10mo 3d 23h"
+       && span-to-friendly-string (sp 0 0 0 0 0 0 0 2000 0 0) == "2000ms"
+       && span-to-friendly-string (sp 1 2 3 4 5 6 7 8 9 10) == "1y 2mo 3w 4d 5h 6m 7s 8ms 9us 10ns"
+       && span-to-friendly-string (sp 0 0 0 0 0 0 0 0 0 0) == "0s"
+       && span-to-friendly-string (ck 2 30 0 0 0 0) == "2h 30m"
+       && span-to-friendly-string (ck (-2) (-30) 0 0 0 0) == "2h 30m ago"
+       && span-to-friendly-string (sp 0 0 0 40 0 0 0 0 0 0) == "40d"
+       && span-to-friendly-string (sp 0 0 0 0 0 0 1 500 0 0) == "1s 500ms"
+       && span-print-friendly friendly-printer-default (sp 0 1 0 0 0 1 0 0 0 0) == "1mo 1m"
+    then 0 else 2
+
+  verbose :: FriendlyPrinter
+  verbose = friendly-with-comma True (friendly-with-spacing SpacingBetweenUnitsAndDesignators (friendly-with-designator DesignatorVerbose friendly-printer-default))
+
+  short :: FriendlyPrinter
+  short = friendly-with-designator DesignatorShort friendly-printer-default
+
+  tight :: FriendlyPrinter
+  tight = friendly-with-spacing SpacingNone friendly-printer-default
+
+  check-designators-and-spacing :: Int
+  check-designators-and-spacing =
+    if span-print-friendly verbose (sp 6 10 0 3 23 0 0 0 0 0) == "6 years, 10 months, 3 days, 23 hours"
+       && span-print-friendly verbose (sp 1 1 1 1 1 1 1 1 1 1) == "1 year, 1 month, 1 week, 1 day, 1 hour, 1 minute, 1 second, 1 millisecond, 1 microsecond, 1 nanosecond"
+       && span-print-friendly verbose (sp 2 2 2 2 2 2 2 2 2 2) == "2 years, 2 months, 2 weeks, 2 days, 2 hours, 2 minutes, 2 seconds, 2 milliseconds, 2 microseconds, 2 nanoseconds"
+       && span-print-friendly short (sp 1 1 1 1 1 1 1 1 1 1) == "1yr 1mo 1wk 1day 1hr 1min 1sec 1msec 1usec 1nsec"
+       && span-print-friendly short (sp 2 2 2 2 2 2 2 2 2 2) == "2yrs 2mos 2wks 2days 2hrs 2mins 2secs 2msecs 2usecs 2nsecs"
+       && span-print-friendly tight (sp 1 2 3 4 5 6 7 8 9 10) == "1y2mo3w4d5h6m7s8ms9us10ns"
+       && span-print-friendly (friendly-with-comma True tight) (sp 1 2 0 0 0 0 0 0 0 0) == "1y,2mo"
+       && span-print-friendly (friendly-with-comma True friendly-printer-default) (sp 1 2 0 0 0 0 0 0 0 0) == "1y, 2mo"
+       && span-print-friendly (friendly-with-spacing SpacingBetweenUnitsAndDesignators friendly-printer-default) (sp 1 2 0 0 0 0 0 0 0 0) == "1 y 2 mo"
+       && span-print-friendly (friendly-with-designator DesignatorVerbose tight) (sp 1 2 0 0 0 0 0 0 0 0) == "1year2months"
+       && span-print-friendly (friendly-with-unicode-micro True friendly-printer-default) (sp 0 0 0 0 0 0 0 8 9 10) == "8ms 9\u{00b5}s 10ns"
+       && span-print-friendly (friendly-with-unicode-micro True short) (sp 0 0 0 0 0 0 0 0 9 0) == "9usecs"
+    then 0 else 4
+
+  check-signs :: Int
+  check-signs =
+    if span-print-friendly tight (ck (-2) (-30) 0 0 0 0) == "-2h30m"
+       && span-print-friendly (friendly-with-sign SignPrefix friendly-printer-default) (ck (-2) (-30) 0 0 0 0) == "-2h 30m"
+       && span-print-friendly (friendly-with-sign SignPrefix friendly-printer-default) (ck 2 30 0 0 0 0) == "2h 30m"
+       && span-print-friendly (friendly-with-sign SignForce friendly-printer-default) (ck 2 30 0 0 0 0) == "+2h 30m"
+       && span-print-friendly (friendly-with-sign SignForce friendly-printer-default) (ck (-2) (-30) 0 0 0 0) == "-2h 30m"
+       && span-print-friendly (friendly-with-sign SignForce friendly-printer-default) (ck 0 0 0 0 0 0) == "0s"
+       && span-print-friendly (friendly-with-sign SignSuffix tight) (ck (-2) (-30) 0 0 0 0) == "2h30m ago"
+       && span-print-friendly (friendly-with-sign SignSuffix tight) (ck 2 30 0 0 0 0) == "2h30m"
+       && span-print-friendly (friendly-with-sign SignAuto (friendly-with-sign SignSuffix tight)) (ck (-2) 0 0 0 0 0) == "-2h"
+       && span-print-friendly verbose (sp (-1) 0 0 (-2) 0 0 0 0 0 0) == "1 year, 2 days ago"
+    then 0 else 8
+
+  frac :: FriendlyFractional -> FriendlyPrinter
+  frac u = friendly-with-fractional u friendly-printer-default
+
+  check-fractional :: Int
+  check-fractional =
+    if span-print-friendly (frac FractionalMinute) (ck 1 30 30 0 0 0) == "1h 30.5m"
+       && span-print-friendly (frac FractionalHour) (ck 1 30 0 0 0 0) == "1.5h"
+       && span-print-friendly (frac FractionalHour) (ck 0 90 0 0 0 0) == "1.5h"
+       && span-print-friendly (frac FractionalHour) (sp 0 0 0 2 1 15 0 0 0 0) == "2d 1.25h"
+       && span-print-friendly (frac FractionalSecond) (ck 0 3 34 123 0 0) == "3m 34.123s"
+       && span-print-friendly (frac FractionalSecond) (ck 0 0 0 2 100 0) == "0.0021s"
+       && span-print-friendly (frac FractionalMillisecond) (ck 0 0 1 1 500 0) == "1s 1.5ms"
+       && span-print-friendly (frac FractionalMicrosecond) (ck 0 0 0 0 1 500) == "1.5us"
+       && span-print-friendly (frac FractionalSecond) (ck 1 0 0 0 0 0) == "1h"
+       && span-print-friendly (frac FractionalHour) (ck 0 0 0 0 0 0) == "0h"
+       && span-print-friendly (frac FractionalHour) (ck 0 0 0 0 0 1) == "0h"
+       && span-print-friendly (friendly-with-precision 3 (frac FractionalSecond)) (ck 0 0 1 500 0 0) == "1.500s"
+       && span-print-friendly (friendly-with-precision 0 (frac FractionalSecond)) (ck 0 0 1 999 0 0) == "1s"
+       && span-print-friendly (friendly-with-precision 2 (frac FractionalSecond)) (ck 0 0 1 999 0 0) == "1.99s"
+       && span-print-friendly (friendly-with-precision 9 (frac FractionalHour)) (ck 1 0 0 0 0 0) == "1.000000000h"
+       && span-print-friendly (friendly-with-shortest-precision (friendly-with-precision 3 (frac FractionalSecond))) (ck 0 0 1 500 0 0) == "1.5s"
+       && span-print-friendly (friendly-with-fractional FractionalHour verbose) (ck 1 0 0 0 0 0) == "1 hour"
+       && span-print-friendly (friendly-with-fractional FractionalHour verbose) (ck 1 30 0 0 0 0) == "1.5 hours"
+       && span-print-friendly (friendly-with-fractional FractionalNone (frac FractionalHour)) (ck 1 30 0 0 0 0) == "1h 30m"
+       && span-print-friendly (frac FractionalSecond) (ck 0 0 (-1) (-500) 0 0) == "1.5s ago"
+    then 0 else 16
+
+  clock :: FriendlyPrinter
+  clock = friendly-with-clock-form True friendly-printer-default
+
+  check-clock-form :: Int
+  check-clock-form =
+    if span-print-friendly (friendly-with-clock-form True verbose) (sp 1 1 0 1 1 1 1 100 0 0) == "1 year, 1 month, 1 day, 01:01:01.1"
+       && span-print-friendly clock (ck 100 5 0 0 0 0) == "100:05:00"
+       && span-print-friendly clock (ck 1 70 80 0 0 0) == "01:70:80"
+       && span-print-friendly clock (ck 0 0 0 0 0 0) == "00:00:00"
+       && span-print-friendly clock (ck (-1) 0 0 0 0 0) == "-01:00:00"
+       && span-print-friendly (friendly-with-sign SignSuffix clock) (ck (-1) 0 0 0 0 0) == "01:00:00 ago"
+       && span-print-friendly clock (sp 0 0 0 1 0 0 0 0 0 0) == "1d"
+       && span-print-friendly clock (sp 0 0 0 1 2 3 4 0 0 5) == "1d 02:03:04.000000005"
+       && span-print-friendly (friendly-with-clock-form True tight) (sp 0 0 0 1 2 3 4 0 0 0) == "1d02:03:04"
+       && span-print-friendly (friendly-with-precision 3 clock) (ck 1 1 1 100 0 0) == "01:01:01.100"
+       && span-print-friendly (friendly-with-precision 0 clock) (ck 1 1 1 999 0 0) == "01:01:01"
+       && span-print-friendly clock (ck 0 0 0 2500 0 0) == "00:00:02.5"
+       && span-print-friendly (friendly-with-clock-form False clock) (ck 1 2 3 0 0 0) == "1h 2m 3s"
+    then 0 else 32
+
+  zero-in :: TimeUnit -> FriendlyPrinter -> String
+  zero-in u p = span-print-friendly (friendly-with-zero-unit u p) (ck 0 0 0 0 0 0)
+
+  check-zero-unit :: Int
+  check-zero-unit =
+    if zero-in Day friendly-printer-default == "0d"
+       && zero-in Year friendly-printer-default == "0y"
+       && zero-in Month friendly-printer-default == "0mo"
+       && zero-in Week friendly-printer-default == "0w"
+       && zero-in Hour friendly-printer-default == "0h"
+       && zero-in Minute friendly-printer-default == "0m"
+       && zero-in Second friendly-printer-default == "0s"
+       && zero-in Millisecond friendly-printer-default == "0ms"
+       && zero-in Microsecond friendly-printer-default == "0us"
+       && zero-in Nanosecond friendly-printer-default == "0ns"
+       && zero-in Day verbose == "0 days"
+       && zero-in Second verbose == "0 seconds"
+       && zero-in Hour short == "0hrs"
+       && zero-in Day (frac FractionalMinute) == "0m"
+       && zero-in Day (friendly-with-sign SignSuffix friendly-printer-default) == "0d"
+    then 0 else 64
+
+  main :: Int
+  main = check-iso + check-default + check-designators-and-spacing + check-signs + check-fractional + check-clock-form + check-zero-unit

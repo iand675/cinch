@@ -1,0 +1,283 @@
+-- Lane G: Text.Time.Rfc9557, resolution (Temporal's
+-- InterpretISODateTimeOffset). A civil reading with no offset under
+-- each strategy in a fold and in a gap; a numeric offset under each
+-- `OffsetConflict` when it agrees with the zone, selects an occurrence
+-- of a fold, contradicts the zone, or falls in a gap; `Z` as an exact
+-- instant; fixed-offset and UTC annotations; a whole-minute offset
+-- matching a sub-minute zone offset; a date with no time as the first
+-- instant of the day; instants outside the range. Expected instants
+-- were computed with Python's zoneinfo (tzdata 2026e).
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Effect.Time.Zone
+  import Text.Time.Rfc9557
+
+  db :: TzDb
+  db = tzdb-at "tests/fixtures/time/c/tzif"
+
+  resolve :: OffsetConflict -> Disambiguation -> TimeZone -> String -> Result Rfc9557Error Zoned
+  resolve c s z text = case parse-zoned-text-lenient text of
+    Err e -> Err e
+    Ok t -> zoned-text-resolve c s z t
+
+  -- The resolved value is this Unix second, shown as this text.
+  lands :: Result Rfc9557Error Zoned -> I64 -> String -> Bool
+  lands r secs text = case r of
+    Err _ -> False
+    Ok x -> timestamp-to-unix-seconds (zoned-timestamp x) == secs && zoned-to-string x == text
+
+  -- With the defaults (`OffsetReject`, compatible).
+  default-lands :: TimeZone -> String -> I64 -> String -> Bool
+  default-lands z text secs shown = case parse-zoned-text-lenient text of
+    Err _ -> False
+    Ok t -> lands (zoned-text-resolve-default z t) secs shown
+
+  -- 0 resolved; 1 offset mismatch; 2 rejected gap; 3 rejected fold;
+  -- 4 out of range; 5 a parse refusal.
+  outcome :: Result Rfc9557Error Zoned -> I64
+  outcome r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      Rfc9557OffsetMismatch _ _ -> 1
+      Rfc9557Ambiguous why -> (case why of
+        RejectedGap _ _ -> 2
+        RejectedFold _ _ -> 3
+        AmbiguityOutOfRange -> 4)
+      Rfc9557OutOfRange -> 4
+      _ -> 5
+
+  -- The mismatch carries the offset written and what the zone has:
+  -- 1 unambiguous, 2 gap, 3 fold (with the first of its offsets).
+  mismatch :: Result Rfc9557Error Zoned -> I64 -> I64 -> I64 -> Bool
+  mismatch r written kind first = case r of
+    Ok _ -> False
+    Err e -> case e of
+      Rfc9557OffsetMismatch o a -> offset-to-seconds o == written && (case a of
+        Unambiguous x -> kind == 1 && offset-to-seconds x == first
+        Gap x _ -> kind == 2 && offset-to-seconds x == first
+        Fold x _ -> kind == 3 && offset-to-seconds x == first)
+      _ -> False
+
+  -- 1: Sydney. An ordinary reading; the fold of 2026-04-05T02:30 with
+  -- no offset under each strategy; an offset selects its occurrence
+  -- under every policy but `OffsetIgnore`.
+  check-sydney :: TimeZone -> Int
+  check-sydney z =
+    let first = "2026-04-05T02:30:00+11:00[Australia/Sydney]" in
+    let second = "2026-04-05T02:30:00+10:00[Australia/Sydney]" in
+    if default-lands z "2026-10-31T05:30[Australia/Sydney]" 1793385000 "2026-10-31T05:30:00+11:00[Australia/Sydney]"
+       && default-lands z "2026-04-05T02:30[Australia/Sydney]" 1775316600 first
+       && lands (resolve OffsetReject Compatible z "2026-04-05T02:30[Australia/Sydney]") 1775316600 first
+       && lands (resolve OffsetReject Earlier z "2026-04-05T02:30[Australia/Sydney]") 1775316600 first
+       && lands (resolve OffsetReject Later z "2026-04-05T02:30[Australia/Sydney]") 1775320200 second
+       && outcome (resolve OffsetReject Reject z "2026-04-05T02:30[Australia/Sydney]") == 3
+       && default-lands z first 1775316600 first
+       && default-lands z second 1775320200 second
+       && lands (resolve OffsetReject Reject z first) 1775316600 first
+       && lands (resolve OffsetReject Reject z second) 1775320200 second
+       && lands (resolve OffsetReject Later z first) 1775316600 first
+       && lands (resolve OffsetReject Earlier z second) 1775320200 second
+       && lands (resolve OffsetPrefer Later z first) 1775316600 first
+       && lands (resolve OffsetPrefer Earlier z second) 1775320200 second
+       && lands (resolve OffsetUse Later z first) 1775316600 first
+       && lands (resolve OffsetUse Earlier z second) 1775320200 second
+       && lands (resolve OffsetIgnore Later z first) 1775320200 second
+       && lands (resolve OffsetIgnore Earlier z second) 1775316600 first
+       && outcome (resolve OffsetIgnore Reject z second) == 3
+       && mismatch (resolve OffsetReject Compatible z "2026-04-05T02:30+09:00[Australia/Sydney]") 32400 3 39600
+       && lands (resolve OffsetPrefer Later z "2026-04-05T02:30+09:00[Australia/Sydney]") 1775320200 second
+      then 0 else 1
+
+  -- 2: New York, an offset that agrees (hour-only) and one that does
+  -- not, under each policy.
+  check-conflict :: TimeZone -> Int
+  check-conflict z =
+    let right = "2024-09-10T23:37:20-04:00[America/New_York]" in
+    let wrong = "2024-09-10T23:37:20-05:00[America/New_York]" in
+    if default-lands z "2024-09-10T23:37:20-04[America/New_York]" 1726025840 right
+       && default-lands z right 1726025840 right
+       && lands (resolve OffsetUse Compatible z right) 1726025840 right
+       && lands (resolve OffsetPrefer Compatible z right) 1726025840 right
+       && lands (resolve OffsetIgnore Compatible z right) 1726025840 right
+       && outcome (resolve OffsetReject Compatible z wrong) == 1
+       && mismatch (resolve OffsetReject Compatible z wrong) (-18000) 1 (-14400)
+       && outcome (resolve OffsetReject Reject z wrong) == 1
+       && lands (resolve OffsetUse Compatible z wrong) 1726029440 "2024-09-11T00:37:20-04:00[America/New_York]"
+       && lands (resolve OffsetUse Reject z wrong) 1726029440 "2024-09-11T00:37:20-04:00[America/New_York]"
+       && lands (resolve OffsetIgnore Compatible z wrong) 1726025840 right
+       && lands (resolve OffsetPrefer Compatible z wrong) 1726025840 right
+       && lands (resolve OffsetPrefer Reject z wrong) 1726025840 right
+       && lands (resolve OffsetIgnore Reject z wrong) 1726025840 right
+      then 0 else 2
+
+  -- 4: `Z` (and `-00:00`) is the instant, whatever the policy.
+  check-zulu :: TimeZone -> TimeZone -> Int
+  check-zulu ny syd =
+    let shown = "2024-07-13T15:09:59-04:00[America/New_York]" in
+    if default-lands ny "2024-07-13T19:09:59Z[America/New_York]" 1720897799 shown
+       && default-lands ny "2024-07-13T19:09:59-00:00[America/New_York]" 1720897799 shown
+       && lands (resolve OffsetReject Reject ny "2024-07-13T19:09:59Z[America/New_York]") 1720897799 shown
+       && lands (resolve OffsetUse Later ny "2024-07-13T19:09:59Z[America/New_York]") 1720897799 shown
+       && lands (resolve OffsetIgnore Earlier ny "2024-07-13T19:09:59Z[America/New_York]") 1720897799 shown
+       && lands (resolve OffsetPrefer Compatible ny "2024-07-13T19:09:59Z[America/New_York]") 1720897799 shown
+       && default-lands ny "2024-07-13T19:09:59+00:00[America/New_York]" 0 "" == False
+       && outcome (resolve OffsetReject Compatible ny "2024-07-13T19:09:59+00:00[America/New_York]") == 1
+       && lands (resolve OffsetUse Compatible ny "2024-07-13T19:09:59+00:00[America/New_York]") 1720897799 shown
+       && default-lands ny "2026-11-01T05:30:00Z[America/New_York]" 1793511000 "2026-11-01T01:30:00-04:00[America/New_York]"
+       && default-lands ny "2026-11-01T06:30:00Z[America/New_York]" 1793514600 "2026-11-01T01:30:00-05:00[America/New_York]"
+       && default-lands ny "2026-03-08T02:30:00Z[America/New_York]" 1772937000 "2026-03-07T21:30:00-05:00[America/New_York]"
+       && default-lands syd "2026-04-04T16:30:00.25Z[Australia/Sydney]" 1775320200 "2026-04-05T02:30:00.25+10:00[Australia/Sydney]"
+      then 0 else 4
+
+  -- 8: the New York gap of 2026-03-08 (02:00 to 03:00 does not exist).
+  -- No offset is valid inside it, so `OffsetReject` refuses any.
+  check-gap :: TimeZone -> Int
+  check-gap z =
+    let text = "2026-03-08T02:30[America/New_York]" in
+    let after = "2026-03-08T03:30:00-04:00[America/New_York]" in
+    let before = "2026-03-08T01:30:00-05:00[America/New_York]" in
+    if default-lands z text 1772955000 after
+       && lands (resolve OffsetReject Later z text) 1772955000 after
+       && lands (resolve OffsetReject Earlier z text) 1772951400 before
+       && outcome (resolve OffsetReject Reject z text) == 2
+       && outcome (resolve OffsetReject Compatible z "2026-03-08T02:30-05:00[America/New_York]") == 1
+       && mismatch (resolve OffsetReject Compatible z "2026-03-08T02:30-05:00[America/New_York]") (-18000) 2 (-18000)
+       && outcome (resolve OffsetReject Compatible z "2026-03-08T02:30-04:00[America/New_York]") == 1
+       && lands (resolve OffsetPrefer Compatible z "2026-03-08T02:30-05:00[America/New_York]") 1772955000 after
+       && lands (resolve OffsetPrefer Earlier z "2026-03-08T02:30-04:00[America/New_York]") 1772951400 before
+       && outcome (resolve OffsetPrefer Reject z "2026-03-08T02:30-04:00[America/New_York]") == 2
+       && lands (resolve OffsetUse Reject z "2026-03-08T02:30-05:00[America/New_York]") 1772955000 after
+       && lands (resolve OffsetUse Reject z "2026-03-08T02:30-04:00[America/New_York]") 1772951400 before
+       && lands (resolve OffsetIgnore Earlier z "2026-03-08T02:30-05:00[America/New_York]") 1772951400 before
+       && default-lands z "2026-03-08T01:59:59-05:00[America/New_York]" 1772953199 "2026-03-08T01:59:59-05:00[America/New_York]"
+       && default-lands z "2026-03-08T03:00:00-04:00[America/New_York]" 1772953200 "2026-03-08T03:00:00-04:00[America/New_York]"
+       && default-lands z "2026-11-01T01:30[America/New_York]" 1793511000 "2026-11-01T01:30:00-04:00[America/New_York]"
+       && default-lands z "2026-11-01T01:30-05:00[America/New_York]" 1793514600 "2026-11-01T01:30:00-05:00[America/New_York]"
+      then 0 else 8
+
+  -- The zone an offset annotation names, resolved with the defaults.
+  fixed-lands :: String -> I64 -> String -> Bool
+  fixed-lands text secs shown = case parse-zoned-text text of
+    Err _ -> False
+    Ok t -> case zoned-text-fixed-zone t of
+      None -> False
+      Some z -> lands (zoned-text-resolve-default z t) secs shown
+
+  fixed-outcome :: String -> I64
+  fixed-outcome text = case parse-zoned-text text of
+    Err _ -> 5
+    Ok t -> case zoned-text-fixed-zone t of
+      None -> 5
+      Some z -> outcome (zoned-text-resolve-default z t)
+
+  -- 16: fixed-offset and UTC annotations; Kolkata.
+  check-fixed :: TimeZone -> TimeZone -> Int
+  check-fixed kol utc-file =
+    if fixed-lands "2026-03-08T02:30[+05:30]" 1772917200 "2026-03-08T02:30:00+05:30[+05:30]"
+       && fixed-lands "2026-03-08T02:30+05:30[+05:30]" 1772917200 "2026-03-08T02:30:00+05:30[+05:30]"
+       && fixed-lands "2026-03-08T02:30Z[+05:30]" 1772937000 "2026-03-08T08:00:00+05:30[+05:30]"
+       && fixed-lands "2026-03-08T02:30[-03:30]" 1772949600 "2026-03-08T02:30:00-03:30[-03:30]"
+       && fixed-lands "2026-03-08T02:30[+00:00]" 1772937000 "2026-03-08T02:30:00+00:00[UTC]"
+       && fixed-outcome "2026-03-08T02:30+05:00[+05:30]" == 1
+       && fixed-outcome "2026-03-08T02:30-05:30[+05:30]" == 1
+       && default-lands zone-utc "2026-03-08T02:30[UTC]" 1772937000 "2026-03-08T02:30:00+00:00[UTC]"
+       && default-lands zone-utc "2026-03-08T02:30+00:00[UTC]" 1772937000 "2026-03-08T02:30:00+00:00[UTC]"
+       && default-lands zone-utc "2026-03-08T02:30Z[UTC]" 1772937000 "2026-03-08T02:30:00+00:00[UTC]"
+       && default-lands utc-file "2026-03-08T02:30:00.000000001Z[UTC]" 1772937000 "2026-03-08T02:30:00.000000001+00:00[UTC]"
+       && outcome (resolve OffsetReject Compatible zone-utc "2026-03-08T02:30+01:00[UTC]") == 1
+       && default-lands kol "2026-06-01T12:00[Asia/Kolkata]" 1780295400 "2026-06-01T12:00:00+05:30[Asia/Kolkata]"
+       && default-lands kol "2026-06-01T12:00+05:30[Asia/Kolkata]" 1780295400 "2026-06-01T12:00:00+05:30[Asia/Kolkata]"
+       && default-lands kol "2026-06-01T06:30Z[Asia/Kolkata]" 1780295400 "2026-06-01T12:00:00+05:30[Asia/Kolkata]"
+       && outcome (resolve OffsetReject Compatible kol "2026-06-01T12:00+05:00[Asia/Kolkata]") == 1
+      then 0 else 16
+
+  -- 32: Amsterdam's local mean time, +00:19:32 until 1937: the exact
+  -- offset matches, a whole-minute offset matches when the zone's
+  -- rounds to it (+00:20), and no other does.
+  check-minutes :: TimeZone -> Int
+  check-minutes ams =
+    let shown = "1900-01-01T12:19:32+00:19:32[Europe/Amsterdam]" in
+    if default-lands ams shown (-2208945600) shown
+       && default-lands ams "1900-01-01T12:19:32+00:20[Europe/Amsterdam]" (-2208945600) shown
+       && default-lands ams "1900-01-01T12:19:32[Europe/Amsterdam]" (-2208945600) shown
+       && outcome (resolve OffsetReject Compatible ams "1900-01-01T12:19:32+00:19[Europe/Amsterdam]") == 1
+       && outcome (resolve OffsetReject Compatible ams "1900-01-01T12:19:32+00:19:33[Europe/Amsterdam]") == 1
+       && outcome (resolve OffsetReject Compatible ams "1900-01-01T12:19:32+00:21[Europe/Amsterdam]") == 1
+       && outcome (resolve OffsetReject Compatible ams "1900-01-01T12:19:32-00:20[Europe/Amsterdam]") == 1
+       && lands (resolve OffsetUse Compatible ams "1900-01-01T12:19:32+00:20[Europe/Amsterdam]") (-2208945628) "1900-01-01T12:19:04+00:19:32[Europe/Amsterdam]"
+       && default-lands ams "2026-07-01T12:00+02:00[Europe/Amsterdam]" 1782900000 "2026-07-01T12:00:00+02:00[Europe/Amsterdam]"
+      then 0 else 32
+
+  -- 64: a date with no time is the first instant of that day in the
+  -- zone: midnight; the first of two midnights; 01:00 in Santiago on
+  -- the day daylight time begins (midnight does not exist); the next
+  -- day when Apia skipped 2011-12-30 altogether. Strict mode refuses.
+  check-date-only :: TimeZone -> TimeZone -> TimeZone -> TimeZone -> Int
+  check-date-only ny syd san apia =
+    if default-lands ny "2026-11-12[America/New_York]" 1794459600 "2026-11-12T00:00:00-05:00[America/New_York]"
+       && default-lands ny "2026-11-01[America/New_York]" 1793505600 "2026-11-01T00:00:00-04:00[America/New_York]"
+       && default-lands ny "2026-03-08[America/New_York]" 1772946000 "2026-03-08T00:00:00-05:00[America/New_York]"
+       && default-lands syd "2026-04-05[Australia/Sydney]" 1775307600 "2026-04-05T00:00:00+11:00[Australia/Sydney]"
+       && default-lands san "2026-09-06[America/Santiago]" 1788667200 "2026-09-06T01:00:00-03:00[America/Santiago]"
+       && lands (resolve OffsetReject Reject san "2026-09-06[America/Santiago]") 1788667200 "2026-09-06T01:00:00-03:00[America/Santiago]"
+       && lands (resolve OffsetUse Earlier san "2026-09-06[America/Santiago]") 1788667200 "2026-09-06T01:00:00-03:00[America/Santiago]"
+       && outcome (resolve OffsetReject Reject san "2026-09-06T00:00[America/Santiago]") == 2
+       && default-lands san "2026-09-06T00:00[America/Santiago]" 1788667200 "2026-09-06T01:00:00-03:00[America/Santiago]"
+       && default-lands san "2026-09-06T00:30[America/Santiago]" 1788669000 "2026-09-06T01:30:00-03:00[America/Santiago]"
+       && default-lands san "2026-04-05[America/Santiago]" 1775361600 "2026-04-05T00:00:00-04:00[America/Santiago]"
+       && default-lands apia "2011-12-30[Pacific/Apia]" 1325239200 "2011-12-31T00:00:00+14:00[Pacific/Apia]"
+       && default-lands apia "2011-12-31[Pacific/Apia]" 1325239200 "2011-12-31T00:00:00+14:00[Pacific/Apia]"
+       && default-lands zone-utc "2026-03-08[UTC]" 1772928000 "2026-03-08T00:00:00+00:00[UTC]"
+       && fixed-outcome "2026-03-08[+05:30]" == 5
+       && (case parse-zoned-text "2026-11-12[America/New_York]" of
+             Ok _ -> False
+             Err e -> (case e of
+               Rfc9557MissingTime p -> p == 10
+               _ -> False))
+      then 0 else 64
+
+  -- 128: instants outside the timestamp range
+  -- (-9999-01-02T01:59:59Z to 9999-12-30T22:00:00.999999999Z).
+  check-range :: Int
+  check-range =
+    if default-lands zone-utc "9999-12-30T22:00:00.999999999[UTC]" 253402207200 "9999-12-30T22:00:00.999999999+00:00[UTC]"
+       && outcome (resolve OffsetReject Compatible zone-utc "9999-12-30T22:00:01[UTC]") == 4
+       && outcome (resolve OffsetReject Compatible zone-utc "9999-12-31T23:59:59[UTC]") == 4
+       && outcome (resolve OffsetReject Compatible zone-utc "9999-12-31T23:59:59Z[UTC]") == 4
+       && outcome (resolve OffsetUse Compatible zone-utc "9999-12-31T23:59:59-23:00[UTC]") == 4
+       && outcome (resolve OffsetReject Compatible zone-utc "9999-12-31T23:59:59-23:00[UTC]") == 1
+       && lands (resolve OffsetUse Compatible zone-utc "9999-12-31T23:59:59+25:59:59[UTC]") 253402207200 "9999-12-30T22:00:00+00:00[UTC]"
+       && default-lands zone-utc "-009999-01-02T01:59:59[UTC]" (-377705023201) "-009999-01-02T01:59:59+00:00[UTC]"
+       && outcome (resolve OffsetReject Compatible zone-utc "-009999-01-02T01:59:58[UTC]") == 4
+       && outcome (resolve OffsetReject Compatible zone-utc "-009999-01-01[UTC]") == 4
+       && outcome (resolve OffsetReject Compatible zone-utc "9999-12-31[UTC]") == 4
+       && default-lands zone-utc "9999-12-30[UTC]" 253402128000 "9999-12-30T00:00:00+00:00[UTC]"
+      then 0 else 128
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case tzdb-lookup db "Australia/Sydney" of
+      Err _ -> 255
+      Ok syd -> case tzdb-lookup db "America/New_York" of
+        Err _ -> 255
+        Ok ny -> case tzdb-lookup db "Asia/Kolkata" of
+          Err _ -> 255
+          Ok kol -> case tzdb-lookup db "Europe/Amsterdam" of
+            Err _ -> 255
+            Ok ams -> case tzdb-lookup db "America/Santiago" of
+              Err _ -> 255
+              Ok san -> case tzdb-lookup db "Pacific/Apia" of
+                Err _ -> 255
+                Ok apia -> case tzdb-lookup db "UTC" of
+                  Err _ -> 255
+                  Ok utc-file -> check-sydney syd + check-conflict ny + check-zulu ny syd + check-gap ny
+                    + check-fixed kol utc-file + check-minutes ams + check-date-only ny syd san apia + check-range

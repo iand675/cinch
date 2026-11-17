@@ -1,0 +1,276 @@
+-- Lane G: Text.Time.Rfc2822. Parsing RFC 2822 / RFC 5322 date-times to
+-- the instant and the offset as written, strict and lenient: the
+-- grammar's optional parts, the day name checked against the date,
+-- obsolete years, zone names, comments and folding (lenient only),
+-- every refusal by name and byte position; printing a `Timestamp` at
+-- an `Offset` and a `Zoned`, the printing refusals, and the round trip.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Effect.Time.Zone
+  import Text.Time.Rfc9557
+  import Text.Time.Rfc2822
+
+  -- A refusal as `-(constructor number * 1000 + position)`, numbered in
+  -- declaration order; an accepted text as its Unix second.
+  code :: Rfc2822Error -> I64
+  code e = case e of
+    Rfc2822UnexpectedEnd p -> wrapping-sub-i64 (-1000) p
+    Rfc2822ExpectedDigit p -> wrapping-sub-i64 (-2000) p
+    Rfc2822ExpectedSpace p -> wrapping-sub-i64 (-3000) p
+    Rfc2822ExpectedComma p -> wrapping-sub-i64 (-4000) p
+    Rfc2822ExpectedColon p -> wrapping-sub-i64 (-5000) p
+    Rfc2822ExpectedZone p -> wrapping-sub-i64 (-6000) p
+    Rfc2822InvalidDayName p -> wrapping-sub-i64 (-7000) p
+    Rfc2822InvalidMonth p -> wrapping-sub-i64 (-8000) p
+    Rfc2822InvalidYear p -> wrapping-sub-i64 (-9000) p
+    Rfc2822ObsoleteYear p -> wrapping-sub-i64 (-10000) p
+    Rfc2822ObsoleteZone p -> wrapping-sub-i64 (-11000) p
+    Rfc2822UnknownZone p -> wrapping-sub-i64 (-12000) p
+    Rfc2822CommentNotAllowed p -> wrapping-sub-i64 (-13000) p
+    Rfc2822UnclosedComment p -> wrapping-sub-i64 (-14000) p
+    Rfc2822DayOutOfRange p -> wrapping-sub-i64 (-15000) p
+    Rfc2822HourOutOfRange p -> wrapping-sub-i64 (-16000) p
+    Rfc2822MinuteOutOfRange p -> wrapping-sub-i64 (-17000) p
+    Rfc2822SecondOutOfRange p -> wrapping-sub-i64 (-18000) p
+    Rfc2822LeapSecond p -> wrapping-sub-i64 (-19000) p
+    Rfc2822OffsetOutOfRange p -> wrapping-sub-i64 (-20000) p
+    Rfc2822WeekdayMismatch p -> wrapping-sub-i64 (-21000) p
+    Rfc2822TrailingInput p -> wrapping-sub-i64 (-22000) p
+    Rfc2822TimestampOutOfRange -> -23000
+    Rfc2822YearNotPrintable -> -24000
+    Rfc2822OffsetNotPrintable -> -25000
+
+  -- The instant's Unix second, or the refusal's code.
+  second-of :: Result Rfc2822Error (Timestamp, Offset) -> I64
+  second-of r = case r of
+    Err e -> code e
+    Ok p -> case p of
+      (t, o) -> timestamp-to-unix-seconds t
+
+  -- The offset in seconds; 999999 on refusal.
+  offset-of :: Result Rfc2822Error (Timestamp, Offset) -> I64
+  offset-of r = case r of
+    Err _ -> 999999
+    Ok p -> case p of
+      (t, o) -> offset-to-seconds o
+
+  strict :: String -> I64
+  strict s = second-of (timestamp-from-rfc2822 s)
+
+  lenient :: String -> I64
+  lenient s = second-of (timestamp-from-rfc2822-lenient s)
+
+  -- Both modes answer the same (a Unix second or a refusal code).
+  both :: String -> I64 -> Bool
+  both s c = strict s == c && lenient s == c
+
+  -- Strict and lenient differ.
+  each :: String -> I64 -> I64 -> Bool
+  each s c l = strict s == c && lenient s == l
+
+  -- The offset the lenient parser read.
+  offset-is :: String -> I64 -> Bool
+  offset-is s secs = offset-of (timestamp-from-rfc2822-lenient s) == secs
+
+  -- 1: the strict grammar: with and without the day name, without
+  -- seconds, any letter case, runs of spaces and tabs, both signs.
+  check-strict :: Int
+  check-strict =
+    if both "Sat, 13 Jul 2024 15:09:59 -0400" 1720897799 && offset-is "Sat, 13 Jul 2024 15:09:59 -0400" (-14400)
+       && both "13 Jul 2024 15:09:59 -0400" 1720897799 && offset-is "13 Jul 2024 15:09:59 -0400" (-14400)
+       && both "Sat, 13 Jul 2024 15:09 -0400" 1720897740 && offset-is "Sat, 13 Jul 2024 15:09 -0400" (-14400)
+       && both "sat, 13 jul 2024 15:09:59 +0000" 1720883399 && offset-is "sat, 13 jul 2024 15:09:59 +0000" 0
+       && both "SAT,13 JUL 2024 15:09:59 -0000" 1720883399 && offset-is "SAT,13 JUL 2024 15:09:59 -0000" 0
+       && both "  Sat ,  13   Jul\t2024  15:09:59   +0530  " 1720863599 && offset-is "  Sat ,  13   Jul\t2024  15:09:59   +0530  " 19800
+       && both "Mon, 1 Jan 2024 00:00:00 +0000" 1704067200 && offset-is "Mon, 1 Jan 2024 00:00:00 +0000" 0
+       && both "Mon, 01 Jan 2024 00:00:00 +2559" 1703973660 && offset-is "Mon, 01 Jan 2024 00:00:00 +2559" 93540
+      then 0 else 1
+
+  -- 2: a day name that is not the date's weekday; two- and three-digit
+  -- years (lenient only: 00..=49 are 2000.., 50..=99 are 1950..,
+  -- three digits add 1900); one and five digits never.
+  check-weekday-and-years :: Int
+  check-weekday-and-years =
+    if both "Fri, 13 Jul 2024 15:09:59 -0400" (-21000)
+       && both "Sun, 13 Jul 2024 15:09:59 -0400" (-21000)
+       && each "Sat, 13 Jul 24 15:09:59 -0400" (-10012) 1720897799 && offset-is "Sat, 13 Jul 24 15:09:59 -0400" (-14400)
+       && each "13 Jul 49 15:09:59 -0400" (-10007) 2509816199 && offset-is "13 Jul 49 15:09:59 -0400" (-14400)
+       && each "13 Jul 50 15:09:59 -0400" (-10007) (-614407801) && offset-is "13 Jul 50 15:09:59 -0400" (-14400)
+       && each "13 Jul 124 15:09:59 -0400" (-10007) 1720897799 && offset-is "13 Jul 124 15:09:59 -0400" (-14400)
+       && both "13 Jul 2 15:09:59 -0400" (-9007)
+       && both "13 Jul 12024 15:09:59 -0400" (-9007)
+      then 0 else 2
+
+  -- 4: the obsolete zone names (lenient only) and unknown ones.
+  check-zone-names :: Int
+  check-zone-names =
+    if each "Sat, 13 Jul 2024 15:09:59 GMT" (-11026) 1720883399 && offset-is "Sat, 13 Jul 2024 15:09:59 GMT" 0
+       && each "Sat, 13 Jul 2024 15:09:59 UT" (-11026) 1720883399 && offset-is "Sat, 13 Jul 2024 15:09:59 UT" 0
+       && each "Sat, 13 Jul 2024 15:09:59 EST" (-11026) 1720901399 && offset-is "Sat, 13 Jul 2024 15:09:59 EST" (-18000)
+       && each "Sat, 13 Jul 2024 15:09:59 edt" (-11026) 1720897799 && offset-is "Sat, 13 Jul 2024 15:09:59 edt" (-14400)
+       && each "Sat, 13 Jul 2024 15:09:59 CST" (-11026) 1720904999 && offset-is "Sat, 13 Jul 2024 15:09:59 CST" (-21600)
+       && each "Sat, 13 Jul 2024 15:09:59 CDT" (-11026) 1720901399 && offset-is "Sat, 13 Jul 2024 15:09:59 CDT" (-18000)
+       && each "Sat, 13 Jul 2024 15:09:59 MST" (-11026) 1720908599 && offset-is "Sat, 13 Jul 2024 15:09:59 MST" (-25200)
+       && each "Sat, 13 Jul 2024 15:09:59 MDT" (-11026) 1720904999 && offset-is "Sat, 13 Jul 2024 15:09:59 MDT" (-21600)
+       && each "Sat, 13 Jul 2024 15:09:59 PST" (-11026) 1720912199 && offset-is "Sat, 13 Jul 2024 15:09:59 PST" (-28800)
+       && each "Sat, 13 Jul 2024 15:09:59 PDT" (-11026) 1720908599 && offset-is "Sat, 13 Jul 2024 15:09:59 PDT" (-25200)
+       && both "Sat, 13 Jul 2024 15:09:59 Z" (-12026)
+       && both "Sat, 13 Jul 2024 15:09:59 CEST" (-12026)
+       && both "Sat, 13 Jul 2024 15:09:59 UTC" (-12026)
+       && both "Sat, 13 Jul 2024 15:09:59 GMTX" (-12026)
+      then 0 else 4
+
+  -- 8: comments, line breaks, white space around the colons and none
+  -- before the zone: lenient only.
+  check-comments-and-folding :: Int
+  check-comments-and-folding =
+    if each "Sat, 13 Jul 2024 15:09:59 (EDT) -0400" (-13026) 1720897799 && offset-is "Sat, 13 Jul 2024 15:09:59 (EDT) -0400" (-14400)
+       && each "Sat, 13 Jul 2024 15:09:59 -0400 (EDT)" (-13032) 1720897799 && offset-is "Sat, 13 Jul 2024 15:09:59 -0400 (EDT)" (-14400)
+       && each "(a (nested \\) one)) Sat, 13 Jul 2024 15:09:59 -0400" (-13000) 1720897799 && offset-is "(a (nested \\) one)) Sat, 13 Jul 2024 15:09:59 -0400" (-14400)
+       && each "Sat, 13 Jul 2024 15:09:59 -0400 (unclosed" (-13032) (-14032)
+       && each "Sat,\r\n 13 Jul 2024\r\n 15:09:59 -0400\r\n" (-2004) 1720897799 && offset-is "Sat,\r\n 13 Jul 2024\r\n 15:09:59 -0400\r\n" (-14400)
+       && each "Sat, 13 Jul 2024 15 : 09 : 59 -0400" (-5019) 1720897799 && offset-is "Sat, 13 Jul 2024 15 : 09 : 59 -0400" (-14400)
+       && each "Sat, 13 Jul 2024 15:09:59-0400" (-3025) 1720897799 && offset-is "Sat, 13 Jul 2024 15:09:59-0400" (-14400)
+       && each "Sat, 13 Jul 2024 15:09:59GMT" (-3025) 1720883399 && offset-is "Sat, 13 Jul 2024 15:09:59GMT" 0
+      then 0 else 8
+
+  -- 16: time fields and zone digits out of range or malformed; second
+  -- 60 is second 59 in lenient mode.
+  check-time-and-zone :: Int
+  check-time-and-zone =
+    if each "Sat, 13 Jul 2024 23:59:60 +0000" (-19023) 1720915199 && offset-is "Sat, 13 Jul 2024 23:59:60 +0000" 0
+       && both "Sat, 13 Jul 2024 15:09:61 +0000" (-18023)
+       && both "Sat, 13 Jul 2024 24:09:59 +0000" (-16017)
+       && both "Sat, 13 Jul 2024 15:60:59 +0000" (-17020)
+       && both "Sat, 13 Jul 2024 15:09:59 +2600" (-20026)
+       && both "Sat, 13 Jul 2024 15:09:59 +0060" (-20026)
+       && both "Sat, 13 Jul 2024 15:09:59 +040" (-1030)
+       && both "Sat, 13 Jul 2024 15:09:59 +04:00" (-2029)
+       && both "Sat, 13 Jul 2024 15:09:59 0400" (-6026)
+      then 0 else 16
+
+  -- 32: structure: what is missing or misplaced, by name and position.
+  check-structure :: Int
+  check-structure =
+    if both "Sat, 13 Jul 2024 15:09:59" (-1025)
+       && both "Sat, 13 Jul 2024 15:09:59 " (-1026)
+       && both "Sat, 13 Jul 2024 15.09.59 -0400" (-5019)
+       && both "Sat, 13 Jul 2024 1:09:59 -0400" (-2018)
+       && both "Sat, 13 Jul 2024 15:9:59 -0400" (-2021)
+       && both "Sat, 13 Jul 2024 15:09:5 -0400" (-2024)
+       && both "Sat, 13 Jul 2024 15:09:59 -0400 x" (-22032)
+       && both "Sat 13 Jul 2024 15:09:59 -0400" (-4004)
+       && both "Sat," (-1004)
+       && both "Xyz, 13 Jul 2024 15:09:59 -0400" (-7000)
+       && both "Saturday, 13 Jul 2024 15:09:59 -0400" (-4003)
+       && both "Sat, 13 July 2024 15:09:59 -0400" (-3011)
+       && both "Sat, 13 Foo 2024 15:09:59 -0400" (-8008)
+       && both "Sat, 13Jul 2024 15:09:59 -0400" (-3007)
+       && both "Sat, 13 Jul2024 15:09:59 -0400" (-3011)
+       && both "Sat, 13 Jul 202415:09:59 -0400" (-9012)
+       && both "Sat, 131 Jul 2024 15:09:59 -0400" (-3007)
+       && both "Sat, Jul 13 2024 15:09:59 -0400" (-2005)
+      then 0 else 32
+
+  -- 64: dates that do not exist, the ends of the range, other formats.
+  check-dates :: Int
+  check-dates =
+    if both "Thu, 29 Feb 2024 12:00:00 +0000" 1709208000 && offset-is "Thu, 29 Feb 2024 12:00:00 +0000" 0
+       && both "29 Feb 2023 12:00:00 +0000" (-15000)
+       && both "0 Jul 2024 15:09:59 -0400" (-15000)
+       && both "31 Jun 2024 15:09:59 -0400" (-15000)
+       && both "31 Dec 9999 23:59:59 -0500" (-23000)
+       && both "30 Dec 9999 22:00:00 +0000" 253402207200 && offset-is "30 Dec 9999 22:00:00 +0000" 0
+       && both "01 Jan 0000 00:00:00 +0000" (-62167219200) && offset-is "01 Jan 0000 00:00:00 +0000" 0
+       && both "" (-1000)
+       && both "2024-07-13T15:09:59-04:00" (-3002)
+      then 0 else 64
+
+  ts :: I64 -> Timestamp
+  ts s = case timestamp-from-unix-seconds s of
+    None -> timestamp-epoch
+    Some t -> t
+
+  tn :: I64 -> I64 -> Timestamp
+  tn s n = case timestamp-from-unix-seconds-and-nanos s n of
+    None -> timestamp-epoch
+    Some t -> t
+
+  off :: I64 -> Offset
+  off s = case offset-from-seconds s of
+    None -> offset-utc
+    Some o -> o
+
+  -- The printed text; the refusal's code as text otherwise.
+  shown :: Result Rfc2822Error String -> String
+  shown r = case r of
+    Ok s -> s
+    Err e -> (case e of
+      Rfc2822YearNotPrintable -> "year"
+      Rfc2822OffsetNotPrintable -> "offset"
+      _ -> "?")
+
+  -- Print at an offset, parse strictly: the same second and offset.
+  back :: Offset -> Timestamp -> Bool
+  back o t = case timestamp-to-rfc2822 o t of
+    Err _ -> False
+    Ok s -> case timestamp-from-rfc2822 s of
+      Err _ -> False
+      Ok p -> case p of
+        (t2, o2) -> timestamp-to-unix-seconds t2 == timestamp-to-unix-seconds t && o2 == o
+
+  sweep :: Offset -> I64 -> I64 -> I64 -> Bool
+  sweep o s step left =
+    if left == 0 then True
+    else if back o (tn s 999999999) then sweep o (wrapping-add-i64 s step) step (wrapping-sub-i64 left 1)
+    else False
+
+  zoned-shown :: Result Rfc2822Error Zoned -> String
+  zoned-shown r = case r of
+    Err _ -> "?"
+    Ok x -> zoned-to-string x
+
+  -- 128: printing, its two refusals, the round trip (every weekday and
+  -- month, single-digit days, both offset signs), and the `Zoned`
+  -- forms.
+  check-print :: TimeZone -> Int
+  check-print ny =
+    if shown (timestamp-to-rfc2822 (off (-14400)) (ts 1720897799)) == "Sat, 13 Jul 2024 15:09:59 -0400"
+       && shown (timestamp-to-rfc2822 offset-utc (ts 1720897799)) == "Sat, 13 Jul 2024 19:09:59 +0000"
+       && shown (timestamp-to-rfc2822 (off 19800) (tn 1704067200 999999999)) == "Mon, 01 Jan 2024 05:30:00 +0530"
+       && shown (timestamp-to-rfc2822 (off 93540) (ts 0)) == "Fri, 02 Jan 1970 01:59:00 +2559"
+       && shown (timestamp-to-rfc2822 (off (-93540)) (ts 0)) == "Tue, 30 Dec 1969 22:01:00 -2559"
+       && shown (timestamp-to-rfc2822 offset-utc (ts (-62167219200))) == "Sat, 01 Jan 0000 00:00:00 +0000"
+       && shown (timestamp-to-rfc2822 offset-utc max-timestamp) == "Thu, 30 Dec 9999 22:00:00 +0000"
+       && shown (timestamp-to-rfc2822 offset-utc (ts (-62167219201))) == "year"
+       && shown (timestamp-to-rfc2822 offset-utc min-timestamp) == "year"
+       && shown (timestamp-to-rfc2822 (off 1172) (ts 0)) == "offset"
+       && shown (timestamp-to-rfc2822 max-offset (ts 0)) == "offset"
+       && shown (zoned-to-rfc2822 (zoned-from-timestamp ny (ts 1720897799))) == "Sat, 13 Jul 2024 15:09:59 -0400"
+       && shown (zoned-to-rfc2822 (zoned-from-timestamp ny (ts 1794459600))) == "Thu, 12 Nov 2026 00:00:00 -0500"
+       && shown (zoned-to-rfc2822 (zoned-from-timestamp zone-utc (ts 0))) == "Thu, 01 Jan 1970 00:00:00 +0000"
+       && zoned-shown (zoned-from-rfc2822 "Sat, 13 Jul 2024 15:09:59 -0400") == "2024-07-13T15:09:59-04:00[-04:00]"
+       && zoned-shown (zoned-from-rfc2822 "Sat, 13 Jul 2024 19:09:59 +0000") == "2024-07-13T19:09:59+00:00[UTC]"
+       && zoned-shown (zoned-from-rfc2822 "Sat, 13 Jul 2024 15:09:59 EDT") == "?"
+       && zoned-shown (zoned-from-rfc2822-lenient "Sat, 13 Jul 2024 15:09:59 EDT") == "2024-07-13T15:09:59-04:00[-04:00]"
+       && sweep offset-utc 1704067200 2937601 400
+       && sweep (off (-14400)) 1704067200 2937601 400
+       && sweep (off 19800) (-62167219200) 157766400 400
+       && sweep (off (-93540)) 1704067200 86399 400
+      then 0 else 128
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") "America/New_York" of
+      Err _ -> 255
+      Ok ny -> check-strict + check-weekday-and-years + check-zone-names + check-comments-and-folding
+        + check-time-and-zone + check-structure + check-dates + check-print ny

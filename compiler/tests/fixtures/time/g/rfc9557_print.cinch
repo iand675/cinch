@@ -1,0 +1,163 @@
+-- Lane G: Text.Time.Rfc9557, printing. A `Zoned` as civil reading,
+-- offset in force and bracketed zone: IANA names, `[UTC]`, fixed
+-- offsets (`[+05:30]`), a fixed zone under a grammatical name and
+-- under one that is not, offsets with seconds; the shortest exact
+-- fraction and the fixed precision; `zoned-to-rfc3339` (the same text
+-- without the annotation); both ends of the timestamp range; the
+-- zone-name grammar the printer consults.
+module Main where
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.Bytes
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Effect.Time.Zone
+  import Text.Time.Scan
+  import Text.Time.Rfc9557
+
+  db :: TzDb
+  db = tzdb-at "tests/fixtures/time/c/tzif"
+
+  ts :: I64 -> Timestamp
+  ts s = case timestamp-from-unix-seconds s of
+    None -> timestamp-epoch
+    Some t -> t
+
+  tn :: I64 -> I64 -> Timestamp
+  tn s n = case timestamp-from-unix-seconds-and-nanos s n of
+    None -> timestamp-epoch
+    Some t -> t
+
+  off :: I64 -> Offset
+  off s = case offset-from-seconds s of
+    None -> offset-utc
+    Some o -> o
+
+  at :: TimeZone -> I64 -> Zoned
+  at z s = zoned-from-timestamp z (ts s)
+
+  -- 1: zones with IANA names.
+  check-named :: TimeZone -> TimeZone -> TimeZone -> Int
+  check-named syd ny kol =
+    if zoned-to-string (at syd 1793385000) == "2026-10-31T05:30:00+11:00[Australia/Sydney]"
+       && zoned-to-string (at ny 1720897799) == "2024-07-13T15:09:59-04:00[America/New_York]"
+       && zoned-to-string (at ny 1726029440) == "2024-09-11T00:37:20-04:00[America/New_York]"
+       && zoned-to-string (at ny 1772955000) == "2026-03-08T03:30:00-04:00[America/New_York]"
+       && zoned-to-string (at ny 1793511000) == "2026-11-01T01:30:00-04:00[America/New_York]"
+       && zoned-to-string (at ny 1793514600) == "2026-11-01T01:30:00-05:00[America/New_York]"
+       && zoned-to-string (at kol 1780295400) == "2026-06-01T12:00:00+05:30[Asia/Kolkata]"
+       && zoned-to-string (at syd 1775316600) == "2026-04-05T02:30:00+11:00[Australia/Sydney]"
+       && zoned-to-string (at syd 1775320200) == "2026-04-05T02:30:00+10:00[Australia/Sydney]"
+      then 0 else 1
+
+  -- 2: UTC and fixed offsets. A fixed zone prints its offset unless
+  -- its name is a zone name of the grammar.
+  check-fixed :: TimeZone -> Int
+  check-fixed utc-file =
+    if zoned-to-string (at zone-utc 0) == "1970-01-01T00:00:00+00:00[UTC]"
+       && zoned-to-string (at utc-file 0) == "1970-01-01T00:00:00+00:00[UTC]"
+       && zoned-to-string (at (zone-fixed (off 19800)) 0) == "1970-01-01T05:30:00+05:30[+05:30]"
+       && zoned-to-string (at (zone-fixed (off (-12600))) 0) == "1969-12-31T20:30:00-03:30[-03:30]"
+       && zoned-to-string (at (zone-fixed (off 0)) 0) == "1970-01-01T00:00:00+00:00[UTC]"
+       && zoned-to-string (at (zone-fixed max-offset) 0) == "1970-01-02T01:59:59+25:59:59[+25:59:59]"
+       && zoned-to-string (at (zone-fixed min-offset) 0) == "1969-12-30T22:00:01-25:59:59[-25:59:59]"
+       && zoned-to-string (at (zone-fixed (off 19815)) 0) == "1970-01-01T05:30:15+05:30:15[+05:30:15]"
+       && zoned-to-string (at (zone-fixed-named "EST" (off (-18000))) 0) == "1969-12-31T19:00:00-05:00[EST]"
+       && zoned-to-string (at (zone-fixed-named "Etc/GMT+5" (off (-18000))) 0) == "1969-12-31T19:00:00-05:00[Etc/GMT+5]"
+       && zoned-to-string (at (zone-fixed-named "my zone" (off (-18000))) 0) == "1969-12-31T19:00:00-05:00[-05:00]"
+       && zoned-to-string (at (zone-fixed-named "" (off 3600)) 0) == "1970-01-01T01:00:00+01:00[+01:00]"
+      then 0 else 2
+
+  -- 4: the fraction: shortest exact, and fixed precision (truncating).
+  check-fraction :: TimeZone -> Int
+  check-fraction syd =
+    let half = zoned-from-timestamp syd (tn 1793385000 500000000) in
+    let nine = zoned-from-timestamp syd (tn 1793385000 123456789) in
+    let micro = zoned-from-timestamp syd (tn 1793385000 1000) in
+    if zoned-to-string half == "2026-10-31T05:30:00.5+11:00[Australia/Sydney]"
+       && zoned-to-string nine == "2026-10-31T05:30:00.123456789+11:00[Australia/Sydney]"
+       && zoned-to-string micro == "2026-10-31T05:30:00.000001+11:00[Australia/Sydney]"
+       && zoned-to-string-precision 0 nine == "2026-10-31T05:30:00+11:00[Australia/Sydney]"
+       && zoned-to-string-precision 3 nine == "2026-10-31T05:30:00.123+11:00[Australia/Sydney]"
+       && zoned-to-string-precision 9 half == "2026-10-31T05:30:00.500000000+11:00[Australia/Sydney]"
+       && zoned-to-string-precision 6 (at syd 1793385000) == "2026-10-31T05:30:00.000000+11:00[Australia/Sydney]"
+       && zoned-to-string-precision 1 (zoned-from-timestamp syd (tn 1793385000 999999999)) == "2026-10-31T05:30:00.9+11:00[Australia/Sydney]"
+      then 0 else 4
+
+  -- 8: RFC 3339, no annotation.
+  check-rfc3339 :: TimeZone -> TimeZone -> TimeZone -> Int
+  check-rfc3339 syd ny ams =
+    if zoned-to-rfc3339 (at syd 1793385000) == "2026-10-31T05:30:00+11:00"
+       && zoned-to-rfc3339 (at ny 1720897799) == "2024-07-13T15:09:59-04:00"
+       && zoned-to-rfc3339 (at zone-utc 1720897799) == "2024-07-13T19:09:59+00:00"
+       && zoned-to-rfc3339 (zoned-from-timestamp ny (tn 1720897799 250000000)) == "2024-07-13T15:09:59.25-04:00"
+       && zoned-to-rfc3339-precision 3 (at ny 1720897799) == "2024-07-13T15:09:59.000-04:00"
+       && zoned-to-rfc3339-precision 0 (zoned-from-timestamp ny (tn 1720897799 250000000)) == "2024-07-13T15:09:59-04:00"
+       && zoned-to-rfc3339 (at (zone-fixed (off 19800)) 0) == "1970-01-01T05:30:00+05:30"
+       && zoned-to-rfc3339 (at ams (-2208945600)) == "1900-01-01T12:19:32+00:19:32"
+       && zoned-to-string (at ams (-2208945600)) == "1900-01-01T12:19:32+00:19:32[Europe/Amsterdam]"
+       && zoned-to-string (at ams 1782900000) == "2026-07-01T12:00:00+02:00[Europe/Amsterdam]"
+      then 0 else 8
+
+  -- 16: the ends of the timestamp range, and years outside 0..=9999.
+  check-range :: TimeZone -> Int
+  check-range ny =
+    if zoned-to-string (zoned-from-timestamp zone-utc min-timestamp) == "-009999-01-02T01:59:59+00:00[UTC]"
+       && zoned-to-string (zoned-from-timestamp zone-utc max-timestamp) == "9999-12-30T22:00:00.999999999+00:00[UTC]"
+       && zoned-to-string (zoned-from-timestamp (zone-fixed max-offset) max-timestamp) == "9999-12-31T23:59:59.999999999+25:59:59[+25:59:59]"
+       && zoned-to-string (zoned-from-timestamp (zone-fixed min-offset) min-timestamp) == "-009999-01-01T00:00:00-25:59:59[-25:59:59]"
+       && zoned-to-rfc3339 (at zone-utc (-62198755200)) == "-000001-01-01T00:00:00+00:00"
+       && zoned-to-rfc3339 (at zone-utc (-62167219200)) == "0000-01-01T00:00:00+00:00"
+      then 0 else 16
+
+  -- 32: the buffer form, and the zone-name grammar.
+  check-pieces :: TimeZone -> Int
+  check-pieces syd =
+    if scan-length (rfc9557-zoned-bytes (at syd 1793385000)) == 43
+       && scan-string-of-bytes (rfc9557-zoned-bytes (at syd 1793385000)) == zoned-to-string (at syd 1793385000)
+       && rfc9557-valid-zone-name "America/New_York" && rfc9557-valid-zone-name "UTC"
+       && rfc9557-valid-zone-name "Etc/GMT+5" && rfc9557-valid-zone-name "Etc/GMT-14"
+       && rfc9557-valid-zone-name "America/Argentina/Buenos_Aires"
+       && rfc9557-valid-zone-name "America/Port-au-Prince"
+       && rfc9557-valid-zone-name "_x/.y" && rfc9557-valid-zone-name "..."
+       && rfc9557-valid-zone-name (string-repeat 255 "a")
+       && not (rfc9557-valid-zone-name "")
+       && not (rfc9557-valid-zone-name "+05:30")
+       && not (rfc9557-valid-zone-name "-05:00")
+       && not (rfc9557-valid-zone-name "America/")
+       && not (rfc9557-valid-zone-name "/America")
+       && not (rfc9557-valid-zone-name "America//New_York")
+       && not (rfc9557-valid-zone-name ".")
+       && not (rfc9557-valid-zone-name "..")
+       && not (rfc9557-valid-zone-name "America/..")
+       && not (rfc9557-valid-zone-name "America/./UTC")
+       && not (rfc9557-valid-zone-name "../UTC")
+       && not (rfc9557-valid-zone-name "1abc")
+       && not (rfc9557-valid-zone-name "America/9x")
+       && not (rfc9557-valid-zone-name "my zone")
+       && not (rfc9557-valid-zone-name "u-ca=gregory")
+       && not (rfc9557-valid-zone-name "a]b")
+       && not (rfc9557-valid-zone-name "Europe/Z\u{fc}rich")
+       && not (rfc9557-valid-zone-name (string-repeat 256 "a"))
+      then 0 else 32
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case tzdb-lookup db "Australia/Sydney" of
+      Err _ -> 128
+      Ok syd -> case tzdb-lookup db "America/New_York" of
+        Err _ -> 128
+        Ok ny -> case tzdb-lookup db "Asia/Kolkata" of
+          Err _ -> 128
+          Ok kol -> case tzdb-lookup db "Europe/Amsterdam" of
+            Err _ -> 128
+            Ok ams -> case tzdb-lookup db "UTC" of
+              Err _ -> 128
+              Ok utc-file -> check-named syd ny kol + check-fixed utc-file + check-fraction syd
+                + check-rfc3339 syd ny ams + check-range ny + check-pieces syd

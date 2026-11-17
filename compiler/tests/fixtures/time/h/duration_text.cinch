@@ -1,0 +1,243 @@
+-- Lane H: Text.Time.Duration for the exact `Duration`. ISO and
+-- friendly printing (hours, minutes, seconds and sub-seconds; never
+-- days), parsing in both formats with fractions, the refusal of days
+-- and larger by name, the range check, the exact round trip in both
+-- formats over a sweep and at the extremes (the largest duration,
+-- 2^127 - 1 nanoseconds, and the smallest), and `duration-from-string`.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Span
+  import Text.Time.Duration
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- A parse result is the span with these ten fields.
+  is :: forall (c :: SpanClass). Result DurationTextError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  -- A parse result is the duration of this many nanoseconds.
+  dur-is :: Result DurationTextError Duration -> I128 -> Bool
+  dur-is r n = case r of
+    Err _ -> False
+    Ok x -> eq-i128 (duration-total-nanos x) n
+
+  code :: DurationTextError -> I64
+  code e = case e of
+    DurationTextEmpty _ -> 1
+    DurationTextMissingP _ -> 2
+    DurationTextLowercaseDesignator _ -> 3
+    DurationTextMissingComponent _ -> 4
+    DurationTextExpectedNumber _ -> 5
+    DurationTextBadDesignator _ -> 6
+    DurationTextUnitsOutOfOrder _ -> 7
+    DurationTextRepeatedUnit _ -> 8
+    DurationTextFractionNotLast _ -> 9
+    DurationTextFractionOnUnit _ -> 10
+    DurationTextTooManyFractionDigits _ -> 11
+    DurationTextEmptyFraction _ -> 12
+    DurationTextNumberTooLarge _ -> 13
+    DurationTextUnitLimit _ -> 14
+    DurationTextTimeWithoutComponent _ -> 15
+    DurationTextSignTwice _ -> 16
+    DurationTextTrailingInput _ -> 17
+    DurationTextCalendarUnit _ -> 18
+    DurationTextExpectedColon _ -> 19
+    DurationTextOutOfRange _ -> 20
+
+  -- A refusal as constructor code * 1000 + byte position; 0 for `Ok`.
+  refusal :: forall a. Result DurationTextError a -> I64
+  refusal r = case r of
+    Ok _ -> 0
+    Err e -> wrapping-add-i64 (wrapping-mul-i64 (code e) 1000) (duration-text-error-position e)
+
+  nanos :: I128 -> Duration
+  nanos n = case duration-from-i128-nanos n of
+    None -> duration-zero
+    Some d -> d
+
+  check-iso-print :: Int
+  check-iso-print =
+    if duration-to-iso-string (duration-from-seconds 19800) == "PT5H30M"
+       && duration-to-iso-string (duration-from-nanos 1) == "PT0.000000001S"
+       && duration-to-iso-string (duration-from-millis (-1500)) == "-PT1.5S"
+       && duration-to-iso-string duration-zero == "PT0S"
+       && duration-to-iso-string (duration-from-hours 36) == "PT36H"
+       && duration-to-iso-string (duration-from-seconds 86400) == "PT24H"
+       && duration-to-iso-string (duration-from-seconds 3661) == "PT1H1M1S"
+       && duration-to-iso-string (duration-from-seconds 59) == "PT59S"
+       && duration-to-iso-string (duration-from-millis 2000) == "PT2S"
+       && duration-to-iso-string (duration-from-micros (-1)) == "-PT0.000001S"
+       && duration-to-iso-string (duration-from-nanos 9223372036854775807) == "PT2562047H47M16.854775807S"
+    then 0 else 1
+
+  check-iso-parse :: Int
+  check-iso-parse =
+    if dur-is (duration-from-iso-string "PT5H30M") 19800000000000
+       && dur-is (duration-from-iso-string "-PT1.5S") (-1500000000)
+       && dur-is (duration-from-iso-string "PT0.000000001S") 1
+       && dur-is (duration-from-iso-string "PT1.5H") 5400000000000
+       && dur-is (duration-from-iso-string "PT0.5M") 30000000000
+       && dur-is (duration-from-iso-string "PT1,5S") 1500000000
+       && dur-is (duration-from-iso-string "PT0S") 0
+       && dur-is (duration-from-iso-string "-PT0S") 0
+       && dur-is (duration-from-iso-string "+PT1H") 3600000000000
+       && dur-is (duration-from-iso-string "PT100H100M100S") 366100000000000
+       && dur-is (duration-from-iso-string "PT999999999999H") 3599999999996400000000000
+       && dur-is (duration-from-iso-string-lenient "pt1h1m1s") 3661000000000
+    then 0 else 2
+
+  verbose :: FriendlyPrinter
+  verbose = friendly-with-comma True (friendly-with-spacing SpacingBetweenUnitsAndDesignators (friendly-with-designator DesignatorVerbose friendly-printer-default))
+
+  check-friendly-print :: Int
+  check-friendly-print =
+    if duration-to-friendly-string (duration-from-seconds 9000) == "2h 30m"
+       && duration-to-friendly-string (duration-from-millis 1500) == "1s 500ms"
+       && duration-to-friendly-string (duration-from-millis (-1500)) == "1s 500ms ago"
+       && duration-to-friendly-string duration-zero == "0s"
+       && duration-to-friendly-string (duration-from-nanos 1) == "1ns"
+       && duration-to-friendly-string (duration-from-nanos 3661001001001) == "1h 1m 1s 1ms 1us 1ns"
+       && duration-to-friendly-string (duration-from-seconds 172800) == "48h"
+       && duration-print-friendly verbose (duration-from-seconds 9001) == "2 hours, 30 minutes, 1 second"
+       && duration-print-friendly (friendly-with-spacing SpacingNone friendly-printer-default) (duration-from-seconds (-9000)) == "-2h30m"
+       && duration-print-friendly (friendly-with-clock-form True friendly-printer-default) (duration-from-seconds 9000) == "02:30:00"
+       && duration-print-friendly (friendly-with-clock-form True friendly-printer-default) (duration-from-millis (-1500)) == "-00:00:01.5"
+       && duration-print-friendly (friendly-with-fractional FractionalHour friendly-printer-default) (duration-from-seconds 9000) == "2.5h"
+       && duration-print-friendly (friendly-with-fractional FractionalSecond friendly-printer-default) (duration-from-millis 1500) == "1.5s"
+       && duration-print-friendly (friendly-with-zero-unit Day friendly-printer-default) duration-zero == "0s"
+       && duration-print-friendly (friendly-with-zero-unit Minute friendly-printer-default) duration-zero == "0m"
+    then 0 else 4
+
+  check-friendly-parse :: Int
+  check-friendly-parse =
+    if dur-is (duration-from-friendly-string "2h 30m") 9000000000000
+       && dur-is (duration-from-friendly-string "2h30m") 9000000000000
+       && dur-is (duration-from-friendly-string "-2h30m") (-9000000000000)
+       && dur-is (duration-from-friendly-string "2h 30m ago") (-9000000000000)
+       && dur-is (duration-from-friendly-string "1s 500ms") 1500000000
+       && dur-is (duration-from-friendly-string "1.5h") 5400000000000
+       && dur-is (duration-from-friendly-string "0.0021s") 2100000
+       && dur-is (duration-from-friendly-string "01:02:03.5") 3723500000000
+       && dur-is (duration-from-friendly-string "1 hour, 1 minute, 1 second, 1 millisecond, 1 microsecond, 1 nanosecond") 3661001001001
+       && dur-is (duration-from-friendly-string "1.5us") 1500
+       && dur-is (duration-from-friendly-string "0s") 0
+       && dur-is (duration-from-friendly-string "3 mins 34.123 secs") 214123000000
+       && dur-is (duration-from-friendly-string "90m") 5400000000000
+    then 0 else 8
+
+  -- Days and larger are refused by name, whatever their value; so is
+  -- everything a span parser refuses; and a total beyond the range.
+  check-refusals :: Int
+  check-refusals =
+    if refusal (duration-from-iso-string "P11Y2M28DT5H30M") == 18001
+       && refusal (duration-from-iso-string "P1D") == 18001
+       && refusal (duration-from-iso-string "P0D") == 18001
+       && refusal (duration-from-iso-string "P1W") == 18001
+       && refusal (duration-from-iso-string "P1DT1H") == 18001
+       && refusal (duration-from-friendly-string "1d") == 18000
+       && refusal (duration-from-friendly-string "1y 1h") == 18000
+       && refusal (duration-from-friendly-string "0 weeks") == 18000
+       && refusal (duration-from-iso-string "") == 1000
+       && refusal (duration-from-iso-string "P") == 4001
+       && refusal (duration-from-iso-string "PT") == 15002
+       && refusal (duration-from-iso-string "PT1.5H30M") == 9006
+       && refusal (duration-from-iso-string "PT1S ") == 17004
+       && refusal (duration-from-friendly-string "1h 2h") == 8003
+       && refusal (duration-from-friendly-string "-1h ago") == 16004
+       && refusal (duration-from-iso-string "PT47261439850130342147690918H") == 20002
+       && refusal (duration-from-iso-string "PT47261439850130342147690917H41M55.884105728S") == 20032
+       && refusal (duration-from-iso-string "PT47261439850130342147690917H41M56S") == 20032
+       && refusal (duration-from-friendly-string "47261439850130342147690918h") == 20000
+       && refusal (duration-from-friendly-string "999999999999999999999999999999999999999ns") == 13000
+       && dur-is (duration-from-friendly-string "99999999999999999999999999999999999999ns") 99999999999999999999999999999999999999
+       && refusal (duration-from-friendly-string "9999999999999999999999999999999999999h") == 20000
+    then 0 else 16
+
+  round-trips :: Duration -> Bool
+  round-trips d = case duration-from-iso-string (duration-to-iso-string d) of
+    Err _ -> False
+    Ok a -> case duration-from-friendly-string (duration-to-friendly-string d) of
+      Err _ -> False
+      Ok b -> case duration-from-friendly-string (duration-print-friendly verbose d) of
+        Err _ -> False
+        Ok c -> case duration-from-string (duration-print-friendly (friendly-with-clock-form True friendly-printer-default) d) of
+          Err _ -> False
+          Ok e -> case duration-from-string (duration-print-friendly (friendly-with-fractional FractionalSecond friendly-printer-default) d) of
+            Err _ -> False
+            Ok f -> case duration-from-string (duration-to-iso-string d) of
+              Err _ -> False
+              Ok g -> a == d && b == d && c == d && e == d && f == d && g == d
+
+  -- A sweep: a wide multiplicative sequence, both signs, across the
+  -- whole range (the multiplier wraps the 128 bits; `nanos` maps the
+  -- one value outside the range to zero).
+  sweep :: I64 -> I128 -> Bool
+  sweep k n =
+    if k >= 300 then True
+    else if round-trips (nanos n) && round-trips (nanos (wrapping-shr-i128 n 64)) && round-trips (nanos (wrapping-shr-i128 n 90))
+    then sweep (wrapping-add-i64 k 1) (wrapping-add-i128 (wrapping-mul-i128 n 6364136223846793005) 1442695040888963407)
+    else False
+
+  check-sweep :: Int
+  check-sweep =
+    if sweep 0 987654321987654321 && round-trips duration-zero && round-trips (duration-from-nanos 1)
+       && round-trips (duration-from-nanos (-1)) && round-trips (duration-from-nanos 999999999)
+       && round-trips (duration-from-nanos 1000000000) && round-trips (duration-from-nanos 3599999999999)
+       && round-trips (duration-from-nanos 3600000000000) && round-trips (duration-from-nanos (-3600000000001))
+       && round-trips (duration-from-hours 9223372036854775807) && round-trips (duration-from-hours (-9223372036854775807))
+    then 0 else 32
+
+  -- The largest printable duration is the largest duration. (Its count
+  -- has 39 digits, one more than a number may have, so it cannot be
+  -- written as nanoseconds alone; the printers never do.)
+  check-extremes :: Int
+  check-extremes =
+    if duration-to-iso-string max-duration == "PT47261439850130342147690917H41M55.884105727S"
+       && duration-to-iso-string min-duration == "-PT47261439850130342147690917H41M55.884105727S"
+       && duration-to-friendly-string max-duration == "47261439850130342147690917h 41m 55s 884ms 105us 727ns"
+       && duration-to-friendly-string min-duration == "47261439850130342147690917h 41m 55s 884ms 105us 727ns ago"
+       && dur-is (duration-from-iso-string "PT47261439850130342147690917H41M55.884105727S") 170141183460469231731687303715884105727
+       && dur-is (duration-from-iso-string "-PT47261439850130342147690917H41M55.884105727S") (-170141183460469231731687303715884105727)
+       && dur-is (duration-from-friendly-string "47261439850130342147690917h 41m 55s 884ms 105us 727ns") 170141183460469231731687303715884105727
+       && dur-is (duration-from-friendly-string "47261439850130342147690917h 41m 55s 884ms 105us 727ns ago") (-170141183460469231731687303715884105727)
+       && dur-is (duration-from-friendly-string "47261439850130342147690917:41:55.884105727") 170141183460469231731687303715884105727
+       && refusal (duration-from-friendly-string "47261439850130342147690917h 41m 55s 884ms 105us 728ns") == 20048
+       && refusal (duration-from-friendly-string "170141183460469231731687303715884105727ns") == 13000
+       && round-trips max-duration && round-trips min-duration
+       && round-trips (nanos 170141183460469231731687303715884105726)
+    then 0 else 64
+
+  check-either :: Int
+  check-either =
+    if dur-is (duration-from-string "PT5H30M") 19800000000000
+       && dur-is (duration-from-string "5h 30m") 19800000000000
+       && dur-is (duration-from-string "-PT1S") (-1000000000)
+       && dur-is (duration-from-string "1s ago") (-1000000000)
+       && refusal (duration-from-string "P1D") == 18001
+       && refusal (duration-from-string "1d") == 18000
+       && refusal (duration-from-string "pt1s") == 3000
+       && refusal (duration-from-string "") == 1000
+    then 0 else 128
+
+  main :: Int
+  main = check-iso-print + check-iso-parse + check-friendly-print + check-friendly-parse + check-refusals + check-sweep + check-extremes + check-either

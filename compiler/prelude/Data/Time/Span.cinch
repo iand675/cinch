@@ -98,9 +98,14 @@
 -- anchor (Data.Time.Zoned.Arithmetic, lane F) needs a third
 -- constructor, `line` through the zone's civil-to-instant mapping, and
 -- Temporal's NudgeToZonedTime beside `nudge-day-time`; nothing else in
--- the engine assumes a 24-hour day. Until then lane F can build on the
--- exported engine (`span-add-to-datetime`, `span-difference-civil`,
--- `span-time-nanos`, `span-from-units`).
+-- the engine assumes a 24-hour day. Lane F did not take that road (it
+-- would make this module import the zone modules): the zoned anchor
+-- (`span-round-zoned` and its family) is in
+-- Data.Time.Zoned.Arithmetic, built on this module's exports
+-- (`span-difference-civil`, `span-difference-nanos`, `span-time-nanos`,
+-- `span-from-units`) and on the four readers of `SpanRound`
+-- (`span-round-largest`, `span-round-smallest`, `span-round-increment`,
+-- `span-round-mode`) exported for it.
 --
 -- No operation faults (T2): refined arguments (`span-of-hours 2`),
 -- `Option` for the setters and simple conversions, and
@@ -178,6 +183,8 @@ module Data.Time.Span where
   export span-to-duration-civil-days
   export Relative, RelativeDate, RelativeDateTime
   export SpanRound, span-round-default
+  export span-round-largest, span-round-smallest
+  export span-round-increment, span-round-mode
   export span-balance, span-balance-relative
   export span-round, span-round-relative
   export span-total, span-total-relative
@@ -1147,6 +1154,25 @@ module Data.Time.Span where
       else if not (unit-span-increment-ok smallest inc) then Err SpanBadIncrement
       else if inc > 1 && unit-is-calendar smallest && not (unit-eq largest smallest) then Err SpanBadIncrement
       else Ok largest
+
+  -- The validated settings of a `SpanRound` for a given span, for an
+  -- engine outside this module (Data.Time.Zoned.Arithmetic, whose
+  -- anchor is a `Zoned`): the resolved largest unit or the refusal
+  -- (as `span-round` would answer it), and the three plain knobs.
+  span-round-largest :: forall (c :: SpanClass). SpanRound -> Span c -> Result SpanError TimeUnit
+  span-round-largest o s = resolve-round o s
+
+  span-round-smallest :: SpanRound -> TimeUnit
+  span-round-smallest o = case o of
+    MkSpanRound _ s _ _ -> s
+
+  span-round-increment :: SpanRound -> I64
+  span-round-increment o = case o of
+    MkSpanRound _ _ i _ -> i
+
+  span-round-mode :: SpanRound -> RoundMode
+  span-round-mode o = case o of
+    MkSpanRound _ _ _ m -> m
 
   -- Round a clock span: 2 hours 30 minutes to `Hour` is 3 hours under
   -- `HalfExpand` and 2 under `Trunc`.

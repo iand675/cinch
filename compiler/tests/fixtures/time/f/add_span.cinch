@@ -1,0 +1,262 @@
+-- Lane F: Data.Time.Zoned.Arithmetic, addition (Temporal's
+-- AddZonedDateTime as rendered by Jiff). Calendar units move the
+-- civil reading and are resolved again in the zone; clock units move
+-- the instant. America/New_York (tzdata 2026e) around the 2024
+-- transitions and Pacific/Apia around the civil day it skipped
+-- (2011-12-30). Expected instants were computed independently with
+-- Python's zoneinfo.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Weekday (Weekday, Monday, Friday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Zoned.Arithmetic
+  import Effect.Time.Zone
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s ns of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- A civil reading in the zone, `Compatible`.
+  zc :: TimeZone -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Zoned
+  zc z y mo d h mi s ns = case zoned-from-datetime Compatible z (at y mo d h mi s ns) of
+    Err _ -> zoned-from-timestamp z timestamp-epoch
+    Ok x -> x
+
+  -- The instant at a Unix second, in the zone.
+  zt :: TimeZone -> I64 -> Zoned
+  zt z s = case timestamp-from-unix-seconds s of
+    None -> zoned-from-timestamp z timestamp-epoch
+    Some t -> zoned-from-timestamp z t
+
+  -- A zoned value at this Unix second (and no fraction) and offset.
+  is :: Zoned -> I64 -> I64 -> Bool
+  is x secs offset =
+    timestamp-to-unix-seconds (zoned-timestamp x) == secs
+    && timestamp-subsec-nanos (zoned-timestamp x) == 0
+    && offset-to-seconds (zoned-offset x) == offset
+
+  ok-is :: Result ZonedError Zoned -> I64 -> I64 -> Bool
+  ok-is r secs offset = case r of
+    Err _ -> False
+    Ok x -> is x secs offset
+
+  some-is :: Option Zoned -> I64 -> I64 -> Bool
+  some-is r secs offset = case r of
+    None -> False
+    Some x -> is x secs offset
+
+  -- 0 accepted, then one code per refusal.
+  code :: forall a. Result ZonedError a -> I64
+  code r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      ZonedOutOfRange -> 1
+      ZonedRejectedGap _ _ -> 2
+      ZonedRejectedFold _ _ -> 3
+      ZonedZonesDiffer -> 4
+      ZonedBadUnits -> 5
+      ZonedBadIncrement -> 6
+      ZonedUnitLimit -> 7
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  ok-fields :: Result ZonedError (Span Calendar) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ok-fields r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  load :: forall r. using (io :: Io r) => String ->{IO r} Result TzLookupError TimeZone
+  load name = tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") name
+
+  later :: ZonedArithmetic
+  later = with-disambiguation Later zoned-arithmetic-default
+
+  earlier :: ZonedArithmetic
+  earlier = with-disambiguation Earlier zoned-arithmetic-default
+
+  reject :: ZonedArithmetic
+  reject = with-disambiguation Reject zoned-arithmetic-default
+
+  -- 1: the month end is constrained on the civil reading, in the same
+  -- zone; years and months are one step (2024-02-29 + 1 year 2 months
+  -- is 2025-04-29); subtraction is addition of the negation.
+  check-calendar :: TimeZone -> Int
+  check-calendar z =
+    let x = zc z 2024 5 31 13 45 0 0 in
+    if is x 1717177500 (-14400)
+       && ok-is (zoned-add-span (span-of-months 1) x) 1719769500 (-14400)
+       && ok-is (zoned-sub-span (span-of-months (-1)) x) 1719769500 (-14400)
+       && (case zoned-add-span (sp 1 2 0 0 0 0 0 0 0 0) (zc z 2024 2 29 9 0 0 0) of
+             Err _ -> False
+             Ok r -> zoned-datetime r == at 2025 4 29 9 0 0 0)
+       && (case zoned-add-span (span-of-months 1) x of
+             Err _ -> False
+             Ok r -> zoned-datetime r == at 2024 6 30 13 45 0 0 && zone-name (zoned-time-zone r) == "America/New_York")
+       && ok-is (zoned-add-span span-zero x) 1717177500 (-14400)
+    then 0 else 1
+
+  -- 2: hours are exact on the instant across both transitions, and so
+  -- are durations.
+  check-hours :: TimeZone -> Int
+  check-hours z =
+    let spring = zt z 1710052200 in
+    let autumn = zt z 1730611800 in
+    if zoned-datetime spring == at 2024 3 10 1 30 0 0
+       && ok-is (zoned-add-span (span-of-hours 1) spring) 1710055800 (-14400)
+       && (case zoned-add-span (span-of-hours 1) spring of
+             Err _ -> False
+             Ok r -> zoned-datetime r == at 2024 3 10 3 30 0 0)
+       && ok-is (zoned-sub-span (span-of-hours 1) (zt z 1710055800)) 1710052200 (-18000)
+       && zoned-datetime autumn == at 2024 11 3 1 30 0 0
+       && ok-is (zoned-add-span (span-of-hours 1) autumn) 1730615400 (-18000)
+       && (case zoned-add-span (span-of-hours 1) autumn of
+             Err _ -> False
+             Ok r -> zoned-datetime r == at 2024 11 3 1 30 0 0)
+       && ok-is (zoned-add-span (span-of-minutes 90) autumn) 1730617200 (-18000)
+       && some-is (zoned-add-duration (duration-from-hours 1) spring) 1710055800 (-14400)
+       && some-is (zoned-sub-duration (duration-from-hours 1) (zt z 1730615400)) 1730611800 (-14400)
+       && some-is (zoned-add-duration (duration-from-seconds (-3600)) (zt z 1710055800)) 1710052200 (-18000)
+    then 0 else 2
+
+  -- 3: one day against 24 hours on the two transition days. Noon to
+  -- noon across the spring day is 23 hours and across the autumn day
+  -- 25.
+  check-day-against-hours :: TimeZone -> Int
+  check-day-against-hours z =
+    let spring = zc z 2024 3 9 12 0 0 0 in
+    let autumn = zc z 2024 11 2 12 0 0 0 in
+    if ok-is (zoned-add-span (span-of-days 1) spring) 1710086400 (-14400)
+       && ok-is (zoned-add-span (span-of-hours 24) spring) 1710090000 (-14400)
+       && ok-is (zoned-add-span (span-of-days 2) spring) 1710172800 (-14400)
+       && ok-is (zoned-add-span (span-of-days 1) autumn) 1730653200 (-18000)
+       && ok-is (zoned-add-span (span-of-hours 24) autumn) 1730649600 (-18000)
+       && ok-is (zoned-add-span (span-of-weeks 1) (zc z 2024 10 27 12 0 0 0)) 1730653200 (-18000)
+       && ok-is (zoned-sub-span (span-of-days 1) (zc z 2024 11 3 12 0 0 0)) 1730563200 (-14400)
+       && ok-is (zoned-sub-span (span-of-hours 24) (zc z 2024 11 3 12 0 0 0)) 1730566800 (-14400)
+       && ok-is (zoned-sub-span (span-of-days 1) (zc z 2024 3 10 12 0 0 0)) 1710003600 (-18000)
+    then 0 else 4
+
+  -- 4: the calendar part first, resolved, then the clock part on the
+  -- instant: 1 day 1 hour from 01:30 on 2 November lands on the first
+  -- 01:30 of the 3rd and one elapsed hour later is the second 01:30.
+  check-order :: TimeZone -> Int
+  check-order z =
+    let x = zc z 2024 11 2 1 30 0 0 in
+    if ok-is (zoned-add-span (sp 0 0 0 1 1 0 0 0 0 0) x) 1730615400 (-18000)
+       && ok-is (zoned-add-span (sp 0 0 0 1 2 0 0 0 0 0) x) 1730619000 (-18000)
+       && ok-is (zoned-add-span (sp 0 0 0 (-1) (-1) 0 0 0 0 0) (zt z 1730619000)) 1730525400 (-14400)
+    then 0 else 8
+
+  -- 5: the fold. One day from 01:30 on 2 November is the first 01:30
+  -- (-04:00) by default and by `Earlier`, the second by `Later`, and
+  -- refused by `Reject`.
+  check-fold :: TimeZone -> Int
+  check-fold z =
+    let x = zc z 2024 11 2 1 30 0 0 in
+    let day = span-of-days 1 in
+    if is x 1730525400 (-14400)
+       && ok-is (zoned-add-span day x) 1730611800 (-14400)
+       && ok-is (zoned-add-span-with zoned-arithmetic-default day x) 1730611800 (-14400)
+       && ok-is (zoned-add-span-with earlier day x) 1730611800 (-14400)
+       && ok-is (zoned-add-span-with later day x) 1730615400 (-18000)
+       && code (zoned-add-span-with reject day x) == 3
+       && ok-is (zoned-sub-span-with later (span-of-days (-1)) x) 1730615400 (-18000)
+       && code (zoned-add-span-with reject (span-of-days 2) x) == 0
+       && code (zoned-add-span-with reject (span-of-hours 24) x) == 0
+    then 0 else 16
+
+  -- 6: the gap. One day from 02:30 on 9 March is 03:30 -04:00 by
+  -- default and by `Later`, 01:30 -05:00 by `Earlier`, refused by
+  -- `Reject`.
+  check-gap :: TimeZone -> Int
+  check-gap z =
+    let x = zc z 2024 3 9 2 30 0 0 in
+    let day = span-of-days 1 in
+    if is x 1709969400 (-18000)
+       && ok-is (zoned-add-span day x) 1710055800 (-14400)
+       && ok-is (zoned-add-span-with later day x) 1710055800 (-14400)
+       && ok-is (zoned-add-span-with earlier day x) 1710052200 (-18000)
+       && code (zoned-add-span-with reject day x) == 2
+       && (case zoned-add-span day x of
+             Err _ -> False
+             Ok r -> zoned-datetime r == at 2024 3 10 3 30 0 0)
+       && (case zoned-arithmetic-disambiguation earlier of
+             Earlier -> True
+             Compatible -> False
+             Later -> False
+             Reject -> False)
+    then 0 else 32
+
+  -- 7: Pacific/Apia skipped 2011-12-30. One day from noon on the 29th
+  -- lands on a reading that does not exist; `Compatible` shifts it by
+  -- the gap's length (24 hours) to noon on the 31st, which is what
+  -- Temporal's AddZonedDateTime does (it always resolves
+  -- "compatible"). `Earlier` reads it with the offset after the gap:
+  -- noon on the 29th again.
+  check-apia :: TimeZone -> Int
+  check-apia z =
+    let x = zc z 2011 12 29 12 0 0 0 in
+    if is x 1325196000 (-36000)
+       && ok-is (zoned-add-span (span-of-days 1) x) 1325282400 50400
+       && ok-is (zoned-add-span (span-of-days 2) x) 1325282400 50400
+       && ok-is (zoned-add-span-with earlier (span-of-days 1) x) 1325196000 (-36000)
+       && code (zoned-add-span-with reject (span-of-days 1) x) == 2
+       && ok-is (zoned-add-span (span-of-hours 24) x) 1325282400 50400
+    then 0 else 64
+
+  -- 8: the ends of the range refuse by name.
+  check-range :: TimeZone -> Int
+  check-range z =
+    let top = zoned-from-timestamp z max-timestamp in
+    let bottom = zoned-from-timestamp z min-timestamp in
+    if code (zoned-add-span (span-of-nanoseconds 1) top) == 1
+       && code (zoned-add-span (span-of-days 1) top) == 1
+       && code (zoned-add-span (span-of-years 1) top) == 1
+       && code (zoned-sub-span (span-of-nanoseconds 1) bottom) == 1
+       && code (zoned-sub-span (span-of-months 1) bottom) == 1
+       && code (zoned-add-span (span-of-years 19998) bottom) == 0
+       && code (zoned-add-span (span-of-years 19998) (zc z 2024 1 1 0 0 0 0)) == 1
+       && is-none (zoned-add-duration (duration-from-nanos 1) top)
+       && is-none (zoned-sub-duration (duration-from-nanos 1) bottom)
+       && is-some (zoned-sub-duration (duration-from-nanos 1) top)
+    then 0 else 128
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case load "America/New_York" of
+      Err _ -> 255
+      Ok ny -> case load "Pacific/Apia" of
+        Err _ -> 255
+        Ok apia -> check-calendar ny + check-hours ny + check-day-against-hours ny
+          + check-order ny + check-fold ny + check-gap ny + check-apia apia + check-range ny

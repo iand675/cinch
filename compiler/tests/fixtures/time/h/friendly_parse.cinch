@@ -1,0 +1,215 @@
+-- Lane H: Text.Time.Duration, the friendly format read. Every example
+-- of Jiff's documentation with its fields written out, every
+-- designator of every unit (including `s` after the two Unicode mu
+-- letters), the fraction converted exactly into the smaller units, the
+-- clock form, the comma and white space between components, and both
+-- ways of writing a negative value.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Span
+  import Text.Time.Duration
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  -- A parse result is the span with these ten fields.
+  is :: forall (c :: SpanClass). Result DurationTextError (Span c) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  is r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  -- A parse result is the duration of this many nanoseconds.
+  dur-is :: Result DurationTextError Duration -> I128 -> Bool
+  dur-is r n = case r of
+    Err _ -> False
+    Ok x -> eq-i128 (duration-total-nanos x) n
+
+  code :: DurationTextError -> I64
+  code e = case e of
+    DurationTextEmpty _ -> 1
+    DurationTextMissingP _ -> 2
+    DurationTextLowercaseDesignator _ -> 3
+    DurationTextMissingComponent _ -> 4
+    DurationTextExpectedNumber _ -> 5
+    DurationTextBadDesignator _ -> 6
+    DurationTextUnitsOutOfOrder _ -> 7
+    DurationTextRepeatedUnit _ -> 8
+    DurationTextFractionNotLast _ -> 9
+    DurationTextFractionOnUnit _ -> 10
+    DurationTextTooManyFractionDigits _ -> 11
+    DurationTextEmptyFraction _ -> 12
+    DurationTextNumberTooLarge _ -> 13
+    DurationTextUnitLimit _ -> 14
+    DurationTextTimeWithoutComponent _ -> 15
+    DurationTextSignTwice _ -> 16
+    DurationTextTrailingInput _ -> 17
+    DurationTextCalendarUnit _ -> 18
+    DurationTextExpectedColon _ -> 19
+    DurationTextOutOfRange _ -> 20
+
+  -- A refusal as constructor code * 1000 + byte position; 0 for `Ok`.
+  refusal :: forall a. Result DurationTextError a -> I64
+  refusal r = case r of
+    Ok _ -> 0
+    Err e -> wrapping-add-i64 (wrapping-mul-i64 (code e) 1000) (duration-text-error-position e)
+
+  -- Jiff's documented examples, first half.
+  check-examples-a :: Int
+  check-examples-a =
+    if is (span-from-friendly-string "40d") 0 0 0 40 0 0 0 0 0 0
+       && is (span-from-friendly-string "40 days") 0 0 0 40 0 0 0 0 0 0
+       && is (span-from-friendly-string "1y1d") 1 0 0 1 0 0 0 0 0 0
+       && is (span-from-friendly-string "1yr 1d") 1 0 0 1 0 0 0 0 0 0
+       && is (span-from-friendly-string "3d4h59m") 0 0 0 3 4 59 0 0 0 0
+       && is (span-from-friendly-string "3 days, 4 hours, 59 minutes") 0 0 0 3 4 59 0 0 0 0
+       && is (span-from-friendly-string "3d 4h 59m") 0 0 0 3 4 59 0 0 0 0
+       && is (span-from-friendly-string "2h30m") 0 0 0 0 2 30 0 0 0 0
+       && is (span-from-friendly-string "2h 30m") 0 0 0 0 2 30 0 0 0 0
+       && is (span-from-friendly-string "1mo") 0 1 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "1w") 0 0 1 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "1 week") 0 0 1 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "1w4d") 0 0 1 4 0 0 0 0 0 0
+       && is (span-from-friendly-string "1 wk 4 days") 0 0 1 4 0 0 0 0 0 0
+       && is (span-from-friendly-string "1m") 0 0 0 0 0 1 0 0 0 0
+    then 0 else 1
+
+  -- Second half: fractions, zero, the long forms, the clock form, signs.
+  check-examples-b :: Int
+  check-examples-b =
+    if is (span-from-friendly-string "0.0021s") 0 0 0 0 0 0 0 2 100 0
+       && is (span-from-friendly-string "0s") 0 0 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "0d") 0 0 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "0 days") 0 0 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "3 mins 34s 123ms") 0 0 0 0 0 3 34 123 0 0
+       && is (span-from-friendly-string "3 mins 34.123 secs") 0 0 0 0 0 3 34 123 0 0
+       && is (span-from-friendly-string "3 mins 34,123s") 0 0 0 0 0 3 34 123 0 0
+       && is (span-from-friendly-string "1y1mo1d1h1m1.1s") 1 1 0 1 1 1 1 100 0 0
+       && is (span-from-friendly-string "1yr 1mo 1day 1hr 1min 1.1sec") 1 1 0 1 1 1 1 100 0 0
+       && is (span-from-friendly-string "1 year, 1 month, 1 day, 1 hour, 1 minute 1.1 seconds") 1 1 0 1 1 1 1 100 0 0
+       && is (span-from-friendly-string "1 year, 1 month, 1 day, 01:01:01.1") 1 1 0 1 1 1 1 100 0 0
+       && is (span-from-friendly-string "-2h30m") 0 0 0 0 (-2) (-30) 0 0 0 0
+       && is (span-from-friendly-string "2h 30m ago") 0 0 0 0 (-2) (-30) 0 0 0 0
+       && is (span-from-friendly-string "6y 10mo 3d 23h") 6 10 0 3 23 0 0 0 0 0
+       && is (span-from-friendly-string "2000ms") 0 0 0 0 0 0 0 2000 0 0
+    then 0 else 2
+
+  -- Every designator of the calendar units and of hours to seconds.
+  check-designators-a :: Int
+  check-designators-a =
+    if is (span-from-friendly-string "2y") 2 0 0 0 0 0 0 0 0 0 && is (span-from-friendly-string "2yr") 2 0 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "2yrs") 2 0 0 0 0 0 0 0 0 0 && is (span-from-friendly-string "2year") 2 0 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "2years") 2 0 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "2mo") 0 2 0 0 0 0 0 0 0 0 && is (span-from-friendly-string "2mos") 0 2 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "2month") 0 2 0 0 0 0 0 0 0 0 && is (span-from-friendly-string "2months") 0 2 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "2w") 0 0 2 0 0 0 0 0 0 0 && is (span-from-friendly-string "2wk") 0 0 2 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "2wks") 0 0 2 0 0 0 0 0 0 0 && is (span-from-friendly-string "2week") 0 0 2 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "2weeks") 0 0 2 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "2d") 0 0 0 2 0 0 0 0 0 0 && is (span-from-friendly-string "2day") 0 0 0 2 0 0 0 0 0 0
+       && is (span-from-friendly-string "2days") 0 0 0 2 0 0 0 0 0 0
+       && is (span-from-friendly-string "2h") 0 0 0 0 2 0 0 0 0 0 && is (span-from-friendly-string "2hr") 0 0 0 0 2 0 0 0 0 0
+       && is (span-from-friendly-string "2hrs") 0 0 0 0 2 0 0 0 0 0 && is (span-from-friendly-string "2hour") 0 0 0 0 2 0 0 0 0 0
+       && is (span-from-friendly-string "2hours") 0 0 0 0 2 0 0 0 0 0
+       && is (span-from-friendly-string "2m") 0 0 0 0 0 2 0 0 0 0 && is (span-from-friendly-string "2min") 0 0 0 0 0 2 0 0 0 0
+       && is (span-from-friendly-string "2mins") 0 0 0 0 0 2 0 0 0 0 && is (span-from-friendly-string "2minute") 0 0 0 0 0 2 0 0 0 0
+       && is (span-from-friendly-string "2minutes") 0 0 0 0 0 2 0 0 0 0
+       && is (span-from-friendly-string "2s") 0 0 0 0 0 0 2 0 0 0 && is (span-from-friendly-string "2sec") 0 0 0 0 0 0 2 0 0 0
+       && is (span-from-friendly-string "2secs") 0 0 0 0 0 0 2 0 0 0 && is (span-from-friendly-string "2second") 0 0 0 0 0 0 2 0 0 0
+       && is (span-from-friendly-string "2seconds") 0 0 0 0 0 0 2 0 0 0
+    then 0 else 4
+
+  -- Every designator of the sub-second units; `\u{00b5}` is MICRO SIGN
+  -- and `\u{03bc}` GREEK SMALL LETTER MU.
+  check-designators-b :: Int
+  check-designators-b =
+    if is (span-from-friendly-string "2ms") 0 0 0 0 0 0 0 2 0 0 && is (span-from-friendly-string "2msec") 0 0 0 0 0 0 0 2 0 0
+       && is (span-from-friendly-string "2msecs") 0 0 0 0 0 0 0 2 0 0 && is (span-from-friendly-string "2milli") 0 0 0 0 0 0 0 2 0 0
+       && is (span-from-friendly-string "2millis") 0 0 0 0 0 0 0 2 0 0 && is (span-from-friendly-string "2millisecond") 0 0 0 0 0 0 0 2 0 0
+       && is (span-from-friendly-string "2milliseconds") 0 0 0 0 0 0 0 2 0 0
+       && is (span-from-friendly-string "2us") 0 0 0 0 0 0 0 0 2 0 && is (span-from-friendly-string "2\u{00b5}s") 0 0 0 0 0 0 0 0 2 0
+       && is (span-from-friendly-string "2\u{03bc}s") 0 0 0 0 0 0 0 0 2 0 && is (span-from-friendly-string "2usec") 0 0 0 0 0 0 0 0 2 0
+       && is (span-from-friendly-string "2usecs") 0 0 0 0 0 0 0 0 2 0 && is (span-from-friendly-string "2micro") 0 0 0 0 0 0 0 0 2 0
+       && is (span-from-friendly-string "2micros") 0 0 0 0 0 0 0 0 2 0 && is (span-from-friendly-string "2microsecond") 0 0 0 0 0 0 0 0 2 0
+       && is (span-from-friendly-string "2microseconds") 0 0 0 0 0 0 0 0 2 0
+       && is (span-from-friendly-string "2ns") 0 0 0 0 0 0 0 0 0 2 && is (span-from-friendly-string "2nsec") 0 0 0 0 0 0 0 0 0 2
+       && is (span-from-friendly-string "2nsecs") 0 0 0 0 0 0 0 0 0 2 && is (span-from-friendly-string "2nano") 0 0 0 0 0 0 0 0 0 2
+       && is (span-from-friendly-string "2nanos") 0 0 0 0 0 0 0 0 0 2 && is (span-from-friendly-string "2nanosecond") 0 0 0 0 0 0 0 0 0 2
+       && is (span-from-friendly-string "2nanoseconds") 0 0 0 0 0 0 0 0 0 2
+       && is (span-from-friendly-string "1y 2mo 3w 4d 5h 6m 7s 8ms 9us 10ns") 1 2 3 4 5 6 7 8 9 10
+       && is (span-from-friendly-string "1 year 2 months 3 weeks 4 days 5 hours 6 minutes 7 seconds 8 milliseconds 9 microseconds 10 nanoseconds") 1 2 3 4 5 6 7 8 9 10
+       && is (span-from-friendly-string "8ms 9\u{00b5}s 10ns") 0 0 0 0 0 0 0 8 9 10
+    then 0 else 8
+
+  -- A fraction on the last component, on hours down to microseconds,
+  -- converted exactly.
+  check-fractions :: Int
+  check-fractions =
+    if is (span-from-friendly-string "1.5h") 0 0 0 0 1 30 0 0 0 0
+       && is (span-from-friendly-string "1,5h") 0 0 0 0 1 30 0 0 0 0
+       && is (span-from-friendly-string "1.25m") 0 0 0 0 0 1 15 0 0 0
+       && is (span-from-friendly-string "1.1s") 0 0 0 0 0 0 1 100 0 0
+       && is (span-from-friendly-string "1.5ms") 0 0 0 0 0 0 0 1 500 0
+       && is (span-from-friendly-string "1.000001ms") 0 0 0 0 0 0 0 1 0 1
+       && is (span-from-friendly-string "1.5us") 0 0 0 0 0 0 0 0 1 500
+       && is (span-from-friendly-string "1.001us") 0 0 0 0 0 0 0 0 1 1
+       && is (span-from-friendly-string "0.000000001h") 0 0 0 0 0 0 0 0 3 600
+       && is (span-from-friendly-string "0.123456789s") 0 0 0 0 0 0 0 123 456 789
+       && is (span-from-friendly-string "1d 1.5 hours") 0 0 0 1 1 30 0 0 0 0
+       && is (span-from-friendly-string "2h 0.5m") 0 0 0 0 2 0 30 0 0 0
+       && is (span-from-friendly-string "1.0s") 0 0 0 0 0 0 1 0 0 0
+       && is (span-from-friendly-string "1.5 h ago") 0 0 0 0 (-1) (-30) 0 0 0 0
+    then 0 else 16
+
+  -- The clock form stands for hours, minutes and seconds; its numbers
+  -- are plain unit values.
+  check-clock-form :: Int
+  check-clock-form =
+    if is (span-from-friendly-string "01:02:03") 0 0 0 0 1 2 3 0 0 0
+       && is (span-from-friendly-string "1:2:3") 0 0 0 0 1 2 3 0 0 0
+       && is (span-from-friendly-string "-01:02:03.5") 0 0 0 0 (-1) (-2) (-3) (-500) 0 0
+       && is (span-from-friendly-string "01:02:03,000000001") 0 0 0 0 1 2 3 0 0 1
+       && is (span-from-friendly-string "100:70:80") 0 0 0 0 100 70 80 0 0 0
+       && is (span-from-friendly-string "1d 2:3:4 ago") 0 0 0 (-1) (-2) (-3) (-4) 0 0 0
+       && is (span-from-friendly-string "1d02:03:04") 0 0 0 1 2 3 4 0 0 0
+       && is (span-from-friendly-string "1y 1w, 00:00:01") 1 0 1 0 0 0 1 0 0 0
+       && is (span-from-friendly-string "00:00:00") 0 0 0 0 0 0 0 0 0 0
+       && is (span-clock-from-friendly-string "01:02:03") 0 0 0 0 1 2 3 0 0 0
+    then 0 else 32
+
+  -- Separators (nothing, white space, a comma with or without white
+  -- space after it) and signs (`-`, `+`, ` ago`).
+  check-separators-and-signs :: Int
+  check-separators-and-signs =
+    if is (span-from-friendly-string "1y,1mo") 1 1 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "1y,  1mo") 1 1 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "1y   1mo") 1 1 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "1h\t30m") 0 0 0 0 1 30 0 0 0 0
+       && is (span-from-friendly-string "1   hour") 0 0 0 0 1 0 0 0 0 0
+       && is (span-from-friendly-string "+1h") 0 0 0 0 1 0 0 0 0 0
+       && is (span-from-friendly-string "-1y 2mo") (-1) (-2) 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "1y 2mo ago") (-1) (-2) 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "1h   ago") 0 0 0 0 (-1) 0 0 0 0 0
+       && is (span-from-friendly-string "-0s") 0 0 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "0s ago") 0 0 0 0 0 0 0 0 0 0
+       && is (span-from-friendly-string "0001h") 0 0 0 0 1 0 0 0 0 0
+       && is (span-clock-from-friendly-string "2h 30m ago") 0 0 0 0 (-2) (-30) 0 0 0 0
+    then 0 else 64
+
+  main :: Int
+  main = check-examples-a + check-examples-b + check-designators-a + check-designators-b + check-fractions + check-clock-form + check-separators-and-signs

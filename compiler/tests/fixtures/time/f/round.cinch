@@ -1,0 +1,240 @@
+-- Lane F: Data.Time.Zoned.Arithmetic, rounding a zoned value
+-- (Temporal's ZonedDateTime.prototype.round). To the day: between the
+-- start of the civil day and the start of the next, by the real
+-- length of that day (25 and 23 hours in America/New_York, a day that
+-- starts at 01:00 in America/Santiago, the day before the one
+-- Pacific/Apia skipped). To smaller units: the civil reading is
+-- rounded and resolved again keeping the value's offset when the new
+-- reading can have it. Vectors from the Jiff 1.0 announcement and the
+-- TC39 Temporal reference polyfill; the refusals.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Weekday (Weekday, Monday, Friday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Zoned.Arithmetic
+  import Effect.Time.Zone
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s ns of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- A civil reading in the zone, `Compatible`.
+  zc :: TimeZone -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Zoned
+  zc z y mo d h mi s ns = case zoned-from-datetime Compatible z (at y mo d h mi s ns) of
+    Err _ -> zoned-from-timestamp z timestamp-epoch
+    Ok x -> x
+
+  -- The instant at a Unix second, in the zone.
+  zt :: TimeZone -> I64 -> Zoned
+  zt z s = case timestamp-from-unix-seconds s of
+    None -> zoned-from-timestamp z timestamp-epoch
+    Some t -> zoned-from-timestamp z t
+
+  -- A zoned value at this Unix second (and no fraction) and offset.
+  is :: Zoned -> I64 -> I64 -> Bool
+  is x secs offset =
+    timestamp-to-unix-seconds (zoned-timestamp x) == secs
+    && timestamp-subsec-nanos (zoned-timestamp x) == 0
+    && offset-to-seconds (zoned-offset x) == offset
+
+  ok-is :: Result ZonedError Zoned -> I64 -> I64 -> Bool
+  ok-is r secs offset = case r of
+    Err _ -> False
+    Ok x -> is x secs offset
+
+  some-is :: Option Zoned -> I64 -> I64 -> Bool
+  some-is r secs offset = case r of
+    None -> False
+    Some x -> is x secs offset
+
+  -- 0 accepted, then one code per refusal.
+  code :: forall a. Result ZonedError a -> I64
+  code r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      ZonedOutOfRange -> 1
+      ZonedRejectedGap _ _ -> 2
+      ZonedRejectedFold _ _ -> 3
+      ZonedZonesDiffer -> 4
+      ZonedBadUnits -> 5
+      ZonedBadIncrement -> 6
+      ZonedUnitLimit -> 7
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  ok-fields :: Result ZonedError (Span Calendar) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ok-fields r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  load :: forall r. using (io :: Io r) => String ->{IO r} Result TzLookupError TimeZone
+  load name = tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") name
+
+  rnd :: TimeUnit -> I64 -> RoundMode -> ZonedRound
+  rnd u i m = with-mode m (with-increment i (zoned-round-to u))
+
+  -- A value with a fraction: this Unix second, these nanoseconds.
+  frac-is :: Result ZonedError Zoned -> I64 -> I64 -> I64 -> Bool
+  frac-is r secs ns offset = case r of
+    Err _ -> False
+    Ok x ->
+      timestamp-to-unix-seconds (zoned-timestamp x) == secs
+      && timestamp-subsec-nanos (zoned-timestamp x) == ns
+      && offset-to-seconds (zoned-offset x) == offset
+
+  -- 1: the Jiff announcement's two cases.
+  check-jiff :: TimeZone -> Int
+  check-jiff z =
+    if ok-is (zoned-round-with (rnd Minute 30 HalfExpand) (zc z 2024 11 2 17 46 20 123456789)) 1730584800 (-14400)
+       && ok-is (zoned-round Day (zc z 2024 11 3 11 45 20 123456789)) 1730696400 (-18000)
+       && ok-is (zoned-round-with (zoned-round-to Day) (zc z 2024 11 3 11 45 20 123456789)) 1730696400 (-18000)
+       && (case zoned-round Day (zc z 2024 11 3 11 45 20 123456789) of
+             Err _ -> False
+             Ok x -> zoned-datetime x == at 2024 11 4 0 0 0 0)
+    then 0 else 1
+
+  -- 2: to the day in New York. The 25-hour day's middle is 12 h 30 m
+  -- after its start, 11:30 on the clock; the 23-hour day's is 11 h
+  -- 30 m after, 12:30 on the clock.
+  check-day :: TimeZone -> Int
+  check-day z =
+    if ok-is (zoned-round Day (zc z 2024 11 3 11 29 59 0)) 1730606400 (-14400)
+       && ok-is (zoned-round Day (zc z 2024 11 3 11 30 0 0)) 1730696400 (-18000)
+       && ok-is (zoned-round-with (rnd Day 1 HalfTrunc) (zc z 2024 11 3 11 30 0 0)) 1730606400 (-14400)
+       && ok-is (zoned-round Day (zc z 2024 3 10 12 29 59 0)) 1710046800 (-18000)
+       && ok-is (zoned-round Day (zc z 2024 3 10 12 30 0 0)) 1710129600 (-14400)
+       && ok-is (zoned-round-with (rnd Day 1 Floor) (zc z 2024 3 10 12 30 0 0)) 1710046800 (-18000)
+       && ok-is (zoned-round-with (rnd Day 1 Ceil) (zc z 2024 3 10 0 0 0 1)) 1710129600 (-14400)
+       && ok-is (zoned-round-with (rnd Day 1 Ceil) (zc z 2024 3 10 0 0 0 0)) 1710046800 (-18000)
+       && ok-is (zoned-round Day (zc z 2024 6 15 11 59 59 999999999)) 1718424000 (-14400)
+       && ok-is (zoned-round Day (zc z 2024 6 15 12 0 0 0)) 1718510400 (-14400)
+    then 0 else 2
+
+  -- 3: to the hour inside the fold: the offset the value has is kept
+  -- while the rounded reading can still have it. The first 01:29
+  -- rounds to the first 01:00 and the second to the second; 02:00
+  -- occurs once.
+  check-fold :: TimeZone -> Int
+  check-fold z =
+    let first = zt z 1730611800 in
+    let second = zt z 1730615400 in
+    if ok-is (zoned-round Hour first) 1730617200 (-18000)
+       && ok-is (zoned-round Hour second) 1730617200 (-18000)
+       && ok-is (zoned-round Hour (zt z 1730615340)) 1730613600 (-18000)
+       && ok-is (zoned-round Hour (zt z 1730611740)) 1730610000 (-14400)
+       && ok-is (zoned-round-with (rnd Minute 30 HalfExpand) (zt z 1730616240)) 1730615400 (-18000)
+       && ok-is (zoned-round-with (rnd Minute 30 Ceil) (zt z 1730612640)) 1730617200 (-18000)
+       && ok-is (zoned-round-with (rnd Hour 1 Ceil) (zc z 2024 11 3 0 44 0 0)) 1730610000 (-14400)
+    then 0 else 4
+
+  -- 4: around the gap, and plain cases. 01:44 up to the hour is 02:00,
+  -- which does not exist and reads as 03:00.
+  check-gap :: TimeZone -> Int
+  check-gap z =
+    if ok-is (zoned-round-with (rnd Hour 1 Ceil) (zc z 2024 3 10 1 44 0 0)) 1710054000 (-14400)
+       && ok-is (zoned-round-with (rnd Minute 30 Ceil) (zc z 2024 3 10 1 44 0 0)) 1710054000 (-14400)
+       && ok-is (zoned-round-with (rnd Hour 2 Floor) (zc z 2024 3 10 3 14 0 0)) 1710054000 (-14400)
+       && ok-is (zoned-round-with (rnd Hour 4 Floor) (zc z 2024 3 10 3 14 0 0)) 1710046800 (-18000)
+       && ok-is (zoned-round Second (zc z 2024 3 10 23 59 59 500000000)) 1710129600 (-14400)
+       && ok-is (zoned-round-with (rnd Hour 12 HalfExpand) (zc z 2024 11 2 17 46 20 123456789)) 1730563200 (-14400)
+       && frac-is (zoned-round-with (rnd Microsecond 500 HalfExpand) (zc z 2024 11 2 17 46 20 123456789)) 1730583980 123500000 (-14400)
+       && frac-is (zoned-round-with zoned-round-default (zc z 2024 11 2 17 46 20 123456789)) 1730583980 123456789 (-14400)
+       && frac-is (zoned-round Nanosecond (zc z 2024 11 2 17 46 20 123456789)) 1730583980 123456789 (-14400)
+    then 0 else 8
+
+  -- 5: America/Santiago on 2024-09-08, which starts at 01:00 and is 23
+  -- hours long (its middle is 12:30 on the clock); 23:40 the evening
+  -- before rounds to a midnight that does not exist.
+  check-santiago :: TimeZone -> Int
+  check-santiago z =
+    if ok-is (zoned-round Day (zc z 2024 9 8 11 29 0 0)) 1725768000 (-10800)
+       && ok-is (zoned-round Day (zc z 2024 9 8 12 29 0 0)) 1725768000 (-10800)
+       && ok-is (zoned-round Day (zc z 2024 9 8 12 31 0 0)) 1725850800 (-10800)
+       && ok-is (zoned-round Day (zc z 2024 9 8 1 10 0 0)) 1725768000 (-10800)
+       && ok-is (zoned-round-with (rnd Hour 1 Floor) (zc z 2024 9 8 1 10 0 0)) 1725768000 (-10800)
+       && ok-is (zoned-round Hour (zc z 2024 9 7 23 40 0 0)) 1725768000 (-10800)
+    then 0 else 16
+
+  -- 6: Pacific/Apia on 2011-12-29, the day before the skipped one:
+  -- its end is the start of the 31st.
+  check-apia :: TimeZone -> Int
+  check-apia z =
+    if ok-is (zoned-round Day (zc z 2011 12 29 12 0 0 0)) 1325239200 50400
+       && ok-is (zoned-round Day (zc z 2011 12 29 11 59 0 0)) 1325152800 (-36000)
+       && ok-is (zoned-round Hour (zc z 2011 12 29 23 40 0 0)) 1325239200 50400
+    then 0 else 32
+
+  -- 7: the refusals.
+  check-refusals :: TimeZone -> Int
+  check-refusals z =
+    let x = zc z 2024 11 2 17 46 20 123456789 in
+    if code (zoned-round-with (rnd Day 2 HalfExpand) x) == 6
+       && code (zoned-round-with (rnd Day 0 HalfExpand) x) == 6
+       && code (zoned-round-with (rnd Hour 24 HalfExpand) x) == 6
+       && code (zoned-round-with (rnd Hour 5 HalfExpand) x) == 6
+       && code (zoned-round-with (rnd Minute 60 HalfExpand) x) == 6
+       && code (zoned-round-with (rnd Nanosecond 0 HalfExpand) x) == 6
+       && code (zoned-round Week x) == 5
+       && code (zoned-round Month x) == 5
+       && code (zoned-round Year x) == 5
+       && code (zoned-round-with (rnd Hour 12 HalfExpand) x) == 0
+    then 0 else 64
+
+  -- 8: the ends of the range: a result past either end is refused by
+  -- name (the last instant reads 17:00:00.999999999 on 9999-12-30 and
+  -- the first 21:03:57 on -9999-01-01, local mean time).
+  check-range :: TimeZone -> Int
+  check-range z =
+    let lo = zoned-from-timestamp z min-timestamp in
+    let hi = zoned-from-timestamp z max-timestamp in
+    if code (zoned-round Day hi) == 1
+       && code (zoned-round Hour hi) == 0
+       && code (zoned-round-with (rnd Hour 1 Ceil) hi) == 1
+       && code (zoned-round-with (rnd Hour 1 Floor) hi) == 0
+       && code (zoned-round-with (rnd Second 1 Floor) hi) == 0
+       && code (zoned-round-with (rnd Day 1 Floor) lo) == 1
+       && code (zoned-round-with (rnd Hour 1 Floor) lo) == 1
+       && code (zoned-round-with (rnd Hour 1 Ceil) lo) == 0
+    then 0 else 128
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case load "America/New_York" of
+      Err _ -> 255
+      Ok ny -> case load "Pacific/Apia" of
+        Err _ -> 255
+        Ok apia -> case load "America/Santiago" of
+          Err _ -> 255
+          Ok santiago -> check-jiff ny + check-day ny + check-fold ny + check-gap ny
+            + check-santiago santiago + check-apia apia + check-refusals ny + check-range ny

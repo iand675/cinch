@@ -1,0 +1,284 @@
+-- Lane F: Data.Time.Zoned.Arithmetic, differences with rounding
+-- (Temporal's DifferenceZonedDateTimeWithRounding: NudgeToZonedTime,
+-- NudgeToCalendarUnit with a zone, BubbleRelativeDuration). A day is
+-- as long as it was in the zone: 12 hours 15 minutes into a 25-hour
+-- day rounds down to 0 days. Vectors from the Jiff 1.0 announcement
+-- and from the TC39 Temporal reference polyfill, all in
+-- America/New_York (tzdata 2026e) around the 2024 transitions: day
+-- rounding under each directed mode in both directions, hour and
+-- smaller units against the real day length, week, month and year
+-- rounding, the carry into larger units, `since` with directed
+-- modes, and rounding at the end of the range.
+module Main where
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Timestamp
+  import Data.Time.Weekday (Weekday, Monday, Friday, Sunday)
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Data.Time.Span
+  import Data.Time.Arithmetic
+  import Data.Time.Zoned.Arithmetic
+  import Effect.Time.Zone
+
+  at :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> DateTime
+  at y mo d h mi s ns = case D.date y mo d of
+    None -> DT.min-datetime
+    Some day -> case T.time-of-day-checked h mi s ns of
+      None -> DT.min-datetime
+      Some t -> DT.datetime day t
+
+  -- A civil reading in the zone, `Compatible`.
+  zc :: TimeZone -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Zoned
+  zc z y mo d h mi s ns = case zoned-from-datetime Compatible z (at y mo d h mi s ns) of
+    Err _ -> zoned-from-timestamp z timestamp-epoch
+    Ok x -> x
+
+  -- The instant at a Unix second, in the zone.
+  zt :: TimeZone -> I64 -> Zoned
+  zt z s = case timestamp-from-unix-seconds s of
+    None -> zoned-from-timestamp z timestamp-epoch
+    Some t -> zoned-from-timestamp z t
+
+  -- A zoned value at this Unix second (and no fraction) and offset.
+  is :: Zoned -> I64 -> I64 -> Bool
+  is x secs offset =
+    timestamp-to-unix-seconds (zoned-timestamp x) == secs
+    && timestamp-subsec-nanos (zoned-timestamp x) == 0
+    && offset-to-seconds (zoned-offset x) == offset
+
+  ok-is :: Result ZonedError Zoned -> I64 -> I64 -> Bool
+  ok-is r secs offset = case r of
+    Err _ -> False
+    Ok x -> is x secs offset
+
+  some-is :: Option Zoned -> I64 -> I64 -> Bool
+  some-is r secs offset = case r of
+    None -> False
+    Some x -> is x secs offset
+
+  -- 0 accepted, then one code per refusal.
+  code :: forall a. Result ZonedError a -> I64
+  code r = case r of
+    Ok _ -> 0
+    Err e -> case e of
+      ZonedOutOfRange -> 1
+      ZonedRejectedGap _ _ -> 2
+      ZonedRejectedFold _ _ -> 3
+      ZonedZonesDiffer -> 4
+      ZonedBadUnits -> 5
+      ZonedBadIncrement -> 6
+      ZonedUnitLimit -> 7
+
+  sp :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Span Calendar
+  sp y mo w d h mi s ms us ns = case span-from-units y mo w d h mi s ms us ns of
+    Err _ -> span-to-calendar span-zero
+    Ok x -> x
+
+  fields :: forall (c :: SpanClass). Span c -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  fields x y mo w d h mi s ms us ns =
+    span-years x == y && span-months x == mo && span-weeks x == w && span-days x == d
+    && span-hours x == h && span-minutes x == mi && span-seconds x == s
+    && span-milliseconds x == ms && span-microseconds x == us && span-nanoseconds x == ns
+
+  ok-fields :: Result ZonedError (Span Calendar) -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  ok-fields r y mo w d h mi s ms us ns = case r of
+    Err _ -> False
+    Ok x -> fields x y mo w d h mi s ms us ns
+
+  load :: forall r. using (io :: Io r) => String ->{IO r} Result TzLookupError TimeZone
+  load name = tzdb-lookup (tzdb-at "tests/fixtures/time/c/tzif") name
+
+  opt :: TimeUnit -> TimeUnit -> I64 -> RoundMode -> ZonedDifference
+  opt l s i m = with-mode m (with-increment i (with-smallest s (zoned-difference-largest l)))
+
+  until-is :: ZonedDifference -> Zoned -> Zoned -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  until-is o a b y mo w d h mi s ms us ns = ok-fields (zoned-until-with o a b) y mo w d h mi s ms us ns
+
+  since-is :: ZonedDifference -> Zoned -> Zoned -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool
+  since-is o a b y mo w d h mi s ms us ns = ok-fields (zoned-since-with o a b) y mo w d h mi s ms us ns
+
+  -- 1: the Jiff announcement's cases. 16 d 4 h 42 m 33.123456789 s to
+  -- 30 minutes is 16 d 4 h 30 m. 17:30 on 2 November until 04:45 on
+  -- the 3rd is 12 h 15 m, less than half of that 25-hour day (the
+  -- middle is at 12 h 30 m, 05:00 on the clock); 05:59 and 06:00 are
+  -- past it.
+  check-jiff :: TimeZone -> Int
+  check-jiff z =
+    let a = zc z 2024 5 15 14 30 54 0 in
+    let b = zc z 2024 5 31 19 13 27 123456789 in
+    let e = zc z 2024 11 2 17 30 0 0 in
+    if until-is (opt Day Minute 30 HalfExpand) a b 0 0 0 16 4 30 0 0 0 0
+       && until-is (opt Day Day 1 HalfExpand) e (zc z 2024 11 3 4 45 0 0) 0 0 0 0 0 0 0 0 0 0
+       && until-is (opt Day Day 1 HalfExpand) e (zc z 2024 11 3 4 59 0 0) 0 0 0 0 0 0 0 0 0 0
+       && until-is (opt Day Day 1 HalfExpand) e (zc z 2024 11 3 5 0 0 0) 0 0 0 1 0 0 0 0 0 0
+       && until-is (opt Day Day 1 HalfTrunc) e (zc z 2024 11 3 5 0 0 0) 0 0 0 0 0 0 0 0 0 0
+       && until-is (opt Day Day 1 HalfExpand) e (zc z 2024 11 3 5 59 0 0) 0 0 0 1 0 0 0 0 0 0
+       && until-is (opt Day Day 1 HalfExpand) e (zc z 2024 11 3 6 0 0 0) 0 0 0 1 0 0 0 0 0 0
+       && until-is (with-mode HalfExpand (with-smallest Hour zoned-difference-default)) a b 0 0 0 0 389 0 0 0 0 0
+       && until-is (opt Second Second 1 Ceil) a b 0 0 0 0 0 0 1399354 0 0 0
+       && until-is (with-mode HalfExpand (with-smallest Month zoned-difference-default)) (zc z 2024 5 31 0 0 0 0) (zc z 2024 9 30 0 0 0 0) 0 4 0 0 0 0 0 0 0 0
+    then 0 else 1
+
+  -- 2: rounding to days in both directions under the directed modes
+  -- (reference polyfill). 17:30 on 9 March until 05:15 on the 10th is
+  -- 10 h 45 m of a 23-hour day.
+  check-day-modes :: TimeZone -> Int
+  check-day-modes z =
+    let a = zc z 2024 11 3 17 30 0 0 in
+    let b = zc z 2024 11 2 4 45 0 0 in
+    let s = zc z 2024 3 9 17 30 0 0 in
+    if until-is (opt Day Day 1 HalfExpand) s (zc z 2024 3 10 5 15 0 0) 0 0 0 0 0 0 0 0 0 0
+       && until-is (opt Day Day 1 HalfExpand) s (zc z 2024 3 10 4 59 0 0) 0 0 0 0 0 0 0 0 0 0
+       && until-is (opt Day Day 1 HalfExpand) s (zc z 2024 3 10 6 0 0 0) 0 0 0 1 0 0 0 0 0 0
+       && until-is (opt Day Day 1 HalfTrunc) s (zc z 2024 3 10 6 0 0 0) 0 0 0 0 0 0 0 0 0 0
+       && until-is (opt Day Day 1 HalfExpand) (zc z 2024 11 3 4 45 0 0) (zc z 2024 11 2 17 30 0 0) 0 0 0 0 0 0 0 0 0 0
+       && until-is (opt Day Day 1 HalfExpand) a b 0 0 0 (-2) 0 0 0 0 0 0
+       && until-is (opt Day Day 1 Ceil) a b 0 0 0 (-1) 0 0 0 0 0 0
+       && until-is (opt Day Day 1 Floor) a b 0 0 0 (-2) 0 0 0 0 0 0
+       && until-is (opt Day Day 1 Trunc) a b 0 0 0 (-1) 0 0 0 0 0 0
+       && until-is (opt Day Day 1 Expand) a b 0 0 0 (-2) 0 0 0 0 0 0
+       && since-is (opt Day Day 1 Ceil) a b 0 0 0 2 0 0 0 0 0 0
+       && since-is (opt Day Day 1 Floor) a b 0 0 0 1 0 0 0 0 0 0
+       && since-is (opt Day Day 1 Ceil) b a 0 0 0 (-1) 0 0 0 0 0 0
+       && since-is (opt Day Day 1 Floor) b a 0 0 0 (-2) 0 0 0 0 0 0
+    then 0 else 2
+
+  -- 3: hours and smaller against the real length of the day that
+  -- follows the calendar part (reference polyfill). Noon on 2
+  -- November until 11:40 on the 3rd is 24 h 40 m: to the hour that is
+  -- 25 h, a whole day there; to 12 hours it is 24 h, short of it.
+  check-zoned-time :: TimeZone -> Int
+  check-zoned-time z =
+    let n = zc z 2024 11 2 12 0 0 0 in
+    if until-is (opt Day Hour 1 HalfExpand) n (zc z 2024 11 3 12 30 0 0) 0 0 0 1 1 0 0 0 0 0
+       && until-is (opt Day Hour 1 HalfExpand) n (zc z 2024 11 3 11 40 0 0) 0 0 0 1 0 0 0 0 0 0
+       && until-is (opt Day Hour 12 HalfExpand) n (zc z 2024 11 3 11 40 0 0) 0 0 0 0 24 0 0 0 0 0
+       && until-is (opt Month Hour 1 HalfExpand) (zc z 2024 10 4 12 0 0 0) (zc z 2024 11 3 11 40 0 0) 0 0 0 30 0 0 0 0 0 0
+       && until-is (opt Day Hour 1 HalfExpand) (zc z 2024 3 9 12 0 0 0) (zc z 2024 3 10 11 40 0 0) 0 0 0 1 0 0 0 0 0 0
+       && until-is (opt Day Hour 1 HalfExpand) (zc z 2024 3 9 12 0 0 0) (zc z 2024 3 10 11 20 0 0) 0 0 0 0 22 0 0 0 0 0
+       && until-is (opt Day Hour 1 HalfExpand) (zc z 2024 11 3 12 0 0 0) (zc z 2024 11 2 12 20 0 0) 0 0 0 (-1) 0 0 0 0 0 0
+       && until-is (opt Day Hour 1 HalfExpand) (zc z 2024 11 3 12 0 0 0) (zc z 2024 11 2 12 40 0 0) 0 0 0 0 (-24) 0 0 0 0 0
+       && until-is (opt Day Second 1 Ceil) (zc z 2024 11 2 23 0 0 0) (zc z 2024 11 3 23 30 0 0) 0 0 0 1 0 30 0 0 0 0
+       && until-is (opt Day Second 1 HalfExpand) n (zc z 2024 11 3 12 59 59 500000000) 0 0 0 1 1 0 0 0 0 0
+       && until-is (opt Day Second 1 HalfExpand) n (zc z 2024 11 3 11 59 59 500000000) 0 0 0 1 0 0 0 0 0 0
+    then 0 else 4
+
+  -- 4: week, month and year as the smallest unit (reference
+  -- polyfill, except the four lines after the first three). 12:00 on
+  -- 2024-01-31 until 11:00 on 2025-03-01 is 1 year 28 days 23 hours,
+  -- but the month after that year ends at 12:00 on 2025-02-28 (the day
+  -- constrained), BEFORE the destination. The specification now
+  -- measures in the window one month further (ComputeNudgeWindow's
+  -- additionalShift), so truncation gives 1 year 1 month and `Ceil`
+  -- 1 year 2 months; the 0.5.1 polyfill, which predates that step,
+  -- says 1 year and 1 year 1 month.
+  check-calendar-units :: TimeZone -> Int
+  check-calendar-units z =
+    let a = zc z 2024 1 31 12 0 0 0 in
+    let b = zc z 2025 3 1 11 0 0 0 in
+    let c = zc z 2024 1 1 0 0 0 0 in
+    let d = zc z 2024 3 10 12 0 0 0 in
+    if until-is (opt Year Month 1 HalfExpand) a b 1 1 0 0 0 0 0 0 0 0
+       && until-is (opt Year Year 1 Ceil) a b 2 0 0 0 0 0 0 0 0 0
+       && until-is (opt Month Week 1 HalfExpand) a b 0 12 4 0 0 0 0 0 0 0
+       && until-is (opt Year Month 1 Trunc) a b 1 1 0 0 0 0 0 0 0 0
+       && until-is (opt Year Month 1 Ceil) a b 1 2 0 0 0 0 0 0 0 0
+       && since-is (opt Year Month 1 Ceil) a b (-1) (-1) 0 0 0 0 0 0 0 0
+       && since-is (opt Year Month 1 Floor) a b (-1) (-2) 0 0 0 0 0 0 0 0
+       && until-is (opt Year Week 1 HalfExpand) c d 0 2 1 0 0 0 0 0 0 0
+       && until-is (opt Week Week 2 Ceil) c d 0 0 10 0 0 0 0 0 0 0
+       && until-is (opt Month Month 1 HalfEven) c d 0 2 0 0 0 0 0 0 0 0
+       && until-is (opt Day Day 5 HalfExpand) c d 0 0 0 70 0 0 0 0 0 0
+    then 0 else 8
+
+  -- 5: days inside months, on the 23-hour day 2024-03-10 (reference
+  -- polyfill): 11:30 on the clock is 10 h 30 m into it, short of the
+  -- middle under every half mode; the day after is ordinary.
+  check-days-in-months :: TimeZone -> Int
+  check-days-in-months z =
+    let c = zc z 2024 1 1 0 0 0 0 in
+    if until-is (opt Month Day 1 HalfExpand) c (zc z 2024 3 10 12 0 0 0) 0 2 0 9 0 0 0 0 0 0
+       && until-is (opt Month Day 1 HalfExpand) c (zc z 2024 3 10 11 30 0 0) 0 2 0 9 0 0 0 0 0 0
+       && until-is (opt Month Day 1 HalfTrunc) c (zc z 2024 3 10 11 30 0 0) 0 2 0 9 0 0 0 0 0 0
+       && until-is (opt Month Day 1 HalfEven) c (zc z 2024 3 10 11 30 0 0) 0 2 0 9 0 0 0 0 0 0
+       && until-is (opt Month Day 1 HalfExpand) c (zc z 2024 3 10 12 30 0 0) 0 2 0 10 0 0 0 0 0 0
+       && until-is (opt Month Day 1 HalfTrunc) c (zc z 2024 3 10 12 30 0 0) 0 2 0 9 0 0 0 0 0 0
+       && until-is (opt Month Day 1 HalfEven) c (zc z 2024 3 10 12 30 0 0) 0 2 0 10 0 0 0 0 0 0
+       && until-is (opt Month Day 1 HalfEven) c (zc z 2024 3 11 12 0 0 0) 0 2 0 10 0 0 0 0 0 0
+       && until-is (opt Month Day 7 Trunc) (zc z 2024 5 31 0 0 0 0) (zc z 2024 9 30 0 0 0 0) 0 3 0 28 0 0 0 0 0 0
+       && until-is (opt Year Day 7 Expand) (zc z 2024 5 31 0 0 0 0) (zc z 2024 9 30 7 0 0 0) 0 4 0 0 0 0 0 0 0 0
+    then 0 else 16
+
+  -- 6: a rounding that fills a unit is carried into the larger ones up
+  -- to the largest (reference polyfill).
+  check-carry :: TimeZone -> Int
+  check-carry z =
+    let a = zc z 2023 12 31 12 0 0 0 in
+    let b = zc z 2024 12 31 11 45 0 0 in
+    if until-is (opt Month Hour 1 HalfExpand) (zc z 2024 10 31 12 0 0 0) (zc z 2024 11 30 11 45 0 0) 0 1 0 0 0 0 0 0 0 0
+       && until-is (opt Year Minute 30 HalfExpand) (zc z 2024 10 31 12 0 0 0) (zc z 2024 11 30 11 45 0 0) 0 1 0 0 0 0 0 0 0 0
+       && until-is (opt Year Hour 1 HalfExpand) a b 1 0 0 0 0 0 0 0 0 0
+       && until-is (opt Month Hour 1 HalfExpand) a b 0 12 0 0 0 0 0 0 0 0
+       && until-is (opt Week Hour 1 HalfExpand) a b 0 0 52 2 0 0 0 0 0 0
+       && until-is (opt Day Hour 1 HalfExpand) a b 0 0 0 366 0 0 0 0 0 0
+       && until-is (opt Year Hour 1 HalfExpand) b a (-1) 0 0 0 0 0 0 0 0 0
+       && until-is (opt Month Second 1 HalfExpand) (zc z 2024 11 2 12 0 0 0) (zc z 2024 11 3 11 59 59 500000000) 0 0 0 1 0 0 0 0 0 0
+       && until-is (opt Month Second 1 HalfExpand) (zc z 2024 10 3 12 0 0 0) (zc z 2024 11 3 11 59 59 500000000) 0 1 0 0 0 0 0 0 0 0
+       && until-is (opt Day Second 1 HalfExpand) (zc z 2024 10 3 12 0 0 0) (zc z 2024 11 3 11 59 59 500000000) 0 0 0 31 0 0 0 0 0 0
+    then 0 else 32
+
+  -- 7: sub-second units, and `since` (the mode acts on the negated
+  -- difference: `Floor` of -16 d 4 h 42 m to six hours is -16 d 6 h).
+  check-since :: TimeZone -> Int
+  check-since z =
+    let a = zc z 2024 5 15 14 30 54 0 in
+    let b = zc z 2024 5 31 19 13 27 123456789 in
+    if until-is (opt Day Microsecond 500 HalfEven) a b 0 0 0 16 4 42 33 123 500 0
+       && since-is (opt Month Hour 6 Floor) b a 0 0 0 16 0 0 0 0 0 0
+       && since-is (opt Month Hour 6 Floor) a b 0 0 0 (-16) (-6) 0 0 0 0 0
+       && since-is (opt Month Hour 6 Ceil) a b 0 0 0 (-16) 0 0 0 0 0 0
+       && until-is (opt Month Hour 6 Floor) a b 0 0 0 16 0 0 0 0 0 0
+       && until-is (opt Month Hour 6 Ceil) a b 0 0 0 16 6 0 0 0 0 0
+       && until-is (opt Day Minute 30 HalfExpand) a a 0 0 0 0 0 0 0 0 0 0
+    then 0 else 64
+
+  -- 8: rounding at the end of the range. With no rounding nothing
+  -- beyond the two values is read. Any rounding reads the further
+  -- candidate (the window's far end, or the day after the calendar
+  -- part), and when that lies past the range the refusal is named,
+  -- whatever the mode. Clock units as the largest need no window.
+  check-range :: TimeZone -> Int
+  check-range z =
+    let lo = zoned-from-timestamp z min-timestamp in
+    let hi = zoned-from-timestamp z max-timestamp in
+    if code (zoned-until-with (opt Year Nanosecond 1 Trunc) lo hi) == 0
+       && code (zoned-until-with (opt Year Year 1 Trunc) lo hi) == 1
+       && code (zoned-until-with (opt Year Year 1 Expand) lo hi) == 1
+       && code (zoned-until-with (opt Year Hour 1 Trunc) lo hi) == 1
+       && until-is (opt Hour Hour 1 Trunc) lo hi 0 0 0 0 175307564 0 0 0 0 0
+       && until-is (opt Hour Hour 1 Expand) lo hi 0 0 0 0 175307565 0 0 0 0 0
+       && until-is (opt Year Year 1 Trunc) lo (zc z 9998 6 1 0 0 0 0) 19997 0 0 0 0 0 0 0 0 0
+    then 0 else 128
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case load "America/New_York" of
+      Err _ -> 255
+      Ok ny -> check-jiff ny + check-day-modes ny + check-zoned-time ny
+        + check-calendar-units ny + check-days-in-months ny + check-carry ny
+        + check-since ny + check-range ny
