@@ -1,0 +1,62 @@
+{
+  "compiler_path": "/workspace/dasl-stdlib-io/build/stdlib-projector-release-frozen/cinch",
+  "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
+  "fixtures": {
+    "random-lengths": {
+      "kind": "maintained Effect.Random raw Main source copied without modification",
+      "files": {
+        "Effect.Random.cinch": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+        "Main.cinch": "48a74851b43c801776695a6f4bd126a8f1e8fc612d12de2103618ef49ca79d9a"
+      }
+    },
+    "random-bounds": {
+      "kind": "maintained Effect.Random raw Main source copied without modification",
+      "files": {
+        "Effect.Random.cinch": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+        "Main.cinch": "5156d594cf0b30f9698eca487c8a81b9c8961706c78b03006ec3bd08dd7b127d"
+      }
+    },
+    "random-errors": {
+      "kind": "maintained Effect.Random raw Main source copied without modification",
+      "files": {
+        "Effect.Random.cinch": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+        "Main.cinch": "1f7720aaa65587645fd8a046962741a534883b002b9bb8f0bacae422809232dd"
+      }
+    },
+    "random-hex": {
+      "kind": "maintained Effect.Random raw Main source copied without modification",
+      "files": {
+        "Effect.Random.cinch": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+        "Main.cinch": "1fa2c0a1cb5bbcb534e4531f2d26f734e4a0703c936a8f06e03757adfbc54f83"
+      }
+    },
+    "uuid-control": {
+      "kind": "maintained UUID fixture and exact explicitly selected source modules",
+      "files": {
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Uuid.cinch": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+        "Effect.Clock.cinch": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
+        "Effect.Concurrent.MVar.cinch": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e",
+        "Effect.Random.cinch": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+        "Effect.Uuid.cinch": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
+        "Main.cinch": "89594bf1d33313aca3fbf37cb7736f30ac601315b18c327cbf6b18770d23f11e",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+      }
+    },
+    "uuid-io": {
+      "kind": "maintained UUID fixture and exact explicitly selected source modules",
+      "files": {
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Uuid.cinch": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+        "Effect.Clock.cinch": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
+        "Effect.Concurrent.MVar.cinch": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e",
+        "Effect.Random.cinch": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+        "Effect.Uuid.cinch": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
+        "Main.cinch": "35cdfa80452fb0a16bdcc3ea8e6c499fee8ed7bb7e14ac083e1d520e55efac03",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+      }
+    }
+  },
+  "source_test_harness_sha256": "340d550fb9ff8975c69ae606dac2e3a1b55076d2f58361552b170f468f68dad1",
+  "status": "prepared before any Cinch consumer execution"
+}

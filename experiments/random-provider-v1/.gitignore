@@ -5,3 +5,12 @@
 /actual-syscall-v1/run-1/real-entropy.capture
 # Successful full-runtime test executable remains plain with its recorded hash.
 /runtime-boundary-v1/run-1/runtime-tests
+# Qualified success artifacts remain plain locally and are identified by receipts.
+/staticlib-pair-v1/archives-v1/*/libcinchruntime.a
+/staticlib-pair-v1/c-abi-v1/run-1/consumer.o
+/staticlib-pair-v1/c-abi-v1/run-1/c-abi-baseline
+/staticlib-pair-v1/c-abi-v1/run-1/c-abi-candidate
+/staticlib-pair-v1/cinch-consumers-v1/*/run-1/consumer.o
+/staticlib-pair-v1/cinch-consumers-v1/*/run-1/consumer-baseline
+/staticlib-pair-v1/cinch-consumers-v1/*/run-1/consumer-candidate
+/staticlib-pair-v1/cinch-consumers-v1/*/build/
