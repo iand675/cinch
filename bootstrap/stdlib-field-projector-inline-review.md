@@ -78,3 +78,14 @@ unselected reassociation already has a negative or mixed performance receipt.
 Both actual aggregate consumption and owned-field lifetimes must be checked
 before another source decision. This review does not claim a complete late-local
 product propagation fix or a performance gain.
+
+The subsequent immutable C2/d91 experiment has now completed both 650-profile
+public preflights, 24 ordinary allocation diagnostics and 104 paired timing
+observations. Exact data and ABI scope are in
+`stdlib-field-projector-preflight-results.json` and
+`stdlib-field-projector-benchmark-results.json`. Getter calls disappear, but
+two expanded decoder branches still reconstruct the product. Default eager
+allocation totals improve with the reassociated source; generic callback totals
+do not. Mixed timing results, including 4 KiB and visitor regressions, keep
+f516 unselected. A separate higher-count confirmation plan is prepared without
+replacing the original raw samples or adopting a production source change.

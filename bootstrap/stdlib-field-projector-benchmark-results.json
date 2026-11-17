@@ -1,0 +1,733 @@
+{
+  "scope": "Matched immutable c2/d91 Fields baseline/f516 comparison; source remains unselected",
+  "decision": "Keep f516 unselected: mixed sample medians and 4KiB/visitor regressions require focused confirmation",
+  "raw_samples": "bootstrap/stdlib-field-projector-benchmark-samples.json",
+  "raw_samples_sha256": "497da8a1f355ec429bd0b726bc9439b593709b6b59c2351b30dd139dfff1f954",
+  "session": {
+    "scope": "Exclusive CPU0 matched c2/d91 baseline/f516 existing-binary timing; no compilation",
+    "plan_sha256": "0599c26472eeeff8aebb1019b0cee96807e70a1b41d3aa4074b8c6a49802c0b7",
+    "before_free_bytes": 495616000,
+    "start_guard_bytes": 314572800,
+    "reserve_bytes": 262144000,
+    "new_report_limit_bytes": 5242880,
+    "build_default_guard_unchanged_bytes": 367001600,
+    "background": "Root explicit START: all other peers held, Color closed/no child, Root no Cargo/heavy job",
+    "status": "passed",
+    "exit_code": 0,
+    "wall_seconds": 2.7858261419751216,
+    "after_free_bytes": 495497216,
+    "new_report_bytes": 110614
+  },
+  "plan_sha256": "0599c26472eeeff8aebb1019b0cee96807e70a1b41d3aa4074b8c6a49802c0b7",
+  "observations": 104,
+  "excluded_warmups": 26,
+  "included_samples": 78,
+  "samples_per_condition": 3,
+  "quota_before": {
+    "affinity": [
+      0
+    ],
+    "cpu.max": "400000 100000\n",
+    "cpu.stat": "usage_usec 161886192610\nuser_usec 151797379424\nsystem_usec 10088813186\nnice_usec 481860771\nnr_periods 1236471\nnr_throttled 42006\nthrottled_usec 1757103997\nnr_bursts 0\nburst_usec 0\n",
+    "cpuset.cpus.effective": "0-4\n"
+  },
+  "quota_after": {
+    "affinity": [
+      0
+    ],
+    "cpu.max": "400000 100000\n",
+    "cpu.stat": "usage_usec 161888773123\nuser_usec 151799842737\nsystem_usec 10088930386\nnice_usec 481860771\nnr_periods 1236498\nnr_throttled 42006\nthrottled_usec 1757103997\nnr_bursts 0\nburst_usec 0\n",
+    "cpuset.cpus.effective": "0-4\n"
+  },
+  "throttled_period_delta": 0,
+  "throttled_usec_delta": 0,
+  "summaries": [
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "text",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 4219762,
+          "original": "af6c809fb443128527f37f291f1a3fe379fa5fe5c83c636b4f857a6496887b67",
+          "retained": "fcd139ef36557a3c9e23cfb8f96de40e1131e8092b11d27e6c85d64eb97f07e1",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 1599.75,
+        "rust-projector-reassociated": 1544.75
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          1710.0,
+          1599.75,
+          1497.25
+        ],
+        "rust-projector-reassociated": [
+          1642.5,
+          1544.75,
+          1269.5
+        ]
+      },
+      "baseline_over_reassociated": 1.0356044667421913
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "dense",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3443094013564216172,
+          "original": "7f8b69161933a47a159efbfc6dc65fc4e364bcdbc820ba585abd4e3b1e82d094",
+          "retained": "6f178023b2a79bec1bde3c51849ad48e8b970c573407637e5293c4a0fc1cd419",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 907578.25,
+        "rust-projector-reassociated": 1164666.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          907578.25,
+          1607998.25,
+          871353.75
+        ],
+        "rust-projector-reassociated": [
+          1164666.25,
+          1248545.0,
+          763488.75
+        ]
+      },
+      "baseline_over_reassociated": 0.7792603675087176
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "unicode",
+        "size": 4096,
+        "iterations": 4,
+        "expected": {
+          "checksum": 5441481174952903992,
+          "original": "c4cb2da9c693fa9122fc66ebcf9627aa92bec54c72e21e3fc87b7df2817446a6",
+          "retained": "8b6d14488c9ef859427665a4d6b1436b782d8561ec216f87c81528099a1582ed",
+          "kept_size": 4096
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 546912.0,
+        "rust-projector-reassociated": 611334.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          514991.5,
+          547197.75,
+          546912.0
+        ],
+        "rust-projector-reassociated": [
+          399717.75,
+          627685.25,
+          611334.25
+        ]
+      },
+      "baseline_over_reassociated": 0.8946202507057309
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 4344.0,
+        "rust-projector-reassociated": 4276.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          4344.0,
+          19464.25,
+          4249.0
+        ],
+        "rust-projector-reassociated": [
+          4276.25,
+          4193.75,
+          4424.25
+        ]
+      },
+      "baseline_over_reassociated": 1.0158433206664719
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "space",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 9612,
+          "original": "f0209b9a8d4e016540f72bfa07a25d087ea1c699eb9885c2ba766fb5d44c5fc4",
+          "retained": "d81e499de92caa092712a72fc98bc8dd61cdf3a91208964e1529ce2dc65c60cb",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 4727.0,
+        "rust-projector-reassociated": 4264.0
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          4286.5,
+          4727.0,
+          4842.25
+        ],
+        "rust-projector-reassociated": [
+          4264.0,
+          4234.0,
+          4394.0
+        ]
+      },
+      "baseline_over_reassociated": 1.1085834896810507
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 14000126.75,
+        "rust-projector-reassociated": 13138733.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          14572337.25,
+          14000126.75,
+          13037452.75
+        ],
+        "rust-projector-reassociated": [
+          14129276.5,
+          12742011.0,
+          13138733.25
+        ]
+      },
+      "baseline_over_reassociated": 1.0655613812693854
+    },
+    {
+      "condition": {
+        "kind": "eager",
+        "pattern": "unicode",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3957006886023267640,
+          "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+          "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 8189305.25,
+        "rust-projector-reassociated": 7291999.75
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          7642300.5,
+          8189305.25,
+          8389992.75
+        ],
+        "rust-projector-reassociated": [
+          7291999.75,
+          7186370.5,
+          7353487.75
+        ]
+      },
+      "baseline_over_reassociated": 1.1230534189198238
+    },
+    {
+      "condition": {
+        "kind": "producer",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 5122.75,
+        "rust-projector-reassociated": 5448.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          4699.5,
+          5122.75,
+          54389.5
+        ],
+        "rust-projector-reassociated": [
+          21447.5,
+          5448.25,
+          5238.0
+        ]
+      },
+      "baseline_over_reassociated": 0.9402560455192034
+    },
+    {
+      "condition": {
+        "kind": "producer",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 14751855.25,
+        "rust-projector-reassociated": 13268129.5
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          14751855.25,
+          15089413.0,
+          14165974.5
+        ],
+        "rust-projector-reassociated": [
+          13268129.5,
+          13358772.25,
+          13224049.25
+        ]
+      },
+      "baseline_over_reassociated": 1.11182629397761
+    },
+    {
+      "condition": {
+        "kind": "visit",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 4799.75,
+        "rust-projector-reassociated": 5065.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          5613.5,
+          4642.0,
+          4799.75
+        ],
+        "rust-projector-reassociated": [
+          5277.75,
+          5065.25,
+          5037.75
+        ]
+      },
+      "baseline_over_reassociated": 0.9475840284290016
+    },
+    {
+      "condition": {
+        "kind": "visit",
+        "pattern": "dense",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 14727415493382431596,
+          "original": "25a92b447a561d778b009edb5ee54af1794cbd482b7c1087c7d2d66c378d33c6",
+          "retained": "0a9f2440f405792c5019df72483edb1c0892fbac77d16878d872bb960157441a",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 12845320.75,
+        "rust-projector-reassociated": 13459936.0
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          12845320.75,
+          12785991.25,
+          13218022.5
+        ],
+        "rust-projector-reassociated": [
+          13488380.25,
+          11711994.5,
+          13459936.0
+        ]
+      },
+      "baseline_over_reassociated": 0.9543374314706994
+    },
+    {
+      "condition": {
+        "kind": "predicate",
+        "pattern": "text",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 67380082,
+          "original": "d0700dfe9a7116a0e2ab2d1d6309b5dd0446b5b317f91ed94eba98a2d0a72d39",
+          "retained": "46068865e04c7d3e38ad2d5f5a2626a41666eb7fabd4c3a8c14db545e9c30219",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 4521850.5,
+        "rust-projector-reassociated": 4260431.5
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          4922534.5,
+          4521850.5,
+          4355464.5
+        ],
+        "rust-projector-reassociated": [
+          5234437.25,
+          4260431.5,
+          4245486.25
+        ]
+      },
+      "baseline_over_reassociated": 1.061359747246259
+    },
+    {
+      "condition": {
+        "kind": "effect",
+        "pattern": "unicode",
+        "size": 65536,
+        "iterations": 4,
+        "expected": {
+          "checksum": 3957006906613826872,
+          "original": "20df2853d5af19e7c7c552c95998387436c753c8c1df51004330601c99167d0f",
+          "retained": "eac5a9dd80685630d4e0e0f7eef11166aa22b21ebcd8d0c1cd1ecc8607ee6c77",
+          "kept_size": 65536
+        }
+      },
+      "median_ns_per_operation": {
+        "rust-projector-baseline": 8182875.75,
+        "rust-projector-reassociated": 7858341.25
+      },
+      "scalar_over_simd": {},
+      "raw_ns_per_operation": {
+        "rust-projector-baseline": [
+          8305493.0,
+          8182875.75,
+          7097579.25
+        ],
+        "rust-projector-reassociated": [
+          8340535.75,
+          7858341.25,
+          7779590.0
+        ]
+      },
+      "baseline_over_reassociated": 1.041298092011466
+    }
+  ],
+  "actual_allocation_and_ir_receipt": "bootstrap/stdlib-field-projector-preflight-results.json",
+  "actual_abi_review": {
+    "scope": "Actual matched x86-64 O2 linked ABI/code shape; not elapsed attribution",
+    "functions": [
+      {
+        "variant": "baseline",
+        "function": "Data.Bytes.Utf8.utf8-decode-between",
+        "scope": "named entry through next distinct function; private tail body included",
+        "start": 153680,
+        "end": 155312,
+        "assembly": "build/byte-fields-bench-projector-baseline/utf8-decode-between-abi-review.asm",
+        "sha256": "ba80acdae34f7e1515233b026eba23230c3235f7012bb098d40c5881a9b69854",
+        "prologue": [
+          "   25850:\tpush   %rbp",
+          "   25851:\tmov    %rsp,%rbp",
+          "   25854:\tpush   %r15",
+          "   25856:\tpush   %r14",
+          "   25858:\tpush   %r13",
+          "   2585a:\tpush   %r12",
+          "   2585c:\tpush   %rbx",
+          "   2585d:\tpush   %rax",
+          "   2585e:\tmov    %rcx,%r14",
+          "   25861:\tmov    %rdx,%r15",
+          "   25864:\tmov    %rsi,%r12",
+          "   25867:\tmov    %rdi,%rbx",
+          "   2586a:\tmov    %r15d,%r13d",
+          "   2586d:\tand    $0x1,%r13d",
+          "   25871:\ttest   %r12d,%r13d",
+          "   25874:\tje     2588c <Data.Bytes.Utf8.utf8-decode-between+0x3c>",
+          "   25876:\tmov    %r12,%rax",
+          "   25879:\tshr    $1,%rax",
+          "   2587c:\tmov    %r15,%rcx",
+          "   2587f:\tshr    $1,%rcx"
+        ],
+        "allocation_sites": 4
+      },
+      {
+        "variant": "baseline",
+        "function": "Data.Bytes.View.byte-view-utf8-at",
+        "scope": "named entry through next distinct function; private tail body included",
+        "start": 158080,
+        "end": 158560,
+        "assembly": "build/byte-fields-bench-projector-baseline/byte-view-utf8-at-abi-review.asm",
+        "sha256": "18edab7a872eaaab8e7c3ed386e7635df5a900bf1f82edde29f07732fd9346dc",
+        "prologue": [
+          "   26980:\tpush   %rbp",
+          "   26981:\tmov    %rsp,%rbp",
+          "   26984:\tpush   %r15",
+          "   26986:\tpush   %r14",
+          "   26988:\tpush   %r13",
+          "   2698a:\tpush   %r12",
+          "   2698c:\tpush   %rbx",
+          "   2698d:\tsub    $0x18,%rsp",
+          "   26991:\tmov    %rsi,%rbx",
+          "   26994:\tmov    -0x8(%rdi),%rax",
+          "   26998:\tshr    $0x28,%rax",
+          "   2699c:\tmovzbl %al,%eax",
+          "   2699f:\tcmp    $0xff,%rax",
+          "   269a5:\tjne    269ae <Data.Bytes.View.byte-view-utf8-at+0x2e>",
+          "   269a7:\tmov    -0x10(%rdi),%rax",
+          "   269ab:\tmov    (%rax),%rax",
+          "   269ae:\ttest   %rax,%rax",
+          "   269b1:\tje     269c4 <Data.Bytes.View.byte-view-utf8-at+0x44>",
+          "   269b3:\txor    %eax,%eax",
+          "   269b5:\tadd    $0x18,%rsp"
+        ],
+        "allocation_sites": 0
+      },
+      {
+        "variant": "baseline",
+        "function": "Data.Bytes.Fields.scan-space",
+        "scope": "named entry through next distinct function; private tail body included",
+        "start": 183920,
+        "end": 190592,
+        "assembly": "build/byte-fields-bench-projector-baseline/scan-space-abi-review.asm",
+        "sha256": "aaeec8d50edd5599ca226f888b84b67a0c9b97852f86a5e1fe52fa4e9516dbbd",
+        "prologue": [
+          "   2ce70:\tpush   %rbp",
+          "   2ce71:\tmov    %rsp,%rbp",
+          "   2ce74:\tpush   %r15",
+          "   2ce76:\tpush   %r14",
+          "   2ce78:\tpush   %r13",
+          "   2ce7a:\tpush   %r12",
+          "   2ce7c:\tpush   %rbx",
+          "   2ce7d:\tsub    $0x38,%rsp",
+          "   2ce81:\tmov    %rdx,%r14",
+          "   2ce84:\tmov    %rsi,-0x38(%rbp)",
+          "   2ce88:\tmov    %rdi,%r13",
+          "   2ce8b:\tmov    %rdi,-0x40(%rbp)",
+          "   2ce8f:\tjmp    2ceb5 <Data.Bytes.Fields.scan-space+0x45>",
+          "   2ce91:\tdata16 data16 data16 data16 data16 cs nopw 0x0(%rax,%rax,1)",
+          "   2cea0:\tmov    $0x8,%edi",
+          "   2cea5:\tmov    $0x101,%esi",
+          "   2ceaa:\tcall   7ae50 <cinch_alloc_ctor>",
+          "   2ceaf:\tmov    %rax,%r14",
+          "   2ceb2:\tmov    %r12,(%rax)",
+          "   2ceb5:\tmov    -0x8(%r13),%rax"
+        ],
+        "allocation_sites": 12
+      },
+      {
+        "variant": "baseline",
+        "function": "Data.Bytes.Fields.scan-with",
+        "scope": "named entry through next distinct function; private tail body included",
+        "start": 176544,
+        "end": 183200,
+        "assembly": "build/byte-fields-bench-projector-baseline/scan-with-abi-review.asm",
+        "sha256": "4b6e0485e248cc68c1822589d2f90e4027103e86e5fd01ca96057a78525a707b",
+        "prologue": [
+          "   2b1a0:\tpush   %rbp",
+          "   2b1a1:\tmov    %rsp,%rbp",
+          "   2b1a4:\tpush   %r15",
+          "   2b1a6:\tpush   %r14",
+          "   2b1a8:\tpush   %r13",
+          "   2b1aa:\tpush   %r12",
+          "   2b1ac:\tpush   %rbx",
+          "   2b1ad:\tsub    $0x58,%rsp",
+          "   2b1b1:\tmov    %rcx,%rax",
+          "   2b1b4:\tmov    %rdx,%r12",
+          "   2b1b7:\tmov    %rsi,%r13",
+          "   2b1ba:\tmov    %rdi,-0x50(%rbp)",
+          "   2b1be:\tmov    %rsi,-0x48(%rbp)",
+          "   2b1c2:\tdata16 data16 data16 data16 cs nopw 0x0(%rax,%rax,1)",
+          "   2b1d0:\tmov    %r12,%r15",
+          "   2b1d3:\tmov    %rax,%rcx",
+          "   2b1d6:\tmov    -0x8(%r13),%rax",
+          "   2b1da:\tshr    $0x28,%rax",
+          "   2b1de:\tmovzbl %al,%eax",
+          "   2b1e1:\tcmp    $0xff,%rax"
+        ],
+        "allocation_sites": 12
+      },
+      {
+        "variant": "reassociated",
+        "function": "Data.Bytes.Utf8.utf8-decode-between#cc",
+        "scope": "named entry through next distinct function; private tail body included",
+        "start": 154224,
+        "end": 155328,
+        "assembly": "build/byte-fields-bench-projector-reassociated/utf8-decode-between-cc-abi-review.asm",
+        "sha256": "54b1bfe6709d94babd6b8085523e1da173d9b492d048b8f2b6c90a97434d2b29",
+        "prologue": [
+          "   25a70:\tpush   %rbp",
+          "   25a71:\tmov    %rsp,%rbp",
+          "   25a74:\tpush   %r15",
+          "   25a76:\tpush   %r14",
+          "   25a78:\tpush   %r13",
+          "   25a7a:\tpush   %r12",
+          "   25a7c:\tpush   %rbx",
+          "   25a7d:\tpush   %rax",
+          "   25a7e:\tmov    %rcx,%r14",
+          "   25a81:\tmov    %rdx,%r15",
+          "   25a84:\tmov    %rsi,%r12",
+          "   25a87:\tmov    %rdi,%rbx",
+          "   25a8a:\tmov    %r15d,%r13d",
+          "   25a8d:\tand    $0x1,%r13d",
+          "   25a91:\ttest   %r12d,%r13d",
+          "   25a94:\tje     25aac <Data.Bytes.Utf8.utf8-decode-between#cc+0x3c>",
+          "   25a96:\tmov    %r12,%rax",
+          "   25a99:\tshr    $1,%rax",
+          "   25a9c:\tmov    %r15,%rcx",
+          "   25a9f:\tshr    $1,%rcx"
+        ],
+        "allocation_sites": 0
+      },
+      {
+        "variant": "reassociated",
+        "function": "Data.Bytes.View.byte-view-utf8-at#cc",
+        "scope": "named entry through next distinct function; private tail body included",
+        "start": 158160,
+        "end": 158656,
+        "assembly": "build/byte-fields-bench-projector-reassociated/byte-view-utf8-at-cc-abi-review.asm",
+        "sha256": "4db415b134dd5b2b0e69149f6568bd51669e4ed269e4e442959e2b7a79c3458e",
+        "prologue": [
+          "   269d0:\tpush   %rbp",
+          "   269d1:\tmov    %rsp,%rbp",
+          "   269d4:\tpush   %r15",
+          "   269d6:\tpush   %r14",
+          "   269d8:\tpush   %r13",
+          "   269da:\tpush   %r12",
+          "   269dc:\tpush   %rbx",
+          "   269dd:\tsub    $0x18,%rsp",
+          "   269e1:\tmov    %rsi,%rbx",
+          "   269e4:\tmov    -0x8(%rdi),%rax",
+          "   269e8:\tshr    $0x28,%rax",
+          "   269ec:\tmovzbl %al,%eax",
+          "   269ef:\tcmp    $0xff,%rax",
+          "   269f5:\tjne    269fe <Data.Bytes.View.byte-view-utf8-at#cc+0x2e>",
+          "   269f7:\tmov    -0x10(%rdi),%rax",
+          "   269fb:\tmov    (%rax),%rax",
+          "   269fe:\ttest   %rax,%rax",
+          "   26a01:\tje     26a18 <Data.Bytes.View.byte-view-utf8-at#cc+0x48>",
+          "   26a03:\txor    %eax,%eax",
+          "   26a05:\txor    %edx,%edx"
+        ],
+        "allocation_sites": 0
+      },
+      {
+        "variant": "reassociated",
+        "function": "Data.Bytes.Fields.scan-space",
+        "scope": "named entry through next distinct function; private tail body included",
+        "start": 184400,
+        "end": 191296,
+        "assembly": "build/byte-fields-bench-projector-reassociated/scan-space-abi-review.asm",
+        "sha256": "c01369d28493db2c836702e5a476ffe389ce7d74aa0f09468ecb0c8ab520b078",
+        "prologue": [
+          "   2d050:\tpush   %rbp",
+          "   2d051:\tmov    %rsp,%rbp",
+          "   2d054:\tpush   %r15",
+          "   2d056:\tpush   %r14",
+          "   2d058:\tpush   %r13",
+          "   2d05a:\tpush   %r12",
+          "   2d05c:\tpush   %rbx",
+          "   2d05d:\tsub    $0x38,%rsp",
+          "   2d061:\tmov    %rdx,%r14",
+          "   2d064:\tmov    %rsi,-0x38(%rbp)",
+          "   2d068:\tmov    %rdi,%r12",
+          "   2d06b:\tmov    %rdi,-0x40(%rbp)",
+          "   2d06f:\tjmp    2d095 <Data.Bytes.Fields.scan-space+0x45>",
+          "   2d071:\tdata16 data16 data16 data16 data16 cs nopw 0x0(%rax,%rax,1)",
+          "   2d080:\tmov    $0x8,%edi",
+          "   2d085:\tmov    $0x101,%esi",
+          "   2d08a:\tcall   7b110 <cinch_alloc_ctor>",
+          "   2d08f:\tmov    %rax,%r14",
+          "   2d092:\tmov    %r13,(%rax)",
+          "   2d095:\tmov    -0x8(%r12),%rax"
+        ],
+        "allocation_sites": 13
+      },
+      {
+        "variant": "reassociated",
+        "function": "Data.Bytes.Fields.scan-with",
+        "scope": "named entry through next distinct function; private tail body included",
+        "start": 176704,
+        "end": 183680,
+        "assembly": "build/byte-fields-bench-projector-reassociated/scan-with-abi-review.asm",
+        "sha256": "b8872fcf834181efd445554a9eed1c6a04958efd20da0a059f3416565a35449b",
+        "prologue": [
+          "   2b240:\tpush   %rbp",
+          "   2b241:\tmov    %rsp,%rbp",
+          "   2b244:\tpush   %r15",
+          "   2b246:\tpush   %r14",
+          "   2b248:\tpush   %r13",
+          "   2b24a:\tpush   %r12",
+          "   2b24c:\tpush   %rbx",
+          "   2b24d:\tsub    $0x58,%rsp",
+          "   2b251:\tmov    %rcx,%rax",
+          "   2b254:\tmov    %rdx,%r12",
+          "   2b257:\tmov    %rsi,%r13",
+          "   2b25a:\tmov    %rdi,-0x58(%rbp)",
+          "   2b25e:\tmov    %rsi,-0x50(%rbp)",
+          "   2b262:\tdata16 data16 data16 data16 cs nopw 0x0(%rax,%rax,1)",
+          "   2b270:\tmov    %r12,%r15",
+          "   2b273:\tmov    %rax,%rcx",
+          "   2b276:\tmov    -0x8(%r13),%rax",
+          "   2b27a:\tshr    $0x28,%rax",
+          "   2b27e:\tmovzbl %al,%eax",
+          "   2b281:\tcmp    $0xff,%rax"
+        ],
+        "allocation_sites": 14
+      }
+    ]
+  },
+  "abi_conclusion": "Actual x86-64 aggregate result uses RAX/RDX/RCX with no hidden sret pointer. Decoder saved-register prologues and View/scanner stack reservations match. Remaining rebox sites copy three return registers across allocation and store three fields. This demonstrates extra work, not the cause of measured regressions.",
+  "old706_negative_results_unchanged": true,
+  "production_utf8_unchanged": true,
+  "limitations": [
+    "Three included samples and one excluded warmup, without statistical confidence; all raw variation/outliers retained.",
+    "Old706 and c2 compiler epochs are distinct. New c2 baseline allocation totals match old706 process totals, but no paired elapsed comparison isolates compiler-only speed.",
+    "Generic predicate/effect allocation totals are unchanged despite sample median gains; those gains cannot be attributed to allocation removal.",
+    "Candidate source must pass affected semantic/owner gates and review before production adoption; no Native candidate qualification claim."
+  ]
+}

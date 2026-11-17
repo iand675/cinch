@@ -31,14 +31,18 @@ def quota() -> dict:
     return result
 
 
-def prepare(reassociated: bool = False) -> dict:
+def prepare(reassociated: bool = False, custom_preflights: tuple[Path, Path] | None = None) -> dict:
     """Freeze exact already-green binaries and independent observations before obtaining a timing lease."""
     variants = []
     names = (['rust706-simd', 'rust706-reassociated'] if reassociated else
              ['rust706-simd', 'rust706-scalar', 'native-v4-simd', 'native-v4-scalar', 'reference'])
-    for name in names:
-        directory = ROOT/'build'/('byte-fields-bench-'+name)
-        receipt = directory.with_suffix('.json')
+    selections = [(name, ROOT/'build'/('byte-fields-bench-'+name+'.json')) for name in names]
+    if custom_preflights:
+        assert reassociated
+        selections = list(zip(['rust-projector-baseline', 'rust-projector-reassociated'],
+                              [path.resolve() for path in custom_preflights]))
+    for name, receipt in selections:
+        directory = receipt.with_suffix('')
         r = json.loads(receipt.read_text())
         assert r['status'] == 'passed'
         executable = directory/('reference' if name == 'reference' else 'consumer')
@@ -88,11 +92,15 @@ def main() -> None:
     parser.add_argument('--plan', type=Path, required=True)
     parser.add_argument('--prepare', action='store_true')
     parser.add_argument('--reassociated-control', action='store_true')
+    parser.add_argument('--baseline-preflight', type=Path)
+    parser.add_argument('--candidate-preflight', type=Path)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--budget-seconds', type=float, default=30)
     args = parser.parse_args()
+    assert bool(args.baseline_preflight) == bool(args.candidate_preflight)
+    custom = ((args.baseline_preflight, args.candidate_preflight) if args.baseline_preflight else None)
     if args.prepare:
-        args.plan.write_text(json.dumps(prepare(args.reassociated_control), indent=2)+'\n')
+        args.plan.write_text(json.dumps(prepare(args.reassociated_control, custom), indent=2)+'\n')
         print(args.plan)
         return
     assert args.output and os.sched_getaffinity(0) == {0}, 'timed processes require the granted exclusive CPU0 affinity'
@@ -155,8 +163,10 @@ def main() -> None:
                   if family+'-scalar' in medians and family+'-simd' in medians and medians[family+'-simd'] > 0}
         summaries.append(dict(condition=condition, median_ns_per_operation=medians,
                               scalar_over_simd=ratios, raw_ns_per_operation=raw))
-        if 'rust706-simd' in medians and medians.get('rust706-reassociated', 0) > 0:
-            summaries[-1]['baseline_over_reassociated'] = medians['rust706-simd']/medians['rust706-reassociated']
+        for baseline, candidate in [('rust706-simd', 'rust706-reassociated'),
+                                    ('rust-projector-baseline', 'rust-projector-reassociated')]:
+            if baseline in medians and medians.get(candidate, 0) > 0:
+                summaries[-1]['baseline_over_reassociated'] = medians[baseline]/medians[candidate]
     result['summaries'] = summaries
     save()
     print(json.dumps(dict(status=result['status'], wall_seconds=result['wall_seconds'], samples=len(result['rows']))))
