@@ -1,0 +1,325 @@
+-- | Exact multipart public-pipeline fixtures with independent scalar and C observations.
+module Main where
+  import Text.Multipart
+  import Effect.Multipart
+  import Text.QuotedPrintable (quoted-printable-error-message)
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String (String, string-to-bytes, string-concat)
+
+  -- | Compare mutable-buffer contents without widening global equality policies.
+  same :: Bytes -> Bytes -> Bool
+  same first second = eq-i64 (bytes-compare first second) 0
+
+  -- | Preserve both error identity and diagnostic through arbitrary generic callbacks.
+  data FixtureError where
+    -- | An independently configured machine identity and exact caller label.
+    FixtureError :: I64 -> String -> FixtureError
+
+
+  -- | Describe exact typed backend errors without flattening identity in library state.
+  fs-error-message :: I64 -> String
+  fs-error-message identity =
+    if eq-i64 identity 100 then "read <scratch>: file already closed"
+    else if eq-i64 identity 101 then "readat <scratch>: negative offset"
+    else if eq-i64 identity 102 then "seek <scratch>: invalid argument"
+    else if eq-i64 identity 103 then "seek <scratch>: file already closed"
+    else if eq-i64 identity 104 then "close <scratch>: file already closed"
+    else if eq-i64 identity 105 then "open <scratch>: no such file or directory"
+    else if eq-i64 identity 106 then "close <scratch>: bad file descriptor"
+    else if eq-i64 identity 107 then "write <scratch>: file already closed"
+    else if eq-i64 identity 109 then "fixture scratch create failure"
+    else if eq-i64 identity 110 then "short write" else "fixture scratch I/O failure"
+
+  -- | Render one callback identity only after checking its independent payload.
+  fixture-error :: I64 -> FixtureError
+  fixture-error identity = FixtureError identity
+    (if identity >= 100 then fs-error-message identity else if eq-i64 identity 1 then "header failure" else if eq-i64 identity 2 then "body failure"
+      else if eq-i64 identity 3 then "first error" else if eq-i64 identity 4 then "last error"
+      else if eq-i64 identity 6 then "fixture source failure" else "footer failure")
+
+  -- | Observe an error while proving the original generic payload survived.
+  error-message :: MultipartError FixtureError -> String
+  error-message error = case error of
+    MultipartProtocolFailure failure -> multipart-syntax-message failure
+    MultipartCallerFailure failure -> case failure of
+      FixtureError identity message -> case fixture-error identity of FixtureError expected label -> if eq-i64 identity expected && message == label then message else "corrupt callback payload"
+    MultipartInvalidCount expected actual -> "invalid count"
+    MultipartShortWrite expected actual -> "short write"
+    MultipartAfterWrite -> "mime: SetBoundary called after write"
+    MultipartFinishedPart -> "multipart: can't write to finished part"
+    MultipartNextFailure failure -> string-concat "multipart: NextPart: " (error-message failure)
+    MultipartQuotedPrintableFailure failure -> quoted-printable-error-message failure
+    MultipartSeekWhence -> "Seek: invalid whence"
+    MultipartSeekOffset -> "Seek: invalid offset"
+
+  -- | Flatten only the fixture observation, leaving library error values typed.
+  result-message :: forall a. Result (MultipartError FixtureError) a -> String
+  result-message result = case result of Ok value -> ""; Err error -> error-message error
+
+  -- | Observe a simultaneous error without dropping its confirmed byte count.
+  optional-message :: Option (MultipartError FixtureError) -> String
+  optional-message error = case error of None -> ""; Some failure -> error-message failure
+
+  -- | Reset the independent C callback script.
+  foreign import ccall "multipart_fixture_reset" raw-reset :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Set one count/failure entry in the independent script.
+  foreign import ccall "multipart_fixture_script" raw-script :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I64
+  -- | Observe exact actual offered bytes through a real foreign object.
+  foreign import ccall "multipart_fixture_write" raw-write :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+  -- | Read the independently configured simultaneous error identity.
+  foreign import ccall "multipart_fixture_error" raw-error :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Observe the direct callback count after the public operation sequence.
+  foreign import ccall "multipart_fixture_calls" raw-calls :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Observe the exact offer/progress/error trace fingerprint.
+  foreign import ccall "multipart_fixture_trace" raw-trace :: forall (r :: Region). I64 ->{IO r} U64
+  -- | Observe the accepted output fingerprint without inspecting its source buffer.
+  foreign import ccall "multipart_fixture_output" raw-output :: forall (r :: Region). I64 ->{IO r} U64
+  -- | Observe the exact accepted output length.
+  foreign import ccall "multipart_fixture_size" raw-size :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Exercise the actual selected SIMD object against over a million independent lanes.
+  foreign import ccall "multipart_fixture_kernels" raw-kernels :: forall (r :: Region). I64 ->{IO r} I32
+
+  -- | Wrap one direct foreign sink observation in an ordinary first-class callback.
+  fixture-write :: forall (r :: Region). using (io :: Io r) => Bytes ->{IO r} ((Nat, Option FixtureError), MultipartSink r FixtureError)
+  fixture-write input =
+    let count = raw-write (bytes-data input) (nat-to-i64 (bytes-len input)) in
+    let error = raw-error 0 in
+    ((if count >= 0 then nat-from-i64 count else 0, if eq-i64 error 0 then None else Some (fixture-error error)), fixture-sink ())
+
+  -- | Produce the advanced borrowed callback without hiding count or failure.
+  fixture-sink :: forall (r :: Region). using (io :: Io r) => Unit -> MultipartSink r FixtureError
+  fixture-sink unit = multipart-sink (\input -> fixture-write input)
+
+  -- | Configure one independent scripted callback per row before any library output.
+  configure :: forall (r :: Region). using (io :: Io r) => I64 -> List (I64, I64) ->{IO r} Bool
+  configure at rows = case rows of
+    Nil -> True
+    Cons row rest -> case row of
+      (count, error) -> let set = raw-script at count error in
+        if eq-i64 set 0 then configure (wrapping-add-i64 at 1) rest else False
+
+  -- | Compare typed expected protocol refusal and exact content-type bytes.
+  boundary-is :: Bytes -> String -> Bytes -> Bool
+  boundary-is input message content = case multipart-check-boundary input of
+    Err error -> multipart-syntax-message error == message && bytes-len content == 0
+    Ok unit -> message == "" && same (multipart-form-content-type input) content
+
+  -- | Compare exact escaped field and file dispositions over all input bytes.
+  disposition-is :: Bytes -> Bytes -> Bytes -> Bool
+  disposition-is name filename expected = same (multipart-file-disposition name filename) expected
+
+  -- | Compare ordered action results while retaining confirmed output counts.
+  same-actions :: List (String, Nat, String) -> List (String, Nat, String) -> Bool
+  same-actions actual expected = case actual of
+    Nil -> case expected of Nil -> True; _ -> False
+    Cons item rest -> case expected of
+      Nil -> False
+      Cons other tail -> case item of
+        (operation, count, message) -> case other of (wanted, number, error) -> operation == wanted && count == number && message == error && same-actions rest tail
+
+  -- | Observe successful-or-failed creation without retaining an invented body handle.
+  created-message :: forall (r :: Region). Result (MultipartError FixtureError) (MultipartOutputPart r FixtureError) -> String
+  created-message result = result-message result
+
+  -- | Capture the first body's two writes, including an effectful zero-byte callback.
+  first-writes :: forall (r :: Region). using (io :: Io r) => Result (MultipartError FixtureError) (MultipartOutputPart r FixtureError) ->{IO r, Mut r} List (String, Nat, String)
+  first-writes first = case first of
+    Err error -> Nil
+    Ok body -> case multipart-output-write body (string-to-bytes "body") of
+      (count, error) -> case multipart-output-write body (bytes-new 0) of
+        (zero, failure) -> Cons ("write", count, optional-message error) (Cons ("zero-write", zero, optional-message failure) Nil)
+
+  -- | Observe a retained old output alias after creation or failed replacement.
+  stale-write :: forall (r :: Region). using (io :: Io r) => Result (MultipartError FixtureError) (MultipartOutputPart r FixtureError) ->{IO r, Mut r} List (String, Nat, String)
+  stale-write first = case first of
+    Err error -> Nil
+    Ok body -> case multipart-output-write body (string-to-bytes "stale") of
+      (count, error) -> Cons ("stale", count, optional-message error) Nil
+
+  -- | Append action spines without altering any byte/error payload.
+  actions-append :: List (String, Nat, String) -> List (String, Nat, String) -> List (String, Nat, String)
+  actions-append first second = case first of Nil -> second; Cons action rest -> Cons action (actions-append rest second)
+
+  -- | Execute exactly the reference's public writer sequence and inspect sink ownership.
+  writer-actions :: forall (r :: Region). using (io :: Io r) => MultipartWriter r FixtureError ->{IO r, Mut r} List (String, Nat, String)
+  writer-actions writer =
+    let headers = multipart-headers (Cons (string-to-bytes "z-raw", Cons (string-to-bytes "last") (Cons (string-to-bytes "again") Nil))
+      (Cons (string-to-bytes "A", Cons (string-to-bytes "one") Nil) (Cons (string-to-bytes "empty", Nil)
+        (Cons (bytes-new 0, Cons (bytes-from-list (Cons 0 Nil)) Nil) Nil)))) in
+    let first = multipart-create-part writer headers in
+    let initial = first-writes first in
+    let replaced = multipart-create-file writer (bytes-from-list (Cons 110 (Cons 97 (Cons 13 (Cons 10 (Cons 34 (Cons 92 (Cons 109 (Cons 101 Nil))))))))) (string-to-bytes "path/file") in
+    let stale = stale-write first in
+    let setLive = multipart-writer-set-boundary writer (string-to-bytes "new") in
+    let closed = multipart-writer-finish writer in
+    let again = multipart-writer-finish writer in
+    let reset = multipart-writer-set-boundary writer (string-to-bytes "new") in
+    let after = multipart-write-field writer (string-to-bytes "after") (string-to-bytes "value") in
+    Cons ("set", 0, "") (Cons ("create", 0, created-message first)
+      (actions-append initial (Cons ("replace", 0, created-message replaced)
+        (actions-append stale (Cons ("set-live", 0, result-message setLive)
+          (Cons ("close", 0, result-message closed) (Cons ("close", 0, result-message again)
+            (Cons ("set-after-close", 0, result-message reset) (Cons ("field-after-close", 0, result-message after) Nil)))))))))
+
+  -- | Compare all callback effects and accepted bytes after one independent scenario.
+  writer-is :: forall (r :: Region). using (io :: Io r) => List (I64, I64) -> List (String, Nat, String) -> I64 -> U64 -> U64 -> I64 -> Bytes -> Bytes ->{IO r, Mut r} Bool
+  writer-is script expected calls trace output size boundary content =
+    let reset = raw-reset 0 in
+    let configured = configure 0 script in
+    case multipart-writer-boundary (string-to-bytes "a b") (fixture-sink ()) of
+      Err error -> False
+      Ok writer ->
+        let actual = writer-actions writer in
+        let gotCalls = raw-calls 0 in
+        let gotTrace = raw-trace 0 in
+        let gotOutput = raw-output 0 in
+        let gotSize = raw-size 0 in
+        let gotBoundary = multipart-writer-get-boundary writer in
+        let gotContent = multipart-writer-content-type writer in
+        eq-i64 reset 0 && configured && same-actions actual expected && eq-i64 calls gotCalls &&
+          eq-u64 trace gotTrace && eq-u64 output gotOutput && eq-i64 size gotSize &&
+          same boundary gotBoundary && same content gotContent
+
+  -- | Copy one checked exact callback prefix without exposing unused destination slack.
+  fixture-part :: Bytes -> Nat -> Bytes
+  fixture-part input count = if count <= bytes-len input then
+    let output = bytes-new count in let copied = bytes-copy-range output input 0 0 count in output
+    else bytes-new 0
+
+  -- | Load privately copied oracle bytes into the independent scripted source.
+  foreign import ccall "multipart_fixture_source_init" raw-source-init :: forall (r :: Region). I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  -- | Produce one exact prefix into a live language-owned destination.
+  foreign import ccall "multipart_fixture_source_read" raw-source-read :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+  -- | Read the simultaneous source status without advancing it again.
+  foreign import ccall "multipart_fixture_source_status" raw-source-status :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Observe the complete independent source callback trace fingerprint.
+  foreign import ccall "multipart_fixture_source_trace" raw-source-trace :: forall (r :: Region). I64 ->{IO r} U64
+  -- | Observe every source invocation, including incorrect post-terminal calls.
+  foreign import ccall "multipart_fixture_source_calls" raw-source-calls :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Release independent fixture wire storage after every case, including failures.
+  foreign import ccall "multipart_fixture_source_finish" raw-source-finish :: forall (r :: Region). I64 ->{IO r} I64
+
+  -- | Construct one ordinary typed source step from actual foreign prefix/status results.
+  fixture-read :: forall (r :: Region). using (io :: Io r) => Nat ->{IO r} ((Bytes, MultipartReadStatus FixtureError), MultipartSource r FixtureError)
+  fixture-read wanted =
+    let count = if wanted <= 4096 then wanted else 4096 in
+    let output = bytes-new count in
+    let actual = raw-source-read (bytes-data output) (nat-to-i64 count) in
+    let status = raw-source-status 0 in
+    let prefix = if actual >= 0 then fixture-part output (nat-from-i64 actual) else bytes-new 0 in
+    ((prefix, if eq-i64 status 1 then MultipartEnd else if eq-i64 status 2 then MultipartReadFailure (fixture-error 6) else MultipartMore), fixture-source ())
+
+  -- | Retain the full callback continuation and arbitrary caller error type.
+  fixture-source :: forall (r :: Region). using (io :: Io r) => Unit -> MultipartSource r FixtureError
+  fixture-source unit = multipart-source (\wanted -> fixture-read wanted)
+
+  -- | One exact public part-read observation from the committed independent corpus.
+  data ExpectedRead where
+    -- | Requested capacity, exact returned prefix and simultaneous diagnostic.
+    ExpectedRead :: Nat -> Bytes -> String -> ExpectedRead
+
+  -- | One exact part, including its mutable headers, cached accessors and selected body.
+  data ExpectedPart where
+    -- | Header entries, form name, filename, body reads and close diagnostic.
+    ExpectedPart :: List (Bytes, List Bytes) -> Bytes -> Bytes -> List ExpectedRead -> String -> ExpectedPart
+
+  -- | Compare ordered raw value snapshots.
+  same-values :: List Bytes -> List Bytes -> Bool
+  same-values first second = case first of
+    Nil -> case second of Nil -> True; _ -> False
+    Cons value rest -> case second of Nil -> False; Cons other tail -> same value other && same-values rest tail
+
+  -- | Compare every sorted raw key and its original ordered values.
+  same-headers :: List (Bytes, List Bytes) -> List (Bytes, List Bytes) -> Bool
+  same-headers actual expected = case actual of
+    Nil -> case expected of Nil -> True; _ -> False
+    Cons entry rest -> case expected of
+      Nil -> False
+      Cons other tail -> case entry of
+        (key, values) -> case other of (wanted, expectedValues) -> same key wanted && same-values values expectedValues && same-headers rest tail
+
+  -- | Render only fixture observations while keeping generic failures intact in the library.
+  status-message :: MultipartReadStatus (MultipartError FixtureError) -> String
+  status-message status = case status of MultipartMore -> ""; MultipartEnd -> "EOF"; MultipartReadFailure error -> error-message error
+
+  -- | Execute every listed read, even after an earlier mismatch, before closing the part.
+  reads-is :: forall (r :: Region). using (io :: Io r) => MultipartPart r FixtureError -> List ExpectedRead ->{IO r, Mut r} Bool
+  reads-is borrowed reads = case reads of
+    Nil -> True
+    Cons expected rest -> case expected of
+      ExpectedRead count wanted message -> case multipart-part-read borrowed count of
+        (output, status) ->
+          let remaining = reads-is borrowed rest in
+          same output wanted && status-message status == message && remaining
+
+  -- | Select raw versus transfer-decoded iteration through the real public session API.
+  next-selected :: forall (r :: Region). MultipartReader r FixtureError -> Bool ->{IO r, Mut r} Result (MultipartError FixtureError) (Option (MultipartPart r FixtureError))
+  next-selected reader raw = if raw then multipart-next-raw-part reader else multipart-next-part reader
+
+  -- | Compare exact parts and the final EOF/error while draining all borrowed handles.
+  parts-is :: forall (r :: Region). using (io :: Io r) => MultipartReader r FixtureError -> Bool -> List ExpectedPart -> String ->{IO r, Mut r} Bool
+  parts-is reader raw parts final = case next-selected reader raw of
+    Err error -> case parts of Nil -> error-message error == final; _ -> False
+    Ok None -> case parts of Nil -> final == "EOF"; _ -> False
+    Ok (Some borrowed) -> case parts of
+      Nil -> let closed = multipart-part-close borrowed in False
+      Cons expected rest -> case expected of
+        ExpectedPart header name filename reads closeMessage ->
+          let actualHeader = multipart-part-headers borrowed in
+          let actualName = multipart-part-form-name borrowed in
+          let actualFilename = multipart-part-filename borrowed in
+          let bodyMatches = reads-is borrowed reads in
+          let closed = multipart-part-close borrowed in
+          let remaining = parts-is reader raw rest final in
+          same-headers (multipart-header-pairs actualHeader) header && same name actualName && same filename actualFilename &&
+            bodyMatches && closeMessage == "" && remaining
+
+  -- | Compare the exact source request/prefix/status trace and original retained input.
+  reader-is :: forall (r :: Region). using (io :: Io r) => Bytes -> Bytes -> Bool -> I64 -> I64 -> List ExpectedPart -> String -> U64 -> I64 ->{IO r, Mut r} Bool
+  reader-is input boundary raw chunk terminal expected final trace calls =
+    let original = fixture-part input (bytes-len input) in
+    let reset = raw-source-init (bytes-data input) (nat-to-i64 (bytes-len input)) chunk terminal in
+    let reader = multipart-reader (fixture-source ()) boundary in
+    let matches = parts-is reader raw expected final in
+    let actualTrace = raw-source-trace 0 in
+    let actualCalls = raw-source-calls 0 in
+    let finished = raw-source-finish 0 in
+    eq-i64 reset 0 && eq-i64 finished 0 && matches && eq-u64 actualTrace trace && eq-i64 actualCalls calls && same input original
+
+  -- | Match complete short reads while suppressing their clean EOF exactly once.
+  complete-read-is :: (Bytes, MultipartReadStatus (MultipartError FixtureError)) -> Bytes -> String -> Bool
+  complete-read-is actual expected message = case actual of
+    (output, status) -> same output expected && (case status of MultipartEnd -> message == ""; MultipartReadFailure error -> error-message error == message; MultipartMore -> False)
+
+  -- | Keep an old part alias observable after the reader drains and advances its session.
+  cache-parts-is :: forall (r :: Region). MultipartReader r FixtureError -> MultipartPart r FixtureError -> Bytes -> Bytes -> Bytes -> List (Bytes, List Bytes) -> Bytes -> String -> Bytes -> String ->{IO r, Mut r} Bool
+  cache-parts-is reader first expectedName expectedFilename lateName headers oldBody oldMessage nextBody nextMessage =
+    let initial = multipart-part-headers first in
+    let edited = multipart-part-set-headers first (multipart-header-set (string-to-bytes "Content-Disposition") (Cons (string-to-bytes "form-data; name=edited; filename=\"dir/after\"") Nil) initial) in
+    let name = multipart-part-form-name first in
+    let late = multipart-part-set-headers first (multipart-header-set (string-to-bytes "Content-Disposition") (Cons (string-to-bytes "form-data; name=late; filename=late") Nil) initial) in
+    let filename = multipart-part-filename first in
+    case multipart-next-part reader of
+      Ok (Some second) ->
+        let oldRead = multipart-part-read first 4096 in
+        let nextRead = multipart-part-read second 4096 in
+        let nameAgain = multipart-part-form-name first in
+        let finalHeaders = multipart-part-headers first in
+        same name expectedName && same filename expectedFilename && same nameAgain lateName &&
+          same-headers (multipart-header-pairs finalHeaders) headers && complete-read-is oldRead oldBody oldMessage && complete-read-is nextRead nextBody nextMessage
+      _ -> False
+
+  -- | Exercise mutable headers, shared disposition caching and stale input ownership.
+  cache-is :: forall (r :: Region). using (io :: Io r) => Bytes -> Bytes -> Bytes -> Bytes -> List (Bytes, List Bytes) -> Bytes -> String -> Bytes -> String ->{IO r, Mut r} Bool
+  cache-is input name filename lateName headers oldBody oldMessage nextBody nextMessage =
+    let original = fixture-part input (bytes-len input) in
+    let initialized = raw-source-init (bytes-data input) (nat-to-i64 (bytes-len input)) 4096 1 in
+    let reader = multipart-reader (fixture-source ()) (string-to-bytes "b") in
+    let matched = case multipart-next-part reader of Ok (Some first) -> cache-parts-is reader first name filename lateName headers oldBody oldMessage nextBody nextMessage; _ -> False in
+    let finished = raw-source-finish 0 in eq-i64 initialized 0 && eq-i64 finished 0 && matched && same original input

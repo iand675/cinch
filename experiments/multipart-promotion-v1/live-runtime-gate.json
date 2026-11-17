@@ -1,0 +1,107 @@
+{
+  "scope": "Execute the already source-checked live both-effect fixture on one exact Rust tuple.\n\nNo source or runtime is substituted. Start/pause guards bound one serial\nconsumer; accepted outputs are archived only after both memory profiles pass.\n",
+  "source_gate_sha256": "072731add3514c64a615f5be72eb918a95ca01d106c3bb050fc33c6354e32305",
+  "source_gate_path": "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-live-v1/report.json",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "runtime": "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+  "compiler_host_stack_bytes": 67108864,
+  "consumer_optimization": 2,
+  "compiled_rc_debug": false,
+  "production_adopted": false,
+  "cpu_affinity": [
+    4
+  ],
+  "runs": [
+    {
+      "frontend": "rust",
+      "case": "live-effects",
+      "source_sha256": "eaedd759bb87955422b0dbbe55d9172b668b5d13201aeed3e6ceb162eaa93a81",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-live-v1/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-live-v1/rust-live-effects.ll"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "target": "x86_64-unknown-linux-gnu",
+      "ir_sha256": "17b3e98a28d572c798fe890f7d77b1c272706dec4769d0cec469eef8ad88d03d",
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-live-v1/rust-live-effects.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-live-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-live-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-live-v1/rust-live-effects"
+      ],
+      "link_stdout": "",
+      "link_stderr": "/usr/bin/ld: /tmp/rust-live-effects-393d9d.o: warning: relocation against `Main.live-file-source.lam110.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable_sha256": "6ce6156b4ab9fc8749ae5652fea3458956fb76c468b9563056ff914e67a71c0e"
+    }
+  ],
+  "phases": [
+    {
+      "phase": "start-or-resume",
+      "free_bytes": 423215104,
+      "minimum_bytes": 367001600,
+      "new_artifact_bytes": 0
+    },
+    {
+      "phase": "emit",
+      "free_bytes": 423157760,
+      "minimum_bytes": 262144000,
+      "new_artifact_bytes": 39524
+    },
+    {
+      "phase": "link",
+      "free_bytes": 412905472,
+      "minimum_bytes": 262144000,
+      "new_artifact_bytes": 10012347
+    },
+    {
+      "phase": "profile-0",
+      "free_bytes": 405975040,
+      "minimum_bytes": 262144000,
+      "new_artifact_bytes": 16940851
+    },
+    {
+      "phase": "profile-1",
+      "free_bytes": 405975040,
+      "minimum_bytes": 262144000,
+      "new_artifact_bytes": 16941183
+    }
+  ],
+  "initial_artifact_bytes": 5449864,
+  "new_output_cap_bytes": 20971520,
+  "kernel_ir_sha256": "1eff2f91b049efee708ac3d9173391c8194eb8c89c7ae611af54ce5b941ee848",
+  "kernel_object_sha256": "87108d3d1288cb53597928a3610300a0367f8d611f98a72bd6b08fa90e466331",
+  "fixture_source_sha256": "d7f4d61d7b052ff6d469fa65e290c474125738203e922afa7b29bbca044b40ef",
+  "fixture_object_sha256": "81d3c7fabf0189f1fb14776329fa0ceb985b20c6f56b705aaa58bbe850370543",
+  "scalar_oracle_vectorization": false,
+  "kernel_cases_per_invocation": 1048576,
+  "runtime_claim": "This exact candidate/fixture and compiler/archive passed both profiles; production remains unchanged."
+}

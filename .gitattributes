@@ -5,3 +5,4 @@ bootstrap/repros/wide-arrays-*/**/*.log -whitespace
 bootstrap/repros/wide-array-*/**/*.log -whitespace
 bootstrap/repros/array-fixture-*/**/*.log -whitespace
 bootstrap/repros/byte-ascii-parent-gate/*.log -whitespace
+bootstrap/repros/multipart-parent-qualified/*.log -whitespace

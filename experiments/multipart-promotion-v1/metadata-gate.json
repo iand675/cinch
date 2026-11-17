@@ -1,0 +1,558 @@
+{
+  "scope": "Inspect genuine public and private defining contracts for one checked candidate.\n\nNormal interfaces intentionally hide internal carrier names. A separately\nidentified observation copy exports seven pure identities, allowing its checked\nprivate nominal contracts to be inspected without changing the candidate API.\nNo serialized header, constructor inventory or compiler identity is rewritten.\n",
+  "production_adopted": false,
+  "runtime_claim": false,
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "source_gate_sha256": "072731add3514c64a615f5be72eb918a95ca01d106c3bb050fc33c6354e32305",
+  "candidate_manifest_sha256": "ced56f87c0ebe0c08a7a33fe45ec4a911d557b7b6b325fcb45e9d5f606fa41a5",
+  "original_effect_sha256": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b",
+  "public_interface_sha256": "1ab618fdd2c5e46eb442672ff293b8989828ea56e51cd9265ac9c3aa24500478",
+  "public_contracts": [
+    {
+      "identity": "Effect.Multipart.MultipartSource",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.Source",
+        "Effect.Multipart.MutableSource"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartSink",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.Sink",
+        "Effect.Multipart.MutableSink"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartWriter",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.Writer"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartOutputPart",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.OutputPart"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartReader",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.Reader"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartPart",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.InputPart"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartStorage",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "key"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "fileHandle"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "state"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.Storage"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartFileHeader",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "key"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "fileHandle"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "state"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.FileHeader"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartFile",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "key"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "fileHandle"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "state"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.MemoryFile",
+        "Effect.Multipart.DiskFile",
+        "Effect.Multipart.SectionFile"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartForm",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "key"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "fileHandle"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "state"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.Form"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartCleanup",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.Cleanup"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.MultipartFormReadOutcome",
+      "visibility": "public",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "key"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "fileHandle"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "state"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.FormReadOutcome"
+      ]
+    }
+  ],
+  "observation_source_sha256": "cdd34b9cc606c97dd6529a923f75106d6d8637e1ea418619da6503fb408d8e3a",
+  "witnesses": [
+    {
+      "carrier": "WriterState",
+      "observer": "observe-writer-state"
+    },
+    {
+      "carrier": "InputState",
+      "observer": "observe-input-state"
+    },
+    {
+      "carrier": "ReaderState",
+      "observer": "observe-reader-state"
+    },
+    {
+      "carrier": "StorageOps",
+      "observer": "observe-storage-ops"
+    },
+    {
+      "carrier": "FileBacking",
+      "observer": "observe-file-backing"
+    },
+    {
+      "carrier": "FileHeaderState",
+      "observer": "observe-file-header-state"
+    },
+    {
+      "carrier": "FormState",
+      "observer": "observe-form-state"
+    }
+  ],
+  "command": [
+    "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-multipart/build/multipart/promotion-330-metadata-v1/Main.cinch"
+  ],
+  "returncode": 0,
+  "stdout": "",
+  "stderr": "",
+  "compiler_host_stack_bytes": 67108864,
+  "observation_interface_sha256": "8232079e1eef6085bb1d61e3781f0cc2d52805ec2b4e6ee3a4f12d008e868e9e",
+  "private_contracts": [
+    {
+      "identity": "Effect.Multipart.WriterState",
+      "visibility": "private",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.WriterState"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.InputState",
+      "visibility": "private",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.InputState"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.ReaderState",
+      "visibility": "private",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.ReaderState"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.StorageOps",
+      "visibility": "private",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "key"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "fileHandle"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "state"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.StorageOps",
+        "Effect.Multipart.MutableStorageOps"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.FileBacking",
+      "visibility": "private",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "key"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "fileHandle"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "state"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.MemoryBacking",
+        "Effect.Multipart.DiskBacking"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.FileHeaderState",
+      "visibility": "private",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "key"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "fileHandle"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "state"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.FileHeaderState"
+      ]
+    },
+    {
+      "identity": "Effect.Multipart.FormState",
+      "visibility": "private",
+      "parameters": [
+        {
+          "implicit": false,
+          "kind": "Region",
+          "name": "r"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "e"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "key"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "fileHandle"
+        },
+        {
+          "implicit": false,
+          "kind": "Type",
+          "name": "state"
+        }
+      ],
+      "constructors": [
+        "Effect.Multipart.FormState"
+      ]
+    }
+  ],
+  "artifact_bytes": 1401909
+}

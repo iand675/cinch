@@ -1,0 +1,373 @@
+
+  -- | Own one real exclusive temporary directory per form fixture.
+  foreign import ccall "multipart_fixture_fs_begin" raw-fs-begin :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Enable actual descriptor interruption for the deferred-close result case.
+  foreign import ccall "multipart_fixture_fs_interrupt" raw-fs-interrupt :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Create a real temporary file and return its actual independently allocated handle.
+  foreign import ccall "multipart_fixture_fs_create" raw-fs-create :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Observe the actual key returned by the immediately preceding creation.
+  foreign import ccall "multipart_fixture_fs_key" raw-fs-key :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Observe the last arbitrary backend error identity.
+  foreign import ccall "multipart_fixture_fs_error" raw-fs-error :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Observe a real file read's simultaneous status.
+  foreign import ccall "multipart_fixture_fs_status" raw-fs-status :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Verify the advanced generic backend state against independent actual call counts.
+  foreign import ccall "multipart_fixture_fs_calls" raw-fs-calls :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Verify an actual closed descriptor caused the deferred-close oracle case.
+  foreign import ccall "multipart_fixture_fs_interrupted" raw-fs-interrupted :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Make one real scratch write without synthetic retry or buffering.
+  foreign import ccall "multipart_fixture_fs_write" raw-fs-write :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I64
+  -- | Read a real descriptor at its current independent sequential position.
+  foreign import ccall "multipart_fixture_fs_read" raw-fs-read :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I64
+  -- | Perform actual positioned reads, leaving the sequential position unchanged.
+  foreign import ccall "multipart_fixture_fs_read_at" raw-fs-read-at :: forall (r :: Region). I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  -- | Seek a real whole-file descriptor with the native host whence behavior.
+  foreign import ccall "multipart_fixture_fs_seek" raw-fs-seek :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I64
+  -- | Close real descriptors with retained logical repeated-close state.
+  foreign import ccall "multipart_fixture_fs_close" raw-fs-close :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Open a new independent descriptor through an actual private backing key.
+  foreign import ccall "multipart_fixture_fs_open" raw-fs-open :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Attempt an actual unlink; missing paths are distinguished from failures.
+  foreign import ccall "multipart_fixture_fs_remove" raw-fs-remove :: forall (r :: Region). I64 ->{IO r} I64
+  -- | Assert no open handles or unlink obligations remain before removing the namespace.
+  foreign import ccall "multipart_fixture_fs_finish" raw-fs-finish :: forall (r :: Region). I64 ->{IO r} I64
+
+  -- | Record a failed public observation without changing the backend callback sequence.
+  foreign import ccall "multipart_fixture_checkpoint" raw-checkpoint :: forall (r :: Region). I64 -> I64 ->{IO r} I64
+
+  -- | Retain a precise scalar diagnostic when a complete operation differs.
+  checkpoint :: forall (r :: Region). I64 -> Bool ->{IO r} Bool
+  checkpoint label matched = eq-i64 (raw-checkpoint label (if matched then 1 else 0)) 1
+
+  -- | Print exact owned byte snapshots only after a public form-value mismatch.
+  foreign import ccall "multipart_fixture_diagnostic_bytes" raw-diagnostic-bytes :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I64
+
+  -- | Diagnose ordered values without modifying or retaining their backing buffers.
+  diagnostic-values :: forall (r :: Region). I64 -> List Bytes ->{IO r} Unit
+  diagnostic-values label values = case values of
+    Nil -> ()
+    Cons value rest ->
+      let observed = raw-diagnostic-bytes label (bytes-data value) (nat-to-i64 (bytes-len value)) in
+      let retained = fixture-part value (bytes-len value) in
+      let checked = checkpoint label (same value retained) in diagnostic-values label rest
+
+  -- | Diagnose actual and independent expected field keys when their snapshots differ.
+  diagnostic-fields :: forall (r :: Region). I64 -> List (Bytes, List Bytes) ->{IO r} Unit
+  diagnostic-fields label fields = case fields of
+    Nil -> ()
+    Cons field rest -> case field of
+      (name, values) ->
+        let key = raw-diagnostic-bytes label (bytes-data name) (nat-to-i64 (bytes-len name)) in
+        let retained = fixture-part name (bytes-len name) in
+        let checked = checkpoint label (same name retained) in
+        let observed = diagnostic-values label values in diagnostic-fields label rest
+
+  -- | Wrap the exact independently observed generic error payload.
+  fs-error :: I64 -> FixtureError
+  fs-error identity = FixtureError identity (fs-error-message identity)
+
+  -- | Return a real create key/handle tuple and explicitly advanced backend state.
+  fs-create :: forall (r :: Region). I64 ->{IO r} (Result FixtureError (I64, I64), I64)
+  fs-create state =
+    let file = raw-fs-create 0 in
+    let key = raw-fs-key 0 in
+    let error = raw-fs-error 0 in
+    (if eq-i64 error 0 then Ok (key, file) else Err (fs-error error), wrapping-add-i64 state 1)
+
+  -- | Preserve positive backend write progress alongside its independent typed failure.
+  fs-write :: forall (r :: Region). I64 -> I64 -> Bytes ->{IO r} ((Nat, Option FixtureError), I64)
+  fs-write state file input =
+    let count = raw-fs-write file (bytes-data input) (nat-to-i64 (bytes-len input)) in
+    let error = raw-fs-error 0 in
+    ((if count >= 0 then nat-from-i64 count else 0, if eq-i64 error 0 then None else Some (fs-error error)), wrapping-add-i64 state 1)
+
+  -- | Convert an actual backend read status without losing returned prefixes.
+  fs-status :: I64 -> I64 -> MultipartReadStatus FixtureError
+  fs-status status error = if eq-i64 status 1 then MultipartEnd else if eq-i64 status 2 then MultipartReadFailure (fs-error error) else MultipartMore
+
+  -- | Read real file bytes while retaining the language destination across the foreign call.
+  fs-read :: forall (r :: Region). I64 -> I64 -> Nat ->{IO r} ((Bytes, MultipartReadStatus FixtureError), I64)
+  fs-read state file wanted =
+    let output = bytes-new wanted in
+    let count = raw-fs-read file (bytes-data output) (nat-to-i64 (bytes-len output)) in
+    let error = raw-fs-error 0 in
+    let status = raw-fs-status 0 in
+    let prefix = if count >= 0 then fixture-part output (nat-from-i64 count) else bytes-new 0 in
+    ((prefix, fs-status status error), wrapping-add-i64 state 1)
+
+  -- | Preserve full signed positioned reads and an unchanged sequential cursor.
+  fs-read-at :: forall (r :: Region). I64 -> I64 -> Nat -> I64 ->{IO r} ((Bytes, MultipartReadStatus FixtureError), I64)
+  fs-read-at state file wanted offset =
+    let output = bytes-new wanted in
+    let count = raw-fs-read-at file (bytes-data output) (nat-to-i64 (bytes-len output)) offset in
+    let error = raw-fs-error 0 in
+    let status = raw-fs-status 0 in
+    let prefix = if count >= 0 then fixture-part output (nat-from-i64 count) else bytes-new 0 in
+    ((prefix, fs-status status error), wrapping-add-i64 state 1)
+
+  -- | Retain native signed seek results and distinct caller errors.
+  fs-seek :: forall (r :: Region). I64 -> I64 -> I64 -> I64 ->{IO r} (Result FixtureError I64, I64)
+  fs-seek state file offset whence =
+    let position = raw-fs-seek file offset whence in
+    let error = raw-fs-error 0 in
+    (if eq-i64 error 0 then Ok position else Err (fs-error error), wrapping-add-i64 state 1)
+
+  -- | Retain exact close failures and explicitly advanced backend state.
+  fs-close :: forall (r :: Region). I64 -> I64 ->{IO r} (Result FixtureError Unit, I64)
+  fs-close state file =
+    let closed = raw-fs-close file in
+    let error = raw-fs-error 0 in
+    (if eq-i64 error 0 then Ok () else Err (fs-error error), wrapping-add-i64 state 1)
+
+  -- | Open the actual key as a distinct cursor without deriving private metadata.
+  fs-open :: forall (r :: Region). I64 -> I64 ->{IO r} (Result FixtureError I64, I64)
+  fs-open state key =
+    let file = raw-fs-open key in
+    let error = raw-fs-error 0 in
+    (if eq-i64 error 0 then Ok file else Err (fs-error error), wrapping-add-i64 state 1)
+
+  -- | Preserve successful missing-key cleanup separately from genuine unlink errors.
+  fs-remove :: forall (r :: Region). I64 -> I64 ->{IO r} (Result FixtureError Bool, I64)
+  fs-remove state key =
+    let removed = raw-fs-remove key in
+    let error = raw-fs-error 0 in
+    (if eq-i64 error 0 then Ok (eq-i64 removed 1) else Err (fs-error error), wrapping-add-i64 state 1)
+
+  -- | Build the complete real storage dictionary with three explicitly concrete host types.
+  fixture-storage :: forall (r :: Region). using (io :: Io r) => Unit ->{Mut r} MultipartStorage r FixtureError I64 I64 I64
+  fixture-storage unit = multipart-storage (0 :: I64) fs-create fs-write fs-read fs-read-at fs-seek fs-close fs-open fs-remove
+
+  -- | Distinguish sequential and positioned reads in the exact public File corpus.
+  data ExpectedFileRead where
+    -- | A sequential read shares the handle's cursor.
+    ExpectedSequential :: ExpectedRead -> ExpectedFileRead
+    -- | A positioned read must leave that sequential cursor unchanged.
+    ExpectedPositioned :: I64 -> ExpectedRead -> ExpectedFileRead
+
+  -- | One exact signed seek and its independent result/error.
+  data ExpectedSeek where
+    -- | Offset, raw whence, returned position and diagnostic.
+    ExpectedSeek :: I64 -> I64 -> I64 -> String -> ExpectedSeek
+
+  -- | Every public metadata and file operation observation for one file header.
+  data ExpectedFile where
+    -- | Field key, filename, signed size, headers, initial open error and operation sequence.
+    ExpectedFile :: Bytes -> Bytes -> I64 -> List (Bytes, List Bytes) -> String ->
+      List ExpectedFileRead -> List ExpectedSeek -> String -> Option ExpectedRead -> String ->
+      String -> Option ExpectedRead -> ExpectedFile
+
+  -- | Compare a concrete read prefix and status through the full native file capability.
+  file-read-is :: forall (r :: Region). MultipartFile r FixtureError I64 I64 I64 -> ExpectedFileRead ->{IO r, Mut r} Bool
+  file-read-is file expected = case expected of
+    ExpectedSequential row -> case row of
+      ExpectedRead wanted bytes message -> case multipart-file-read file wanted of
+        (output, status) -> checkpoint 200 (same output bytes && status-message status == message)
+    ExpectedPositioned offset row -> case row of
+      ExpectedRead wanted bytes message -> case multipart-file-read-at file wanted offset of
+        (output, status) -> checkpoint 201 (same output bytes && status-message status == message)
+
+  -- | Run every read even if an earlier observation mismatched.
+  file-reads-is :: forall (r :: Region). MultipartFile r FixtureError I64 I64 I64 -> List ExpectedFileRead ->{IO r, Mut r} Bool
+  file-reads-is file rows = case rows of
+    Nil -> True
+    Cons row rest ->
+      let matched = file-read-is file row in
+      let remaining = file-reads-is file rest in matched && remaining
+
+  -- | Run signed seeks without conflating backend errors with section refusals.
+  file-seeks-is :: forall (r :: Region). MultipartFile r FixtureError I64 I64 I64 -> List ExpectedSeek ->{IO r, Mut r} Bool
+  file-seeks-is file rows = case rows of
+    Nil -> True
+    Cons row rest -> case row of
+      ExpectedSeek offset whence position message ->
+        let result = multipart-file-seek file offset whence in
+        let matched = case result of Ok actual -> eq-i64 actual position && message == ""; Err error -> eq-i64 position 0 && error-message error == message in
+        let observed = checkpoint 202 matched in
+        let remaining = file-seeks-is file rest in observed && remaining
+
+  -- | Observe a post-close sequential read only when the reference opened the handle.
+  file-after-close-is :: forall (r :: Region). MultipartFile r FixtureError I64 I64 I64 -> Option ExpectedRead ->{IO r, Mut r} Bool
+  file-after-close-is file expected = case expected of
+    None -> False
+    Some row -> file-read-is file (ExpectedSequential row)
+
+  -- | Temporarily edit public Size and verify backing-specific independent reopen behavior.
+  file-edited-size-is :: forall (r :: Region). MultipartFileHeader r FixtureError I64 I64 I64 -> String -> Option ExpectedRead ->{IO r, Mut r} Bool
+  file-edited-size-is header message expected =
+    let original = multipart-file-size header in
+    let changed = multipart-file-set-size header 1 in
+    let opened = multipart-file-open header in
+    let restored = multipart-file-set-size header original in
+    case opened of
+      Err error -> error-message error == message
+      Ok file ->
+        let matched = case expected of None -> False; Some row -> file-read-is file (ExpectedSequential row) in
+        let closed = multipart-file-close file in matched && message == "" && result-message closed == ""
+
+  -- | Check all metadata snapshots, complete File operations and both close semantics.
+  file-observations-is :: forall (r :: Region). MultipartFileHeader r FixtureError I64 I64 I64 -> ExpectedFile ->{IO r, Mut r} Bool
+  file-observations-is header expected = case expected of
+    ExpectedFile field filename size headers openMessage reads seeks closeMessage afterClose closeAgain editedMessage editedRead ->
+      let actualName = multipart-file-filename header in
+      let actualSize = multipart-file-size header in
+      let actualHeaders = multipart-file-headers header in
+      let opened = multipart-file-open header in
+      let metadata = same actualName filename && eq-i64 actualSize size && same-headers (multipart-header-pairs actualHeaders) headers in
+      case opened of
+        Err error -> metadata && error-message error == openMessage
+        Ok file ->
+          let readMatches = file-reads-is file reads in
+          let seekMatches = file-seeks-is file seeks in
+          let closed = multipart-file-close file in
+          let afterMatches = file-after-close-is file afterClose in
+          let again = multipart-file-close file in
+          let editedMatches = file-edited-size-is header editedMessage editedRead in
+          let metaMatches = checkpoint 210 metadata in
+          let closeMatches = checkpoint 211 (result-message closed == closeMessage) in
+          let againMatches = checkpoint 212 (result-message again == closeAgain) in
+          openMessage == "" && readMatches && seekMatches && closeMatches &&
+            afterMatches && againMatches && editedMatches && metaMatches
+
+  -- | Reopen and close one successful memory handle while preserving the expected error.
+  reopen-one-is :: forall (r :: Region). MultipartFileHeader r FixtureError I64 I64 I64 -> String ->{IO r, Mut r} Bool
+  reopen-one-is header message = case multipart-file-open header of
+    Err error -> error-message error == message
+    Ok file -> let closed = multipart-file-close file in message == "" && result-message closed == ""
+
+  -- | Check reopening after unlink while closing every successful memory handle.
+  reopened-is :: forall (r :: Region). List (MultipartFileHeader r FixtureError I64 I64 I64) -> List String ->{IO r, Mut r} Bool
+  reopened-is headers expected = case headers of
+    Nil -> case expected of Nil -> True; _ -> False
+    Cons header rest -> case expected of
+      Nil -> False
+      Cons message tail ->
+        let matched = reopen-one-is header message in
+        let remaining = reopened-is rest tail in matched && remaining
+
+  -- | Flatten ordered field header lists without changing any retained header identity.
+  flatten-file-fields :: forall (r :: Region). List (Bytes, List (MultipartFileHeader r FixtureError I64 I64 I64)) -> List (MultipartFileHeader r FixtureError I64 I64 I64)
+  flatten-file-fields fields = case fields of
+    Nil -> Nil
+    Cons field rest -> case field of (name, headers) -> append-file-headers headers (flatten-file-fields rest)
+
+  -- | Join persistent file-header spines without cloning resource ownership.
+  append-file-headers :: forall (r :: Region). List (MultipartFileHeader r FixtureError I64 I64 I64) -> List (MultipartFileHeader r FixtureError I64 I64 I64) -> List (MultipartFileHeader r FixtureError I64 I64 I64)
+  append-file-headers first second = case first of Nil -> second; Cons header rest -> Cons header (append-file-headers rest second)
+
+  -- | Check a retained cursor after unlink and close it even if its observation mismatches.
+  retained-after-remove-is :: forall (r :: Region). Option (MultipartFile r FixtureError I64 I64 I64) -> Option ExpectedRead ->{IO r, Mut r} Bool
+  retained-after-remove-is actual expected = case actual of
+    None -> case expected of None -> True; Some row -> False
+    Some file ->
+      let matched = case expected of None -> False; Some row -> file-read-is file (ExpectedSequential row) in
+      let closed = multipart-file-close file in matched && result-message closed == ""
+
+  -- | Check cleanup errors independently of the preserved primary form-read error.
+  cleanup-count-is :: forall (r :: Region). List (MultipartCleanup r FixtureError) -> I64 -> Bool
+  cleanup-count-is work interrupted = case work of
+    Nil -> eq-i64 interrupted 0
+    Cons first rest -> eq-i64 interrupted 1 && error-message (multipart-cleanup-error first) == "close <scratch>: bad file descriptor" &&
+      (case rest of Nil -> True; _ -> False)
+
+  -- | Attempt retention immediately before each header's ordinary observations.
+  retain-if-empty :: forall (r :: Region). Option (MultipartFile r FixtureError I64 I64 I64) -> MultipartFileHeader r FixtureError I64 I64 I64 ->{IO r, Mut r} Option (MultipartFile r FixtureError I64 I64 I64)
+  retain-if-empty previous header = case previous of
+    Some file -> previous
+    None -> case multipart-file-open header of Ok file -> Some file; Err error -> None
+
+  -- | Thread an independently opened retained handle in the reference's exact operation order.
+  file-list-observed :: forall (r :: Region). List (MultipartFileHeader r FixtureError I64 I64 I64) -> List ExpectedFile -> Option (MultipartFile r FixtureError I64 I64 I64) ->{IO r, Mut r} (Bool, Option (MultipartFile r FixtureError I64 I64 I64))
+  file-list-observed actual expected retained = case actual of
+    Nil -> ((case expected of Nil -> True; _ -> False), retained)
+    Cons header rest -> case expected of
+      Nil -> (False, retained)
+      Cons row tail ->
+        let next = retain-if-empty retained header in
+        let matched = file-observations-is header row in
+        case file-list-observed rest tail next of
+          (remaining, finalFile) -> (matched && remaining, finalFile)
+
+  -- | Preserve sorted field order and file occurrence order around every open/close callback.
+  file-fields-observed :: forall (r :: Region). List (Bytes, List (MultipartFileHeader r FixtureError I64 I64 I64)) -> List (Bytes, List ExpectedFile) -> Option (MultipartFile r FixtureError I64 I64 I64) ->{IO r, Mut r} (Bool, Option (MultipartFile r FixtureError I64 I64 I64))
+  file-fields-observed actual expected retained = case actual of
+    Nil -> ((case expected of Nil -> True; _ -> False), retained)
+    Cons field rest -> case expected of
+      Nil -> (False, retained)
+      Cons other tail -> case field of
+        (name, headers) -> case other of
+          (wanted, rows) -> case file-list-observed headers rows retained of
+            (matched, next) -> case file-fields-observed rest tail next of
+              (remaining, finalFile) -> (same name wanted && matched && remaining, finalFile)
+
+  -- | Inspect returned form metadata and all complete file operations before unlink/reopen.
+  observed-form-is :: forall (r :: Region). MultipartForm r FixtureError I64 I64 I64 -> List (Bytes, List Bytes) -> List (Bytes, List ExpectedFile) -> String -> String -> Option ExpectedRead -> List String ->{IO r, Mut r} Bool
+  observed-form-is form values files removeMessage againMessage retainedRead reopened =
+    let actualValues = multipart-form-values form in
+    let actualFiles = multipart-form-files form in
+    case file-fields-observed actualFiles files None of
+      (matched, retained) ->
+        let removed = multipart-form-remove-all form in
+        let again = multipart-form-remove-all form in
+        let retainedMatches = retained-after-remove-is retained retainedRead in
+        let reopenMatches = reopened-is (flatten-file-fields actualFiles) reopened in
+        let valueMatches = checkpoint 220 (same-headers actualValues values) in
+        let diagnosed = if valueMatches then () else let actual = diagnostic-fields 230 actualValues in diagnostic-fields 231 values in
+        let fileMatches = checkpoint 221 matched in
+        let removeMatches = checkpoint 222 (result-message removed == removeMessage) in
+        let againMatches = checkpoint 223 (result-message again == againMessage) in
+        let retainedObserved = checkpoint 224 retainedMatches in
+        let reopenObserved = checkpoint 225 reopenMatches in
+        valueMatches && fileMatches && removeMatches && againMatches && retainedObserved && reopenObserved
+
+  -- | Preserve exact nonempty-form/error coexistence on deferred real close failure.
+  outcome-form-is :: forall (r :: Region). MultipartFormReadOutcome r FixtureError I64 I64 I64 -> Bool -> List (Bytes, List Bytes) -> List (Bytes, List ExpectedFile) -> String -> String -> Option ExpectedRead -> List String ->{IO r, Mut r} Bool
+  outcome-form-is outcome present values files removeMessage againMessage retainedRead reopened = case multipart-form-read-form outcome of
+    None -> not present
+    Some form ->
+      let matched = observed-form-is form values files removeMessage againMessage retainedRead reopened in present && matched
+
+  -- | Execute form accumulation against real exclusive scratch files and every file capability.
+  form-is :: forall (r :: Region). using (io :: Io r) => Bytes -> I64 -> Bool -> Nat -> Nat -> I64 -> Bool -> String ->
+    List (Bytes, List Bytes) -> List (Bytes, List ExpectedFile) -> String -> String -> Option ExpectedRead -> List String ->{IO r, Mut r} Bool
+  form-is wire memory distinct maxParts maxHeaders interrupted present message values files removeMessage againMessage retainedRead reopened =
+    let original = fixture-part wire (bytes-len wire) in
+    let begun = raw-fs-begin 0 in
+    let source = raw-source-init (bytes-data wire) (nat-to-i64 (bytes-len wire)) (if eq-i64 interrupted 0 then 7 else 1) 1 in
+    let enabled = raw-fs-interrupt interrupted in
+    let policy = multipart-policy 10485760 maxHeaders maxParts (not distinct) multipart-posix-filename in
+    let reader = multipart-reader-with-policy (fixture-source ()) (string-to-bytes "form-boundary") policy in
+    let storage = fixture-storage () in
+    let outcome = multipart-read-form reader memory storage in
+    let primary = case multipart-form-read-error outcome of None -> ""; Some error -> error-message error in
+    let cleanupMatches = cleanup-count-is (multipart-form-read-cleanup outcome) interrupted in
+    let matched = outcome-form-is outcome present values files removeMessage againMessage retainedRead reopened in
+    let state = multipart-storage-state storage in
+    let calls = raw-fs-calls 0 in
+    let actualInterrupted = raw-fs-interrupted 0 in
+    let sourceFinished = raw-source-finish 0 in
+    let finished = raw-fs-finish 0 in
+    let primaryMatches = checkpoint 301 (primary == message) in
+    let cleanupObserved = checkpoint 302 cleanupMatches in
+    let formMatches = checkpoint 303 matched in
+    let stateMatches = checkpoint 304 (eq-i64 state calls) in
+    let interruptionMatches = checkpoint 305 (eq-i64 actualInterrupted interrupted) in
+    let sourceMatches = checkpoint 306 (eq-i64 sourceFinished 0) in
+    let resourcesMatch = checkpoint 307 (eq-i64 finished 0) in
+    eq-i64 begun 0 && eq-i64 source 0 && eq-i64 enabled 0 && primaryMatches && cleanupObserved && formMatches &&
+      stateMatches && interruptionMatches && sourceMatches && resourcesMatch && same wire original
+
+  -- | Fix every generic backing type without weakening the region of the form cell.
+  fixture-form :: forall (r :: Region). Unit ->{Mut r} MultipartForm r FixtureError I64 I64 I64
+  fixture-form unit = multipart-form-empty ()
+
+  -- | Isolate repeated value insertion independently of all parsing and scratch callbacks.
+  form-map-is :: forall (r :: Region). Unit ->{IO r, Mut r} Bool
+  form-map-is unit =
+    let form = fixture-form () in
+    let first = multipart-form-append-value form (string-to-bytes "v") (string-to-bytes "one") in
+    let second = multipart-form-append-value form (string-to-bytes "v") (string-to-bytes "two") in
+    let third = multipart-form-append-value form (string-to-bytes "g") (string-to-bytes "plain") in
+    let actual = multipart-form-values form in
+    let expected = Cons (string-to-bytes "g", Cons (string-to-bytes "plain") Nil) (Cons (string-to-bytes "v", Cons (string-to-bytes "one") (Cons (string-to-bytes "two") Nil)) Nil) in
+    let matched = same-headers actual expected in
+    let diagnosed = if matched then () else diagnostic-fields 240 actual in matched
