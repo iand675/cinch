@@ -210,15 +210,12 @@ impl Symbolizer {
 /// wrong answer costs a confusing number rather than a broken trace.
 #[cfg(target_vendor = "apple")]
 fn image_base() -> usize {
-    unsafe extern "C" {
-        fn _dyld_get_image_vmaddr_slide(index: u32) -> isize;
-    }
     // The slide is added to the Mach-O header's link address, which is
     // `__TEXT`'s vmaddr (0x100000000 for a default arm64 executable). A
     // frame's file address is `pc - slide`, and a symbol table's address
     // for the same function is that same value, so returning the slide
     // alone is what makes `pc - image_base` comparable to `nm` output.
-    unsafe { _dyld_get_image_vmaddr_slide(0) as usize }
+    crate::sys::main_image_slide()
 }
 
 #[cfg(not(target_vendor = "apple"))]

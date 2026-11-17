@@ -110,6 +110,12 @@ pub(crate) const EINVAL: i64 = 22;
 /// `unsigned int` on Linux, `unsigned long` on Darwin.
 pub(crate) type Key = back::Key;
 
+/// Return the main executable's Mach-O slide through the platform boundary.
+#[cfg(target_os = "macos")]
+pub(crate) fn main_image_slide() -> usize {
+    back::main_image_slide()
+}
+
 // ---------------------------------------------------------------------------
 // Handles and bytes
 // ---------------------------------------------------------------------------
