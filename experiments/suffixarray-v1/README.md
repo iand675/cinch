@@ -90,6 +90,10 @@ Cinch callback driver or supply a general regular-expression implementation.
 clone mutations, cross-index ranges, typed failures with accepted prefixes,
 huge limits, deep repeated prefixes, callback-retained owners and genuine
 shared IO/mutation effects. These controls remain pending source/runtime gates.
+`validate_literals.py --kind callbacks` prepares bounded concrete callback
+consumers from `callback_consumers.py`, compares complete returned endpoints
+with unchanged reference observations, and records this as a separate callback
+scope. It does not treat those selected patterns as a regex implementation.
 
 Prepare deterministic input cases without compiling anything:
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile bounded public literal-lookup consumers from unchanged pinned-SDK observations and compare every returned offset."""
+"""Compile bounded public lookup or concrete callback consumers from unchanged pinned-SDK observations and compare every offset."""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -75,6 +75,7 @@ def main() -> None:
     parser.add_argument('--runtime',type=Path,required=True)
     parser.add_argument('--start',type=int,required=True)
     parser.add_argument('--count',type=int,default=8)
+    parser.add_argument('--kind',choices=['literals','callbacks'],default='literals')
     parser.add_argument('--opt-level',choices=['0','2'],default='0')
     parser.add_argument('--artifacts',type=Path,required=True)
     args=parser.parse_args();work=args.artifacts.resolve();report=work.with_suffix('.json')
@@ -90,12 +91,21 @@ def main() -> None:
             needle=bytes.fromhex(query['needle']);matches=[i for i in (row['suffix_order'] or []) if needle and data[i:].startswith(needle)]
             expected=matches if query['limit']<0 else matches[:query['limit']]
             assert (query['offsets'] or [])==expected,'independent suffix-order observation disagreement'
-    work.mkdir();entry=work/'Main.cinch';entry.write_text(consumer(rows))
+    generated=consumer(rows)
+    if args.kind=='callbacks':
+        from callback_consumers import consumer as callback_consumer
+        from prepare_callbacks import observations
+        for row in rows:
+            for query in row['regex']:
+                if query['pattern'] in ['', 'a?', 'a*']:
+                    assert observations(bytes.fromhex(row['data']),query['pattern'],query['limit'])==(query['leftmost'] or [])
+        generated=callback_consumer(rows)
+    work.mkdir();entry=work/'Main.cinch';entry.write_text(generated)
     dependencies=source_closure(entry.read_text(),{'Data.Index.SuffixArray':HERE/'src/Data.Index.SuffixArray.cinch'})
     for name,path in dependencies.items():shutil.copyfile(path,work/(name+'.cinch'))
     executable=work/'consumer'
     command=[str(args.compiler),'build',str(entry),'-o',str(executable),'--opt-level',args.opt_level,'--runtime-archive',str(args.runtime)]
-    r=dict(scope='Bounded exact public suffix construction and overlapping literal outputs; no performance claim',status='building',command=command,source_sha256=digest(HERE/'src/Data.Index.SuffixArray.cinch'),entry_sha256=digest(entry),vectors_sha256=digest(HERE/'vectors.json'),compiler_sha256=digest(args.compiler),runtime_sha256=digest(args.runtime),dependencies={n:digest(p) for n,p in dependencies.items()},start=args.start,count=len(rows),literal_observations=sum(len(x['queries']) for x in rows),compiled_rc_debug=False,profiles=[],before_free_bytes=before)
+    r=dict(scope='Bounded exact public suffix construction and literal or concrete leftmost callback outputs; no performance/general-regex claim',status='building',kind=args.kind,command=command,source_sha256=digest(HERE/'src/Data.Index.SuffixArray.cinch'),entry_sha256=digest(entry),vectors_sha256=digest(HERE/'vectors.json'),compiler_sha256=digest(args.compiler),runtime_sha256=digest(args.runtime),validator_sha256=digest(Path(__file__)),dependencies={n:digest(p) for n,p in dependencies.items()},start=args.start,count=len(rows),literal_observations=sum(len(x['queries']) for x in rows) if args.kind=='literals' else 0,callback_observations=sum(sum(q['pattern'] in ['', 'a?', 'a*'] for q in x['regex']) for x in rows) if args.kind=='callbacks' else 0,compiled_rc_debug=False,profiles=[],before_free_bytes=before)
     report.write_text(json.dumps(r,indent=2)+'\n');start=time.monotonic()
     try:
         result=subprocess.run(command,capture_output=True,text=True);(work/'compile.log').write_text(result.stdout+result.stderr)
