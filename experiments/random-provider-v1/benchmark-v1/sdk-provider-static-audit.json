@@ -1,0 +1,24 @@
+{
+  "stage": "static provider source audit only; no SDK build or probe run",
+  "sdk_version_file": "go1.27.4\ntime 2026-11-02T20:36:20Z\n",
+  "sdk_binary_path": "/tmp/cinch-go-current/go/bin/go",
+  "sdk_binary_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "provider_sources": {
+    "/tmp/cinch-go-current/go/src/crypto/rand/rand.go": "7c289648d453d0bdca0f05091d00bb86c94b69637080c748ff3d3476677521ac",
+    "/tmp/cinch-go-current/go/src/crypto/internal/rand/rand.go": "05cd001af939810177933adb53a5321be90a12ed032019c9391108015d340ca5",
+    "/tmp/cinch-go-current/go/src/crypto/internal/fips140/drbg/rand.go": "7a2b8846e58f69648bdac654411100eda814580a72cf971c8860017811345b85",
+    "/tmp/cinch-go-current/go/src/crypto/internal/sysrand/rand.go": "76792623691f632274ea7996011bcfd90ddb52a83151f75fe149c255bb69cc1c",
+    "/tmp/cinch-go-current/go/src/crypto/internal/sysrand/rand_getrandom.go": "5597f30418c230c17a3ffaf88137779446291ddd6dfb038045e827a9a2a289ac",
+    "/tmp/cinch-go-current/go/src/internal/syscall/unix/getrandom.go": "1cafffb178e0a2182349ef5a39fd89aa01f2a9d1fd565afdb947416b9ab13e40",
+    "/tmp/cinch-go-current/go/src/runtime/vgetrandom_linux.go": "fda3cf62391408d701c497a0dbbea92ae7ebddc99347a9efa9e0915afce90fd2",
+    "/tmp/cinch-go-current/go/src/uuid/uuid.go": "a84d62dd9ebab02c4c23af46888e81c45d4d0be345c08d2f18e471656c650738"
+  },
+  "observations": [
+    "Reference source invokes crypto/rand.Read with its default Reader and never installs testingReader, an alternate Reader, or deterministic bytes.",
+    "Current public Read dispatches to crypto/internal/fips140/drbg.Read in its default non-boring case; drbg.Read uses sysrand.Read when FIPS mode is disabled. Actual build/runtime mode has not been probed.",
+    "sysrand uses the Unix getrandom layer; that layer first tries runtime.vgetrandom, then a real syscall, and caches ENOSYS before the device fallback.",
+    "The Linux runtime supports kernel vDSO getrandom state. A nonempty SDK draw need not issue a syscall on every call; absent syscalls are not evidence of a seeded replacement.",
+    "uuid.NewV4 uses crypto/rand.Read for its actual payload; uuid.NewV7 uses actual time.Now, serialized state, then crypto/rand.Read on its random suffix.",
+    "SDK source inspection is distinct from actual linked provider-path observation, which remains pending."
+  ]
+}
