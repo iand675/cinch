@@ -1,0 +1,82 @@
+{
+  "status": "observed",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "mode": "source-only --check, no IR/runtime",
+  "cpu": 4,
+  "source_or_library_changed": false,
+  "results": [
+    {
+      "name": "direct",
+      "exit": 0,
+      "source_sha256": "df484dd3a046cd3603e01be2c5f5d5b049638a4965705a22c2c24ba09b131934",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-range-diagnosis-v1/direct/Main.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-range-diagnosis-v1/direct/checked"
+      ],
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "first-offset-only",
+      "exit": 0,
+      "source_sha256": "d6b24d0eadc37002b8bf1d59b2810dd8058fd0689f8b276b4d68d06d27022bb8",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-range-diagnosis-v1/first-offset-only/Main.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-range-diagnosis-v1/first-offset-only/checked"
+      ],
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "two-direct",
+      "exit": 0,
+      "source_sha256": "a66ac87e2dd28c4a37c1c9351ef5556b454897337bcf2299d6838633acbf6307",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-range-diagnosis-v1/two-direct/Main.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-range-diagnosis-v1/two-direct/checked"
+      ],
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "original-sequential",
+      "exit": 0,
+      "source_sha256": "f6e36259d555eafb8c1befb3df26126a69e17e6652492dafd40e50fb00fa1f1a",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--check",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-range-diagnosis-v1/original-sequential/Main.cinch",
+        "/workspace/dasl-stdlib-refined-mask/build/native-word-range-diagnosis-v1/original-sequential/checked"
+      ],
+      "diagnostics": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ]
+}
