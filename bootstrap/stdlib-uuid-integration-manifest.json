@@ -27,7 +27,7 @@
     },
     {
       "path": "compiler/tests/lib_uuid.rs",
-      "sha256": "bb3ca63ba3e7c2b01244d93a48c8a3157f6f52b03663de0310ecd804f10922a3"
+      "sha256": "c896ed70bc51ba6318d30fbf51de5bca5519d52eb0e368b6672ecffa365e70a4"
     },
     {
       "path": "compiler/tests/fixtures/uuid-vectors.json",
@@ -121,5 +121,6 @@
   "failure_retention": "QualificationDirectory keeps runtime, generated-vector and portable projects during unwinding; generated source, compiler errors, runtime output and external object diagnostics remain plain.",
   "candidate_review_files": [
     "experiments/uuid-candidate-v1/README.md"
-  ]
+  ],
+  "test_source_selection": "Default embedded baseline remains byte-identical; explicit CINCH_TEST_UUID_DATA_SOURCE requires successful canonical-path read, stages the actual source and records its SHA256/path in each guarded test project. No silent fallback."
 }

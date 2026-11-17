@@ -1,6 +1,7 @@
 //! Immutable UUID values, complete independent observations and real serialized generation.
 mod common;
 use cinch::driver::Mode;
+use sha2::{Digest, Sha256};
 
 /// Retain every generated source and compiler artifact when qualification unwinds.
 struct QualificationDirectory(Option<tempfile::TempDir>);
@@ -31,14 +32,67 @@ impl Drop for QualificationDirectory {
     }
 }
 
+/// Select one explicitly requested source file or the byte-identical embedded baseline, recording exact bytes and provenance.
+fn uuid_data_source(directory: &QualificationDirectory) -> String {
+    let requested = std::env::var_os("CINCH_TEST_UUID_DATA_SOURCE").map(std::path::PathBuf::from);
+    let (source, selected_path, mode) = match requested.as_ref() {
+        Some(path) => {
+            let selected = path.canonicalize().unwrap_or_else(|error| {
+                let _ = std::fs::write(
+                    directory.path().join("source-selection.error"),
+                    format!("{}: {error}", path.display()),
+                );
+                panic!(
+                    "explicit UUID source path {} could not be resolved: {error}",
+                    path.display()
+                );
+            });
+            let source = std::fs::read_to_string(&selected).unwrap_or_else(|error| {
+                let _ = std::fs::write(
+                    directory.path().join("source-selection.error"),
+                    format!("{}: {error}", selected.display()),
+                );
+                panic!(
+                    "explicit UUID source {} could not be read: {error}",
+                    selected.display()
+                );
+            });
+            (source, selected, "explicit-file")
+        }
+        None => (
+            include_str!("../../experiments/uuid-candidate-v1/sources/Data.Uuid.cinch").to_owned(),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .join("experiments/uuid-candidate-v1/sources/Data.Uuid.cinch"),
+            "embedded-baseline",
+        ),
+    };
+    let sha256 = format!("{:x}", Sha256::digest(source.as_bytes()));
+    eprintln!(
+        "UUID data source mode={mode} path={} sha256={sha256}",
+        selected_path.display()
+    );
+    let selection = serde_json::json!({
+        "module": "Data.Uuid", "mode": mode, "requested_path": requested,
+        "selected_path": selected_path, "actual_source_sha256": sha256,
+        "silent_fallback": false,
+    });
+    std::fs::write(directory.path().join("Data.Uuid.cinch"), source.as_bytes()).unwrap();
+    std::fs::write(
+        directory.path().join("uuid-source-selection.json"),
+        serde_json::to_vec_pretty(&selection).unwrap(),
+    )
+    .unwrap();
+    source
+}
+
 /// Compile actual candidate modules and execute normal and separately poisoned owner checks.
 fn run(source: &str) {
     let directory = QualificationDirectory::new();
+    let data_source = uuid_data_source(&directory);
     for (module, source) in [
-        (
-            "Data.Uuid",
-            include_str!("../../experiments/uuid-candidate-v1/sources/Data.Uuid.cinch"),
-        ),
+        ("Data.Uuid", data_source.as_str()),
         (
             "Effect.Uuid",
             include_str!("../../experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch"),
@@ -178,11 +232,10 @@ fn uuid_uses_real_entropy_clock_and_shared_generator_state() {
 /// Every public/private declaration, constructor, primitive and instance has canonical documentation.
 #[test]
 fn uuid_declarations_have_canonical_documentation() {
+    let directory = QualificationDirectory::new();
+    let data_source = uuid_data_source(&directory);
     for (module, source) in [
-        (
-            "Data.Uuid",
-            include_str!("../../experiments/uuid-candidate-v1/sources/Data.Uuid.cinch"),
-        ),
+        ("Data.Uuid", data_source.as_str()),
         (
             "Effect.Uuid",
             include_str!("../../experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch"),
@@ -214,11 +267,9 @@ fn uuid_full_adapters_compile_for_portable_targets() {
         ("powerpc64-unknown-linux-gnu", "powerpc64", "big"),
     ] {
         let directory = QualificationDirectory::new();
+        let data_source = uuid_data_source(&directory);
         for (module, source) in [
-            (
-                "Data.Uuid",
-                include_str!("../../experiments/uuid-candidate-v1/sources/Data.Uuid.cinch"),
-            ),
+            ("Data.Uuid", data_source.as_str()),
             ("Text.Hex", include_str!("../prelude/Text/Hex.cinch")),
             (
                 "Data.Bytes.Word",

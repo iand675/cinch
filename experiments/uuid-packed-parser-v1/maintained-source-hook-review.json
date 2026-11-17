@@ -1,0 +1,20 @@
+{
+  "kind": "UUID-maintained-explicit-source-selection-static-review",
+  "base_root_test_sha256": "bb3ca63ba3e7c2b01244d93a48c8a3157f6f52b03663de0310ecd804f10922a3",
+  "test_sha256": "c896ed70bc51ba6318d30fbf51de5bca5519d52eb0e368b6672ecffa365e70a4",
+  "default_data_source_sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+  "explicit_variable": "CINCH_TEST_UUID_DATA_SOURCE",
+  "checks": [
+    "Actual Root test bytes matched before editing",
+    "rustfmt completed",
+    "three source-selection sites include runtime,docs,portable",
+    "only helper retains the exact embedded baseline include",
+    "guarded source path/read failures have no fallback",
+    "source bytes and selection JSON staged before compiler calls",
+    "PowerPC custom profile and all process/assertion/retention gates unchanged"
+  ],
+  "not_run": [
+    "No own Cargo; parent will run all8 with explicit source once standalone candidate gates finish"
+  ],
+  "packed_candidate_qualified_by_original_baseline8_tests": false
+}
