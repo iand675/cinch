@@ -44,11 +44,14 @@
     "Retain both factory results and modified caller-owned list projections to prove immutable independence; validate empty/query/palette composition through current Color API."
   ],
   "gates_pending": [
-    "Qualified Rust source/runtime O0/O2, normal32MiB/8MiB and poison256MiB/8MiB zero leaks",
     "Actual existing SIMD-distance reachability and portable object composition",
     "SDK-free maintained CI target and public full-output benchmark review",
     "Separate Native epoch if explicitly authorized"
   ],
-  "source_status": "Complete source closure and canonical defining public metadata pass3dae/d91; actual SDK and independent scalar472entries/1024palette-use observations agree; runtime pending",
-  "qualified_source_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd"
+  "source_status": "Complete3dae/d91 source and runtime O2/exact-IR O0 qualified; all472entries/1024queries plus32owner rounds, normal/poison zero leaks; Native/portable/performance/parent CI separate",
+  "qualified_source_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+  "qualified_runtime_receipts": [
+    "runtime-o2.json",
+    "runtime-o0.json"
+  ]
 }

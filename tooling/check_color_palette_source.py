@@ -48,6 +48,7 @@ def main() -> None:
     parser.add_argument('--color', type=Path, required=True)
     parser.add_argument('--compiler', type=Path, required=True)
     parser.add_argument('--runtime', type=Path, required=True)
+    parser.add_argument('--consumer', type=Path)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--cpu', type=int, default=1)
     args = parser.parse_args()
@@ -58,10 +59,11 @@ def main() -> None:
         raise RuntimeError('350MiB source-unit start guard')
     os.sched_setaffinity(0, {args.cpu})
     resource.setrlimit(resource.RLIMIT_STACK, (67108864, resource.getrlimit(resource.RLIMIT_STACK)[1]))
-    sources = source_closure(MAIN, {'Image.Color': args.color, 'Image.Color.Palette': args.source})
+    caller = args.consumer.read_text() if args.consumer else MAIN
+    sources = source_closure(caller, {'Image.Color': args.color, 'Image.Color.Palette': args.source})
     for name, source in sources.items():
         shutil.copyfile(source, work / (name+'.cinch'))
-    (work / 'Main.cinch').write_text(MAIN)
+    (work / 'Main.cinch').write_text(caller)
     command = [str(args.compiler.resolve()), 'check', str(work / 'Main.cinch')]
     report = {'scope': __doc__, 'runner_sha256': digest(Path(__file__)), 'command': command,
               'compiler': str(args.compiler.resolve()), 'compiler_sha256': digest(args.compiler),
