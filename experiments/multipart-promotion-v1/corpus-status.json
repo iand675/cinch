@@ -1,13 +1,32 @@
 {
   "scope": "Incremental new330/d91 combined-source qualification; historicalNative and old855 corpus not relabeled.",
   "compiler_epoch": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2/d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
-  "completed_unique_observations": 172,
+  "completed_unique_observations": 1128,
   "required_unique_observations": 1128,
   "completed_groups": [
     "writers-0000",
     "ownership-0000",
     "readers-0000",
-    "readers-0064"
+    "readers-0064",
+    "readers-0128",
+    "readers-0192",
+    "readers-0256",
+    "readers-0320",
+    "readers-0384",
+    "readers-0448",
+    "boundaries-0000",
+    "boundaries-0064",
+    "boundaries-0128",
+    "boundaries-0192",
+    "boundaries-0256",
+    "dispositions-0000",
+    "dispositions-0064",
+    "dispositions-0128",
+    "dispositions-0192",
+    "dispositions-0256",
+    "forms-0000",
+    "cache-0000",
+    "entropy-0000"
   ],
   "optimization": 2,
   "profiles": [
@@ -22,13 +41,13 @@
     "start_mib": 350,
     "pause_mib": 250,
     "new_unarchived_cap_mib": 30,
-    "peak_recorded_new_plain_bytes": 17676873,
+    "peak_recorded_new_plain_bytes": 20768461,
     "root_reserved_headroom_mib": 60
   },
   "reports": [
     "corpus-o2-gate.json"
   ],
-  "remaining": "956 distinct observations, additional duplicates and optimization scope remain separate gates.",
+  "remaining": "O0 scope, performance, current Native family, production selection and package-complete promotion remain separate pending gates. Three extra duplicate regression consumers have not been rerun in this epoch.",
   "parent_ci": {
     "commit": "c2441661",
     "epoch": "current Rust f9/d91, separately recorded on Root",
@@ -36,5 +55,24 @@
     "tests_passed": 2,
     "seconds": 48.96,
     "own_cargo_run": false
+  },
+  "families": {
+    "boundaries": 264,
+    "dispositions": 292,
+    "writers": 40,
+    "readers": 476,
+    "forms": 27,
+    "cache": 1,
+    "entropy": 24,
+    "ownership": 4
+  },
+  "consumers": 23,
+  "normal_poison_processes": 46,
+  "passed_functional_elf_llvm_archives": 46,
+  "all_recovery_entries_match_report_hashes": true,
+  "current_toolchain_observation": {
+    "command": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "version": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+    "scope": "Current environment observation, additional to per-invocation compiler/runtime/foreign object/source/output hashes."
   }
 }
