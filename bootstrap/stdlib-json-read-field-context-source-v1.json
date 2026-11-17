@@ -1,0 +1,22 @@
+{
+  "status": "prepared-not-qualified",
+  "scope": "Minimal conventional field-path compatibility metadata. Only library-created ordinary read semantic errors carry Some conventional path. Dedicated pointer and user semantic constructors retain None and existing behavior. No fixture/oracle normalization.",
+  "old_sources": {
+    "Value": "c1210cd2af6deb9d2937cb62094b022272bf41f48addddcc5bae518b4e83a315",
+    "Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
+  },
+  "new_sources": {
+    "Value": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+    "Codec": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3"
+  },
+  "sdk_evidence": "bootstrap/stdlib-json-stop-context-reference-v1.json",
+  "independent_vectors_sha256": "17fe43442d5757c6683da257bb1b4d011cab0b6dc60de8bb5e0febdd21edb881",
+  "parent_failures_retained": [
+    "/tmp/.tmpPO3BYK",
+    "/tmp/.tmpXo2Y8y"
+  ],
+  "root_mutated": false,
+  "conventional_component_rule": "Literal member names preserve the765 conventional API; precise semantic pointer escapes independently. Existing legacy typed error Field metadata remains escaped as observed in original54.",
+  "SDK_current_evidence": "bootstrap/stdlib-json-stop-context-reference-v2.json",
+  "current_independent_vectors_sha256": "46e8786c3cb7d40b9fee5eb6253be898385f03b8dfc2cc3577bb7a9ef59982cd"
+}

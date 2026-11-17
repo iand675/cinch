@@ -33,7 +33,7 @@ module Text.Json.Value where
   export JsonWriteInfo, json-write-info, json-write-written-bytes, json-write-logical-prefix, JsonWrittenError, json-error-write-info, json-error-written-bytes
   export JsonSemanticError, JsonSemanticInfo, json-semantic-info, json-error-semantic
   export json-semantic-action, json-semantic-offset, json-semantic-pointer, json-semantic-bytes, json-semantic-type
-  export json-semantic-info-with-value, json-semantic-info-with-optional-type, json-semantic-type-option, json-semantic-with-type, json-semantic-kind, json-semantic-kind-byte, json-semantic-reported-bytes, json-semantic-with-pointer, json-semantic-with-offset
+  export json-semantic-info-with-value, json-semantic-info-with-optional-type, json-semantic-type-option, json-semantic-with-type, json-semantic-field-path, json-semantic-with-field-path, json-semantic-kind, json-semantic-kind-byte, json-semantic-reported-bytes, json-semantic-with-pointer, json-semantic-with-offset
   export json-error-message, json-error-offset, json-error-path, json-error-type, json-error-value, json-error-cause
   export JsonNumber, json-zero-number, json-empty-number, json-number, json-number-text, json-number-int64, json-number-float64, json-number-float32
   export JsonRawMessage, json-raw-null, json-raw-from-bytes, json-raw-bytes, json-raw-replace
@@ -105,8 +105,8 @@ module Text.Json.Value where
 
   -- | Owned operation context for a conversion that stops at the first semantic failure.
   data JsonSemanticInfo where
-    -- | Private action, original byte offset, JSON pointer, exact token bytes, optional application type, lexical kind and reported value bytes.
-    SemanticInfo :: String -> Nat -> String -> Bytes -> Option String -> U8 -> Bytes -> JsonSemanticInfo
+    -- | Private action, original byte offset, JSON pointer, exact token bytes, optional application type, lexical kind, reported bytes and optional conventional field path.
+    SemanticInfo :: String -> Nat -> String -> Bytes -> Option String -> U8 -> Bytes -> Option String -> JsonSemanticInfo
 
   -- | Snapshot exact source bytes while constructing explicit semantic conversion metadata.
   json-semantic-info :: String -> Nat -> String -> Bytes -> String -> JsonSemanticInfo
@@ -130,11 +130,11 @@ module Text.Json.Value where
 
   -- | Snapshot exact semantic bytes while preserving absence of an application type independently of an empty label.
   json-semantic-info-with-optional-type :: String -> Nat -> String -> Bytes -> Option String -> U8 -> Bytes -> JsonSemanticInfo
-  json-semantic-info-with-optional-type action offset pointer input label kind reported = SemanticInfo action offset pointer (snapshot input 0 (bytes-len input)) label kind (snapshot reported 0 (bytes-len reported))
+  json-semantic-info-with-optional-type action offset pointer input label kind reported = SemanticInfo action offset pointer (snapshot input 0 (bytes-len input)) label kind (snapshot reported 0 (bytes-len reported)) None
 
   -- | Inspect the exact lexical kind byte, preserving true, false and unspecified distinctions.
   json-semantic-kind-byte :: JsonSemanticInfo -> U8
-  json-semantic-kind-byte info = case info of SemanticInfo action offset pointer input label kind reported -> kind
+  json-semantic-kind-byte info = case info of SemanticInfo action offset pointer input label kind reported field-path -> kind
 
   -- | Inspect the semantic source category while retaining exact lexical distinctions through the byte getter.
   json-semantic-kind :: JsonSemanticInfo -> JsonKind
@@ -146,27 +146,27 @@ module Text.Json.Value where
 
   -- | Export a fresh copy of the independently reported value, which may be empty despite retained original source bytes.
   json-semantic-reported-bytes :: JsonSemanticInfo -> Bytes
-  json-semantic-reported-bytes info = case info of SemanticInfo action offset pointer input label kind reported -> snapshot reported 0 (bytes-len reported)
+  json-semantic-reported-bytes info = case info of SemanticInfo action offset pointer input label kind reported field-path -> snapshot reported 0 (bytes-len reported)
 
   -- | Replace only the pointer while retaining immutable source, reported value and operation metadata.
   json-semantic-with-pointer :: JsonSemanticInfo -> String -> JsonSemanticInfo
-  json-semantic-with-pointer info next = case info of SemanticInfo action offset pointer input label kind reported -> SemanticInfo action offset next input label kind reported
+  json-semantic-with-pointer info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action offset next input label kind reported field-path
 
   -- | Inspect the conversion operation, such as marshal or unmarshal.
   json-semantic-action :: JsonSemanticInfo -> String
-  json-semantic-action info = case info of SemanticInfo action offset pointer input label kind reported -> action
+  json-semantic-action info = case info of SemanticInfo action offset pointer input label kind reported field-path -> action
 
   -- | Inspect the original zero-based byte offset at which semantic conversion began.
   json-semantic-offset :: JsonSemanticInfo -> Nat
-  json-semantic-offset info = case info of SemanticInfo action offset pointer input label kind reported -> offset
+  json-semantic-offset info = case info of SemanticInfo action offset pointer input label kind reported field-path -> offset
 
   -- | Inspect the escaped JSON pointer identifying the original source value.
   json-semantic-pointer :: JsonSemanticInfo -> String
-  json-semantic-pointer info = case info of SemanticInfo action offset pointer input label kind reported -> pointer
+  json-semantic-pointer info = case info of SemanticInfo action offset pointer input label kind reported field-path -> pointer
 
   -- | Export an independent copy of the original complete source token.
   json-semantic-bytes :: JsonSemanticInfo -> Bytes
-  json-semantic-bytes info = case info of SemanticInfo action offset pointer input label kind reported -> snapshot input 0 (bytes-len input)
+  json-semantic-bytes info = case info of SemanticInfo action offset pointer input label kind reported field-path -> snapshot input 0 (bytes-len input)
 
   -- | Inspect the application type as text, using empty text when no identity was supplied.
   json-semantic-type :: JsonSemanticInfo -> String
@@ -174,11 +174,19 @@ module Text.Json.Value where
 
   -- | Inspect the optional application identity without conflating absence and an explicitly empty label.
   json-semantic-type-option :: JsonSemanticInfo -> Option String
-  json-semantic-type-option info = case info of SemanticInfo action offset pointer input label kind reported -> label
+  json-semantic-type-option info = case info of SemanticInfo action offset pointer input label kind reported field-path -> label
 
   -- | Replace only optional application identity while retaining immutable source and reported-value owners.
   json-semantic-with-type :: JsonSemanticInfo -> Option String -> JsonSemanticInfo
-  json-semantic-with-type info next = case info of SemanticInfo action offset pointer input label kind reported -> SemanticInfo action offset pointer input next kind reported
+  json-semantic-with-type info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action offset pointer input next kind reported field-path
+
+  -- | Inspect conventional field context only when supplied independently from the precise semantic pointer.
+  json-semantic-field-path :: JsonSemanticInfo -> Option String
+  json-semantic-field-path info = case info of SemanticInfo action offset pointer input label kind reported field-path -> field-path
+
+  -- | Replace conventional field context while sharing immutable source, identity and reported-value owners.
+  json-semantic-with-field-path :: JsonSemanticInfo -> Option String -> JsonSemanticInfo
+  json-semantic-with-field-path info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action offset pointer input label kind reported next
 
   -- | Owned bytes already emitted and the logical compact prefix before a failing next value.
   data JsonWriteInfo where
@@ -199,7 +207,7 @@ module Text.Json.Value where
 
   -- | Replace only the semantic byte offset while sharing immutable token and reported-value owners.
   json-semantic-with-offset :: JsonSemanticInfo -> Nat -> JsonSemanticInfo
-  json-semantic-with-offset info next = case info of SemanticInfo action offset pointer input label kind reported -> SemanticInfo action next pointer input label kind reported
+  json-semantic-with-offset info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action next pointer input label kind reported field-path
 
   -- | Structured JSON syntax, type, configuration and custom conversion diagnostics.
   data JsonError where
@@ -292,7 +300,7 @@ module Text.Json.Value where
     JsonUnknownField name offset path -> path
     JsonCustomError label cause -> json-error-path cause
     JsonPathError path cause -> path
-    JsonSemanticError info cause -> json-semantic-pointer info
+    JsonSemanticError info cause -> case json-semantic-field-path info of None -> json-semantic-pointer info; Some path -> path
     other -> ""
 
   -- | Application type label associated with a conversion failure.

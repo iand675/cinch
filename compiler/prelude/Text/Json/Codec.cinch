@@ -375,8 +375,8 @@ module Text.Json.Codec where
   read-context-error options source error =
     if json-policy-enabled (json-read-policies options) JsonContinueAfterTypeErrors then error
     else case error of
-      JsonTypeError label actual offset path -> JsonSemanticError (json-semantic-info "unmarshal" (json-value-start source) "" (json-value-source source) label) error
-      JsonTypeCause label actual offset path cause -> JsonSemanticError (json-semantic-info "unmarshal" (json-value-start source) "" (json-value-source source) label) error
+      JsonTypeError label actual offset path -> JsonSemanticError (json-semantic-with-field-path (json-semantic-info "unmarshal" (json-value-start source) "" (json-value-source source) label) (Some path)) error
+      JsonTypeCause label actual offset path cause -> JsonSemanticError (json-semantic-with-field-path (json-semantic-info "unmarshal" (json-value-start source) "" (json-value-source source) label) (Some path)) error
       other -> error
 
   -- | Preserve an advanced application value while assigning source context to its ordinary refusal.
@@ -915,15 +915,26 @@ module Text.Json.Codec where
     Nil -> string-concat-all (reverse pieces)
     Cons first rest -> method-pointer-component rest (Cons (if char-code first == 126 then "~0" else if char-code first == 47 then "~1" else pack (Cons first Nil)) pieces)
 
+  -- | Extend precise pointers and explicitly supplied conventional field context independently.
+  semantic-context-info :: String -> String -> JsonSemanticInfo -> JsonSemanticInfo
+  semantic-context-info name conventional info =
+    let pointer = string-concat-all ["/", method-pointer-component (unpack name) Nil, json-semantic-pointer info] in
+    let updated = json-semantic-with-pointer info pointer in
+    case json-semantic-field-path info of
+      None -> updated
+      Some inner ->
+        let path = if inner == "" then conventional else case string-char-at inner 0 of Some character -> if char-code character == 91 then string-concat conventional inner else string-concat-all [conventional, ".", inner]; None -> conventional in
+        json-semantic-with-field-path updated (Some path)
+
   -- | Prepend one semantic pointer component while retaining its owned source and original cause.
   semantic-member-cause :: String -> JsonSemanticInfo -> JsonError -> JsonError
-  semantic-member-cause name info cause = JsonSemanticError (json-semantic-with-pointer info (string-concat-all ["/", method-pointer-component (unpack name) Nil, json-semantic-pointer info])) cause
+  semantic-member-cause name info cause = JsonSemanticError (semantic-context-info name name info) cause
 
   -- | Preserve returned method errors and use numeric pointer components for semantic sequence failures.
   index-cause :: Nat -> JsonError -> JsonError
   index-cause at error = case error of
     JsonWrittenError info cause -> JsonWrittenError info (index-cause at cause)
-    JsonSemanticError info cause -> semantic-member-cause (nat-to-string at) info cause
+    JsonSemanticError info cause -> JsonSemanticError (semantic-context-info (nat-to-string at) (string-concat-all ["[", nat-to-string at, "]"]) info) cause
     other -> case json-error-returned error of Some cause -> error; None -> record-member-path (string-concat-all ["[", nat-to-string at, "]"]) error
 
   -- | Add one sequence position to an existing structured error without losing its source offset.

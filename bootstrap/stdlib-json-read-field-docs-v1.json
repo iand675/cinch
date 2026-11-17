@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "scope": "Two bounded doc-only extractions for focused compatibility candidate; historical854 docs untouched.",
+  "modules": {
+    "Value": {
+      "source_sha256": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+      "declarations": 365,
+      "docs_sha256": "a1b55d357feee52fdf0873398a85fd445af254775982e9b97ce08c8c25cbb0ef"
+    },
+    "Codec": {
+      "source_sha256": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3",
+      "declarations": 373,
+      "docs_sha256": "ab8a8e8be4f71ae0d2489af1a4398706de914d66bd2ea1d42597848e7021b799"
+    }
+  },
+  "canonical_total_with_unchanged_other3": 857
+}

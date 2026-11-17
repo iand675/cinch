@@ -1,0 +1,20 @@
+{
+  "status": "actual-independent-reference",
+  "command": [
+    "taskset",
+    "-c",
+    "2",
+    "/tmp/cinch-go-current/go/bin/go",
+    "run",
+    "/workspace/dasl-stdlib-json/tooling/go_json_stop_context_vectors.go"
+  ],
+  "observer_sha256": "f6afd5031cbf0ab14c8f2b26885903f6782294d932fd7ed9d1e721b1e0c394f1",
+  "vectors_sha256": "17fe43442d5757c6683da257bb1b4d011cab0b6dc60de8bb5e0febdd21edb881",
+  "sdk": "go1.27.4",
+  "elapsed_seconds": 0.37163493598927744,
+  "rows": 4,
+  "output_bytes": 1194,
+  "prior1494_oracle_unchanged_sha256": "c4525fda0a20808f082b657575f89240e7b543f48fad18ed58507dabce27f2d7",
+  "cinch_execution": false,
+  "scope": "Precise false-policy semantic pointer and partial state; legacy field path distinct. Includes one minimal incomplete-syntax observation for mandatory next increment; no expected-output normalization."
+}

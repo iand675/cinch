@@ -1,0 +1,55 @@
+[
+  {
+    "family": "*json.UnmarshalTypeError",
+    "field": "a",
+    "input_hex": "7b2261223a22626164222c2262223a327d",
+    "legacy_errors": true,
+    "offset": 10,
+    "record": "pair",
+    "state": [
+      7,
+      2
+    ],
+    "text": "json: cannot unmarshal string into Go struct field pair.a of type int",
+    "type": "int",
+    "value": "string"
+  },
+  {
+    "family": "*json.SemanticError",
+    "input_hex": "7b2261223a22626164222c2262223a327d",
+    "kind": 34,
+    "legacy_errors": false,
+    "offset": 5,
+    "pointer_hex": "2f61",
+    "reported_hex": "",
+    "state": [
+      7,
+      8
+    ],
+    "text": "json: cannot unmarshal JSON string into Go int within \"/a\"",
+    "type": "int"
+  },
+  {
+    "family": "*json.SyntaxError",
+    "input_hex": "7b2261223a312c2262223a",
+    "legacy_errors": true,
+    "offset": 11,
+    "state": [
+      7,
+      8
+    ],
+    "text": "unexpected end of JSON input"
+  },
+  {
+    "family": "*jsontext.SyntacticError",
+    "input_hex": "7b2261223a312c2262223a",
+    "legacy_errors": false,
+    "offset": 11,
+    "pointer_hex": "2f62",
+    "state": [
+      1,
+      8
+    ],
+    "text": "jsontext: unexpected EOF within \"/b\" after offset 11"
+  }
+]
