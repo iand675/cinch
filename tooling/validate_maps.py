@@ -52,7 +52,7 @@ def main() -> None:
     parser.add_argument("--objects", type=Path)
     parser.add_argument("--cpu", type=int, default=0)
     parser.add_argument("--opt-level", choices=("0", "2"), default="2")
-    parser.add_argument("--modes", nargs="+", choices=("source", "region", "control", "trace", "float"), default=["control", "trace", "float"])
+    parser.add_argument("--modes", nargs="+", choices=("source", "region", "control", "effect", "trace", "float"), default=["control", "effect", "trace", "float"])
     parser.add_argument("--cases", nargs="+", type=int, choices=range(8), default=list(range(8)))
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -87,6 +87,8 @@ def main() -> None:
         jobs["region-source"] = (ROOT / "compiler/tests/fixtures/maps-region-source.cinch").read_text()
     if "control" in args.modes:
         jobs["control"] = (ROOT / "compiler/tests/fixtures/mutable-map-control.cinch").read_text()
+    if "effect" in args.modes:
+        jobs["effect"] = (ROOT / "compiler/tests/fixtures/mutable-map-effect-control.cinch").read_text()
     if "trace" in args.modes:
         jobs.update({f"trace-{index}": source(index) for index in args.cases})
     if "float" in args.modes:
