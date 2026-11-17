@@ -1,0 +1,170 @@
+-- | Direct transfer priority and advanced writer continuations under the reviewed combined effect row.
+module Main where
+  import Effect.Buffered
+  import Effect.Buffered.Internal.Cell as Cell
+  import Effect.Buffered.Core
+  import Effect.Buffered.Reader
+  import Effect.Buffered.Writer
+  import Effect.Scanner
+  import Effect.Scanner.Split
+  import Effect.Io
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Char
+  import Data.Int
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Compare arbitrary owned bytes without interpreting malformed UTF-8 as text.
+  same :: Bytes -> Bytes -> Bool
+  same first second = eq-i64 (bytes-compare first second) 0
+
+  -- | Snapshot a checked byte interval into independently mutable storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let output = bytes-new count in let copied = bytes-copy-range output input 0 at count in output
+    else bytes-new 0
+
+  -- | Produce a plain source whose authoritative cursor lives in its returned continuation.
+  source :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> BufferSource r
+  source input at chunk = buffer-source (\wanted -> source-read input at chunk wanted)
+
+  -- | Return bounded fragments and report ordinary end-of-input only after all source bytes have been delivered.
+  source-read :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Nat ->{IO r} (ReadEvent, BufferSource r)
+  source-read input at chunk wanted = if at < bytes-len input then
+    let remaining = bytes-len input - at in let limited = if remaining < wanted then remaining else wanted in
+    let count = if chunk > 0 && chunk < limited then chunk else limited in
+    (ReadEvent (nat-to-int count) (part input at count) None, source input (at + count) chunk)
+    else (ReadEvent 0 (bytes-new 0) (Some BufferEnd), source input at chunk)
+
+  -- | Count actual source callbacks without changing their authoritative continuation behavior.
+  counted-source :: forall r. using (io :: Io r) => BufferSource r -> Cell.IoCell r Nat -> BufferSource r
+  counted-source current calls = buffer-source-with-mutation (\wanted -> let saved = Cell.cell-write calls (Cell.cell-read calls + 1) in
+    case buffer-source-read current wanted of (event, next) -> (event, counted-source next calls))
+
+  -- | Construct a sink with an immutable output cursor; ordinary writes advertise no hidden transfer or flush capabilities.
+  sink :: forall r. using (io :: Io r) => Bytes -> Nat -> BufferSink r
+  sink output at = buffer-sink (\input -> sink-write output at input)
+
+  -- | Copy a complete offer into the current transport cursor and return the exact advanced sink.
+  sink-write :: forall r. using (io :: Io r) => Bytes -> Nat -> Bytes ->{IO r} (WriteEvent, BufferSink r)
+  sink-write output at input = let count = bytes-len input in
+    if at + count <= bytes-len output then
+      let copied = bytes-copy-range output input at 0 count in
+      (WriteEvent (nat-to-int count) None, sink output (at + count))
+    else (WriteEvent 0 (Some (BufferCustomError "fixture output capacity")), sink output at)
+
+  -- | Refuse after one confirmed byte, returning the sink's advanced continuation with the failure.
+  partial-sink :: forall r. using (io :: Io r) => Bytes -> Nat -> BufferSink r
+  partial-sink output at = buffer-sink (\input -> partial-write output at input)
+
+  -- | Preserve the accepted prefix and original failure without consuming the offered suffix.
+  partial-write :: forall r. using (io :: Io r) => Bytes -> Nat -> Bytes ->{IO r} (WriteEvent, BufferSink r)
+  partial-write output at input = if at < bytes-len output && bytes-len input > 0 then
+    let copied = bytes-copy-range output input at 0 1 in
+    (WriteEvent 1 (Some (BufferCustomError "partial-once")), sink output (at + 1))
+    else (WriteEvent 0 (Some (BufferCustomError "partial-once")), sink output at)
+
+  -- | Check a complete successful raw write independently of later output flushing.
+  written :: WriteEvent -> Int -> Bool
+  written event expected = case event of WriteEvent count None -> count == expected; other -> False
+
+  -- | Observe a successful single byte through its exact unsigned carrier.
+  byte-is :: Result BufferError U8 -> U8 -> Bool
+  byte-is event expected = case event of Ok value -> eq-u8 value expected; other -> False
+
+  -- | Count invoked shortcuts independently of ordinary source callbacks and byte offers.
+  bump-counter :: forall r. Cell.IoCell r Nat ->{IO r} Unit
+  bump-counter calls = Cell.cell-write calls (Cell.cell-read calls + 1)
+
+  -- | Preserve a checked nonnegative transfer count and its original failure independently.
+  transfer-event :: Nat -> Option BufferError -> TransferEvent
+  transfer-event count failure = case checked-nat-to-i64 count of
+    Some value -> TransferEvent value failure
+    None -> TransferEvent 0 (Some (BufferCustomError "fixture transfer count exceeds signed64"))
+
+  -- | Execute a source-owned transfer exactly once and drop the optional shortcut on its returned exhausted source.
+  fast-source-step :: forall r. using (io :: Io r) => Bytes -> Cell.IoCell r Nat -> (Bytes ->{IO r} WriteEvent) ->{IO r, Mut r} (TransferEvent, BufferSource r)
+  fast-source-step payload calls write = let counted = bump-counter calls in
+    case write payload of
+      WriteEvent reported failure -> case checked-int-to-i64 reported of
+        Some value -> (TransferEvent value failure, source (bytes-new 0) 0 0)
+        None -> (TransferEvent 0 (Some (BufferCustomError "fixture source count exceeds signed64")), source (bytes-new 0) 0 0)
+
+  -- | Advertise WriterTo while recording whether an ordinary raw read occurs before the shortcut.
+  fast-source :: forall r. using (io :: Io r) => Bytes -> Cell.IoCell r Nat -> Cell.IoCell r Nat -> BufferSource r
+  fast-source payload reads calls = buffer-source-with-transfer (counted-source (source payload 0 0) reads) (\write -> fast-source-step payload calls write)
+
+  -- | Preserve ReaderFrom across ordinary writes so a full buffer can flush before the later shortcut.
+  fast-sink :: forall r. using (io :: Io r) => Bytes -> Nat -> Cell.IoCell r Nat -> BufferSink r
+  fast-sink output at calls = buffer-sink-with-transfer (buffer-sink (\input -> fast-sink-write output at calls input)) (\read -> let counted = bump-counter calls in fast-drain read output at 0)
+
+  -- | An ordinary complete write advances the sink while truthfully retaining its shortcut capability.
+  fast-sink-write :: forall r. using (io :: Io r) => Bytes -> Nat -> Cell.IoCell r Nat -> Bytes ->{IO r} (WriteEvent, BufferSink r)
+  fast-sink-write output at calls input = let count = bytes-len input in
+    if at + count <= bytes-len output then let copied = bytes-copy-range output input at 0 count in
+      (WriteEvent (nat-to-int count) None, fast-sink output (at + count) calls)
+    else (WriteEvent 0 (Some (BufferCustomError "fixture fast sink capacity")), fast-sink output at calls)
+
+  -- | Read the actual supplied combined-effect callback, preserving positive prefixes, errors and the advanced destination.
+  fast-drain :: forall r. using (io :: Io r) => (Nat ->{IO r, Mut r} ReadEvent) -> Bytes -> Nat -> Nat ->{IO r, Mut r} (TransferEvent, BufferSink r)
+  fast-drain read output at total = case read 4 of
+    event -> case buffer-read-accepted 4 event of
+      Err failure -> (transfer-event total (Some failure), sink output at)
+      Ok count -> case event of
+        ReadEvent reported payload status -> if at + count <= bytes-len output && count <= bytes-len payload then
+          let copied = bytes-copy-range output payload at 0 count in
+          let position = at + count in let accepted = total + count in
+          case status of
+            Some BufferEnd -> (transfer-event accepted None, sink output position)
+            Some failure -> (transfer-event accepted (Some failure), sink output position)
+            None -> if count > 0 then fast-drain read output position accepted
+              else (transfer-event accepted (Some BufferNoProgress), sink output position)
+          else (transfer-event total (Some (BufferCustomError "fixture drain capacity")), sink output at)
+
+  -- | Reader.WriteTo selects source WriterTo before sink ReaderFrom and preserves returned capability changes.
+  source-before-sink :: forall r. using (io :: Io r) => Unit ->{IO r, Mut r} Bool
+  source-before-sink unit = let reads = Cell.cell-new (0 :: Nat) in let source-calls = Cell.cell-new (0 :: Nat) in let sink-calls = Cell.cell-new (0 :: Nat) in
+    let output = bytes-new 2 in let input = fast-source (string-to-bytes "AB") reads source-calls in
+    case buffered-write-to (buffered-reader input) (fast-sink output 0 sink-calls) of
+      (TransferEvent count None, reader, destination) -> eq-i64 count 2 && same output (string-to-bytes "AB") && Cell.cell-read source-calls == 1 && Cell.cell-read sink-calls == 0 && Cell.cell-read reads == 0 && buffer-sink-has-transfer destination
+      other -> False
+
+  -- | A reader without WriterTo delegates to sink ReaderFrom and lets that sink control actual source request widths.
+  sink-fallback :: forall r. using (io :: Io r) => Unit ->{IO r, Mut r} Bool
+  sink-fallback unit = let reads = Cell.cell-new (0 :: Nat) in let calls = Cell.cell-new (0 :: Nat) in
+    let output = bytes-new 2 in let input = counted-source (source (string-to-bytes "AB") 0 0) reads in
+    case buffered-write-to (buffered-reader input) (fast-sink output 0 calls) of
+      (TransferEvent count None, reader, destination) -> eq-i64 count 2 && same output (string-to-bytes "AB") && Cell.cell-read calls == 1 && Cell.cell-read reads == 2 && not (buffer-sink-has-transfer destination)
+      other -> False
+
+  -- | Writer.ReadFrom uses an empty writer's underlying shortcut and retains its authoritative advanced plain sink.
+  empty-writer-shortcut :: forall r. using (io :: Io r) => Unit ->{IO r, Mut r} Bool
+  empty-writer-shortcut unit = let calls = Cell.cell-new (0 :: Nat) in let output = bytes-new 2 in
+    let writer = buffered-writer-sized 2 (fast-sink output 0 calls) in
+    case buffered-read-from writer (source (string-to-bytes "AB") 0 0) of
+      (TransferEvent count None, next, source) -> eq-i64 count 2 && same output (string-to-bytes "AB") && Cell.cell-read calls == 1 && buffered-writer-buffered next == 0 && not (buffer-sink-has-transfer (buffered-writer-sink next))
+      other -> False
+
+  -- | Existing buffered output fills and flushes first; the later shortcut starts at that advanced sink and excludes the old prefix from its count.
+  advanced-writer-shortcut :: forall r. using (io :: Io r) => Unit ->{IO r, Mut r} Bool
+  advanced-writer-shortcut unit = let calls = Cell.cell-new (0 :: Nat) in let reads = Cell.cell-new (0 :: Nat) in let output = bytes-new 4 in
+    let writer = buffered-writer-sized 2 (fast-sink output 0 calls) in
+    case buffered-write-byte writer 80 of
+      (None, pending) -> case buffered-read-from pending (counted-source (source (string-to-bytes "ABC") 0 0) reads) of
+        (TransferEvent count None, next, source) -> eq-i64 count 3 && same output (string-to-bytes "PABC") && Cell.cell-read calls == 1 && Cell.cell-read reads == 3 && buffered-writer-buffered next == 0 && not (buffer-sink-has-transfer (buffered-writer-sink next))
+        other -> False
+      other -> False
+
+  -- | The callbacks are intentionally not retained into the opposite returned handle, so this test does not hide the known cross-retention cycle.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in
+    if not (source-before-sink ()) then 1
+    else if not (sink-fallback ()) then 2
+    else if not (empty-writer-shortcut ()) then 3
+    else if not (advanced-writer-shortcut ()) then 4
+    else 0

@@ -1,0 +1,29 @@
+-- | Source-only genuine native multipart compositions retain their actual region, mutation and opaque error parameters.
+module Main where
+  import Experiment.Buffered.Multipart
+  import Effect.Multipart
+  import Effect.Buffered.Core
+  import Effect.Buffered.Reader
+  import Effect.Buffered.Writer
+  import Effect.Scanner
+  import Effect.Io
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.Nat
+
+  -- | The ordinary reader directly consumes a live native part through the both-effect source factory.
+  read-part :: forall (r :: Region) e. using (io :: Io r) => MultipartPart r e -> (MultipartError e -> BufferError) -> Nat ->{IO r, Mut r} (ReadEvent, BufferedReader r)
+  read-part part mapper wanted = buffered-read (buffered-reader (multipart-part-buffer-source part mapper)) wanted
+
+  -- | The ordinary writer ReaderFrom path accepts a native file without a byte snapshot or an effect cast.
+  copy-file :: forall (r :: Region) e key fileHandle state. using (io :: Io r) => BufferedWriter r -> MultipartFile r e key fileHandle state -> (MultipartError e -> BufferError) ->{IO r, Mut r} (TransferEvent, BufferedWriter r, BufferSource r)
+  copy-file writer file mapper = buffered-read-from writer (multipart-file-buffer-source file mapper)
+
+  -- | The ordinary scanner sees live native part progress and retains the native mapper's error policy.
+  scan-part :: forall (r :: Region) e. using (io :: Io r) => MultipartPart r e -> (MultipartError e -> BufferError) ->{IO r, Mut r} (Bool, Scanner r)
+  scan-part part mapper = scanner-next (scanner (multipart-part-buffer-source part mapper))
+
+  -- | This gate proves the concrete callback composition; runtime ownership and prefix/error tests follow separately.
+  main :: Int
+  main = 0

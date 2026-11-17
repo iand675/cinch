@@ -1,0 +1,10 @@
+-- | A callback requiring mutation cannot be stored in an IO-only legacy source constructor.
+module Main where
+  import Effect.Buffered.Core
+  import Data.Nat
+  -- | This deliberate refusal prevents erasure of a genuinely combined callback's effect row.
+  bad :: forall r. (Nat ->{IO r, Mut r} (ReadEvent, BufferSource r)) -> BufferSource r
+  bad step = buffer-source step
+  -- | Source-only refusal sentinel.
+  main :: Int
+  main = 0

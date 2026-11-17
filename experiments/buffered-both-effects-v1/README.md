@@ -33,3 +33,15 @@ Their adapter must retain the actual part/file handle, forward each read at invo
 This fixed both-effect model has a compatibility cost: existing IO-only callers of these consuming methods need the additional effect. A general row-indexed source is an alternative only after its support is demonstrated. This experiment makes no such assumption. Runtime, effect-refusal, live adapter, callback/owner and complete-corpus gates follow API review. The separately recorded 22-block retained-callback cycle still blocks promotion; no runtime collection behavior has changed.
 
 Both complete source/type/proof gates are now green in `gates.json`: actual frozen 855/c4 and raw 2f with its admitted interfaces. This supersedes the creation-time pending status recorded in the immutable checked manifest. The earlier private transfer-callback annotation diagnostic is retained. No runtime, effect-refusal, real multipart adapter or promotion result is implied by these declaration gates.
+
+The separate `composition-gates.json` now records twelve additional exact source gates. Both frontends accept the concrete `MultipartAdapter.cinch` composition through ordinary Reader/Writer/Scanner consumers, and both accept the complete `TransferPriority.cinch` assertion bodies. Eight negative gates reject the four deliberate attempts to erase mutation: the legacy IO-only source constructor, an IO-only general reader, an IO-only ReaderFrom callback invocation, and an IO-only native multipart-part read. These are source checks, not executed assertions. Verify the saved compiler verdicts without repeating compilation:
+
+```sh
+python3 experiments/buffered-both-effects-v1/verify_composition.py
+```
+
+The Native concrete composition uses Compare's admitted 2f/V2 snapshot with interface hash `229ee932...`, object-manifest hash `36d5ec97...` and runtime `80bd5b54...`, plus its exact frozen multipart source closure. The prior whole-family source check used the distinct `1d22...` interface epoch; these receipts retain both identities separately. `check.py --native-snapshot` and `--dependency-snapshot` select the explicit matched tuple and source closure. No snapshot or provider is modified.
+
+The first Native legacy-constructor check correctly reported `type mismatch: expected {(IO r)}, found {(IO r), (Mut r)}`. Its original harness expected the words “effect” or “row” and therefore rejected the wording. The source/compiler result is preserved; the corrected verifier recognizes that precise effect mismatch without rerunning the compiler or accepting an unrelated parse/import failure.
+
+The priority fixture asserts source WriterTo before sink ReaderFrom, the sink fallback when WriterTo is absent, delegation from an empty writer, and a pending prefix that fills/flushes before delegation starts at the advanced destination. Returned capability drops and counts excluding the earlier prefix are observable. Runtime, shared live native aliases, prefix-plus-error behavior, caller-owned file close, retained callbacks and complete corpus gates remain pending. The known retention cycle still blocks promotion.
