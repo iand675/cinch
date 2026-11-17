@@ -1,0 +1,77 @@
+{
+  "kind": "bounded-UUID-candidate-qualification",
+  "mode": "v7",
+  "start": 0,
+  "count": 128,
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+  "runner_sha256": "008a2202f97ca753fe6b780d868af2b47ebf1773a8f5d136ece051b409b081f5",
+  "sources": {
+    "Data.Uuid": "38619d23bee0e0495024fd3ce247b397a60919fd237b66afabd3f25f46aa88fa",
+    "Effect.Uuid": "2eefff67da944364e12d29d6775afb693b7d183a6afbcaf8ee2b0687bbc372fa",
+    "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Effect.Random": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+    "Effect.Clock": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
+    "Effect.Concurrent.MVar": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e"
+  },
+  "fixture_sha256": "af3900f51bd4ed04fc660d988bfa4a36391cac5c58eb9cc3cde2c638df90a44e",
+  "consumer_sha256": "a4ebaa669440346fdc7023d7da8976212ec1f53c7bc0a5c4184e6b9a9348e793",
+  "candidate_selected": false,
+  "package_complete": false,
+  "native_family_relabelled": false,
+  "cpu_affinity": [
+    1
+  ],
+  "free_before": 370212864,
+  "status": "passed",
+  "runs": [
+    {
+      "command": [
+        "/workspace/dasl-stdlib-uuid/build/uuid-v7-a1/consumer"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=12604 bytes=269277 peak=861 header-blocks=12544 header-bytes=267752 immortal=0 freed=12544 live=0\n",
+      "seconds": 0.002178143011406064,
+      "poisoned_free": false,
+      "heap": "32M",
+      "stack": "8M"
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-uuid/build/uuid-v7-a1/consumer"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=12604 bytes=269277 peak=267997 header-blocks=12544 header-bytes=267752 immortal=0 freed=12544 live=0\n",
+      "seconds": 0.004123200022149831,
+      "poisoned_free": true,
+      "heap": "256M",
+      "stack": "8M"
+    }
+  ],
+  "compile": {
+    "command": [
+      "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+      "build",
+      "/workspace/dasl-stdlib-uuid/build/uuid-v7-a1/Main.cinch",
+      "-o",
+      "/workspace/dasl-stdlib-uuid/build/uuid-v7-a1/consumer",
+      "--runtime-archive",
+      "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+      "--opt-level",
+      "2"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "seconds": 3.589849215000868
+  },
+  "executable_sha256": "be18aba1ca1cfdc786a6f8cce7d8f60452c6b3638d5d5f359eed87c840f14512",
+  "llvm_sha256": "0c91c08f2a65b1d639b348a331201347f9bd46616ea05c24e8ed4668a5a258e1",
+  "output_bytes": 8374262,
+  "free_after": 361635840,
+  "scope": "Only9 independent V7 sequences on exact330/d91; source comments subsequently corrected for canonical instance documentation, with executable input snapshots preserved."
+}

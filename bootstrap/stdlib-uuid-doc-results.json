@@ -1,0 +1,16 @@
+{
+  "Data.Uuid": {
+    "source_sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+    "exit": 0,
+    "diagnostics": [],
+    "orphans": [],
+    "canonical_declarations": 41
+  },
+  "Effect.Uuid": {
+    "source_sha256": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
+    "exit": 0,
+    "diagnostics": [],
+    "orphans": [],
+    "canonical_declarations": 6
+  }
+}

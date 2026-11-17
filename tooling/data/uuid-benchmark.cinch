@@ -1,0 +1,140 @@
+-- | Complete identifier pipelines with bounded machine loops and observable result fingerprints.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Machine
+  import Data.Uuid
+  import Data.Bytes
+  import Data.String
+  import Data.Char
+  import Data.Ordering
+  import Effect.Clock
+  import Effect.Process
+
+  -- | Two prepared values, their selected texts and an arbitrary immutable-prefix source.
+  data Inputs where
+    -- | Retain all setup objects outside the measured interval.
+    Prepared :: Uuid -> Uuid -> String -> String -> Bytes -> Inputs
+
+  -- | Advance the bounded machine counter without allocating natural loop metadata.
+  prim bump :: U32 -> U32 where
+    llvm { %next = add i32 %0, 1
+      ret i32 %next
+    }
+
+  -- | Compare loop metadata with unsigned machine order.
+  prim before :: U32 -> U32 -> Bool where
+    llvm { %yes = icmp ult i32 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Alternate prepared inputs without a division or remainder wrapper.
+  prim phase :: U32 -> Bool where
+    llvm { %bit = and i32 %0, 1
+      %yes = icmp eq i32 %bit, 0
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Keep a complete unsigned wrapping checksum of observed operation results.
+  prim mix :: U64 -> U64 -> U64 where
+    llvm { %a = xor i64 %0, %1
+      %result = mul i64 %a, 1099511628211
+      ret i64 %result
+    }
+
+  -- | Convert only bounded observation counts into machine checksum words.
+  word :: Nat -> U64
+  word value = if value <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 value) else 0
+
+  -- | Preserve all unsigned checksum bits for decimal reporting outside timing.
+  natural :: U64 -> Nat
+  natural value = u32-to-nat (wrapping-u64-to-u32 value) + u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 value 32)) * 4294967296
+
+  -- | Read a present observation byte without changing arbitrary-prefix interpretation.
+  sample :: Bytes -> Nat -> Nat
+  sample bytes index = if index < bytes-len bytes then bytes-get bytes index else 0
+
+  -- | Observe result allocation length and boundary/middle bytes without an extra complete hash traversal.
+  fingerprint :: Bytes -> U64
+  fingerprint bytes = let size = bytes-len bytes in word (size + sample bytes 0 + sample bytes (nat-div size 2) + sample bytes (saturating-sub size 1))
+
+  -- | Parse harness decimal metadata before the measured operation loop.
+  decimal :: List Char -> Nat -> Nat
+  decimal chars value = case chars of Nil -> value; Cons char rest -> case digit-value char of None -> 0; Some digit -> decimal rest (value * 10 + digit)
+
+  -- | Select one prepared input text; no string preparation occurs in this helper.
+  selected-text :: Inputs -> Bool -> String
+  selected-text inputs first = case inputs of Prepared a b x y prefix -> if first then x else y
+
+  -- | Select one prepared immutable identifier value.
+  selected-value :: Inputs -> Bool -> Uuid
+  selected-value inputs first = case inputs of Prepared a b x y prefix -> if first then a else b
+
+  -- | Keep complete parse and fresh mutable value-snapshot costs observable.
+  parse-loop :: Inputs -> U32 -> U32 -> U64 -> U64
+  parse-loop inputs count index checksum =
+    if before index count then
+      let result = case uuid-parse (selected-text inputs (phase index)) of Err error -> 4294967295; Ok value -> fingerprint (uuid-to-bytes value) in
+      parse-loop inputs count (bump index) (mix checksum result)
+    else checksum
+
+  -- | Observe the complete canonical byte-rendering pipeline.
+  format-loop :: Inputs -> U32 -> U32 -> U64 -> U64
+  format-loop inputs count index checksum =
+    if before index count then let result = fingerprint (uuid-marshal-text (selected-value inputs (phase index))) in format-loop inputs count (bump index) (mix checksum result)
+    else checksum
+
+  -- | Include immutable prefix copying and canonical suffix generation in the public append cost.
+  append-loop :: Inputs -> U32 -> U32 -> U64 -> U64
+  append-loop inputs count index checksum =
+    if before index count then case inputs of
+      Prepared a b x y prefix ->
+        let result = case uuid-append-text prefix (selected-value inputs (phase index)) of Err error -> 4294967295; Ok bytes -> fingerprint bytes in
+        append-loop inputs count (bump index) (mix checksum result)
+    else checksum
+
+  -- | Compare already prepared complete values without hiding representation conversion inside the loop.
+  compare-loop :: Inputs -> U32 -> U32 -> U64 -> U64
+  compare-loop inputs count index checksum =
+    if before index count then case inputs of
+      Prepared a b x y prefix ->
+        let result = case uuid-compare (selected-value inputs (phase index)) b of LT -> 0; EQ -> 1; GT -> 2 in
+        compare-loop inputs count (bump index) (mix checksum result)
+    else checksum
+
+  -- | Fill deterministic prefix bytes only during untimed preparation.
+  fill-prefix :: Bytes -> Nat -> Unit
+  fill-prefix bytes index = if index < bytes-len bytes then let changed = bytes-set bytes index (nat-rem (index * 73 + 19) 256) in fill-prefix bytes (index + 1) else ()
+
+  -- | Decode a known setup literal without adding an error branch to the operation loop.
+  known :: String -> Uuid
+  known text = case uuid-parse text of Ok value -> value; Err error -> uuid-nil
+
+  -- | Prepare canonical, compact, URN, brace or invalid parse workloads and append-prefix sizes.
+  prepare :: Nat -> Nat -> Inputs
+  prepare pattern size =
+    let a = known "f81d4fae-7dec-11d0-a765-00a0c91e6bf6" in
+    let b = known "081d4fae-7dec-11d0-a765-00a0c91e6bf7" in
+    let x = if pattern == 1 then "f81d4fae7dec11d0a76500a0c91e6bf6" else if pattern == 2 then "urn:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6" else if pattern == 3 then "{f81d4fae-7dec-11d0-a765-00a0c91e6bf6}" else if pattern == 4 then "f81d4fae-7dec-11d0-a765-00a0c91e6bfx" else "f81d4fae-7dec-11d0-a765-00a0c91e6bf6" in
+    let y = if pattern == 1 then "081d4fae7dec11d0a76500a0c91e6bf7" else if pattern == 2 then "urn:uuid:081d4fae-7dec-11d0-a765-00a0c91e6bf7" else if pattern == 3 then "{081d4fae-7dec-11d0-a765-00a0c91e6bf7}" else if pattern == 4 then "081d4fae-7dec-11d0-a765-00a0c91e6bfx" else "081d4fae-7dec-11d0-a765-00a0c91e6bf7" in
+    let prefix = bytes-new size in let filled = fill-prefix prefix 0 in Prepared a b x y prefix
+
+  -- | Dispatch once to a complete public pipeline with bounded iteration/checksum metadata.
+  perform :: String -> Inputs -> U32 -> U64
+  perform mode inputs count = if mode == "parse" then parse-loop inputs count 0 14695981039346656037 else if mode == "format" then format-loop inputs count 0 14695981039346656037 else if mode == "append" then append-loop inputs count 0 14695981039346656037 else compare-loop inputs count 0 14695981039346656037
+
+  -- | Report real monotonic elapsed time and exact result fingerprint; setup is outside the clock.
+  measure :: forall (r :: Region). using (io :: Io r) => String -> Nat -> Nat -> Nat ->{IO r} Int
+  measure mode size iterations pattern = if iterations <= 4294967295 then
+    let inputs = prepare pattern size in let count = wrapping-i64-to-u32 (nat-to-i64 iterations) in
+    let start = clock-monotonic-ns () in let checksum = perform mode inputs count in let end = clock-monotonic-ns () in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string (natural checksum)) "\n")))) in 0
+    else 2
+
+  -- | Read mode, prefix length, bounded iteration count and input-form pattern without changing operation behavior.
+  main :: forall (r :: Region). Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Err error -> 2
+    Ok args -> case args of Cons mode (Cons size (Cons iterations (Cons pattern Nil))) -> measure mode (decimal (unpack size) 0) (decimal (unpack iterations) 0) (decimal (unpack pattern) 0); other -> 2

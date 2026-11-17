@@ -1,0 +1,28 @@
+{
+  "sdk": "go1.27.4",
+  "source_sha256": "9145fd78f241b7d8821a3b7d60149c34c66208e74123380b28dbb2517c980cd9",
+  "build_command": [
+    "/tmp/cinch-go-current/go/bin/go",
+    "test",
+    "-c",
+    "-o",
+    "/workspace/dasl-stdlib-uuid/build/uuid-reference/oracle",
+    "/workspace/dasl-stdlib-uuid/tooling/go_uuid_vectors_test.go"
+  ],
+  "build_exit": 0,
+  "build_stdout": "",
+  "build_stderr": "",
+  "build_seconds": 9.597607746982248,
+  "free_before": 441782272,
+  "executable_sha256": "2c7e991847514e53f6e2f7a0629c8f106c4b1c8d5ae67b8e2f5efe65acc6fae1",
+  "run_exit": 0,
+  "run_stdout": "=== RUN   TestVectors\nuuid vectors: 660 parse, 204 append, 370 compare, 9 V7 clocks, 48 actual generations\n--- PASS: TestVectors (0.01s)\nPASS\n",
+  "run_stderr": "",
+  "fixture_sha256": "af3900f51bd4ed04fc660d988bfa4a36391cac5c58eb9cc3cde2c638df90a44e",
+  "own_output_bytes": 5833064,
+  "free_after": 417198080,
+  "exact_executed_source": "bootstrap/repros/uuid-reference-initial/oracle_test.go",
+  "formatted_generator": "tooling/go_uuid_vectors_test.go",
+  "formatted_generator_sha256": "2c78b8a4e74c050ef4a280c25695134ba32ff88d9bcac37a0a54b514436733af",
+  "formatting_scope": "Formatting and explanatory comments only after the original SDK run; exact executed source is preserved separately. Current formatted generator awaits cached rebuild."
+}
