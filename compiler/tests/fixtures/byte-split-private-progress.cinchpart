@@ -1,0 +1,22 @@
+
+  export byte-split-test-progress
+
+  -- | Observe monotonic private field roundtrips and untouched status bytes in a test-only source copy.
+  progress-roundtrips :: Bytes -> List Nat -> Bool
+  progress-roundtrips progress values = case values of
+    Nil -> True
+    Cons value rest -> let first = store-count progress 0 value in let second = store-count progress 8 value in
+      let left = read-count progress 0 in let right = read-count progress 8 in
+      let status = if 16 < bytes-len progress then bytes-get progress 16 else 0 in
+      let last = if 23 < bytes-len progress then bytes-get progress 23 else 1 in
+      left == value && right == value && status == 173 && last == 0 && progress-roundtrips progress rest
+
+  -- | Check exact field-width transitions, the largest offset, length-plus-one sentinel and atomic short-buffer guards.
+  byte-split-test-progress :: Unit -> Bool
+  byte-split-test-progress unit = let progress = bytes-new 24 in
+    let marked = if 16 < bytes-len progress then bytes-set progress 16 173 else () in
+    let exact = progress-roundtrips progress [0,1,254,255,256,257,65534,65535,65536,65537,9223372036854775807,9223372036854775808] in
+    let short = bytes-new 7 in let marker = if 0 < bytes-len short then bytes-set short 0 17 else () in
+    let refused = store-count short 0 255 in let huge = store-count short 9223372036854775807 255 in
+    let unread = read-count short 0 in
+    exact && unread == 0 && (if 0 < bytes-len short then bytes-get short 0 == 17 else False)

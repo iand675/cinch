@@ -1,0 +1,130 @@
+-- | Changed-input public splitting pipelines with complete fragment-boundary observations.
+module Main where
+  import Data.Bytes.Split
+  import Data.Bytes.View
+  import Data.Bytes
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Producer
+  import Data.Result
+  import Data.String
+  import Effect.Clock
+  import Effect.Process
+  import Text.Hex
+
+  -- | Parse validated decimal sizes outside the measured interval.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+  -- | Accumulate decimal digits in ordinary tail position.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons first rest -> case digit-value first of
+      None -> 0
+      Some digit -> let next = value * 10 + digit in decimal-from rest next
+
+  -- | Select deterministic input bytes with dense, sparse, shared-prefix, scalar and line cases.
+  input-byte :: String -> Nat -> Nat -> InRange 0 255 Nat
+  input-byte name size at = if name == "dense" then (if nat-rem at 2 == 0 then 97 else 44)
+    else if name == "sparse" then (if at + 1 == size then 44 else 97)
+    else if name == "prefix" then (if at + 1 == size then 98 else 97)
+    else if name == "lines" then
+      let lane = nat-rem at 5 in if lane == 0 then 97 else if lane == 1 then 13 else if lane == 2 then 10 else if lane == 3 then 98 else 10
+    else let lane = nat-rem at 8 in
+      if lane == 0 then 97 else if lane == 1 then 240 else if lane == 2 then 159 else if lane == 3 then 153
+      else if lane == 4 then 130 else if lane == 5 then 255 else if lane == 6 then 195 else 169
+
+  -- | Fill input storage outside all clock readings through checked stores.
+  fill :: String -> Bytes -> Nat -> Unit
+  fill name raw at = if at < bytes-len raw then
+    let value = input-byte name (bytes-len raw) at in let written = bytes-set raw at value in
+    let next = at + 1 in fill name raw next else ()
+
+  -- | Fill the deliberately shared-prefix delimiter before timing.
+  fill-prefix :: Bytes -> Nat -> Unit
+  fill-prefix raw at = if at < bytes-len raw then
+    let value = ((if at + 1 == bytes-len raw then 98 else 97) :: InRange 0 255 Nat) in
+    let written = bytes-set raw at value in let next = at + 1 in fill-prefix raw next else ()
+
+  -- | Build each raw delimiter outside the measured interval.
+  separator :: String -> Bytes
+  separator name = if name == "utf8" then bytes-new 0
+    else if name == "prefix" then let raw = bytes-new 257 in let filled = fill-prefix raw 0 in raw
+    else bytes-from-u8s [44]
+
+  -- | Combine bounded public fragment observations without allocating mathematical checksum intermediates.
+  prim hash-part :: U64 -> I64 -> U8 -> U8 -> U64 where
+    llvm {
+      %first = zext i8 %2 to i64
+      %last = zext i8 %3 to i64
+      %a = mul i64 %0, 65599
+      %b = mul i64 %1, 257
+      %c = mul i64 %first, 17
+      %d = add i64 %a, %b
+      %e = add i64 %d, %c
+      %f = add i64 %e, %last
+      %result = add i64 %f, 1
+      ret i64 %result
+    }
+
+  -- | Include every fragment boundary and its endpoint bytes in an observable public checksum.
+  part :: U64 -> ByteView -> U64
+  part total view = let size = byte-view-length view in
+    let first = ((case byte-view-get view 0 of None -> 0; Some value -> value) :: U8) in
+    let last = ((case byte-view-get view (saturating-sub size 1) of None -> 0; Some value -> value) :: U8) in
+    if size <= 9223372036854775807 then let width = nat-to-i64 size in hash-part total width first last else 0
+
+  -- | Consume a complete materialized fragment list before returning from the operation.
+  list-fold :: List ByteView -> U64 -> U64
+  list-fold values total = case values of Nil -> total; Cons value rest -> let next = part total value in list-fold rest next
+
+  -- | Consume a complete explicit shared-progress pull cursor.
+  cursor-fold :: ByteSplitCursor -> U64 -> U64
+  cursor-fold cursor total = case byte-split-next cursor of None -> total; Some value -> let next = part total value in cursor-fold cursor next
+
+  -- | Exercise the selected public pipeline, including each per-operation result's normal destruction.
+  operation :: String -> String -> Bytes -> Bytes -> BytePattern -> U64
+  operation kind name raw delimiter pattern = let view = bytes-view raw in
+    if name == "lines" then prod-fold 0 part (bytes-lines raw)
+    else if kind == "list" then list-fold (bytes-split raw delimiter) 0
+    else if kind == "producer" then prod-fold 0 part (bytes-split-seq raw delimiter)
+    else if kind == "cursor" then let factory = bytes-split-factory SplitBefore None raw delimiter in
+      cursor-fold (byte-split-cursor factory) 0
+    else let factory = byte-view-split-pattern-factory SplitBefore None view pattern in
+      prod-fold 0 part (byte-split-producer factory)
+
+  -- | Mutate checked input before each public operation so repeated traversals cannot be hoisted.
+  work :: String -> String -> Bytes -> Bytes -> BytePattern -> Nat -> Nat -> U64 -> U64
+  work kind name raw delimiter pattern left index total = if left == 0 then total else
+    let byte = ((if nat-rem index 2 == 0 then 121 else 122) :: InRange 0 255 Nat) in
+    let changed = if 0 < bytes-len raw then bytes-set raw 0 byte else () in
+    let value = operation kind name raw delimiter pattern in
+    let next-total = wrapping-add-u64 total value in
+    let remaining = left - 1 in let next-index = index + 1 in
+    work kind name raw delimiter pattern remaining next-index next-total
+
+  -- | Render a complete checksum outside the clocks without discarding its upper half.
+  word-nat :: U64 -> Nat
+  word-nat word = let low = wrapping-u64-to-u32 word in let upper = wrapping-shr-u64 word 32 in
+    let high = wrapping-u64-to-u32 upper in u32-to-nat low + 4294967296 * u32-to-nat high
+
+  -- | Time changed public pipelines, retaining original input and compiled-pattern hashes outside timing.
+  measure :: forall r. using (io :: Io r) => String -> String -> Nat -> Nat ->{IO r} Int
+  measure kind name size iterations = let raw = bytes-new size in let initialized = fill name raw 0 in
+    let delimiter = separator name in let pattern = bytes-compile-pattern delimiter in
+    let original = hex-encode (sha256-bytes raw) in let start = clock-monotonic-ns () in
+    let checksum = work kind name raw delimiter pattern iterations 0 0 in let finish = clock-monotonic-ns () in
+    let retained = hex-encode (sha256-bytes raw) in let stable = hex-encode (sha256-bytes (byte-pattern-bytes pattern)) in
+    let elapsed = saturating-sub finish start in let complete = word-nat checksum in
+    let output = string-concat-all [nat-to-string elapsed," ",nat-to-string complete," ",original," ",retained," ",stable,"\n"] in
+    let printed = ioWrite (string-to-bytes output) in 0
+
+  -- | Resolve arguments before allocating inputs or reading the runtime clock.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons kind (Cons name (Cons size (Cons iterations Nil)))) -> measure kind name (decimal size) (decimal iterations)
+    other -> 2

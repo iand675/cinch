@@ -1,0 +1,304 @@
+-- | Independent complete chunk fingerprints and byte-split lifecycle controls.
+module Main where
+  import Data.Bytes.Split
+  import Data.Bytes.View
+  import Data.Bytes
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Producer
+  import Data.Result
+  import Data.String
+  import Text.Hex
+  import Effect.Process
+
+  -- | Hash a complete fixed-width observation in little-endian order.
+  prim hash-word :: U32 -> U64 -> U64 where
+    llvm {
+      %wide = zext i32 %0 to i64
+      %a = and i64 %wide, 255
+      %b = xor i64 %1, %a
+      %c = mul i64 %b, 1099511628211
+      %d = lshr i64 %wide, 8
+      %e = and i64 %d, 255
+      %f = xor i64 %c, %e
+      %g = mul i64 %f, 1099511628211
+      %h = lshr i64 %wide, 16
+      %i = and i64 %h, 255
+      %j = xor i64 %g, %i
+      %k = mul i64 %j, 1099511628211
+      %l = lshr i64 %wide, 24
+      %m = xor i64 %k, %l
+      %n = mul i64 %m, 1099511628211
+      ret i64 %n
+    }
+
+  -- | Hash every aliased byte, after its separately observed fragment length.
+  hash-bytes :: ByteView -> Nat -> U64 -> U64
+  hash-bytes view at hash = if at < byte-view-length view then (case byte-view-get view at of
+    None -> 0
+    Some value -> let wide = u8-to-u32 value in let next = hash-word wide hash in
+      let following = at + 1 in hash-bytes view following next)
+    else hash
+
+  -- | Add one complete output fragment to an ordered fingerprint and count.
+  hash-part :: (U64, Nat) -> ByteView -> (U64, Nat)
+  hash-part previous view = case previous of
+    (hash, count) -> let size = byte-view-length view in if size <= 1048576 then
+      let machine = nat-to-i64 size in let width = wrapping-i64-to-u32 machine in
+      let first = hash-word width hash in let result = hash-bytes view 0 first in
+      let next = count + 1 in (result, next)
+      else (0, 0)
+
+  -- | Consume every materialized fragment through ordinary tail iteration.
+  hash-list :: List ByteView -> (U64, Nat) -> (U64, Nat)
+  hash-list values previous = case values of
+    Nil -> previous
+    Cons value rest -> let next = hash-part previous value in hash-list rest next
+
+  -- | Consume a stateful cursor through repeated public pulls.
+  hash-cursor :: ByteSplitCursor -> (U64, Nat) -> (U64, Nat)
+  hash-cursor cursor previous = case byte-split-next cursor of
+    None -> previous
+    Some value -> let next = hash-part previous value in hash-cursor cursor next
+
+  -- | Check both independent components of a complete observation.
+  result-is :: U64 -> Nat -> (U64, Nat) -> Bool
+  result-is hash count actual = case actual of (found, size) -> eq-u64 hash found && count == size
+
+  -- | Check list, persistent producer and explicit pull-cursor results against the same independent outputs.
+  split-case :: String -> String -> Nat -> Nat -> Nat -> Bool -> Bool -> U64 -> Nat -> Bool
+  split-case input delimiter start end limit-code after lines expected count = case hex-decode input of
+    Err error -> False
+    Ok raw -> case hex-decode delimiter of
+      Err error -> False
+      Ok separator -> case bytes-view-range raw start end of
+        Err error -> False
+        Ok view -> let limit = (if limit-code == 0 then None else Some (limit-code - 1)) in
+          let mode = (if after then SplitAfter else SplitBefore) in
+          let factory = (if lines then byte-view-lines-factory view else byte-view-split-factory mode limit view (bytes-view separator)) in
+          let initial = ((14695981039346656037, 0) :: (U64, Nat)) in
+          let whole = start == 0 && end == bytes-len raw in
+          let producer = (if limit-code == 0 then
+            if lines then (if whole then bytes-lines raw else byte-view-lines view)
+            else if after then (if whole then bytes-split-after-seq raw separator else byte-view-split-after-seq view (bytes-view separator))
+            else (if whole then bytes-split-seq raw separator else byte-view-split-seq view (bytes-view separator))
+            else byte-split-producer factory) in
+          let produced = prod-fold initial hash-part producer in
+          let pulled = hash-cursor (byte-split-cursor factory) initial in
+          let values = (if lines then Nil else if limit-code == 0 then
+            if after then (if whole then bytes-split-after raw separator else byte-view-split-after view (bytes-view separator))
+            else (if whole then bytes-split raw separator else byte-view-split view (bytes-view separator))
+            else if after then (if whole then bytes-split-after-limit limit raw separator else byte-view-split-after-limit limit view (bytes-view separator))
+            else (if whole then bytes-split-limit limit raw separator else byte-view-split-limit limit view (bytes-view separator))) in
+          let listed = (if lines then produced else hash-list values initial) in
+          let pattern = bytes-compile-pattern separator in
+          let stable = (if lines then produced else hash-list (byte-view-split-pattern mode limit view pattern) initial) in
+          result-is expected count produced && result-is expected count pulled
+            && result-is expected count listed && result-is expected count stable
+
+  -- | Compare one retained alias with an independently supplied literal byte buffer.
+  part-is :: ByteView -> List U8 -> Bool
+  part-is view values = let expected = bytes-from-u8s values in byte-view-equal view (bytes-view expected)
+
+  -- | Check a stateful next result without retaining a mutable backing accessor.
+  next-is :: ByteSplitCursor -> List U8 -> Bool
+  next-is cursor values = case byte-split-next cursor of None -> False; Some view -> part-is view values
+
+  -- | Recognize exhausted or explicitly closed pull cursors.
+  next-empty :: ByteSplitCursor -> Bool
+  next-empty cursor = case byte-split-next cursor of None -> True; Some view -> False
+
+  -- | Check a retained zero-filled fragment's complete extent and both endpoint bytes.
+  next-size :: ByteSplitCursor -> Nat -> Bool
+  next-size cursor expected = case byte-split-next cursor of
+    None -> False
+    Some view -> byte-view-length view == expected && (if expected == 0 then True else
+      (case byte-view-get view 0 of None -> False; Some value -> eq-u8 value 0)
+        && (case byte-view-get view (expected - 1) of None -> False; Some value -> eq-u8 value 0))
+
+  -- | Preserve exact cursor coordinates across byte and word-sized progress boundaries.
+  counter-boundary-case :: Unit -> Bool
+  counter-boundary-case unit = let raw = bytes-new 65540 in
+    let a = if 254 < bytes-len raw then bytes-set raw 254 44 else () in
+    let b = if 256 < bytes-len raw then bytes-set raw 256 44 else () in
+    let c = if 65534 < bytes-len raw then bytes-set raw 65534 44 else () in
+    let d = if 65535 < bytes-len raw then bytes-set raw 65535 44 else () in
+    let e = if 65536 < bytes-len raw then bytes-set raw 65536 44 else () in
+    let cursor = byte-split-cursor (bytes-split-factory SplitBefore None raw (bytes-from-u8s [44])) in
+    next-size cursor 254 && next-size cursor 1 && next-size cursor 65277 && next-size cursor 0
+      && next-size cursor 0 && next-size cursor 3 && next-empty cursor && next-empty cursor
+
+  -- | Check shared cursor progress, independent factory traversals, early close and persistent replay.
+  lifecycle-case :: Unit -> Bool
+  lifecycle-case unit = let raw = bytes-from-u8s [97,44,98,44,99] in let sep = bytes-from-u8s [44] in
+    let factory = bytes-split-factory SplitBefore None raw sep in
+    let first = byte-split-cursor factory in let second = byte-split-cursor factory in let copied = first in
+    let a = next-is first [97] in let b = next-is second [97] in let c = next-is copied [98] in
+    let d = next-is first [99] in let e = next-is second [98] in
+    let closed = byte-split-close second in
+    let f = next-empty first in let g = next-empty first in let h = next-empty second in
+    let producer = byte-split-producer factory in let initial = ((14695981039346656037, 0) :: (U64, Nat)) in
+    let full = prod-fold initial hash-part producer in let repeated = prod-fold initial hash-part producer in
+    let early = prod-fold initial hash-part (prod-take 1 producer) in
+    a && b && c && d && e && f && g && h
+      && (case full of (hash, count) -> result-is hash count repeated && count == 3)
+      && (case early of (hash, count) -> count == 1)
+
+  -- | Observe live raw delimiter changes while including or excluding each delimiter in the yielded alias.
+  mutation-for :: Bool -> Bool
+  mutation-for after = let raw = bytes-from-u8s [97,44,98,59,99,44,100] in let sep = bytes-from-u8s [44] in
+    let mode = (if after then SplitAfter else SplitBefore) in
+    let factory = bytes-split-factory mode None raw sep in let cursor = byte-split-cursor factory in
+    case byte-split-next cursor of
+      None -> False
+      Some held -> let before = part-is held (if after then [97,44] else [97]) in
+        let change-sep = if 0 < bytes-len sep then bytes-set sep 0 59 else () in
+        let change-held = byte-view-set held 0 122 in let second = next-is cursor (if after then [98,59] else [98]) in
+        let restore = if 0 < bytes-len sep then bytes-set sep 0 44 else () in
+        let third = next-is cursor (if after then [99,44] else [99]) in let fourth = next-is cursor [100] in
+        before && change-held && part-is held (if after then [122,44] else [122])
+          && second && third && fourth && next-empty cursor && next-empty cursor
+
+  -- | Observe current raw separator bytes and mutations of already yielded input aliases in both split modes.
+  mutation-case :: Unit -> Bool
+  mutation-case unit = mutation-for False && mutation-for True
+
+  -- | Observe multibyte raw delimiter changes before the first pull and between later pulls.
+  multibyte-mutation-case :: Unit -> Bool
+  multibyte-mutation-case unit = let raw = bytes-from-u8s [97,45,45,98,61,61,99,45,45,100] in
+    let sep = bytes-from-u8s [45,45] in let factory = bytes-split-factory SplitBefore None raw sep in
+    let pattern = bytes-compile-pattern sep in
+    let stable = byte-split-cursor (byte-view-split-pattern-factory SplitBefore None (bytes-view raw) pattern) in
+    let cursor = byte-split-cursor factory in
+    let a = if 0 < bytes-len sep then bytes-set sep 0 61 else () in
+    let b = if 1 < bytes-len sep then bytes-set sep 1 61 else () in
+    let first = next-is cursor [97,45,45,98] in let stable-first = next-is stable [97] in
+    let c = if 0 < bytes-len sep then bytes-set sep 0 45 else () in
+    let d = if 1 < bytes-len sep then bytes-set sep 1 45 else () in
+    let second = next-is cursor [99] in let third = next-is cursor [100] in
+    first && stable-first && second && third && next-empty cursor
+      && next-is stable [98,61,61,99] && next-is stable [100] && next-empty stable
+
+  -- | Raw delimiters may alias the input; a stable compiled delimiter instead owns its original bytes.
+  aliased-separator-case :: Unit -> Bool
+  aliased-separator-case unit = let raw = bytes-from-u8s [97,124,98,124,99] in
+    case bytes-view-range raw 1 2 of
+      Err error -> False
+      Ok separator -> let input = bytes-view raw in
+        let factory = byte-view-split-factory SplitBefore None input separator in
+        let copied = byte-view-snapshot separator in let pattern = bytes-compile-pattern copied in
+        let stable = byte-split-cursor (byte-view-split-pattern-factory SplitBefore None input pattern) in
+        let cursor = byte-split-cursor factory in
+        let changed = byte-view-set separator 0 59 in let first = next-is cursor [97] in
+        let stable-first = next-is stable [97,59,98] in
+        let restored = byte-view-set separator 0 124 in
+        let future = byte-view-set input 3 58 in let second = next-is cursor [98,58,99] in
+        changed && first && stable-first && restored && future && second && next-empty cursor
+          && next-is stable [99] && next-empty stable
+
+  -- | A delimiter inside a yielded after-fragment remains a live alias of the next raw search delimiter.
+  yielded-separator-case :: Unit -> Bool
+  yielded-separator-case unit = let raw = bytes-from-u8s [97,124,98,124,99] in
+    case bytes-view-range raw 1 2 of
+      Err error -> False
+      Ok separator -> let factory = byte-view-split-factory SplitAfter None (bytes-view raw) separator in
+        let cursor = byte-split-cursor factory in case byte-split-next cursor of
+          None -> False
+          Some held -> let before = part-is held [97,124] in let changed = byte-view-set held 1 59 in
+            before && changed && part-is held [97,59] && next-is cursor [98,124,99] && next-empty cursor
+
+  -- | Empty delimiters decode each current remaining span, including mutations into malformed byte sequences.
+  empty-mutation-case :: Unit -> Bool
+  empty-mutation-case unit = let raw = bytes-from-u8s [97,240,159,153,130,98] in
+    let cursor = byte-split-cursor (bytes-split-factory SplitBefore None raw (bytes-new 0)) in
+    let first = next-is cursor [97] in
+    let changed = if 1 < bytes-len raw then bytes-set raw 1 255 else () in
+    let a = next-is cursor [255] in let b = next-is cursor [159] in let c = next-is cursor [153] in
+    let d = next-is cursor [130] in let e = next-is cursor [98] in
+    first && a && b && c && d && e && next-empty cursor && next-empty cursor
+
+  -- | Line cursors preserve carriage returns and observe future line-boundary mutations between pulls.
+  lines-mutation-case :: Unit -> Bool
+  lines-mutation-case unit = let raw = bytes-from-u8s [97,10,98,13,10,99,10] in
+    let cursor = byte-split-cursor (byte-view-lines-factory (bytes-view raw)) in
+    let a = next-is cursor [97,10] in
+    let changed = if 4 < bytes-len raw then bytes-set raw 4 120 else () in
+    let b = next-is cursor [98,13,120,99,10] in a && b && next-empty cursor && next-empty cursor
+
+  -- | Return a temporary-owner cursor without keeping a separate input or separator handle alive.
+  temporary-cursor :: Unit -> ByteSplitCursor
+  temporary-cursor unit = let raw = bytes-from-u8s [97,44,98,44] in let sep = bytes-from-u8s [44] in
+    byte-split-cursor (bytes-split-factory SplitAfter None raw sep)
+
+  -- | Return one alias after closing and dropping its temporary cursor and factory frame.
+  escaped-part :: Unit -> Option ByteView
+  escaped-part unit = let cursor = temporary-cursor () in case byte-split-next cursor of
+    None -> None
+    Some view -> let closed = byte-split-close cursor in Some view
+
+  -- | Return a fragment list after its temporary input and separator handles have left the frame.
+  escaped-list :: Unit -> List ByteView
+  escaped-list unit = let raw = bytes-from-u8s [97,44,98] in let sep = bytes-from-u8s [44] in bytes-split raw sep
+
+  -- | A cursor and its held output aliases keep temporary owners alive until their last use.
+  temporary-owner-case :: Unit -> Bool
+  temporary-owner-case unit = let cursor = temporary-cursor () in case byte-split-next cursor of
+    None -> False
+    Some held -> let a = part-is held [97,44] in let b = next-is cursor [98,44] in
+      let c = next-is cursor [] in let done = next-empty cursor in
+      let changed = byte-view-set held 0 122 in
+      let escaped = (case escaped-part () of
+        None -> False
+        Some view -> let before = part-is view [97,44] in let write = byte-view-set view 0 113 in before && write && part-is view [113,44]) in
+      let listed = (case escaped-list () of
+        Cons first (Cons second Nil) -> part-is first [97] && part-is second [98]
+        other -> False) in
+      a && b && c && done && changed && part-is held [122,44] && escaped && listed
+
+  -- | Fill a deterministic deep-fragment input with checked stores in tail position.
+  fill-deep :: Bytes -> Nat -> Unit
+  fill-deep raw at = if at + 1 < bytes-len raw then
+    let a = bytes-set raw at 97 in let b = bytes-set raw (at + 1) 44 in
+    let following = at + 2 in fill-deep raw following
+    else ()
+
+  -- | Count actual fragments and total retained bytes without recursing during unwinding.
+  measure-part :: (Nat, Nat) -> ByteView -> (Nat, Nat)
+  measure-part previous view = case previous of
+    (count, total) -> let next = count + 1 in let size = byte-view-length view in
+      let bytes = total + size in (next, bytes)
+
+  -- | Consume a materialized deep list through a tail accumulator.
+  measure-list :: List ByteView -> (Nat, Nat) -> (Nat, Nat)
+  measure-list values previous = case values of
+    Nil -> previous
+    Cons value rest -> let next = measure-part previous value in measure-list rest next
+
+  -- | Assert deep materialization and producer traversal under the fixed compiled-program stack limit.
+  deep-case :: Nat -> Bool
+  deep-case count = let size = count * 2 in let raw = bytes-new size in let initialized = fill-deep raw 0 in
+    let separator = bytes-from-u8s [44] in let values = bytes-split raw separator in
+    let listed = measure-list values (0, 0) in
+    let produced = prod-fold (0, 0) measure-part (bytes-split-after-seq raw separator) in
+    (case listed of (found, total) -> found == count + 1 && total == count)
+      && (case produced of (found, total) -> found == count + 1 && total == size)
+
+  -- | Parse the runtime-supplied deep count without staging recursive input construction.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Accumulate validated runtime decimal digits in tail position.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars count = case chars of
+    Nil -> count
+    Cons first rest -> case digit-value first of
+      None -> 0
+      Some digit -> let next = count * 10 + digit in decimal-from rest next
+
+  -- | Conjoin bounded independent observations without building an expected recursive structure.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest

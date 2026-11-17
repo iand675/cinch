@@ -1,0 +1,243 @@
+-- | Retained byte splitting with explicit traversal factories, persistent producers and stateful pull cursors.
+-- Result views share input mutations and retain the complete original allocation.
+-- Raw separators are observed at each step; compiled separators retain their stable snapshots.
+module Data.Bytes.Split where
+  import Data.Bytes
+  import Data.Bytes.View
+  import Data.Bytes.Word
+  import Data.Bytes.Utf8 as Utf8
+  import Data.Bool
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Producer
+
+  export ByteSplitMode, SplitBefore, SplitAfter, ByteSplitFactory, ByteSplitState, ByteSplitCursor
+  export byte-view-split-factory, bytes-split-factory, byte-view-split-pattern-factory, byte-view-lines-factory
+  export byte-split-producer, byte-split-cursor, byte-split-next, byte-split-close
+  export byte-view-split, byte-view-split-after, byte-view-split-limit, byte-view-split-after-limit
+  export byte-view-split-seq, byte-view-split-after-seq, byte-view-split-pattern, byte-view-lines
+  export bytes-split, bytes-split-after, bytes-split-limit, bytes-split-after-limit
+  export bytes-split-seq, bytes-split-after-seq, bytes-lines
+
+  -- | Whether a separator belongs to the preceding output fragment.
+  data ByteSplitMode where
+    -- | Exclude each separator from its preceding fragment.
+    SplitBefore :: ByteSplitMode
+    -- | Include each separator in its preceding fragment.
+    SplitAfter :: ByteSplitMode
+
+  -- | A private live separator view or an explicitly stable compiled snapshot.
+  data Separator where
+    -- | Retain mutable separator bytes and observe their current contents at each step.
+    RawSeparator :: ByteView -> Separator
+    -- | Retain an independently compiled stable separator snapshot.
+    FixedSeparator :: BytePattern -> Separator
+
+  -- | An immutable traversal recipe retaining input, separator policy, limit and fragment placement.
+  data ByteSplitFactory where
+    -- | Store fixed view endpoints and whether trailing empty fragments are omitted for line iteration.
+    Factory :: ByteView -> Separator -> Option Nat -> ByteSplitMode -> Bool -> ByteSplitFactory
+
+  -- | Explicit persistent producer progress; advancing returns a new state without mutating this value.
+  data ByteSplitState where
+    -- | Store a recipe, relative consumed-byte position, emitted count and completion marker.
+    SplitState :: ByteSplitFactory -> Nat -> Nat -> Bool -> ByteSplitState
+
+  -- | A separately named stateful pull cursor; copied handles share progress and closure state.
+  data ByteSplitCursor where
+    -- | Retain a recipe and private checked position/count/status bytes, never exposed as mutable storage.
+    Cursor :: ByteSplitFactory -> Bytes -> ByteSplitCursor
+
+  -- | Create a reusable recipe without reading input or separator contents.
+  -- None means unlimited; Some zero yields nothing; the final limited fragment is the unsplit remainder.
+  byte-view-split-factory :: ByteSplitMode -> Option Nat -> ByteView -> ByteView -> ByteSplitFactory
+  byte-view-split-factory mode limit input separator = Factory input (RawSeparator separator) limit mode False
+
+  -- | Retain complete input and separator owners in a fresh raw-separator traversal recipe.
+  bytes-split-factory :: ByteSplitMode -> Option Nat -> Bytes -> Bytes -> ByteSplitFactory
+  bytes-split-factory mode limit input separator =
+    let source = bytes-view input in let delimiter = bytes-view separator in
+    byte-view-split-factory mode limit source delimiter
+
+  -- | Create a recipe with an explicitly stable compiled separator; input bytes remain live aliases.
+  byte-view-split-pattern-factory :: ByteSplitMode -> Option Nat -> ByteView -> BytePattern -> ByteSplitFactory
+  byte-view-split-pattern-factory mode limit input separator = Factory input (FixedSeparator separator) limit mode False
+
+  -- | Create an LF-line recipe that includes terminators and omits a trailing empty fragment.
+  -- CR bytes are preserved; an unterminated final line is returned intact.
+  byte-view-lines-factory :: ByteView -> ByteSplitFactory
+  byte-view-lines-factory input = let newline = bytes-from-u8s [10] in
+    let separator = bytes-compile-pattern newline in Factory input (FixedSeparator separator) None SplitAfter True
+
+  -- | Count fixed separator bytes without reading their mutable contents.
+  separator-length :: Separator -> Nat
+  separator-length separator = case separator of
+    RawSeparator view -> byte-view-length view
+    FixedSeparator pattern -> byte-pattern-length pattern
+
+  -- | Compile current raw contents for one step or borrow the explicitly stable compiled pattern.
+  prepare-separator :: Separator -> BytePattern
+  prepare-separator separator = case separator of
+    RawSeparator view -> let snapshot = byte-view-snapshot view in bytes-compile-pattern snapshot
+    FixedSeparator pattern -> pattern
+
+  -- | Test whether an explicit maximum has already been emitted.
+  exhausted-limit :: Option Nat -> Nat -> Bool
+  exhausted-limit limit emitted = case limit of None -> False; Some count -> emitted >= count
+
+  -- | Test whether the next fragment is the final permitted unsplit remainder.
+  final-slot :: Option Nat -> Nat -> Bool
+  final-slot limit emitted = case limit of None -> False; Some count -> emitted + 1 >= count
+
+  -- | Yield one retained fragment and advance only explicit immutable producer progress.
+  yield-part :: ByteSplitFactory -> Nat -> Nat -> Bool -> ByteView -> Step ByteSplitState ByteView
+  yield-part factory position emitted finished view =
+    let count = emitted + 1 in Yield view (SplitState factory position count finished)
+
+  -- | Advance a checked raw or compiled traversal, observing mutable bytes only when this step runs.
+  -- Empty separators advance one bounded UTF8 sequence; each malformed byte advances separately.
+  split-step :: ByteSplitState -> Step ByteSplitState ByteView
+  split-step state = case state of
+    SplitState factory position emitted finished -> if finished then Done else case factory of
+      Factory input separator limit mode lines -> let size = byte-view-length input in
+        if position > size || exhausted-limit limit emitted then Done else
+          let remaining = byte-view-drop position input in let available = byte-view-length remaining in
+          let width = separator-length separator in
+          if (lines || width == 0) && available == 0 then Done
+          else if final-slot limit emitted then yield-part factory size emitted True remaining
+          else if width == 0 then
+            let step = byte-view-utf8-at remaining 0 in let consumed = Utf8.utf8-step-width step in
+            if consumed > 0 && consumed <= available then
+              let fragment = byte-view-take consumed remaining in let next = position + consumed in
+              yield-part factory next emitted False fragment
+            else Done
+          else if width > available then yield-part factory size emitted True remaining
+          else let pattern = prepare-separator separator in case byte-view-index-pattern remaining pattern of
+            None -> yield-part factory size emitted True remaining
+            Some at -> let consumed = at + width in
+              if consumed <= available then
+                let kept = ((case mode of SplitBefore -> at; SplitAfter -> consumed) :: Nat) in
+                let fragment = byte-view-take kept remaining in let next = position + consumed in
+                yield-part factory next emitted False fragment
+              else Done
+
+  -- | Begin a fresh persistent producer traversal of a retained recipe.
+  -- Replaying this Producer follows the existing explicit-state contract and reads current mutable bytes again.
+  byte-split-producer :: ByteSplitFactory -> Producer ByteSplitState ByteView
+  byte-split-producer factory = Producer split-step (SplitState factory 0 0 False)
+
+  -- | Collect output through an accumulator so long fragment lists never allocate on recursive unwinding.
+  collect-state :: ByteSplitState -> List ByteView -> List ByteView
+  collect-state state reversed = case split-step state of
+    Done -> reverse reversed
+    Skip next -> collect-state next reversed
+    Yield value next -> let values = Cons value reversed in collect-state next values
+
+  -- | Materialize retained fragments from a fresh traversal of a recipe.
+  collect :: ByteSplitFactory -> List ByteView
+  collect factory = collect-state (SplitState factory 0 0 False) Nil
+
+  -- | Split into mutable aliases around each nonoverlapping raw separator.
+  byte-view-split :: ByteView -> ByteView -> List ByteView
+  byte-view-split input separator = collect (byte-view-split-factory SplitBefore None input separator)
+
+  -- | Split after each nonoverlapping raw separator, retaining it in the preceding alias.
+  byte-view-split-after :: ByteView -> ByteView -> List ByteView
+  byte-view-split-after input separator = collect (byte-view-split-factory SplitAfter None input separator)
+
+  -- | Split with an explicit optional maximum and an unsplit final remainder.
+  byte-view-split-limit :: Option Nat -> ByteView -> ByteView -> List ByteView
+  byte-view-split-limit limit input separator = collect (byte-view-split-factory SplitBefore limit input separator)
+
+  -- | Split after separators with an explicit optional maximum and an unsplit final remainder.
+  byte-view-split-after-limit :: Option Nat -> ByteView -> ByteView -> List ByteView
+  byte-view-split-after-limit limit input separator = collect (byte-view-split-factory SplitAfter limit input separator)
+
+  -- | Begin a fresh persistent raw-separator producer, observing input and delimiter changes at each step.
+  byte-view-split-seq :: ByteView -> ByteView -> Producer ByteSplitState ByteView
+  byte-view-split-seq input separator = byte-split-producer (byte-view-split-factory SplitBefore None input separator)
+
+  -- | Begin a fresh persistent producer that includes each delimiter in its preceding fragment.
+  byte-view-split-after-seq :: ByteView -> ByteView -> Producer ByteSplitState ByteView
+  byte-view-split-after-seq input separator = byte-split-producer (byte-view-split-factory SplitAfter None input separator)
+
+  -- | Materialize fragments using an explicitly stable compiled separator snapshot.
+  byte-view-split-pattern :: ByteSplitMode -> Option Nat -> ByteView -> BytePattern -> List ByteView
+  byte-view-split-pattern mode limit input separator = collect (byte-view-split-pattern-factory mode limit input separator)
+
+  -- | Begin a fresh persistent LF-line traversal including line terminators.
+  byte-view-lines :: ByteView -> Producer ByteSplitState ByteView
+  byte-view-lines input = byte-split-producer (byte-view-lines-factory input)
+
+  -- | Split complete fixed buffers into retained mutable input aliases.
+  bytes-split :: Bytes -> Bytes -> List ByteView
+  bytes-split input separator = byte-view-split (bytes-view input) (bytes-view separator)
+
+  -- | Split complete fixed buffers after each raw delimiter.
+  bytes-split-after :: Bytes -> Bytes -> List ByteView
+  bytes-split-after input separator = byte-view-split-after (bytes-view input) (bytes-view separator)
+
+  -- | Split complete fixed buffers with an explicit optional maximum.
+  bytes-split-limit :: Option Nat -> Bytes -> Bytes -> List ByteView
+  bytes-split-limit limit input separator = byte-view-split-limit limit (bytes-view input) (bytes-view separator)
+
+  -- | Split complete fixed buffers after delimiters with an explicit optional maximum.
+  bytes-split-after-limit :: Option Nat -> Bytes -> Bytes -> List ByteView
+  bytes-split-after-limit limit input separator = byte-view-split-after-limit limit (bytes-view input) (bytes-view separator)
+
+  -- | Begin a fresh persistent traversal over complete input and raw separator buffers.
+  bytes-split-seq :: Bytes -> Bytes -> Producer ByteSplitState ByteView
+  bytes-split-seq input separator = byte-view-split-seq (bytes-view input) (bytes-view separator)
+
+  -- | Begin a fresh persistent delimiter-including traversal over complete fixed buffers.
+  bytes-split-after-seq :: Bytes -> Bytes -> Producer ByteSplitState ByteView
+  bytes-split-after-seq input separator = byte-view-split-after-seq (bytes-view input) (bytes-view separator)
+
+  -- | Begin a fresh persistent LF-line traversal over a complete fixed buffer.
+  bytes-lines :: Bytes -> Producer ByteSplitState ByteView
+  bytes-lines input = byte-view-lines (bytes-view input)
+
+  -- | Store a private progress value bounded by the largest possible fragment count.
+  store-count :: Bytes -> Nat -> Nat -> Unit
+  store-count buffer at count = if at + 8 <= bytes-len buffer then
+    if count <= 9223372036854775807 then
+      let machine = nat-to-i64 count in let word = wrapping-i64-to-u64 machine in bytes-write-le64 buffer at word
+    else if count == 9223372036854775808 then bytes-write-le64 buffer at 9223372036854775808 else ()
+    else ()
+
+  -- | Read private progress, including the single length-plus-one count above the signed offset range.
+  read-count :: Bytes -> Nat -> Nat
+  read-count buffer at = if at + 8 <= bytes-len buffer then
+    let word = bytes-read-le64 buffer at in let machine = wrapping-u64-to-i64 word in
+    if 0 <= machine then nat-from-i64 machine else 9223372036854775808
+    else 0
+
+  -- | Save explicit immutable progress into a separately named cursor's checked private bytes.
+  save-state :: Bytes -> ByteSplitState -> Unit
+  save-state progress state = case state of
+    SplitState factory position emitted finished ->
+      let a = store-count progress 0 position in let b = store-count progress 8 emitted in
+      if 16 < bytes-len progress then bytes-set progress 16 (if finished then 1 else 0) else ()
+
+  -- | Begin a fresh stateful pull cursor without changing Producer replay semantics.
+  -- Copied cursor handles share progress; raw separator and input contents remain live.
+  byte-split-cursor :: ByteSplitFactory -> ByteSplitCursor
+  byte-split-cursor factory = let progress = bytes-new 24 in Cursor factory progress
+
+  -- | Pull the next mutable alias, returning None after exhaustion or explicit closure on every later call.
+  byte-split-next :: ByteSplitCursor -> Option ByteView
+  byte-split-next cursor = case cursor of
+    Cursor factory progress -> if 16 < bytes-len progress then
+      let closed = bytes-get progress 16 in if closed /= 0 then None else
+        let position = read-count progress 0 in let emitted = read-count progress 8 in
+        case split-step (SplitState factory position emitted False) of
+          Done -> let stopped = bytes-set progress 16 1 in None
+          Skip next -> let saved = save-state progress next in byte-split-next cursor
+          Yield value next -> let saved = save-state progress next in Some value
+      else None
+
+  -- | Close a separately named pull cursor; later pulls return None without reading or searching input.
+  byte-split-close :: ByteSplitCursor -> Unit
+  byte-split-close cursor = case cursor of Cursor factory progress -> if 16 < bytes-len progress then bytes-set progress 16 1 else ()
