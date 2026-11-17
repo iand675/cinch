@@ -126,7 +126,7 @@ fn live_mutation_owners_and_late_producer_callbacks_are_safe() {
 /// Preserve non-reflexive values, predicate replacements and current right-side equality lookups.
 #[test]
 fn value_nan_and_predicate_mutation_contracts_remain_explicit() {
-    run(include_str!("fixtures/mutable-map-edge-control.cinch"));
+    run(&rendered(&["--edge-control"]));
 }
 
 /// Require actual IO-capable sources and callbacks without reducing the API's effect row.

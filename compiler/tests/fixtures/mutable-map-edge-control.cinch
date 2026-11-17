@@ -33,15 +33,15 @@ module Main where
   value-nan-case unit =
     let map = mutable-map-new () in
     let stored = succeeded (mutable-map-set map (1 :: Nat) (from-bits 9221120237041090561)) in
-    let self-unequal = not (mutable-map-equal-by feq-f64 map map) in
+    let self-matches = mutable-map-equal-by feq-f64 map map == False in
     case mutable-map-clone map of
       Err error -> False
       Ok copy ->
-        let copied-bits = mutable-map-equal-by bit-equal map copy in
-        let copied-unequal = not (mutable-map-equal-by feq-f64 map copy) in
+        let copied-bits = mutable-map-equal-by bit-equal map copy == True in
+        let copied-ieee = mutable-map-equal-by feq-f64 map copy == False in
         let changed = succeeded (mutable-map-set copy 1 (from-bits 9221120237041090562)) in
-        let different-bits = not (mutable-map-equal-by bit-equal map copy) in
-        stored && self-unequal && copied-bits && copied-unequal && changed && different-bits
+        let different-bits = mutable-map-equal-by bit-equal map copy == False in
+        stored && self-matches && copied-bits && copied-ieee && changed && different-bits && mutable-map-size map == 1 && mutable-map-size copy == 1
 
   -- | Delete and replace the current key before requesting its ordinary current-key deletion.
   replace-current :: forall r. MutableMap r Nat Nat -> Var r Nat -> Var r Bool -> Nat -> Nat ->{Mut r} Bool
@@ -63,7 +63,7 @@ module Main where
     let calls = var-new (0 :: Nat) in
     let valid = var-new True in
     let deleted = succeeded (mutable-map-delete-if map (replace-current map calls valid)) in
-    first && second && third && deleted && var-read valid && var-read calls == 3 && mutable-map-is-empty map
+    first && second && third && deleted && var-read valid == True && var-read calls == 3 && mutable-map-size map == 0
 
   -- | Clear the comparison map after the first value comparison and preserve callback count.
   clear-comparison :: forall r. MutableMap r Nat Nat -> Var r Nat -> Nat -> Nat ->{Mut r} Bool
@@ -82,8 +82,8 @@ module Main where
       Err error -> False
       Ok other ->
         let calls = var-new (0 :: Nat) in
-        let unequal = not (mutable-map-equal-by (clear-comparison other calls) map other) in
-        first && second && unequal && var-read calls == 1 && mutable-map-size map == 2 && mutable-map-is-empty other
+        let matched = mutable-map-equal-by (clear-comparison other calls) map other == False in
+        first && second && matched && var-read calls == 1 && mutable-map-size map == 2 && mutable-map-size other == 0
 
   -- | Report the first failed value or callback mutation contract independently.
   main :: forall r. Unit ->{Mut r} Int

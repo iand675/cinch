@@ -52,16 +52,44 @@ def float_source(width: int, vectors: Path | None = None) -> str:
     return template
 
 
+def edge_source(vectors: Path | None = None) -> str:
+    """Render actual SDK value-NaN and callback-mutation observations without reproducing map logic."""
+    recorded = json.loads((vectors or ROOT / "compiler/tests/fixtures/maps-edge-vectors.json").read_text())
+    assert recorded["format"] == 1 and recorded["sdk"] == "go1.27.4"
+    nan = recorded["value_nan"]
+    deletion = recorded["delete_current_replacement"]
+    equality = recorded["equality_current_lookup"]
+    replacements = {
+        "@ORIGINAL_BITS@": nan["original_bits"], "@REPLACEMENT_BITS@": nan["replacement_bits"],
+        "@SELF_EQUAL@": nan["self_equal"], "@CLONE_EQUAL@": nan["clone_equal"],
+        "@CLONE_BIT_EQUAL@": nan["clone_bit_equal"], "@REPLACEMENT_BIT_SAME@": nan["replacement_bit_same"],
+        "@ORIGINAL_SIZE@": nan["original_size"], "@CLONE_SIZE@": nan["clone_size"],
+        "@ORIGINAL_VALUES_MATCH@": deletion["original_values_match"],
+        "@DELETE_CALLBACKS@": deletion["callbacks"], "@DELETE_FINAL_SIZE@": deletion["final_size"],
+        "@EQUALITY_RESULT@": equality["equal"], "@EQUALITY_CALLBACKS@": equality["callbacks"],
+        "@LEFT_SIZE@": equality["left_size"], "@RIGHT_SIZE@": equality["right_size"],
+    }
+    template = (ROOT / "compiler/tests/fixtures/mutable-map-edge-control.cinch.in").read_text()
+    for token, value in replacements.items():
+        assert template.count(token) == 1, token
+        template = template.replace(token, str(value))
+    assert "@" not in template
+    return template
+
+
 def main() -> None:
     """Write one independently generated trace consumer for either frontend."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", type=int, choices=range(8), default=0)
     parser.add_argument("--vectors", type=Path)
     parser.add_argument("--float-width", type=int, choices=(32, 64))
+    parser.add_argument("--edge-control", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.edge_control and args.float_width:
+        parser.error("select either floating key rows or the supplemental edge consumer")
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(float_source(args.float_width, args.vectors) if args.float_width else source(args.case, args.vectors))
+    args.output.write_text(edge_source(args.vectors) if args.edge_control else float_source(args.float_width, args.vectors) if args.float_width else source(args.case, args.vectors))
 
 
 if __name__ == "__main__":

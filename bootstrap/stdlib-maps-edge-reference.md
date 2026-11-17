@@ -1,9 +1,10 @@
 # Supplemental independent map reference
 
-The original published reference generator and its800-step/14-key-IEEE/nil
+The original published reference generator and its 800-step/14-key-IEEE/nil
 fixture remain unchanged. `go_maps_edge_vectors.go` is a separate prepared
-generator for the new supplemental edge consumer. It has not yet run and
-does not establish any new library runtime verdict.
+generator for the new supplemental edge consumer. Its actual pinned SDK
+run passed in 0.293s on CPU1 using the existing surface cache. This does
+not establish any new library runtime verdict.
 
 The generator calls the pinned SDK package directly, rather than modeling
 the Cinch map algorithms. JSON contains finite integers, binary64 bit
@@ -24,8 +25,22 @@ can select the private entry-cell representation. The actual source-selected
 Native row refusals and genuine interface-header feature remain independent
 compiler gates.
 
-After a caller-granted tiny SDK window, preserve the exact SDK version,
-generator/output SHA, raw JSON and command receipt. Verify the three groups
-against `mutable-map-edge-control.cinch` before calling that new fixture an
-independent reference gate. Existing successful matrices and baseline
-timings must not be rerun or relabeled by this preparation.
+The actual SDK is go1.27.4. Generator SHA is
+`ca5d896322fbbddbe261eb4e65c6ca48c772f3b84170aa9a47238ab65e70f408`;
+raw JSON SHA is
+`463cb975559bde910c67ef5aeda54d0958cf1eba2aed6f343723660e8b730c47`.
+The exact command, environment, SDK source hashes and observations are
+recorded in `stdlib-maps-edge-reference-results.json`; the raw fixture is
+`maps-edge-vectors.json`. An initial 4ms launch failed at the read-only
+default cache; its separate receipt is preserved, and only the cache
+environment was corrected for the successful run.
+
+`generate_maps_cases.py --edge-control` now renders every expected bit
+pattern, equality result, callback count and final size from that actual
+JSON into the supplemental consumer template. The maintained Cargo test
+and frontend runner both use this renderer. Existing eight trace and two
+IEEE-key rendered consumers were checked byte-for-byte against their
+original successful receipt hashes and remain unchanged. The new edge
+consumer has still not run on either library representation. Existing
+successful matrices and baseline timings are not rerun or relabeled by
+this independent-reference generation.

@@ -11,7 +11,7 @@ import resource
 import subprocess
 import time
 
-from generate_maps_cases import float_source, source
+from generate_maps_cases import edge_source, float_source, source
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,7 +98,7 @@ def main() -> None:
     if "control" in args.modes:
         jobs["control"] = (ROOT / "compiler/tests/fixtures/mutable-map-control.cinch").read_text()
     if "edge" in args.modes:
-        jobs["edge"] = (ROOT / "compiler/tests/fixtures/mutable-map-edge-control.cinch").read_text()
+        jobs["edge"] = edge_source()
     if "effect" in args.modes:
         jobs["effect"] = (ROOT / "compiler/tests/fixtures/mutable-map-effect-control.cinch").read_text()
     if "trace" in args.modes:
