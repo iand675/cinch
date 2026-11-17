@@ -56,8 +56,8 @@
     {
       "from": "experiments/image-color-palette-v1/README.md",
       "to": "experiments/image-color-palette-v1/README.md",
-      "bytes": 4545,
-      "sha256": "7ecd5c89377c6fbe878c26269ff3dbede4262cafe90e25eea5e20dc76f13c5d0"
+      "bytes": 5345,
+      "sha256": "21c59d8368129385d0d85cbfde501bf0ed8f297c239e38a2dfb11338969b0cde"
     },
     {
       "from": "experiments/image-color-palette-v1/operation-map.json",
@@ -140,8 +140,20 @@
     {
       "from": "experiments/image-color-palette-v1/performance-plan.json",
       "to": "experiments/image-color-palette-v1/performance-plan.json",
-      "bytes": 3989,
-      "sha256": "097fb467284207b48fb3aed8f742fc5e3091af0297c94a50093ede28232704db"
+      "bytes": 4219,
+      "sha256": "9f84444e15eb39443fd2eb631e4960e2ed997100e40b857dd5a3d45be2399235"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/portable-gate.json",
+      "to": "experiments/image-color-palette-v1/portable-gate.json",
+      "bytes": 35644,
+      "sha256": "4ebc671a3f611d5a87e627e4c23a5ef8f894661dc828e248b7a0445b03c5b5d6"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/functional-artifact-archives.json",
+      "to": "experiments/image-color-palette-v1/functional-artifact-archives.json",
+      "bytes": 3758,
+      "sha256": "7242534d4b1100c487921418aa9101c32c3ee67a13694443053d6c585150ba0c"
     }
   ],
   "optional_reproduction_imports": [
@@ -186,6 +198,24 @@
       "to": "tooling/inspect_color_palette_code.py",
       "bytes": 4890,
       "sha256": "dba9396017e2bb45135000db9a35f83e9aa4d2a9985f34f0ebd60fc4d2c4ee6c"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/portable.cinch",
+      "to": "experiments/image-color-palette-v1/portable.cinch",
+      "bytes": 1965,
+      "sha256": "8ebad653a4b142ed87fd68c9a8eab544a8a6a7f5469915715907c94556538227"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/portable-seed.c",
+      "to": "experiments/image-color-palette-v1/portable-seed.c",
+      "bytes": 173,
+      "sha256": "b064839d7530cb49f7b501647f03a2e29b36a489d8896ec511f202d5e1d5618f"
+    },
+    {
+      "from": "tooling/check_color_palette_portable.py",
+      "to": "tooling/check_color_palette_portable.py",
+      "bytes": 9541,
+      "sha256": "ae88b805f5a9740de1e2938b32e99290b0eab508bf7f7401e647c3bce6640bd1"
     }
   ],
   "existing_root_dependencies": [
@@ -234,7 +264,6 @@
   },
   "pending": [
     "Parent maintained Cargo gate",
-    "Full target object composition",
     "Current Native qualification",
     "Public pipeline performance",
     "Production selection/shared inventory/docs"
@@ -245,5 +274,6 @@
     "All failure artifacts, kept plain in their original projects",
     "All recovery state and unrelated old WIP"
   ],
-  "reference_data_attribution": "REFERENCE-LICENSE accompanies the exact extracted numeric table order, including imports that omit the SDK reproduction tool."
+  "reference_data_attribution": "REFERENCE-LICENSE accompanies the exact extracted numeric table order, including imports that omit the SDK reproduction tool.",
+  "functional_artifact_restoration": "Three closed prior runtime ELF/IR outputs have verified gzip recovery records; restore and verify their full bytes before replaying original artifact inspections. No missing input may be silently skipped. Current portable objects/IR and all source/CIF/provider/benchmark inputs stay plain."
 }

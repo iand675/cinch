@@ -6,7 +6,7 @@
     "Plan9": 256,
     "WebSafe": 216
   },
-  "query_domain": "All512 independent gray/mixed/alpha-boundary queries already cross-checked through both tables; benchmark selects documented prefix sizes16/256 and fully consumes each result",
+  "query_domain": "All512 independent gray/mixed/alpha-boundary queries interleaved gray/mixed in their original within-family order, with documented prefix sizes0/1/16/256/512; committed SDK vectors independently determine all output/retained checksums",
   "modes": [
     {
       "table": "Plan9",
@@ -70,5 +70,6 @@
     "Root-granted exclusive elapsed window",
     "Separate Native qualification; no old-family relabel"
   ],
-  "status": "static concrete pipeline design, original source/runtime receipts preserved"
+  "status": "Actual complete public portable closure qualified; driver/reference and independent-Golden preflight tool prepared statically, source/build preflight held below350MiB",
+  "portable_receipt": "experiments/image-color-palette-v1/portable-gate.json"
 }
