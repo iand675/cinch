@@ -15,11 +15,20 @@ There are **zero redundant bytes with identical complete metadata**. The
 copies have different nanosecond mtimes. A hardlink shares one inode and its
 mtime, so hardlinking those paths cannot preserve every original mtime in
 place. Content equality alone does not establish that the epochs are identical
-in metadata. No exact-metadata deduplication is presently eligible.
+in metadata. No exact-metadata deduplication is presently eligible, but the
+existing sealed-success sharing policy explicitly permits shared visible
+metadata when every original path's metadata remains durably recoverable.
 
-If the integration owner approves changing visible mtimes while keeping all
-original metadata durably recoverable, the following narrower plan could reclaim
-most of the 48.7 MB. It is not authorized or executed by this document.
+The exact proposed plan is
+`build/suffixarray-v1-source-cif-hardlink-plan.json`, SHA256
+`1453d96c9727b2ebcbd67d2752786d632f2a7bcbe28e40298d9fadd9f50b9c65`.
+It covers 1,710 duplicate paths in 82 groups across 24 passed consumer workdirs,
+with all 24 qualification receipt hashes. It records all 1,824 source/interface
+files, 812 excluded existing files within the allowed directories, and excludes
+every path outside those directories by default. There are no uid/gid conflicts
+or preexisting hardlinks in its eligible groups. The logical redundant size is
+48,694,541 bytes; allocated blocks estimate 52,236,288 bytes recoverable.
+The exact execution handoff is pending; this document has not changed any file.
 
 1. Restrict candidates to report-linked, fully passed, closed functional
    workdirs. Require both normal and poison profiles and immutable file usage.
@@ -45,6 +54,6 @@ most of the 48.7 MB. It is not authorized or executed by this document.
    hardlink could otherwise corrupt every linked epoch. Future tool runs must
    not treat these sealed workdirs as writable caches.
 
-Without approval for that explicit metadata adaptation, retain the current
-plain copies. Verified functional ELF/IR recovery remains the existing source
-of space, and qualification pauses at the normal phase guard.
+Until the exact execution handoff, retain the current plain copies. Once
+shared, keep all source and interface paths plain and never write or compile in
+those closed workdirs. Qualification still pauses at the normal phase guard.
