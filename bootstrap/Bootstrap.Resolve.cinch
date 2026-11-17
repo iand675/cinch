@@ -488,7 +488,7 @@ module Bootstrap.Resolve where
     TFunEff s a row b -> TFunEff s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) row) (rename-type visible (bound-names a <> locals) b)
     TUsageArrow s usage arrow -> TUsageArrow s usage (rename-type visible locals arrow)
     TEvidenceField s name ty -> TEvidenceField s name (rename-type visible locals ty)
-    TRow s labels tail -> TRow s (rename-type visible locals labels) tail
+    TRow s labels tail -> TRow s (rename-mvar-effects visible locals labels) tail
     TTuple s args -> TTuple s (rename-type visible locals args)
     TForall s binders body -> TForall s (rename-type visible locals binders) (rename-type visible (bound-names binders <> locals) body)
     TQuantifier s name only kind rest -> TQuantifier s name only (rename-type visible locals kind) (rename-type visible (Cons name locals) rest)
@@ -496,6 +496,14 @@ module Bootstrap.Resolve where
     TArg s a rest -> TArg s (rename-type visible locals a) (rename-type visible locals rest)
     TBound s name kind rest -> TBound s name (rename-type visible locals kind) (rename-type visible (Cons name locals) rest)
     other -> t
+
+  -- | Keep the kernel MVar effect separate from an ordinary public datatype of the same spelling.
+  -- An actual source-effect binding retains its own identity and cannot authorize an intrinsic.
+  rename-mvar-effects :: Visible -> List String -> TypeExpr -> TypeExpr
+  rename-mvar-effects visible locals labels = case labels of
+    TArg sp (TName at name) rest -> TArg sp (if same name "MVar" && not (case visible-lookup name visible of Some binding -> same (binding-symbol binding) "MVar"; None -> False) then TName at "#kernel.MVar" else rename-type visible locals (TName at name)) (rename-mvar-effects visible locals rest)
+    TArg sp label rest -> TArg sp (rename-type visible locals label) (rename-mvar-effects visible locals rest)
+    other -> rename-type visible locals labels
 
   parameter-names :: List TypeParam -> List String
   parameter-names params = case params of
@@ -883,11 +891,11 @@ module Bootstrap.Resolve where
     DOpaque s name params kind -> if opaque-name-reserved name then (Nil, fail s "an opaque declaration cannot redefine a builtin type") else
       (Cons (DOpaque s (global-name home name) (rename-params visible Nil params)
         (rename-type visible (parameter-names params) kind)) Nil, Nil)
-    DData s name params ctors -> if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined")
+    DData s name params ctors -> if same name "MVarCell" then (Nil, fail s "the kernel MVarCell carrier cannot be redefined") else if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined")
       else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DData s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
-    DRecord s name params fields -> if has-name name ["Array", "Tensor", "Columnar"] then
+    DRecord s name params fields -> if same name "MVarCell" then (Nil, fail s "the kernel MVarCell carrier cannot be redefined as a record") else if has-name name ["Array", "Tensor", "Columnar"] then
       (Nil, fail s "a builtin array primitive cannot be redefined as a record")
       else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DRecord s (global-name home name) (rename-params visible Nil params)
@@ -900,7 +908,7 @@ module Bootstrap.Resolve where
       if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-known classes and cannot be declared") else
         case rename-class-members home name visible (parameter-names params) (decls-of members) of
           (renamed, errors) -> ([DClass s (global-name home name) (rename-params visible Nil params) (decl-spine s renamed)], errors)
-    DRefine s name params binder predicate ->
+    DRefine s name params binder predicate -> if same name "MVarCell" then (Nil, fail s "the kernel MVarCell carrier cannot be redefined as a refinement") else
       let names = parameter-names params in
       let renamed-binder = case binder of MkTypeParam at local kind only -> MkTypeParam at local (case kind of None -> None; Some carrier -> Some (rename-type visible names carrier)) only in
       (Cons (DRefine s (global-name home name) (rename-params visible Nil params) renamed-binder

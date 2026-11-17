@@ -1,7 +1,7 @@
 -- Checked schema 10 interface production. Every public spelling is matched
 -- against a retained checked binding or defining data declaration.
 module Bootstrap.Export where
-  import Bootstrap.Builtin (array-plan, total-primitive, scalar-intrinsic)
+  import Bootstrap.Builtin (array-plan, mvar-plan, total-primitive, scalar-intrinsic)
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, TypeExpr, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
@@ -802,7 +802,7 @@ module Bootstrap.Export where
   intrinsic-empty-result = JObj "type" (JStr "") (JObj "class" (JStr "unit") (JObj "role" (JStr "value")
     (JObj "allocator" (JStr "") (JObj "nullable" (JBool False) (JObj "width" (JNum 0)
       (JObj "align" (JNum 1) (JObj "signed" (JBool False) (JObj "offsets" JArrEnd JObjEnd))))))))
-  -- | Serialize the existing pure intrinsic descriptor without accepting an executable body.
+  -- | Serialize a checked canonical intrinsic descriptor without accepting an executable body.
   intrinsic-foreign-row :: String -> Json -> Json
   intrinsic-foreign-row local row = JObj "symbol" (JStr local) (JObj "abi" (JStr "ccall") (JObj "external" (field "identity" row) (JObj "type" (field "scheme" row) (JObj "effects" (JStr "") (JObj "notes" (JStr "") (JObj "kind" (JStr "intrinsic") (JObj "params" (JArrEnd) (JObj "result" (intrinsic-empty-result) (JObj "deallocator" (JStr "") (JObjEnd))))))))))
   source-intrinsic-foreign :: Json -> List Json -> Json
@@ -810,7 +810,8 @@ module Bootstrap.Export where
     Nil -> JArrEnd
     Cons row rest -> let more = source-intrinsic-foreign context rest in
       if not (same (text (field "category" row)) "intrinsic" && has-symbol (text (field "binding" row)) (field "declarations" context)
-        && (case array-plan (text (field "identity" row)) of Some plan -> True; None -> False)) then more else
+        && ((case array-plan (text (field "identity" row)) of Some plan -> True; None -> False)
+          || (case mvar-plan (text (field "identity" row)) of Some plan -> True; None -> False))) then more else
       (case export-global (text (field "binding" row)) of
         Ok identity -> (case foreign-drop-prefix (unpack (string-concat (text (field "module" context)) ".")) (unpack identity) of
           Some local -> insert-row "symbol" (intrinsic-foreign-row (pack local) row) more

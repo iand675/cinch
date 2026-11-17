@@ -12,7 +12,7 @@ module Bootstrap.Typing where
   import Bootstrap.Kinds
   import Bootstrap.Proof (Proposition, PNegate)
   import Bootstrap.Nominal (interface-global, global-data-string-string, global-data-core-list)
-  import Bootstrap.Builtin (array-type-name)
+  import Bootstrap.Builtin (array-type-name, mvar-type-name)
   import Text.Lex (Span)
   import Algebra.Semigroup
 
@@ -88,7 +88,7 @@ module Bootstrap.Typing where
       && (case declaration of GlobalValue name role sc -> not (same role "constructor") || constructor-pure (scheme-body sc); other -> True)
       && global-types kinds rest
   kernel-effect-kinds :: List (String, Kind)
-  kernel-effect-kinds = [("#kernel.Handler", handler-kind), ("#kernel.ForeignIO", KEffect), ("Foreign", KFun KRegion KEffect), ("Diverge", KEffect), ("Blocking", KEffect), ("Global", KEffect), ("Fail", KEffect), ("Reentrant", KEffect), ("ThreadAffine", KEffect), ("IO", KFun KRegion KEffect), ("Async", KFun KRegion KEffect), ("Cancel", KFun KRegion KEffect), ("Eval", KFun KRegion KEffect)]
+  kernel-effect-kinds = [("#kernel.MVar", KEffect), ("#kernel.Handler", handler-kind), ("#kernel.ForeignIO", KEffect), ("Foreign", KFun KRegion KEffect), ("Diverge", KEffect), ("Blocking", KEffect), ("Global", KEffect), ("Fail", KEffect), ("Reentrant", KEffect), ("ThreadAffine", KEffect), ("IO", KFun KRegion KEffect), ("Async", KFun KRegion KEffect), ("Cancel", KFun KRegion KEffect), ("Eval", KFun KRegion KEffect)]
   close-typing-context :: List (String, Kind) -> List CoreGlobal -> Option TypingContext
   close-typing-context kinds declarations = close-typing-context-with-effects kinds declarations Nil
   effect-kind-declared :: String -> Kind -> List (String, Kind) -> Bool
@@ -442,7 +442,7 @@ module Bootstrap.Typing where
   copyable-type :: TypingContext -> List UType -> Nat -> UType -> Bool
   copyable-type context seen fuel ty = if fuel == 0 then False else let remaining = fuel - 1 in case task-base ty of
     UTuple fields -> copyable-tuple context seen remaining fields
-    UApp (UCon name (KFun KType KType)) element -> if array-type-name name then copyable-type context seen remaining element
+    UApp (UCon name (KFun KType KType)) element -> if mvar-type-name name then True else if array-type-name name then copyable-type context seen remaining element
       else copyable-data context seen remaining ty
     UApp (UApp (UCon name kind) region) carrier -> if same name "Ref" then
       (case borrowed-carrier (task-base ty) of Some payload -> True; None -> False)
@@ -533,7 +533,7 @@ module Bootstrap.Typing where
     -- `copyable-type` (design/parallel-evaluation.md section 2.3: an
     -- immutable `Array` is `Share` iff every element is).
     UApp (UCon name kind) element -> if same name "b.Io" then True
-      else if array-type-name name && kind-equal kind (KFun KType KType) then task-shareable context seen (fuel - 1) element
+      else if (array-type-name name || mvar-type-name name) && kind-equal kind (KFun KType KType) then task-shareable context seen (fuel - 1) element
       else task-data-property context True seen fuel ty
     UApp (UApp (UCon name kind) owner) region -> if same name "b.Scope" then True
       else (case borrow-type-parts (task-base ty) of
@@ -548,6 +548,7 @@ module Bootstrap.Typing where
   task-region-free-type context seen fuel ty = if fuel == 0 then False else case task-base ty of
     UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || same name (global-data-string-string) then True else task-data-property context False seen fuel ty
     UTuple fields -> task-fields-property context False seen fuel fields
+    UApp (UCon name kind) element | mvar-type-name name && kind-equal kind (KFun KType KType) -> task-region-free-type context seen (fuel - 1) element
     other -> task-data-property context False seen fuel ty
   task-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
   task-property context sharing seen fuel ty = if sharing then task-shareable context seen fuel ty else task-region-free-type context seen fuel ty
@@ -1044,7 +1045,7 @@ module Bootstrap.Typing where
           UArg first rest -> task-transfer-safe context seen remaining first && task-transfer-safe context seen fuel rest
           other -> if task-seen-type base seen then True else
             (case task-type-spine base Nil of
-              (UCon name kind, args) -> if array-type-name name then task-transfer-types context seen remaining Nil args else
+              (UCon name kind, args) -> if mvar-type-name name then task-types-property context True Nil remaining args else if array-type-name name then task-transfer-types context seen remaining Nil args else
                 (case task-data name (context-data context) of
                   Some d -> list-length args == list-length (core-data-params d) && (case core-data-constructors d of
                     Nil -> (case borrow-regions base of Nil -> True; other -> False)

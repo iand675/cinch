@@ -12,6 +12,7 @@ module Bootstrap.Builtin where
   import Text.Scan (string-starts-with, string-drop)
 
   export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, total-primitive
+  export mvar-plan, mvar-type-name, mvar-arity, mvar-consumes, mvar-optional
   export par-lowering-name
   export ScalarShape, ScalarOperation, scalar-shape-name, scalar-shape-width, scalar-shape-signed
   export scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-operation-scheme, scalar-intrinsic
@@ -145,7 +146,7 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.prim.wrappingSubU32" == 0 then Some "sub"
     else None
 
-  -- The selected runtime ABI's pure intrinsics. The returned scheme is checked
+  -- The selected runtime ABI's checked intrinsics. The returned scheme is checked
   -- against the declaration, not taken on trust from foreign source text.
   -- The extern is retained separately from the language-level identity.
   -- | Require the canonical scalar or established runtime scheme for an intrinsic declaration.
@@ -178,9 +179,11 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.slotsFoldNat" == 0 then Some ("Nat -> U64", "cinch_nat_low_word")
     else case nat-arithmetic-extern symbol of
       Some external -> Some ("Nat -> Nat -> Nat", external)
-      None -> case array-plan symbol of
-        Some (operation, format, scheme) -> Some (scheme, array-extern operation)
-        None -> None
+      None -> case mvar-plan symbol of
+        Some (operation, scheme) -> Some (scheme, if operation < 2 then "cinch_mvar_new" else "cinch_mvar_access")
+        None -> case array-plan symbol of
+          Some (operation, format, scheme) -> Some (scheme, array-extern operation)
+          None -> None
 
   -- Runtime operations over buffers, the platform, sockets, piped children
   -- and pseudo-terminals: canonical scheme, runtime extern, argument
@@ -417,6 +420,41 @@ module Bootstrap.Builtin where
     , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"
     , decision-constructor "No" 1 "forall (p :: Prop). (h :: Not p) -> Dec p"
     ]
+
+  -- | Recognize the sealed carrier at its minimum ABI; runtime capability admission remains separate.
+  mvar-type-name :: String -> Bool
+  mvar-type-name name = runtime-abi-int >= 10 && string-compare name "MVarCell" == 0
+
+  -- | Pair each checked MVar opcode with its complete canonical effectful scheme.
+  mvar-plan :: String -> Option (Nat, String)
+  mvar-plan symbol = if runtime-abi-int < 10 then None else
+    if string-compare symbol "cinch.runtime.mvarNew" == 0 then Some (0, "forall a. a ->{MVar} MVarCell a")
+    else if string-compare symbol "cinch.runtime.mvarNewEmpty" == 0 then Some (1, "forall a. Unit ->{MVar} MVarCell a")
+    else if string-compare symbol "cinch.runtime.mvarTake" == 0 then Some (2, "forall a. MVarCell a ->{MVar, Diverge} a")
+    else if string-compare symbol "cinch.runtime.mvarPut" == 0 then Some (3, "forall a. MVarCell a -> a ->{MVar, Diverge} Unit")
+    else if string-compare symbol "cinch.runtime.mvarRead" == 0 then Some (4, "forall a. MVarCell a ->{MVar, Diverge} a")
+    else if string-compare symbol "cinch.runtime.mvarSwap" == 0 then Some (5, "forall a. MVarCell a -> a ->{MVar, Diverge} a")
+    else if string-compare symbol "cinch.runtime.mvarTryTake" == 0 then Some (6, "forall a. MVarCell a ->{MVar} Option a")
+    else if string-compare symbol "cinch.runtime.mvarTryPut" == 0 then Some (7, "forall a. MVarCell a -> a ->{MVar} Bool")
+    else if string-compare symbol "cinch.runtime.mvarTryRead" == 0 then Some (8, "forall a. MVarCell a ->{MVar} Option a")
+    else if string-compare symbol "cinch.runtime.mvarIsEmpty" == 0 then Some (9, "forall a. MVarCell a ->{MVar} Bool")
+    else if string-compare symbol "cinch.runtime.mvarTakeOrCancel" == 0 then Some (10, "forall a. MVarCell a ->{MVar, Diverge} Option a")
+    else if string-compare symbol "cinch.runtime.mvarPutOrCancel" == 0 then Some (11, "forall a. MVarCell a -> a ->{MVar, Diverge} Bool")
+    else if string-compare symbol "cinch.runtime.mvarReadOrCancel" == 0 then Some (12, "forall a. MVarCell a ->{MVar, Diverge} Option a")
+    else if string-compare symbol "cinch.runtime.mvarSwapOrCancel" == 0 then Some (13, "forall a. MVarCell a -> a ->{MVar, Diverge} Option a")
+    else None
+
+  -- | Count value arguments without changing the ownership of captured partial arguments.
+  mvar-arity :: Nat -> Nat
+  mvar-arity operation = if operation == 3 || operation == 5 || operation == 7 || operation == 11 || operation == 13 then 2 else 1
+
+  -- | Identify the value reference transferred to the runtime on every outcome.
+  mvar-consumes :: Nat -> Nat -> Bool
+  mvar-consumes operation index = (operation == 0 && index == 0) || (mvar-arity operation == 2 && index == 1)
+
+  -- | Distinguish status-bearing optional payloads from Bool, Unit and direct results.
+  mvar-optional :: Nat -> Bool
+  mvar-optional operation = operation == 6 || operation == 8 || operation == 10 || operation == 12 || operation == 13
 
   -- Array, Tensor and Columnar are primitive starting with ABI 6.
   array-type-name :: String -> Bool
