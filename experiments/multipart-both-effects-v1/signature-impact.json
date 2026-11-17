@@ -55,5 +55,9 @@
     "Eight storage dispatchers already require IO r+Mut r; new branches retain exact advanced state and single-call behavior."
   ],
   "region_policy": "The same explicit r names IO and Mut, matching native Part/File/output-part operations. No mutation is erased or source eagerly snapshotted.",
-  "gates": "prepared; source checks, intended refusals and parent review pending; no runtime or production adoption claimed"
+  "gates": {
+    "status": "Source/type/proof gates passed: two positive contracts and eight intended IO-only refusals; runtime/emission/production adoption not yet qualified.",
+    "manifest": "gates.json",
+    "parent_review": "Root accepted the explicit two-public-row compatibility cost for continued qualification; production remains unchanged."
+  }
 }

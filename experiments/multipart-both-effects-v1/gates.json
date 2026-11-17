@@ -1,6 +1,6 @@
 {
   "status": "Source/type/proof review gates only: two full positive contracts accepted and eight intended IO-only refusals. Production unchanged; no runtime/emission/link claim.",
-  "signature_manifest_sha256": "17e755622c85ae2d22bfa14919fa3e4d8ec0adc87652caf5c100942352db3b8e",
+  "signature_manifest_sha256": "136fef31221397c96e54151d67ce0763a15d7a34e0aa1508e03d6f43aa07fbad",
   "raw_reports": [
     {
       "path": "/workspace/dasl-stdlib-multipart/build/multipart/both-effects-source-v1/report-before-native-cli-fix.json",
@@ -254,5 +254,7 @@
     "diagnostics": 0,
     "orphans": 0,
     "legacy": 0
-  }
+  },
+  "historical_signature_manifest_sha256": "17e755622c85ae2d22bfa14919fa3e4d8ec0adc87652caf5c100942352db3b8e",
+  "metadata_only_status_update": "The before/after signatures and all source hashes are unchanged; only creation-time pending gate status now points to this completed source gate."
 }

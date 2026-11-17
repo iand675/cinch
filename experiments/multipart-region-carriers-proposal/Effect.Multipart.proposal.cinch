@@ -1,0 +1,1636 @@
+-- | Explicit shared multipart sessions with borrowed byte I/O capabilities.
+-- Callbacks preserve confirmed prefixes alongside arbitrary caller failures.
+-- Session and part cells form an acyclic ownership graph; retained aliases see
+-- progress, metadata updates and part completion through the same named effects.
+module Effect.Multipart where
+  import Text.Multipart
+  import Text.Mime (MimeMediaResult, mime-parse-media-type, mime-media-base, mime-media-parameters, mime-parameter-find)
+  import Text.QuotedPrintable
+  import Effect.Stream
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Mutable.Var
+  import Data.Nat
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Data.String (String, string-to-bytes, string-concat)
+
+  export MultipartError, MultipartProtocolFailure, MultipartCallerFailure
+  export MultipartInvalidCount, MultipartShortWrite, MultipartAfterWrite, MultipartFinishedPart
+  export MultipartNextFailure, MultipartQuotedPrintableFailure
+  export MultipartSource, multipart-source, multipart-source-read, multipart-source-with-mutation
+  export MultipartReadStatus, MultipartMore, MultipartEnd, MultipartReadFailure
+  export MultipartSink, multipart-sink, multipart-sink-write, multipart-sink-with-mutation
+  export multipart-source-from-stream, multipart-sink-from-stream
+  export MultipartWriter, MultipartOutputPart, multipart-writer-boundary
+  export multipart-writer-random
+  export multipart-writer-get-boundary, multipart-writer-set-boundary, multipart-writer-sink
+  export multipart-writer-content-type, multipart-create-part, multipart-create-field, multipart-create-file
+  export multipart-output-write, multipart-write-field, multipart-writer-finish
+  export MultipartPolicy, multipart-policy, multipart-default-policy
+  export MultipartReader, MultipartPart, multipart-reader, multipart-reader-with-policy, multipart-reader-source
+  export multipart-part-headers, multipart-part-set-headers, multipart-part-form-name, multipart-part-filename
+  export multipart-part-read, multipart-part-close, multipart-next-part, multipart-next-raw-part
+  export MultipartStorage, multipart-storage, multipart-storage-with-mutation
+  export multipart-storage-state
+  export MultipartFileHeader, MultipartFile, multipart-file-memory
+  export multipart-file-filename, multipart-file-set-filename, multipart-file-headers, multipart-file-set-headers
+  export multipart-file-size, multipart-file-set-size, multipart-file-open
+  export multipart-file-read, multipart-file-read-at, multipart-file-seek, multipart-file-close
+  export MultipartSeekWhence, MultipartSeekOffset
+  export MultipartForm, multipart-form-empty
+  export multipart-form-values, multipart-form-values-at, multipart-form-set-values, multipart-form-append-value, multipart-form-drop-values
+  export multipart-form-files, multipart-form-files-at, multipart-form-set-files, multipart-form-append-file, multipart-form-drop-files
+  export multipart-form-remove-all, MultipartCleanup, multipart-cleanup-error, multipart-cleanup-retry
+  export MultipartFormReadOutcome, multipart-read-form
+  export multipart-form-read-form, multipart-form-read-error, multipart-form-read-cleanup
+  export multipart-file-remove
+
+  -- | Protocol errors remain distinct from arbitrary caller transport values.
+  data MultipartError e where
+    -- | A named framing, header, memory or boundary refusal.
+    MultipartProtocolFailure :: MultipartSyntax -> MultipartError e
+    -- | The exact caller-supplied error value without string conversion.
+    MultipartCallerFailure :: e -> MultipartError e
+    -- | A callback returned more bytes than its request or offer permitted.
+    MultipartInvalidCount :: Nat -> Nat -> MultipartError e
+    -- | A single complete-header write accepted only a successful prefix.
+    MultipartShortWrite :: Nat -> Nat -> MultipartError e
+    -- | A boundary change was attempted while a current part remains assigned.
+    MultipartAfterWrite :: MultipartError e
+    -- | A previously finished or replaced output part was written again.
+    MultipartFinishedPart :: MultipartError e
+    -- | Next-part framing wraps an underlying source error without erasing it.
+    MultipartNextFailure :: MultipartError e -> MultipartError e
+    -- | Decoded parts retain precise quoted-printable offsets and failure kinds.
+    MultipartQuotedPrintableFailure :: QuotedPrintableError -> MultipartError e
+    -- | A section seek used a whence other than start, current or end.
+    MultipartSeekWhence :: MultipartError e
+    -- | A section seek would move before its beginning.
+    MultipartSeekOffset :: MultipartError e
+
+  -- | Independent status accompanying a possibly positive byte prefix.
+  data MultipartReadStatus e where
+    -- | The source can continue, including after an empty nonterminal prefix.
+    MultipartMore :: MultipartReadStatus e
+    -- | Genuine source EOF immediately follows this prefix.
+    MultipartEnd :: MultipartReadStatus e
+    -- | An arbitrary error immediately follows this prefix.
+    MultipartReadFailure :: e -> MultipartReadStatus e
+
+  -- | A borrowed source callback returning its explicit advanced continuation.
+  data MultipartSource (r :: Region) e where
+    -- | Private raw capability; the engine validates every returned byte count.
+    Source :: (Nat ->{IO r} ((Bytes, MultipartReadStatus e), MultipartSource r e)) -> MultipartSource r e
+    -- | A live callback preserves the named mutation capability alongside transport I/O.
+    MutableSource :: (Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), MultipartSource r e)) -> MultipartSource r e
+
+  -- | Construct a source preserving effectful zero reads and simultaneous statuses.
+  multipart-source :: forall (r :: Region) e. (Nat ->{IO r} ((Bytes, MultipartReadStatus e), MultipartSource r e)) -> MultipartSource r e
+  multipart-source step = Source step
+
+  -- | Retain a live reader callback with both named capabilities and its advanced continuation.
+  multipart-source-with-mutation :: forall (r :: Region) e. (Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), MultipartSource r e)) -> MultipartSource r e
+  multipart-source-with-mutation step = MutableSource step
+
+  -- | Invoke one borrowed source callback; zero requests are not silently removed.
+  multipart-source-read :: forall (r :: Region) e. MultipartSource r e -> Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), MultipartSource r e)
+  multipart-source-read source count = case source of
+    Source step -> step count
+    MutableSource step -> step count
+
+  -- | A borrowed sink with independent confirmed progress and optional failure.
+  data MultipartSink (r :: Region) e where
+    -- | Private direct callback and explicit advanced continuation.
+    Sink :: (Bytes ->{IO r} ((Nat, Option e), MultipartSink r e)) -> MultipartSink r e
+    -- | A live writer callback retains session mutation and confirmed progress together.
+    MutableSink :: (Bytes ->{IO r, Mut r} ((Nat, Option e), MultipartSink r e)) -> MultipartSink r e
+
+  -- | Construct a sink whose callbacks may return positive progress and failure together.
+  multipart-sink :: forall (r :: Region) e. (Bytes ->{IO r} ((Nat, Option e), MultipartSink r e)) -> MultipartSink r e
+  multipart-sink step = Sink step
+
+  -- | Retain a live writer callback without hiding its named mutation capability.
+  multipart-sink-with-mutation :: forall (r :: Region) e. (Bytes ->{IO r, Mut r} ((Nat, Option e), MultipartSink r e)) -> MultipartSink r e
+  multipart-sink-with-mutation step = MutableSink step
+
+  -- | Invoke exactly one sink callback, including for empty offers.
+  multipart-sink-write :: forall (r :: Region) e. MultipartSink r e -> Bytes ->{IO r, Mut r} ((Nat, Option e), MultipartSink r e)
+  multipart-sink-write sink input = case sink of
+    Sink step -> step input
+    MutableSink step -> step input
+
+  -- | Adapt an ordinary stream explicitly; positive empty success means EOF.
+  -- The underlying stream retains its documented inert zero-read policy.
+  multipart-source-from-stream :: forall (r :: Region) e. using (io :: Io r) => (StreamError -> e) -> ByteReader r -> MultipartSource r e
+  multipart-source-from-stream mapError reader = multipart-source (\wanted -> case stream-read reader wanted of
+    (Err error, next) -> ((bytes-new 0, MultipartReadFailure (mapError error)), multipart-source-from-stream mapError next)
+    (Ok output, next) -> ((output, if wanted > 0 && bytes-len output == 0 then MultipartEnd else MultipartMore), multipart-source-from-stream mapError next))
+
+  -- | Adapt a stream sink with explicit caller interpretation of error progress.
+  -- Error recovery supplies both the confirmed prefix and the original typed
+  -- failure; the engine validates that prefix against its actual offered bytes.
+  multipart-sink-from-stream :: forall (r :: Region) e. using (io :: Io r) => (StreamError -> (Nat, e)) -> ByteWriter r -> MultipartSink r e
+  multipart-sink-from-stream recover sink = multipart-sink (\input -> case stream-write sink input of
+    (Ok count, next) -> ((count, None), multipart-sink-from-stream recover next)
+    (Err error, next) -> case recover error of (count, failure) -> ((count, Some failure), multipart-sink-from-stream recover next))
+
+  -- | Copy a proved source span before retaining or publishing it.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 at count in out
+    else bytes-new 0
+
+  -- | Own a complete input snapshot without retaining caller mutation authority.
+  snapshot :: (input :: Bytes) -> refined (bytes-len r == bytes-len input) Bytes
+  snapshot input =
+    let output = bytes-new (bytes-len input) in
+    let copied = bytes-copy-range output input 0 0 (bytes-len input) in output
+
+  -- | Join two independently owned spans in one checked aggregate.
+  join :: Bytes -> Bytes -> Bytes
+  join first second = let out = bytes-new (bytes-len first + bytes-len second) in
+    let one = bytes-copy-range out first 0 0 (bytes-len first) in
+    let two = bytes-copy-range out second (bytes-len first) 0 (bytes-len second) in out
+
+  -- | A body state has no backlink to its writer, preventing ownership cycles.
+  data OutputState e where
+    -- | The finished flag and most recent nonempty body error.
+    OutputState :: Bool -> Option (MultipartError e) -> OutputState e
+
+  -- | The writer owns its current body cell and borrowed sink continuation.
+  data WriterState (r :: Region) e where
+    -- | Private boundary bytes, sink and optional current part state.
+    WriterState :: Bytes -> MultipartSink r e -> Option (Var r (OutputState e)) -> WriterState r e
+
+  -- | A shared writer session; operations state mutation and I/O explicitly.
+  data MultipartWriter (r :: Region) e where
+    -- | Private shared acyclic root.
+    Writer :: Var r (WriterState r e) -> MultipartWriter r e
+
+  -- | A borrowed output handle retaining its writer and independent body state.
+  data MultipartOutputPart (r :: Region) e where
+    -- | The body cell never retains this handle or the writer cell.
+    OutputPart :: Var r (WriterState r e) -> Var r (OutputState e) -> MultipartOutputPart r e
+
+  -- | Create a writer with an explicit validated boundary and a borrowed sink.
+  multipart-writer-boundary :: forall (r :: Region) e. Bytes -> MultipartSink r e ->{Mut r} Result (MultipartError e) (MultipartWriter r e)
+  multipart-writer-boundary boundary sink = case multipart-check-boundary boundary of
+    Err error -> Err (MultipartProtocolFailure error)
+    Ok unit -> let cell = var-new (WriterState (snapshot boundary) sink None) in Ok (Writer cell)
+
+  -- | Produce one bounded lowercase hexadecimal digit.
+  random-digit :: Nat -> InRange 0 255 Nat
+  random-digit value = if value < 10 then value + 48 else if value < 16 then value + 87 else 48
+
+  -- | Fill lowercase entropy digits only where both source and output indices fit.
+  random-fill :: Bytes -> Bytes -> Nat -> Unit
+  random-fill output input at = if at < bytes-len input && at * 2 + 1 < bytes-len output then
+    let byte = bytes-get input at in
+    let high = bytes-set output (at * 2) (random-digit (nat-div byte 16)) in
+    let low = bytes-set output (at * 2 + 1) (random-digit (nat-rem byte 16)) in
+    random-fill output input (at + 1)
+    else ()
+
+  -- | Render exactly two hexadecimal bytes for each owned entropy byte.
+  random-boundary :: Bytes -> Bytes
+  random-boundary input = let output = bytes-new (bytes-len input * 2) in let filled = random-fill output input 0 in output
+
+  -- | Draw an exact entropy prefix, ignoring a terminal status only after an exact fill.
+  random-read :: forall (r :: Region) e. MultipartSource r e -> Nat -> List Bytes ->{IO r, Mut r} (Result (MultipartError e) Bytes, MultipartSource r e)
+  random-read source remaining pieces =
+    if remaining == 0 then (Ok (pieces-output pieces), source)
+    else case multipart-source-read source remaining of
+      ((output, status), next) ->
+        if bytes-len output > remaining then (Err (MultipartInvalidCount remaining (bytes-len output)), next)
+        else
+          let owned = snapshot output in
+          if bytes-len owned == remaining then (Ok (pieces-output (Cons owned pieces)), next)
+          else case status of
+            MultipartMore -> random-read next (remaining - bytes-len owned) (Cons owned pieces)
+            MultipartReadFailure error -> (Err (MultipartCallerFailure error), next)
+            MultipartEnd -> (Err (MultipartProtocolFailure (if pieces-size (Cons owned pieces) 0 == 0 then MultipartInputEnd else MultipartUnexpectedEnd)), next)
+
+  -- | Begin with thirty explicit entropy bytes and return the advanced borrowed source.
+  -- Entropy failure is typed; a successful draw yields sixty lowercase boundary bytes.
+  multipart-writer-random :: forall (r :: Region) e. MultipartSource r e -> MultipartSink r e ->{IO r, Mut r} (Result (MultipartError e) (MultipartWriter r e), MultipartSource r e)
+  multipart-writer-random entropy sink = case random-read entropy 30 Nil of
+    (Err error, next) -> (Err error, next)
+    (Ok bytes, next) -> (multipart-writer-boundary (random-boundary bytes) sink, next)
+
+  -- | Observe an independently mutable boundary snapshot from the shared session.
+  multipart-writer-get-boundary :: forall (r :: Region) e. MultipartWriter r e ->{Mut r} Bytes
+  multipart-writer-get-boundary writer = case writer of
+    Writer cell -> let state = var-read cell in case state of WriterState boundary sink current -> snapshot boundary
+
+  -- | Observe the actual advanced borrowed sink without closing it.
+  multipart-writer-sink :: forall (r :: Region) e. MultipartWriter r e ->{Mut r} MultipartSink r e
+  multipart-writer-sink writer = case writer of
+    Writer cell -> let state = var-read cell in case state of WriterState boundary sink current -> sink
+
+  -- | Render content type from the current session boundary without mutating it.
+  multipart-writer-content-type :: forall (r :: Region) e. MultipartWriter r e ->{Mut r} Bytes
+  multipart-writer-content-type writer = let boundary = multipart-writer-get-boundary writer in multipart-form-content-type boundary
+
+  -- | Change a boundary only when no current part remains assigned.
+  multipart-writer-set-boundary :: forall (r :: Region) e. MultipartWriter r e -> Bytes ->{Mut r} Result (MultipartError e) Unit
+  multipart-writer-set-boundary writer boundary = case writer of
+    Writer cell ->
+      let state = var-read cell in
+      case state of
+        WriterState old sink current -> case current of
+          Some previous -> Err MultipartAfterWrite
+          None -> case multipart-check-boundary boundary of
+            Err error -> Err (MultipartProtocolFailure error)
+            Ok unit -> let written = var-write cell (WriterState (snapshot boundary) sink None) in Ok ()
+
+  -- | Finish a body cell even when its sticky error prevents subsequent output.
+  close-output :: forall (r :: Region) e. Var r (OutputState e) ->{Mut r} Option (MultipartError e)
+  close-output cell = let state = var-read cell in case state of
+    OutputState closed error -> let written = var-write cell (OutputState True error) in error
+
+  -- | Send exactly one offer and immediately store the sink's advanced state.
+  send :: forall (r :: Region) e. Var r (WriterState r e) -> Bytes ->{IO r, Mut r} (Nat, Option (MultipartError e))
+  send cell input =
+    let state = var-read cell in
+    case state of
+      WriterState boundary sink current -> case multipart-sink-write sink input of
+        ((count, error), next) ->
+          let written = var-write cell (WriterState boundary next current) in
+          if count > bytes-len input then (count, Some (MultipartInvalidCount (bytes-len input) count))
+          else (count, case error of None -> None; Some failure -> Some (MultipartCallerFailure failure))
+
+  -- | Offer a header block once and synthesize a short-write refusal only here.
+  create-output :: forall (r :: Region) e. Var r (WriterState r e) -> Bytes ->{IO r, Mut r} Result (MultipartError e) (MultipartOutputPart r e)
+  create-output cell wire = case send cell wire of
+    (count, Some error) -> Err error
+    (count, None) -> if count /= bytes-len wire then Err (MultipartShortWrite (bytes-len wire) count)
+      else
+        let state = var-read cell in
+        case state of
+          WriterState boundary sink old ->
+            let body = var-new (OutputState False None) in
+            let written = var-write cell (WriterState boundary sink (Some body)) in
+            Ok (OutputPart cell body)
+
+  -- | Finish an old body before header output; failed replacement keeps it assigned.
+  multipart-create-part :: forall (r :: Region) e. MultipartWriter r e -> MultipartHeaders ->{IO r, Mut r} Result (MultipartError e) (MultipartOutputPart r e)
+  multipart-create-part writer headers = case writer of
+    Writer cell ->
+      let state = var-read cell in
+      case state of
+        WriterState boundary sink current ->
+          let wire = join (join (string-to-bytes (case current of None -> "--"; Some old -> "\r\n--")) boundary) (join (string-to-bytes "\r\n") (multipart-header-wire headers)) in
+          case current of
+            None -> create-output cell wire
+            Some previous -> case close-output previous of
+              Some error -> Err error
+              None -> create-output cell wire
+
+  -- | Create a named field with the exact byte disposition escaping policy.
+  multipart-create-field :: forall (r :: Region) e. MultipartWriter r e -> Bytes ->{IO r, Mut r} Result (MultipartError e) (MultipartOutputPart r e)
+  multipart-create-field writer name = multipart-create-part writer
+    (multipart-headers (Cons (string-to-bytes "Content-Disposition", Cons (multipart-field-disposition name) Nil) Nil))
+
+  -- | Create a named file field with an octet-stream content type.
+  multipart-create-file :: forall (r :: Region) e. MultipartWriter r e -> Bytes -> Bytes ->{IO r, Mut r} Result (MultipartError e) (MultipartOutputPart r e)
+  multipart-create-file writer name filename = multipart-create-part writer
+    (multipart-headers (Cons (string-to-bytes "Content-Disposition", Cons (multipart-file-disposition name filename) Nil)
+      (Cons (string-to-bytes "Content-Type", Cons (string-to-bytes "application/octet-stream") Nil) Nil)))
+
+  -- | Write once through an active body, retaining the latest nonempty error.
+  multipart-output-write :: forall (r :: Region) e. MultipartOutputPart r e -> Bytes ->{IO r, Mut r} (Nat, Option (MultipartError e))
+  multipart-output-write output input = case output of
+    OutputPart writer body ->
+      let state = var-read body in
+      case state of
+        OutputState True previous -> (0, Some MultipartFinishedPart)
+        OutputState False previous -> case send writer input of
+          (count, error) ->
+            let next = case error of None -> previous; Some failure -> Some failure in
+            let written = var-write body (OutputState False next) in
+            (count, error)
+
+  -- | Create a field and make one body write; short success is not a new error.
+  multipart-write-field :: forall (r :: Region) e. MultipartWriter r e -> Bytes -> Bytes ->{IO r, Mut r} Result (MultipartError e) Unit
+  multipart-write-field writer name value = case multipart-create-field writer name of
+    Err error -> Err error
+    Ok output -> case multipart-output-write output value of
+      (count, None) -> Ok ()
+      (count, Some error) -> Err error
+
+  -- | Clear the current part before one footer write; repeated calls repeat footers.
+  finish-writer :: forall (r :: Region) e. Var r (WriterState r e) -> Bytes -> MultipartSink r e ->{IO r, Mut r} Result (MultipartError e) Unit
+  finish-writer cell boundary sink =
+    let written = var-write cell (WriterState boundary sink None) in
+    case send cell (join (join (string-to-bytes "\r\n--") boundary) (string-to-bytes "--\r\n")) of
+      (count, None) -> Ok ()
+      (count, Some error) -> Err error
+
+  -- | Finish the current body and emit one footer without closing the sink/session.
+  multipart-writer-finish :: forall (r :: Region) e. MultipartWriter r e ->{IO r, Mut r} Result (MultipartError e) Unit
+  multipart-writer-finish writer = case writer of
+    Writer cell ->
+      let state = var-read cell in
+      case state of
+        WriterState boundary sink current -> case current of
+          None -> finish-writer cell boundary sink
+          Some body -> case close-output body of
+            Some error -> Err error
+            None -> finish-writer cell boundary sink
+
+  -- | Private buffered input owns its copied bytes and one sticky terminal status.
+  data InputState (r :: Region) e where
+    -- | An advanced source, at most 4096 buffered bytes and source terminal state.
+    InputState :: MultipartSource r e -> Bytes -> MultipartReadStatus (MultipartError e) -> InputState r e
+
+  -- | Lift arbitrary source failures without losing their original payload.
+  source-status :: forall e. MultipartReadStatus e -> MultipartReadStatus (MultipartError e)
+  source-status status = case status of
+    MultipartMore -> MultipartMore
+    MultipartEnd -> MultipartEnd
+    MultipartReadFailure error -> MultipartReadFailure (MultipartCallerFailure error)
+
+  -- | Whether another source callback is permitted after this sticky status.
+  has-more :: forall e. MultipartReadStatus e -> Bool
+  has-more status = case status of MultipartMore -> True; _ -> False
+
+  -- | Convert a source terminal status into its explicit error observation.
+  status-error :: forall e. MultipartReadStatus (MultipartError e) -> MultipartError e
+  status-error status = case status of
+    MultipartReadFailure error -> error
+    MultipartEnd -> MultipartProtocolFailure MultipartInputEnd
+    MultipartMore -> MultipartProtocolFailure MultipartNoProgress
+
+  -- | Fill free lookahead space, detecting the bounded empty-read refusal exactly.
+  fill-input :: forall (r :: Region) e. Var r (InputState r e) -> Nat ->{IO r, Mut r} Unit
+  fill-input cell empty =
+    let state = var-read cell in
+    case state of
+      InputState source buffer terminal ->
+        if has-more terminal && bytes-len buffer < 4096 then
+          case multipart-source-read source (4096 - bytes-len buffer) of
+            ((output, status), next) ->
+              if bytes-len output > 4096 - bytes-len buffer then
+                var-write cell (InputState next buffer (MultipartReadFailure (MultipartInvalidCount (4096 - bytes-len buffer) (bytes-len output))))
+              else
+                let joined = join buffer output in
+                let written = var-write cell (InputState next joined (source-status status)) in
+                if bytes-len output == 0 && has-more status then
+                  if empty + 1 < 100 then fill-input cell (empty + 1)
+                  else var-write cell (InputState next joined (MultipartReadFailure (MultipartProtocolFailure MultipartNoProgress)))
+                else ()
+        else ()
+
+  -- | Observe buffered bytes, fetching only until the requested lookahead is available.
+  peek-input :: forall (r :: Region) e. Var r (InputState r e) -> Nat ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  peek-input cell wanted =
+    let state = var-read cell in
+    case state of
+      InputState source buffer terminal ->
+        if wanted > 4096 then (buffer, MultipartReadFailure (MultipartProtocolFailure MultipartBufferFull))
+        else if wanted <= bytes-len buffer then (buffer, MultipartMore)
+        else if has-more terminal then
+          let filled = fill-input cell 0 in peek-input cell wanted
+        else (buffer, terminal)
+
+  -- | Observe current lookahead without causing an extra source read.
+  buffered-input :: forall (r :: Region) e. Var r (InputState r e) ->{Mut r} Bytes
+  buffered-input cell = let state = var-read cell in case state of InputState source buffer terminal -> buffer
+
+  -- | Consume an exact available prefix into a fresh result and retain the suffix.
+  take-input :: forall (r :: Region) e. Var r (InputState r e) -> Nat ->{Mut r} Bytes
+  take-input cell count =
+    let state = var-read cell in
+    case state of
+      InputState source buffer terminal ->
+        if count <= bytes-len buffer then
+          let output = part buffer 0 count in
+          let rest = part buffer count (bytes-len buffer - count) in
+          let written = var-write cell (InputState source rest terminal) in output
+        else bytes-new 0
+
+  -- | Read one bounded physical line, preserving a simultaneous terminal prefix.
+  input-line :: forall (r :: Region) e. Var r (InputState r e) ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  input-line cell =
+    let state = var-read cell in
+    case state of
+      InputState source buffer terminal ->
+        let newline = multipart-find-byte buffer 0 10 in
+        if newline < bytes-len buffer then
+          let line = take-input cell (newline + 1) in (line, MultipartMore)
+        else if not (has-more terminal) then
+          let line = take-input cell (bytes-len buffer) in (line, terminal)
+        else if bytes-len buffer == 4096 then
+          let line = take-input cell 4096 in (line, MultipartReadFailure (MultipartProtocolFailure MultipartBufferFull))
+        else
+          let filled = fill-input cell 0 in input-line cell
+
+  -- | Recognize the private bounded-line status without flattening caller errors.
+  buffer-full :: forall e. MultipartReadStatus (MultipartError e) -> Bool
+  buffer-full status = case status of
+    MultipartReadFailure error -> case error of
+      MultipartProtocolFailure syntax -> case syntax of MultipartBufferFull -> True; _ -> False
+      _ -> False
+    _ -> False
+
+  -- | Strip a physical header newline, including its optional preceding CR.
+  strip-newline :: Bytes -> Bytes
+  strip-newline line =
+    let size = bytes-len line in
+    if size > 0 then
+      if bytes-get line (size - 1) == 10 then
+        if size > 1 then
+          if bytes-get line (size - 2) == 13 then part line 0 (size - 2) else part line 0 (size - 1)
+        else bytes-new 0
+      else snapshot line
+    else bytes-new 0
+
+  -- | Retain a trailing CR across a full header fragment so its following LF stays paired.
+  header-fragment :: forall (r :: Region) e. Var r (InputState r e) ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  header-fragment cell = case input-line cell of
+    (line, status) ->
+      if buffer-full status && bytes-len line > 0 then
+        let size = bytes-len line in
+        if bytes-get line (size - 1) == 13 then
+          let state = var-read cell in
+          case state of
+            InputState source buffer terminal ->
+              let written = var-write cell (InputState source (join (part line (size - 1) 1) buffer) terminal) in
+              (part line 0 (size - 1), status)
+        else (line, status)
+      else (line, status)
+
+  -- | Accumulate bounded header fragments with one final payload allocation.
+  header-pieces :: forall (r :: Region) e. Var r (InputState r e) -> Nat -> Nat -> List Bytes ->{IO r, Mut r} Result (MultipartError e) Bytes
+  header-pieces cell limit size pieces = case header-fragment cell of
+    (line, status) ->
+      if buffer-full status then
+        if size + bytes-len line > limit then Err (MultipartProtocolFailure MultipartMessageTooLarge)
+        else header-pieces cell limit (size + bytes-len line) (Cons line pieces)
+      else if bytes-len line == 0 && not (has-more status) then Err (status-error status)
+      else
+        let stripped = strip-newline line in
+        if size + bytes-len stripped > limit then Err (MultipartProtocolFailure MultipartMessageTooLarge)
+        else Ok (pieces-output (Cons stripped pieces))
+
+  -- | Assemble a physical header under its exact remaining memory bound in linear copy work.
+  header-line :: forall (r :: Region) e. Var r (InputState r e) -> Nat ->{IO r, Mut r} Result (MultipartError e) Bytes
+  header-line cell limit = header-pieces cell limit 0 Nil
+
+  -- | Consume only horizontal header continuation whitespace across lookahead boundaries.
+  header-space-size :: Bytes -> Nat -> Nat
+  header-space-size input at = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte == 32 || byte == 9 then header-space-size input (at + 1) else at
+    else at
+
+  -- | Discard one available whitespace run without allocating an unused prefix copy.
+  drop-header-space :: forall (r :: Region) e. Var r (InputState r e) -> Nat ->{Mut r} Unit
+  drop-header-space cell count =
+    let state = var-read cell in
+    case state of
+      InputState source buffer terminal -> if count <= bytes-len buffer then
+        var-write cell (InputState source (part buffer count (bytes-len buffer - count)) terminal)
+        else ()
+
+  -- | Consume complete horizontal whitespace runs across lookahead boundaries.
+  skip-header-space :: forall (r :: Region) e. Var r (InputState r e) -> Bool ->{IO r, Mut r} Bool
+  skip-header-space cell skipped = case peek-input cell 1 of
+    (buffer, status) ->
+      if bytes-len buffer > 0 then
+        let count = header-space-size buffer 0 in
+        if count > 0 then
+          let dropped = drop-header-space cell count in skip-header-space cell True
+        else skipped
+      else skipped
+
+  -- | Retain folded fragments while applying the exact shrinking continuation budget.
+  unfold-pieces :: forall (r :: Region) e. Var r (InputState r e) -> Nat -> Nat -> List Bytes ->{IO r, Mut r} Result (MultipartError e) Bytes
+  unfold-pieces cell limit size pieces =
+    let continued = skip-header-space cell False in
+    if continued then
+      let nextSize = size + 1 in
+      if nextSize >= limit then Err (MultipartProtocolFailure MultipartMessageTooLarge)
+      else case header-line cell (limit - nextSize) of
+        Err error -> Err error
+        Ok line ->
+          let trimmed = multipart-trim-header-line line in
+          unfold-pieces cell limit (nextSize + bytes-len trimmed) (Cons trimmed (Cons (string-to-bytes " ") pieces))
+    else Ok (pieces-output pieces)
+
+  -- | Unfold a complete logical header with linear payload copies and owned output.
+  unfold-header :: forall (r :: Region) e. Var r (InputState r e) -> Nat -> Bytes ->{IO r, Mut r} Result (MultipartError e) Bytes
+  unfold-header cell limit logical = unfold-pieces cell limit (bytes-len logical) (Cons logical Nil)
+
+  -- | Parse one first physical header line before consuming any continuation.
+  logical-header :: forall (r :: Region) e. Var r (InputState r e) -> Nat ->{IO r, Mut r} Result (MultipartError e) Bytes
+  logical-header cell limit = case header-line cell limit of
+    Err error -> Err error
+    Ok physical ->
+      if bytes-len physical == 0 then Ok physical
+      else if multipart-find-byte physical 0 58 == bytes-len physical then Err (MultipartProtocolFailure (MultipartHeaderMissingColon physical))
+      else
+        let logical = multipart-trim-header-line physical in
+        if bytes-len logical <= limit then unfold-header cell (limit - bytes-len logical) logical
+        else Err (MultipartProtocolFailure MultipartMessageTooLarge)
+
+  -- | Account one logical header after validating its bytes and before publication.
+  read-headers :: forall (r :: Region) e. Var r (InputState r e) -> Nat -> Nat -> MultipartHeaders ->{IO r, Mut r} Result (MultipartError e) MultipartHeaders
+  read-headers cell memory count headers = case logical-header cell memory of
+    Err error -> Err error
+    Ok line ->
+      if bytes-len line == 0 then Ok headers
+      else case multipart-parse-header-line line of
+        Err error -> Err (MultipartProtocolFailure error)
+        Ok pair -> case pair of
+          (key, value) ->
+            if count == 0 then Err (MultipartProtocolFailure MultipartMessageTooLarge)
+            else
+              let charge = bytes-len value + (case multipart-header-values key headers of Nil -> bytes-len key + 200; _ -> 0) in
+              if charge <= memory then read-headers cell (memory - charge) (count - 1) (multipart-header-append-raw key value headers)
+              else Err (MultipartProtocolFailure MultipartMessageTooLarge)
+
+  -- | Refuse an initial continuation before parsing the ordinary logical header list.
+  start-headers :: forall (r :: Region) e. Var r (InputState r e) -> Nat -> Nat ->{IO r, Mut r} Result (MultipartError e) MultipartHeaders
+  start-headers cell memory count = case peek-input cell 1 of
+    (buffer, status) ->
+      if bytes-len buffer > 0 && (if bytes-len buffer > 0 then bytes-get buffer 0 == 32 || bytes-get buffer 0 == 9 else False) then
+        case header-line cell 80 of
+          Err error -> Err error
+          Ok line -> Err (MultipartProtocolFailure (MultipartHeaderInitial line))
+      else read-headers cell memory count (multipart-headers Nil)
+
+  -- | Explicit header/part limits, scratch sharing and filename path policy.
+  data MultipartPolicy where
+    -- | Header memory bytes, header entries, form parts, combined scratch and basename.
+    Policy :: Nat -> Nat -> Nat -> Bool -> (Bytes -> Bytes) -> MultipartPolicy
+
+  -- | Select every resource limit and filename policy without ambient configuration.
+  multipart-policy :: Nat -> Nat -> Nat -> Bool -> (Bytes -> Bytes) -> MultipartPolicy
+  multipart-policy memory headers parts combine basename = Policy memory headers parts combine basename
+
+  -- | Conventional ten-MiB headers, ten-thousand entries, thousand parts and POSIX names.
+  multipart-default-policy :: MultipartPolicy
+  multipart-default-policy = Policy 10485760 10000 1000 True multipart-posix-filename
+
+  -- | Raw part state retains payload progress separately from pending source failure.
+  data RawState e where
+    -- | Total returned bytes, known prefix, body terminal status and last lookahead error.
+    RawState :: Nat -> Nat -> MultipartReadStatus (MultipartError e) -> MultipartReadStatus (MultipartError e) -> RawState e
+
+  -- | Decoded body state owns buffered output independently of the raw source cursor.
+  data QPState e where
+    -- | Codec continuation, private pending bytes and delayed decoded terminal status.
+    QPState :: QuotedPrintableDecoder -> Bytes -> MultipartReadStatus (MultipartError e) -> QPState e
+
+  -- | A part-state cell never points back to its reader session.
+  data PartState e where
+    -- | Headers, optional lazy disposition cache, raw cursor and optional decoded state.
+    PartState :: MultipartHeaders -> Option MimeMediaResult -> RawState e -> Option (QPState e) -> PartState e
+
+  -- | The reader session owns its source cell and current part-state cell.
+  data ReaderState (r :: Region) e where
+    -- | Boundary, LF policy, observed part count, buffered source, current part and policy.
+    ReaderState :: Bytes -> Bool -> Nat -> Var r (InputState r e) -> Option (Var r (PartState e)) -> MultipartPolicy -> ReaderState r e
+
+  -- | A borrowed input session with explicitly shared mutation and I/O effects.
+  data MultipartReader (r :: Region) e where
+    -- | Private acyclic reader root.
+    Reader :: Var r (ReaderState r e) -> MultipartReader r e
+
+  -- | A retained part alias shares its reader and its independent metadata/body cell.
+  data MultipartPart (r :: Region) e where
+    -- | No part-state backlink can keep the reader alive through a reference cycle.
+    InputPart :: Var r (ReaderState r e) -> Var r (PartState e) -> MultipartPart r e
+
+  -- | Snapshot arbitrary reader boundary bytes without applying writer restrictions.
+  multipart-reader-with-policy :: forall (r :: Region) e. MultipartSource r e -> Bytes -> MultipartPolicy ->{Mut r} MultipartReader r e
+  multipart-reader-with-policy source boundary policy =
+    let input = var-new (InputState source (bytes-new 0) MultipartMore) in
+    let cell = var-new (ReaderState (snapshot boundary) False 0 input None policy) in
+    Reader cell
+
+  -- | Begin a borrowed reader with explicit default limits and POSIX filename policy.
+  multipart-reader :: forall (r :: Region) e. MultipartSource r e -> Bytes ->{Mut r} MultipartReader r e
+  multipart-reader source boundary = multipart-reader-with-policy source boundary multipart-default-policy
+
+  -- | Observe the current advanced borrowed source, including after protocol failures.
+  multipart-reader-source :: forall (r :: Region) e. MultipartReader r e ->{Mut r} MultipartSource r e
+  multipart-reader-source reader = case reader of
+    Reader cell -> let state = var-read cell in case state of
+      ReaderState boundary lf parts input current policy -> let source = var-read input in case source of InputState advanced buffer terminal -> advanced
+
+  -- | Observe immutable header context; byte views obtained from it are fresh snapshots.
+  multipart-part-headers :: forall (r :: Region) e. MultipartPart r e ->{Mut r} MultipartHeaders
+  multipart-part-headers borrowed = case borrowed of
+    InputPart reader cell -> let state = var-read cell in case state of PartState headers cache raw qp -> headers
+
+  -- | Replace live headers without invalidating an already initialized disposition cache.
+  multipart-part-set-headers :: forall (r :: Region) e. MultipartPart r e -> MultipartHeaders ->{Mut r} Unit
+  multipart-part-set-headers borrowed headers = case borrowed of
+    InputPart reader cell -> let state = var-read cell in case state of PartState old cache raw qp -> var-write cell (PartState headers cache raw qp)
+
+  -- | Initialize a lazy disposition cache exactly once, including malformed values.
+  disposition-cache :: forall (r :: Region) e. Var r (PartState e) ->{Mut r} MimeMediaResult
+  disposition-cache cell =
+    let state = var-read cell in
+    case state of
+      PartState headers cache raw qp -> case cache of
+        Some parsed -> parsed
+        None ->
+          let parsed = mime-parse-media-type (multipart-header-get (string-to-bytes "Content-Disposition") headers) in
+          let written = var-write cell (PartState headers (Some parsed) raw qp) in parsed
+
+  -- | Return the first exact parameter snapshot, with an empty value for absent/failed maps.
+  disposition-parameter :: Bytes -> MimeMediaResult -> Bytes
+  disposition-parameter key parsed = case mime-media-parameters parsed of
+    None -> bytes-new 0
+    Some parameters -> case mime-parameter-find key parameters of None -> bytes-new 0; Some value -> value
+
+  -- | Observe a form-data name through the shared lazy disposition cache.
+  multipart-part-form-name :: forall (r :: Region) e. MultipartPart r e ->{Mut r} Bytes
+  multipart-part-form-name borrowed = case borrowed of
+    InputPart reader cell -> let parsed = disposition-cache cell in
+      if mime-media-base parsed == "form-data" then disposition-parameter (string-to-bytes "name") parsed else bytes-new 0
+
+  -- | Observe a filename through the same cache and the explicit basename policy.
+  multipart-part-filename :: forall (r :: Region) e. MultipartPart r e ->{Mut r} Bytes
+  multipart-part-filename borrowed = case borrowed of
+    InputPart reader cell ->
+      let parsed = disposition-cache cell in
+      let filename = disposition-parameter (string-to-bytes "filename") parsed in
+      if bytes-len filename == 0 then filename
+      else let state = var-read reader in case state of
+        ReaderState boundary lf parts input current policy -> case policy of Policy memory headers maximum combine basename -> snapshot (basename filename)
+
+  -- | Update only raw progress, preserving header/cache changes made through aliases.
+  put-raw :: forall (r :: Region) e. Var r (PartState e) -> RawState e ->{Mut r} Unit
+  put-raw cell next = let state = var-read cell in case state of PartState headers cache raw qp -> var-write cell (PartState headers cache next qp)
+
+  -- | Update only decoded continuation state without overwriting raw cursor progress.
+  put-qp :: forall (r :: Region) e. Var r (PartState e) -> QPState e ->{Mut r} Unit
+  put-qp cell next = let state = var-read cell in case state of PartState headers cache raw qp -> var-write cell (PartState headers cache raw (Some next))
+
+  -- | Select a proved prefix count bounded by both requested and available bytes.
+  smaller :: (first :: Nat) -> (second :: Nat) -> refined (r <= first && r <= second) Nat
+  smaller first second = if first < second then first else second
+
+  -- | Convert genuine source EOF into unexpected raw-body EOF before a delimiter.
+  raw-status :: forall e. MultipartReadStatus (MultipartError e) -> MultipartReadStatus (MultipartError e)
+  raw-status status = case status of MultipartEnd -> MultipartReadFailure (MultipartProtocolFailure MultipartUnexpectedEnd); _ -> status
+
+  -- | Install a confirmed raw span and read it without an additional source callback.
+  raw-span :: forall (r :: Region) e. Var r (ReaderState r e) -> Var r (PartState e) -> Nat -> Nat -> MultipartReadStatus (MultipartError e) -> MultipartReadStatus (MultipartError e) -> Nat ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  raw-span reader cell total count terminal readError wanted =
+    let written = put-raw cell (RawState total count terminal readError) in
+    read-raw reader cell wanted
+
+  -- | Pull raw body bytes with exact zero-read, boundary and prefix/status semantics.
+  read-raw :: forall (r :: Region) e. Var r (ReaderState r e) -> Var r (PartState e) -> Nat ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  read-raw reader cell wanted =
+    let session = var-read reader in
+    let state = var-read cell in
+    case session of
+      ReaderState boundary lf parts input current policy -> case state of
+        PartState headers cache raw qp -> case raw of
+          RawState total count terminal readError ->
+            if count > 0 then
+              let amount = smaller wanted count in
+              let output = take-input input amount in
+              let remaining = count - amount in
+              let written = put-raw cell (RawState (total + amount) remaining terminal readError) in
+              (output, if remaining == 0 then terminal else MultipartMore)
+            else if not (has-more terminal) then (bytes-new 0, terminal)
+            else
+              let buffer = buffered-input input in
+              if bytes-len buffer <= 4096 then
+                case multipart-body-scan buffer boundary lf (total == 0) (not (has-more readError)) of
+                  MultipartBodyEnd prefix -> raw-span reader cell total prefix MultipartEnd readError wanted
+                  MultipartBodyPrefix prefix ->
+                    if prefix > 0 && prefix <= bytes-len buffer then raw-span reader cell total prefix (if prefix == bytes-len buffer then readError else MultipartMore) readError wanted
+                    else raw-lookahead reader cell input buffer total readError wanted
+                  MultipartBodyNeedMore -> raw-lookahead reader cell input buffer total readError wanted
+
+              else (bytes-new 0, MultipartReadFailure (MultipartInvalidCount 4096 (bytes-len buffer)))
+  -- | Fetch one additional lookahead byte only while no earlier terminal status exists.
+  raw-lookahead :: forall (r :: Region) e. Var r (ReaderState r e) -> Var r (PartState e) -> Var r (InputState r e) -> Bytes -> Nat -> MultipartReadStatus (MultipartError e) -> Nat ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  raw-lookahead reader cell input buffer total readError wanted =
+    if has-more readError then case peek-input input (bytes-len buffer + 1) of
+      (peeked, status) ->
+        let written = put-raw cell (RawState total 0 MultipartMore (raw-status status)) in
+        read-raw reader cell wanted
+    else
+      let written = put-raw cell (RawState total 0 readError readError) in
+      (bytes-new 0, readError)
+
+  -- | Total independently retained output chunks before a single final allocation.
+  pieces-size :: List Bytes -> Nat -> Nat
+  pieces-size pieces size = case pieces of Nil -> size; Cons piece rest -> pieces-size rest (size + bytes-len piece)
+
+  -- | Copy confirmed output chunks once without reusing callback-owned buffers.
+  pieces-fill :: Bytes -> Nat -> List Bytes -> Unit
+  pieces-fill output at pieces = case pieces of
+    Nil -> ()
+    Cons piece rest -> if at + bytes-len piece <= bytes-len output then
+      let copied = bytes-copy-range output piece at 0 (bytes-len piece) in pieces-fill output (at + bytes-len piece) rest
+      else ()
+
+  -- | Flatten reverse-ordered chunks in linear payload-copy work.
+  pieces-output :: List Bytes -> Bytes
+  pieces-output reversePieces =
+    let pieces = reverse reversePieces in
+    let output = bytes-new (pieces-size pieces 0) in
+    let copied = pieces-fill output 0 pieces in output
+
+  -- | Identify clean EOF separately from source and codec failures.
+  clean-end :: forall e. MultipartReadStatus e -> Bool
+  clean-end status = case status of MultipartEnd -> True; _ -> False
+
+  -- | Pump one raw-body chunk into the decoded continuation and preserve terminal data.
+  pump-qp :: forall (r :: Region) e. Var r (ReaderState r e) -> Var r (PartState e) -> QuotedPrintableDecoder ->{IO r, Mut r} Unit
+  pump-qp reader cell codec =
+    let capacity = quoted-printable-decoder-capacity codec in
+    case quoted-printable-decoder-error codec of
+      Some error -> put-qp cell (QPState codec (bytes-new 0) (MultipartReadFailure (MultipartQuotedPrintableFailure error)))
+      None ->
+        if capacity == 0 then
+          put-qp cell (QPState codec (bytes-new 0) (MultipartReadFailure (MultipartProtocolFailure MultipartBufferFull)))
+        else case read-raw reader cell capacity of
+          (input, status) -> case quoted-printable-decoder-feed codec input of
+            (output, pair) -> case pair of
+              (consumed, next) -> case quoted-printable-decoder-error next of
+                Some error -> put-qp cell (QPState next output (MultipartReadFailure (MultipartQuotedPrintableFailure error)))
+                None ->
+                  if has-more status then put-qp cell (QPState next output MultipartMore)
+                  else case quoted-printable-decoder-end (clean-end status) next of
+                    (tail, error) ->
+                      let terminal = case error of None -> status; Some failure -> MultipartReadFailure (MultipartQuotedPrintableFailure failure) in
+                      put-qp cell (QPState next (join output tail) terminal)
+
+  -- | Drain pending decoded bytes before exposing an exact-fill delayed terminal status.
+  read-qp :: forall (r :: Region) e. Var r (ReaderState r e) -> Var r (PartState e) -> Nat -> List Bytes ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  read-qp reader cell remaining pieces =
+    if remaining == 0 then (pieces-output pieces, MultipartMore)
+    else
+      let state = var-read cell in
+      case state of
+        PartState headers cache raw qp -> case qp of
+          None -> read-raw reader cell remaining
+          Some decoded -> case decoded of
+            QPState codec pending terminal ->
+              if bytes-len pending > 0 then
+                let count = smaller remaining (bytes-len pending) in
+                let output = part pending 0 count in
+                let rest = part pending count (bytes-len pending - count) in
+                let written = put-qp cell (QPState codec rest terminal) in
+                read-qp reader cell (remaining - count) (Cons output pieces)
+              else if has-more terminal then
+                let pumped = pump-qp reader cell codec in read-qp reader cell remaining pieces
+              else (pieces-output pieces, terminal)
+
+  -- | Read a possibly positive prefix with simultaneous terminal status.
+  -- Raw zero reads can prefetch framing; decoded zero reads are inert.
+  multipart-part-read :: forall (r :: Region) e. MultipartPart r e -> Nat ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  multipart-part-read borrowed wanted = case borrowed of
+    InputPart reader cell ->
+      let state = var-read cell in
+      case state of
+        PartState headers cache raw qp -> case qp of
+          None -> read-raw reader cell wanted
+          Some decoded -> read-qp reader cell wanted Nil
+
+  -- | Drain a part through its selected raw/decoded reader, ignoring the drain error.
+  multipart-part-close :: forall (r :: Region) e. MultipartPart r e ->{IO r, Mut r} Unit
+  multipart-part-close borrowed = case multipart-part-read borrowed 8192 of
+    (output, status) -> if has-more status then multipart-part-close borrowed else ()
+
+  -- | Allocate a part after headers succeed and remove only the selected transfer header.
+  begin-part :: forall (r :: Region) e. Var r (ReaderState r e) -> MultipartHeaders -> Bool ->{Mut r} MultipartPart r e
+  begin-part reader headers raw =
+    let transfer = multipart-header-get (string-to-bytes "Content-Transfer-Encoding") headers in
+    let decoded = not raw && eq-i64 (bytes-compare (multipart-header-key transfer) (string-to-bytes "Quoted-Printable")) 0 in
+    let visible = if decoded then multipart-header-drop (string-to-bytes "Content-Transfer-Encoding") headers else headers in
+    let qp = if decoded then Some (QPState quoted-printable-decoder (bytes-new 0) MultipartMore) else None in
+    let cell = var-new (PartState visible None (RawState 0 0 MultipartMore MultipartMore) qp) in
+    let state = var-read reader in
+    case state of
+      ReaderState boundary lf parts input current policy ->
+        let written = var-write reader (ReaderState boundary lf parts input (Some cell) policy) in InputPart reader cell
+
+  -- | Parse framing lines after the prior body has already been drained.
+  next-lines :: forall (r :: Region) e. Var r (ReaderState r e) -> Bool -> Option Nat -> Nat -> Bool ->{IO r, Mut r} Result (MultipartError e) (Option (MultipartPart r e))
+  next-lines reader raw memory headers expect =
+    let state = var-read reader in
+    case state of
+      ReaderState boundary lf parts input current policy -> case input-line input of
+        (line, status) ->
+          let delimiter = multipart-delimiter-line line boundary lf (parts == 0) in
+          if clean-end status then case delimiter of
+            MultipartFinalDelimiter -> Ok None
+            _ -> Err (MultipartNextFailure (status-error status))
+          else if not (has-more status) then Err (MultipartNextFailure (status-error status))
+          else case delimiter of
+            MultipartFinalDelimiter -> Ok None
+            MultipartNextDelimiter nextLf ->
+              let written = var-write reader (ReaderState boundary nextLf (parts + 1) input current policy) in
+              case memory of
+                None -> Err (MultipartProtocolFailure MultipartMessageTooLarge)
+                Some budget -> case start-headers input budget headers of
+                  Err error -> Err error
+                  Ok parsed -> let borrowed = begin-part reader parsed raw in Ok (Some borrowed)
+            MultipartNoDelimiter ->
+              if expect then Err (MultipartProtocolFailure (MultipartExpectedPart line))
+              else if parts == 0 then next-lines reader raw memory headers False
+              else if eq-i64 (bytes-compare line (string-to-bytes (if lf then "\n" else "\r\n"))) 0 then next-lines reader raw memory headers True
+              else Err (MultipartProtocolFailure (MultipartUnexpectedLine line))
+
+  -- | Drain the current body before framing, retaining a negative-budget sentinel.
+  next-budget :: forall (r :: Region) e. MultipartReader r e -> Bool -> Option Nat -> Nat ->{IO r, Mut r} Result (MultipartError e) (Option (MultipartPart r e))
+  next-budget reader raw memory headers = case reader of
+    Reader cell ->
+      let state = var-read cell in
+      case state of
+        ReaderState boundary lf parts input current policy ->
+          let drained = case current of None -> (); Some previous -> multipart-part-close (InputPart cell previous) in
+          if bytes-len boundary == 0 then Err (MultipartProtocolFailure MultipartEmptyBoundary)
+          else next-lines cell raw memory headers False
+
+  -- | Use ordinary nonnegative header memory limits for the public part iterators.
+  next-with :: forall (r :: Region) e. MultipartReader r e -> Bool -> Nat -> Nat ->{IO r, Mut r} Result (MultipartError e) (Option (MultipartPart r e))
+  next-with reader raw memory headers = next-budget reader raw (Some memory) headers
+
+  -- | Advance to another part, transparently decoding selected quoted-printable bodies.
+  multipart-next-part :: forall (r :: Region) e. MultipartReader r e ->{IO r, Mut r} Result (MultipartError e) (Option (MultipartPart r e))
+  multipart-next-part reader = case reader of
+    Reader cell -> let state = var-read cell in case state of
+      ReaderState boundary lf parts input current policy -> case policy of Policy memory headers maximum combine basename -> next-with reader False memory headers
+
+  -- | Advance without hiding transfer headers or decoding raw body bytes.
+  multipart-next-raw-part :: forall (r :: Region) e. MultipartReader r e ->{IO r, Mut r} Result (MultipartError e) (Option (MultipartPart r e))
+  multipart-next-raw-part reader = case reader of
+    Reader cell -> let state = var-read cell in case state of
+      ReaderState boundary lf parts input current policy -> case policy of Policy memory headers maximum combine basename -> next-with reader True memory headers
+
+  -- | A complete caller storage dictionary with explicitly advanced backend state.
+  data StorageOps (r :: Region) e key fileHandle state where
+    -- | Create, write, read, positioned read, seek, close, reopen and unlink capabilities.
+    StorageOps ::
+      (state ->{IO r} (Result e (key, fileHandle), state)) ->
+      (state -> fileHandle -> Bytes ->{IO r} ((Nat, Option e), state)) ->
+      (state -> fileHandle -> Nat ->{IO r} ((Bytes, MultipartReadStatus e), state)) ->
+      (state -> fileHandle -> Nat -> I64 ->{IO r} ((Bytes, MultipartReadStatus e), state)) ->
+      (state -> fileHandle -> I64 -> I64 ->{IO r} (Result e I64, state)) ->
+      (state -> fileHandle ->{IO r} (Result e Unit, state)) ->
+      (state -> key ->{IO r} (Result e fileHandle, state)) ->
+      (state -> key ->{IO r} (Result e Bool, state)) ->
+      StorageOps r e key fileHandle state
+
+    -- | The same complete backend dictionary may also access its named mutation scope.
+    MutableStorageOps ::
+      (state ->{IO r, Mut r} (Result e (key, fileHandle), state)) ->
+      (state -> fileHandle -> Bytes ->{IO r, Mut r} ((Nat, Option e), state)) ->
+      (state -> fileHandle -> Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), state)) ->
+      (state -> fileHandle -> Nat -> I64 ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), state)) ->
+      (state -> fileHandle -> I64 -> I64 ->{IO r, Mut r} (Result e I64, state)) ->
+      (state -> fileHandle ->{IO r, Mut r} (Result e Unit, state)) ->
+      (state -> key ->{IO r, Mut r} (Result e fileHandle, state)) ->
+      (state -> key ->{IO r, Mut r} (Result e Bool, state)) ->
+      StorageOps r e key fileHandle state
+
+  -- | Shared explicit scratch storage, borrowing no hidden global filesystem state.
+  data MultipartStorage (r :: Region) e key fileHandle state where
+    -- | Backend state is owned by one shared cell; callbacks return its replacement.
+    Storage :: Var r state -> StorageOps r e key fileHandle state -> MultipartStorage r e key fileHandle state
+
+  -- | Supply real temporary creation and all file capabilities with arbitrary typed state.
+  -- Unlink returns False for an already missing key. Positioned reads must leave
+  -- sequential cursor state unchanged. Every callback returns its advanced state.
+  multipart-storage :: forall (r :: Region) e key fileHandle state.
+    state ->
+    (state ->{IO r} (Result e (key, fileHandle), state)) ->
+    (state -> fileHandle -> Bytes ->{IO r} ((Nat, Option e), state)) ->
+    (state -> fileHandle -> Nat ->{IO r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> Nat -> I64 ->{IO r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> I64 -> I64 ->{IO r} (Result e I64, state)) ->
+    (state -> fileHandle ->{IO r} (Result e Unit, state)) ->
+    (state -> key ->{IO r} (Result e fileHandle, state)) ->
+    (state -> key ->{IO r} (Result e Bool, state)) ->
+    {Mut r} MultipartStorage r e key fileHandle state
+  multipart-storage initial create write read readAt seek close open remove =
+    let cell = var-new initial in Storage cell (StorageOps create write read readAt seek close open remove)
+
+  -- | Supply a live complete backend whose callbacks preserve both I/O and mutation.
+  multipart-storage-with-mutation :: forall (r :: Region) e key fileHandle state.
+    state ->
+    (state ->{IO r, Mut r} (Result e (key, fileHandle), state)) ->
+    (state -> fileHandle -> Bytes ->{IO r, Mut r} ((Nat, Option e), state)) ->
+    (state -> fileHandle -> Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> Nat -> I64 ->{IO r, Mut r} ((Bytes, MultipartReadStatus e), state)) ->
+    (state -> fileHandle -> I64 -> I64 ->{IO r, Mut r} (Result e I64, state)) ->
+    (state -> fileHandle ->{IO r, Mut r} (Result e Unit, state)) ->
+    (state -> key ->{IO r, Mut r} (Result e fileHandle, state)) ->
+    (state -> key ->{IO r, Mut r} (Result e Bool, state)) ->
+    {Mut r} MultipartStorage r e key fileHandle state
+  multipart-storage-with-mutation initial create write read readAt seek close open remove =
+    let cell = var-new initial in Storage cell (MutableStorageOps create write read readAt seek close open remove)
+
+  -- | Observe the actual advanced backend state, including failed-operation progress.
+  multipart-storage-state :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state ->{Mut r} state
+  multipart-storage-state storage = case storage of Storage cell operations -> var-read cell
+
+  -- | Create an exclusive temporary key/handle while retaining backend failure progress.
+  storage-create :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state ->{IO r, Mut r} Result e (key, fileHandle)
+  storage-create storage = case storage of
+    Storage cell operations -> let state = var-read cell in case operations of
+      StorageOps create write read readAt seek close open remove -> case create state of
+        (result, next) -> let written = var-write cell next in result
+      MutableStorageOps create write read readAt seek close open remove -> case create state of
+        (result, next) -> let written = var-write cell next in result
+
+  -- | Make one scratch write and immediately retain its advanced backend state.
+  storage-write :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> fileHandle -> Bytes ->{IO r, Mut r} (Nat, Option e)
+  storage-write storage file input = case storage of
+    Storage cell operations -> let state = var-read cell in case operations of
+      StorageOps create write read readAt seek close open remove -> case write state file input of
+        (result, next) -> let written = var-write cell next in result
+      MutableStorageOps create write read readAt seek close open remove -> case write state file input of
+        (result, next) -> let written = var-write cell next in result
+
+  -- | Preserve arbitrary caller read statuses and backend cursor advancement.
+  storage-read :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> fileHandle -> Nat ->{IO r, Mut r} (Bytes, MultipartReadStatus e)
+  storage-read storage file count = case storage of
+    Storage cell operations -> let state = var-read cell in case operations of
+      StorageOps create write read readAt seek close open remove -> case read state file count of
+        (result, next) -> let written = var-write cell next in result
+      MutableStorageOps create write read readAt seek close open remove -> case read state file count of
+        (result, next) -> let written = var-write cell next in result
+
+  -- | Invoke real positioned reading without an implicit shared-cursor seek.
+  storage-read-at :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> fileHandle -> Nat -> I64 ->{IO r, Mut r} (Bytes, MultipartReadStatus e)
+  storage-read-at storage file count offset = case storage of
+    Storage cell operations -> let state = var-read cell in case operations of
+      StorageOps create write read readAt seek close open remove -> case readAt state file count offset of
+        (result, next) -> let written = var-write cell next in result
+      MutableStorageOps create write read readAt seek close open remove -> case readAt state file count offset of
+        (result, next) -> let written = var-write cell next in result
+
+  -- | Pass signed offset and raw native-profile whence to the backend.
+  storage-seek :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> fileHandle -> I64 -> I64 ->{IO r, Mut r} Result e I64
+  storage-seek storage file offset whence = case storage of
+    Storage cell operations -> let state = var-read cell in case operations of
+      StorageOps create write read readAt seek close open remove -> case seek state file offset whence of
+        (result, next) -> let written = var-write cell next in result
+      MutableStorageOps create write read readAt seek close open remove -> case seek state file offset whence of
+        (result, next) -> let written = var-write cell next in result
+
+  -- | Close a real backend handle, preserving repeated-close behavior.
+  storage-close :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> fileHandle ->{IO r, Mut r} Result e Unit
+  storage-close storage file = case storage of
+    Storage cell operations -> let state = var-read cell in case operations of
+      StorageOps create write read readAt seek close open remove -> case close state file of
+        (result, next) -> let written = var-write cell next in result
+      MutableStorageOps create write read readAt seek close open remove -> case close state file of
+        (result, next) -> let written = var-write cell next in result
+
+  -- | Reopen a backing key as a new independent backend handle.
+  storage-open :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> key ->{IO r, Mut r} Result e fileHandle
+  storage-open storage key = case storage of
+    Storage cell operations -> let state = var-read cell in case operations of
+      StorageOps create write read readAt seek close open remove -> case open state key of
+        (result, next) -> let written = var-write cell next in result
+      MutableStorageOps create write read readAt seek close open remove -> case open state key of
+        (result, next) -> let written = var-write cell next in result
+
+  -- | Unlink a backing key without closing already-open file handles.
+  storage-remove :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> key ->{IO r, Mut r} Result e Bool
+  storage-remove storage key = case storage of
+    Storage cell operations -> let state = var-read cell in case operations of
+      StorageOps create write read readAt seek close open remove -> case remove state key of
+        (result, next) -> let written = var-write cell next in result
+      MutableStorageOps create write read readAt seek close open remove -> case remove state key of
+        (result, next) -> let written = var-write cell next in result
+
+  -- | Private memory or real scratch backing, independent of editable public metadata.
+  data FileBacking (r :: Region) e key fileHandle state where
+    -- | Owned immutable file bytes never escape without a fresh copy.
+    MemoryBacking :: Bytes -> FileBacking r e key fileHandle state
+    -- | Real backend key, original file offset and shared-section flag.
+    DiskBacking :: MultipartStorage r e key fileHandle state -> key -> I64 -> Bool -> FileBacking r e key fileHandle state
+
+  -- | Mutable published fields retain their associated private backing identity.
+  data FileHeaderState (r :: Region) e key fileHandle state where
+    -- | Filename, full multi-value headers, signed size and private backing.
+    FileHeaderState :: Bytes -> MultipartHeaders -> I64 -> FileBacking r e key fileHandle state -> FileHeaderState r e key fileHandle state
+
+  -- | A stable shared file-header handle that may occur in several form lists.
+  data MultipartFileHeader (r :: Region) e key fileHandle state where
+    -- | Private metadata cell with no backlink to a form or open file.
+    FileHeader :: Var r (FileHeaderState r e key fileHandle state) -> MultipartFileHeader r e key fileHandle state
+
+  -- | An open memory, whole-disk or section-disk handle with complete file capabilities.
+  data MultipartFile (r :: Region) e key fileHandle state where
+    -- | Memory close is a no-op and its independent section cursor remains usable.
+    MemoryFile :: Bytes -> Var r I64 -> MultipartFile r e key fileHandle state
+    -- | Whole-disk operations retain the backend's native cursor and close behavior.
+    DiskFile :: MultipartStorage r e key fileHandle state -> fileHandle -> MultipartFile r e key fileHandle state
+    -- | Shared disk files have independent section bounds and sequential cursors.
+    SectionFile :: MultipartStorage r e key fileHandle state -> fileHandle -> I64 -> I64 -> Var r I64 -> MultipartFile r e key fileHandle state
+
+  -- | Construct an owned memory file header without hidden scratch resources.
+  multipart-file-memory :: forall (r :: Region) e key fileHandle state. Bytes -> MultipartHeaders -> Bytes ->{Mut r} MultipartFileHeader r e key fileHandle state
+  multipart-file-memory filename headers content =
+    let owned = snapshot content in
+    let cell = var-new (FileHeaderState (snapshot filename) headers (nat-to-i64 (bytes-len owned)) (MemoryBacking owned)) in FileHeader cell
+
+  -- | Observe an independently mutable filename snapshot.
+  multipart-file-filename :: forall (r :: Region) e key fileHandle state. MultipartFileHeader r e key fileHandle state ->{Mut r} Bytes
+  multipart-file-filename header = case header of FileHeader cell -> let value = var-read cell in case value of FileHeaderState filename headers size backing -> snapshot filename
+
+  -- | Replace filename metadata without renaming or reopening its backing object.
+  multipart-file-set-filename :: forall (r :: Region) e key fileHandle state. MultipartFileHeader r e key fileHandle state -> Bytes ->{Mut r} Unit
+  multipart-file-set-filename header filename = case header of
+    FileHeader cell -> let value = var-read cell in case value of FileHeaderState old headers size backing -> var-write cell (FileHeaderState (snapshot filename) headers size backing)
+
+  -- | Observe full immutable header context with fresh public byte views.
+  multipart-file-headers :: forall (r :: Region) e key fileHandle state. MultipartFileHeader r e key fileHandle state ->{Mut r} MultipartHeaders
+  multipart-file-headers header = case header of FileHeader cell -> let value = var-read cell in case value of FileHeaderState filename headers size backing -> headers
+
+  -- | Replace every header entry without changing the associated resource.
+  multipart-file-set-headers :: forall (r :: Region) e key fileHandle state. MultipartFileHeader r e key fileHandle state -> MultipartHeaders ->{Mut r} Unit
+  multipart-file-set-headers header headers = case header of
+    FileHeader cell -> let value = var-read cell in case value of FileHeaderState filename old size backing -> var-write cell (FileHeaderState filename headers size backing)
+
+  -- | Observe signed public size independently of actual memory content length.
+  multipart-file-size :: forall (r :: Region) e key fileHandle state. MultipartFileHeader r e key fileHandle state ->{Mut r} I64
+  multipart-file-size header = case header of FileHeader cell -> let value = var-read cell in case value of FileHeaderState filename headers size backing -> size
+
+  -- | Replace signed size; shared disk sections consult this value on the next open.
+  multipart-file-set-size :: forall (r :: Region) e key fileHandle state. MultipartFileHeader r e key fileHandle state -> I64 ->{Mut r} Unit
+  multipart-file-set-size header size = case header of
+    FileHeader cell -> let value = var-read cell in case value of FileHeaderState filename headers old backing -> var-write cell (FileHeaderState filename headers size backing)
+
+  -- | Compute a signed section limit with the exact positive-overflow saturation.
+  section-limit :: I64 -> I64 -> I64
+  section-limit offset size = if le-i64 size (wrapping-sub-i64 9223372036854775807 offset) then wrapping-add-i64 offset size else 9223372036854775807
+
+  -- | Open a fresh independent cursor, applying edited size only to shared disk sections.
+  multipart-file-open :: forall (r :: Region) e key fileHandle state. MultipartFileHeader r e key fileHandle state ->{IO r, Mut r} Result (MultipartError e) (MultipartFile r e key fileHandle state)
+  multipart-file-open header = case header of
+    FileHeader cell ->
+      let value = var-read cell in
+      case value of
+        FileHeaderState filename headers size backing -> case backing of
+          MemoryBacking content -> let cursor = var-new (0 :: I64) in Ok (MemoryFile content cursor)
+          DiskBacking storage key offset shared -> case storage-open storage key of
+            Err error -> Err (MultipartCallerFailure error)
+            Ok file -> if shared then
+              let cursor = var-new offset in Ok (SectionFile storage file offset (section-limit offset size) cursor)
+              else Ok (DiskFile storage file)
+
+  -- | Own callback output before publishing it and validate every requested bound.
+  checked-read :: forall e. Nat -> (Bytes, MultipartReadStatus e) -> (Bytes, MultipartReadStatus (MultipartError e))
+  checked-read wanted result = case result of
+    (output, status) -> if bytes-len output > wanted then (bytes-new 0, MultipartReadFailure (MultipartInvalidCount wanted (bytes-len output)))
+      else (snapshot output, source-status status)
+
+  -- | Read owned memory through positioned semantics, preserving exact-fill success.
+  memory-read-at :: forall e. Bytes -> Nat -> I64 -> (Bytes, MultipartReadStatus (MultipartError e))
+  memory-read-at content wanted offset =
+    if offset < 0 || offset >= nat-to-i64 (bytes-len content) then (bytes-new 0, MultipartEnd)
+    else
+      let at = nat-from-i64 offset in
+      if at < bytes-len content then
+        let count = smaller wanted (bytes-len content - at) in
+        (part content at count, if count < wanted then MultipartEnd else MultipartMore)
+      else (bytes-new 0, MultipartEnd)
+
+  -- | Apply section-read clipping without synthesizing EOF merely from clipping.
+  memory-read :: forall (r :: Region) e. Bytes -> Var r I64 -> Nat ->{Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  memory-read content cursor wanted =
+    let offset = var-read cursor in
+    if offset >= nat-to-i64 (bytes-len content) then (bytes-new 0, MultipartEnd)
+    else if offset >= 0 then
+      let at = nat-from-i64 offset in
+      if at < bytes-len content then
+        let count = smaller wanted (bytes-len content - at) in
+        case memory-read-at content count offset of
+          (output, status) ->
+            let written = var-write cursor (wrapping-add-i64 offset (nat-to-i64 (bytes-len output))) in (output, status)
+      else (bytes-new 0, MultipartEnd)
+    else (bytes-new 0, MultipartReadFailure MultipartSeekOffset)
+
+  -- | Read at most the requested prefix while retaining backing-specific cursor behavior.
+  multipart-file-read :: forall (r :: Region) e key fileHandle state. MultipartFile r e key fileHandle state -> Nat ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  multipart-file-read file wanted = case file of
+    MemoryFile content cursor -> memory-read content cursor wanted
+    DiskFile storage backend -> checked-read wanted (storage-read storage backend wanted)
+    SectionFile storage backend base limit cursor ->
+      let offset = var-read cursor in
+      if offset >= limit then (bytes-new 0, MultipartEnd)
+      else
+        let remaining = wrapping-sub-i64 limit offset in
+        if remaining >= 0 then
+          let maximum = nat-from-i64 remaining in
+          let count = smaller wanted maximum in
+          case storage-read-at storage backend count offset of
+            result -> case checked-read count result of
+              (output, status) ->
+                let written = var-write cursor (wrapping-add-i64 offset (nat-to-i64 (bytes-len output))) in (output, status)
+        else (bytes-new 0, MultipartEnd)
+
+  -- | Convert an over-section positioned read's otherwise successful result into EOF.
+  clipped-read :: forall e. Bool -> (Bytes, MultipartReadStatus (MultipartError e)) -> (Bytes, MultipartReadStatus (MultipartError e))
+  clipped-read clipped result = case result of
+    (output, status) -> (output, if clipped && has-more status then MultipartEnd else status)
+
+  -- | Read at a signed relative position without changing the sequential cursor.
+  multipart-file-read-at :: forall (r :: Region) e key fileHandle state. MultipartFile r e key fileHandle state -> Nat -> I64 ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  multipart-file-read-at file wanted offset = case file of
+    MemoryFile content cursor -> memory-read-at content wanted offset
+    DiskFile storage backend -> checked-read wanted (storage-read-at storage backend wanted offset)
+    SectionFile storage backend base limit cursor ->
+      let size = wrapping-sub-i64 limit base in
+      if offset < 0 || offset >= size then (bytes-new 0, MultipartEnd)
+      else
+        let absolute = wrapping-add-i64 base offset in
+        let remaining = wrapping-sub-i64 limit absolute in
+        if remaining >= 0 then
+          let maximum = nat-from-i64 remaining in
+          let count = smaller wanted maximum in
+          clipped-read (wanted > maximum) (checked-read count (storage-read-at storage backend count absolute))
+        else (bytes-new 0, MultipartEnd)
+
+  -- | Seek a memory or disk section with signed wrap behavior and exact named refusals.
+  seek-section :: forall (r :: Region) e. Var r I64 -> I64 -> I64 -> I64 -> I64 ->{Mut r} Result (MultipartError e) I64
+  seek-section cursor base limit offset whence =
+    let current = var-read cursor in
+    if not (eq-i64 whence 0 || eq-i64 whence 1 || eq-i64 whence 2) then Err MultipartSeekWhence
+    else
+      let targetOffset = wrapping-add-i64 offset (if eq-i64 whence 0 then base else if eq-i64 whence 1 then current else limit) in
+      if targetOffset < base then Err MultipartSeekOffset
+      else let written = var-write cursor targetOffset in Ok (wrapping-sub-i64 targetOffset base)
+
+  -- | Seek through the complete file capability, keeping native backend errors typed.
+  multipart-file-seek :: forall (r :: Region) e key fileHandle state. MultipartFile r e key fileHandle state -> I64 -> I64 ->{IO r, Mut r} Result (MultipartError e) I64
+  multipart-file-seek file offset whence = case file of
+    MemoryFile content cursor -> seek-section cursor 0 (nat-to-i64 (bytes-len content)) offset whence
+    SectionFile storage backend base limit cursor -> seek-section cursor base limit offset whence
+    DiskFile storage backend -> case storage-seek storage backend offset whence of
+      Err error -> Err (MultipartCallerFailure error)
+      Ok result -> Ok result
+
+  -- | Close backend handles while memory handles deliberately remain usable.
+  multipart-file-close :: forall (r :: Region) e key fileHandle state. MultipartFile r e key fileHandle state ->{IO r, Mut r} Result (MultipartError e) Unit
+  multipart-file-close file = case file of
+    MemoryFile content cursor -> Ok ()
+    DiskFile storage backend -> case storage-close storage backend of Err error -> Err (MultipartCallerFailure error); Ok unit -> Ok ()
+    SectionFile storage backend base limit cursor -> case storage-close storage backend of Err error -> Err (MultipartCallerFailure error); Ok unit -> Ok ()
+
+  -- | Find an exact field key without imposing equality on mutable buffers.
+  fields-get :: forall a. Bytes -> List (Bytes, List a) -> List a
+  fields-get name fields = case fields of
+    Nil -> Nil
+    Cons field rest -> case field of (key, values) -> if eq-i64 (bytes-compare key name) 0 then values else fields-get name rest
+
+  -- | Replace a complete ordered value list for one owned exact key.
+  fields-set :: forall a. Bytes -> List a -> List (Bytes, List a) -> List (Bytes, List a)
+  fields-set name values fields = case fields of
+    Nil -> Cons (name, values) Nil
+    Cons field rest -> case field of (key, old) -> if eq-i64 (bytes-compare key name) 0 then Cons (name, values) rest else Cons field (fields-set name values rest)
+
+  -- | Remove only the exact key, preserving other field lists and insertion order.
+  fields-drop :: forall a. Bytes -> List (Bytes, List a) -> List (Bytes, List a)
+  fields-drop name fields = case fields of
+    Nil -> Nil
+    Cons field rest -> case field of (key, values) -> if eq-i64 (bytes-compare key name) 0 then rest else Cons field (fields-drop name rest)
+
+  -- | Append one ordered value without mutating an earlier list snapshot.
+  fields-append :: forall a. List a -> a -> List a
+  fields-append values value = case values of Nil -> Cons value Nil; Cons first rest -> Cons first (fields-append rest value)
+
+  -- | Copy byte-valued form fields before retaining or publishing them.
+  values-copy :: List Bytes -> List Bytes
+  values-copy values = case values of Nil -> Nil; Cons value rest -> Cons (snapshot value) (values-copy rest)
+
+  -- | Compare exact form keys for deterministic public enumeration.
+  fields-compare :: forall a. (Bytes, List a) -> (Bytes, List a) -> Ordering
+  fields-compare first second = case first of
+    (a, av) -> case second of (b, bv) -> let order = bytes-compare a b in if lt-i64 order 0 then LT else if gt-i64 order 0 then GT else EQ
+
+  -- | Snapshot complete byte-valued field maps into fresh key and value buffers.
+  values-map-copy :: List (Bytes, List Bytes) -> List (Bytes, List Bytes)
+  values-map-copy fields = case fields of
+    Nil -> Nil
+    Cons field rest -> case field of (key, values) -> Cons (snapshot key, values-copy values) (values-map-copy rest)
+
+  -- | Snapshot keys while retaining explicit shared file-header identities.
+  files-map-copy :: forall a. List (Bytes, List a) -> List (Bytes, List a)
+  files-map-copy fields = case fields of
+    Nil -> Nil
+    Cons field rest -> case field of (key, values) -> Cons (snapshot key, values) (files-map-copy rest)
+
+  -- | Form state owns editable field maps; file headers have independent shared cells.
+  data FormState (r :: Region) e key fileHandle state where
+    -- | Exact field names map to ordered raw values or ordered file-header handles.
+    FormState :: List (Bytes, List Bytes) -> List (Bytes, List (MultipartFileHeader r e key fileHandle state)) -> FormState r e key fileHandle state
+
+  -- | A mutable form context with full value/file map observation and replacement.
+  data MultipartForm (r :: Region) e key fileHandle state where
+    -- | Private root; file-header states never point back to this form.
+    Form :: Var r (FormState r e key fileHandle state) -> MultipartForm r e key fileHandle state
+
+  -- | Construct an empty form whose later file backings use explicit capability types.
+  multipart-form-empty :: forall (r :: Region) e key fileHandle state. Unit ->{Mut r} MultipartForm r e key fileHandle state
+  multipart-form-empty unit = let cell = var-new (FormState Nil Nil) in Form cell
+
+  -- | Enumerate sorted field keys and fresh ordered raw value snapshots.
+  multipart-form-values :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state ->{Mut r} List (Bytes, List Bytes)
+  multipart-form-values form = case form of
+    Form cell -> let value = var-read cell in case value of FormState values files -> values-map-copy (sort-by fields-compare values)
+
+  -- | Read one field's ordered value snapshots without changing absent/empty map state.
+  multipart-form-values-at :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state -> Bytes ->{Mut r} List Bytes
+  multipart-form-values-at form name = case form of
+    Form cell -> let value = var-read cell in case value of FormState values files -> values-copy (fields-get name values)
+
+  -- | Replace every value under one exact field name, including with an empty list.
+  multipart-form-set-values :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state -> Bytes -> List Bytes ->{Mut r} Unit
+  multipart-form-set-values form name values = case form of
+    Form cell -> let old = var-read cell in case old of FormState previous files -> var-write cell (FormState (fields-set (snapshot name) (values-copy values) previous) files)
+
+  -- | Append a privately owned value while retaining original field occurrence order.
+  multipart-form-append-value :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state -> Bytes -> Bytes ->{Mut r} Unit
+  multipart-form-append-value form name value =
+    let previous = multipart-form-values-at form name in multipart-form-set-values form name (fields-append previous value)
+
+  -- | Drop a value field without altering any associated file-header lists.
+  multipart-form-drop-values :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state -> Bytes ->{Mut r} Unit
+  multipart-form-drop-values form name = case form of
+    Form cell -> let old = var-read cell in case old of FormState values files -> var-write cell (FormState (fields-drop name values) files)
+
+  -- | Enumerate exact sorted file-field keys while preserving shared header identity.
+  multipart-form-files :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state ->{Mut r} List (Bytes, List (MultipartFileHeader r e key fileHandle state))
+  multipart-form-files form = case form of
+    Form cell -> let value = var-read cell in case value of FormState values files -> files-map-copy (sort-by fields-compare files)
+
+  -- | Read one ordered shared header list without copying its metadata identities.
+  multipart-form-files-at :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state -> Bytes ->{Mut r} List (MultipartFileHeader r e key fileHandle state)
+  multipart-form-files-at form name = case form of
+    Form cell -> let value = var-read cell in case value of FormState values files -> fields-get name files
+
+  -- | Replace one whole header list, allowing retained, duplicated or moved headers.
+  multipart-form-set-files :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state -> Bytes -> List (MultipartFileHeader r e key fileHandle state) ->{Mut r} Unit
+  multipart-form-set-files form name files = case form of
+    Form cell -> let old = var-read cell in case old of FormState values previous -> var-write cell (FormState values (fields-set (snapshot name) files previous))
+
+  -- | Append a stable header handle without implicitly closing or unlinking it.
+  multipart-form-append-file :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state -> Bytes -> MultipartFileHeader r e key fileHandle state ->{Mut r} Unit
+  multipart-form-append-file form name file =
+    let previous = multipart-form-files-at form name in multipart-form-set-files form name (fields-append previous file)
+
+  -- | Detach one file list; detached retained headers keep their backing identity.
+  multipart-form-drop-files :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state -> Bytes ->{Mut r} Unit
+  multipart-form-drop-files form name = case form of
+    Form cell -> let old = var-read cell in case old of FormState values files -> var-write cell (FormState values (fields-drop name files))
+
+  -- | A failed cleanup retains both its typed error and exact retry capability.
+  data MultipartCleanup (r :: Region) e where
+    -- | Private action closure owns every key/handle needed for a later retry.
+    Cleanup :: MultipartError e -> (Unit ->{IO r, Mut r} Result (MultipartError e) Unit) -> MultipartCleanup r e
+
+  -- | Observe the original cleanup error without discarding pending ownership.
+  multipart-cleanup-error :: forall (r :: Region) e. MultipartCleanup r e -> MultipartError e
+  multipart-cleanup-error work = case work of Cleanup error action -> error
+
+  -- | Retry exactly the retained close/unlink action; failed aliases remain retryable.
+  multipart-cleanup-retry :: forall (r :: Region) e. MultipartCleanup r e ->{IO r, Mut r} Result (MultipartError e) Unit
+  multipart-cleanup-retry work = case work of Cleanup error action -> action ()
+
+  -- | Close one exact backend handle for explicit cleanup or retry.
+  cleanup-close :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> fileHandle -> Unit ->{IO r, Mut r} Result (MultipartError e) Unit
+  cleanup-close storage file unit = case storage-close storage file of Err error -> Err (MultipartCallerFailure error); Ok done -> Ok ()
+
+  -- | Remove one exact key; an already missing object is successful cleanup.
+  cleanup-remove :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> key -> Unit ->{IO r, Mut r} Result (MultipartError e) Unit
+  cleanup-remove storage key unit = case storage-remove storage key of Err error -> Err (MultipartCallerFailure error); Ok removed -> Ok ()
+
+  -- | Attempt every current header's unlink, retaining all failed actions in order.
+  cleanup-headers :: forall (r :: Region) e key fileHandle state. List (MultipartFileHeader r e key fileHandle state) ->{IO r, Mut r} List (MultipartCleanup r e)
+  cleanup-headers headers = case headers of
+    Nil -> Nil
+    Cons header rest -> case header of
+      FileHeader cell ->
+        let value = var-read cell in
+        case value of
+          FileHeaderState filename headers size backing -> case backing of
+            MemoryBacking content -> cleanup-headers rest
+            DiskBacking storage key offset shared -> case cleanup-remove storage key () of
+              Ok unit -> cleanup-headers rest
+              Err error ->
+                let remaining = cleanup-headers rest in Cons (Cleanup error (\unit -> cleanup-remove storage key unit)) remaining
+
+  -- | Concatenate cleanup action spines while retaining their exact ownership closures.
+  cleanup-append :: forall (r :: Region) e. List (MultipartCleanup r e) -> List (MultipartCleanup r e) -> List (MultipartCleanup r e)
+  cleanup-append first second = case first of Nil -> second; Cons item rest -> Cons item (cleanup-append rest second)
+
+  -- | Visit current field-map insertion order, including duplicate shared backing keys.
+  cleanup-fields :: forall (r :: Region) e key fileHandle state. List (Bytes, List (MultipartFileHeader r e key fileHandle state)) ->{IO r, Mut r} List (MultipartCleanup r e)
+  cleanup-fields fields = case fields of
+    Nil -> Nil
+    Cons field rest -> case field of
+      (name, headers) ->
+        let first = cleanup-headers headers in
+        let remaining = cleanup-fields rest in cleanup-append first remaining
+
+  -- | Attempt temporary-file removal for all headers currently reachable in Form.File.
+  -- Missing objects are ignored; later cleanup still runs after a failure. The
+  -- first encountered nonmissing failure is returned in explicit insertion order.
+  multipart-form-remove-all :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state ->{IO r, Mut r} Result (MultipartError e) Unit
+  multipart-form-remove-all form = case form of
+    Form cell ->
+      let value = var-read cell in
+      case value of
+        FormState values files -> case cleanup-fields files of
+          Nil -> Ok ()
+          Cons first rest -> Err (multipart-cleanup-error first)
+
+  -- | Explicitly unlink a retained header's backing, including detached form entries.
+  -- A combined scratch key may back several headers; unlink affects every reopen
+  -- of that key and deliberately leaves already-open handles to their owners.
+  multipart-file-remove :: forall (r :: Region) e key fileHandle state. MultipartFileHeader r e key fileHandle state ->{IO r, Mut r} Result (MultipartError e) Unit
+  multipart-file-remove header = case header of
+    FileHeader cell -> let value = var-read cell in case value of
+      FileHeaderState filename headers size backing -> case backing of
+        MemoryBacking content -> Ok ()
+        DiskBacking storage key offset shared -> cleanup-remove storage key ()
+
+  -- | Form and error are independent because deferred close failure can preserve a form.
+  data MultipartFormReadOutcome (r :: Region) e key fileHandle state where
+    -- | Optional returned form, primary failure and all outstanding cleanup actions.
+    FormReadOutcome :: Option (MultipartForm r e key fileHandle state) -> Option (MultipartError e) -> List (MultipartCleanup r e) -> MultipartFormReadOutcome r e key fileHandle state
+
+  -- | Observe a returned form even when a deferred final close also failed.
+  multipart-form-read-form :: forall (r :: Region) e key fileHandle state. MultipartFormReadOutcome r e key fileHandle state -> Option (MultipartForm r e key fileHandle state)
+  multipart-form-read-form outcome = case outcome of FormReadOutcome form error cleanup -> form
+
+  -- | Observe the original primary failure independently of the optional form.
+  multipart-form-read-error :: forall (r :: Region) e key fileHandle state. MultipartFormReadOutcome r e key fileHandle state -> Option (MultipartError e)
+  multipart-form-read-error outcome = case outcome of FormReadOutcome form error cleanup -> error
+
+  -- | Retain every failed close/unlink action needed for an explicit ownership retry.
+  multipart-form-read-cleanup :: forall (r :: Region) e key fileHandle state. MultipartFormReadOutcome r e key fileHandle state -> List (MultipartCleanup r e)
+  multipart-form-read-cleanup outcome = case outcome of FormReadOutcome form error cleanup -> cleanup
+
+  -- | Private form accumulator; None memory represents an already negative total budget.
+  data FormWork key fileHandle where
+    -- | Total/file budgets, remaining headers/parts, active file, disk offset/count and sharing.
+    FormWork :: Option Nat -> Nat -> Nat -> Nat -> Option (key, fileHandle) -> I64 -> Nat -> Bool -> FormWork key fileHandle
+
+  -- | Match signed max-memory normalization and the reserved ten-MiB overflow policy.
+  form-budgets :: I64 -> (Nat, Nat)
+  form-budgets maximum =
+    if maximum < 0 then (0, 10485760)
+    else
+      let memory = nat-from-i64 maximum in
+      (if memory == 9223372036854775807 then memory - 1 else memory,
+        if memory > 9223372036844290047 then 9223372036854775807 else memory + 10485760)
+
+  -- | Count all visible header values, including duplicates, after transfer decoding policy.
+  header-values-count :: List (Bytes, List Bytes) -> Nat -> Nat
+  header-values-count pairs count = case pairs of
+    Nil -> count
+    Cons pair rest -> case pair of (key, values) -> header-values-count rest (count + list-length values)
+
+  -- | Read a bounded body prefix; an exact requested count suppresses terminal status here.
+  limited-body :: forall (r :: Region) e. MultipartPart r e -> Nat -> List Bytes ->{IO r, Mut r} (Bytes, MultipartReadStatus (MultipartError e))
+  limited-body borrowed remaining pieces =
+    if remaining == 0 then (pieces-output pieces, MultipartMore)
+    else case multipart-part-read borrowed remaining of
+      (output, status) ->
+        if bytes-len output > remaining then (pieces-output pieces, MultipartReadFailure (MultipartInvalidCount remaining (bytes-len output)))
+        else if bytes-len output == remaining then (pieces-output (Cons output pieces), MultipartMore)
+        else if has-more status then limited-body borrowed (remaining - bytes-len output) (Cons output pieces)
+        else (pieces-output (Cons output pieces), status)
+
+  -- | Attempt one real scratch write, retaining error identity and short-prefix progress.
+  write-scratch :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> fileHandle -> Bytes ->{IO r, Mut r} (Nat, Option (MultipartError e))
+  write-scratch storage file input = case storage-write storage file input of
+    (count, error) ->
+      if count > bytes-len input then (count, Some (MultipartInvalidCount (bytes-len input) count))
+      else case error of
+        Some failure -> (count, Some (MultipartCallerFailure failure))
+        None -> if count < bytes-len input then (count, Some (MultipartShortWrite (bytes-len input) count)) else (count, None)
+
+  -- | Copy remaining body bytes with one write per read and no hidden short-write retries.
+  copy-scratch :: forall (r :: Region) e key fileHandle state. MultipartPart r e -> MultipartStorage r e key fileHandle state -> fileHandle -> I64 ->{IO r, Mut r} (I64, Option (MultipartError e))
+  copy-scratch borrowed storage file total = case multipart-part-read borrowed 32768 of
+    (input, status) ->
+      if bytes-len input > 0 then case write-scratch storage file input of
+        (count, Some error) -> (wrapping-add-i64 total (if count <= bytes-len input then nat-to-i64 count else 0), Some error)
+        (count, None) ->
+          let next = wrapping-add-i64 total (nat-to-i64 (bytes-len input)) in
+          if has-more status then copy-scratch borrowed storage file next
+          else if clean-end status then (next, None) else (next, Some (status-error status))
+      else if has-more status then copy-scratch borrowed storage file total
+      else if clean-end status then (total, None) else (total, Some (status-error status))
+
+  -- | Allocate a real scratch object once per combined backing or distinct file.
+  ensure-scratch :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> Var r (FormWork key fileHandle) ->{IO r, Mut r} Result (MultipartError e) (key, fileHandle)
+  ensure-scratch storage work =
+    let state = var-read work in
+    case state of
+      FormWork memory fileMemory headers parts active offset count combine -> case active of
+        Some pair -> Ok pair
+        None -> case storage-create storage of
+          Err error -> Err (MultipartCallerFailure error)
+          Ok pair ->
+            let written = var-write work (FormWork memory fileMemory headers parts (Some pair) offset count combine) in Ok pair
+
+  -- | Publish one disk header only after its entire content and required distinct close succeed.
+  finish-disk-header :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state -> MultipartStorage r e key fileHandle state -> Var r (FormWork key fileHandle) -> Bytes -> Bytes -> MultipartHeaders -> key -> fileHandle -> I64 ->{IO r, Mut r} Result (MultipartError e) Unit
+  finish-disk-header form storage work name filename header key file size =
+    let state = var-read work in
+    case state of
+      FormWork memory fileMemory headers parts active offset count combine ->
+        let closed = if combine then Ok () else cleanup-close storage file () in
+        case closed of
+          Err error -> Err error
+          Ok unit ->
+            let cell = var-new (FileHeaderState (snapshot filename) header size (DiskBacking storage key offset False)) in
+            let appended = multipart-form-append-file form name (FileHeader cell) in
+            let written = var-write work (FormWork memory fileMemory headers parts (if combine then active else None) (wrapping-add-i64 offset size) count combine) in Ok ()
+
+  -- | Spill the retained threshold prefix before copying any additional body bytes.
+  spill-file :: forall (r :: Region) e key fileHandle state. MultipartPart r e -> MultipartForm r e key fileHandle state -> MultipartStorage r e key fileHandle state -> Var r (FormWork key fileHandle) -> Bytes -> Bytes -> MultipartHeaders -> Bytes ->{IO r, Mut r} Result (MultipartError e) Unit
+  spill-file borrowed form storage work name filename header prefix = case ensure-scratch storage work of
+    Err error -> Err error
+    Ok pair -> case pair of
+      (key, file) ->
+        let state = var-read work in
+        case state of
+          FormWork memory fileMemory headers parts active offset count combine ->
+            let incremented = var-write work (FormWork memory fileMemory headers parts active offset (count + 1) combine) in
+            case write-scratch storage file prefix of
+              (accepted, Some error) -> Err error
+              (accepted, None) -> case copy-scratch borrowed storage file 0 of
+                (remaining, Some error) -> Err error
+                (remaining, None) -> finish-disk-header form storage work name filename header key file (wrapping-add-i64 (nat-to-i64 (bytes-len prefix)) remaining)
+
+  -- | Store a file in memory or spill it after the precise file-budget-plus-one probe.
+  collect-file :: forall (r :: Region) e key fileHandle state. MultipartPart r e -> MultipartForm r e key fileHandle state -> MultipartStorage r e key fileHandle state -> Var r (FormWork key fileHandle) -> Bytes -> Bytes -> MultipartHeaders ->{IO r, Mut r} Result (MultipartError e) Unit
+  collect-file borrowed form storage work name filename header =
+    let state = var-read work in
+    case state of
+      FormWork memory fileMemory headers parts active offset count combine -> case limited-body borrowed (fileMemory + 1) Nil of
+        (prefix, status) ->
+          if not (has-more status || clean-end status) then Err (status-error status)
+          else if bytes-len prefix > fileMemory then spill-file borrowed form storage work name filename header prefix
+          else
+            let file = multipart-file-memory filename header prefix in
+            let appended = multipart-form-append-file form name file in
+            let remainingMemory = case memory of None -> None; Some budget -> if bytes-len prefix <= budget then Some (budget - bytes-len prefix) else None in
+            let written = var-write work (FormWork remainingMemory (fileMemory - bytes-len prefix) headers parts active offset count combine) in Ok ()
+
+  -- | Collect an in-memory value under its exact total-budget-plus-one refusal threshold.
+  collect-value :: forall (r :: Region) e key fileHandle state. MultipartPart r e -> MultipartForm r e key fileHandle state -> Var r (FormWork key fileHandle) -> Bytes -> Nat ->{IO r, Mut r} Result (MultipartError e) Unit
+  collect-value borrowed form work name memory = case limited-body borrowed (memory + 1) Nil of
+    (value, status) ->
+      if not (has-more status || clean-end status) then Err (status-error status)
+      else if bytes-len value > memory then Err (MultipartProtocolFailure MultipartMessageTooLarge)
+      else
+        let state = var-read work in
+        case state of
+          FormWork old fileMemory headers parts active offset count combine ->
+            let appended = multipart-form-append-value form name value in
+            let written = var-write work (FormWork (Some (memory - bytes-len value)) fileMemory headers parts active offset count combine) in Ok ()
+
+  -- | Charge file metadata and aggregate visible file headers before fetching its content.
+  prepare-file :: forall (r :: Region) e key fileHandle state. MultipartPart r e -> MultipartForm r e key fileHandle state -> MultipartStorage r e key fileHandle state -> Var r (FormWork key fileHandle) -> Bytes -> Bytes -> Nat ->{IO r, Mut r} Result (MultipartError e) Unit
+  prepare-file borrowed form storage work name filename memory =
+    let header = multipart-part-headers borrowed in
+    let charge = multipart-header-size header + 300 in
+    if charge > memory then Err (MultipartProtocolFailure MultipartMessageTooLarge)
+    else
+      let state = var-read work in
+      case state of
+        FormWork old fileMemory headers parts active offset count combine ->
+          let entries = header-values-count (multipart-header-pairs header) 0 in
+          if entries <= headers then
+            let written = var-write work (FormWork (Some (memory - charge)) fileMemory (headers - entries) parts active offset count combine) in
+            collect-file borrowed form storage work name filename header
+          else Err (MultipartProtocolFailure MultipartMessageTooLarge)
+
+  -- | Charge each named part independently, preserving repeated-name overhead semantics.
+  collect-form-part :: forall (r :: Region) e key fileHandle state. MultipartPart r e -> MultipartForm r e key fileHandle state -> MultipartStorage r e key fileHandle state -> Var r (FormWork key fileHandle) -> Nat ->{IO r, Mut r} Result (MultipartError e) Unit
+  collect-form-part borrowed form storage work memory =
+    let name = multipart-part-form-name borrowed in
+    if bytes-len name == 0 then Ok ()
+    else
+      let filename = multipart-part-filename borrowed in
+      let charge = bytes-len name + 200 in
+      if charge > memory then Err (MultipartProtocolFailure MultipartMessageTooLarge)
+      else if bytes-len filename == 0 then collect-value borrowed form work name (memory - charge)
+      else prepare-file borrowed form storage work name filename (memory - charge)
+
+  -- | Accumulate parts with shrinking per-header budgets and exact part-count precedence.
+  form-loop :: forall (r :: Region) e key fileHandle state. MultipartReader r e -> MultipartForm r e key fileHandle state -> MultipartStorage r e key fileHandle state -> Var r (FormWork key fileHandle) ->{IO r, Mut r} Result (MultipartError e) Unit
+  form-loop reader form storage work =
+    let state = var-read work in
+    case state of
+      FormWork memory fileMemory headers parts active offset count combine -> case next-budget reader False memory headers of
+        Err error -> Err error
+        Ok None -> Ok ()
+        Ok (Some borrowed) ->
+          if parts == 0 then Err (MultipartProtocolFailure MultipartMessageTooLarge)
+          else
+            let written = var-write work (FormWork memory fileMemory headers (parts - 1) active offset count combine) in
+            case memory of
+              None -> Err (MultipartProtocolFailure MultipartMessageTooLarge)
+              Some budget -> case collect-form-part borrowed form storage work budget of
+                Err error -> Err error
+                Ok unit -> form-loop reader form storage work
+
+  -- | Mark one associated disk backing as a shared bounded section.
+  share-header :: forall (r :: Region) e key fileHandle state. MultipartFileHeader r e key fileHandle state ->{Mut r} Unit
+  share-header header = case header of
+    FileHeader cell ->
+      let value = var-read cell in
+      case value of
+        FileHeaderState filename headers size backing -> case backing of
+          MemoryBacking content -> ()
+          DiskBacking storage key offset previous -> var-write cell (FileHeaderState filename headers size (DiskBacking storage key offset True))
+
+  -- | Mark shared-disk bounds only after more than one file used the combined object.
+  share-headers :: forall (r :: Region) e key fileHandle state. List (MultipartFileHeader r e key fileHandle state) ->{Mut r} Unit
+  share-headers headers = case headers of
+    Nil -> ()
+    Cons header rest -> let written = share-header header in share-headers rest
+
+  -- | Apply final combined-file section metadata without traversing detached objects.
+  share-fields :: forall (r :: Region) e key fileHandle state. List (Bytes, List (MultipartFileHeader r e key fileHandle state)) ->{Mut r} Unit
+  share-fields fields = case fields of
+    Nil -> ()
+    Cons field rest -> case field of
+      (name, headers) -> let shared = share-headers headers in share-fields rest
+
+  -- | Retain one exact active-file unlink failure after all published-header attempts.
+  cleanup-active :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> Option (key, fileHandle) ->{IO r, Mut r} List (MultipartCleanup r e)
+  cleanup-active storage active = case active of
+    None -> Nil
+    Some pair -> case pair of
+      (key, file) -> case cleanup-remove storage key () of
+        Ok unit -> Nil
+        Err error -> Cons (Cleanup error (\unit -> cleanup-remove storage key unit)) Nil
+
+  -- | Retain an exact failed final-close capability without altering its primary error.
+  pending-close :: forall (r :: Region) e key fileHandle state. MultipartStorage r e key fileHandle state -> Option (key, fileHandle) -> Result (MultipartError e) Unit -> List (MultipartCleanup r e)
+  pending-close storage active closed = case closed of
+    Ok unit -> Nil
+    Err error -> case active of
+      None -> Nil
+      Some pair -> case pair of (key, file) -> Cons (Cleanup error (\unit -> cleanup-close storage file unit)) Nil
+
+  -- | Close the final active writer, preserve returned-form/error independence and clean failures.
+  finalize-form :: forall (r :: Region) e key fileHandle state. MultipartForm r e key fileHandle state -> MultipartStorage r e key fileHandle state -> Var r (FormWork key fileHandle) -> Result (MultipartError e) Unit ->{IO r, Mut r} MultipartFormReadOutcome r e key fileHandle state
+  finalize-form form storage work result =
+    let state = var-read work in
+    case state of
+      FormWork memory fileMemory headers parts active offset count combine ->
+        let closed = case active of None -> Ok (); Some pair -> case pair of (key, file) -> cleanup-close storage file () in
+        let pendingClose = pending-close storage active closed in
+        let primary = case result of Err error -> Some error; Ok unit -> case closed of Ok done -> None; Err error -> Some error in
+        let returned = case result of Err error -> None; Ok unit -> Some form in
+        case form of
+          Form cell ->
+            let fields = var-read cell in
+            case fields of
+              FormState values files ->
+                let shared = if combine && count > 1 then share-fields files else () in
+                case primary of
+                  None -> FormReadOutcome returned None pendingClose
+                  Some error ->
+                    let publishedCleanup = cleanup-fields files in
+                    let extra = cleanup-active storage active in
+                    FormReadOutcome returned primary (cleanup-append pendingClose (cleanup-append publishedCleanup extra))
+
+  -- | Parse a complete form with real spill storage and explicit resource-limit policy.
+  -- The returned form and error are independently observable: final scratch close
+  -- can fail after a form has been produced. Earlier failures return no form.
+  -- Cleanup always preserves the primary failure and retains retry capabilities.
+  multipart-read-form :: forall (r :: Region) e key fileHandle state. MultipartReader r e -> I64 -> MultipartStorage r e key fileHandle state ->{IO r, Mut r} MultipartFormReadOutcome r e key fileHandle state
+  multipart-read-form reader maximum storage =
+    let form = multipart-form-empty () in
+    case reader of
+      Reader cell ->
+        let state = var-read cell in
+        case state of
+          ReaderState boundary lf parts input current policy -> case policy of
+            Policy ordinaryMemory headers maximumParts combine basename -> case form-budgets maximum of
+              (fileMemory, memory) ->
+                let work = var-new (FormWork (Some memory) fileMemory headers maximumParts None 0 0 combine) in
+                let result = form-loop reader form storage work in
+                finalize-form form storage work result
