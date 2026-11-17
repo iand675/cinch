@@ -1,0 +1,74 @@
+{
+  "scope": "Complete public fixed-palette factory/read/nearest pipelines; static plan only, no driver build or elapsed claim",
+  "source_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+  "color_dependency_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+  "actual_tables": {
+    "Plan9": 256,
+    "WebSafe": 216
+  },
+  "query_domain": "All512 independent gray/mixed/alpha-boundary queries already cross-checked through both tables; benchmark selects documented prefix sizes16/256 and fully consumes each result",
+  "modes": [
+    {
+      "table": "Plan9",
+      "pipeline": "fresh-factory-and-full-ordered-read"
+    },
+    {
+      "table": "Plan9",
+      "pipeline": "retained-palette-full-ordered-read-control"
+    },
+    {
+      "table": "Plan9",
+      "pipeline": "nearest-index"
+    },
+    {
+      "table": "Plan9",
+      "pipeline": "nearest-model-convert-and-full-result-read"
+    },
+    {
+      "table": "WebSafe",
+      "pipeline": "fresh-factory-and-full-ordered-read"
+    },
+    {
+      "table": "WebSafe",
+      "pipeline": "retained-palette-full-ordered-read-control"
+    },
+    {
+      "table": "WebSafe",
+      "pipeline": "nearest-index"
+    },
+    {
+      "table": "WebSafe",
+      "pipeline": "nearest-model-convert-and-full-result-read"
+    }
+  ],
+  "paired_programs": [
+    "Original Color151b SIMD kernels with immutable palettec86 factories",
+    "Same pipeline/source with only the established four arithmetic kernel bodies derived lane-by-lane; actual optimized scalar instructions must be verified",
+    "Unmodified installed SDK tables/models/nearest algorithms with explicit fresh slice copy only for the fresh-factory mapping"
+  ],
+  "ownership_mapping": "Fresh SDK slice copy and a separate retained-shared-read control distinguish the idiomatic factory cost from observing the published global table. Normal SDK interfaces/slice/GC and Cinch immutable Color/List/RC policies remain explicit; original globals never mutate. No artificial noinline, allocator override or reference algorithm change.",
+  "clock_boundary": "Input/query/model/context preparation before start; fresh factory construction only in its declared mode, entire raw+canonical ordered output/index/Option-kind hashing inside; retained original query/palette/model traversal and teardown after end.",
+  "preflights": [
+    "Every result/index/representation/raw/canonical and retained original-context fingerprint agrees with independent actual SDK observations",
+    "Both normal32MiB/8MiB and poison256MiB/8MiB leaked0 for each sealed Cinch variant",
+    "Actual Main-to-factory/nearest/kernel paths, clock ordering, host vector/scalar instructions and complete foreign object composition",
+    "All source/compiler/runtime/driver/reference inputs hashed and remain plain after sealing"
+  ],
+  "qualified_standalone_compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+  "qualified_standalone_runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "measurement": "Only after functional preflights and Root exclusive grant: balanced rotated paired order, five samples plus warmup, exact pre/post cpu.stat, all raw ranges/regressions, complete checksums, no counters during elapsed timing",
+  "allocation_review": "Separate existing-binary count0/1/many census if material gaps appear; fresh-factory output allocation and SDK immutable global/interface reuse must remain visible. No SDK parity assumption.",
+  "resource_policy": {
+    "build_start_mib": 350,
+    "reserve_mib": 250,
+    "maximum_unarchived_unit_mib": 30,
+    "timing_report_cap_mib": 5
+  },
+  "pending": [
+    "Actual driver/reference preparation",
+    "Guarded bounded builds and full preflights",
+    "Root-granted exclusive elapsed window",
+    "Separate Native qualification; no old-family relabel"
+  ],
+  "status": "static concrete pipeline design, original source/runtime receipts preserved"
+}

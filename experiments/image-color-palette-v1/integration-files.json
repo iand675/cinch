@@ -136,6 +136,12 @@
       "to": "experiments/image-color-palette-v1/code-inspection.json",
       "bytes": 254505,
       "sha256": "ec5d36bb63546fb6a8431a1996392a0ec158ac33ec4813c44c5bc56a506b975b"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/performance-plan.json",
+      "to": "experiments/image-color-palette-v1/performance-plan.json",
+      "bytes": 3989,
+      "sha256": "097fb467284207b48fb3aed8f742fc5e3091af0297c94a50093ede28232704db"
     }
   ],
   "optional_reproduction_imports": [
