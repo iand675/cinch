@@ -1,0 +1,156 @@
+{
+  "scope": "Test actual checked color LLVM bodies against independent scalar controls and portable objects.",
+  "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+  "fixture_sha256": "d8ad65863c5e89e4fc9d3d4544556aeb2c270a4752ac8c57ab0c2cf32a06dbfc",
+  "actual_ir_sha256": "05eafbf528f247ea58f78874d68fe1d943cd15c48af5a0603a734d45326c59c8",
+  "runner_sha256": "cb5f4eaa2699e38fc5e16cdb792a652c0ee5c8ccf671173f30db5c976aec2ae8",
+  "cpu_affinity": [
+    1
+  ],
+  "resource_policy": {
+    "initial_mib": 350,
+    "reserve_mib": 250,
+    "unit_mib": 30
+  },
+  "initial_free_bytes": 917655552,
+  "commands": [
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/kernels.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/kernels.o"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n",
+      "seconds": 0.14001184797962196
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "-fno-vectorize",
+        "-fno-slp-vectorize",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/fixture.c",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/kernels.o",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/kernel-check"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "seconds": 0.20680650300346315
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/kernel-check"
+      ],
+      "returncode": 0,
+      "stdout": "color-kernels packed=131072 chroma-triples=16777216 ink-cube=65536 passed\n",
+      "stderr": "",
+      "seconds": 0.4294445659907069
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "-S",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/kernels.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/kernels.s"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n",
+      "seconds": 0.06548437499441206
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=aarch64-unknown-linux-gnu",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/kernels.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/aarch64-unknown-linux-gnu.o"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n",
+      "seconds": 0.06473048499901779
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=wasm32-unknown-unknown",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/kernels.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/wasm32-unknown-unknown.o"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with wasm32-unknown-unknown [-Woverride-module]\n1 warning generated.\n",
+      "seconds": 0.05343960100435652
+    },
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "--target=powerpc64-unknown-linux-gnu",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/kernels.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color/kernels-v1/powerpc64-unknown-linux-gnu.o"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "warning: overriding the module target triple with powerpc64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n",
+      "seconds": 0.05857489601476118
+    }
+  ],
+  "kernel_names": [
+    "cmyk16",
+    "distance4",
+    "expand8",
+    "gray-sum",
+    "premultiply",
+    "rgb-cmyk",
+    "rgb-ycbcr",
+    "unpremultiply",
+    "ycbcr16"
+  ],
+  "limits": "Native scalar C numeric controls only; not a Cinch ownership/heap or foreign execution claim.",
+  "portable_objects": [
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "sha256": "9b9d8e1964bbe77ba740187f6f45d0ea80d0ede31c257f822fd2a658d42fbbad",
+      "header_verified": true,
+      "execution_claim": false
+    },
+    {
+      "target": "wasm32-unknown-unknown",
+      "sha256": "cf1cba74806a69052866a3a0caebc49945398656c646be3544ff8986d21d1607",
+      "header_verified": true,
+      "execution_claim": false
+    },
+    {
+      "target": "powerpc64-unknown-linux-gnu",
+      "sha256": "0bde24f5838a60b532d5b7be774dccb64b9f8dfa06d1269c374f472fa2a49424",
+      "header_verified": true,
+      "execution_claim": false
+    }
+  ],
+  "status": "passed",
+  "packed_inputs": 131072,
+  "complete_byte_triples": 16777216,
+  "ink_cube_inputs": 65536,
+  "scalar_exact_comparisons": 51052544,
+  "optimized_assembly_sha256": "505574e154fd20aec4097076ae99069d6443c5b66f79467380e300e2eaa957a6",
+  "final_free_bytes": 917577728,
+  "output_bytes": 58104
+}

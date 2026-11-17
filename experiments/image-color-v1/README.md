@@ -27,4 +27,14 @@ Actual pinned SDK generation produced1,808 concrete source colors with all11 bui
 
 Earlier330 layout,3dae reserved-name and LLVM no-jump diagnostics remain in complete separate failed projects. Zero-divisor handling now uses selected safe divisors and selected results, preserving the zero-alpha/black branches within checked jump-free primitives. No compiler guard was changed.
 
-Runtime, portable objects, source-absent API, ownership and public performance gates remain pending. Every future compile uses the coordinated CPU token,350MiB initial/250MiB reserve guards and bounded outputs. Root owns integration, production selection, shared inventory/docs and Cargo.
+## Current standalone functional qualification
+
+The full maintained public consumer now passes3dae/d91 O2 and a separate exact-accepted-IR O0 relink, each with normal32MiB and poisoned256MiB heaps,8MiB runtime stacks and zero leaks. It checks every captured source/model/helper/palette observation, all typed component discriminators, embedded luma/chroma, standard constants, custom optional models, retained managed channel lists, live captured-byte callbacks before/after serialized mutation and escaped-owner callbacks after factory frames return. The independent live SDK trace also confirms that a previously selected custom color retains identity and observes later owner mutation.
+
+All three attempted foreign-IO callback erasures reject at the intended effect-row boundary. No source factory, model or palette effect contract was narrowed. Earlier incomplete test FFI effects and the palette-index-to-I64 proof diagnostic remain in exact failed projects; only the fixture was corrected.
+
+All nine actual numeric LLVM bodies pass51,052,544 independent scalar C comparisons, including all16,777,216 byte triples,131,072 packed wide inputs and65,536 ink-cube values. Real AArch64, wasm32 and big-endianPPC64 objects have verified headers; foreign execution is not claimed. `code-inspection.json` proves that the complete public consumer reaches every identical tested body and retains actual optimized host instructions, including vector integer palette distance and premultiplication.
+
+The O2 unit used12,744,523bytes; the O0 relink6,613,280bytes; the actual-kernel unit58,104bytes. Each preserves the350/250MiB guards and30MiB cap. Genuine source/interface producers and all failure artifacts remain plain. Root's proposed SDK-free test initializes the current host runtime through an ordinary compiler build, separately captures its locked archive, then runs the guarded functional unit. It is explicitly Rust-only and retains complete failed projects; no local Cargo gate is claimed.
+
+`performance-plan.json` specifies matched public pipelines for standard/custom models and alpha, all direct conversions, and empty/small/256-entry/alpha/tie palettes. Functional preflights and actual code inspection must precede an explicit Root timing grant. Full Native qualification, source-absent API, measured performance, Root parent gates and production selection remain separate pending scopes. Root owns integration, shared inventory/docs and Cargo.

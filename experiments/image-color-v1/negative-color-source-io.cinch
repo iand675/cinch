@@ -1,0 +1,16 @@
+-- | Reject storing a foreign read effect in an explicitly pure color capability.
+module Main where
+  import Image.Color
+  import Data.Machine
+  import Data.Option
+
+  -- | Use the real independent fixture declaration with its required read effect.
+  foreign import ccall "color_fixture_field" raw-field :: forall (r :: Region). I64 -> I64 -> I64 ->{IO r} I64
+
+  -- | This attempted callback erasure must fail before any emission or execution.
+  invalid :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r} Color
+  invalid unit = color-source (\unit -> (wrapping-i64-to-u16 (raw-field 0 -1 0), 0, 0, 65535))
+
+  -- | Keep the negative fixture independently source-checkable.
+  main :: Int
+  main = 0

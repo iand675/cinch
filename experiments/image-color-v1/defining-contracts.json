@@ -1,0 +1,64 @@
+{
+  "scope": "Read genuine checked defining headers and full constructor inventories without rewriting interfaces or exposing private constructors.",
+  "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+  "original_interface": "/workspace/dasl-stdlib-multipart/build/image-color/runtime-3dae-o2-v1/build/Image.Color.cinchif",
+  "original_interface_sha256": "04c56e24de040c3ab92bf09616b70df88e3ae46690f091be3621000f3f5087ac",
+  "contracts": [
+    {
+      "constructors": [
+        "Image.Color.StoredColor",
+        "Image.Color.SourceColor"
+      ],
+      "identity": "Image.Color.Color",
+      "kind": "data",
+      "parameters": [],
+      "params": [],
+      "refinement": null
+    },
+    {
+      "constructors": [
+        "Image.Color.Rgba8Kind",
+        "Image.Color.Rgba16Kind",
+        "Image.Color.Nrgba8Kind",
+        "Image.Color.Nrgba16Kind",
+        "Image.Color.Alpha8Kind",
+        "Image.Color.Alpha16Kind",
+        "Image.Color.Gray8Kind",
+        "Image.Color.Gray16Kind",
+        "Image.Color.YcbcrKind",
+        "Image.Color.YcbcraKind",
+        "Image.Color.CmykKind",
+        "Image.Color.RgbaSourceKind"
+      ],
+      "identity": "Image.Color.ColorKind",
+      "kind": "data",
+      "parameters": [],
+      "params": [],
+      "refinement": null
+    },
+    {
+      "constructors": [
+        "Image.Color.StandardModel",
+        "Image.Color.CallbackModel",
+        "Image.Color.PaletteModel"
+      ],
+      "identity": "Image.Color.ColorModel",
+      "kind": "data",
+      "parameters": [],
+      "params": [],
+      "refinement": null
+    },
+    {
+      "constructors": [
+        "Image.Color.Palette"
+      ],
+      "identity": "Image.Color.ColorPalette",
+      "kind": "data",
+      "parameters": [],
+      "params": [],
+      "refinement": null
+    }
+  ],
+  "private_constructors_remain_hidden": true,
+  "no_parameter_kind_reinterpretation": true
+}

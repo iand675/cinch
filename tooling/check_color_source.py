@@ -29,6 +29,7 @@ def main() -> None:
     """Preserve every source, actual defining artifact and failure without compiling a runtime."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
+    parser.add_argument('--consumer', type=Path, help='Check a complete maintained public runtime consumer without emitting it')
     parser.add_argument('--compiler', type=Path, required=True)
     parser.add_argument('--runtime', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
@@ -40,7 +41,7 @@ def main() -> None:
     if free < 350 * 1024 * 1024:
         raise RuntimeError('350 MiB initial source-unit guard')
     shutil.copyfile(args.source, work / 'Image.Color.cinch')
-    (work / 'Main.cinch').write_text(MAIN)
+    (work / 'Main.cinch').write_text(args.consumer.read_text() if args.consumer else MAIN)
     compiler, runtime = args.compiler.resolve(), args.runtime.resolve()
     os.sched_setaffinity(0, {args.cpu})
     resource.setrlimit(resource.RLIMIT_STACK, (67108864, resource.getrlimit(resource.RLIMIT_STACK)[1]))

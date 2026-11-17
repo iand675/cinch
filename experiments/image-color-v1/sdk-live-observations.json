@@ -1,0 +1,56 @@
+{
+  "scope": "Actual pinned SDK live source/model/palette callback and selected-owner behavior.",
+  "source_sha256": "4299fdce631bd63c275bb91511124512061da6cde967646be5949f9d7941ce51",
+  "sdk_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "command": [
+    "/tmp/cinch-go-current/go/bin/go",
+    "build",
+    "-trimpath",
+    "-o",
+    "/workspace/dasl-stdlib-multipart/build/image-color/sdk-live-v1/reference",
+    "/workspace/dasl-stdlib-multipart/build/image-color/sdk-live-v1/reference.go"
+  ],
+  "build_returncode": 0,
+  "build_stdout": "",
+  "build_stderr": "",
+  "cpu_affinity": [
+    1
+  ],
+  "returncode": 0,
+  "stdout": "{\"after\":[65535,65535,65535,65535],\"after_index\":1,\"before\":[0,0,0,65535],\"before_index\":0,\"model_is_rgba16\":true,\"modeled_after\":[65535,65535,65535,65535],\"selected_after\":[65535,65535,65535,65535],\"selected_identity_retained\":true}\n",
+  "stderr": "",
+  "observations": {
+    "after": [
+      65535,
+      65535,
+      65535,
+      65535
+    ],
+    "after_index": 1,
+    "before": [
+      0,
+      0,
+      0,
+      65535
+    ],
+    "before_index": 0,
+    "model_is_rgba16": true,
+    "modeled_after": [
+      65535,
+      65535,
+      65535,
+      65535
+    ],
+    "selected_after": [
+      65535,
+      65535,
+      65535,
+      65535
+    ],
+    "selected_identity_retained": true
+  },
+  "scalar_manual_trace_agrees": true,
+  "executable_sha256": "7ff759e503944d208874711a9bad8285a12d109c5ee63157c1ff77b3c75eca9c",
+  "output_bytes": 3928733,
+  "final_free_bytes": 869629952
+}
