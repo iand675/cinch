@@ -145,3 +145,23 @@ row map-all export still has resolved:null and is separately refused.
 These are remaining semantic/header-role and open-row features; no header,
 manifest or metadata bytes were restamped. The provisional writer is not
 claimed fully qualified. Exact reports are under `build/maps-provisional-9dc`.
+
+## Source-selected Native consumer and public workload preflight
+
+The first full Native control consumer on admitted2f/V2/80bd refuses
+effect-row inclusion while composing the collection/insertion producers
+in binding-case, before linking or runtime. Exact source and diagnostic
+are retained in `build/maps-source-selected-2f/control-results.json`. The
+full source-only closure verdict does not imply this application gate
+passed. The public API and its effect rows remain unchanged.
+
+Both public-workload Rust variants now build with ordinary generated RC
+and pass60 independent normal/poison fingerprint runs across three
+workloads and five sizes. `stdlib-maps-benchmark-results.json` records
+exact artifacts and allocation counters; no timings have run. The
+construction pipeline at4096 entries/eight iterations allocates754388
+blocks/22694906 cumulative bytes/1000943 peak bytes in the façade versus
+131597/6305868/246667 in the public HashTable baseline. These process-wide
+counters include startup, preparation and teardown. Stable entry owners,
+the extra digest index and snapshot behavior are material costs requiring
+review, rather than an assumed acceleration claim.

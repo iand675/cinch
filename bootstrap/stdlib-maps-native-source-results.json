@@ -21,5 +21,16 @@
   "source_absent_admission": false,
   "runtime_executed": false,
   "report": "build/maps-source-selected-2f/source-results.json",
-  "report_sha256": "70244fec212ed989f273cda05bdb636711ed55f6b74f94792bbd6cd31f03b5e6"
+  "report_sha256": "70244fec212ed989f273cda05bdb636711ed55f6b74f94792bbd6cd31f03b5e6",
+  "runtime_control": {
+    "status": "emission-refused",
+    "report": "build/maps-source-selected-2f/control-results.json",
+    "report_sha256": "445b84ecd3bea36783113a917434a123f60cb99daa6086974a89315d986beeaa",
+    "diagnostic": "effect inclusion needs resolved rows",
+    "location": "Bundle.cinch:1633:5, binding-case collection/insertion producer composition",
+    "compiler_exit": 4,
+    "compile_seconds": 4.475776336999843,
+    "linked": false,
+    "runtime_executed": false
+  }
 }

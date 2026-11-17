@@ -27,9 +27,10 @@ def source(variant: str) -> str:
 
   -- | Delete an existing binding through the checked public operation.
   store-delete :: forall r. Store r -> Nat ->{Mut r} Bool
-  store-delete map key = case map of StoreValue actual -> case mutable-map-delete actual key of
-    Ok value -> case value of Some previous -> True; None -> False
-    Err error -> False
+  store-delete map key = case map of
+    StoreValue actual -> case mutable-map-delete actual key of
+      Ok value -> case value of Some previous -> True; None -> False
+      Err error -> False
 
   -- | Read one binding without materializing a snapshot.
   store-lookup :: forall r. Store r -> Nat ->{Mut r} Option Nat

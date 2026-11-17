@@ -82,12 +82,12 @@ module Main where
   -- | Observe a prepared container with a complete or immediately stopped traversal.
   scan :: forall r. Store r -> Nat -> Nat -> Nat ->{Mut r} Nat
   scan map mode size iteration =
-    let key = if size == 0 then 0 else nat-rem iteration size in
+    let key = if size == 0 then (0 :: Nat) else nat-rem iteration size in
     let changed = if size == 0 then True else store-set map key (initial-value key + iteration) in
     let total = var-new (0 :: Nat) in
     let calls = var-new (0 :: Nat) in
     let exhausted = if mode == 1 then store-all map (count-binding total calls) else store-all map (stop-binding calls) in
-    let observed = case store-lookup map key of None -> 0; Some value -> value in
+    let observed = case store-lookup map key of None -> (0 :: Nat); Some value -> value in
     if changed && exhausted == (mode == 1 || size == 0) then
       var-read total + var-read calls + store-size map + observed
     else 0

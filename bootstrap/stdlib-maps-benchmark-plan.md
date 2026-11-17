@@ -47,8 +47,13 @@ construction and final teardown; they are not attributed solely to the
 timed interval. Counters run during preflight and are disabled for paired
 measurements. Teardown is excluded from the runtime clock interval.
 
-The initial artifact and preflight gates have not run. No throughput,
-allocation reduction or Native adoption claim follows from this plan.
+Both fa3/c4 O2 artifacts and all three workloads at sizes0/1/31/256/4096
+with eight iterations now pass independent scalar fingerprints in normal
+and poison profiles:60 zero-leak processes. The initial Nat-literal
+branch and nested-case layout fixture diagnostics are retained separately.
+The exact receipts and normal allocation profiles are recorded in
+`stdlib-maps-benchmark-results.json`. No measurements have run, and no
+throughput, allocation reduction or Native adoption claim follows.
 Source-selected Native execution and genuine source-absent interface
 admission remain separately reported gates. The latter currently exposes
 the genuine Region-scheme/Type-header contradiction and open-row transport
