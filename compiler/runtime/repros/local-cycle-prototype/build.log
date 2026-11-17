@@ -1,0 +1,94 @@
+   Compiling cinchruntime v0.1.0 (/workspace/dasl-stdlib-cycle-runtime/compiler/runtime)
+warning: unnecessary `unsafe` block
+   --> src/rc.rs:857:21
+    |
+857 |         let small = unsafe { crate::abi::cinch_nat_from_i64(41) };
+    |                     ^^^^^^ unnecessary `unsafe` block
+    |
+    = note: `#[warn(unused_unsafe)]` (part of `#[warn(unused)]`) on by default
+
+warning: unnecessary `unsafe` block
+   --> src/rc.rs:901:21
+    |
+901 |         let boxed = unsafe { crate::abi::cinch_int_from_i64(i64::MIN) };
+    |                     ^^^^^^ unnecessary `unsafe` block
+
+warning: unnecessary `unsafe` block
+    --> src/rc.rs:1144:21
+     |
+1144 |         let boxed = unsafe { crate::abi::cinch_int_from_i64(i64::MIN) };
+     |                     ^^^^^^ unnecessary `unsafe` block
+
+warning: fields `id` and `state_repr` are never read
+   --> src/evolution.rs:128:5
+    |
+127 | struct CodeVersion {
+    |        ----------- fields in this struct
+128 |     id: i64,
+    |     ^^
+...
+134 |     state_repr: i64,
+    |     ^^^^^^^^^^
+    |
+    = note: `CodeVersion` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `close` is never used
+   --> src/sys/mod.rs:132:15
+    |
+132 | pub(crate) fn close(fd: i64) -> (i64, i64) {
+    |               ^^^^^
+
+warning: function `open_read` is never used
+   --> src/sys/mod.rs:147:15
+    |
+147 | pub(crate) fn open_read(path: &[u8]) -> (i64, i64) {
+    |               ^^^^^^^^^
+
+warning: constant `O_RDONLY` is never used
+  --> src/sys/linux.rs:45:7
+   |
+45 | const O_RDONLY: i32 = 0;
+   |       ^^^^^^^^
+
+warning: constant `O_CLOEXEC` is never used
+  --> src/sys/linux.rs:47:7
+   |
+47 | const O_CLOEXEC: i32 = 0o2000000;
+   |       ^^^^^^^^^
+
+warning: function `close` is never used
+   --> src/sys/linux.rs:262:15
+    |
+262 | pub(crate) fn close(fd: i64) -> (i64, i64) {
+    |               ^^^^^
+
+warning: function `open_read` is never used
+   --> src/sys/linux.rs:283:15
+    |
+283 | pub(crate) fn open_read(name: &[u8]) -> (i64, i64) {
+    |               ^^^^^^^^^
+
+warning: constant `CLOSE` is never used
+  --> src/sys/linux.rs:71:22
+   |
+71 |     pub(super) const CLOSE: i64 = 3;
+   |                      ^^^^^
+
+warning: `cinchruntime` (lib test) generated 11 warnings
+    Finished `test` profile [unoptimized] target(s) in 4.03s
+     Running unittests src/lib.rs (build/runtime-unit-target/debug/build/cinchruntime/52a4327d48e63904/out/cinchruntime-52a4327d48e63904)
+
+running 9 tests
+test cycle::tests::atomic_boundary_is_not_traced_or_kept_in_local_registry ... ok
+test cycle::tests::budget_abort_does_not_modify_graph_or_counts ... ok
+test cycle::tests::closure_capture_cycle_reclaims_with_its_cell ... ok
+test cycle::tests::duplicate_internal_edges_reclaim_exactly_once ... ok
+test cycle::tests::large_cycle_uses_bounded_native_stack ... ok
+test cycle::tests::ordinary_free_removes_nonowning_candidate_immediately ... ok
+test cycle::tests::outgoing_live_tail_is_dropped_once_after_internal_detach ... ok
+test cycle::tests::reachable_two_cell_cycle_preserves_payload_and_original_counts ... ok
+test cycle::tests::unique_alias_survives_without_count_inflation_and_self_cycle_reclaims ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 154 filtered out; finished in 0.03s
+
