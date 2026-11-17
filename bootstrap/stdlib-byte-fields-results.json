@@ -204,5 +204,42 @@
       }
     ]
   },
-  "total_rust_memory_profiles": 680
+  "total_rust_memory_profiles": 680,
+  "historical_native_first_unit": {
+    "scope": "Only temporary/empty ownership, replay, explicit state and a genuine mutation-effect stateful predicate; full Native matrix remains pending",
+    "receipt": "build/byte-fields-first-native-v4-owners-o0.json",
+    "receipt_sha256": "a0df58d76fc35e0b7f6ee98ff36f6dd37044aace9319c4322fcdec004a6351f7",
+    "context": "build/byte-fields-first-native-v4-owners-o0-context.json",
+    "context_sha256": "d962203c62b33f5742550bc3b311458a18ca52d7d0cd864deacf138ee8d1eab2",
+    "raw_compiler": {
+      "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+      "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+    },
+    "compiler_host_runtime": {
+      "runtime_abi": 10,
+      "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+    },
+    "consumer_runtime": {
+      "runtime_abi": 10,
+      "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+    },
+    "tuple_files": {
+      "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/frontend.py": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+      "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/pair.json": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d",
+      "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json": "f10d002f5d4d4be4fcfc08648306e8bbd368fcce579ec47c25b9a56cda321f0b",
+      "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json": "87aa9ec8c8ec6d2802638f00239277b0f76b2a07c3920afb14b4a1d47c072fbd",
+      "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.o": "b02e2e0e19b3f09a69ee821a16b3c975ac28d443b4a10126acada470fa152214",
+      "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.abi.json": "43133008ff1e8341e0a81872815826717c6189c2710983e27dbf23e791c4b6cd",
+      "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/libcinchruntime.a": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+    },
+    "compiled_rc_debug": true,
+    "memory_profiles": 4,
+    "leaked": 0,
+    "entry_sha256": "e0c4c7c04c6a4edf0cf411598cabd2e5f4fa3fb019e648a0a50f285e1dc16871",
+    "llvm_sha256": "92a316c49359f157175a9a85a882580b1f40f3f01b33ac3528ecc6754fab647c",
+    "executable_sha256": "31b32d47da4b4e4e2a2cc2520b2731553d15088d6399eba7511f5ecf5c1e3554",
+    "no_family_adoption": true
+  }
 }

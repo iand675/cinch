@@ -74,6 +74,14 @@ stacks are separately 64 MiB. Rust CLI compilation has `rc_debug=false`; actual
 dynamic poisoning is recorded separately. No compiled checked-RC API or Native
 result is claimed by these runs.
 
+The first historical Native unit also accepts and executes temporary/empty-owner,
+replay, explicit-state and genuine mutation-effect stateful-predicate controls.
+Its four normal/poison processes pass with zero leaks and checked-RC compilation.
+This uses the admitted historical `2f077`/V4 pair with consumer runtime `c4b1097b`;
+the compiler host runtime remains separately identified as `80bd5b54`. This small
+unit does not qualify the full Native matrix, mixed-capability contract proof or
+any newer compiler family.
+
 The actual mixed IO/Mut API/factory proof is accepted, and the negative proof
 reaches the specific `effect rows do not match` rejection. Earlier test-only
 layout/reserved-name failures are retained and are not counted as intended
