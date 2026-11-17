@@ -1,5 +1,5 @@
 {
-  "status": "static plan; runtime, preflight, actual code and paired timing pending",
+  "status": "Matched public SIMD/actual-scalar drivers built and all functional/actual-code gates passed; elapsed timing awaits Root exclusive grant.",
   "scope": "Complete public conversion and nearest-palette pipelines with observed output/representation and retained inputs",
   "source_basis": {
     "path": "experiments/image-color-v1/sources/Image.Color.cinch",
@@ -137,5 +137,58 @@
     "full_checksums": "Hash Option discriminator, model identity, every raw field and canonical channel for every result; retain original query/source/palette hashes afterward",
     "nil_and_empty": "Empty palette conversion and custom absent model output both hash explicit absent outcomes; no fabricated color",
     "reference_mutation_policy": "No source/reference/expected-checksum mutation after preflight sealing"
-  }
+  },
+  "actual_driver": {
+    "path": "experiments/image-color-v1/benchmark.cinch",
+    "sha256": "33de809ea28098721daeb4a6b8d0e91bd3e0b3501559273b6ab1aacd57e38e83"
+  },
+  "actual_reference": {
+    "path": "experiments/image-color-v1/benchmark.go",
+    "sha256": "631aedd7a6ea4cb5c8e54f29b7504721e3bb3fabb05a5646bc2b1bc6f18a2247",
+    "sdk": "go1.27.4",
+    "immutable_after_pair_sealing": true
+  },
+  "actual_modes": [
+    "rgba-control",
+    "premultiply",
+    "straight-model",
+    "gray-model",
+    "ycbcr16",
+    "rgb-ycbcr",
+    "ycbcr-rgb",
+    "rgb-cmyk",
+    "cmyk-rgb",
+    "custom-source",
+    "custom-model",
+    "alpha-model",
+    "palette-index-empty",
+    "palette-index-small",
+    "palette-index-256",
+    "palette-index-ties",
+    "palette-convert-empty",
+    "palette-convert-small",
+    "palette-convert-256",
+    "palette-convert-ties",
+    "palette-model-256"
+  ],
+  "preflight_receipt": "experiments/image-color-v1/performance-preflights.json",
+  "preflight_receipt_sha256": "92da5fefc5354c96ee53227435145c0f27dbfb4f4cfa9c20a75c83224e5098d7",
+  "cinch_preflight_profiles": 420,
+  "independent_sdk_preflights": 210,
+  "actual_vector_and_actual_scalar_machine_code_verified": true,
+  "actual_clock_boundaries_verified": true,
+  "proposed_measurement": {
+    "sizes": [
+      16,
+      256
+    ],
+    "nonpalette_iterations": 20,
+    "palette_iterations": 1,
+    "samples": 5,
+    "warmups": 1,
+    "processes": 756,
+    "hard_wall_seconds": 20,
+    "exclusive_root_grant_pending": true
+  },
+  "timing_executed": false
 }

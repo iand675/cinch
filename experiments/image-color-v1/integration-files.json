@@ -137,8 +137,8 @@
     {
       "from": "experiments/image-color-v1/performance-plan.json",
       "to": "experiments/image-color-v1/performance-plan.json",
-      "bytes": 5880,
-      "sha256": "41eb245110feaf1ec50dfd51e840707eedc3cfcfe36e9a64f0196b396c7b8329"
+      "bytes": 7481,
+      "sha256": "65f62eaa834aae2024b9252d99185ec449ce7b8111d7d8d288ad1b42c002c9b8"
     }
   ],
   "optional_reproduction_imports": [
@@ -207,6 +207,48 @@
       "to": "experiments/image-color-v1/negative-color-total-model-io.cinch",
       "bytes": 727,
       "sha256": "0abb99c96b585baaca0d6a8b96a891b11489348800b25a48505ba29ef268c8ab"
+    },
+    {
+      "from": "experiments/image-color-v1/benchmark.cinch",
+      "to": "experiments/image-color-v1/benchmark.cinch",
+      "bytes": 13638,
+      "sha256": "33de809ea28098721daeb4a6b8d0e91bd3e0b3501559273b6ab1aacd57e38e83"
+    },
+    {
+      "from": "experiments/image-color-v1/benchmark.go",
+      "to": "experiments/image-color-v1/benchmark.go",
+      "bytes": 7929,
+      "sha256": "631aedd7a6ea4cb5c8e54f29b7504721e3bb3fabb05a5646bc2b1bc6f18a2247"
+    },
+    {
+      "from": "experiments/image-color-v1/benchmark-modes.json",
+      "to": "experiments/image-color-v1/benchmark-modes.json",
+      "bytes": 483,
+      "sha256": "75ad6e248fde767c98b76785e70d9efbc707476270bb3b73d0a7b1c4cb6b0027"
+    },
+    {
+      "from": "experiments/image-color-v1/performance-preflights.json",
+      "to": "experiments/image-color-v1/performance-preflights.json",
+      "bytes": 480304,
+      "sha256": "92da5fefc5354c96ee53227435145c0f27dbfb4f4cfa9c20a75c83224e5098d7"
+    },
+    {
+      "from": "tooling/bench_color.py",
+      "to": "tooling/bench_color.py",
+      "bytes": 12109,
+      "sha256": "ce1b335f0be69f5e4b339fb9b04c1477506c2526e75b083871699cf41db8db50"
+    },
+    {
+      "from": "tooling/inspect_color_benchmark.py",
+      "to": "tooling/inspect_color_benchmark.py",
+      "bytes": 5213,
+      "sha256": "4ef50574c9cf6c7449f45b6bf326a7a09f34583fa129a924d69515843093ea70"
+    },
+    {
+      "from": "tooling/measure_color.py",
+      "to": "tooling/measure_color.py",
+      "bytes": 8690,
+      "sha256": "efd96d2e53f88e65fdd99f4b1a1182205885488043ff1ffda099e34cb802b767"
     }
   ],
   "existing_root_dependencies": [
@@ -253,7 +295,7 @@
   ],
   "pending": [
     "Root maintained Cargo target execution",
-    "Matched public pipeline build/preflight and Root-granted paired elapsed timing",
+    "Root-granted paired elapsed timing; actual matched public drivers/full preflights/code gates now passed",
     "Full Native qualification and genuine source-absent client gate",
     "Production selection/shared inventory/docs integration"
   ],
