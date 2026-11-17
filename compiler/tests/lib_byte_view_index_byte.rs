@@ -26,6 +26,37 @@ fn definition<'a>(ir: &'a str, symbol: &str) -> &'a str {
     panic!("missing actual function definition {symbol}");
 }
 
+/// Follow emitted direct calls while allowing the compiler to inline an intermediate adapter.
+fn call_path(ir: &str, start: &str, wanted: &str) -> Option<Vec<String>> {
+    let mut pending = vec![vec![start.to_owned()]];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(path) = pending.pop() {
+        let symbol = path.last().unwrap();
+        if symbol == wanted {
+            return Some(path);
+        }
+        if !seen.insert(symbol.clone()) {
+            continue;
+        }
+        for line in definition(ir, symbol)
+            .lines()
+            .filter(|line| line.contains("call "))
+        {
+            for suffix in line.split("@\"").skip(1) {
+                let Some((callee, _)) = suffix.split_once('"') else {
+                    continue;
+                };
+                if callee.starts_with("Data.Bytes.View.") {
+                    let mut next = path.clone();
+                    next.push(callee.to_owned());
+                    pending.push(next);
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Select complete independent fingerprints without accumulating poisoned output allocations.
 fn consumer(checks: &[String]) -> String {
     let mut source = INPUTS[..INPUTS
@@ -159,7 +190,9 @@ fn byte_view_index_byte_full_adapter_compiles_for_wasm_arm_and_big_endian() {
         PORTABLE,
     ]
     .join("\n");
-    let directory = tempfile::tempdir().unwrap();
+    // Retain all target IR even when a subsequent graph assertion or object build fails.
+    let directory = tempfile::tempdir().unwrap().keep();
+    let mut artifacts = Vec::new();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -192,16 +225,40 @@ fn byte_view_index_byte_full_adapter_compiles_for_wasm_arm_and_big_endian() {
             .join()
             .unwrap()
             .unwrap();
-        let query = definition(&ir, "Data.Bytes.View.byte-view-index-byte");
-        assert!(query.contains("Data.Bytes.View.index-forward-blocks"));
-        assert!(query.contains("Data.Bytes.View.index-forward-tail"));
-        let blocks = definition(&ir, "Data.Bytes.View.index-forward-blocks");
-        assert!(
-            blocks.contains("Data.Bytes.View.load-word")
-                && blocks.contains("Data.Bytes.View.matching-lanes")
-        );
-        assert!(definition(&ir, "Data.Bytes.View.index-forward-tail")
-            .contains("Data.Bytes.View.load-byte"));
+        let file = directory.join(format!("{arch}.ll"));
+        std::fs::write(&file, &ir).unwrap();
+        artifacts.push((triple, file, ir));
+    }
+    for (triple, file, ir) in artifacts {
+        for (caller, callee) in [
+            ("byte-view-index-byte", "index-forward-blocks"),
+            ("byte-view-index-byte", "index-forward-tail"),
+            ("index-forward-blocks", "load-word.llvm"),
+            ("index-forward-blocks", "matching-lanes.llvm"),
+            ("index-forward-tail", "load-byte.llvm"),
+        ] {
+            let caller = format!("Data.Bytes.View.{caller}");
+            let callee = format!("Data.Bytes.View.{callee}");
+            assert!(
+                call_path(&ir, &caller, &callee).is_some(),
+                "missing real call path {caller} -> {callee}; retained {}",
+                file.display()
+            );
+        }
+        if ir.lines().any(|line| {
+            line.starts_with("define ") && line.contains("@\"Data.Bytes.View.index-forward\"(")
+        }) {
+            assert!(
+                call_path(
+                    &ir,
+                    "Data.Bytes.View.byte-view-index-byte",
+                    "Data.Bytes.View.index-forward"
+                )
+                .is_some(),
+                "retained intermediary must be reachable; retained {}",
+                file.display()
+            );
+        }
         assert!(definition(&ir, "Data.Bytes.View.load-word.llvm")
             .contains("load i64, ptr %at, align 1"));
         assert!(
@@ -209,9 +266,9 @@ fn byte_view_index_byte_full_adapter_compiles_for_wasm_arm_and_big_endian() {
         );
         assert!(
             definition(&ir, "Data.Bytes.View.matching-lanes.llvm").contains("9187201950435737471")
+                && definition(&ir, "Data.Bytes.View.matching-lanes.llvm")
+                    .contains("-9187201950435737472")
         );
-        let file = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&file, ir).unwrap();
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )
@@ -222,11 +279,10 @@ fn byte_view_index_byte_full_adapter_compiles_for_wasm_arm_and_big_endian() {
         .output()
         .unwrap();
         if !output.status.success() {
-            let retained = directory.keep();
             panic!(
                 "{triple}: {}\nretained full-adapter inputs: {}",
                 String::from_utf8_lossy(&output.stderr),
-                retained.display()
+                directory.display()
             );
         }
     }
