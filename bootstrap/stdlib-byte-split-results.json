@@ -194,7 +194,7 @@
     "all_six_complete_new_cinch_sources_checked": true
   },
   "portable": {
-    "status": "wasm/ARM complete objects and four hostO0/O2 profiles pass; parent current-compiler PPC pending",
+    "status": "wasm/ARM completeobjects/host4 pass; parentcurrentAPI fullPPC passed",
     "receipt": {
       "path": "build/byte-split-portable.json",
       "sha256": "7dcc9e60ce32c676ceef68ad1a42ca3e0080349c919d9e95831c70f02f495714"
@@ -225,7 +225,16 @@
     "build/byte-split-portable/failed-named-root.log"
   ],
   "remaining": [
-    "Parent current-compiler Cargo/PPC gate",
     "Separate candidate Native qualification and measured selection; broad bytes/strings coverage remains open"
-  ]
+  ],
+  "rust_cli_compiled_rc_debug": false,
+  "runtime_profile_note": "Normal/poison heap/quarantine andleaked0 runs valid; compiled per-op checkedRC is separate. Earlierpost-entry --rc-debug token was a programarg.",
+  "parent_checked_api_gate": {
+    "fix": "2ab93c5b",
+    "lib_byte_split": "9/9passed,56.72s",
+    "public_boxed_nat_regression_profiles": 32,
+    "actual_ppc_objects_passed": true,
+    "private_protocol_o0_o2_checked_rc_passed": true,
+    "evidence": "bootstrap/stdlib-byte-split-nat-cmp-debug.json"
+  }
 }
