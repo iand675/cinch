@@ -31,9 +31,12 @@ def main():
             assert any(':: Region' in use['scheme'] for use in header['direct_audit_witness']['uses'])
     for module,entry in manifest['modules'].items():
         before=ROOT/entry['source'];after=HERE/'sources'/(module+'.cinch')
-        assert digest(before)==entry['old_sha256'] and digest(after)==entry['proposal_sha256']
+        assert digest(after)==entry['proposal_sha256']
         normalize=lambda text:re.sub(r'\(r :: Region\)','r',text)
-        assert normalize(after.read_text())==before.read_text(),module+' has an unintended body/effect edit'
+        normalized=normalize(after.read_text())
+        assert hashlib.sha256(normalized.encode()).hexdigest()==entry['old_sha256'],module+' has an unintended body/effect edit'
+        if before.exists() and digest(before)==entry['old_sha256']:
+            assert normalized==before.read_text()
         for header in manifest['headers']:
             if header['identity'].rsplit('.',1)[0]==module:
                 assert '  '+header['new'] in after.read_text()
@@ -56,6 +59,10 @@ def main():
             assert contract['identity']=='Effect.Stream.WriterChain'
             assert contract['parameters']==[{'implicit':False,'kind':'Region','name':'r'}]
             assert contract['constructors']==['Effect.Stream.WriterEnd','Effect.Stream.WriterLink']
+        support_path=HERE/'support-manifest.json'
+        if support_path.exists():
+            for name,row in json.loads(support_path.read_text()).items():
+                assert digest(HERE/row['source'])==row['sha256']==gate['source_selection'][name]['sha256']
     print('Verified10 annotation-only Region proposals and available separate source/metadata receipts; no runtime or adoption claim')
 
 

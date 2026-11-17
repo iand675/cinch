@@ -1,0 +1,74 @@
+-- | A legitimate retained source/sink callback graph under the complete combined read effect row.
+-- This is a separate current-source failure control, not a rewritten historical
+-- cycle receipt. No automatic cycle collection or package promotion is implied.
+module Main where
+  import Effect.Buffered
+  import Effect.Buffered.Core
+  import Effect.Scanner
+  import Effect.Io
+  import Effect.Stream
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Discard complete ordinary write offers with an IO-only callback and an explicit advanced continuation.
+  discard-sink :: forall (r :: Region). BufferSink r
+  discard-sink = buffer-sink (\input -> (WriteEvent (nat-to-int (bytes-len input)) None, discard-sink))
+
+  -- | Supply a genuine exhausted source without performing an acknowledgement or retaining a sink.
+  empty-source :: forall (r :: Region). BufferSource r
+  empty-source = buffer-source (\wanted -> (ReadEvent 0 (bytes-new 0) (Some BufferEnd), empty-source))
+
+  -- | Retain a supplied writer after EOF; a subsequent raw zero read can still acknowledge through it.
+  source-keeping-write :: forall (r :: Region). (Bytes ->{IO r} WriteEvent) -> BufferSource r
+  source-keeping-write write = buffer-source (\wanted -> if wanted == 0 then
+    let acknowledged = write (string-to-bytes "C") in
+    (ReadEvent 0 (bytes-new 0) None, source-keeping-write write)
+    else (ReadEvent 0 (bytes-new 0) (Some BufferEnd), source-keeping-write write))
+
+  -- | Complete the actual data transfer and return an exhausted source that still legitimately owns its writer.
+  transferring-source :: forall (r :: Region). BufferSource r
+  transferring-source = buffer-source-with-transfer empty-source (\write ->
+    let accepted = write (string-to-bytes "AB") in
+    (TransferEvent 2 None, source-keeping-write write))
+
+  -- | Retain a combined-effect reader through a combined-effect transfer callback rather than an IO-only write.
+  sink-keeping-read :: forall (r :: Region). (Nat ->{IO r, Mut r} ReadEvent) -> BufferSink r
+  sink-keeping-read read = buffer-sink-with-transfer discard-sink (\next-read ->
+    let acknowledged = read 0 in
+    (TransferEvent 0 None, sink-keeping-read next-read))
+
+  -- | Consume through an actual EOF before returning a sink that can invoke its retained reader in a future transfer.
+  receiving-sink :: forall (r :: Region). BufferSink r
+  receiving-sink = buffer-sink-with-transfer discard-sink (\read ->
+    case read 1 of
+      ReadEvent count payload (Some BufferEnd) ->
+        if count == 0 && bytes-len payload == 0 then (TransferEvent 0 None, sink-keeping-read read)
+        else (TransferEvent 0 (Some (BufferCustomError "invalid EOF counts")), discard-sink)
+      other -> (TransferEvent 0 (Some (BufferCustomError "actual EOF required")), discard-sink))
+
+  -- | Distinguish exact successful progress from an optional transfer capability or failure.
+  transferred :: TransferEvent -> I64 -> Bool
+  transferred event expected = case event of
+    TransferEvent actual None -> eq-i64 actual expected
+    other -> False
+
+  -- | Drop all external handles after both direct transfers; ordinary ARC's cycle outcome must remain observable.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in
+    case buffer-source-transfer transferring-source receiving-sink of
+      (None, source, sink) -> 1
+      (Some first, source, sink) -> if transferred first 2 then
+        case buffer-sink-transfer sink source of
+          (None, next-source, next-sink) -> 2
+          (Some second, next-source, next-sink) -> if transferred second 0 then
+            case stream-write-all (writer-from-fd 1) (string-to-bytes "retained-cycle-ready\n") of
+              Ok count -> 0
+              Err failure -> 3
+            else 4
+        else 5
