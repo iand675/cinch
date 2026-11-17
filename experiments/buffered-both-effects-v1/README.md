@@ -44,4 +44,12 @@ The Native concrete composition uses Compare's admitted 2f/V2 snapshot with inte
 
 The first Native legacy-constructor check correctly reported `type mismatch: expected {(IO r)}, found {(IO r), (Mut r)}`. Its original harness expected the words “effect” or “row” and therefore rejected the wording. The source/compiler result is preserved; the corrected verifier recognizes that precise effect mismatch without rerunning the compiler or accepting an unrelated parse/import failure.
 
-The priority fixture asserts source WriterTo before sink ReaderFrom, the sink fallback when WriterTo is absent, delegation from an empty writer, and a pending prefix that fills/flushes before delegation starts at the advanced destination. Returned capability drops and counts excluding the earlier prefix are observable. Runtime, shared live native aliases, prefix-plus-error behavior, caller-owned file close, retained callbacks and complete corpus gates remain pending. The known retention cycle still blocks promotion.
+The priority fixture asserts source WriterTo before sink ReaderFrom, the sink fallback when WriterTo is absent, delegation from an empty writer, and a pending prefix that fills/flushes before delegation starts at the advanced destination. Returned capability drops and counts excluding the earlier prefix are observable.
+
+These four priority/advanced-destination groups now also execute successfully under both 855/c4 and admitted 2f/V2/80bd with explicit LLVM20 O2 links. Normal32MiB and poisoned256MiB heaps both use the fixed8MiB stack; all four processes report zero live/leaked blocks. `run.py` reuses exact positively source-gated input closures, limits each runtime unit to20MiB of new artifacts, and enforces the standing250MiB start/200MiB reserve guards. The earlier guard refusal produced no IR or executable and remains preserved. Recheck the successful exact artifact receipts without rebuilding:
+
+```sh
+python3 experiments/buffered-both-effects-v1/verify_runtime.py
+```
+
+`runtime-gates.json` records the distinct source/compiler/provider/runtime identities and all four memory outcomes. Actual live native alias, prefix-plus-error and caller-owned file-close runtime cases, retained callbacks and the complete functional corpus remain pending. The known retention cycle still blocks promotion; no collector or callback-lifetime behavior changes.
