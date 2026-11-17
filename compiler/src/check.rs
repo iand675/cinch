@@ -10039,14 +10039,17 @@ impl Checker {
         let mut names: Vec<String> = Vec::new();
         let mut hints = Vec::new();
         let mut explicit_rows = Vec::new();
+        let mut explicit_regions = Vec::new();
         for b in binders {
             if vars.contains(&b.name.text) || names.contains(&b.name.text) {
                 return Err(Error::at(b.name.span, format!(
                     "the nested forall binder `{}` shadows a type variable already in scope; rename it", b.name.text)));
             }
             let row = matches!(b.ann.as_ref(), Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Row"]);
+            let region = matches!(b.ann.as_ref(), Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Region"]);
             if row { explicit_rows.push(b.name.text.clone()); }
-            let hint = if row { None } else { match &b.ann { Some(ann) => Some(self.binder_kind(ann, vars)?), None => None } };
+            if region { explicit_regions.push(b.name.text.clone()); }
+            let hint = if row || region { None } else { match &b.ann { Some(ann) => Some(self.binder_kind(ann, vars)?), None => None } };
             names.push(b.name.text.clone());
             hints.push((b.name.text.clone(), hint, b.name.span));
         }
@@ -10058,7 +10061,11 @@ impl Checker {
                     return Err(Error::at(b.name.span, format!(
                         "the nested forall binder `{}` shadows a type variable already in scope; rename it", b.name.text)));
                 }
-                let hint = match &b.ann { Some(ann) => Some(self.binder_kind(ann, vars)?), None => None };
+                let row = matches!(b.ann.as_ref(), Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Row"]);
+                let region = matches!(b.ann.as_ref(), Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Region"]);
+                if row { explicit_rows.push(b.name.text.clone()); }
+                if region { explicit_regions.push(b.name.text.clone()); }
+                let hint = if row || region { None } else { match &b.ann { Some(ann) => Some(self.binder_kind(ann, vars)?), None => None } };
                 names.push(b.name.text.clone());
                 hints.push((b.name.text.clone(), hint, b.name.span));
             }
@@ -10074,12 +10081,18 @@ impl Checker {
         let (mut rows, mut regions) = (Vec::new(), Vec::new());
         collect_row_names(&converted, &mut rows, &mut regions);
         let row_params: Vec<String> = names.iter().filter(|n| rows.contains(n) || explicit_rows.contains(n)).cloned().collect();
-        let region_params: Vec<String> = names.iter().filter(|n| regions.contains(n) && !row_params.contains(n)).cloned().collect();
+        if let Some(name) = explicit_regions.iter().find(|name| row_params.contains(name)) {
+            return Err(Error::at(span, format!("explicit region parameter `{name}` cannot also be an effect row")));
+        }
+        let region_params: Vec<String> = names.iter().filter(|n| (regions.contains(n) || explicit_regions.contains(n)) && !row_params.contains(n)).cloned().collect();
         let converted = crate::types::regionize(&converted, &region_params);
         let constraints = self.kind_constraints.borrow().clone();
         let mut params = Vec::new();
         let mut con_params = Vec::new();
         for (name, hint, binder_span) in hints {
+            if explicit_regions.contains(&name) && constraints.iter().any(|(used, _)| used == &name) {
+                return Err(Error::at(binder_span, format!("explicit region parameter `{name}` has an incompatible type, value or proposition use")));
+            }
             if row_params.contains(&name) || region_params.contains(&name) { continue; }
             match self.resolve_binder_kind(&name, hint.as_ref(), &constraints, binder_span)? {
                 ParamKind::Type => params.push(name),
@@ -10123,6 +10136,7 @@ impl Checker {
         // Rows occupy Scheme::row_params rather than the proper/index kind
         // namespace. Retain an explicit Row annotation until usage is known.
         let mut explicit_rows = Vec::new();
+        let mut explicit_regions = Vec::new();
         let mut rest = ty;
         loop {
             match rest {
@@ -10133,8 +10147,13 @@ impl Checker {
                         }
                         let explicit_row = matches!(b.ann.as_ref(),
                             Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Row"]);
+                        let explicit_region = matches!(b.ann.as_ref(),
+                            Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Region"]);
                         let hint = if explicit_row {
                             explicit_rows.push(b.name.text.clone());
+                            None
+                        } else if explicit_region {
+                            explicit_regions.push(b.name.text.clone());
                             None
                         } else { match &b.ann {
                             Some(ann) => Some(self.binder_kind(ann, &params)?),
@@ -10237,6 +10256,9 @@ impl Checker {
                     let mut row_params: Vec<String> = Vec::new();
                     let mut region_params: Vec<String> = Vec::new();
                     collect_row_names(&t, &mut row_params, &mut region_params);
+                    for region in &explicit_regions {
+                        if !region_params.contains(region) { region_params.push(region.clone()); }
+                    }
                     for (_, c) in &ctx {
                         for a in &c.args {
                             if let Ty::Region(r) = a {
@@ -10273,6 +10295,11 @@ impl Checker {
                             continue;
                         }
                         if region_params.contains(&name) {
+                            if explicit_regions.contains(&name) && constraints.iter().any(|(used, _)| used == &name) {
+                                return Err(Error::at(span, format!(
+                                    "explicit region parameter `{name}` has an incompatible type, value or proposition use"
+                                )));
+                            }
                             continue;
                         }
                         let kind =

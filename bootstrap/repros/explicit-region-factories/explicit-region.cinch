@@ -1,0 +1,16 @@
+-- | Isolate a stored retry action over one caller-owned mutable region.
+module Main where
+  import Data.Mutable.Var
+  -- | A stored callback whose I/O and mutation refer to the same region.
+  data Work r where
+    -- | Private mixed-effect action with explicit input and result.
+    Work :: (Unit ->{IO r, Mut r} Int) -> Work r
+  -- | A normal action captures an existing caller-region cell.
+  action :: forall r. Var r Int -> Unit ->{IO r, Mut r} Int
+  action cell unit = var-read cell
+  -- | Partial application must preserve the region of the captured cell.
+  pending :: forall (r :: Region). Var r Int -> Work r
+  pending cell = Work (action cell)
+  -- | Check source without performing any callback.
+  main :: Int
+  main = 0

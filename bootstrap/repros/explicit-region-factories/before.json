@@ -1,0 +1,8 @@
+{
+  "compiler_sha256": "fa3ea3c9be1b74be455cb18ce0f084ef31aafb82e39ccc8fd660f653719531d2",
+  "source_checkpoint": "5c664cfd",
+  "annotated_source_sha256": "9e70afde96698570799e181f2e4d5b0a9847824f5c1573aea6d0e208863622c5",
+  "exit": 1,
+  "stderr_sha256": "0a51d973e0869a025edb7678b8ec5c079dd633b5f1d53422fdfd6f58dca76dc3",
+  "scope": "Unannotated inference remains separate/open; this checkpoint adds an explicit function quantifier kind."
+}
