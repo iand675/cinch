@@ -1,8 +1,8 @@
-# Retained byte fields: Rust O0 checkpoint
+# Retained byte fields: Rust O0/O2 checkpoint
 
 `Data.Bytes.Fields` implements the four audited field operations with concrete
 state and callback traversal. This checkpoint claims source/type validation and
-the complete Rust O0 functional scope below. O2, Native, Fields portable objects,
+the complete Rust O0/O2 functional scope below. Native, Fields portable objects,
 parent checked-RC API tests and performance review remain pending.
 
 | Audited declaration | Primary whole-buffer operation | Bounded-view counterpart |
@@ -56,7 +56,7 @@ broader `isspace` policy. It covers all raw bytes, Unicode exclusions, valid
 versus malformed replacement scalars, bounded UTF8 edges, SIMD fringes,
 construction silence, early stop and repeated factory invocation.
 
-Rust `855df836…` with explicit runtime `c4b1097b…` passes:
+Rust `855df836…` with explicit runtime `c4b1097b…` passes the following scope at both O0 and O2:
 
 - All 1,266 output/trace rows across eager lists, repeated pure Producers and
   reusable effectful callback factories: 318 memory processes.
@@ -68,7 +68,7 @@ Rust `855df836…` with explicit runtime `c4b1097b…` passes:
 - A runtime-generated 65,536-byte dense input, with all 32,768 fields checked in
   the eager list and an effectful visitor: two memory processes.
 
-All 340 processes use ordinary 32 MiB or poisoned 256 MiB heaps, an 8 MiB program
+Each optimization level has 340 processes, for 680 total. They use ordinary 32 MiB or poisoned 256 MiB heaps, an 8 MiB program
 stack and leak checking; every process reports `leaked=0`. Compiler main-thread
 stacks are separately 64 MiB. Rust CLI compilation has `rc_debug=false`; actual
 dynamic poisoning is recorded separately. No compiled checked-RC API or Native

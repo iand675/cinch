@@ -82,7 +82,7 @@ def main() -> None:
     parser.add_argument('--native-interfaces',type=Path)
     parser.add_argument('--native-objects',type=Path)
     parser.add_argument('--opt-level',choices=['0','2'],default='0')
-    parser.add_argument('--group',choices=['rows','effects','owners','deep'],default='rows')
+    parser.add_argument('--group',choices=['rows','effects','owners','deep','controls'],default='rows')
     parser.add_argument('--size',type=int,default=65536)
     parser.add_argument('--first',type=int,default=0)
     parser.add_argument('--limit',type=int)
@@ -97,6 +97,8 @@ def main() -> None:
     checks = (['True'] if args.group == 'deep' else [expression(row) for row in fixture['rows']] if args.group == 'rows' else
               ['owner-case ()','stateful-case ()'] if args.group == 'owners' else
               [effect_expression(row,index) for index,row in enumerate(fixture['effect_controls'])])
+    if args.group == 'controls':
+        checks += ['owner-case ()','stateful-case ()']
     checks = checks[args.first:]
     if args.limit is not None:
         checks = checks[:args.limit]
@@ -135,7 +137,7 @@ def main() -> None:
                    '--runtime-archive',str(args.runtime_archive.resolve())]
     report['command'] = command
     report['opt_level'] = None if args.check_only else args.opt_level
-    report['runtime_size'] = args.size if args.group == 'deep' else None
+    report['runtime_size'] = args.size if args.group in ['deep','controls'] else None
     report['selection'] = dict(first=args.first,limit=args.limit,batch_size=args.batch_size)
     report['generator_sha256'] = digest(Path(__file__))
     save()
@@ -170,9 +172,12 @@ def main() -> None:
     report.update(llvm_sha256=digest(exe.with_suffix('.ll')),executable_sha256=digest(exe),status='running')
     save()
     for debug in [False,True]:
-        for batch in range((len(checks)+args.batch_size-1)//args.batch_size):
+        batches = list(range((len(checks)+args.batch_size-1)//args.batch_size))
+        if args.group == 'controls':
+            batches.append('deep')
+        for batch in batches:
             try:
-                arguments = [str(exe),'deep',str(args.size)] if args.group == 'deep' else [str(exe),str(batch)]
+                arguments = [str(exe),'deep',str(args.size)] if args.group == 'deep' or batch == 'deep' else [str(exe),str(batch)]
                 result = run(arguments,env={**os.environ,'CINCH_RC_DEBUG':str(int(debug)),
                              'CINCH_HEAP_LIMIT':'256M' if debug else '32M','CINCH_STACK_SIZE':'8M','CINCH_LEAK_CHECK':'1'})
             except RuntimeError as error:
