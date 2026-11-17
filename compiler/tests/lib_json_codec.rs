@@ -145,6 +145,24 @@ fn json_dynamic_owners_and_legacy_bridges_are_bounded() {
     run(include_str!("fixtures/json-codec-dynamic-control.cinch"));
 }
 
+/// Independently selected method directions and semantic token/value exports retain bounded owners.
+#[test]
+fn json_method_categories_and_semantic_owners_are_bounded() {
+    run(include_str!("fixtures/json-codec-method-owner-control.cinch"));
+}
+
+/// Method priority, returned causes, advanced values and first-error continuation remain observable.
+#[test]
+fn json_method_priority_errors_and_continuation_match_observations() {
+    run(include_str!("fixtures/json-codec-method-protocol.cinch"));
+}
+
+/// Every successful addressability context preserves exact output and method invocation counts.
+#[test]
+fn json_method_addressability_outputs_and_callback_counts_match_observations() {
+    run(include_str!("fixtures/json-codec-addressability.cinch"));
+}
+
 /// Every vector mismatch lane and Unicode boundary follows independent exact-first name matching.
 #[test]
 fn json_record_name_matching_matches_independent_observations() {

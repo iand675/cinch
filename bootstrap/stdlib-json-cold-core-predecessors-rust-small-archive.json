@@ -1,0 +1,28 @@
+{
+  "description": "Closed superseded core functional ELF/LLVM iterations only; no new validation claim. Final expanded-v2 trees and all source/log/reference/docs/frozen compiler/provider/runtime/current snapshots/benchmark inputs remain plain",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-core-predecessors-rust-small-20261117.tar.gz",
+  "original_file_bytes": 47237824,
+  "verified": true,
+  "originals_removed": true,
+  "scope": "closed pre-final core iterations",
+  "stage": "rust-small",
+  "supporting_receipts": [
+    "bootstrap/stdlib-json-core-evidence.json"
+  ],
+  "supporting_receipt_sha256": {
+    "bootstrap/stdlib-json-core-evidence.json": "4cc7f42f79ce2ab16ba58fd28b6fa0a5c0eaaf7a4116f96a61410b498e49cbcd"
+  },
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-core-predecessors-rust-small-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "archive_sha256": "64dacb4db4de3838297c1439b4632eccf976c8f48169e7f6e0598ca3115e10d9",
+  "archive_bytes": 12818487,
+  "decompressed_tar_sha256": "573531fcf960c28eb0af3c5e9c95a17aafad53c838fa57eb171ceb734e6227df",
+  "decompressed_tar_bytes": 47257600,
+  "elapsed_seconds": 0.8993718499987153,
+  "free_bytes_before": 272830464,
+  "free_bytes_after": 268341248,
+  "global_free_change_bytes": -4489216,
+  "own_reclaimed_blocks_before_indexes_bytes": 34435072,
+  "entry_count": 10,
+  "recovery_index": "bootstrap/stdlib-json-cold-core-predecessors-rust-small-archive-index.json",
+  "recovery_index_sha256": "b46630c2a1b8b9e563514e39fea322716718519abefce033a4fb445e45dbdb91"
+}

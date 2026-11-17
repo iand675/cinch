@@ -1,0 +1,30 @@
+{
+  "description": "Closed superseded numeric/typed/binary functional ELF/LLVM iterations only; no new validation claim. Published final numeric paths and existing archives are untouched; all source/log/reference/docs/frozen compiler/provider/runtime/current snapshots/benchmark inputs stay in place",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-numeric-typed-predecessors-binary-20261117.tar.gz",
+  "original_file_bytes": 70402168,
+  "verified": true,
+  "originals_removed": true,
+  "scope": "closed numeric/typed/binary predecessor iterations",
+  "stage": "binary",
+  "supporting_receipts": [
+    "bootstrap/stdlib-json-numeric-binary-final-rust-validation-results.json",
+    "bootstrap/stdlib-json-numeric-binary-final-native-validation-results.json"
+  ],
+  "supporting_receipt_sha256": {
+    "bootstrap/stdlib-json-numeric-binary-final-rust-validation-results.json": "2ecb1494a69643f4cb960f6767c40afe104da9e876e3a5fde8cfebcc67c76341",
+    "bootstrap/stdlib-json-numeric-binary-final-native-validation-results.json": "6d4192b0d24c85a54286525ab36400254e4d3fe90b62d2ba4ead36a7d0a728a3"
+  },
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-numeric-typed-predecessors-binary-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "archive_sha256": "a232a6bcb56b5b5b2f4094921a839ea7190bbbb008248a669fc29157d8bc39dd",
+  "archive_bytes": 17274642,
+  "decompressed_tar_sha256": "4fbf6eaacc3b905372dc4ae2192260cc73d5cbdd170409554d555b3272f877e0",
+  "decompressed_tar_bytes": 70430720,
+  "elapsed_seconds": 1.1862672569986898,
+  "free_bytes_before": 200499200,
+  "free_bytes_after": 253624320,
+  "global_free_change_bytes": 53125120,
+  "own_reclaimed_blocks_before_indexes_bytes": 53141504,
+  "entry_count": 10,
+  "recovery_index": "bootstrap/stdlib-json-cold-numeric-typed-predecessors-binary-archive-index.json",
+  "recovery_index_sha256": "bcd6e777fa1206a2f671b0b29fe403abc658eda085b758809a7e39d3f338ca0e"
+}

@@ -1,0 +1,782 @@
+-- | Independent addressability observations exercise the same method/category decision through every container boundary.
+module Main where
+  import Text.Json.Codec
+  import Text.Json.Value
+  import Text.Json.Dynamic
+  import Data.Array
+  import Data.Machine
+
+  -- | Keep application values opaque to frontend evaluation.
+  prim runtime-bool :: Bool -> Bool where
+    llvm {
+      %result = or i8 %0, 0
+      ret i8 %result
+    }
+
+  -- | Compare a successful complete encoding against an independently observed spelling.
+  matches :: Result JsonError Bytes -> String -> Bool
+  matches result expected = case result of Err error -> False; Ok output -> eq-i64 (bytes-compare output (string-to-bytes expected)) 0
+
+  -- | Count each callback through a private test buffer without storing library continuation state.
+  called :: Bytes -> Unit
+  called counter =
+    if bytes-len counter > 0 then
+      let count = bytes-get counter 0 in
+      if count < 255 then bytes-set counter 0 (count + 1) else ()
+    else ()
+
+  -- | Model an explicitly addressable-only JSON method over an ordinary bool.
+  method-type :: Bytes -> JsonType Bool
+  method-type counter = json-type-with-addressable-encoder json-bool-type (\options value -> let counted = called counter in Ok (string-to-bytes "\"pointer-json\""))
+
+  -- | Seal one application field while preserving the containing addressability context.
+  record-type :: Bool -> Bytes -> JsonType Bool
+  record-type quoted counter = json-record-type "MethodRecord" (\unit -> False) not [json-field-with "value" (json-field-options False False quoted 0 False JsonFieldDefaultMatch) (method-type counter) (\value -> value) (\next prior -> next)]
+
+  -- | Select independent method, reporting and quoted-field policies without changing defaults.
+  options :: Bool -> Bool -> Bool -> JsonWriteOptions
+  options methods reporting stringify = json-write-options True False "" "" (json-policies [json-addressable-methods-only methods, json-continue-after-type-errors reporting, json-quote-scalar-fields stringify])
+
+  -- | Reference observation 1: value, method/reporting/quoted policies True/True/True.
+  observe0 :: Unit -> Bool
+  observe0 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True True in
+    let output = json-marshal-with (method-type counter) config value in
+    matches output "true" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 2: value, method/reporting/quoted policies True/True/False.
+  observe1 :: Unit -> Bool
+  observe1 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True False in
+    let output = json-marshal-with (method-type counter) config value in
+    matches output "true" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 3: value, method/reporting/quoted policies True/False/True.
+  observe2 :: Unit -> Bool
+  observe2 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False True in
+    let output = json-marshal-with (method-type counter) config value in
+    matches output "true" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 4: value, method/reporting/quoted policies True/False/False.
+  observe3 :: Unit -> Bool
+  observe3 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False False in
+    let output = json-marshal-with (method-type counter) config value in
+    matches output "true" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 5: value, method/reporting/quoted policies False/True/True.
+  observe4 :: Unit -> Bool
+  observe4 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True True in
+    let output = json-marshal-with (method-type counter) config value in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 6: value, method/reporting/quoted policies False/True/False.
+  observe5 :: Unit -> Bool
+  observe5 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True False in
+    let output = json-marshal-with (method-type counter) config value in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 7: value, method/reporting/quoted policies False/False/True.
+  observe6 :: Unit -> Bool
+  observe6 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False True in
+    let output = json-marshal-with (method-type counter) config value in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 8: value, method/reporting/quoted policies False/False/False.
+  observe7 :: Unit -> Bool
+  observe7 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False False in
+    let output = json-marshal-with (method-type counter) config value in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 9: pointer, method/reporting/quoted policies True/True/True.
+  observe8 :: Unit -> Bool
+  observe8 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True True in
+    let output = json-marshal-with (json-nullable-type (method-type counter)) config (Some value) in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 10: pointer, method/reporting/quoted policies True/True/False.
+  observe9 :: Unit -> Bool
+  observe9 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True False in
+    let output = json-marshal-with (json-nullable-type (method-type counter)) config (Some value) in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 11: pointer, method/reporting/quoted policies True/False/True.
+  observe10 :: Unit -> Bool
+  observe10 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False True in
+    let output = json-marshal-with (json-nullable-type (method-type counter)) config (Some value) in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 12: pointer, method/reporting/quoted policies True/False/False.
+  observe11 :: Unit -> Bool
+  observe11 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False False in
+    let output = json-marshal-with (json-nullable-type (method-type counter)) config (Some value) in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 13: pointer, method/reporting/quoted policies False/True/True.
+  observe12 :: Unit -> Bool
+  observe12 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True True in
+    let output = json-marshal-with (json-nullable-type (method-type counter)) config (Some value) in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 14: pointer, method/reporting/quoted policies False/True/False.
+  observe13 :: Unit -> Bool
+  observe13 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True False in
+    let output = json-marshal-with (json-nullable-type (method-type counter)) config (Some value) in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 15: pointer, method/reporting/quoted policies False/False/True.
+  observe14 :: Unit -> Bool
+  observe14 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False True in
+    let output = json-marshal-with (json-nullable-type (method-type counter)) config (Some value) in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 16: pointer, method/reporting/quoted policies False/False/False.
+  observe15 :: Unit -> Bool
+  observe15 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False False in
+    let output = json-marshal-with (json-nullable-type (method-type counter)) config (Some value) in
+    matches output "\"pointer-json\"" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 17: record, method/reporting/quoted policies True/True/True.
+  observe16 :: Unit -> Bool
+  observe16 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True True in
+    let output = json-marshal-with (record-type False counter) config value in
+    matches output "{\"value\":true}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 18: record, method/reporting/quoted policies True/True/False.
+  observe17 :: Unit -> Bool
+  observe17 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True False in
+    let output = json-marshal-with (record-type False counter) config value in
+    matches output "{\"value\":true}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 19: record, method/reporting/quoted policies True/False/True.
+  observe18 :: Unit -> Bool
+  observe18 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False True in
+    let output = json-marshal-with (record-type False counter) config value in
+    matches output "{\"value\":true}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 20: record, method/reporting/quoted policies True/False/False.
+  observe19 :: Unit -> Bool
+  observe19 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False False in
+    let output = json-marshal-with (record-type False counter) config value in
+    matches output "{\"value\":true}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 21: record, method/reporting/quoted policies False/True/True.
+  observe20 :: Unit -> Bool
+  observe20 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True True in
+    let output = json-marshal-with (record-type False counter) config value in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 22: record, method/reporting/quoted policies False/True/False.
+  observe21 :: Unit -> Bool
+  observe21 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True False in
+    let output = json-marshal-with (record-type False counter) config value in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 23: record, method/reporting/quoted policies False/False/True.
+  observe22 :: Unit -> Bool
+  observe22 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False True in
+    let output = json-marshal-with (record-type False counter) config value in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 24: record, method/reporting/quoted policies False/False/False.
+  observe23 :: Unit -> Bool
+  observe23 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False False in
+    let output = json-marshal-with (record-type False counter) config value in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 25: record_pointer, method/reporting/quoted policies True/True/True.
+  observe24 :: Unit -> Bool
+  observe24 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True True in
+    let output = json-marshal-with (json-nullable-type (record-type False counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 26: record_pointer, method/reporting/quoted policies True/True/False.
+  observe25 :: Unit -> Bool
+  observe25 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True False in
+    let output = json-marshal-with (json-nullable-type (record-type False counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 27: record_pointer, method/reporting/quoted policies True/False/True.
+  observe26 :: Unit -> Bool
+  observe26 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False True in
+    let output = json-marshal-with (json-nullable-type (record-type False counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 28: record_pointer, method/reporting/quoted policies True/False/False.
+  observe27 :: Unit -> Bool
+  observe27 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False False in
+    let output = json-marshal-with (json-nullable-type (record-type False counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 29: record_pointer, method/reporting/quoted policies False/True/True.
+  observe28 :: Unit -> Bool
+  observe28 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True True in
+    let output = json-marshal-with (json-nullable-type (record-type False counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 30: record_pointer, method/reporting/quoted policies False/True/False.
+  observe29 :: Unit -> Bool
+  observe29 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True False in
+    let output = json-marshal-with (json-nullable-type (record-type False counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 31: record_pointer, method/reporting/quoted policies False/False/True.
+  observe30 :: Unit -> Bool
+  observe30 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False True in
+    let output = json-marshal-with (json-nullable-type (record-type False counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 32: record_pointer, method/reporting/quoted policies False/False/False.
+  observe31 :: Unit -> Bool
+  observe31 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False False in
+    let output = json-marshal-with (json-nullable-type (record-type False counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 33: quoted, method/reporting/quoted policies True/True/True.
+  observe32 :: Unit -> Bool
+  observe32 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True True in
+    let output = json-marshal-with (record-type True counter) config value in
+    matches output "{\"value\":\"true\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 34: quoted, method/reporting/quoted policies True/True/False.
+  observe33 :: Unit -> Bool
+  observe33 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True False in
+    let output = json-marshal-with (record-type True counter) config value in
+    matches output "{\"value\":true}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 35: quoted, method/reporting/quoted policies True/False/True.
+  observe34 :: Unit -> Bool
+  observe34 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False True in
+    let output = json-marshal-with (record-type True counter) config value in
+    matches output "{\"value\":\"true\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 36: quoted, method/reporting/quoted policies False/True/True.
+  observe35 :: Unit -> Bool
+  observe35 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True True in
+    let output = json-marshal-with (record-type True counter) config value in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 37: quoted, method/reporting/quoted policies False/True/False.
+  observe36 :: Unit -> Bool
+  observe36 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True False in
+    let output = json-marshal-with (record-type True counter) config value in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 38: quoted, method/reporting/quoted policies False/False/True.
+  observe37 :: Unit -> Bool
+  observe37 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False True in
+    let output = json-marshal-with (record-type True counter) config value in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 39: quoted, method/reporting/quoted policies False/False/False.
+  observe38 :: Unit -> Bool
+  observe38 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False False in
+    let output = json-marshal-with (record-type True counter) config value in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 40: quoted_pointer, method/reporting/quoted policies True/True/True.
+  observe39 :: Unit -> Bool
+  observe39 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True True in
+    let output = json-marshal-with (json-nullable-type (record-type True counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 41: quoted_pointer, method/reporting/quoted policies True/True/False.
+  observe40 :: Unit -> Bool
+  observe40 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True False in
+    let output = json-marshal-with (json-nullable-type (record-type True counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 42: quoted_pointer, method/reporting/quoted policies True/False/True.
+  observe41 :: Unit -> Bool
+  observe41 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False True in
+    let output = json-marshal-with (json-nullable-type (record-type True counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 43: quoted_pointer, method/reporting/quoted policies True/False/False.
+  observe42 :: Unit -> Bool
+  observe42 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False False in
+    let output = json-marshal-with (json-nullable-type (record-type True counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 44: quoted_pointer, method/reporting/quoted policies False/True/True.
+  observe43 :: Unit -> Bool
+  observe43 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True True in
+    let output = json-marshal-with (json-nullable-type (record-type True counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 45: quoted_pointer, method/reporting/quoted policies False/True/False.
+  observe44 :: Unit -> Bool
+  observe44 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True False in
+    let output = json-marshal-with (json-nullable-type (record-type True counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 46: quoted_pointer, method/reporting/quoted policies False/False/True.
+  observe45 :: Unit -> Bool
+  observe45 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False True in
+    let output = json-marshal-with (json-nullable-type (record-type True counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 47: quoted_pointer, method/reporting/quoted policies False/False/False.
+  observe46 :: Unit -> Bool
+  observe46 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False False in
+    let output = json-marshal-with (json-nullable-type (record-type True counter)) config (Some value) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 48: array, method/reporting/quoted policies True/True/True.
+  observe47 :: Unit -> Bool
+  observe47 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True True in
+    let output = json-marshal-with (json-fixed-array-type (method-type counter) 1) config (array-from-list [value]) in
+    matches output "[true]" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 49: array, method/reporting/quoted policies True/True/False.
+  observe48 :: Unit -> Bool
+  observe48 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True False in
+    let output = json-marshal-with (json-fixed-array-type (method-type counter) 1) config (array-from-list [value]) in
+    matches output "[true]" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 50: array, method/reporting/quoted policies True/False/True.
+  observe49 :: Unit -> Bool
+  observe49 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False True in
+    let output = json-marshal-with (json-fixed-array-type (method-type counter) 1) config (array-from-list [value]) in
+    matches output "[true]" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 51: array, method/reporting/quoted policies True/False/False.
+  observe50 :: Unit -> Bool
+  observe50 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False False in
+    let output = json-marshal-with (json-fixed-array-type (method-type counter) 1) config (array-from-list [value]) in
+    matches output "[true]" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 52: array, method/reporting/quoted policies False/True/True.
+  observe51 :: Unit -> Bool
+  observe51 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True True in
+    let output = json-marshal-with (json-fixed-array-type (method-type counter) 1) config (array-from-list [value]) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 53: array, method/reporting/quoted policies False/True/False.
+  observe52 :: Unit -> Bool
+  observe52 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True False in
+    let output = json-marshal-with (json-fixed-array-type (method-type counter) 1) config (array-from-list [value]) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 54: array, method/reporting/quoted policies False/False/True.
+  observe53 :: Unit -> Bool
+  observe53 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False True in
+    let output = json-marshal-with (json-fixed-array-type (method-type counter) 1) config (array-from-list [value]) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 55: array, method/reporting/quoted policies False/False/False.
+  observe54 :: Unit -> Bool
+  observe54 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False False in
+    let output = json-marshal-with (json-fixed-array-type (method-type counter) 1) config (array-from-list [value]) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 56: array_pointer, method/reporting/quoted policies True/True/True.
+  observe55 :: Unit -> Bool
+  observe55 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True True in
+    let output = json-marshal-with (json-nullable-type (json-fixed-array-type (method-type counter) 1)) config (Some (array-from-list [value])) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 57: array_pointer, method/reporting/quoted policies True/True/False.
+  observe56 :: Unit -> Bool
+  observe56 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True False in
+    let output = json-marshal-with (json-nullable-type (json-fixed-array-type (method-type counter) 1)) config (Some (array-from-list [value])) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 58: array_pointer, method/reporting/quoted policies True/False/True.
+  observe57 :: Unit -> Bool
+  observe57 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False True in
+    let output = json-marshal-with (json-nullable-type (json-fixed-array-type (method-type counter) 1)) config (Some (array-from-list [value])) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 59: array_pointer, method/reporting/quoted policies True/False/False.
+  observe58 :: Unit -> Bool
+  observe58 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False False in
+    let output = json-marshal-with (json-nullable-type (json-fixed-array-type (method-type counter) 1)) config (Some (array-from-list [value])) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 60: array_pointer, method/reporting/quoted policies False/True/True.
+  observe59 :: Unit -> Bool
+  observe59 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True True in
+    let output = json-marshal-with (json-nullable-type (json-fixed-array-type (method-type counter) 1)) config (Some (array-from-list [value])) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 61: array_pointer, method/reporting/quoted policies False/True/False.
+  observe60 :: Unit -> Bool
+  observe60 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True False in
+    let output = json-marshal-with (json-nullable-type (json-fixed-array-type (method-type counter) 1)) config (Some (array-from-list [value])) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 62: array_pointer, method/reporting/quoted policies False/False/True.
+  observe61 :: Unit -> Bool
+  observe61 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False True in
+    let output = json-marshal-with (json-nullable-type (json-fixed-array-type (method-type counter) 1)) config (Some (array-from-list [value])) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 63: array_pointer, method/reporting/quoted policies False/False/False.
+  observe62 :: Unit -> Bool
+  observe62 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False False in
+    let output = json-marshal-with (json-nullable-type (json-fixed-array-type (method-type counter) 1)) config (Some (array-from-list [value])) in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 64: slice, method/reporting/quoted policies True/True/True.
+  observe63 :: Unit -> Bool
+  observe63 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True True in
+    let output = json-marshal-with (json-list-type (method-type counter)) config [value] in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 65: slice, method/reporting/quoted policies True/True/False.
+  observe64 :: Unit -> Bool
+  observe64 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True False in
+    let output = json-marshal-with (json-list-type (method-type counter)) config [value] in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 66: slice, method/reporting/quoted policies True/False/True.
+  observe65 :: Unit -> Bool
+  observe65 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False True in
+    let output = json-marshal-with (json-list-type (method-type counter)) config [value] in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 67: slice, method/reporting/quoted policies True/False/False.
+  observe66 :: Unit -> Bool
+  observe66 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False False in
+    let output = json-marshal-with (json-list-type (method-type counter)) config [value] in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 68: slice, method/reporting/quoted policies False/True/True.
+  observe67 :: Unit -> Bool
+  observe67 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True True in
+    let output = json-marshal-with (json-list-type (method-type counter)) config [value] in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 69: slice, method/reporting/quoted policies False/True/False.
+  observe68 :: Unit -> Bool
+  observe68 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True False in
+    let output = json-marshal-with (json-list-type (method-type counter)) config [value] in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 70: slice, method/reporting/quoted policies False/False/True.
+  observe69 :: Unit -> Bool
+  observe69 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False True in
+    let output = json-marshal-with (json-list-type (method-type counter)) config [value] in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 71: slice, method/reporting/quoted policies False/False/False.
+  observe70 :: Unit -> Bool
+  observe70 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False False in
+    let output = json-marshal-with (json-list-type (method-type counter)) config [value] in
+    matches output "[\"pointer-json\"]" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 72: map, method/reporting/quoted policies True/True/True.
+  observe71 :: Unit -> Bool
+  observe71 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True True in
+    let output = json-marshal-with (json-map-type json-string-key (method-type counter)) config (json-map-from-list json-string-key [("value", value)]) in
+    matches output "{\"value\":true}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 73: map, method/reporting/quoted policies True/True/False.
+  observe72 :: Unit -> Bool
+  observe72 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True True False in
+    let output = json-marshal-with (json-map-type json-string-key (method-type counter)) config (json-map-from-list json-string-key [("value", value)]) in
+    matches output "{\"value\":true}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 74: map, method/reporting/quoted policies True/False/True.
+  observe73 :: Unit -> Bool
+  observe73 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False True in
+    let output = json-marshal-with (json-map-type json-string-key (method-type counter)) config (json-map-from-list json-string-key [("value", value)]) in
+    matches output "{\"value\":true}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 75: map, method/reporting/quoted policies True/False/False.
+  observe74 :: Unit -> Bool
+  observe74 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options True False False in
+    let output = json-marshal-with (json-map-type json-string-key (method-type counter)) config (json-map-from-list json-string-key [("value", value)]) in
+    matches output "{\"value\":true}" && (if bytes-len counter > 0 then bytes-get counter 0 == 0 else False)
+
+  -- | Reference observation 76: map, method/reporting/quoted policies False/True/True.
+  observe75 :: Unit -> Bool
+  observe75 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True True in
+    let output = json-marshal-with (json-map-type json-string-key (method-type counter)) config (json-map-from-list json-string-key [("value", value)]) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 77: map, method/reporting/quoted policies False/True/False.
+  observe76 :: Unit -> Bool
+  observe76 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False True False in
+    let output = json-marshal-with (json-map-type json-string-key (method-type counter)) config (json-map-from-list json-string-key [("value", value)]) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 78: map, method/reporting/quoted policies False/False/True.
+  observe77 :: Unit -> Bool
+  observe77 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False True in
+    let output = json-marshal-with (json-map-type json-string-key (method-type counter)) config (json-map-from-list json-string-key [("value", value)]) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Reference observation 79: map, method/reporting/quoted policies False/False/False.
+  observe78 :: Unit -> Bool
+  observe78 unit =
+    let value = runtime-bool True in
+    let counter = bytes-new 1 in
+    let config = options False False False in
+    let output = json-marshal-with (json-map-type json-string-key (method-type counter)) config (json-map-from-list json-string-key [("value", value)]) in
+    matches output "{\"value\":\"pointer-json\"}" && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Opaque typed values do not inherit the containing reference's addressability.
+  interface-boundary :: Unit -> Bool
+  interface-boundary unit =
+    let counter = bytes-new 1 in
+    let payload = json-any-typed (method-type counter) (runtime-bool True) in
+    matches (json-marshal-with json-any-type (json-write-with-addressability json-default-write-options True) payload) "true"
+      && matches (json-marshal-with json-any-type (options False True True) payload) "\"pointer-json\""
+      && (if bytes-len counter > 0 then bytes-get counter 0 == 1 else False)
+
+  -- | Check independent addressability observations 1 through 16.
+  group0 :: Unit -> Bool
+  group0 unit = observe0 () && observe1 () && observe2 () && observe3 () && observe4 () && observe5 () && observe6 () && observe7 () && observe8 () && observe9 () && observe10 () && observe11 () && observe12 () && observe13 () && observe14 () && observe15 ()
+
+  -- | Check independent addressability observations 17 through 32.
+  group1 :: Unit -> Bool
+  group1 unit = observe16 () && observe17 () && observe18 () && observe19 () && observe20 () && observe21 () && observe22 () && observe23 () && observe24 () && observe25 () && observe26 () && observe27 () && observe28 () && observe29 () && observe30 () && observe31 ()
+
+  -- | Check independent addressability observations 33 through 48.
+  group2 :: Unit -> Bool
+  group2 unit = observe32 () && observe33 () && observe34 () && observe35 () && observe36 () && observe37 () && observe38 () && observe39 () && observe40 () && observe41 () && observe42 () && observe43 () && observe44 () && observe45 () && observe46 () && observe47 ()
+
+  -- | Check independent addressability observations 49 through 64.
+  group3 :: Unit -> Bool
+  group3 unit = observe48 () && observe49 () && observe50 () && observe51 () && observe52 () && observe53 () && observe54 () && observe55 () && observe56 () && observe57 () && observe58 () && observe59 () && observe60 () && observe61 () && observe62 () && observe63 ()
+
+  -- | Check independent addressability observations 65 through 79.
+  group4 :: Unit -> Bool
+  group4 unit = observe64 () && observe65 () && observe66 () && observe67 () && observe68 () && observe69 () && observe70 () && observe71 () && observe72 () && observe73 () && observe74 () && observe75 () && observe76 () && observe77 () && observe78 ()
+
+  -- | Fail with the first independent group index or the explicit interface-boundary status.
+  main :: Int
+  main = if not (group0 ()) then 1 else if not (group1 ()) then 2 else if not (group2 ()) then 3 else if not (group3 ()) then 4 else if not (group4 ()) then 5 else if not (interface-boundary ()) then 6 else 0

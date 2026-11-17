@@ -1,0 +1,129 @@
+-- | Directional method categories and semantic byte ownership share one bounded real consumer.
+module Main where
+  import Text.Json.Codec
+  import Text.Json.Value
+  import Data.Machine
+
+  -- | Keep reference input preparation opaque to frontend evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %result = or i32 %0, 0
+      ret i32 %result
+    }
+
+  -- | Snapshot a runtime-sized input before testing a public update.
+  input :: String -> Bytes
+  input text = let source = string-to-bytes text in
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len source)))) in
+    let output = bytes-new size in
+    if bytes-len source <= bytes-len output then let copied = bytes-copy-range output source 0 0 (bytes-len source) in output else bytes-new 0
+
+  -- | Compare complete encoded output bytes.
+  same :: Bytes -> String -> Bool
+  same actual expected = eq-i64 (bytes-compare actual (string-to-bytes expected)) 0
+
+  -- | Observe whether a descriptor retains a boolean category in one direction.
+  boolean-kind :: JsonKind -> Bool
+  boolean-kind kind = case kind of JsonBooleanKind -> True; other -> False
+
+  -- | Observe whether a method controls its direction's complete representation.
+  unspecified-kind :: JsonKind -> Bool
+  unspecified-kind kind = case kind of JsonInvalidKind -> True; other -> False
+
+  -- | One application bool field with quoted primitive metadata.
+  quoted :: JsonType Bool -> JsonType Bool
+  quoted descriptor = json-record-type "MethodRecord" (\unit -> False) not [json-field-with "value" (json-field-options False False True 0 False JsonFieldDefaultMatch) descriptor (\value -> value) (\next prior -> next)]
+
+  -- | Encoding-only JSON method leaves ordinary bool decoding and quoted-field parsing intact.
+  encoding-only :: Unit -> Bool
+  encoding-only unit =
+    let descriptor = json-type-with-encoder json-bool-type (\options value -> Ok (string-to-bytes "\"encoded\"")) in
+    unspecified-kind (json-type-write-kind descriptor) && boolean-kind (json-type-read-kind descriptor)
+      && (case json-marshal (quoted descriptor) True of Err error -> False; Ok output -> same output "{\"value\":\"encoded\"}")
+      && (case json-unmarshal (quoted descriptor) (input "{\"value\":\"true\"}") of Err error -> False; Ok value -> value)
+      && (let decoded = json-update descriptor (input "null") True in json-decoded-value decoded && (case json-decoded-error decoded of None -> True; Some error -> False))
+
+  -- | Decoding-only JSON method receives the complete original quoted token while encoding stays an ordinary quoted bool.
+  decoding-only :: Unit -> Bool
+  decoding-only unit =
+    let descriptor = json-type-with-decoder json-bool-type (\options source prior -> json-decoded-ok (same (json-value-source source) "\"true\"")) in
+    boolean-kind (json-type-write-kind descriptor) && unspecified-kind (json-type-read-kind descriptor)
+      && (case json-marshal (quoted descriptor) False of Err error -> False; Ok output -> same output "{\"value\":\"false\"}")
+      && (case json-unmarshal (quoted descriptor) (input "{\"value\":\"true\"}") of Err error -> False; Ok value -> value)
+
+  -- | Encoding-only text methods quote repaired bytes once and preserve the underlying decoder.
+  text-encoding-only :: Unit -> Bool
+  text-encoding-only unit =
+    let descriptor = json-type-with-text-encoder json-bool-type (\options value -> Ok (bytes-from-list [255,60,38])) in
+    unspecified-kind (json-type-write-kind descriptor) && boolean-kind (json-type-read-kind descriptor)
+      && (case json-marshal (quoted descriptor) True of Err error -> False; Ok output -> same output "{\"value\":\"�\\u003c\\u0026\"}")
+      && (case json-unmarshal (quoted descriptor) (input "{\"value\":\"true\"}") of Err error -> False; Ok value -> value)
+
+  -- | Decoding-only text methods receive decoded string bytes and skip null without changing ordinary encoding.
+  text-decoding-only :: Unit -> Bool
+  text-decoding-only unit =
+    let descriptor = json-type-with-text-decoder json-bool-type (\options bytes prior -> json-decoded-ok (same bytes "true")) in
+    boolean-kind (json-type-write-kind descriptor) && unspecified-kind (json-type-read-kind descriptor)
+      && (case json-marshal (quoted descriptor) False of Err error -> False; Ok output -> same output "{\"value\":\"false\"}")
+      && (case json-unmarshal (quoted descriptor) (input "{\"value\":\"true\"}") of Err error -> False; Ok value -> value)
+      && (let decoded = json-update descriptor (input "null") False in not (json-decoded-value decoded) && (case json-decoded-error decoded of None -> True; Some error -> False))
+
+  -- | Nullable descriptors inherit both directional categories rather than overwriting the ordinary side.
+  nullable-directions :: Unit -> Bool
+  nullable-directions unit =
+    let descriptor = json-nullable-type (json-type-with-encoder json-bool-type (\options value -> Ok (string-to-bytes "\"encoded\""))) in
+    unspecified-kind (json-type-write-kind descriptor) && boolean-kind (json-type-read-kind descriptor)
+      && (case json-marshal descriptor (Some False) of Err error -> False; Ok output -> same output "\"encoded\"")
+      && (case json-unmarshal descriptor (input "true") of Err error -> False; Ok value -> case value of None -> False; Some present -> present)
+
+  -- | Report an explicitly nonzero group status for any mismatch.
+  categories-status :: Int
+  categories-status = if not (encoding-only ()) then 1 else if not (decoding-only ()) then 2 else if not (text-encoding-only ()) then 3 else if not (text-decoding-only ()) then 4 else if not (nullable-directions ()) then 5 else 0
+
+  -- | Retain metadata after mutating both factory inputs and a previously exported token snapshot.
+  retained :: Unit -> JsonSemanticInfo
+  retained unit =
+    let token = input "[1]" in
+    let reported = input "detail" in
+    let info = json-semantic-info-with-value "unmarshal" 17 "/first" token "Application" 91 reported in
+    let changed-token = if bytes-len token > 0 then bytes-set token 0 120 else () in
+    let changed-reported = if bytes-len reported > 0 then bytes-set reported 0 120 else () in
+    let exported = json-semantic-bytes info in
+    let changed-export = if bytes-len exported > 0 then bytes-set exported 0 120 else () in
+    info
+
+  -- | Exact token kind bytes distinguish booleans, normalized number kind and unavailable metadata.
+  kinds :: Unit -> Bool
+  kinds unit =
+    eq-u8 (json-semantic-kind-byte (json-semantic-info "unmarshal" 0 "" (input "true") "Bool")) 116
+      && eq-u8 (json-semantic-kind-byte (json-semantic-info "unmarshal" 0 "" (input "false") "Bool")) 102
+      && eq-u8 (json-semantic-kind-byte (json-semantic-info "unmarshal" 0 "" (input "-12.5e2") "Number")) 48
+      && eq-u8 (json-semantic-kind-byte (json-semantic-info "marshal" 0 "" (input "") "Application")) 0
+      && (case json-semantic-kind (json-semantic-info "unmarshal" 0 "" (input "false") "Bool") of JsonBooleanKind -> True; other -> False)
+
+  -- | Pointer replacement shares immutable owners while every mutable export remains independent.
+  ownership :: Unit -> Bool
+  ownership unit =
+    let info = retained () in
+    let next = json-semantic-with-pointer info "/second~1name" in
+    let exported = json-semantic-reported-bytes next in
+    let changed = if bytes-len exported > 0 then bytes-set exported 0 120 else () in
+    same (json-semantic-bytes info) "[1]" && same (json-semantic-bytes next) "[1]"
+      && same (json-semantic-reported-bytes info) "detail" && same (json-semantic-reported-bytes next) "detail"
+      && json-semantic-pointer info == "/first" && json-semantic-pointer next == "/second~1name"
+      && json-semantic-action next == "unmarshal" && json-semantic-offset next == 17 && json-semantic-type next == "Application"
+      && eq-u8 (json-semantic-kind-byte next) 91 && (case json-semantic-kind next of JsonArrayKind -> True; other -> False)
+
+  -- | Retained original source and optional reported value remain separate observations.
+  absent-reported :: Unit -> Bool
+  absent-reported unit =
+    let info = json-semantic-info "unmarshal" 0 "" (input "true") "Bool" in
+    same (json-semantic-bytes info) "true" && bytes-len (json-semantic-reported-bytes info) == 0
+
+  -- | Report a nonzero group for any ownership or exact-kind mismatch.
+  metadata-status :: Int
+  metadata-status = if not (kinds ()) then 1 else if not (ownership ()) then 2 else if not (absent-reported ()) then 3 else 0
+
+  -- | Preserve each original nonzero group status, with metadata groups offset by one hundred.
+  main :: Int
+  main = let categories = categories-status in if categories == 0 then let metadata = metadata-status in if metadata == 0 then 0 else 100 + metadata else categories

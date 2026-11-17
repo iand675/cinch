@@ -1,0 +1,81 @@
+-- | Independent encoding/decoding representations preserve the other direction and quoted primitive fields.
+module Main where
+  import Text.Json.Codec
+  import Text.Json.Value
+  import Data.Machine
+
+  -- | Keep reference input preparation opaque to frontend evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %result = or i32 %0, 0
+      ret i32 %result
+    }
+
+  -- | Snapshot a runtime-sized input before testing a public update.
+  input :: String -> Bytes
+  input text = let source = string-to-bytes text in
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len source)))) in
+    let output = bytes-new size in
+    if bytes-len source <= bytes-len output then let copied = bytes-copy-range output source 0 0 (bytes-len source) in output else bytes-new 0
+
+  -- | Compare complete encoded output bytes.
+  same :: Bytes -> String -> Bool
+  same actual expected = eq-i64 (bytes-compare actual (string-to-bytes expected)) 0
+
+  -- | Observe whether a descriptor retains a boolean category in one direction.
+  boolean-kind :: JsonKind -> Bool
+  boolean-kind kind = case kind of JsonBooleanKind -> True; other -> False
+
+  -- | Observe whether a method controls its direction's complete representation.
+  unspecified-kind :: JsonKind -> Bool
+  unspecified-kind kind = case kind of JsonInvalidKind -> True; other -> False
+
+  -- | One application bool field with quoted primitive metadata.
+  quoted :: JsonType Bool -> JsonType Bool
+  quoted descriptor = json-record-type "MethodRecord" (\unit -> False) not [json-field-with "value" (json-field-options False False True 0 False JsonFieldDefaultMatch) descriptor (\value -> value) (\next prior -> next)]
+
+  -- | Encoding-only JSON method leaves ordinary bool decoding and quoted-field parsing intact.
+  encoding-only :: Unit -> Bool
+  encoding-only unit =
+    let descriptor = json-type-with-encoder json-bool-type (\options value -> Ok (string-to-bytes "\"encoded\"")) in
+    unspecified-kind (json-type-write-kind descriptor) && boolean-kind (json-type-read-kind descriptor)
+      && (case json-marshal (quoted descriptor) True of Err error -> False; Ok output -> same output "{\"value\":\"encoded\"}")
+      && (case json-unmarshal (quoted descriptor) (input "{\"value\":\"true\"}") of Err error -> False; Ok value -> value)
+      && (let decoded = json-update descriptor (input "null") True in json-decoded-value decoded && (case json-decoded-error decoded of None -> True; Some error -> False))
+
+  -- | Decoding-only JSON method receives the complete original quoted token while encoding stays an ordinary quoted bool.
+  decoding-only :: Unit -> Bool
+  decoding-only unit =
+    let descriptor = json-type-with-decoder json-bool-type (\options source prior -> json-decoded-ok (same (json-value-source source) "\"true\"")) in
+    boolean-kind (json-type-write-kind descriptor) && unspecified-kind (json-type-read-kind descriptor)
+      && (case json-marshal (quoted descriptor) False of Err error -> False; Ok output -> same output "{\"value\":\"false\"}")
+      && (case json-unmarshal (quoted descriptor) (input "{\"value\":\"true\"}") of Err error -> False; Ok value -> value)
+
+  -- | Encoding-only text methods quote repaired bytes once and preserve the underlying decoder.
+  text-encoding-only :: Unit -> Bool
+  text-encoding-only unit =
+    let descriptor = json-type-with-text-encoder json-bool-type (\options value -> Ok (bytes-from-list [255,60,38])) in
+    unspecified-kind (json-type-write-kind descriptor) && boolean-kind (json-type-read-kind descriptor)
+      && (case json-marshal (quoted descriptor) True of Err error -> False; Ok output -> same output "{\"value\":\"�\\u003c\\u0026\"}")
+      && (case json-unmarshal (quoted descriptor) (input "{\"value\":\"true\"}") of Err error -> False; Ok value -> value)
+
+  -- | Decoding-only text methods receive decoded string bytes and skip null without changing ordinary encoding.
+  text-decoding-only :: Unit -> Bool
+  text-decoding-only unit =
+    let descriptor = json-type-with-text-decoder json-bool-type (\options bytes prior -> json-decoded-ok (same bytes "true")) in
+    boolean-kind (json-type-write-kind descriptor) && unspecified-kind (json-type-read-kind descriptor)
+      && (case json-marshal (quoted descriptor) False of Err error -> False; Ok output -> same output "{\"value\":\"false\"}")
+      && (case json-unmarshal (quoted descriptor) (input "{\"value\":\"true\"}") of Err error -> False; Ok value -> value)
+      && (let decoded = json-update descriptor (input "null") False in not (json-decoded-value decoded) && (case json-decoded-error decoded of None -> True; Some error -> False))
+
+  -- | Nullable descriptors inherit both directional categories rather than overwriting the ordinary side.
+  nullable-directions :: Unit -> Bool
+  nullable-directions unit =
+    let descriptor = json-nullable-type (json-type-with-encoder json-bool-type (\options value -> Ok (string-to-bytes "\"encoded\""))) in
+    unspecified-kind (json-type-write-kind descriptor) && boolean-kind (json-type-read-kind descriptor)
+      && (case json-marshal descriptor (Some False) of Err error -> False; Ok output -> same output "\"encoded\"")
+      && (case json-unmarshal descriptor (input "true") of Err error -> False; Ok value -> case value of None -> False; Some present -> present)
+
+  -- | Report an explicitly nonzero group status for any mismatch.
+  main :: Int
+  main = if not (encoding-only ()) then 1 else if not (decoding-only ()) then 2 else if not (text-encoding-only ()) then 3 else if not (text-decoding-only ()) then 4 else if not (nullable-directions ()) then 5 else 0

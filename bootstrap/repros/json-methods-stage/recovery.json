@@ -1,0 +1,26 @@
+{
+  "description": "Preserved infrastructure/fixture/deadline attempts; not production rejection or completion claims",
+  "closed_supporting_output_index": "bootstrap/stdlib-json-cold-method-supporting-archive-index.json",
+  "native_current_source_input": "build/json-method-protocol-native-probe-v1/Bundle.cinch",
+  "old_directional_source": "build/json-method-categories-rust-v1/method-categories/Text.Json.Codec.cinch",
+  "actual_stage_runners": {
+    "qualify_protocol_v1.py": "c96abc84289f3be5da76f04309cb65e22c8702174c8c7347da3d7b1f43aa1def",
+    "qualify_owner_v1.py": "50766298fe4c46c5236b898b7203b6cc14ceabdfd579ffbffeb0c0541da9a7ef",
+    "qualify_trace_rust_v1.py": "1a7adca96e0066f60169606bf666d2beefb045be457def5c86b90eb6de6835fd",
+    "qualify_protocol_native_v1.py": "5974e9075039694488274b493de601767f5ddedf6eed0e2c16f2c819b968567a",
+    "qualify_owner_native_v1.py": "27fc7e7faf2ca2f526478e38b6cbb69d3249b45ef685e0b828d8afe9f84866d6",
+    "qualify_trace_native_v1.py": "c6aeac467f283941aa34b8102726dce4e51c641d4cede8ed5482d68fcbe4c8dc"
+  },
+  "diagnostic_logs": {
+    "initial-clang-spawn-failure.txt.gz": {
+      "uncompressed_sha256": "b7a00ca342375b1d572efa29ba9289bdd98e02527c8d97fe7ead18fe3dea5616",
+      "uncompressed_bytes": 1106,
+      "gzip_sha256": "e88d8655314d95e8b890b217c8f563e956d32d9bcfe4534f1e98a364d2769c0d"
+    },
+    "initial-fixture-bool-shape-refusal.txt.gz": {
+      "uncompressed_sha256": "6967e20ba2bc5fb1712f8e06bf5ed7bd985faac3fcb3bab87ea8b8d8f238fe03",
+      "uncompressed_bytes": 132,
+      "gzip_sha256": "6f7326c442ab193c423a144e2349097c458130b9f02dacd8d201ff4e01a52168"
+    }
+  }
+}

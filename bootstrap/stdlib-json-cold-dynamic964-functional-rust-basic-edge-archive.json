@@ -1,0 +1,30 @@
+{
+  "description": "Published964 closed functional ELF/LLVM only; all source/log/reference/docs/frozen compiler/provider/runtime, current snapshots and benchmark inputs remain plain",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-dynamic964-functional-rust-basic-edge-20261117.tar.gz",
+  "original_file_bytes": 40107663,
+  "verified": true,
+  "originals_removed": true,
+  "checkpoint": "964e6417d14fbe71cd59668cba78113914615a3a",
+  "stage": "rust-basic-edge",
+  "supporting_receipts": [
+    "bootstrap/stdlib-json-dynamic-final-rust-v2-results.json",
+    "bootstrap/stdlib-json-dynamic-edge-rust-v2-results.json"
+  ],
+  "supporting_receipt_sha256": {
+    "bootstrap/stdlib-json-dynamic-final-rust-v2-results.json": "e8bfe3c6aa8f8f0c30e01935cf952140a5e7c7e731dd30e71da8aff1169496dc",
+    "bootstrap/stdlib-json-dynamic-edge-rust-v2-results.json": "451fc33e9427954022654d28dec4ffd7d0d8f19fe9d9d3e8facd27a55ebf0328"
+  },
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-dynamic964-functional-rust-basic-edge-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "archive_sha256": "8758a7705ee39afee39fa63567302fbd64ed1ed58c5568450216f872d0626f4c",
+  "archive_bytes": 8708341,
+  "decompressed_tar_sha256": "14563580c897ba9e0efce0225af2b6ec7d3c7afef99e3c5184e685bd2a405fc7",
+  "decompressed_tar_bytes": 40120320,
+  "elapsed_seconds": 0.6099174539995147,
+  "free_bytes_before": 85180416,
+  "free_bytes_after": 116576256,
+  "global_free_change_bytes": 31395840,
+  "own_reclaimed_blocks_before_indexes_bytes": 31404032,
+  "entry_count": 4,
+  "recovery_index": "bootstrap/stdlib-json-cold-dynamic964-functional-rust-basic-edge-archive-index.json",
+  "recovery_index_sha256": "eb787dac4ac76962543ef4aaeea89921e615a1d7253c0a5c474e2cccda2a0a7b"
+}

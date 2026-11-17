@@ -1,0 +1,24 @@
+{
+  "description": "Closed supporting directional/addressability output-only ELF/LLVM and their completed local check caches; all source/log/reference/docs/frozen compiler/provider/runtime and current protocol/metadata/trace snapshots remain plain",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-method-supporting-stages-20261117.tar.gz",
+  "original_file_bytes": 36569944,
+  "verified": true,
+  "originals_removed": true,
+  "supporting_receipts": [
+    "bootstrap/stdlib-json-method-categories-rust-v1-results.json",
+    "bootstrap/stdlib-json-addressability-rust-v1-results.json"
+  ],
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-method-supporting-stages-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "archive_sha256": "2e3855abec6a413aa96a35c54e929b5e05e60517186c4b5aefee9dcf9a70d4fa",
+  "archive_bytes": 7553348,
+  "decompressed_tar_sha256": "0fd71305df12f5f3f58989b361e35bbf23cedef64783492c13618367a5a93cf4",
+  "decompressed_tar_bytes": 36997120,
+  "elapsed_seconds": 0.6179280380019918,
+  "free_bytes_before": 112328704,
+  "free_bytes_after": 141656064,
+  "global_free_change_bytes": 29327360,
+  "own_reclaimed_blocks_before_indexes_bytes": 29515776,
+  "entry_count": 234,
+  "recovery_index": "bootstrap/stdlib-json-cold-method-supporting-archive-index.json",
+  "recovery_index_sha256": "711229ac571eaaf17ffae44677bcd9bbba4a69da01de04d9e8b0f1147f07ca92"
+}

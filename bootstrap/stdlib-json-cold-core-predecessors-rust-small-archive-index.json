@@ -1,0 +1,117 @@
+{
+  "description": "Closed superseded core functional ELF/LLVM iterations only; no new validation claim. Final expanded-v2 trees and all source/log/reference/docs/frozen compiler/provider/runtime/current snapshots/benchmark inputs remain plain",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-core-predecessors-rust-small-20261117.tar.gz",
+  "entries": [
+    {
+      "path": "build/json-core-corpus-v2/syntax/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v2/syntax/consumer",
+      "size": 6859056,
+      "mode": 448,
+      "sha256": "704a3691de0b51596fd0b76f8314c9b86be95a99674094cdb81d4fb9f158da7e",
+      "nlink": 1,
+      "allocated_bytes": 6860800
+    },
+    {
+      "path": "build/json-core-corpus-v2/syntax/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v2/syntax/consumer.ll",
+      "size": 4180713,
+      "mode": 384,
+      "sha256": "42a8398deddf1774003916bb670cd09249c42ec6f3bc9d1869cfc09f75f5f5f8",
+      "nlink": 1,
+      "allocated_bytes": 4182016
+    },
+    {
+      "path": "build/json-core-corpus-v4/number/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v4/number/consumer",
+      "size": 6063376,
+      "mode": 448,
+      "sha256": "079428696aad0ecd720603c249797013b379c61545d7a71ff8b07b82df51818e",
+      "nlink": 1,
+      "allocated_bytes": 6066176
+    },
+    {
+      "path": "build/json-core-corpus-v4/number/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v4/number/consumer.ll",
+      "size": 728796,
+      "mode": 384,
+      "sha256": "04113705bec4f4bed0a321356a1babb353c13b28bd984c4b4e7bc317e533c233",
+      "nlink": 1,
+      "allocated_bytes": 729088
+    },
+    {
+      "path": "build/json-core-corpus-v4/quote/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v4/quote/consumer",
+      "size": 6383048,
+      "mode": 448,
+      "sha256": "e2bb7cbb4c0f6726245f448b3d794a76f48279262b3f24d62a522ecaa70d1978",
+      "nlink": 1,
+      "allocated_bytes": 6385664
+    },
+    {
+      "path": "build/json-core-corpus-v4/quote/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v4/quote/consumer.ll",
+      "size": 2207073,
+      "mode": 384,
+      "sha256": "278bdd4d8bb9500076faa8d7e9726123343da3f4c5a59c7048c5ea9317d9a304",
+      "nlink": 1,
+      "allocated_bytes": 2207744
+    },
+    {
+      "path": "build/json-core-corpus-v4/syntax/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v4/syntax/consumer",
+      "size": 7070880,
+      "mode": 448,
+      "sha256": "5d3380510a70a5962568852c7633fcc301a99eb5114e622603e2c5631940e77e",
+      "nlink": 1,
+      "allocated_bytes": 7073792
+    },
+    {
+      "path": "build/json-core-corpus-v4/syntax/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-corpus-v4/syntax/consumer.ll",
+      "size": 5139758,
+      "mode": 384,
+      "sha256": "fcbb5063681d055171d3488113565b4694963726fa3694382c677afa5e2e8952",
+      "nlink": 1,
+      "allocated_bytes": 5140480
+    },
+    {
+      "path": "build/json-core-quote-number/quote/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-quote-number/quote/consumer",
+      "size": 6407256,
+      "mode": 448,
+      "sha256": "bef5e825729ffeb88ff3ac5aebd1750ef639f54eb68b70f29eab2e99c2af2e4d",
+      "nlink": 1,
+      "allocated_bytes": 6410240
+    },
+    {
+      "path": "build/json-core-quote-number/quote/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-core-quote-number/quote/consumer.ll",
+      "size": 2197868,
+      "mode": 384,
+      "sha256": "0e67f154b1fa1f7edc4a2691f6971a798eccf10d321e07e0b7b58369bd0dc559",
+      "nlink": 1,
+      "allocated_bytes": 2199552
+    }
+  ],
+  "original_file_bytes": 47237824,
+  "verified": true,
+  "originals_removed": true,
+  "scope": "closed pre-final core iterations",
+  "stage": "rust-small",
+  "supporting_receipts": [
+    "bootstrap/stdlib-json-core-evidence.json"
+  ],
+  "supporting_receipt_sha256": {
+    "bootstrap/stdlib-json-core-evidence.json": "4cc7f42f79ce2ab16ba58fd28b6fa0a5c0eaaf7a4116f96a61410b498e49cbcd"
+  },
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-core-predecessors-rust-small-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "archive_sha256": "64dacb4db4de3838297c1439b4632eccf976c8f48169e7f6e0598ca3115e10d9",
+  "archive_bytes": 12818487,
+  "decompressed_tar_sha256": "573531fcf960c28eb0af3c5e9c95a17aafad53c838fa57eb171ceb734e6227df",
+  "decompressed_tar_bytes": 47257600,
+  "elapsed_seconds": 0.8993718499987153,
+  "free_bytes_before": 272830464,
+  "free_bytes_after": 268341248,
+  "global_free_change_bytes": -4489216,
+  "own_reclaimed_blocks_before_indexes_bytes": 34435072
+}

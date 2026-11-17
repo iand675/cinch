@@ -1,0 +1,32 @@
+{
+  "description": "Published964 closed functional ELF/LLVM only; all source/log/reference/docs/frozen compiler/provider/runtime, current snapshots and benchmark inputs remain plain",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-dynamic964-functional-native-20261117.tar.gz",
+  "original_file_bytes": 72702704,
+  "verified": true,
+  "originals_removed": true,
+  "checkpoint": "964e6417d14fbe71cd59668cba78113914615a3a",
+  "stage": "native",
+  "supporting_receipts": [
+    "bootstrap/stdlib-json-dynamic-native-raw-v1-results.json",
+    "bootstrap/stdlib-json-dynamic-edge-native-raw-v1-results.json",
+    "bootstrap/stdlib-json-dynamic-control-native-raw-v2-results.json"
+  ],
+  "supporting_receipt_sha256": {
+    "bootstrap/stdlib-json-dynamic-native-raw-v1-results.json": "f85a022e49f1a855cd9bbec2c1e1fb0e12b16bbd393e2a3f8fe76e86c16276ad",
+    "bootstrap/stdlib-json-dynamic-edge-native-raw-v1-results.json": "1c15280e596f576e2986613d15125d6ebbd80290795885962e496b3852a84991",
+    "bootstrap/stdlib-json-dynamic-control-native-raw-v2-results.json": "2c366303e88e79eff006529ff022e75ddbfa38d1a38cc134e2ecc6886823b1f0"
+  },
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-dynamic964-functional-native-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "archive_sha256": "26f6d26f51e7ad1ea88c60fcf395d6506466af9b26771db036a2ae34ac3afd55",
+  "archive_bytes": 16240260,
+  "decompressed_tar_sha256": "e8aa27742163583670b2b91ecae5d72b09bd8838bd962d8e4f0a72409b95fd2f",
+  "decompressed_tar_bytes": 72714240,
+  "elapsed_seconds": 1.0673547529877396,
+  "free_bytes_before": 116142080,
+  "free_bytes_after": 172642304,
+  "global_free_change_bytes": 56500224,
+  "own_reclaimed_blocks_before_indexes_bytes": 56475648,
+  "entry_count": 6,
+  "recovery_index": "bootstrap/stdlib-json-cold-dynamic964-functional-native-archive-index.json",
+  "recovery_index_sha256": "3d7d6ae9daf751931d876dffea1903f37802a2a7f175632997659ef35e42b9c6"
+}
