@@ -1,0 +1,38 @@
+-- | Observe an actual IO predicate and distinct mutation-effect yield through one reusable factory.
+module Main where
+  import Data.Bytes.Fields
+  import Data.Bytes.View
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Mutable.Var
+  import Data.Nat
+  import Data.String
+
+  -- | Write each observed scalar before returning its delimiter decision.
+  predicate :: forall (r :: Region). Io r -> Char ->{IO r} Bool
+  predicate capability value = with (io = capability) in
+    let written = ioWrite (string-to-bytes (pack [value])) in value == ' '
+
+  -- | Count yielded fields and stop before any predicate observation of the third field.
+  output :: forall (s :: Region). Var s Nat -> ByteView ->{Mut s} Bool
+  output count value = let previous = var-read count in let next = previous + 1 in
+    let saved = var-write count next in next < 2
+
+  -- | Admit the yield capability while retaining the predicate's IO capability.
+  widen-predicate :: forall (r :: Region) (s :: Region). Io r -> Char ->{IO r, Mut s} Bool
+  widen-predicate capability value = predicate capability value
+
+  -- | Admit the predicate capability while retaining the yield's mutation capability.
+  widen-output :: forall (r :: Region) (s :: Region). Var s Nat -> ByteView ->{IO r, Mut s} Bool
+  widen-output count value = output count value
+
+  -- | Reuse the same latent traversal twice and expose exact early-stop IO order.
+  main :: Unit ->{IO r, Mut s} Int
+  main unit = let capability = newIO () in with (io = capability) in
+    let count = var-new 0 in
+    let sequence = byte-view-fields-func-sequence (widen-predicate capability) (bytes-view (string-to-bytes "a b c")) in
+    let first = sequence (widen-output count) in let first-count = var-read count in
+    let reset = var-write count 0 in let second = sequence (widen-output count) in
+    let second-count = var-read count in
+    if first-count == 2 && second-count == 2 then 0 else 1

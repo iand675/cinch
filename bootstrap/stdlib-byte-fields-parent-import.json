@@ -1,0 +1,71 @@
+{
+  "source_commit": "c4d3891e",
+  "scope": "Exact minimal additive Fields source and maintained test inputs; parent RELEASE gate passed.",
+  "files": [
+    {
+      "path": "compiler/prelude/Data/Bytes/Fields.cinch",
+      "sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+      "bytes": 12907
+    },
+    {
+      "path": "compiler/tests/lib_byte_fields.rs",
+      "sha256": "7589dbd172f887e1dd3ae8cd3007063310f531bd643f3de7de0df02adaaa420e",
+      "bytes": 18767
+    },
+    {
+      "path": "compiler/tests/fixtures/byte-fields-consumer.cinchpart",
+      "sha256": "3110cf2397e8c6f107ac2b3c73282f0abce5cf73014ab1a690c2aac38b5ee7b8",
+      "bytes": 15097
+    },
+    {
+      "path": "compiler/tests/fixtures/byte-fields-vectors.json",
+      "sha256": "492f368b4c109f0d43454254b4ccaf0dfd0f58cc6e6d8d821eba8bd345be6934",
+      "bytes": 704429
+    },
+    {
+      "path": "compiler/tests/fixtures/byte-fields-row-positive.cinch",
+      "sha256": "d9f657aef766ea8e8d7f856b361ad8b0bfcc58973b75f01f8a51029a6a276522",
+      "bytes": 1665
+    },
+    {
+      "path": "compiler/tests/fixtures/byte-fields-row-negative.cinch",
+      "sha256": "a6f4e18591faeb2fb715651fe3762af0640218e9bf8276cadfad3801d85890b6",
+      "bytes": 526
+    },
+    {
+      "path": "compiler/tests/fixtures/byte-fields-mixed-runtime.cinch",
+      "sha256": "127a4597bc714c1dd3d27c0d7f02b784a74e72fd307dd4e60f1d974052ccb9e4",
+      "bytes": 1935
+    },
+    {
+      "path": "compiler/tests/fixtures/byte-fields-portable.cinch",
+      "sha256": "c49150985e8027f8fabb56c16843e56f2884f72685c0cf4d720b9bbd54ef8d27",
+      "bytes": 2580
+    }
+  ],
+  "parent_gate": {
+    "tests": 10,
+    "passed": 10,
+    "failed": 0,
+    "runtime_seconds": 54.03,
+    "profile": "Cargo release, locked/offline, current Root source and dependencies",
+    "command": "/tmp/cinch-stdlib-root-cargo-gate.sh test --locked --offline --release --test lib_byte_fields",
+    "actual_cli_sha256": "70626a4bbb043398720fe2d42b661809a5eb39af14c83edc2b9c5922c91f14f7",
+    "actual_runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "source_sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+    "log": "bootstrap/repros/byte-fields-parent-qualified/parent.log",
+    "log_sha256": "3d99f6c7bec09c6908758037f811340df1d5fa72ef1a229ca59fdd7c5e32ef9c",
+    "scope": [
+      "Checked-RC O0/O2 complete independent outputs, callback traces and replay",
+      "Bounded-stack dense construction and lifetime controls",
+      "Distinct IO predicate / Mut yield ordering",
+      "Effect-row preservation and erasure refusal",
+      "Canonical documentation",
+      "Actual WASM, AArch64 and big-endian PowerPC full-adapter objects"
+    ]
+  },
+  "pending": [
+    "Generated reference refresh",
+    "Public pipeline performance review and optimization selection"
+  ]
+}
