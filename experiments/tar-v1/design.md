@@ -1,8 +1,11 @@
 # Tape archive candidate
 
-This is an isolated, static implementation draft. No source check, compiler,
-reference generator, runtime, portability test or benchmark has run. Nothing is
-installed into the prelude. The 85-record audit is a capability plan, not a
+This is an isolated implementation draft. Metadata and block codecs pass one
+explicit frozen-compiler source check and canonical documentation extraction;
+`source-qualification-results.json` preserves all three attempts and the exact
+selected source hashes. The stream framing draft remains unchecked. No reference
+generator, runtime, portability test or benchmark has run. Nothing is installed
+into the prelude. The 85-record audit is a capability plan, not a
 completion claim. `operation-mapping.json` preserves every installed API record,
 including duplicate historical constant declarations, with a concrete target.
 

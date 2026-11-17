@@ -26,7 +26,7 @@ module Text.Tar.Block where
     if residue == 0 then 0 else 512 - residue
 
   -- | Snapshot a proved subrange through the existing overlap-safe bulk copy.
-  copy-range :: using (start + count <= bytes-len source) => (source :: Bytes) -> (start :: Nat) -> (count :: Nat) -> Bytes
+  copy-range :: using (start + count <= bytes-len source) => (source :: Bytes) -> (start :: Nat) -> (count :: Nat) -> refined (bytes-len out == count) Bytes
   copy-range source start count =
     let out = bytes-new count in
     let copied = bytes-copy-range out source 0 start count in
@@ -261,7 +261,9 @@ module Text.Tar.Block where
           Err error -> Err error
           Ok checksum ->
             let out = copy-range source 0 512 in
-            let copied = bytes-copy-range out checksum 148 0 7 in
-            let terminated = bytes-set out 155 32 in
-            Ok out
+            if bytes-len checksum == 7 then
+              let copied = bytes-copy-range out checksum 148 0 7 in
+              let terminated = bytes-set out 155 32 in
+              Ok out
+            else Err TarInvalidHeader
     else Err (TarInvalidBlockLength (bytes-len source))
