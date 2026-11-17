@@ -3,6 +3,7 @@
 from pathlib import Path
 import argparse
 import json
+import re
 import check
 
 HERE = Path(__file__).resolve().parent
@@ -23,6 +24,13 @@ def rows(path):
                 assert 'live=0 immortal=0 leaked=0' in run['stderr']
         found[key] = row['checksum']
     return report, found
+
+
+def allocations(row):
+    """Observe actual normal-profile allocation totals separately from runtime throughput and live memory."""
+    run = next(run for run in row['runs'] if run['label'] == 'cinch' and not run['poisoned'])
+    line = next(line for line in run['stderr'].splitlines() if line.startswith('cinch-alloc:'))
+    return {key: int(value) for key, value in re.findall(r'([\w-]+)=(\d+)', line)}
 
 
 def main():
@@ -55,15 +63,27 @@ def main():
     for name, entry in manifest['sources'].items():
         assert baseline['sources'][name] == entry['old_sha256'] and candidate['sources'][name] == entry['new_sha256']
     previous = {}
+    baseline_rows = {}
     input_paths = [ROOT/'build/buffered-benchmark-preflight-v1.json', ROOT/'build/buffered-benchmark-preflight-fringes-v1.json']
     for path in input_paths:
         report, observed = rows(path)
         assert report['executable_sha256'] == baseline['executable_sha256'] and not (previous.keys() & observed.keys())
         previous.update(observed)
+        baseline_rows.update({tuple(row[name] for name in ['workload', 'pattern', 'size', 'iterations']): row for row in report['results']})
     preflight_path = ROOT/'build/buffered-benchmark-scan-candidate-preflight-v1.json'
     preflight, observed = rows(preflight_path)
     assert preflight['executable_sha256'] == candidate['executable_sha256']
     assert len(previous) == len(observed) == 729 and observed == previous
+    allocation_rows = []
+    for row in preflight['results']:
+        if row['size'] != 65536 or row['iterations'] != 3 or row['workload'] not in ['byte', 'rune', 'scan-line', 'scan-rune', 'scan-word', 'copy']:
+            continue
+        key = tuple(row[name] for name in ['workload', 'pattern', 'size', 'iterations'])
+        before, after = allocations(baseline_rows[key]), allocations(row)
+        allocation_rows.append({'workload': row['workload'], 'pattern': row['pattern'], 'size': row['size'], 'iterations': row['iterations'],
+                                'baseline_normal_totals': before, 'candidate_normal_totals': after,
+                                'candidate_over_baseline_headers': after['header-blocks']/before['header-blocks'],
+                                'candidate_over_baseline_allocation_bytes': after['bytes']/before['bytes']})
     artifact_bytes = sum(path.stat().st_size for path in candidate_dir.rglob('*') if path.is_file()) + preflight_path.stat().st_size
     assert artifact_bytes <= 25*1024*1024
     result = {'scope': 'Complete bounded public pipeline preflight only; no timing, optimization selection or general compiler repair claim.',
@@ -73,6 +93,7 @@ def main():
               'inputs': {str(path.relative_to(ROOT)): check.digest(path) for path in input_paths + [preflight_path]},
               'conditions': 729, 'zero_leak_cinch_memory_runs': 1458, 'independent_reference_runs': 729,
               'candidate_artifact_and_preflight_bytes': artifact_bytes,
+              'allocation_observations': allocation_rows,
               'data_scope': 'The same nine public pipelines, three byte patterns, nine sizes0..65536 and iteration counts0/1/3; two alternating prepared owners and U32 counters.',
               'known_epoch_limitation': 'Historical7e0d has a known boxed-Nat comparison memory-attribute bug. This explicit bounded comparison does not claim a general boxed-Nat boundary repair;855/2f functional evidence is separate.',
               'pending': ['complete1771/840 independent scanner/direct-split corpus runtime gates', 'explicitly granted paired baseline/candidate timing and codegen/allocation review',

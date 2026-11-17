@@ -98,6 +98,512 @@
   "zero_leak_cinch_memory_runs": 1458,
   "independent_reference_runs": 729,
   "candidate_artifact_and_preflight_bytes": 24173902,
+  "allocation_observations": [
+    {
+      "workload": "byte",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 1180413,
+        "bytes": 30451214,
+        "peak": 139948,
+        "header-blocks": 1180230,
+        "header-bytes": 29900576,
+        "immortal": 0,
+        "freed": 1180230,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 1180413,
+        "bytes": 30451227,
+        "peak": 139961,
+        "header-blocks": 1180230,
+        "header-bytes": 29900576,
+        "immortal": 0,
+        "freed": 1180230,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 1.0,
+      "candidate_over_baseline_allocation_bytes": 1.0000004269123721
+    },
+    {
+      "workload": "byte",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 1180425,
+        "bytes": 30451388,
+        "peak": 139948,
+        "header-blocks": 1180234,
+        "header-bytes": 29900680,
+        "immortal": 0,
+        "freed": 1180234,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 1180425,
+        "bytes": 30451401,
+        "peak": 139961,
+        "header-blocks": 1180234,
+        "header-bytes": 29900680,
+        "immortal": 0,
+        "freed": 1180234,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 1.0,
+      "candidate_over_baseline_allocation_bytes": 1.0000004269099327
+    },
+    {
+      "workload": "byte",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 1180413,
+        "bytes": 30451214,
+        "peak": 139948,
+        "header-blocks": 1180230,
+        "header-bytes": 29900576,
+        "immortal": 0,
+        "freed": 1180230,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 1180413,
+        "bytes": 30451227,
+        "peak": 139961,
+        "header-blocks": 1180230,
+        "header-bytes": 29900576,
+        "immortal": 0,
+        "freed": 1180230,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 1.0,
+      "candidate_over_baseline_allocation_bytes": 1.0000004269123721
+    },
+    {
+      "workload": "rune",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 1770378,
+        "bytes": 43039838,
+        "peak": 144068,
+        "header-blocks": 1770195,
+        "header-bytes": 42489200,
+        "immortal": 0,
+        "freed": 1770195,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 1770378,
+        "bytes": 43039851,
+        "peak": 144081,
+        "header-blocks": 1770195,
+        "header-bytes": 42489200,
+        "immortal": 0,
+        "freed": 1770195,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 1.0,
+      "candidate_over_baseline_allocation_bytes": 1.0000003020457466
+    },
+    {
+      "workload": "rune",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 966183,
+        "bytes": 23749088,
+        "peak": 144068,
+        "header-blocks": 965943,
+        "header-bytes": 23186048,
+        "immortal": 0,
+        "freed": 965943,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 966183,
+        "bytes": 23749101,
+        "peak": 144081,
+        "header-blocks": 965943,
+        "header-bytes": 23186048,
+        "immortal": 0,
+        "freed": 965943,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 1.0,
+      "candidate_over_baseline_allocation_bytes": 1.0000005473894409
+    },
+    {
+      "workload": "rune",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 1770666,
+        "bytes": 43043582,
+        "peak": 144068,
+        "header-blocks": 1770339,
+        "header-bytes": 42492656,
+        "immortal": 0,
+        "freed": 1770339,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 1770666,
+        "bytes": 43043595,
+        "peak": 144081,
+        "header-blocks": 1770339,
+        "header-bytes": 42492656,
+        "immortal": 0,
+        "freed": 1770339,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 1.0,
+      "candidate_over_baseline_allocation_bytes": 1.000000302019474
+    },
+    {
+      "workload": "scan-line",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 53216,
+        "bytes": 9083441,
+        "peak": 144269,
+        "header-blocks": 37625,
+        "header-bytes": 1353528,
+        "immortal": 0,
+        "freed": 37625,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 40919,
+        "bytes": 2278734,
+        "peak": 144266,
+        "header-blocks": 31472,
+        "header-bytes": 1132104,
+        "immortal": 0,
+        "freed": 31472,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 0.8364651162790697,
+      "candidate_over_baseline_allocation_bytes": 0.2508668245877306
+    },
+    {
+      "workload": "scan-line",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 305530,
+        "bytes": 45844192,
+        "peak": 144166,
+        "header-blocks": 215861,
+        "header-bytes": 7772976,
+        "immortal": 0,
+        "freed": 215861,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 233883,
+        "bytes": 7671380,
+        "peak": 144163,
+        "header-blocks": 180013,
+        "header-bytes": 6482776,
+        "immortal": 0,
+        "freed": 180013,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 0.8339301680247937,
+      "candidate_over_baseline_allocation_bytes": 0.16733591901892392
+    },
+    {
+      "workload": "scan-line",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 14169,
+        "bytes": 3392445,
+        "peak": 144461,
+        "header-blocks": 10068,
+        "header-bytes": 361616,
+        "immortal": 0,
+        "freed": 10068,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 11055,
+        "bytes": 1459762,
+        "peak": 144458,
+        "header-blocks": 8502,
+        "header-bytes": 305432,
+        "immortal": 0,
+        "freed": 8502,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 0.8444576877234803,
+      "candidate_over_baseline_allocation_bytes": 0.4302979119779392
+    },
+    {
+      "workload": "scan-rune",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 3539933,
+        "bytes": 491409049,
+        "peak": 144207,
+        "header-blocks": 2556662,
+        "header-bytes": 86534040,
+        "immortal": 0,
+        "freed": 2556662,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 2360271,
+        "bytes": 69586266,
+        "peak": 144204,
+        "header-blocks": 1770216,
+        "header-bytes": 67659344,
+        "immortal": 0,
+        "freed": 1770216,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 0.6923934411353554,
+      "candidate_over_baseline_allocation_bytes": 0.14160558528908979
+    },
+    {
+      "workload": "scan-rune",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 1931575,
+        "bytes": 268743454,
+        "peak": 144210,
+        "header-blocks": 1395082,
+        "header-bytes": 47219776,
+        "immortal": 0,
+        "freed": 1395082,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 1502575,
+        "bytes": 42581042,
+        "peak": 144207,
+        "header-blocks": 1126957,
+        "header-bytes": 40784776,
+        "immortal": 0,
+        "freed": 1126957,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 0.8078069962912574,
+      "candidate_over_baseline_allocation_bytes": 0.15844494578833537
+    },
+    {
+      "workload": "scan-rune",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 3539945,
+        "bytes": 491999047,
+        "peak": 144209,
+        "header-blocks": 2556666,
+        "header-bytes": 86534144,
+        "immortal": 0,
+        "freed": 2556666,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 2753499,
+        "bytes": 77450472,
+        "peak": 144206,
+        "header-blocks": 2065132,
+        "header-bytes": 74737336,
+        "immortal": 0,
+        "freed": 2065132,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 0.8077441480428026,
+      "candidate_over_baseline_allocation_bytes": 0.15741996345777476
+    },
+    {
+      "workload": "scan-word",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 62441,
+        "bytes": 9255809,
+        "peak": 144269,
+        "header-blocks": 46850,
+        "header-bytes": 1525896,
+        "immortal": 0,
+        "freed": 46850,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 47069,
+        "bytes": 2401902,
+        "peak": 144266,
+        "header-blocks": 37622,
+        "header-bytes": 1255272,
+        "immortal": 0,
+        "freed": 37622,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 0.8030309498399146,
+      "candidate_over_baseline_allocation_bytes": 0.2595021137536438
+    },
+    {
+      "workload": "scan-word",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 823923,
+        "bytes": 94736705,
+        "peak": 144209,
+        "header-blocks": 644887,
+        "header-bytes": 20065864,
+        "immortal": 0,
+        "freed": 644887,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 645027,
+        "bytes": 18141042,
+        "peak": 144206,
+        "header-blocks": 537535,
+        "header-bytes": 16916680,
+        "immortal": 0,
+        "freed": 537535,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 0.8335336268214432,
+      "candidate_over_baseline_allocation_bytes": 0.19148905379388062
+    },
+    {
+      "workload": "scan-word",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 290140,
+        "bytes": 17895637,
+        "peak": 144264,
+        "header-blocks": 266834,
+        "header-bytes": 7003368,
+        "immortal": 0,
+        "freed": 266834,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 267055,
+        "bytes": 7758998,
+        "peak": 144261,
+        "header-blocks": 252977,
+        "header-bytes": 6596928,
+        "immortal": 0,
+        "freed": 252977,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 0.948068836804905,
+      "candidate_over_baseline_allocation_bytes": 0.4335692548971573
+    },
+    {
+      "workload": "copy",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 142,
+        "bytes": 331462,
+        "peak": 197084,
+        "header-blocks": 109,
+        "header-bytes": 2224,
+        "immortal": 0,
+        "freed": 109,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 142,
+        "bytes": 331475,
+        "peak": 197097,
+        "header-blocks": 109,
+        "header-bytes": 2224,
+        "immortal": 0,
+        "freed": 109,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 1.0,
+      "candidate_over_baseline_allocation_bytes": 1.0000392201821022
+    },
+    {
+      "workload": "copy",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 154,
+        "bytes": 331636,
+        "peak": 197084,
+        "header-blocks": 113,
+        "header-bytes": 2328,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 154,
+        "bytes": 331649,
+        "peak": 197097,
+        "header-blocks": 113,
+        "header-bytes": 2328,
+        "immortal": 0,
+        "freed": 113,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 1.0,
+      "candidate_over_baseline_allocation_bytes": 1.0000391996043856
+    },
+    {
+      "workload": "copy",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 3,
+      "baseline_normal_totals": {
+        "blocks": 142,
+        "bytes": 331462,
+        "peak": 197084,
+        "header-blocks": 109,
+        "header-bytes": 2224,
+        "immortal": 0,
+        "freed": 109,
+        "live": 0
+      },
+      "candidate_normal_totals": {
+        "blocks": 142,
+        "bytes": 331475,
+        "peak": 197097,
+        "header-blocks": 109,
+        "header-bytes": 2224,
+        "immortal": 0,
+        "freed": 109,
+        "live": 0
+      },
+      "candidate_over_baseline_headers": 1.0,
+      "candidate_over_baseline_allocation_bytes": 1.0000392201821022
+    }
+  ],
   "data_scope": "The same nine public pipelines, three byte patterns, nine sizes0..65536 and iteration counts0/1/3; two alternating prepared owners and U32 counters.",
   "known_epoch_limitation": "Historical7e0d has a known boxed-Nat comparison memory-attribute bug. This explicit bounded comparison does not claim a general boxed-Nat boundary repair;855/2f functional evidence is separate.",
   "pending": [
