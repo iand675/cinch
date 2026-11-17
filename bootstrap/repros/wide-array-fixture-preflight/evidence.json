@@ -1,0 +1,11 @@
+{
+  "candidate": "e0331d3d plus f5db8f10; not integrated",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "mode": "source check only",
+  "exit": 1,
+  "boundary": "Fixture nested main layout; no Array implementation verdict",
+  "files": {
+    "Main.cinch": "1ed6e45a9b9de5ff3cec8323ca145dc5a57a74f9ecd99c9fde7888f1903c1f4d",
+    "diagnostic.log": "23d1a40c7c180d44288fd9df5fb931a0f4bfc56d01398c2b28264b6edaf75915"
+  }
+}
