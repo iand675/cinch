@@ -80,14 +80,18 @@
     "bootstrap/stdlib-uuid-runtime-matrix-results.json",
     "bootstrap/stdlib-uuid-portable-results.json",
     "bootstrap/stdlib-uuid-clock-fixture-diagnosis.json",
-    "bootstrap/stdlib-uuid-doc-results.json"
+    "bootstrap/stdlib-uuid-doc-results.json",
+    "bootstrap/stdlib-uuid-benchmark-source-results.json",
+    "bootstrap/stdlib-uuid-benchmark-functional-results.json",
+    "bootstrap/stdlib-uuid-benchmark-assembly-review.json"
   ],
   "benchmark_review_paths": [
     "tooling/data/uuid-benchmark.cinch",
     "tooling/bench_uuid_reference.go",
     "tooling/bench_uuid.py",
     "tooling/data/uuid-generation-benchmark.cinch",
-    "tooling/bench_uuid_generation_reference.go"
+    "tooling/bench_uuid_generation_reference.go",
+    "tooling/bench_uuid_generation.py"
   ],
   "reference_provenance_paths": [
     "tooling/go_uuid_vectors_test.go",

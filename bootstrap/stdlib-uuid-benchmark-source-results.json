@@ -1,0 +1,23 @@
+{
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "scope": "Benchmark source-only; no runtime or performance claim",
+  "units": [
+    {
+      "name": "uuid-benchmark",
+      "entry_sha256": "5baefa7af7c819b2acfef39f5302c62ae42a5c44ec864ec75146cf908ccc563b",
+      "exit": 0,
+      "seconds": 3.4441053670016117,
+      "stderr": ""
+    },
+    {
+      "name": "uuid-generation-benchmark",
+      "entry_sha256": "34306e2518d691cba3991c1838758c77a63396480740a20f26eeb71963000871",
+      "exit": 0,
+      "seconds": 3.1612500800110865,
+      "stderr": ""
+    }
+  ],
+  "status": "passed",
+  "output_bytes": 4863586
+}

@@ -4,6 +4,7 @@ module Main where
   import Data.Nat
   import Data.Machine
   import Data.Bytes
+  import Data.Bytes.Word
   import Data.String
   import Data.Char
   import Data.Uuid
@@ -45,44 +46,93 @@ module Main where
   natural :: U64 -> Nat
   natural value = u32-to-nat (wrapping-u64-to-u32 value) + u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 value 32)) * 4294967296
 
-  -- | Select the actual public generation operation; no time or entropy provider is substituted.
-  draw :: forall (r :: Region). using (io :: Io r) => String -> UuidV7Generator ->{IO r, MVar, Diverge} Result UuidError Uuid
-  draw mode generator = if mode == "default" then uuid-new () else if mode == "v4" then uuid-new-v4 () else uuid-new-v7 generator ()
+  -- | Pack RFC-field validity and an observed random-byte sum without allocating loop metadata.
+  prim observed-words :: U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %version0 = lshr i64 %0, 52
+      %version = and i64 %version0, 15
+      %variant0 = lshr i64 %1, 6
+      %variant = and i64 %variant0, 3
+      %version_ok = icmp eq i64 %version, %2
+      %variant_ok = icmp eq i64 %variant, 2
+      %valid = and i1 %version_ok, %variant_ok
+      %flag = select i1 %valid, i64 9223372036854775808, i64 0
+      %a0 = and i64 %0, 255
+      %a7 = lshr i64 %0, 56
+      %b0 = and i64 %1, 255
+      %b7 = lshr i64 %1, 56
+      %x = add i64 %a0, %a7
+      %y = add i64 %b0, %b7
+      %sum = add i64 %x, %y
+      %result = or i64 %flag, %sum
+      ret i64 %result
+    }
 
-  -- | Observe complete-buffer ownership and RFC fields while leaving random/time payloads nondeterministic.
-  observe :: Nat -> Uuid -> (U64, U64)
+  -- | Observe one fresh mutable value snapshot without predicting its entropy payload.
+  observe :: U64 -> Uuid -> U64
   observe version value =
     let bytes = uuid-to-bytes value in
-    if bytes-len bytes == 16 then
-      let valid = nat-div (bytes-get bytes 6) 16 == version && nat-div (bytes-get bytes 8) 64 == 2 in
-      (if valid then 1 else 0, word (bytes-get bytes 0 + bytes-get bytes 7 + bytes-get bytes 8 + bytes-get bytes 15))
-    else (0, 0)
+    if bytes-len bytes == 16 then observed-words (bytes-read-le64 bytes 0) (bytes-read-le64 bytes 8) version else 0
 
-  -- | Include every real generation and fresh mutable snapshot in the measured public pipeline.
-  loop :: forall (r :: Region). using (io :: Io r) => String -> UuidV7Generator -> Nat -> U32 -> U32 -> U64 -> U64 ->{IO r, MVar, Diverge} (U64, U64)
-  loop mode generator version count index valid checksum =
-    if before index count then case draw mode generator of
-      Err error -> loop mode generator version count (bump index) valid (mix checksum 4294967295)
-      Ok value -> case observe version value of
-        (accepted, bits) -> loop mode generator version count (bump index) (add valid accepted) (mix checksum bits)
+  -- | Include the actual current default operation with no per-iteration algorithm dispatch.
+  loop-default :: forall (r :: Region). using (io :: Io r) => U32 -> U32 -> U64 -> U64 ->{IO r} (U64, U64)
+  loop-default count index valid checksum =
+    if before index count then case uuid-new () of
+      Err error -> loop-default count (bump index) valid (mix checksum 4294967295)
+      Ok value ->
+        let observation = observe 4 value in
+        loop-default count (bump index) (add valid (wrapping-shr-u64 observation 63)) (mix checksum (bit-and-u64 observation 1023))
+    else (valid, checksum)
+
+  -- | Include the actual named version4 operation with no per-iteration algorithm dispatch.
+  loop-v4 :: forall (r :: Region). using (io :: Io r) => U32 -> U32 -> U64 -> U64 ->{IO r} (U64, U64)
+  loop-v4 count index valid checksum =
+    if before index count then case uuid-new-v4 () of
+      Err error -> loop-v4 count (bump index) valid (mix checksum 4294967295)
+      Ok value ->
+        let observation = observe 4 value in
+        loop-v4 count (bump index) (add valid (wrapping-shr-u64 observation 63)) (mix checksum (bit-and-u64 observation 1023))
+    else (valid, checksum)
+
+  -- | Include the actual serialized version7 operation with no per-iteration algorithm dispatch.
+  loop-v7 :: forall (r :: Region). using (io :: Io r) => UuidV7Generator -> U32 -> U32 -> U64 -> U64 ->{IO r, MVar, Diverge} (U64, U64)
+  loop-v7 generator count index valid checksum =
+    if before index count then case uuid-new-v7 generator () of
+      Err error -> loop-v7 generator count (bump index) valid (mix checksum 4294967295)
+      Ok value ->
+        let observation = observe 7 value in
+        loop-v7 generator count (bump index) (add valid (wrapping-shr-u64 observation 63)) (mix checksum (bit-and-u64 observation 1023))
     else (valid, checksum)
 
   -- | Parse bounded iteration metadata before sampling the real monotonic clock.
   decimal :: List Char -> Nat -> Nat
   decimal chars value = case chars of Nil -> value; Cons char rest -> case digit-value char of None -> 0; Some digit -> decimal rest (value * 10 + digit)
 
-  -- | Prepare explicit generator ownership outside timing and report elapsed/count/random observations separately.
-  measure :: forall (r :: Region). using (io :: Io r) => String -> Nat ->{IO r, MVar, Diverge} Int
-  measure mode iterations = if iterations <= 4294967295 then
-    let generator = uuid-v7-generator () in
-    let count = wrapping-i64-to-u32 (nat-to-i64 iterations) in
-    let version = if mode == "v7" then 7 else 4 in
-    let start = clock-monotonic-ns () in
-    let result = loop mode generator version count 0 0 14695981039346656037 in
+  -- | Report elapsed time, invariant count and variable random observation separately after the measured operation.
+  finish :: forall (r :: Region). using (io :: Io r) => Nat -> Nat -> (U64, U64) ->{IO r} Int
+  finish start iterations result =
     let end = clock-monotonic-ns () in
-    case result of (valid, checksum) ->
-      let line = string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string (natural valid)) (string-concat " " (string-concat (nat-to-string (natural checksum)) "\n")))) in
-      let printed = ioWrite (string-to-bytes line) in if natural valid == iterations then 0 else 1
+    case result of
+      (valid, checksum) ->
+        let line = string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string (natural valid)) (string-concat " " (string-concat (nat-to-string (natural checksum)) "\n")))) in
+        let printed = ioWrite (string-to-bytes line) in if natural valid == iterations then 0 else 1
+
+  -- | Dispatch and prepare generator ownership outside timing; V4/default allocate no unused state cell.
+  measure :: forall (r :: Region). using (io :: Io r) => String -> Nat ->{IO r, MVar, Diverge} Int
+  measure mode iterations =
+    if iterations <= 4294967295 then
+      let count = wrapping-i64-to-u32 (nat-to-i64 iterations) in
+      if mode == "v7" then
+        let generator = uuid-v7-generator () in
+        let start = clock-monotonic-ns () in
+        let result = loop-v7 generator count 0 0 14695981039346656037 in finish start iterations result
+      else if mode == "v4" then
+        let start = clock-monotonic-ns () in
+        let result = loop-v4 count 0 0 14695981039346656037 in finish start iterations result
+      else if mode == "default" then
+        let start = clock-monotonic-ns () in
+        let result = loop-default count 0 0 14695981039346656037 in finish start iterations result
+      else 2
     else 2
 
   -- | Keep actual IO and MVar effects explicit on the benchmark entry.

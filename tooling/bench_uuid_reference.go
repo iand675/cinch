@@ -25,6 +25,10 @@ func fingerprint(b []byte) uint64 {
 
 // main prepares live inputs outside timing and measures one public operation pipeline.
 func main() {
+	if len(os.Args) == 4 && os.Args[1] == "generate" {
+		generation(os.Args[2], os.Args[3])
+		return
+	}
 	if len(os.Args) != 5 {
 		os.Exit(2)
 	}
@@ -84,4 +88,37 @@ func main() {
 		hash = (hash ^ observed) * 1099511628211
 	}
 	fmt.Printf("%d %d\n", time.Since(start).Nanoseconds(), hash)
+}
+
+// generation observes actual public secure generation and reports only invariant equality across implementations.
+func generation(mode, iterations string) {
+	count, err := strconv.Atoi(iterations)
+	if err != nil || count < 0 {
+		os.Exit(2)
+	}
+	draw := uuid.New
+	version := byte(4)
+	if mode == "v4" {
+		draw = uuid.NewV4
+	} else if mode == "v7" {
+		draw = uuid.NewV7
+		version = 7
+	} else if mode != "default" {
+		os.Exit(2)
+	}
+	valid, checksum := uint64(0), uint64(14695981039346656037)
+	start := time.Now()
+	for index := 0; index < count; index++ {
+		value := draw()
+		sink = append([]byte(nil), value[:]...)
+		if sink[6]>>4 == version && sink[8]>>6 == 2 {
+			valid++
+		}
+		observed := uint64(sink[0]) + uint64(sink[7]) + uint64(sink[8]) + uint64(sink[15])
+		checksum = (checksum ^ observed) * 1099511628211
+	}
+	fmt.Printf("%d %d %d\n", time.Since(start).Nanoseconds(), valid, checksum)
+	if valid != uint64(count) {
+		os.Exit(1)
+	}
 }
