@@ -1,0 +1,42 @@
+{
+  "status": "initial-owner-emit-refused-new-actual-demand",
+  "v3_artifact_and_tuple_unchanged": true,
+  "runtime_success_claim": false,
+  "full_family_admission": false,
+  "source_modules": {
+    "Data.Bytes.Split": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+    "Data.Bytes.View": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14"
+  },
+  "requested_roots": {
+    "schema": 1,
+    "units": [
+      {
+        "symbol": "Data.Producer.prod-take",
+        "classes": "OO"
+      }
+    ],
+    "dictionaries": [],
+    "methods": []
+  },
+  "source_expression": "prod-fold initial hash-part (prod-take 1 producer)",
+  "cause": "RuntimeIr.external-call resolves the enclosing external variant before evaluating its argument spine. Missing prod-fold previously prevented visiting the nested prod-take call.",
+  "source_evidence": {
+    "path": "bootstrap/Bootstrap.RuntimeIr.cinch",
+    "sha256": "1216eeab47d627bb295c85a6a3d9ada47d858c1c4b103bd3ecf33a813c1a0100",
+    "line": 2097
+  },
+  "current_v3_roots_sha256": "e568c90d5c5be199536b808a1952bc3ef5848b2f3cda8a33ee10883ccd19b069",
+  "proposed_next_roots_sha256": "26f10692a0100f3037d687165ef25d6d08a88e683d3435f6a5651c6ca9d7db41",
+  "proposal_only": true,
+  "actual_next_object_emitted": false,
+  "evidence": [
+    {
+      "path": "bootstrap/stdlib-producer-v3-initial-probe-evidence/consumer.ll.diagnostics",
+      "sha256": "bb27d6194b95b362f400af70cf1bba111a6405022628c8819c135d54427b2d38"
+    },
+    {
+      "path": "bootstrap/stdlib-producer-v3-initial-probe-evidence/report.json",
+      "sha256": "275c8583cfe83431828ab0e9cc4d4284625f78e8d44966d7f313b60ff41016c2"
+    }
+  ]
+}
