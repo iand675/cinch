@@ -1,0 +1,154 @@
+{
+  "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
+  "frontend": "native-raw",
+  "opt_level": 2,
+  "native_link_policy": "explicit raw CLI plus clang optimization",
+  "runner_sha256": "f4335da28ef10068855bd7e6eede5cad9e12aa21461d1f598761ac1dd27b71fa",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "376488101b0f438023f1a6ff8556d78009f799d5549305033523a9ba1fa03db6",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "86cf9e0a6a660893a1eb8b42eaf4ab1bda7dbea901f7e723b64ddbbed73a4364",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Text.Json.Dynamic": "21fec7f0e682aac080882e8f8875a187528e58773fa121f70aff815c81985ca5",
+    "Text.Json.Legacy": "c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826"
+  },
+  "fixture_sha256": "0e1cf2647c83c0f9602e5430ed18025a7f1536ff2c2adaf9139363b0533de6b8",
+  "reference_fixtures": {
+    "dynamic-control": "0e1cf2647c83c0f9602e5430ed18025a7f1536ff2c2adaf9139363b0533de6b8"
+  },
+  "cpu_affinity": [
+    2
+  ],
+  "compiler_host_stack_kib": 65536,
+  "consumer_stack_limit": "8M",
+  "suites": [
+    {
+      "suite": "dynamic-control",
+      "consumer_source_sha256": "22d1fd6b6a6f17b45248128ab779c110af98876624072ccd0c2647b8d7dd222f",
+      "llvm_sha256": "38d17d8d8c9e2f97e6a221da2ddcd09c052cc73e8c27a2e7aa2062e16dbdddd6",
+      "build_seconds": 47.20285613099986,
+      "runs": [
+        {
+          "poisoned_free_validation": false,
+          "heap_limit": "32M",
+          "stdout": "",
+          "stats": {
+            "blocks": 2073857,
+            "bytes": 53012965,
+            "peak": 3960789,
+            "header-blocks": 1960637,
+            "header-bytes": 52371240,
+            "immortal": 0,
+            "freed": 1960637,
+            "live": 0
+          },
+          "leaked": 0
+        },
+        {
+          "poisoned_free_validation": true,
+          "heap_limit": "256M",
+          "stdout": "",
+          "stats": {
+            "blocks": 2073857,
+            "bytes": 53012965,
+            "peak": 52371515,
+            "header-blocks": 1960637,
+            "header-bytes": 52371240,
+            "immortal": 0,
+            "freed": 1960637,
+            "live": 0
+          },
+          "leaked": 0
+        }
+      ]
+    }
+  ],
+  "embedded_legacy_dependencies": {
+    "Data.Json": {
+      "manifest_identity": "7360492984505101685",
+      "interface_path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/provider/library/build/Data.Json.cinchif",
+      "interface_sha256": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5",
+      "unchanged_source_sha256": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b"
+    },
+    "Text.Codec": {
+      "manifest_identity": "2934815228794287689",
+      "interface_path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/provider/library/build/Text.Codec.cinchif",
+      "interface_sha256": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a",
+      "unchanged_source_sha256": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29"
+    },
+    "Data.Machine": {
+      "manifest_identity": "17103992146269862369",
+      "interface_path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/provider/library/build/Data.Machine.cinchif",
+      "interface_sha256": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e",
+      "instance": {
+        "class": "Text.Codec.JsonCodec",
+        "ctx": [],
+        "id": "Data.Machine.JsonCodec_I64",
+        "implicit": true,
+        "method_contracts": [],
+        "methods": [
+          "Data.Machine.JsonCodec_I64.encode-json",
+          "Data.Machine.JsonCodec_I64.decode-json"
+        ],
+        "resolved": {
+          "measures": [],
+          "nominals": [
+            {
+              "constructors": null,
+              "identity": "Text.Codec.JsonCodec",
+              "kind": "signature",
+              "parameters": [
+                {
+                  "implicit": false,
+                  "kind": "Type",
+                  "name": "a"
+                }
+              ],
+              "params": [
+                "a"
+              ],
+              "refinement": null
+            }
+          ],
+          "scheme": "Text.Codec.JsonCodec I64"
+        },
+        "target": "Text.Codec.JsonCodec I64"
+      }
+    }
+  },
+  "legacy_dependency_selection": "Unchanged Data.Json/Text.Codec contracts come from the strict provided base; no source shadowing of embedded homes. New Text.Json.Legacy remains source-distributed.",
+  "observed_runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "native_compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects_manifest_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "provider_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+  "raw_compile_command": [
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+    "--emit-ir",
+    "--rc-debug",
+    "--interfaces",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+    "--objects",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+    "/workspace/dasl-stdlib-json/build/json-dynamic-control-native-raw-v2/dynamic-control/Bundle.cinch",
+    "/workspace/dasl-stdlib-json/build/json-dynamic-control-native-raw-v2/dynamic-control/consumer.ll"
+  ],
+  "raw_link_command": [
+    "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "-O2",
+    "/workspace/dasl-stdlib-json/build/json-dynamic-control-native-raw-v2/dynamic-control/consumer.ll",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/provider/library.o",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/libcinchruntime.a",
+    "-ldl",
+    "-lpthread",
+    "-lm",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/json-dynamic-control-native-raw-v2/dynamic-control/consumer"
+  ]
+}

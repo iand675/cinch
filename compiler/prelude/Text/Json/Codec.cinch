@@ -29,7 +29,7 @@ module Text.Json.Codec where
   export json-write-stringify-numbers, json-write-with-stringify-numbers, json-read-stringify-numbers, json-read-with-stringify-numbers
   export JsonWriteOptions, json-write-options, json-default-write-options, json-write-html, json-write-pretty, json-write-prefix, json-write-step, json-write-policies
   export JsonReadOptions, json-read-options, json-default-read-options, json-read-use-number, json-read-reject-unknown, json-read-policies
-  export JsonType, json-type-kind, json-type-label, json-type-default, json-type-is-zero, json-type-is-empty, json-custom-type
+  export JsonType, json-type-kind, json-type-label, json-type-default, json-type-is-zero, json-type-is-empty, json-custom-type, json-structural-type
   export JsonDecoded, json-decoded-value, json-decoded-error, json-decoded-fatal, json-decoded-result
   export json-decoded-ok, json-decoded-failure, json-decoded-with-error
   export json-marshal, json-marshal-with, json-marshal-indent, json-unmarshal, json-unmarshal-with, json-update, json-update-with, json-update-value, json-marshal-value
@@ -368,6 +368,20 @@ module Text.Json.Codec where
   -- | Construct a custom typed capability with explicit defaults, omission tests and update outcomes.
   json-custom-type :: forall a. String -> (Unit -> a) -> (a -> Bool) -> (a -> Bool) -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> JsonType a
   json-custom-type label initial zero empty encode update = Type label JsonInvalidKind initial zero empty (custom-encode label encode) update
+
+  -- | Validate successful structural fragments while preserving an existing child conversion error.
+  structural-encode :: forall a. String -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> JsonWriteOptions -> a -> Result JsonError Bytes
+  structural-encode label callback options value = case callback options value of
+    Err error -> Err error
+    Ok raw -> case json-compact raw of
+      Err error -> Err (JsonCustomError label error)
+      Ok compact -> Ok (if json-write-html options then json-html-escape compact else compact)
+
+  -- | Compose a structural descriptor with an explicit category and validated output; child errors retain their original identity.
+  -- The category controls containing-field quoting. Successful callback fragments
+  -- are checked as complete JSON values before entering a containing descriptor.
+  json-structural-type :: forall a. String -> JsonKind -> (Unit -> a) -> (a -> Bool) -> (a -> Bool) -> (JsonWriteOptions -> a -> Result JsonError Bytes) -> (JsonReadOptions -> JsonValue -> a -> JsonDecoded a) -> JsonType a
+  json-structural-type label category initial zero empty encode update = Type label category initial zero empty (structural-encode label encode) update
 
   -- | Encode a boolean without scalar text conversions.
   bool-encode :: JsonWriteOptions -> Bool -> Result JsonError Bytes

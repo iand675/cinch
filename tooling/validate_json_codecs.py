@@ -29,6 +29,42 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def embedded_legacy_dependencies(interfaces: Path, modules: dict[str, Path]) -> dict:
+    """Use unchanged legacy contracts already supplied by the strict Native provider, without shadowing their homes."""
+    expected_sources = {
+        "Data.Json": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b",
+        "Text.Codec": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29",
+    }
+    manifest = json.loads(interfaces.read_text())
+    rows = {name: (identity, Path(path)) for name, identity, path in manifest["interfaces"]}
+    exports, dependencies = {}, {}
+    for name, expected in expected_sources.items():
+        assert digest(modules[name]) == expected, f"{name}: changed source cannot be omitted without a new contract review"
+        identity, path = rows[name]
+        parsed = json.loads(path.read_text())
+        exports[name] = parsed["exports"]
+        dependencies[name] = {"manifest_identity": identity, "interface_path": str(path), "interface_sha256": digest(path), "unchanged_source_sha256": expected}
+    shape = next(row for row in exports["Data.Json"]["types"] if row["name"] == "Json")
+    assert [(row["name"], row["fields"], row["tag"]) for row in shape["ctors"]] == [
+        ("JNull", [], 0), ("JBool", ["Bool"], 1), ("JNum", ["Int"], 2), ("JFloat", ["F64"], 3),
+        ("JStr", ["Data.String.String"], 4), ("JArr", ["Data.Json.Json", "Data.Json.Json"], 5),
+        ("JObj", ["Data.String.String", "Data.Json.Json", "Data.Json.Json"], 6), ("JArrEnd", [], 7), ("JObjEnd", [], 8),
+    ]
+    signature = next(row for row in exports["Text.Codec"]["signatures"] if row["identity"] == "Text.Codec.JsonCodec")
+    assert [(row["name"], row["slot"]) for row in signature["methods"]] == [("encode-json", 0), ("decode-json", 1)]
+    error = next(row for row in exports["Text.Codec"]["types"] if row["name"] == "JsonDecodeError")
+    assert [row["name"] for row in error["ctors"]] == ["TypeMismatch", "OutOfRange"]
+    machine_identity, machine_path = rows["Data.Machine"]
+    machine = json.loads(machine_path.read_text())["exports"]
+    instance = next(row for row in machine["instances"] if row["id"] == "Data.Machine.JsonCodec_I64")
+    assert instance["target"] == "Text.Codec.JsonCodec I64" and instance["implicit"] and not instance["ctx"]
+    assert instance["methods"] == ["Data.Machine.JsonCodec_I64.encode-json", "Data.Machine.JsonCodec_I64.decode-json"]
+    dependencies["Data.Machine"] = {"manifest_identity": machine_identity, "interface_path": str(machine_path), "interface_sha256": digest(machine_path), "instance": instance}
+    for name in expected_sources:
+        del modules[name]
+    return dependencies
+
+
 def execute(command: list[str], cwd: Path, env: dict[str, str] | None = None, host_stack_bytes: int | None = None) -> subprocess.CompletedProcess[str]:
     """Run one bounded build or consumer, preserving diagnostics on any failure."""
     def prepare_compiler_stack() -> None:
@@ -71,12 +107,22 @@ def main() -> None:
         parser.error("raw Native linking requires its exact --runtime-receipt archive")
     compiler = args.compiler.resolve()
     modules = dict(MODULES)
-    if any(suite in {"typed", "codec-control", "float", "float32", "float32-control", "raw-number", "raw-number-edge", "raw-number-control", "field", "integer", "binary", "binary-control", "map", "map-encode", "map-control", "dynamic"} for suite in args.suites):
+    if any(suite in {"typed", "codec-control", "float", "float32", "float32-control", "raw-number", "raw-number-edge", "raw-number-control", "field", "integer", "binary", "binary-control", "map", "map-encode", "map-control", "dynamic", "dynamic-control"} for suite in args.suites):
         modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
         modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
+    if any(suite in {"dynamic", "dynamic-edge", "dynamic-control"} for suite in args.suites):
+        modules["Text.Base64.Encoding"] = ROOT / "compiler/prelude/Text/Base64/Encoding.cinch"
+        modules["Text.Json.Codec"] = ROOT / "compiler/prelude/Text/Json/Codec.cinch"
+        modules["Data.Bytes.Utf8"] = ROOT / "compiler/prelude/Data/Bytes/Utf8.cinch"
+        modules["Text.Json.Dynamic"] = ROOT / "compiler/prelude/Text/Json/Dynamic.cinch"
+    if "dynamic-control" in args.suites:
+        modules["Data.Json"] = ROOT / "compiler/prelude/Data/Json.cinch"
+        modules["Text.Codec"] = ROOT / "compiler/prelude/Text/Codec.cinch"
+        modules["Text.Json.Legacy"] = ROOT / "compiler/prelude/Text/Json/Legacy.cinch"
+    legacy_dependencies = embedded_legacy_dependencies(args.interfaces.resolve(), modules) if args.frontend == "native-raw" and "dynamic-control" in args.suites else None
     frozen_modules = {name: path.read_bytes() for name, path in modules.items()}
     frozen_consumers = {suite: (ROOT / f"compiler/tests/fixtures/json-codec-{suite}.cinch").read_bytes() for suite in args.suites}
-    reference_paths = {suite: ROOT / (f"compiler/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "float32", "raw-number", "raw-number-edge", "raw-number-kernel", "field", "integer", "binary", "map", "map-encode"} else "compiler/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
+    reference_paths = {suite: ROOT / (f"compiler/tests/fixtures/json-codec-{suite}-vectors.json" if suite in {"float", "float32", "raw-number", "raw-number-edge", "raw-number-kernel", "field", "integer", "binary", "map", "map-encode", "dynamic", "dynamic-edge"} else "compiler/tests/fixtures/json-codec-vectors.json") for suite in args.suites}
     report = {
         "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
         "frontend": args.frontend, "opt_level": args.opt_level if args.frontend in {"rust", "native-raw"} else 0,
@@ -87,6 +133,9 @@ def main() -> None:
         "reference_fixtures": {suite: digest(path) for suite, path in reference_paths.items()},
         "cpu_affinity": [args.cpu], "compiler_host_stack_kib": args.compiler_host_stack_kib, "consumer_stack_limit": "8M", "suites": [],
     }
+    if legacy_dependencies:
+        report["embedded_legacy_dependencies"] = legacy_dependencies
+        report["legacy_dependency_selection"] = "Unchanged Data.Json/Text.Codec contracts come from the strict provided base; no source shadowing of embedded homes. New Text.Json.Legacy remains source-distributed."
     if args.runtime_receipt:
         report["observed_runtime_archive_sha256"] = digest(args.runtime_receipt.resolve())
     if args.frontend in {"native", "native-raw"}:

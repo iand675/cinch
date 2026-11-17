@@ -23,6 +23,20 @@ fn run(source: &str) {
             "Text.Json.Value",
             include_str!("../prelude/Text/Json/Value.cinch"),
         ),
+        (
+            "Text.Json.Dynamic",
+            include_str!("../prelude/Text/Json/Dynamic.cinch"),
+        ),
+        (
+            "Text.Json.Legacy",
+            include_str!("../prelude/Text/Json/Legacy.cinch"),
+        ),
+        (
+            "Data.Bytes.Utf8",
+            include_str!("../prelude/Data/Bytes/Utf8.cinch"),
+        ),
+        ("Data.Json", include_str!("../prelude/Data/Json.cinch")),
+        ("Text.Codec", include_str!("../prelude/Text/Codec.cinch")),
         ("Data.Array", include_str!("../prelude/Data/Array.cinch")),
         (
             "Data.Bytes.Word",
@@ -118,6 +132,19 @@ fn json_raw_number_owners_and_error_capabilities_are_bounded() {
     run(include_str!("fixtures/json-codec-raw-number-control.cinch"));
 }
 
+/// Dynamic shapes, partial numeric errors, exact-number selection and both HTML encodings match independent observations.
+#[test]
+fn json_dynamic_updates_and_encodings_match_independent_observations() {
+    run(include_str!("fixtures/json-codec-dynamic.cinch"));
+    run(include_str!("fixtures/json-codec-dynamic-edge.cinch"));
+}
+
+/// Deep/flat traversal, byte ownership, retained errors and explicit established-family capabilities stay bounded.
+#[test]
+fn json_dynamic_owners_and_legacy_bridges_are_bounded() {
+    run(include_str!("fixtures/json-codec-dynamic-control.cinch"));
+}
+
 /// Every vector mismatch lane and Unicode boundary follows independent exact-first name matching.
 #[test]
 fn json_record_name_matching_matches_independent_observations() {
@@ -189,6 +216,14 @@ fn json_map_owners_callbacks_and_large_values_are_bounded() {
 #[test]
 fn json_codec_declarations_have_canonical_documentation() {
     for (name, source) in [
+        (
+            "Text.Json.Dynamic",
+            include_str!("../prelude/Text/Json/Dynamic.cinch"),
+        ),
+        (
+            "Text.Json.Legacy",
+            include_str!("../prelude/Text/Json/Legacy.cinch"),
+        ),
         (
             "Text.Json.Codec",
             include_str!("../prelude/Text/Json/Codec.cinch"),
