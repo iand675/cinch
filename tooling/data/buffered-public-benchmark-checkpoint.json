@@ -1,0 +1,1675 @@
+{
+  "scope": "Observed old-source ordinary-RC public pipelines; no package completion, API promotion or compiler adoption claim.",
+  "identity_sha256": "6474bb166a9388525f2d7c57b1d483c7e9bc86716c4454a7125f0efbfcc2a681",
+  "identity": {
+    "frontend": "rust",
+    "compiler": "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/cinch",
+    "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+    "runtime": "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/libcinchruntime.a",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "snapshot_sha256": "efddf04be6b84092832f2d1f0d3a174964c2bcc27418aa84ffcfb3105c611577",
+    "snapshot": {
+      "description": "Rust frontend with repaired scalar semantics and embedded phase2 String/Bytes after full parent gates",
+      "source_checkpoint": "cafee61a",
+      "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "rust_profile": {
+        "dev": true,
+        "debug_assertions": true,
+        "debug_symbols": false,
+        "codegen_units": 1
+      },
+      "gates": "bootstrap/stdlib-string-phase2-parent-results.json",
+      "embedded_sources": {
+        "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+        "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+      },
+      "rust_sources": {
+        "compiler/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c",
+        "compiler/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
+        "compiler/src/check_decls.rs": "e33cd60f09ba1a13c02a015abc2fb394abb20f1b9f499e05f5312a09dabf129c"
+      },
+      "scope": "Rust frontend snapshot only; this is not adoption of the provisional Native scalar-import family."
+    },
+    "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+    "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+    "sources": {
+      "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+      "Effect.Scanner.Split.cinch": "5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e",
+      "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+      "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+      "Effect.Buffered.Internal.Scan.cinch": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+      "Effect.Buffered.Core.cinch": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+      "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+      "Effect.Scanner.cinch": "dd6d190f2b53e1fb80b10e48d64a29363b82041895660675d2b383c637be06aa",
+      "Effect.Buffered.Writer.cinch": "bf3bda7ec2866c61b178b17ff37b7a52a202a9e0d86b0a44cea0069cd2e2382a",
+      "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+      "Effect.Buffered.Reader.cinch": "b0eb53793ea2111749580e5726abaec76f84fb3a1df3b9f3706d1240b696b160",
+      "Main.cinch": "a2ef51b469e4c908b0f1b8ba65662934d7ead3d12fc99b116ffa48d0c109d3a4"
+    },
+    "compile_command": [
+      "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/cinch",
+      "emit-ir",
+      "/workspace/dasl-stdlib-buffered-io/build/buffered-benchmark-rust-v1/project/Main.cinch",
+      "-o",
+      "/workspace/dasl-stdlib-buffered-io/build/buffered-benchmark-rust-v1/benchmark.ll"
+    ],
+    "rc_debug_instrumentation": false,
+    "ordinary_reclaim": true,
+    "source_shadow_used": false,
+    "scope": "Complete public reader/scanner operations and owned writer/transfer pipelines; fresh source-event and mutable-output ownership included. No compiler/provider copies or unrelated optional loop counters.",
+    "phase": "ordinary-RC O2 public pipeline build",
+    "link_command": [
+      "clang",
+      "-O2",
+      "/workspace/dasl-stdlib-buffered-io/build/buffered-benchmark-rust-v1/benchmark.ll",
+      "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/libcinchruntime.a",
+      "-ldl",
+      "-lpthread",
+      "-lm",
+      "-o",
+      "/workspace/dasl-stdlib-buffered-io/build/buffered-benchmark-rust-v1/benchmark"
+    ],
+    "executable_sha256": "d23317da6fd6b9782dcd01eb662d23f144caf6abb57f97bd62126adfd8c1f7fe",
+    "llvm_sha256": "6d613c4ce838688263fdd841682050984bcd88a4e97c6585cde78bafdaf42f6e",
+    "assembly_sha256": "72ee111a860b1fba35ea45048b578c7a5fb0dd6ade38055d5515124a6e04a945",
+    "reference_executable_sha256": "5a84e7e5ade8a86e4ab7970883e7bf59b467031e60c38ffa019845e9e1d420e7",
+    "reference_source_sha256": "78c9b3c6be14dde1a1134fb71ceb4e13541eee0db74c9f494a504f7e213ef72c",
+    "reference_sdk": "go version go1.27.4 linux/amd64",
+    "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/.tools/llvm/usr/lib/llvm-20/bin\n"
+  },
+  "inputs": {
+    "build/buffered-benchmark-preflight-v1.json": "15bf21c38280fa57034195364d2eba643e85b211b9bfbce110c44dab915437f2",
+    "build/buffered-benchmark-preflight-fringes-v1.json": "0f1608fe92903d99dc2b7e5082c0a8ede2bad54f10dd6ef830ec6bb056a5acab",
+    "build/buffered-benchmark-timing-rust-v1.json": "1e63a51e923e93769fd65a2fffb718382f288c8287d710cbf414988a5b62929b"
+  },
+  "preflight_conditions": 729,
+  "zero_leak_memory_runs": 1458,
+  "timing_conditions": [
+    {
+      "workload": "byte",
+      "pattern": 0,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 12860755068080923125,
+      "samples_ns": {
+        "cinch": [
+          5608957,
+          5648255,
+          5650178
+        ],
+        "reference": [
+          187362,
+          226120,
+          189735
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 706031.875,
+        "reference": 23716.875
+      },
+      "cinch_over_reference": 29.769178064142093
+    },
+    {
+      "workload": "byte",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 10056096767347243765,
+      "samples_ns": {
+        "cinch": [
+          91878090,
+          90814144,
+          91919780
+        ],
+        "reference": [
+          2844553,
+          2918720,
+          3031701
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 11484761.25,
+        "reference": 364840.0
+      },
+      "cinch_over_reference": 31.478898284179365
+    },
+    {
+      "workload": "byte",
+      "pattern": 1,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 2829499523813836909,
+      "samples_ns": {
+        "cinch": [
+          5630028,
+          5652662,
+          5692652
+        ],
+        "reference": [
+          187423,
+          263537,
+          188043
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 706582.75,
+        "reference": 23505.375
+      },
+      "cinch_over_reference": 30.06047552953314
+    },
+    {
+      "workload": "byte",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 9104546351828380877,
+      "samples_ns": {
+        "cinch": [
+          143707577,
+          91228779,
+          95225304
+        ],
+        "reference": [
+          2869085,
+          2873262,
+          2822355
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 11903163.0,
+        "reference": 358635.625
+      },
+      "cinch_over_reference": 33.19012995432342
+    },
+    {
+      "workload": "byte",
+      "pattern": 2,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 9627711189908472685,
+      "samples_ns": {
+        "cinch": [
+          5681916,
+          5744280,
+          5665522
+        ],
+        "reference": [
+          192550,
+          160382,
+          181314
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 710239.5,
+        "reference": 22664.25
+      },
+      "cinch_over_reference": 31.337436712002383
+    },
+    {
+      "workload": "byte",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 8150689895774810989,
+      "samples_ns": {
+        "cinch": [
+          105661132,
+          93349206,
+          95784547
+        ],
+        "reference": [
+          5361894,
+          2996988,
+          3234006
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 11973068.375,
+        "reference": 404250.75
+      },
+      "cinch_over_reference": 29.61792495128333
+    },
+    {
+      "workload": "rune",
+      "pattern": 0,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 7146181682336326133,
+      "samples_ns": {
+        "cinch": [
+          8335327,
+          8466404,
+          8742681
+        ],
+        "reference": [
+          231489,
+          232040,
+          228395
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 1058300.5,
+        "reference": 28936.125
+      },
+      "cinch_over_reference": 36.573677366959124
+    },
+    {
+      "workload": "rune",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 10568370680967314165,
+      "samples_ns": {
+        "cinch": [
+          138937014,
+          137278514,
+          141503874
+        ],
+        "reference": [
+          3364983,
+          3520137,
+          3612998
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 17367126.75,
+        "reference": 440017.125
+      },
+      "cinch_over_reference": 39.46920645418062
+    },
+    {
+      "workload": "rune",
+      "pattern": 1,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 1243762018428652077,
+      "samples_ns": {
+        "cinch": [
+          4892846,
+          4950123,
+          4855390
+        ],
+        "reference": [
+          160172,
+          164558,
+          161874
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 611605.75,
+        "reference": 20234.25
+      },
+      "cinch_over_reference": 30.226262401621014
+    },
+    {
+      "workload": "rune",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 5554125549811224397,
+      "samples_ns": {
+        "cinch": [
+          78040827,
+          76435556,
+          76236786
+        ],
+        "reference": [
+          2318736,
+          2329071,
+          2370653
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 9554444.5,
+        "reference": 291133.875
+      },
+      "cinch_over_reference": 32.81804461950709
+    },
+    {
+      "workload": "rune",
+      "pattern": 2,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 725395804892179309,
+      "samples_ns": {
+        "cinch": [
+          8498453,
+          9090155,
+          8645594
+        ],
+        "reference": [
+          354654,
+          265130,
+          262766
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 1080699.25,
+        "reference": 33141.25
+      },
+      "cinch_over_reference": 32.60888620676649
+    },
+    {
+      "workload": "rune",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 6697459482123334509,
+      "samples_ns": {
+        "cinch": [
+          136201230,
+          135180902,
+          135652313
+        ],
+        "reference": [
+          3950957,
+          4100562,
+          3949384
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 16956539.125,
+        "reference": 493869.625
+      },
+      "cinch_over_reference": 34.334039322624875
+    },
+    {
+      "workload": "line",
+      "pattern": 0,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 10910350962707669109,
+      "samples_ns": {
+        "cinch": [
+          219481,
+          243797,
+          221383
+        ],
+        "reference": [
+          68964,
+          64697,
+          83807
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 27672.875,
+        "reference": 8620.5
+      },
+      "cinch_over_reference": 3.2101241227307002
+    },
+    {
+      "workload": "line",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 9016674320020725045,
+      "samples_ns": {
+        "cinch": [
+          3401528,
+          3558395,
+          3557613
+        ],
+        "reference": [
+          680556,
+          662379,
+          668197
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 444701.625,
+        "reference": 83524.625
+      },
+      "cinch_over_reference": 5.324197803941053
+    },
+    {
+      "workload": "line",
+      "pattern": 1,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 4304242471335198893,
+      "samples_ns": {
+        "cinch": [
+          1088200,
+          1200019,
+          1322654
+        ],
+        "reference": [
+          87232,
+          90566,
+          83485
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 150002.375,
+        "reference": 10904.0
+      },
+      "cinch_over_reference": 13.75663747248716
+    },
+    {
+      "workload": "line",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 7866933224504398205,
+      "samples_ns": {
+        "cinch": [
+          18351237,
+          17383888,
+          17917783
+        ],
+        "reference": [
+          1073969,
+          1086909,
+          1206900
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2239722.875,
+        "reference": 135863.625
+      },
+      "cinch_over_reference": 16.485081087745158
+    },
+    {
+      "workload": "line",
+      "pattern": 2,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 846665463789780885,
+      "samples_ns": {
+        "cinch": [
+          99440,
+          130517,
+          100322
+        ],
+        "reference": [
+          61332,
+          60271,
+          58178
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 12540.25,
+        "reference": 7533.875
+      },
+      "cinch_over_reference": 1.6645152726850392
+    },
+    {
+      "workload": "line",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 306184065046100853,
+      "samples_ns": {
+        "cinch": [
+          1281442,
+          1274591,
+          1265357
+        ],
+        "reference": [
+          528107,
+          540836,
+          454686
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 159323.875,
+        "reference": 66013.375
+      },
+      "cinch_over_reference": 2.413509004803951
+    },
+    {
+      "workload": "write",
+      "pattern": 0,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 15682624696804015813,
+      "samples_ns": {
+        "cinch": [
+          19980,
+          19719,
+          20411
+        ],
+        "reference": [
+          15514,
+          19509,
+          16435
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2497.5,
+        "reference": 2054.375
+      },
+      "cinch_over_reference": 1.2156982050501977
+    },
+    {
+      "workload": "write",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 17869233969739663829,
+      "samples_ns": {
+        "cinch": [
+          77376,
+          77597,
+          77597
+        ],
+        "reference": [
+          115975,
+          168965,
+          165509
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 9699.625,
+        "reference": 20688.625
+      },
+      "cinch_over_reference": 0.46883855258626417
+    },
+    {
+      "workload": "write",
+      "pattern": 1,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 15895263185072242757,
+      "samples_ns": {
+        "cinch": [
+          19309,
+          18678,
+          18989
+        ],
+        "reference": [
+          15223,
+          15954,
+          15623
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2373.625,
+        "reference": 1952.875
+      },
+      "cinch_over_reference": 1.2154515778019586
+    },
+    {
+      "workload": "write",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 853713127631757189,
+      "samples_ns": {
+        "cinch": [
+          77337,
+          74512,
+          77507
+        ],
+        "reference": [
+          154192,
+          182395,
+          138048
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 9667.125,
+        "reference": 19274.0
+      },
+      "cinch_over_reference": 0.501562986406558
+    },
+    {
+      "workload": "write",
+      "pattern": 2,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 9543931252664930229,
+      "samples_ns": {
+        "cinch": [
+          18799,
+          19279,
+          19770
+        ],
+        "reference": [
+          87031,
+          14682,
+          14983
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2409.875,
+        "reference": 1872.875
+      },
+      "cinch_over_reference": 1.2867249549489421
+    },
+    {
+      "workload": "write",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 6180086805486342069,
+      "samples_ns": {
+        "cinch": [
+          81522,
+          76635,
+          93972
+        ],
+        "reference": [
+          133662,
+          152120,
+          116255
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 10190.25,
+        "reference": 16707.75
+      },
+      "cinch_over_reference": 0.6099115679849172
+    },
+    {
+      "workload": "transfer",
+      "pattern": 0,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 15682624696804015813,
+      "samples_ns": {
+        "cinch": [
+          27852,
+          25238,
+          25338
+        ],
+        "reference": [
+          58258,
+          54081,
+          25158
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 3167.25,
+        "reference": 6760.125
+      },
+      "cinch_over_reference": 0.46851944305763576
+    },
+    {
+      "workload": "transfer",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 17869233969739663829,
+      "samples_ns": {
+        "cinch": [
+          190407,
+          182034,
+          168123
+        ],
+        "reference": [
+          304500,
+          461847,
+          477670
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 22754.25,
+        "reference": 57730.875
+      },
+      "cinch_over_reference": 0.39414351506018225
+    },
+    {
+      "workload": "transfer",
+      "pattern": 1,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 15895263185072242757,
+      "samples_ns": {
+        "cinch": [
+          45969,
+          61944,
+          28714
+        ],
+        "reference": [
+          24417,
+          27632,
+          25158
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 5746.125,
+        "reference": 3144.75
+      },
+      "cinch_over_reference": 1.827212020033389
+    },
+    {
+      "workload": "transfer",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 853713127631757189,
+      "samples_ns": {
+        "cinch": [
+          170888,
+          168654,
+          1089723
+        ],
+        "reference": [
+          359422,
+          430769,
+          328385
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 21361.0,
+        "reference": 44927.75
+      },
+      "cinch_over_reference": 0.4754522538965339
+    },
+    {
+      "workload": "transfer",
+      "pattern": 2,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 9543931252664930229,
+      "samples_ns": {
+        "cinch": [
+          25839,
+          25969,
+          25728
+        ],
+        "reference": [
+          26800,
+          28003,
+          23775
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 3229.875,
+        "reference": 3350.0
+      },
+      "cinch_over_reference": 0.9641417910447762
+    },
+    {
+      "workload": "transfer",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 6180086805486342069,
+      "samples_ns": {
+        "cinch": [
+          166851,
+          168364,
+          171719
+        ],
+        "reference": [
+          390399,
+          795540,
+          325350
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 21045.5,
+        "reference": 48799.875
+      },
+      "cinch_over_reference": 0.43126135056698406
+    },
+    {
+      "workload": "scan-line",
+      "pattern": 0,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 10910350962707669109,
+      "samples_ns": {
+        "cinch": [
+          461986,
+          401405,
+          441836
+        ],
+        "reference": [
+          62083,
+          66821,
+          66300
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 55229.5,
+        "reference": 8287.5
+      },
+      "cinch_over_reference": 6.664193061840121
+    },
+    {
+      "workload": "scan-line",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 9016674320020725045,
+      "samples_ns": {
+        "cinch": [
+          6405247,
+          5563327,
+          6173187
+        ],
+        "reference": [
+          854308,
+          628778,
+          600635
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 771648.375,
+        "reference": 78597.25
+      },
+      "cinch_over_reference": 9.817752847586906
+    },
+    {
+      "workload": "scan-line",
+      "pattern": 1,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 4304242471335198893,
+      "samples_ns": {
+        "cinch": [
+          2050040,
+          1801636,
+          2084783
+        ],
+        "reference": [
+          82314,
+          79871,
+          77116
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 256255.0,
+        "reference": 9983.875
+      },
+      "cinch_over_reference": 25.66688785666888
+    },
+    {
+      "workload": "scan-line",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 7866933224504398205,
+      "samples_ns": {
+        "cinch": [
+          38282726,
+          30647344,
+          30348924
+        ],
+        "reference": [
+          1514884,
+          1061440,
+          1324477
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 3830918.0,
+        "reference": 165559.625
+      },
+      "cinch_over_reference": 23.139204380295016
+    },
+    {
+      "workload": "scan-line",
+      "pattern": 2,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 846665463789780885,
+      "samples_ns": {
+        "cinch": [
+          170356,
+          213602,
+          141864
+        ],
+        "reference": [
+          64437,
+          59209,
+          64207
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 21294.5,
+        "reference": 8025.875
+      },
+      "cinch_over_reference": 2.6532309561262792
+    },
+    {
+      "workload": "scan-line",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 306184065046100853,
+      "samples_ns": {
+        "cinch": [
+          1859884,
+          1856409,
+          1781636
+        ],
+        "reference": [
+          377629,
+          504351,
+          434785
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 232051.125,
+        "reference": 54348.125
+      },
+      "cinch_over_reference": 4.269717216555309
+    },
+    {
+      "workload": "scan-rune",
+      "pattern": 0,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 8961590216361297973,
+      "samples_ns": {
+        "cinch": [
+          21930132,
+          25941915,
+          21843682
+        ],
+        "reference": [
+          437850,
+          445111,
+          437320
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2741266.5,
+        "reference": 54731.25
+      },
+      "cinch_over_reference": 50.08594724220624
+    },
+    {
+      "workload": "scan-rune",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 1068428121296154741,
+      "samples_ns": {
+        "cinch": [
+          344812897,
+          338112456,
+          336875622
+        ],
+        "reference": [
+          6098134,
+          6359287,
+          6252136
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 42264057.0,
+        "reference": 781517.0
+      },
+      "cinch_over_reference": 54.07951074640731
+    },
+    {
+      "workload": "scan-rune",
+      "pattern": 1,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 16675750353775132853,
+      "samples_ns": {
+        "cinch": [
+          12859627,
+          17876241,
+          11687992
+        ],
+        "reference": [
+          373443,
+          320223,
+          311479
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 1607453.375,
+        "reference": 40027.875
+      },
+      "cinch_over_reference": 40.15834902552284
+    },
+    {
+      "workload": "scan-rune",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 283696559628633301,
+      "samples_ns": {
+        "cinch": [
+          221083906,
+          187088875,
+          189808151
+        ],
+        "reference": [
+          5668195,
+          5968528,
+          4172572
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 23726018.875,
+        "reference": 708524.375
+      },
+      "cinch_over_reference": 33.48652454617387
+    },
+    {
+      "workload": "scan-rune",
+      "pattern": 2,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 4870030567910343357,
+      "samples_ns": {
+        "cinch": [
+          20588079,
+          21947700,
+          22338867
+        ],
+        "reference": [
+          500451,
+          557036,
+          507422
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2743462.5,
+        "reference": 63427.75
+      },
+      "cinch_over_reference": 43.25334731249335
+    },
+    {
+      "workload": "scan-rune",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 8606979084960666301,
+      "samples_ns": {
+        "cinch": [
+          351037841,
+          346716975,
+          364452523
+        ],
+        "reference": [
+          7915971,
+          8232525,
+          7069020
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 43879730.125,
+        "reference": 989496.375
+      },
+      "cinch_over_reference": 44.345518825170025
+    },
+    {
+      "workload": "scan-word",
+      "pattern": 0,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 10910350962707669109,
+      "samples_ns": {
+        "cinch": [
+          430376,
+          430015,
+          498148
+        ],
+        "reference": [
+          104928,
+          107562,
+          106710
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 53797.0,
+        "reference": 13338.75
+      },
+      "cinch_over_reference": 4.033136538281323
+    },
+    {
+      "workload": "scan-word",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 9016674320020725045,
+      "samples_ns": {
+        "cinch": [
+          6750481,
+          6706295,
+          7096120
+        ],
+        "reference": [
+          1300922,
+          1544418,
+          1585199
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 843810.125,
+        "reference": 193052.25
+      },
+      "cinch_over_reference": 4.370889875668375
+    },
+    {
+      "workload": "scan-word",
+      "pattern": 1,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 3366394977211934965,
+      "samples_ns": {
+        "cinch": [
+          5465533,
+          5418132,
+          5267386
+        ],
+        "reference": [
+          181653,
+          250216,
+          182023
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 677266.5,
+        "reference": 22752.875
+      },
+      "cinch_over_reference": 29.766194382028644
+    },
+    {
+      "workload": "scan-word",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 14189436457343499861,
+      "samples_ns": {
+        "cinch": [
+          90345919,
+          84800902,
+          88952604
+        ],
+        "reference": [
+          2948606,
+          3087003,
+          2922516
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 11119075.5,
+        "reference": 368575.75
+      },
+      "cinch_over_reference": 30.16768059211709
+    },
+    {
+      "workload": "scan-word",
+      "pattern": 2,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 16545011249584500789,
+      "samples_ns": {
+        "cinch": [
+          2094984,
+          2079231,
+          2634394
+        ],
+        "reference": [
+          239149,
+          186821,
+          209294
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 261873.0,
+        "reference": 26161.75
+      },
+      "cinch_over_reference": 10.009766166254169
+    },
+    {
+      "workload": "scan-word",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 6636218111257471029,
+      "samples_ns": {
+        "cinch": [
+          34105374,
+          32380410,
+          32766262
+        ],
+        "reference": [
+          2403958,
+          2439797,
+          2685898
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 4095782.75,
+        "reference": 304974.625
+      },
+      "cinch_over_reference": 13.429913226387278
+    },
+    {
+      "workload": "copy",
+      "pattern": 0,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 16779619500455943877,
+      "samples_ns": {
+        "cinch": [
+          4527,
+          4036,
+          4096
+        ],
+        "reference": [
+          9154,
+          10666,
+          9033
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 512.0,
+        "reference": 1144.25
+      },
+      "cinch_over_reference": 0.44745466462748523
+    },
+    {
+      "workload": "copy",
+      "pattern": 0,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 985137779632179669,
+      "samples_ns": {
+        "cinch": [
+          38568,
+          42084,
+          37577
+        ],
+        "reference": [
+          109786,
+          184549,
+          114753
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 4821.0,
+        "reference": 14344.125
+      },
+      "cinch_over_reference": 0.3360957883454027
+    },
+    {
+      "workload": "copy",
+      "pattern": 1,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 5019898254631559237,
+      "samples_ns": {
+        "cinch": [
+          4347,
+          4166,
+          4447
+        ],
+        "reference": [
+          8743,
+          8793,
+          8753
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 543.375,
+        "reference": 1094.125
+      },
+      "cinch_over_reference": 0.49662972695075974
+    },
+    {
+      "workload": "copy",
+      "pattern": 1,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 8128926916270497669,
+      "samples_ns": {
+        "cinch": [
+          40430,
+          37035,
+          38298
+        ],
+        "reference": [
+          139831,
+          168153,
+          133511
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 4787.25,
+        "reference": 17478.875
+      },
+      "cinch_over_reference": 0.2738877645157369
+    },
+    {
+      "workload": "copy",
+      "pattern": 2,
+      "size": 4096,
+      "iterations": 8,
+      "checksum": 13337918556068974517,
+      "samples_ns": {
+        "cinch": [
+          5278,
+          5148,
+          4606
+        ],
+        "reference": [
+          9154,
+          14122,
+          8733
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 643.5,
+        "reference": 1144.25
+      },
+      "cinch_over_reference": 0.5623771029058335
+    },
+    {
+      "workload": "copy",
+      "pattern": 2,
+      "size": 65536,
+      "iterations": 8,
+      "checksum": 2120685480446103477,
+      "samples_ns": {
+        "cinch": [
+          57486,
+          37426,
+          38728
+        ],
+        "reference": [
+          131889,
+          153382,
+          241975
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 4841.0,
+        "reference": 19172.75
+      },
+      "cinch_over_reference": 0.2524937737152991
+    }
+  ],
+  "cpu_stat_start": "usage_usec 143225702391\nuser_usec 134934198279\nsystem_usec 8291504112\nnice_usec 481860771\nnr_periods 987797\nnr_throttled 41884\nthrottled_usec 1756484028\nnr_bursts 0\nburst_usec 0\n",
+  "cpu_stat_end": "usage_usec 143238360674\nuser_usec 134946175437\nsystem_usec 8292185236\nnice_usec 481860771\nnr_periods 987882\nnr_throttled 41884\nthrottled_usec 1756484028\nnr_bursts 0\nburst_usec 0\n",
+  "background": "Root runtime build on CPU3; JSON Native unit on CPU2; Collections potentially CPU1. Compare/Path held CPU0/4; no own CPU2 process.",
+  "allocation_evidence": [
+    {
+      "workload": "byte",
+      "pattern": "ASCII",
+      "bytes_per_iteration": 4096,
+      "iterations": 3,
+      "setup_only": {
+        "blocks": 140,
+        "bytes": 11909,
+        "peak": 8643,
+        "header-blocks": 102,
+        "header-bytes": 2096,
+        "immortal": 0,
+        "freed": 102,
+        "live": 0
+      },
+      "full": {
+        "blocks": 73961,
+        "bytes": 1931147,
+        "peak": 17067,
+        "header-blocks": 73913,
+        "header-bytes": 1872216,
+        "immortal": 0,
+        "freed": 73913,
+        "live": 0
+      },
+      "incremental_headers_per_observation": 6.006754557291667
+    },
+    {
+      "workload": "rune",
+      "pattern": "ASCII",
+      "bytes_per_iteration": 4096,
+      "iterations": 3,
+      "setup_only": {
+        "blocks": 140,
+        "bytes": 11909,
+        "peak": 8643,
+        "header-blocks": 102,
+        "header-bytes": 2096,
+        "immortal": 0,
+        "freed": 102,
+        "live": 0
+      },
+      "full": {
+        "blocks": 110831,
+        "bytes": 2717891,
+        "peak": 21155,
+        "header-blocks": 110783,
+        "header-bytes": 2658960,
+        "immortal": 0,
+        "freed": 110783,
+        "live": 0
+      },
+      "incremental_headers_per_observation": 9.007242838541666
+    },
+    {
+      "workload": "scan-rune",
+      "pattern": "ASCII",
+      "bytes_per_iteration": 4096,
+      "iterations": 3,
+      "setup_only": {
+        "blocks": 134,
+        "bytes": 11804,
+        "peak": 8653,
+        "header-blocks": 96,
+        "header-bytes": 1976,
+        "immortal": 0,
+        "freed": 96,
+        "live": 0
+      },
+      "full": {
+        "blocks": 221468,
+        "bytes": 30742940,
+        "peak": 21285,
+        "header-blocks": 159972,
+        "header-bytes": 5413664,
+        "immortal": 0,
+        "freed": 159972,
+        "live": 0
+      },
+      "incremental_headers_per_observation": 13.0107421875
+    }
+  ],
+  "hot_functions": {
+    "Main.read-bytes": {
+      "ir_lines": 2039,
+      "static_ir_callsites": {
+        "Effect.Buffered.Reader.buffered-read-byte#cc": 1,
+        "Effect.Buffered.Reader.read-byte-from#cc": 4,
+        "Main.plus": 5,
+        "cinch.prim.wrappingU8ToU64": 5,
+        "cinch.rc.drop.obj": 91,
+        "cinch.rc.dup.obj": 25,
+        "cinch.rc.unique": 18,
+        "cinch_alloc_ctor": 8,
+        "cinch_free": 18
+      },
+      "optimized_assembly_lines": 2006,
+      "optimized_assembly_callsites": {
+        "\"Effect.Buffered.Reader.buffered-read-byte#cc\"@PLT": 1,
+        "\"Effect.Buffered.Reader.read-byte-from#cc\"@PLT": 4,
+        "cinch.rc.drop.obj": 3,
+        "cinch.rc.dup.obj": 2,
+        "cinch_alloc_ctor@PLT": 8,
+        "cinch_drop_mt@PLT": 24,
+        "cinch_drop_slow@PLT": 24,
+        "cinch_dup_mt@PLT": 21,
+        "cinch_free@PLT": 7
+      }
+    },
+    "Main.read-runes": {
+      "ir_lines": 1581,
+      "static_ir_callsites": {
+        "Effect.Buffered.Reader.buffered-read-rune#cc": 5,
+        "Main.plus": 10,
+        "cinch.prim.charToU32": 5,
+        "cinch.prim.leI64": 5,
+        "cinch.prim.wrappingI64ToU64": 5,
+        "cinch.prim.wrappingU32ToU64": 5,
+        "cinch.rc.drop.obj": 80,
+        "cinch.rc.drop.tobj": 15,
+        "cinch.rc.dup.obj": 10,
+        "cinch.rc.dup.tobj": 10,
+        "cinch.rc.unique": 15,
+        "cinch.runtime.natCmp": 5,
+        "cinch.runtime.natToI64": 5,
+        "cinch_free": 15
+      },
+      "optimized_assembly_lines": 2232,
+      "optimized_assembly_callsites": {
+        "\"Effect.Buffered.Reader.buffered-read-rune#cc\"@PLT": 5,
+        "cinch.rc.drop.obj": 1,
+        "cinch_drop_mt@PLT": 32,
+        "cinch_drop_slow@PLT": 32,
+        "cinch_dup_mt@PLT": 19,
+        "cinch_free@PLT": 15,
+        "cinch_nat_cmp@PLT": 10,
+        "cinch_nat_to_i64@PLT": 10
+      }
+    },
+    "Effect.Buffered.Reader.read-byte-from#cc": {
+      "ir_lines": 1417,
+      "static_ir_callsites": {
+        "Data.Core.Err@OR": 2,
+        "Data.Core.Err@OT": 1,
+        "Data.Core.Ok@OT": 1,
+        "Data.Core.Some@O": 4,
+        "Effect.Buffered.Core.BufferFull": 1,
+        "Effect.Buffered.Core.BufferInvalidReadCount": 2,
+        "Effect.Buffered.Reader.BufferedInput": 6,
+        "Effect.Buffered.Reader.Window": 6,
+        "Effect.Buffered.Reader.buffered-reader-buffered@R": 1,
+        "Effect.Buffered.Reader.fill": 1,
+        "Effect.Buffered.Reader.fill-raw": 1,
+        "Effect.Buffered.Reader.read-byte-from.shared0#cc": 2,
+        "Effect.Buffered.Reader.take-error@R#cc": 2,
+        "__apply": 3,
+        "cinch.prim.gtI64": 3,
+        "cinch.prim.leI64": 11,
+        "cinch.prim.ltI64": 3,
+        "cinch.rc.drop.obj": 47,
+        "cinch.rc.drop.tobj": 31,
+        "cinch.rc.dup.obj": 21,
+        "cinch.rc.dup.tobj": 21,
+        "cinch.rc.unique": 11,
+        "cinch.runtime.bytesCopy": 2,
+        "cinch.runtime.bytesLen": 14,
+        "cinch.runtime.bytesNew": 1,
+        "cinch.runtime.intCmp": 3,
+        "cinch.runtime.intFromNat": 3,
+        "cinch.runtime.intToNat": 1,
+        "cinch.runtime.natAdd": 4,
+        "cinch.runtime.natCmp": 14,
+        "cinch.runtime.natSub": 3,
+        "cinch_free": 11
+      },
+      "optimized_assembly_lines": 4697,
+      "optimized_assembly_callsites": {
+        "\"Effect.Buffered.Reader.buffered-reader-buffered@R\"@PLT": 1,
+        "\"Effect.Buffered.Reader.fill-raw\"@PLT": 1,
+        "\"Effect.Buffered.Reader.read-byte-from.shared0#cc\"@PLT": 1,
+        "\"Effect.Buffered.Reader.take-error@R#cc\"@PLT": 2,
+        "*(%r14)": 1,
+        "Effect.Buffered.Reader.fill@PLT": 1,
+        "cinch.rc.drop.obj": 13,
+        "cinch.rc.drop.tobj": 11,
+        "cinch.rc.dup.obj": 4,
+        "cinch.rc.dup.tobj": 2,
+        "cinch_alloc_ctor@PLT": 19,
+        "cinch_bytes_copy@PLT": 2,
+        "cinch_bytes_len@PLT": 17,
+        "cinch_bytes_new@PLT": 1,
+        "cinch_drop_mt@PLT": 60,
+        "cinch_drop_slow@PLT": 60,
+        "cinch_dup_mt@PLT": 36,
+        "cinch_free@PLT": 11,
+        "cinch_int_cmp@PLT": 3,
+        "cinch_int_from_nat@PLT": 3,
+        "cinch_int_to_nat@PLT": 1,
+        "cinch_nat_add@PLT": 3,
+        "cinch_nat_cmp@PLT": 17,
+        "cinch_nat_sub@PLT": 5,
+        "cinch_nat_to_i64@PLT": 4,
+        "cinch_nat_to_len@PLT": 1
+      }
+    },
+    "Effect.Scanner.scanner-next#cc": {
+      "ir_lines": 347,
+      "static_ir_callsites": {
+        "Effect.Scanner.Scanning": 1,
+        "Effect.Scanner.compact@R": 1,
+        "Effect.Scanner.evaluate#cc": 2,
+        "Effect.Scanner.grow@R": 1,
+        "Effect.Scanner.read-more": 1,
+        "Effect.Scanner.scan-loop#cc": 1,
+        "cinch.prim.gtI64": 1,
+        "cinch.rc.drop.obj": 13,
+        "cinch.rc.drop.tobj": 3,
+        "cinch.rc.dup.obj": 8,
+        "cinch.rc.dup.tobj": 4,
+        "cinch.rc.unique": 1,
+        "cinch.runtime.natCmp": 1,
+        "cinch_free": 1
+      },
+      "optimized_assembly_lines": 857,
+      "optimized_assembly_callsites": {
+        "\"Effect.Scanner.compact@R\"@PLT": 1,
+        "\"Effect.Scanner.grow@R\"@PLT": 1,
+        "\"Effect.Scanner.read-more\"@PLT": 1,
+        "cinch.rc.drop.obj": 4,
+        "cinch.rc.dup.obj": 1,
+        "cinch_alloc_ctor@PLT": 1,
+        "cinch_drop_mt@PLT": 13,
+        "cinch_drop_slow@PLT": 13,
+        "cinch_dup_mt@PLT": 11,
+        "cinch_free@PLT": 1,
+        "cinch_nat_cmp@PLT": 1
+      }
+    },
+    "Effect.Scanner.Split.scan-runes#cc": {
+      "ir_lines": 206,
+      "static_ir_callsites": {
+        "Data.Bytes.Utf8.utf8-decode-at": 1,
+        "Data.Bytes.Utf8.utf8-encode-rune": 1,
+        "Data.Bytes.Utf8.utf8-full-rune": 1,
+        "Data.Core.Some@O": 2,
+        "Effect.Scanner.Split.part": 1,
+        "cinch.prim.eqI64": 1,
+        "cinch.prim.notBool": 2,
+        "cinch.rc.drop.obj": 3,
+        "cinch.rc.drop.tobj": 2,
+        "cinch.rc.dup.obj": 1,
+        "cinch.rc.dup.tobj": 1,
+        "cinch.rc.unique": 1,
+        "cinch.runtime.bytesLen": 1,
+        "cinch.runtime.intFromNat": 1,
+        "cinch.runtime.natCmp": 1,
+        "cinch_free": 1
+      },
+      "optimized_assembly_lines": 190,
+      "optimized_assembly_callsites": {
+        "\"Data.Bytes.Utf8.utf8-decode-at\"@PLT": 1,
+        "\"Data.Bytes.Utf8.utf8-encode-rune\"@PLT": 1,
+        "\"Data.Bytes.Utf8.utf8-full-rune\"@PLT": 1,
+        "Effect.Scanner.Split.part@PLT": 1,
+        "cinch.rc.drop.obj": 3,
+        "cinch.rc.drop.tobj": 2,
+        "cinch.rc.dup.obj": 1,
+        "cinch_alloc_ctor@PLT": 2,
+        "cinch_bytes_len@PLT": 1,
+        "cinch_dup_mt@PLT": 1,
+        "cinch_free@PLT": 1,
+        "cinch_int_from_nat@PLT": 1
+      }
+    }
+  },
+  "limitations": [
+    "Three paired samples preserve raw noise; these are one admitted host/compiler epoch.",
+    "Byte fingerprints observe length and selected positions; independent full functional corpora provide separate byte-exact validation.",
+    "Scalar public reader/scanner paths remain allocation-heavy. Bulk write/transfer and fresh-copy control do not show the same slowdown.",
+    "No source mutation is selected from these measurements. Compare the exact source under an admitted borrow/reuse compiler before adopting a compiler optimization.",
+    "Native public benchmark and remaining complete-family runtime gates are pending.",
+    "The separate retained-callback ownership cycle still blocks full buffered-family promotion."
+  ]
+}
