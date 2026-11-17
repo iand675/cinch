@@ -1,0 +1,10 @@
+{
+  "scope": "Mirror Root RAII panic-retention guard at both qualification TempDir sites; two rustfmt-only include_str line wraps. Success cleanup unchanged; all other test logic byte-identical after these precise normalizations. No fixture/oracle/production/compiler/runtime change.",
+  "base_checkpoint": "e4d3d1661033f2bc637bb1ebe4811208d55d9aa0",
+  "old_harness_sha256": "c3c28b19ca9e8f442b186081f7ba8613a091ff132b7178c36cf7eb40107869eb",
+  "new_harness_sha256": "89c2fa198bfea24340fa1df27fa63c856005641fa759b7239efcd40d8778e44e",
+  "parent_mirror_path": "/workspace/dasl-stdlib-io/compiler/tests/lib_json_codec.rs",
+  "parent_harness_sha256": "89c2fa198bfea24340fa1df27fa63c856005641fa759b7239efcd40d8778e44e",
+  "new_local_Cargo_run": false,
+  "parent_gate": "Root owns separate v2 full target; no verdict is restamped here."
+}

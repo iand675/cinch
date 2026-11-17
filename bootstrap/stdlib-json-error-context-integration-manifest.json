@@ -10,7 +10,7 @@
   "new_production_llvm": false,
   "source_representation_note": "JsonType adds a private root read-name field; JsonSemanticInfo preserves Option String identity; JsonError adds exact typed metadata and a private immutable context barrier. Source consumers compile together; no frozen Native representation equivalence is claimed.",
   "maintained_test_file": "compiler/tests/lib_json_codec.rs",
-  "maintained_test_file_sha256": "c3c28b19ca9e8f442b186081f7ba8613a091ff132b7178c36cf7eb40107869eb",
+  "maintained_test_file_sha256": "89c2fa198bfea24340fa1df27fa63c856005641fa759b7239efcd40d8778e44e",
   "new_sdk_free_tests_relative_to_base": {
     "json_method_error_families_prefixes_and_context_match_observations": {
       "fixture": "compiler/tests/fixtures/json-codec-error-methods.cinch",
@@ -53,7 +53,7 @@
     "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
     "Text.Json.Codec": "48086c1af3fd07773cfa825de0578f81c75f049ef44948ba2729c47c132eb595"
   },
-  "root_dependency_handling": "Change only Value/Codec, the two new literal consumers and additive test wiring. Preserve Root Array/Word/Binary32/other dependency source epochs. The exact6 dependency hashes describe qualification inputs, not requested replacements. Root may independently qualify its current compiler/runtime and parent sources.",
+  "root_dependency_handling": "Integrate Value/Codec and additive tests while ensuring the separately listed published765 Dynamic addressability line is present. Preserve Root Array/Word/Binary32/other independent epochs; recorded standalone dependency hashes do not request replacing them.",
   "current_qualification": {
     "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
     "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
@@ -77,5 +77,16 @@
     "Bounded Effect.Json and exact original IO causes/advanced handles",
     "Actual public pipelines and paired performance/lowering/ownership evidence",
     "Native qualification and final92 reconciliation"
-  ]
+  ],
+  "base_qualified_harness_sha256": "c3c28b19ca9e8f442b186081f7ba8613a091ff132b7178c36cf7eb40107869eb",
+  "harness_failure_retention_receipt": "bootstrap/stdlib-json-failure-retention-harness-v1.json",
+  "required_prior_source_dependency": {
+    "compiler/prelude/Text/Json/Dynamic.cinch": {
+      "sha256": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93",
+      "published_checkpoint": "765ad059f65f304fcb653d49404c42e8f7d797dc",
+      "required_behavior": "json-any-typed clears inherited write addressability before encoding its opaque payload",
+      "difference_from_prior_Root_21fec7f0": "One previously published line; retained Root integration test exited6 despite79rows passing because the closure omitted it. Preserve Root other Dynamic changes while curating this semantic line.",
+      "note": "Earlier two-production-file integration claim omitted this required inherited source dependency. Current1494 fixtures do not cover this separate typed-interface control."
+    }
+  }
 }
