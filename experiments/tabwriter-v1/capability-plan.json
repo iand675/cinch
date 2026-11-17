@@ -1,0 +1,161 @@
+{
+  "status": "full19-record plan only; all implementation/runtime/performance gates open",
+  "declaration_records": 19,
+  "current_identities": 12,
+  "historical_duplicates": 7,
+  "production_adopted": false,
+  "records": [
+    {
+      "reference_declaration": "const AlignRight = 4",
+      "current_identity": "AlignRight",
+      "record_kind": "current constant value record",
+      "planned_native": "Text.Tabwriter.tab-align-right",
+      "behavior": "Formatting flag bit 4; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const AlignRight uint",
+      "current_identity": "AlignRight",
+      "record_kind": "historical constant typing record",
+      "planned_native": "Text.Tabwriter.tab-align-right",
+      "behavior": "Formatting flag bit 4; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const Debug = 32",
+      "current_identity": "Debug",
+      "record_kind": "current constant value record",
+      "planned_native": "Text.Tabwriter.tab-debug",
+      "behavior": "Formatting flag bit 32; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const Debug uint",
+      "current_identity": "Debug",
+      "record_kind": "historical constant typing record",
+      "planned_native": "Text.Tabwriter.tab-debug",
+      "behavior": "Formatting flag bit 32; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const DiscardEmptyColumns = 8",
+      "current_identity": "DiscardEmptyColumns",
+      "record_kind": "current constant value record",
+      "planned_native": "Text.Tabwriter.tab-discard-empty-columns",
+      "behavior": "Formatting flag bit 8; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const DiscardEmptyColumns uint",
+      "current_identity": "DiscardEmptyColumns",
+      "record_kind": "historical constant typing record",
+      "planned_native": "Text.Tabwriter.tab-discard-empty-columns",
+      "behavior": "Formatting flag bit 8; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const Escape = 255",
+      "current_identity": "Escape",
+      "record_kind": "current constant value record",
+      "planned_native": "Text.Tabwriter.tab-escape-byte",
+      "behavior": "Raw escape delimiter byte255; it is not its UTF-8 text encoding.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const Escape ideal-char",
+      "current_identity": "Escape",
+      "record_kind": "historical constant typing record",
+      "planned_native": "Text.Tabwriter.tab-escape-byte",
+      "behavior": "Raw escape delimiter byte255; it is not its UTF-8 text encoding.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const FilterHTML = 1",
+      "current_identity": "FilterHTML",
+      "record_kind": "current constant value record",
+      "planned_native": "Text.Tabwriter.tab-filter-html",
+      "behavior": "Formatting flag bit 1; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const FilterHTML uint",
+      "current_identity": "FilterHTML",
+      "record_kind": "historical constant typing record",
+      "planned_native": "Text.Tabwriter.tab-filter-html",
+      "behavior": "Formatting flag bit 1; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const StripEscape = 2",
+      "current_identity": "StripEscape",
+      "record_kind": "current constant value record",
+      "planned_native": "Text.Tabwriter.tab-strip-escape",
+      "behavior": "Formatting flag bit 2; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const StripEscape uint",
+      "current_identity": "StripEscape",
+      "record_kind": "historical constant typing record",
+      "planned_native": "Text.Tabwriter.tab-strip-escape",
+      "behavior": "Formatting flag bit 2; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const TabIndent = 16",
+      "current_identity": "TabIndent",
+      "record_kind": "current constant value record",
+      "planned_native": "Text.Tabwriter.tab-indent",
+      "behavior": "Formatting flag bit 16; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "const TabIndent uint",
+      "current_identity": "TabIndent",
+      "record_kind": "historical constant typing record",
+      "planned_native": "Text.Tabwriter.tab-indent",
+      "behavior": "Formatting flag bit 16; record shares the same current identity as its paired declaration.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "func NewWriter(io.Writer, int, int, int, uint8, uint) *Writer",
+      "current_identity": "NewWriter",
+      "record_kind": "current constructor",
+      "planned_native": "Text.Tabwriter.tab-config + Effect.Tabwriter.tab-writer",
+      "behavior": "Checked configuration plus initialized writer; arbitrary owned bytes and output error payloads preserved.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "method (*Writer) Flush() error",
+      "current_identity": "Writer.Flush",
+      "record_kind": "current method",
+      "planned_native": "Effect.Tabwriter.tab-writer-flush",
+      "behavior": "Flush all buffered layout, complete an unfinished escape for formatting, then reset even after an output error.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "method (*Writer) Init(io.Writer, int, int, int, uint8, uint) *Writer",
+      "current_identity": "Writer.Init",
+      "record_kind": "current method",
+      "planned_native": "Effect.Tabwriter.tab-writer-init",
+      "behavior": "Reset buffered layout without flushing/closing the old output; aliases observe the same initialized handle.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "method (*Writer) Write([]uint8) (int, error)",
+      "current_identity": "Writer.Write",
+      "record_kind": "current method",
+      "planned_native": "Effect.Tabwriter.tab-writer-write",
+      "behavior": "Return consumed input count and optional original output failure; automatic flush checkpoints and output offers need independent traces.",
+      "status": "planned; not implemented or qualified"
+    },
+    {
+      "reference_declaration": "type Writer struct",
+      "current_identity": "Writer",
+      "record_kind": "current opaque initialized handle",
+      "planned_native": "Effect.Tabwriter.TabWriter",
+      "behavior": "Opaque region-indexed handle; shared alias semantics, private initialized IO cell, no public backing storage.",
+      "status": "planned; not implemented or qualified"
+    }
+  ]
+}
