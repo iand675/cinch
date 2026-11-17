@@ -1,0 +1,14 @@
+{
+  "pid": 792556,
+  "command": [
+    "taskset",
+    "-c",
+    "1",
+    "/workspace/dasl-stdlib-io/build/stdlib-driver-phase-frozen/cinch",
+    "check",
+    "/workspace/dasl-stdlib-native-mvar/build/native-mvar-phase-diagnostic-v1/sources/Main.cinch"
+  ],
+  "start_unix": 1794911468.1153486,
+  "start_free_bytes": 324952064,
+  "deadline_seconds": 60
+}

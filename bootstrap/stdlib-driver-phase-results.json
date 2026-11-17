@@ -1,0 +1,50 @@
+{
+  "scope": "Optional monotonic driver timing diagnostics; compilation behavior and serialized artifacts remain unchanged. Native full-source bottleneck investigation is separate.",
+  "source_checkpoint": "81c6cad5",
+  "compiler_sha256": "75c24ebe648007082891a43f54ad9ccb0de407710dc1134e861915e3fde6cfa9",
+  "baseline_compiler_sha256": "f9b2c5704c6c2eb5ff0a3047ed7617c3ad2421d327ad84391669bbde3a8846c1",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "unit_gate": {
+    "passed": 339,
+    "failed": 0,
+    "seconds": 201.47,
+    "log": "bootstrap/repros/driver-phase-timing/units.log",
+    "sha256": "746d226fc68b018aaf1e7fe650c1b7b5a749ba325f0a615bf30adcceb55821fd"
+  },
+  "artifact_invariance": {
+    "files_per_epoch": 70,
+    "epochs": [
+      "previous_frozen_compiler",
+      "diagnostics_disabled",
+      "diagnostics_enabled"
+    ],
+    "byte_identical": true,
+    "monotonic_ordered_phase_markers": 12,
+    "report": "bootstrap/repros/driver-phase-timing/invariance-results.json",
+    "sha256": "149c4dc6d3474c99f40f30e2e72cc07fcfa085a4740fa0988c66b33f45e324b2"
+  },
+  "reproduction": "python3 bootstrap/repros/driver-phase-timing/probe.py --compiler PATH --baseline BASELINE --work FRESH_DIRECTORY",
+  "pending": [
+    "Finer attribution inside the multi-module checker",
+    "Any algorithmic performance repair",
+    "Native-family admission"
+  ],
+  "resource_scope": "For source-only diagnostic, sole producer, start290MiB/reserve250MiB/new20MiB; no compiler check, contract or metadata policy is relaxed.",
+  "native_source_observation": {
+    "verdict": "No full-source verdict;60-second deadline reached inside multi-module checker.",
+    "active_boundary": "check_program_multi_full_with_preludes, including internal headers/bodies/staging/laws/interface preparation",
+    "driver_boundaries_not_reached": [
+      "contracts",
+      "interface_bodies",
+      "optimization",
+      "artifacts"
+    ],
+    "log": "bootstrap/repros/driver-phase-timing/native-source-check.log",
+    "log_sha256": "4b78cc7de16e6ee644db4464eb46ca701ad36ea8685277a70749d1df7c962662",
+    "receipt": "bootstrap/repros/driver-phase-timing/native-receipt.json",
+    "receipt_sha256": "5087c3f3d3d91ca02fd4e70bfa21bd2ad8f303b27a7ab2353d716712dd58075f",
+    "source_inputs_remain_plain": "/workspace/dasl-stdlib-native-mvar/build/native-mvar-phase-diagnostic-v1/sources",
+    "algorithm_changes": false,
+    "admission": false
+  }
+}
