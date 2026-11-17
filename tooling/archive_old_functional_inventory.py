@@ -23,6 +23,7 @@ def main() -> None:
     inventory_path = args.inventory.resolve()
     inventory = json.loads(inventory_path.read_text())
     assert inventory['logical_bytes']<=300*1024*1024
+    assert inventory.get('cumulative_logical_bytes',inventory['logical_bytes'])<=300*1024*1024
     pair_path = Path('/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/pair.json')
     assert digest(pair_path)=='cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d'
     protected = {item['path'] for item in json.loads(pair_path.read_text())['verified_files']}
@@ -50,7 +51,7 @@ def main() -> None:
         result = json.loads(report.read_text())
         if 'results' in result:
             group = next(value for value in result['results'] if value['group']==item['group'])
-            profiles = group['profiles']
+            profiles = group[item.get('profile_field','profiles')]
             expected = group['llvm_sha256'] if original.suffix=='.ll' else group['executable_sha256']
         else:
             assert result['status']=='passed'
