@@ -44,6 +44,12 @@
       "to": "compiler/tests/lib_image_color_palette.rs",
       "bytes": 5171,
       "sha256": "fef35c59a082b0bab9453ede1517559dc4671c17fea54727251b393e3987dafb"
+    },
+    {
+      "from": "experiments/image-color-palette-v1/REFERENCE-LICENSE",
+      "to": "experiments/image-color-palette-v1/REFERENCE-LICENSE",
+      "bytes": 1561,
+      "sha256": "c5eb611fbd8f71107fe2032742a5b7c059cf364a6aa480fdadf45f9b5947b3f0"
     }
   ],
   "qualification_receipts": [
@@ -140,12 +146,6 @@
       "sha256": "16a822d23eb6728854cc02dfc69a4cc4fbfb8a5ad83d5eea3821f9ac8f024d73"
     },
     {
-      "from": "experiments/image-color-palette-v1/REFERENCE-LICENSE",
-      "to": "experiments/image-color-palette-v1/REFERENCE-LICENSE",
-      "bytes": 1561,
-      "sha256": "c5eb611fbd8f71107fe2032742a5b7c059cf364a6aa480fdadf45f9b5947b3f0"
-    },
-    {
       "from": "tooling/prepare_color_palette_source.py",
       "to": "tooling/prepare_color_palette_source.py",
       "bytes": 4117,
@@ -238,5 +238,6 @@
     "All frozen/provider/runtime/ELF/LLVM/defining-cache copies",
     "All failure artifacts, kept plain in their original projects",
     "All recovery state and unrelated old WIP"
-  ]
+  ],
+  "reference_data_attribution": "REFERENCE-LICENSE accompanies the exact extracted numeric table order, including imports that omit the SDK reproduction tool."
 }
