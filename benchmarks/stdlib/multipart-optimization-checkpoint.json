@@ -1,0 +1,2579 @@
+{
+  "scope": "Complete O0 relinks of exact accepted O2 source-emission epochs; no compiler/SDK/object substitution",
+  "complete_package_claim": false,
+  "report_path": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/report.json",
+  "report_sha256": "22eb1dda9624c3b5a6517f34cecc543620b16b3b8cd38d9d7cfcb12c448178a4",
+  "coverage_per_frontend": {
+    "boundaries": 264,
+    "dispositions": 292,
+    "writers": 40,
+    "readers": 476,
+    "forms": 27,
+    "cache": 1,
+    "ownership": 4,
+    "entropy": 24
+  },
+  "consumers": 46,
+  "normal_poison_processes": 92,
+  "extra": "Includes one redundant Rust MaxInt64 form consumer already covered by full27 forms.",
+  "profiles": "normal32MiB and separate256MiB poisoned-free; consumer stack8MiB",
+  "runner_sha256": "173a062afcbce65ef02ce1c8c53edb8d2981bba847ff36a8477540bb1acb7cb2",
+  "runs": [
+    {
+      "selector": "rust:dispositions-0256",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/changed-rust-855-v1/report.json",
+      "source_report_sha256": "45b4e3772ea7a77d67ef4fe5cfb04ae121841949e72a340d7caeb719706409e1",
+      "checked_ir_sha256": "053abea8117843263d19f789c813c743491bdbdf99025aef26f76e117417bfe0",
+      "source_sha256": "ca29b0322feb51fbc362f01c616a16c8dcf1d1abd64d2c701b891b993ae8de03",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "",
+      "executable": {
+        "original_sha256": "a2fa3ba774cbd2d0335da8ffa022eb7aa747456b199e98632ae09115fc3345bf",
+        "original_bytes": 6018896,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-dispositions-0256-45b4e3772ea7a77d-O0.gz",
+        "archive_sha256": "de93bab816fedc338cb824100f179c85f6fe0f817c7dd2ff07f3dba46c126ee1",
+        "archive_bytes": 1871672,
+        "verified_decoded_sha256": "a2fa3ba774cbd2d0335da8ffa022eb7aa747456b199e98632ae09115fc3345bf"
+      }
+    },
+    {
+      "selector": "rust:writers-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/changed-rust-855-v1/report.json",
+      "source_report_sha256": "45b4e3772ea7a77d67ef4fe5cfb04ae121841949e72a340d7caeb719706409e1",
+      "checked_ir_sha256": "abbe606ed6a11fc97421ae997cc3539131b6cdbc52ec7e98e7357fd01f828469",
+      "source_sha256": "2b7e54ace3498bf800a291c0bedd40669c328bc86e75fac09f334ea77bed5f22",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-a1045b.o: warning: relocation against `Data.String.Eq_String.==.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "f81018a8278ddfc35f7e399a4d9d6f025a084462706aa087e11c98f6dbd2012a",
+        "original_bytes": 6816680,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-writers-0000-45b4e3772ea7a77d-O0.gz",
+        "archive_sha256": "fa274747df9948ac668c64e35134a10a2519bb112a33889475531acec5f7cf8d",
+        "archive_bytes": 2097887,
+        "verified_decoded_sha256": "f81018a8278ddfc35f7e399a4d9d6f025a084462706aa087e11c98f6dbd2012a"
+      }
+    },
+    {
+      "selector": "native:dispositions-0256",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/changed-native-2f-v1/report.json",
+      "source_report_sha256": "69497b3e4b614ab37fca07587652922f5ee520bcdee156d8c700b6faf71ab675",
+      "checked_ir_sha256": "93bba54578eeae1d4b2ef8ae2cf044de34d91f41cd25ce2950710eef1b868830",
+      "source_sha256": "ca29b0322feb51fbc362f01c616a16c8dcf1d1abd64d2c701b891b993ae8de03",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "e5c5002ebf6b65171515fb0aff01e400442cf0536934950d723420f6e61fe2e1",
+        "original_bytes": 11685568,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-dispositions-0256-69497b3e4b614ab3-O0.gz",
+        "archive_sha256": "b8a3dd752af0b6f86818d4c5d2be610909b93911bfc52dbbecac86554bbabb1e",
+        "archive_bytes": 3312621,
+        "verified_decoded_sha256": "e5c5002ebf6b65171515fb0aff01e400442cf0536934950d723420f6e61fe2e1"
+      }
+    },
+    {
+      "selector": "native:writers-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/changed-native-2f-v1/report.json",
+      "source_report_sha256": "69497b3e4b614ab37fca07587652922f5ee520bcdee156d8c700b6faf71ab675",
+      "checked_ir_sha256": "62fb4f65fe1cb1b8bf893648a844198be9f8a9504d632f877ed96503c7c835ce",
+      "source_sha256": "2b7e54ace3498bf800a291c0bedd40669c328bc86e75fac09f334ea77bed5f22",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "84ae63eea3272d7d4eb3989238e160c0847b332c885defffbaee5a86307346e6",
+        "original_bytes": 12252224,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-writers-0000-69497b3e4b614ab3-O0.gz",
+        "archive_sha256": "30a2b259ce5c65134915d7b9eb2d1049e98de4b0ad3e8183da12abd818589a01",
+        "archive_bytes": 3426643,
+        "verified_decoded_sha256": "84ae63eea3272d7d4eb3989238e160c0847b332c885defffbaee5a86307346e6"
+      }
+    },
+    {
+      "selector": "rust:readers-0448",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v2/report.json",
+      "source_report_sha256": "84131ee2af5a3140aca732cebb10600dc2f9fd89790f37d647f9288ce52417fe",
+      "checked_ir_sha256": "0e96de856b9814315a92b8ef40a5b6c1c18afc05a98b13b0340b2ad8e5af40bf",
+      "source_sha256": "6388489ba7854710c5df5f9834662bd39fcef7a11b01210956c724a2baa5d788",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v2/rust-readers-0448.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v2/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v2/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/rust-readers-0448-ac985c.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "7e7c1205f6170669b449fe8a65fa37bab7a3d9cb4b073eda7c91f7decb9b1325",
+        "original_bytes": 7244632,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0448-84131ee2af5a3140-O0.gz",
+        "archive_sha256": "3f2fcc2dd929552565d59b8bdb60f9b7ecbd569326681956fbc0dc59fda42e25",
+        "archive_bytes": 2249303,
+        "verified_decoded_sha256": "7e7c1205f6170669b449fe8a65fa37bab7a3d9cb4b073eda7c91f7decb9b1325"
+      }
+    },
+    {
+      "selector": "rust:readers-0416",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v2/report.json",
+      "source_report_sha256": "84131ee2af5a3140aca732cebb10600dc2f9fd89790f37d647f9288ce52417fe",
+      "checked_ir_sha256": "ceb81f47c8e4714c6642ce6c6c56491bd88487ee5e698493f23ef83dcecd0e1b",
+      "source_sha256": "c34749912871316488f17e4016c930b0d6c8cf66574cbaf4eb7cd9ab846820b2",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v2/rust-readers-0416.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v2/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v2/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/rust-readers-0416-31abd7.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "d1fbd8d5e29d9bd1fa397d76092520d922597dfac511f4a0aa1ef682e716008b",
+        "original_bytes": 7510608,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0416-84131ee2af5a3140-O0.gz",
+        "archive_sha256": "c12f72ead30c7479973507f03cd12b0e373f484a82bde59fc89befcd9e6c533e",
+        "archive_bytes": 2288607,
+        "verified_decoded_sha256": "d1fbd8d5e29d9bd1fa397d76092520d922597dfac511f4a0aa1ef682e716008b"
+      }
+    },
+    {
+      "selector": "rust:readers-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "cee93504b2698ed7f27c1639d831c6b8b2474d191fdda080cc0bbf9365ab926a",
+      "source_sha256": "ee4e8e2e9f5ef6f8894b4009ec3053d10987b02ff21b00788748a38382181b51",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-bc4dc4.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "ae851fb742aa9da31199e6ffbe8c9a9d09dd5e84454830809ae86225511dad22",
+        "original_bytes": 7197440,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0000-3872764514c0931b-O0.gz",
+        "archive_sha256": "d4a9661042239b8f5eef9389a8ac023aa48e90ccad4334b466e60e6aee200655",
+        "archive_bytes": 2255826,
+        "verified_decoded_sha256": "ae851fb742aa9da31199e6ffbe8c9a9d09dd5e84454830809ae86225511dad22"
+      }
+    },
+    {
+      "selector": "rust:readers-0032",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "ad685919ff340ea37659c7131c09f4dbbb8dcfba108de4935fd13d3cd3154555",
+      "source_sha256": "65342457733e519dc0e696ad418cb760e23153cd88f4089adafbc5866ea2f27e",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-83aafe.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "a4ee9243c32cf20f1e0203096348d584d392b65e7a430c065ae834a144406312",
+        "original_bytes": 7282832,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0032-3872764514c0931b-O0.gz",
+        "archive_sha256": "30d89b7070b73e5415f052dd72ae8ba56e007e52b743db88a4aea087521833be",
+        "archive_bytes": 2273695,
+        "verified_decoded_sha256": "a4ee9243c32cf20f1e0203096348d584d392b65e7a430c065ae834a144406312"
+      }
+    },
+    {
+      "selector": "rust:readers-0064",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "92a84fa043d9f096a6a02a85171a92d72ec48bf308afe0fc33bcde462bed891a",
+      "source_sha256": "ca5bfb1a0415987728951013dc97e254a06d60aa7f3b476e1a362af02f586ba0",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-42399b.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "2b9dbe517bd26ec52972c90aa4ac82e222442c9b6c45d289a410256c7098a6a9",
+        "original_bytes": 7175856,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0064-3872764514c0931b-O0.gz",
+        "archive_sha256": "014a1cce7e94c990be4c107eb6cdeaaf68ad3cdef59bb0f63b8abb64d2138ecf",
+        "archive_bytes": 2247153,
+        "verified_decoded_sha256": "2b9dbe517bd26ec52972c90aa4ac82e222442c9b6c45d289a410256c7098a6a9"
+      }
+    },
+    {
+      "selector": "rust:readers-0096",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "f506587c038cc7864593e785029eac6944599916316b81efc7466aeeebedcd29",
+      "source_sha256": "f2590debd174316883ea563caf93706a92ccfdef8f30d13e97bbc0395df90b6e",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-bfd4ee.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "0803686d5ec842a1ee4e5622f22aeed4b3d0d205ec32ed88ebcf5684c4d12110",
+        "original_bytes": 7176928,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0096-3872764514c0931b-O0.gz",
+        "archive_sha256": "b125e47476eb130fde0120bd00385bfb82b4f23dc5a9b213d6bf510249f00888",
+        "archive_bytes": 2250040,
+        "verified_decoded_sha256": "0803686d5ec842a1ee4e5622f22aeed4b3d0d205ec32ed88ebcf5684c4d12110"
+      }
+    },
+    {
+      "selector": "rust:readers-0128",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "6becfd69d1f6245b2fe3975e875ce02dac46c00552750822bfb6ce7deb5be3b9",
+      "source_sha256": "100a971b5815d9b5025becad2e61ba3ab78a3d9aa7cb008e0a6ed5c7dba22307",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-e8037c.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "2081dbff0593ed21e75fca37aaba874b3fe6d9e94f66b7fec8b0ce878e144d0e",
+        "original_bytes": 7306024,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0128-3872764514c0931b-O0.gz",
+        "archive_sha256": "785880d0a935fc05d1601702c9974ef76ceeb7467ae38e68972ae01de4a7d2af",
+        "archive_bytes": 2285475,
+        "verified_decoded_sha256": "2081dbff0593ed21e75fca37aaba874b3fe6d9e94f66b7fec8b0ce878e144d0e"
+      }
+    },
+    {
+      "selector": "rust:readers-0160",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "0ac950492b04d59a2d576f7f923025c2ac37924df610a8cb16daf764b92961e3",
+      "source_sha256": "139ac0aaea407a8c7e5f025c5374890cb657e7f3e9591a97fb8dcc693b4b6b06",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-423b8b.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "a58a085c44084c7d0abed19862c0980ce5ac2ee57dcf8d4d328ca60db3ff9679",
+        "original_bytes": 7326736,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0160-3872764514c0931b-O0.gz",
+        "archive_sha256": "5cf6fbab97270bd6516e74cf4ad0e01a6a18377afbfb6d7d9a265801ef198c74",
+        "archive_bytes": 2282945,
+        "verified_decoded_sha256": "a58a085c44084c7d0abed19862c0980ce5ac2ee57dcf8d4d328ca60db3ff9679"
+      }
+    },
+    {
+      "selector": "rust:readers-0192",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "e613af10662de51f385aa7d46a3c4974c98cc94a9deb746521e89c77ceeb42d5",
+      "source_sha256": "1328d518b7d78b4e0b0309bd05b5d26c3609bd0f2227aecbf00ff57a0baf26db",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-375283.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "e18d6e3d04625c29dafeb1287d7f178694161dd1e090168514a11da678977587",
+        "original_bytes": 7354392,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0192-3872764514c0931b-O0.gz",
+        "archive_sha256": "d9ca6755cba2d6ea697eba855ef0b26d7dc65e090a5ea0b6f30c6b4e66dd5cc5",
+        "archive_bytes": 2283309,
+        "verified_decoded_sha256": "e18d6e3d04625c29dafeb1287d7f178694161dd1e090168514a11da678977587"
+      }
+    },
+    {
+      "selector": "rust:readers-0224",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "8514e628aba7312278d6b1d4ffe5c898dbd3b0573bf100723f8681082d866d4b",
+      "source_sha256": "1aeaadfd0392be452e11f1d23a00e4b7d802cac3a57d86247e93fb54e17f6414",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-1fc441.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "5df836eadb4ca6e85ec87902082288fbb56f86697baeb8e65250067f87784c28",
+        "original_bytes": 7359128,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0224-3872764514c0931b-O0.gz",
+        "archive_sha256": "c7988b71f73143a9416f7a201b2d36c18bc5c714611f457efbb33a470775778d",
+        "archive_bytes": 2282157,
+        "verified_decoded_sha256": "5df836eadb4ca6e85ec87902082288fbb56f86697baeb8e65250067f87784c28"
+      }
+    },
+    {
+      "selector": "rust:readers-0256",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "9dd3ed6f7ded76626821744d779bd63b760371b74ef43962d10944e8af50f6ee",
+      "source_sha256": "16a5820cada4bf9a4257e233865db5f48eacf0950c1ea21231d347f9542901c0",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-ee994e.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "a86826a75e8066bc7b8ce4dbdf3b646f8e1c98c887c7c9cb1435826aa3fbb40a",
+        "original_bytes": 7359128,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0256-3872764514c0931b-O0.gz",
+        "archive_sha256": "27b36fcb58b15f1d406ef47d401e09d403bf69048ff0a6b9e9600b5f6abd19b3",
+        "archive_bytes": 2282229,
+        "verified_decoded_sha256": "a86826a75e8066bc7b8ce4dbdf3b646f8e1c98c887c7c9cb1435826aa3fbb40a"
+      }
+    },
+    {
+      "selector": "rust:readers-0288",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "2fc9282bd02cd2ddb7b2e54deb819a62d3efa51ab1ce0762fb35a1910790b62e",
+      "source_sha256": "0798de1545ec671c2eb7b978da4562f94447aa46527f1e7b3ebd9c2d6c9bd75c",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-9b06cf.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "8b07d8ab473a2fac3c4a7353596e31156e4034626008dc7d61a9d986996aa2e1",
+        "original_bytes": 7394720,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0288-3872764514c0931b-O0.gz",
+        "archive_sha256": "122a87d07832f87f034918723119e8095ce121eaf24003f4d074b04c0a24ac4d",
+        "archive_bytes": 2294931,
+        "verified_decoded_sha256": "8b07d8ab473a2fac3c4a7353596e31156e4034626008dc7d61a9d986996aa2e1"
+      }
+    },
+    {
+      "selector": "rust:readers-0320",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "93c20783df32d3e6ee55fd083ca4829206fe30e0c760f225dc971a4e0a18e5b2",
+      "source_sha256": "a49cc781f8cd4b2617a43a9854658d18af19b7786a0a5aa7f29d6d142e02e446",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-cf006b.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "3349d58aa722729514fc5eaee8ea41c5b8dd657db3e4fd72872ff0ad02a487e9",
+        "original_bytes": 7421920,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0320-3872764514c0931b-O0.gz",
+        "archive_sha256": "04a71f2fee38a8d89c7dc5ddb85b1f36bfa02b40f1e2979059d258aef6707d59",
+        "archive_bytes": 2304433,
+        "verified_decoded_sha256": "3349d58aa722729514fc5eaee8ea41c5b8dd657db3e4fd72872ff0ad02a487e9"
+      }
+    },
+    {
+      "selector": "rust:readers-0352",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "b221dbe831621a77294b9d2f594f3a9bc1dda0fa4115984b7c53e313c04b5472",
+      "source_sha256": "7f4295ec5dc9480f33a8dcf0d4c60dfe13dabdc7dc19475eba48d82f6c5f9e38",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-1eae13.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "81969c2271fa45040b132c272b56aa52f9a7510b511b6009281d99209e72703a",
+        "original_bytes": 7421920,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0352-3872764514c0931b-O0.gz",
+        "archive_sha256": "02bfec0ac7e420b9db5cffc158d95cdce6898f006a98d040938b208ee19a97ff",
+        "archive_bytes": 2304422,
+        "verified_decoded_sha256": "81969c2271fa45040b132c272b56aa52f9a7510b511b6009281d99209e72703a"
+      }
+    },
+    {
+      "selector": "rust:readers-0384",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "9fd23a777a31d194dd1467866f0ec9f86e00a52015437999ab07c51591c6c8a7",
+      "source_sha256": "cdf3c711d0ed182d0220bdfef6ea937f25190a73500b44bef5b3b337d214eff9",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-6c4a77.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "f1f05f99ca3c51468a6c90b1d59312c511ab37187111c32bb3cc5e848a43f6d5",
+        "original_bytes": 7421920,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-readers-0384-3872764514c0931b-O0.gz",
+        "archive_sha256": "eccbf5b195466e049ad31299f2f334d25c3cbaa7e3c6005b3daee37d52b7b719",
+        "archive_bytes": 2304458,
+        "verified_decoded_sha256": "f1f05f99ca3c51468a6c90b1d59312c511ab37187111c32bb3cc5e848a43f6d5"
+      }
+    },
+    {
+      "selector": "rust:cache-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "ad7ae362b29f1367a4f342b4873c6506c2c965d85b952884a3f936b3a3b169e9",
+      "source_sha256": "e153b08d42739513710d8987cea55226c4167c6f7f901102356aa8b6f09701e7",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-892191.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "7e4652889ace657dde44491ab75c220de78e0eadd20e7d3b6fdfe40116bf4869",
+        "original_bytes": 7001168,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-cache-0000-3872764514c0931b-O0.gz",
+        "archive_sha256": "34446c1432886700263a0eaf0168b7d054c4d3136cbf64d735be75f2ba708f85",
+        "archive_bytes": 2210139,
+        "verified_decoded_sha256": "7e4652889ace657dde44491ab75c220de78e0eadd20e7d3b6fdfe40116bf4869"
+      }
+    },
+    {
+      "selector": "rust:forms-0018",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/report.json",
+      "source_report_sha256": "3872764514c0931b415029b0b99090ecbe680f0aa6fe5837374b42ac22484aff",
+      "checked_ir_sha256": "31dce0f24c2bda69f50a3925e2cb451114b8307809460842c12263dcb0f32c45",
+      "source_sha256": "2f8acf1673fe02492781868c8c2c3d0cf6d245b4d70995dab9ad17751ff7d4c7",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-rust-855-v3/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-d8cd52.o: warning: relocation against `Main.fs-close.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "4b8eec2c38e3d6286d97661bb19a20832e55f2716a09df28ce8963acf8252583",
+        "original_bytes": 7373272,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-forms-0018-3872764514c0931b-O0.gz",
+        "archive_sha256": "291a55b2844a63b8b9562aca8c590e862cd4584115efb587a04d491b177e2caa",
+        "archive_bytes": 2338639,
+        "verified_decoded_sha256": "4b8eec2c38e3d6286d97661bb19a20832e55f2716a09df28ce8963acf8252583"
+      }
+    },
+    {
+      "selector": "native:readers-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v1/report.json",
+      "source_report_sha256": "73654d015398830c1d8d15730ae70c1384dad36c00975a883ba437606ac9dc2e",
+      "checked_ir_sha256": "f313361f8eb1e0536ec459b9ff5579c824f460f235eca544d36e6ed273e5faaa",
+      "source_sha256": "14ad8b687c8b1e11b001e6a9c2fbea236db86804418c35500f379f34d92125fd",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "ae1474b6a9ac77d96f47251736d171bfea4cd74e1b635ffb9b8f11ae4ac8cc8f",
+        "original_bytes": 12516240,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-readers-0000-73654d015398830c-O0.gz",
+        "archive_sha256": "503456035a66db5fdaa25b35132050733c2e47a7a638d2ca144d5483e5ad5e84",
+        "archive_bytes": 3509517,
+        "verified_decoded_sha256": "ae1474b6a9ac77d96f47251736d171bfea4cd74e1b635ffb9b8f11ae4ac8cc8f"
+      }
+    },
+    {
+      "selector": "native:readers-0128",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v1/report.json",
+      "source_report_sha256": "73654d015398830c1d8d15730ae70c1384dad36c00975a883ba437606ac9dc2e",
+      "checked_ir_sha256": "288659803d6e7bd7061de6c7be539a29042a5b814522ca9226f55444d85f3f20",
+      "source_sha256": "e78c320214b80b2d69e9714da2994e57dabbbe71fa899b77c6517d8dae863dc7",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "ba6b91a76978aaffa85c84e0678a9b3704fbc4e2c82d68252f39ed980fd6b5f2",
+        "original_bytes": 12815248,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-readers-0128-73654d015398830c-O0.gz",
+        "archive_sha256": "f84149f830df6875cf094b6c4478fe4b1f26f723086537b93ea4d26438ae8759",
+        "archive_bytes": 3572462,
+        "verified_decoded_sha256": "ba6b91a76978aaffa85c84e0678a9b3704fbc4e2c82d68252f39ed980fd6b5f2"
+      }
+    },
+    {
+      "selector": "native:readers-0256",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/report.json",
+      "source_report_sha256": "c3d1a4499f74b75dc31dfc00bb2bfbe78aeb5509bc381a6ed9d75032cf4278b4",
+      "checked_ir_sha256": "ca39382ce86dd21a824b1768c49ca9e9be3848120fef9e090a1607836d696871",
+      "source_sha256": "142a381f0254bf24a3bad3a5eb387afe40d86738dfac04dffc61baafb0e6fb5c",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "948f9dab72883e94e7f9c7c8ef5a55f5b3717c1aa57a9409c43df5f1489b5bc5",
+        "original_bytes": 12594576,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-readers-0256-c3d1a4499f74b75d-O0.gz",
+        "archive_sha256": "865882ee4ddb545ff1f37765987b246d8c3edd3b8579f1dce143b2a30894c6c5",
+        "archive_bytes": 3524935,
+        "verified_decoded_sha256": "948f9dab72883e94e7f9c7c8ef5a55f5b3717c1aa57a9409c43df5f1489b5bc5"
+      }
+    },
+    {
+      "selector": "native:readers-0320",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/report.json",
+      "source_report_sha256": "c3d1a4499f74b75dc31dfc00bb2bfbe78aeb5509bc381a6ed9d75032cf4278b4",
+      "checked_ir_sha256": "e530bbd7f94243efc13bf2a248d819c8a4d6300f5e10d600447a9760cef621f0",
+      "source_sha256": "a0adfb89beb4850a0e4510289925c28103ef9186cbd68a7167208eb0a84254ea",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "33a8345d639cbb0e662721007dc562af003f5916ec052025cfdbb2b7bf7cd4df",
+        "original_bytes": 12660112,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-readers-0320-c3d1a4499f74b75d-O0.gz",
+        "archive_sha256": "4ffe531a0af3d39364cec6d505541333b2311c9ebfaefeb62d9a88401a19932a",
+        "archive_bytes": 3540327,
+        "verified_decoded_sha256": "33a8345d639cbb0e662721007dc562af003f5916ec052025cfdbb2b7bf7cd4df"
+      }
+    },
+    {
+      "selector": "native:readers-0384",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/report.json",
+      "source_report_sha256": "c3d1a4499f74b75dc31dfc00bb2bfbe78aeb5509bc381a6ed9d75032cf4278b4",
+      "checked_ir_sha256": "60eb10e365bcdd6b5a5b57cb561025e29e1d813a624acab7148ec3f666e9cc90",
+      "source_sha256": "ae30b26c5211a095fd1c500fc9476f0923b247895e580fbc4b5ad67f07552e36",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "f3d02d50589151d13bc1be24d0af42f570855085eb1d30d974fd2d2d4c6b0578",
+        "original_bytes": 12778896,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-readers-0384-c3d1a4499f74b75d-O0.gz",
+        "archive_sha256": "0fa4335a3f0d58bc3889bf88208f0448979e7ca0951f57e49a5ba27e25078b7e",
+        "archive_bytes": 3531793,
+        "verified_decoded_sha256": "f3d02d50589151d13bc1be24d0af42f570855085eb1d30d974fd2d2d4c6b0578"
+      }
+    },
+    {
+      "selector": "native:readers-0448",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/report.json",
+      "source_report_sha256": "c3d1a4499f74b75dc31dfc00bb2bfbe78aeb5509bc381a6ed9d75032cf4278b4",
+      "checked_ir_sha256": "55034dba9c2c9f5073d219114d006a55eba3e416765f8d5ddf3945de6529d6b3",
+      "source_sha256": "6388489ba7854710c5df5f9834662bd39fcef7a11b01210956c724a2baa5d788",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-readers-native-2f-v2/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "f4a734f121bd1030b96608da9d3453af563e736f07e08c6cbe7f0ab41ae72ac7",
+        "original_bytes": 12399824,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-readers-0448-c3d1a4499f74b75d-O0.gz",
+        "archive_sha256": "3ba532db0a12ac1f0d261170cec99881ccfd71ddd9225c249ca04483a1faba3f",
+        "archive_bytes": 3461289,
+        "verified_decoded_sha256": "f4a734f121bd1030b96608da9d3453af563e736f07e08c6cbe7f0ab41ae72ac7"
+      }
+    },
+    {
+      "selector": "rust:forms-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-forms-rust-855-v1/report.json",
+      "source_report_sha256": "8b48e95d57de113256a71e2b8efb11af97162dacc31f229a6fbb2735532162ed",
+      "checked_ir_sha256": "34db8cfd10d997e8bed257a075cad99dd26047859c8318c2acb143ba7951a516",
+      "source_sha256": "656b456c211d7fd6f4cb111292fa05104d8fbf8c0711e10370a86d13bb867bcc",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-forms-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-forms-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-94de05.o: warning: relocation against `Main.fs-close.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "e810d0979a3d42f352abc948658ad168c54b392bf4dd420d2210a52a8ab781e0",
+        "original_bytes": 7822952,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-forms-0000-8b48e95d57de1132-O0.gz",
+        "archive_sha256": "c4b1bf345e0d0ccd53e82ba15605f9866e5ea03add90734d51363fe69e4cb1aa",
+        "archive_bytes": 2447077,
+        "verified_decoded_sha256": "e810d0979a3d42f352abc948658ad168c54b392bf4dd420d2210a52a8ab781e0"
+      }
+    },
+    {
+      "selector": "native:forms-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/full-forms-native-2f-v1/report.json",
+      "source_report_sha256": "5fddf3d7b4d7efb440affe44765004c781676648e611f0dc1ae5f82b01e23ca7",
+      "checked_ir_sha256": "0ee70c1550f981400d0ae827c47094b4572f8600fbcd42ee1e147f437b5e94af",
+      "source_sha256": "656b456c211d7fd6f4cb111292fa05104d8fbf8c0711e10370a86d13bb867bcc",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-forms-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/full-forms-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "1855fda5f308ef1b9c6f87efcb7f980fec78ba6e998145a675f22e372a06192b",
+        "original_bytes": 12658864,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-forms-0000-5fddf3d7b4d7efb4-O0.gz",
+        "archive_sha256": "54081599c758890c9735b099757910b0243d6a2e91a6e52b7f606a44d0a744ae",
+        "archive_bytes": 3559426,
+        "verified_decoded_sha256": "1855fda5f308ef1b9c6f87efcb7f980fec78ba6e998145a675f22e372a06192b"
+      }
+    },
+    {
+      "selector": "rust:late-headers-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/changed-rust-855-v1/report.json",
+      "source_report_sha256": "45b4e3772ea7a77d67ef4fe5cfb04ae121841949e72a340d7caeb719706409e1",
+      "checked_ir_sha256": "91bfd5bd5b78fda5ce5a3e6f84d87e075afc9592f698eb177c247adf51744a5b",
+      "source_sha256": "27d8507704bb1849e94d001b5de1f58eccd1b4b1b93a163025ea716785052ffc",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-b16fd0.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "a25c4e3e3dbd53599729c6bcfd1c0ab8204251b9cb22096bd59dcf7cf4edfc34",
+        "original_bytes": 7027904,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-late-headers-0000-45b4e3772ea7a77d-O0.gz",
+        "archive_sha256": "6c0aa21866a0dd3d950ba5467dd929604f0dc06d839966965d555bb3b36a1783",
+        "archive_bytes": 2212346,
+        "verified_decoded_sha256": "a25c4e3e3dbd53599729c6bcfd1c0ab8204251b9cb22096bd59dcf7cf4edfc34"
+      }
+    },
+    {
+      "selector": "native:late-headers-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/changed-native-2f-v1/report.json",
+      "source_report_sha256": "69497b3e4b614ab37fca07587652922f5ee520bcdee156d8c700b6faf71ab675",
+      "checked_ir_sha256": "42b318c67740a44ffcba0e40f7345c18623fd5ecf571988035fccea6472725b4",
+      "source_sha256": "27d8507704bb1849e94d001b5de1f58eccd1b4b1b93a163025ea716785052ffc",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/changed-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "ab1757d0e4e5216d6a471dee4cf0af80f5c3a54a6183d53b6e6eed2f2648d722",
+        "original_bytes": 12267688,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-late-headers-0000-69497b3e4b614ab3-O0.gz",
+        "archive_sha256": "6e5d81ea0c72ccc88f166a241509c1aeac647cfb265135264348cd9cf2e6487e",
+        "archive_bytes": 3449516,
+        "verified_decoded_sha256": "ab1757d0e4e5216d6a471dee4cf0af80f5c3a54a6183d53b6e6eed2f2648d722"
+      }
+    },
+    {
+      "selector": "rust:ownership-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/report.json",
+      "source_report_sha256": "a4c3a035db2aeeb8282545101367699edfcbac03e896e54a53510ea09c26bc33",
+      "checked_ir_sha256": "d3322bc36effde09681238934b8126f53e854393a6802b16f9891fa70ba376b4",
+      "source_sha256": "86b73d4cd5c32c5186536042c622a982d92817c813b8688fb348f6d871c331cd",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-711346.o: warning: relocation against `Text.Multipart.multipart-posix-filename.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "83e094e7dc8efb99184a72baa08615756eb3d7db99c7d79e9a4a3be1c0837e3a",
+        "original_bytes": 7249256,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-ownership-0000-a4c3a035db2aeeb8-O0.gz",
+        "archive_sha256": "5ae938a82a719311d5994479a67f7fde6a235da9cdb623a07f7e1b5bb4629746",
+        "archive_bytes": 2298568,
+        "verified_decoded_sha256": "83e094e7dc8efb99184a72baa08615756eb3d7db99c7d79e9a4a3be1c0837e3a"
+      }
+    },
+    {
+      "selector": "rust:entropy-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/report.json",
+      "source_report_sha256": "a4c3a035db2aeeb8282545101367699edfcbac03e896e54a53510ea09c26bc33",
+      "checked_ir_sha256": "f7dad78af485eb735e80f01e1f81a5e6ce8ef0277d9754e7e5af98ebe491abd8",
+      "source_sha256": "9e22f18b04f872305fe3469c385207fd51e5c1e907b7e9852ac286c70336168f",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-74213f.o: warning: relocation against `Data.String.Eq_String.==.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "5d53ec12120df0149783faa65fc7b89e79590b49466575eed1cc71290b8b1651",
+        "original_bytes": 6445912,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-entropy-0000-a4c3a035db2aeeb8-O0.gz",
+        "archive_sha256": "48569cec05d2b4bc85891c6c691278dde7a0516e0d2930c3b77c91e2ad098f44",
+        "archive_bytes": 1995747,
+        "verified_decoded_sha256": "5d53ec12120df0149783faa65fc7b89e79590b49466575eed1cc71290b8b1651"
+      }
+    },
+    {
+      "selector": "rust:dispositions-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/report.json",
+      "source_report_sha256": "a4c3a035db2aeeb8282545101367699edfcbac03e896e54a53510ea09c26bc33",
+      "checked_ir_sha256": "f2fe9b0445a04bc84b3cb6cf0d41c9bcd183ec0ac25bb1e78722156acdf5a91d",
+      "source_sha256": "b9a241ae3f2ceb07be9035ed8b1e26d7b4be873a4dc6f547c6e6f16d7cc1ba16",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "",
+      "executable": {
+        "original_sha256": "386472124093eb3ce5f21a0dd7376f5a607e61fa73e5d83f421fbf9ffe75b05b",
+        "original_bytes": 6018920,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-dispositions-0000-a4c3a035db2aeeb8-O0.gz",
+        "archive_sha256": "6f177bc4a1a006a6c08c79b77c3e236e9a64eb8587a5561440fe131bcbd5dfb6",
+        "archive_bytes": 1884955,
+        "verified_decoded_sha256": "386472124093eb3ce5f21a0dd7376f5a607e61fa73e5d83f421fbf9ffe75b05b"
+      }
+    },
+    {
+      "selector": "rust:dispositions-0128",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/report.json",
+      "source_report_sha256": "a4c3a035db2aeeb8282545101367699edfcbac03e896e54a53510ea09c26bc33",
+      "checked_ir_sha256": "0a0ee0bd37dc2910bf770b9b590d132d41d5e8cb9569c734b5f6c642833d1dc5",
+      "source_sha256": "ad1734a17de11a108d6df3c26f3a9ed8ef2f62b50bfd12c5056247c8ad894558",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "",
+      "executable": {
+        "original_sha256": "7ba6eeb19d5b28d534eaac2461812cdec145da22e31e30e1a321bf890948ae2e",
+        "original_bytes": 6645624,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-dispositions-0128-a4c3a035db2aeeb8-O0.gz",
+        "archive_sha256": "f7473d2f36d394b02af70ec6a44c4c02a809ad169757875c4eba1456a474ae86",
+        "archive_bytes": 1999913,
+        "verified_decoded_sha256": "7ba6eeb19d5b28d534eaac2461812cdec145da22e31e30e1a321bf890948ae2e"
+      }
+    },
+    {
+      "selector": "rust:boundaries-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/report.json",
+      "source_report_sha256": "a4c3a035db2aeeb8282545101367699edfcbac03e896e54a53510ea09c26bc33",
+      "checked_ir_sha256": "1b760ad64f641d2ab31a8d3c9c5d5627a4d13a5ad7b3560ee4800f78dacd2c34",
+      "source_sha256": "e522468492dd3077d147e039f041cb769cdcba1d5231dc94647616ee644b5539",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-b38bee.o: warning: relocation against `Data.String.Eq_String.==.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "bbdf359d8750379a3857e34068cf659ad409218a54d9051e8f0c48a2a59ada1b",
+        "original_bytes": 6435176,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-boundaries-0000-a4c3a035db2aeeb8-O0.gz",
+        "archive_sha256": "aac2db475d62d7d686d4f37c21b8b16cd13fdb2241205555bb6c2ecd51239bc5",
+        "archive_bytes": 1988033,
+        "verified_decoded_sha256": "bbdf359d8750379a3857e34068cf659ad409218a54d9051e8f0c48a2a59ada1b"
+      }
+    },
+    {
+      "selector": "rust:boundaries-0128",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/report.json",
+      "source_report_sha256": "a4c3a035db2aeeb8282545101367699edfcbac03e896e54a53510ea09c26bc33",
+      "checked_ir_sha256": "f7949a8a43148ec144eec13e91ecfb686c599fe69727d52dc8a9e66f4940b81f",
+      "source_sha256": "bb80bb55c9e45233f3823c7edde5220b249250d160066bee3a445f5a42407bbe",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-277d9b.o: warning: relocation against `Data.String.Eq_String.==.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "d9d8c26007e0ecc958f7640e32b8305c1b2dba94a0171bac0991ec606bd996a7",
+        "original_bytes": 6437104,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-boundaries-0128-a4c3a035db2aeeb8-O0.gz",
+        "archive_sha256": "907406943ddce24b41fbf6d857eae1f2b2a1750df586b75dd8d75367a9580e24",
+        "archive_bytes": 1986936,
+        "verified_decoded_sha256": "d9d8c26007e0ecc958f7640e32b8305c1b2dba94a0171bac0991ec606bd996a7"
+      }
+    },
+    {
+      "selector": "rust:boundaries-0256",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/report.json",
+      "source_report_sha256": "a4c3a035db2aeeb8282545101367699edfcbac03e896e54a53510ea09c26bc33",
+      "checked_ir_sha256": "c948b072aa86755f5f4a3bbbf0d7d715ef0fca1512ed0169bd2d12dd91637446",
+      "source_sha256": "5cee396074e30cd76e1288ada258ab9cfdc249fd289a723440b9622b9a25f363",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime": "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compile_rc_debug": false
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-rust-855-v1/kernels.o",
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "/usr/bin/ld: /tmp/checked-input-7f9823.o: warning: relocation against `Data.String.Eq_String.==.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "c39e06a912efc7c28c1e15a806ae24e784b3c0fc2bf4e1c79701cdbcb638bb5d",
+        "original_bytes": 6347704,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/rust-boundaries-0256-a4c3a035db2aeeb8-O0.gz",
+        "archive_sha256": "81fbca1fcb9c2a37a98e2e2dbe037a8c9bc11251c7055bbb465ade6de606c02d",
+        "archive_bytes": 1969360,
+        "verified_decoded_sha256": "c39e06a912efc7c28c1e15a806ae24e784b3c0fc2bf4e1c79701cdbcb638bb5d"
+      }
+    },
+    {
+      "selector": "native:dispositions-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/report.json",
+      "source_report_sha256": "656c2e689a6d387435f37ffd5cb41d76097196e85a39b608662cbf2db2fd09d8",
+      "checked_ir_sha256": "cdd518c7836e6ffd50bfc2967de690e043671ab82f7a2ab781ac4e73e2126738",
+      "source_sha256": "b9a241ae3f2ceb07be9035ed8b1e26d7b4be873a4dc6f547c6e6f16d7cc1ba16",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "70c85218d999501b6ece11b1edf1b8d4da47474c2a13450af395fcdbfdeefcd3",
+        "original_bytes": 11666144,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-dispositions-0000-656c2e689a6d3874-O0.gz",
+        "archive_sha256": "7309bc8be8188ce032c9aeeb79603b6c131c59f4319711d17e7f38c276274a67",
+        "archive_bytes": 3323324,
+        "verified_decoded_sha256": "70c85218d999501b6ece11b1edf1b8d4da47474c2a13450af395fcdbfdeefcd3"
+      }
+    },
+    {
+      "selector": "native:dispositions-0128",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/report.json",
+      "source_report_sha256": "656c2e689a6d387435f37ffd5cb41d76097196e85a39b608662cbf2db2fd09d8",
+      "checked_ir_sha256": "7d3e94a05304e236c712eb7b96cc71e14df31500f5b0b694de270e55c769fb2c",
+      "source_sha256": "ad1734a17de11a108d6df3c26f3a9ed8ef2f62b50bfd12c5056247c8ad894558",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "c8c4c30f69382dd88767a1caad7bbadf6cb021c04336029fbdf788802b1b50c0",
+        "original_bytes": 11850464,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-dispositions-0128-656c2e689a6d3874-O0.gz",
+        "archive_sha256": "8fbbb0849326bab9b4d0681007dcef1a791a07c8e74b11ad811a7eb530bac9ac",
+        "archive_bytes": 3359970,
+        "verified_decoded_sha256": "c8c4c30f69382dd88767a1caad7bbadf6cb021c04336029fbdf788802b1b50c0"
+      }
+    },
+    {
+      "selector": "native:boundaries-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/report.json",
+      "source_report_sha256": "656c2e689a6d387435f37ffd5cb41d76097196e85a39b608662cbf2db2fd09d8",
+      "checked_ir_sha256": "b458ec0cd6e0ae3ecd4e3c3002d39eed629332b52701acc1e3534360b73acf65",
+      "source_sha256": "e522468492dd3077d147e039f041cb769cdcba1d5231dc94647616ee644b5539",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "bc15288d69aedd32d68747c473d160c2986053fecd1680eed020854c82384ce7",
+        "original_bytes": 12108968,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-boundaries-0000-656c2e689a6d3874-O0.gz",
+        "archive_sha256": "bcb491f70e22d74e0c2d02a30affb30cc7951f248998b0f0d3ad3e17c946f828",
+        "archive_bytes": 3385950,
+        "verified_decoded_sha256": "bc15288d69aedd32d68747c473d160c2986053fecd1680eed020854c82384ce7"
+      }
+    },
+    {
+      "selector": "native:boundaries-0128",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/report.json",
+      "source_report_sha256": "656c2e689a6d387435f37ffd5cb41d76097196e85a39b608662cbf2db2fd09d8",
+      "checked_ir_sha256": "2acf8300065b42f76b2591db2f214745a95a82a7acf3655f5e8a5ecba72d5edd",
+      "source_sha256": "bb80bb55c9e45233f3823c7edde5220b249250d160066bee3a445f5a42407bbe",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "8ca6c282247f00c1bd01157364e475fc3d4622ffb056af806e0b6ac17b37c7d8",
+        "original_bytes": 12113064,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-boundaries-0128-656c2e689a6d3874-O0.gz",
+        "archive_sha256": "f7201adf4445f7e1b7ea98f21376833e554d293525d29783772656b288aa5ac8",
+        "archive_bytes": 3386125,
+        "verified_decoded_sha256": "8ca6c282247f00c1bd01157364e475fc3d4622ffb056af806e0b6ac17b37c7d8"
+      }
+    },
+    {
+      "selector": "native:boundaries-0256",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/report.json",
+      "source_report_sha256": "656c2e689a6d387435f37ffd5cb41d76097196e85a39b608662cbf2db2fd09d8",
+      "checked_ir_sha256": "a64d60bada6614d3f87f74200a42cdea058e3dbab72c802add5b636c450b5af4",
+      "source_sha256": "5cee396074e30cd76e1288ada258ab9cfdc249fd289a723440b9622b9a25f363",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "185d8e0cec87ca403551b6b2b396e33dfa1a49643eb84b1b267b6e358900d1a9",
+        "original_bytes": 12040808,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-boundaries-0256-656c2e689a6d3874-O0.gz",
+        "archive_sha256": "e10a824cd14a61c9b202667249c2391b731fea0a2ae8aea88a4e97f61f4ccd62",
+        "archive_bytes": 3370877,
+        "verified_decoded_sha256": "185d8e0cec87ca403551b6b2b396e33dfa1a49643eb84b1b267b6e358900d1a9"
+      }
+    },
+    {
+      "selector": "native:cache-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/report.json",
+      "source_report_sha256": "656c2e689a6d387435f37ffd5cb41d76097196e85a39b608662cbf2db2fd09d8",
+      "checked_ir_sha256": "780644b07ba45269ee6ce7a380cf4b20756c627ca984dcef8db666a451ee329c",
+      "source_sha256": "e153b08d42739513710d8987cea55226c4167c6f7f901102356aa8b6f09701e7",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/final-pure-native-2f-v1/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "d7a701d3c298a4bf22f6a8c31c77cb0a925e38a2dcfbac55de184ea368abf50d",
+        "original_bytes": 12251200,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-cache-0000-656c2e689a6d3874-O0.gz",
+        "archive_sha256": "d56aedfc70cc0bf40c70fdbe26b76d00f3045356f0817cc552de8a70c8b54bdb",
+        "archive_bytes": 3449527,
+        "verified_decoded_sha256": "d7a701d3c298a4bf22f6a8c31c77cb0a925e38a2dcfbac55de184ea368abf50d"
+      }
+    },
+    {
+      "selector": "native:ownership-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/observed-controls-native-2f-v2/report.json",
+      "source_report_sha256": "5de4ab69d85d81868209c9a83425f021055c758c527a4c90b692a72cab2515a7",
+      "checked_ir_sha256": "e8a226bd2b15327641cab017a5aacc3dd31ed0f3b2dbcb9ff9f4b25e2250cd9d",
+      "source_sha256": "86b73d4cd5c32c5186536042c622a982d92817c813b8688fb348f6d871c331cd",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/observed-controls-native-2f-v2/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/observed-controls-native-2f-v2/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "570636a3df5fcfb8cace13ed5e7a1e24d05ab8868bf67aad11d7098bbf9fa55b",
+        "original_bytes": 12331312,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-ownership-0000-5de4ab69d85d8186-O0.gz",
+        "archive_sha256": "1e8a6c75bf80e4948f62276922c983d02306d21c37cfd1a014529834239c49c1",
+        "archive_bytes": 3477489,
+        "verified_decoded_sha256": "570636a3df5fcfb8cace13ed5e7a1e24d05ab8868bf67aad11d7098bbf9fa55b"
+      }
+    },
+    {
+      "selector": "native:entropy-0000",
+      "source_report": "/workspace/dasl-stdlib-multipart/build/multipart/observed-controls-native-2f-v2/report.json",
+      "source_report_sha256": "5de4ab69d85d81868209c9a83425f021055c758c527a4c90b692a72cab2515a7",
+      "checked_ir_sha256": "792ca9530e071949c46c6ea3d5cd9d77d58d2081617a438eb91cdd9a806a1603",
+      "source_sha256": "9e22f18b04f872305fe3469c385207fd51e5c1e907b7e9852ac286c70336168f",
+      "frontend_identity": {
+        "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "compile_rc_debug": true,
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+      },
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/checked-input.ll",
+        "/workspace/dasl-stdlib-multipart/build/multipart/observed-controls-native-2f-v2/fixture.o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/observed-controls-native-2f-v2/kernels.o",
+        "/workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o",
+        "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/consumer"
+      ],
+      "profiles": [
+        {
+          "poison": "0",
+          "heap": "32M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poison": "1",
+          "heap": "256M",
+          "stack": "8M",
+          "stdout": "",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "link_stderr": "warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /workspace/dasl-stdlib-merged-family/build/merged-base-artifact-v2/library.o: warning: relocation against `Algebra.Monoid.Monoid_Function.mempty@OO.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "executable": {
+        "original_sha256": "1e3ba2391c0376d1f62b962a77b09b17c0cdb80d697e271c3bd15cf8b042e32d",
+        "original_bytes": 12077024,
+        "original_mode": 448,
+        "archive": "/workspace/dasl-stdlib-multipart/build/multipart/qualified-O0-v1/native-entropy-0000-5de4ab69d85d8186-O0.gz",
+        "archive_sha256": "2e9053debb6f494664057cea024e183fdb26f929d981282ec1f459c8a2d084ed",
+        "archive_bytes": 3384276,
+        "verified_decoded_sha256": "1e3ba2391c0376d1f62b962a77b09b17c0cdb80d697e271c3bd15cf8b042e32d"
+      }
+    }
+  ]
+}

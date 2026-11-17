@@ -118,3 +118,140 @@ fn rust_cli_executes_multipart_with_normal_and_poison_profiles() {
         }
     }
 }
+
+/// Find the actual checked body rather than an unrelated intrinsic declaration.
+fn multipart_definition<'a>(ir: &'a str, symbol: &str) -> &'a str {
+    let marker = format!("@\"{symbol}\"(");
+    let mut offset = 0;
+    for line in ir.split_inclusive('\n') {
+        if line.starts_with("define ") && line.contains(&marker) {
+            let end = offset + ir[offset..].find("\n}").unwrap() + 2;
+            return &ir[offset..end];
+        }
+        offset += line.len();
+    }
+    panic!("missing actual multipart definition {symbol}");
+}
+
+/// Follow emitted calls through public aliases and private scanner continuations.
+fn multipart_call_path(ir: &str, wanted: &str) -> Option<Vec<String>> {
+    let mut pending = vec![vec!["Main.main".to_owned()]];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(path) = pending.pop() {
+        let symbol = path.last().unwrap();
+        if symbol == wanted {
+            return Some(path);
+        }
+        if !seen.insert(symbol.clone()) {
+            continue;
+        }
+        for line in multipart_definition(ir, symbol)
+            .lines()
+            .filter(|line| line.contains("call "))
+        {
+            for suffix in line.split("@\"").skip(1) {
+                let Some((callee, after)) = suffix.split_once('"') else {
+                    continue;
+                };
+                if after.starts_with('(')
+                    && (callee.starts_with("Text.Multipart.") || callee.starts_with("Main."))
+                {
+                    let mut next = path.clone();
+                    next.push(callee.to_owned());
+                    pending.push(next);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Complete public scanner and disposition paths produce real little/big-endian foreign objects.
+#[test]
+fn multipart_public_paths_compile_for_wasm_arm_and_big_endian() {
+    let source = [
+        include_str!("../prelude/Data/Bytes/Word.cinch"),
+        include_str!("../prelude/Data/Unicode/Tables.cinch"),
+        include_str!("../prelude/Data/Unicode/Kernel.cinch"),
+        include_str!("../prelude/Data/Bytes/Utf8.cinch"),
+        include_str!("../prelude/Text/Base64/Encoding.cinch"),
+        include_str!("../prelude/Text/Mime.cinch"),
+        include_str!("../prelude/Text/Multipart.cinch"),
+        include_str!("fixtures/multipart-portable.cinch"),
+    ]
+    .join("\n");
+    // Keep all target IR and object diagnostics if a later assertion fails.
+    let directory = tempfile::tempdir().unwrap().keep();
+    for (triple, arch, endian) in [
+        ("wasm32-unknown-unknown", "wasm32", "little"),
+        ("aarch64-unknown-linux-gnu", "aarch64", "little"),
+        ("powerpc64-unknown-linux-gnu", "powerpc64", "big"),
+    ] {
+        let profile = cinch::driver::target_profile(&cinch::driver::DriverOptions {
+            target: Some(triple.into()),
+            ..Default::default()
+        })
+        .unwrap_or_else(|_| {
+            assert_eq!(arch, "powerpc64");
+            let mut profile = cinch::core::TargetProfile::native();
+            profile.triple = triple.into();
+            profile.arch = arch.into();
+            profile.endian = endian.into();
+            profile
+        });
+        let text = source.clone();
+        let ir = std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(move || {
+                let program = cinch::driver::check_sources_profile(
+                    &text,
+                    "multipart-public.cinch",
+                    &profile,
+                )?;
+                cinch::codegen::emit_for(&profile, &program)
+            })
+            .unwrap()
+            .join()
+            .unwrap()
+            .unwrap();
+        let file = directory.join(format!("{arch}.ll"));
+        std::fs::write(&file, &ir).unwrap();
+        for worker in [
+            "Text.Multipart.find-byte",
+            "Text.Multipart.prefix-at",
+            "Text.Multipart.escape-end",
+            "Text.Multipart.equal-sixteen.llvm",
+        ] {
+            assert!(
+                multipart_call_path(&ir, worker).is_some(),
+                "missing public path to {worker}; retained {}",
+                file.display()
+            );
+        }
+        let matcher = multipart_definition(&ir, "Text.Multipart.equal-sixteen.llvm");
+        assert!(matcher.contains("icmp eq <16 x i8>") && matcher.contains("bitcast <16 x i1>"));
+        assert_eq!(
+            matcher.contains("%swapped0 = call i64 @llvm.bswap.i64"),
+            endian == "big"
+        );
+        assert_eq!(
+            matcher.contains("%reversed = shufflevector <16 x i1>"),
+            endian == "big"
+        );
+        let output = std::process::Command::new(
+            std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
+        )
+        .args(["-target", triple, "-O2", "-c", "-x", "ir"])
+        .arg(&file)
+        .arg("-o")
+        .arg(file.with_extension("o"))
+        .output()
+        .unwrap();
+        assert!(
+            output.status.success(),
+            "{triple}: {}\nretained {}",
+            String::from_utf8_lossy(&output.stderr),
+            directory.display()
+        );
+    }
+}

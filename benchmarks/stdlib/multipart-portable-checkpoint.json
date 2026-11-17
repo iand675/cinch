@@ -1,0 +1,127 @@
+{
+  "scope": "Emit complete public multipart paths and real foreign-target objects.\n\nHost execution is covered separately by the independent corpus. These checks\nclaim object compilation only, preserve target-specific checked IR and require\nthe actual vector and scalar-fringe definitions to remain reachable.\n",
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "entry_sha256": "2c2fb6658e4b62ae18b2f2120a964f1e70f635814c379fe9c24a822cce29b1ba",
+  "dependencies": {
+    "Text.Multipart": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Text.Mime": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e"
+  },
+  "compiler_host_stack_bytes": 67108864,
+  "runtime_execution": false,
+  "targets": [
+    {
+      "target": "wasm32-unknown-unknown",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/portable-public-855-v1/wasm32-unknown-unknown/Main.cinch",
+        "--target",
+        "wasm32-unknown-unknown",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/portable-public-855-v1/wasm32-unknown-unknown/consumer.ll"
+      ],
+      "compiler_stdout": "",
+      "compiler_stderr": "",
+      "ir_sha256": "1dfa3af63e05ccded51dcc4b607cc21f74e90625f5a80fa5408eb2560576465f",
+      "actual_worker_paths": {
+        "Text.Multipart.escape-end": [
+          "Main.main",
+          "Text.Multipart.escaped",
+          "Text.Multipart.escaped-pieces",
+          "Text.Multipart.escape-end"
+        ],
+        "Text.Multipart.equal-sixteen.llvm": [
+          "Main.main",
+          "Text.Multipart.escaped",
+          "Text.Multipart.escaped-pieces",
+          "Text.Multipart.escape-end",
+          "Text.Multipart.equal-sixteen",
+          "Text.Multipart.equal-sixteen.llvm"
+        ],
+        "Text.Multipart.prefix-at": [
+          "Main.main",
+          "Text.Multipart.prefix-at"
+        ],
+        "Text.Multipart.find-byte": [
+          "Main.main",
+          "Text.Multipart.find-byte"
+        ]
+      },
+      "object_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-target",
+        "wasm32-unknown-unknown",
+        "-O2",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/multipart/portable-public-855-v1/wasm32-unknown-unknown/consumer.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/portable-public-855-v1/wasm32-unknown-unknown/consumer.o"
+      ],
+      "object_stdout": "",
+      "object_stderr": "",
+      "object_sha256": "1263add55a2deafa4a8effcd095fe1818da494407af550ac02041d22ab0826cf",
+      "object_bytes": 56971
+    },
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-multipart/build/multipart/portable-public-855-v1/aarch64-unknown-linux-gnu/Main.cinch",
+        "--target",
+        "aarch64-unknown-linux-gnu",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/portable-public-855-v1/aarch64-unknown-linux-gnu/consumer.ll"
+      ],
+      "compiler_stdout": "",
+      "compiler_stderr": "",
+      "ir_sha256": "00761a287c7d760ed051c75f5ab7a0dcdb973b7e6ee085304f69a92a0c664669",
+      "actual_worker_paths": {
+        "Text.Multipart.escape-end": [
+          "Main.main",
+          "Text.Multipart.escaped",
+          "Text.Multipart.escaped-pieces#cc",
+          "Text.Multipart.escape-end"
+        ],
+        "Text.Multipart.equal-sixteen.llvm": [
+          "Main.main",
+          "Text.Multipart.escaped",
+          "Text.Multipart.escaped-pieces#cc",
+          "Text.Multipart.escape-end",
+          "Text.Multipart.equal-sixteen",
+          "Text.Multipart.equal-sixteen.llvm"
+        ],
+        "Text.Multipart.prefix-at": [
+          "Main.main",
+          "Text.Multipart.prefix-at"
+        ],
+        "Text.Multipart.find-byte": [
+          "Main.main",
+          "Text.Multipart.find-byte"
+        ]
+      },
+      "object_command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-target",
+        "aarch64-unknown-linux-gnu",
+        "-O2",
+        "-c",
+        "/workspace/dasl-stdlib-multipart/build/multipart/portable-public-855-v1/aarch64-unknown-linux-gnu/consumer.ll",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/multipart/portable-public-855-v1/aarch64-unknown-linux-gnu/consumer.o"
+      ],
+      "object_stdout": "",
+      "object_stderr": "",
+      "object_sha256": "dd817797874ecb900005a98fd5e3b3543a40c52b906eeae9986a8b0176d1b378",
+      "object_bytes": 55520
+    }
+  ],
+  "original_report_path": "/workspace/dasl-stdlib-multipart/build/multipart/portable-public-855-v1/report.json",
+  "original_report_sha256": "7c1aaff2c59a42e27cc311bcdc692d1c2eba74b343f6ee8cf74e423c8e32b5d5",
+  "maintained_big_endian_api_test": "Prepared in lib_multipart; parent Cargo pending; no big-endian object claim yet."
+}

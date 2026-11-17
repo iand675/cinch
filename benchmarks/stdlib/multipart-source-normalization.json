@@ -105,5 +105,10 @@
         "executable_sha256": "bb95ac863393715fe27457d5c089bab875f3914239c90284ccfce42401426357"
       }
     ]
+  },
+  "representative_ir_byte_identical_to_pre_normalization": true,
+  "pre_normalization_ir_sha256": {
+    "rust": "91bfd5bd5b78fda5ce5a3e6f84d87e075afc9592f698eb177c247adf51744a5b",
+    "native": "42b318c67740a44ffcba0e40f7345c18623fd5ecf571988035fccea6472725b4"
   }
 }
