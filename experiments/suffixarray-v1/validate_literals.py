@@ -76,6 +76,7 @@ def main() -> None:
     parser.add_argument('--start',type=int,required=True)
     parser.add_argument('--count',type=int,default=8)
     parser.add_argument('--kind',choices=['literals','callbacks'],default='literals')
+    parser.add_argument('--source-first',action='store_true',help='Check the prepared consumer within 15 seconds and 5 MiB before any linking')
     parser.add_argument('--opt-level',choices=['0','2'],default='0')
     parser.add_argument('--artifacts',type=Path,required=True)
     args=parser.parse_args();work=args.artifacts.resolve();report=work.with_suffix('.json')
@@ -108,6 +109,16 @@ def main() -> None:
     r=dict(scope='Bounded exact public suffix construction and literal or concrete leftmost callback outputs; no performance/general-regex claim',status='building',kind=args.kind,command=command,source_sha256=digest(HERE/'src/Data.Index.SuffixArray.cinch'),entry_sha256=digest(entry),vectors_sha256=digest(HERE/'vectors.json'),compiler_sha256=digest(args.compiler),runtime_sha256=digest(args.runtime),validator_sha256=digest(Path(__file__)),dependencies={n:digest(p) for n,p in dependencies.items()},start=args.start,count=len(rows),literal_observations=sum(len(x['queries']) for x in rows) if args.kind=='literals' else 0,callback_observations=sum(sum(q['pattern'] in ['', 'a?', 'a*'] for q in x['regex']) for x in rows) if args.kind=='callbacks' else 0,compiled_rc_debug=False,profiles=[],before_free_bytes=before)
     report.write_text(json.dumps(r,indent=2)+'\n');start=time.monotonic()
     try:
+        if args.source_first:
+            source_command=[str(args.compiler),'check',str(entry)]
+            r.update(status='checking-source',source_command=source_command);report.write_text(json.dumps(r,indent=2)+'\n')
+            result=subprocess.run(source_command,capture_output=True,text=True,timeout=15)
+            (work/'source-check.log').write_text(result.stdout+result.stderr)
+            r['source_exit_code']=result.returncode
+            r['source_output_bytes']=sum(p.stat().st_size for p in work.rglob('*') if p.is_file())
+            assert result.returncode==0,result.stdout+result.stderr
+            assert r['source_output_bytes']<=5*1024*1024 and shutil.disk_usage(ROOT).free>=250*1024*1024
+            r['status']='building';report.write_text(json.dumps(r,indent=2)+'\n')
         result=subprocess.run(command,capture_output=True,text=True);(work/'compile.log').write_text(result.stdout+result.stderr)
         assert result.returncode==0,result.stdout+result.stderr
         r.update(executable_sha256=digest(executable),llvm_sha256=digest(work/'consumer.ll'),status='running');report.write_text(json.dumps(r,indent=2)+'\n')

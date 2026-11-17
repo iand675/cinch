@@ -89,5 +89,14 @@
       "zero_leak_profiles": 306,
       "receipt": "literal-o2-receipt.json"
     }
+  },
+  "concrete_callback_runtime": {
+    "status": "partial",
+    "inputs": 8,
+    "observations": 120,
+    "zero_leak_profiles": 16,
+    "optimization": "O0 only",
+    "receipt": "callback-first-unit-receipt.json",
+    "general_regex_integration": "open"
   }
 }

@@ -10,7 +10,7 @@ record exact reports and successful-output recovery. Fresh O2 epochs also pass
 all 153 inputs, 10,710 lookup observations and 306 memory processes with exactly
 the same consumer bytes as O0; `literal-o2-receipt.json` records that separate
 epoch. Adversarial ownership,
-effectful callbacks and portable gates remain pending; no performance or
+effectful callback controls and portable gates remain pending; no performance or
 complete-package claim is made. No Cargo build has
 run in this lane.
 
@@ -142,3 +142,10 @@ source/CIF epochs share only exact byte/size/mode/ownership matches, with each
 original path's metadata durably recoverable from separate immutable ledgers.
 All source/interface paths remain plain. Never compile or write in those shared
 closed workdirs; create a fresh epoch or restore independent metadata first.
+
+The first eight concrete callback inputs pass source-first and O0 normal/poison
+runtime gates: 120 exact endpoint observations and 16 zero-leak processes.
+`callback-first-unit-receipt.json` preserves the earlier fixture-only layout
+refusal and the separate corrected caller epoch; all expected oracle offsets
+are unchanged. The remaining callback corpus, O2, adversarial owners and actual
+IO/mutation callback controls remain pending. This is not raw-byte regex parity.

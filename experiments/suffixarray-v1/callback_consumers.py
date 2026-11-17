@@ -23,6 +23,12 @@ module Main where
       Cons pair rest -> case pair of
         (start, end) -> if suffix-match-start value == start && suffix-match-end value == end then same-ranges more rest else False
 
+  -- | Compare one complete typed search result without a nested case inside a generated let block.
+  accepted-ranges :: Result (SuffixScanError Unit) (List SuffixMatch) -> List (Nat, Nat) -> Bool
+  accepted-ranges result expected = case result of
+    Err failure -> False
+    Ok found -> same-ranges found expected
+
   -- | Build a range through the same checked public constructor available to any callback.
   found-range :: SuffixIndex -> Nat -> Nat -> Result Unit (Option SuffixMatch)
   found-range index first end = case suffix-match index first end of
@@ -64,7 +70,7 @@ def consumer(rows: list[dict]) -> str:
         for at, query in enumerate(queries):
             limit = 'AllSuffixMatches' if query['limit'] < 0 else f'(AtMostSuffixMatches {query["limit"]})'
             spans = '[' + ','.join(f'({start},{end})' for start, end in (query['leftmost'] or [])) + ']'
-            source += f'      let q{at} = case suffix-index-find-all index {names[query["pattern"]]} {limit} of\n        Err failure -> False\n        Ok found -> same-ranges found {spans} in\n'
+            source += f'      let q{at} = accepted-ranges (suffix-index-find-all index {names[query["pattern"]]} {limit}) {spans} in\n'
         source += '      ' + ''.join(f'if not q{at} then {at + 1} else ' for at in range(len(queries))) + '0\n'
     dispatch = '101'
     for number in reversed(range(len(rows))):
