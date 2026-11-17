@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Losslessly archive only completed successful ASCII consumer executables and LLVM, with durable recovery evidence."""
+"""Losslessly archive completed successful ASCII/Fields consumer executables and LLVM, with durable recovery evidence."""
 from __future__ import annotations
 import argparse
 import gzip
@@ -71,7 +71,8 @@ def main() -> None:
     archives.mkdir(exist_ok=True)
     sync_directory(index.parent)
     sync_directory(index.parent.parent)
-    state = json.loads(index.read_text()) if index.exists() else dict(schema=1,scope='closed successful ASCII functional ELF/LLVM only',files=[])
+    state = json.loads(index.read_text()) if index.exists() else dict(schema=1,files=[])
+    state['scope'] = 'closed successful ASCII/Fields functional ELF/LLVM only'
     before = shutil.disk_usage(ROOT).free
     count = 0
     reclaimed = 0
@@ -103,7 +104,7 @@ def main() -> None:
         return
     for report in args.report:
         report = report.resolve()
-        assert report.parent == ROOT/'build' and report.name.startswith('byte-ascii-run-')
+        assert report.parent == ROOT/'build' and (report.name.startswith('byte-ascii-run-') or (report.name.startswith('byte-fields-') and '-runtime-' in report.name))
         result = json.loads(report.read_text())
         assert result['status'] == 'passed' and result['profiles'] and all(value['zero_leaks'] for value in result['profiles'])
         directory = report.with_suffix('')
