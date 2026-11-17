@@ -27,6 +27,13 @@
     "bootstrap/Bootstrap.Typing.cinch": "c35066a2f6dc3bfdc82daa1dd7ec6d8ee8426ea7c8eb84819d62d6547d15c7c7"
   },
   "native_family_adoption": false,
+  "next_internal_phase_instrumentation": {
+    "base_revision": "94732a7954ec56ef6bde1e46383a858fa774d93c",
+    "budget_review": "bootstrap/native-mvar-source-check-budget-review.md",
+    "candidate_commit": "63b90a8b",
+    "scope": "check_decls.rs59insertions only; no original source statements changed; optional stderr timings with scope=prepare/full",
+    "validation": "rustfmt syntax parse, git diff --check and exact original-byte reconstruction only; no build"
+  },
   "prepared_source_contract_cases": 36,
   "published_contract_revision": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
   "published_mvar_source_sha256": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e",
