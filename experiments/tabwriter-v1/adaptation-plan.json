@@ -1,5 +1,5 @@
 {
-  "status": "Concrete native control source prepared; not yet source/runtime qualified",
+  "status": "All twelve explicit adaptation policies are source/runtime-qualified on the exact Rust330/d91 tuple; Native backend and full package remain open",
   "records": [
     {
       "reference_case": "sink-panic-1",
@@ -14,7 +14,7 @@
       "native_policy": "typed callback error with defined checkpoint; no invented reference return count",
       "control": "checked-callback-failure",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "sink-panic-2",
@@ -29,7 +29,7 @@
       "native_policy": "typed callback error with defined checkpoint; no invented reference return count",
       "control": "checked-callback-failure",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "sink-panic-3",
@@ -44,7 +44,7 @@
       "native_policy": "typed callback error with defined checkpoint; no invented reference return count",
       "control": "checked-callback-failure",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "negative-min_width",
@@ -53,7 +53,7 @@
       "native_policy": "named constructor-coordinate refusal",
       "control": "negative-refusal",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "init-refusal-min_width",
@@ -68,7 +68,7 @@
       "native_policy": "prevalidated configuration leaves old state unchanged",
       "control": "invalid-initialize",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "negative-tab_width",
@@ -77,7 +77,7 @@
       "native_policy": "named constructor-coordinate refusal",
       "control": "negative-refusal",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "init-refusal-tab_width",
@@ -92,7 +92,7 @@
       "native_policy": "prevalidated configuration leaves old state unchanged",
       "control": "invalid-initialize",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "negative-padding",
@@ -101,7 +101,7 @@
       "native_policy": "named constructor-coordinate refusal",
       "control": "negative-refusal",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "init-refusal-padding",
@@ -116,7 +116,7 @@
       "native_policy": "prevalidated configuration leaves old state unchanged",
       "control": "invalid-initialize",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "zero-required-init",
@@ -125,7 +125,7 @@
       "native_policy": "opaque initialized factory representation; uninitialized state cannot be constructed",
       "control": "initialized-empty",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "maximum-padding",
@@ -145,7 +145,7 @@
       "native_policy": "checked mathematical width overflow; explicit early refusal prefix policy",
       "control": "maximum-padding",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     },
     {
       "reference_case": "maximum-tab-padding",
@@ -165,10 +165,15 @@
       "native_policy": "defined exact arithmetic output despite reference intermediate overflow",
       "control": "maximum-tab-width",
       "source": "AdaptMain.cinch",
-      "qualified": false
+      "qualified": true
     }
   ],
   "reference_modified": false,
   "reference_panic_return_counts_invented": false,
-  "full_package_qualified": false
+  "full_package_qualified": false,
+  "qualification_receipt": "controls-v1/adaptation-gates.json",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "backend": "Rust frontend / LLVM20 O2",
+  "native_backend_qualified": false
 }
