@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "tests": 2,
+  "runtime_aggregate": "472 table entries,1024 queries,32 retained/repeated-factory rounds; normal32M and poison256M heaps,8M stack; zero leaks.",
+  "producer_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "parent_wall_seconds": 209.59210615602206,
+  "test_wall_seconds": 4.82,
+  "all_generated_sources_and_inputs_retained_plain": "/tmp/cinch-fixed-palette-KuXqZ4",
+  "provider_snapshot_retained_plain": "/tmp/cinch-fixed-palette-KuXqZ4/runtime-initialization/host-runtime.a",
+  "package_complete": false,
+  "remaining": [
+    "Production module selection and public reference generation",
+    "Matched public factory/nearest/model performance",
+    "Full current Native family qualification"
+  ],
+  "files": {
+    "bootstrap/repros/palette-parent-v1/functional-details.json": "245e22a12051854ba7f09d4245285f5649ff8019870d2ceb9d0ad427e529a2a2",
+    "bootstrap/repros/palette-parent-v1/receipt.json": "4fe9f667dd4dc15dd3b7f2151e5c98e69f58f805d1133d8e874352e553bb0bae",
+    "bootstrap/repros/palette-parent-v1/executed-parent-runner.py": "2126dd4ba74709a095cabb977cefd2b01bb5a4b3a65205b11f3b941501fc2697",
+    "bootstrap/repros/palette-parent-v1/functional-and-initialization.json": "9cc90f1bda2efb585e78306387889def59e4ab73b94939092c77d33673c171e3",
+    "bootstrap/repros/palette-parent-v1/cargo.log": "d37f1952d66cb46675fd520a6819271b165f8f908279ec66a027031bd1958ae4",
+    "bootstrap/repros/palette-parent-v1/producer-provenance.json": "2921bb242d09a44f99f23ebfdba24196cf1b02ecbb65f5278ad71f07f462f15b"
+  }
+}

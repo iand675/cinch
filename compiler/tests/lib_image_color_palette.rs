@@ -1,8 +1,8 @@
 //! Canonical fixed-palette documentation and current Rust public runtime regression.
 
-/// Keep generated sources, original defining interfaces and diagnostics on any assertion failure.
+/// Preserve generated sources, original defining interfaces and diagnostics for every outcome.
 struct FixedPaletteProject {
-    /// The complete temporary project remains owned until success or explicit panic retention.
+    /// The complete project remains owned until its path is retained at the test boundary.
     directory: Option<tempfile::TempDir>,
 }
 
@@ -26,12 +26,18 @@ impl FixedPaletteProject {
 }
 
 impl Drop for FixedPaletteProject {
-    /// Retain all failed project bytes; clean only fully successful test output.
+    /// Keep all source and proof inputs plain; successful outputs can be archived after review.
     fn drop(&mut self) {
-        if std::thread::panicking() {
-            let path = self.directory.take().unwrap().keep();
-            eprintln!("retained failed fixed-palette project: {}", path.display());
-        }
+        let path = self.directory.take().unwrap().keep();
+        let outcome = if std::thread::panicking() {
+            "failed"
+        } else {
+            "completed"
+        };
+        eprintln!(
+            "retained {outcome} fixed-palette project: {}",
+            path.display()
+        );
     }
 }
 

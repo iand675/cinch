@@ -1,0 +1,250 @@
+{
+  "scope": "Initialize the current Rust host runtime normally, then run the SDK-free fixed-palette unit.",
+  "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "provider_initialization_scope": "Ordinary compiler build plus independently locked archive snapshot, retained outside the30MiB functional-output unit.",
+  "compiler_host_stack_bytes": 67108864,
+  "runner_sha256": "5be92fd87367cbe66ebc6625be4c66779cec4993653122ec879225bbb46ccb5a",
+  "runtime_initialization": {
+    "command": [
+      "/workspace/dasl-stdlib-io/compiler/target/release/cinch",
+      "build",
+      "/tmp/cinch-fixed-palette-KuXqZ4/runtime-initialization/RuntimeInit.cinch",
+      "-o",
+      "/tmp/cinch-fixed-palette-KuXqZ4/runtime-initialization/runtime-initializer"
+    ],
+    "archive_path": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+    "archive_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+    "snapshot_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+    "initializer_source_sha256": "58d61a4c5772e54ee169bd6c129871a42e40f9153812102c7975482581cf6e6d",
+    "initializer_executable_sha256": "5d3e5a85000695fc043dca36bc7c7a88488172114dc6422ad40d7104be4c59c1",
+    "build_stdout": "",
+    "build_stderr": "",
+    "run_stdout": "",
+    "run_stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+  },
+  "command": [
+    "python3",
+    "/workspace/dasl-stdlib-io/tooling/check_color_palette.py",
+    "--source",
+    "/workspace/dasl-stdlib-io/experiments/image-color-palette-v1/sources/Image.Color.Palette.cinch",
+    "--color",
+    "/workspace/dasl-stdlib-io/experiments/image-color-v1/sources/Image.Color.cinch",
+    "--consumer",
+    "/workspace/dasl-stdlib-io/experiments/image-color-palette-v1/consumer.cinch",
+    "--vectors",
+    "/workspace/dasl-stdlib-io/experiments/image-color-palette-v1/vectors.json",
+    "--compiler",
+    "/workspace/dasl-stdlib-io/compiler/target/release/cinch",
+    "--runtime",
+    "/tmp/cinch-fixed-palette-KuXqZ4/runtime-initialization/host-runtime.a",
+    "--work",
+    "/tmp/cinch-fixed-palette-KuXqZ4/functional",
+    "--cpu",
+    "3",
+    "--opt",
+    "2"
+  ],
+  "returncode": 0,
+  "stdout": "all472 entries/1024 queries and escaped factory owners pass both memory profiles\n",
+  "stderr": "",
+  "functional": {
+    "scope": "Execute the public fixed-palette corpus and retained-owner controls with an exact Rust runtime archive.",
+    "runner_sha256": "c9040c8ddc99b14d7451e64de454cc8823dd72a2dbd8f45e396ad80d71808770",
+    "compiler": "/workspace/dasl-stdlib-io/compiler/target/release/cinch",
+    "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+    "runtime": "/tmp/cinch-fixed-palette-KuXqZ4/runtime-initialization/host-runtime.a",
+    "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+    "source_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+    "color_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+    "consumer_sha256": "31397fcdca1f04670831a9e588054e65e7521fdbbd1e6abb0a92c12ed35c14ae",
+    "vectors_sha256": "27ad7d7d7e7318499eaf51ed2ed70c42a856dbb2fadbe01ce1e614c7d1fb0310",
+    "cpu_affinity": [
+      3
+    ],
+    "compiler_host_stack_bytes": 67108864,
+    "consumer_optimization": 2,
+    "initial_free_bytes": 560508928,
+    "profiles": [
+      {
+        "poison": "0",
+        "heap": "32M",
+        "stack": "8M",
+        "stdout": "",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "poison": "1",
+        "heap": "256M",
+        "stack": "8M",
+        "stdout": "",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    "commands": [
+      {
+        "command": [
+          "/workspace/dasl-stdlib-io/compiler/target/release/cinch",
+          "check",
+          "/tmp/cinch-fixed-palette-KuXqZ4/functional/Main.cinch"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "/workspace/dasl-stdlib-io/compiler/target/release/cinch",
+          "emit-ir",
+          "/tmp/cinch-fixed-palette-KuXqZ4/functional/Main.cinch",
+          "-o",
+          "/tmp/cinch-fixed-palette-KuXqZ4/functional/consumer.ll"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O2",
+          "--target=x86_64-unknown-linux-gnu",
+          "-fno-vectorize",
+          "-fno-slp-vectorize",
+          "-c",
+          "/tmp/cinch-fixed-palette-KuXqZ4/functional/fixture.c",
+          "-o",
+          "/tmp/cinch-fixed-palette-KuXqZ4/functional/fixture.o"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O2",
+          "--target=x86_64-unknown-linux-gnu",
+          "/tmp/cinch-fixed-palette-KuXqZ4/functional/consumer.ll",
+          "/tmp/cinch-fixed-palette-KuXqZ4/functional/fixture.o",
+          "/tmp/cinch-fixed-palette-KuXqZ4/runtime-initialization/host-runtime.a",
+          "-ldl",
+          "-lpthread",
+          "-lm",
+          "-o",
+          "/tmp/cinch-fixed-palette-KuXqZ4/functional/consumer"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "/tmp/cinch-fixed-palette-KuXqZ4/functional/consumer"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "command": [
+          "/tmp/cinch-fixed-palette-KuXqZ4/functional/consumer"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    "runtime_claim": true,
+    "source_closure_sha256": {
+      "Image.Color": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+      "Image.Color.Palette": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd"
+    },
+    "final_free_bytes": 550408192,
+    "unarchived_output_bytes": 9933106,
+    "defining_interfaces": {
+      "Prim.Sys.Linux.cinchif": "63e729476c40cfb015065317fae003f19d3dbc1bd531c716c58afb889b1cc57a",
+      "Prim.Sys.Portable.cinchif": "3086a42ed7fd77622080e345c680b29ef31068da1a330bd0fd57cc006c0792ef",
+      "Category.Foldable.cinchif": "034f6fbfa6f95468b649d936524ebe85b640a3f22933545cafe75716d3f11912",
+      "Algebra.Arithmetic.cinchif": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+      "Algebra.Semigroup.cinchif": "4c59bfa1465a6215048169120bc61219c7941830f01578c8c1a8e05918ebfddc",
+      "Effect.Concurrent.cinchif": "ae3eb93fc2d05b7882b4ff502c358b5490930e81e3d9e82fa671a5f84ac2b697",
+      "Data.Machine.cinchif": "6e09f1a52e00bc9b6fdb3bd1b1329931e571c3a4f908b8c71db257728efbd89d",
+      "Algebra.Bits.cinchif": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+      "Prim.Sys.cinchif": "1391398462afb859147a7a397983f36e8944a66abcdc034a4cb65eb7b81f799e",
+      "Data.Compose.cinchif": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+      "Data.Wide.cinchif": "3f3d9baf5b31c63ce7c7389597cf914528b2caa03016df29ff76cc89b6ecd7a5",
+      "Effect.Stm.TQueue.cinchif": "508fa841ad821ce78c81662313f1a88f22dc73d671f38379ea8fb56a17920c1d",
+      "Effect.Clock.cinchif": "4411fbf55c3cde0f4021988adca4439debfa636343c377bc71989dfc27b6f3f2",
+      "Algebra.Monoid.cinchif": "a29802f9291998d90aa1efa944a7885f694bd5632f3a4730752ef9c7a6784a39",
+      "Data.NonZero.cinchif": "3408b83c58f90fa40d6fcc392c0ef1c4f72111fb61eb74621e0fab18c6fe615c",
+      "Data.Sym.cinchif": "182997a4008315d25be3f86d195998c7fd002e422ab8a12085e3c23001e66237",
+      "Category.Alternative.cinchif": "5c6fae8e8fa7fc3025a9430de85b1916cc716635b7fe0aeb2fa5103ad62314c5",
+      "Effect.Sequencing.cinchif": "5d0bf50a778d638b8aba5b26738e3595b3ef05b66bddef2b338ff4df33c3412b",
+      "Image.Color.Palette.cinchif": "3ea12e79a49f086a9f50df2d0dfd289f060a8a2b4badb679bc9c1a824560b39c",
+      "Data.Enum.cinchif": "81bbaed45187bd36db1c3d5b00e40003a378b966cdc0a1c8158ccc857144cce3",
+      "Text.Show.cinchif": "44b9634e652cc07352c9fc97e997c257576dde9d04eccaac4e9e019518e0cce1",
+      "Data.Ascii.cinchif": "0647dee755011378cbf1d528f54562d3ab01fe9ef9d4d10cbb0b97ec27785473",
+      "Category.Traversable.cinchif": "6bc5b69abeead5481148a433b7eb85dd247ae61e79e367c0be056a64615ae6e3",
+      "Data.FromList.cinchif": "58a3a797caacd038392623639a4c7df021b9694b3bce7150e6775717646b893b",
+      "Effect.Stm.cinchif": "8bf61ee9faa7817e9a054a73065613e80b9a3db0bbe3ab60a5c252d790dc7e7c",
+      "Data.Hash.cinchif": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+      "Category.Applicative.cinchif": "a993c1078cc20eb27bc7ce76efc3eaddca0d7394988ebcc51b9c89ecf5616278",
+      "Data.Nat.cinchif": "2fa35d5558e80a90d06be2467532b03c9f9ebc81c0387c829601a816c42b2602",
+      "Data.Json.cinchif": "83c9aa67f6ce91c7d9a8f27158dd2a2e67453b100c894b99cf394f4d01256a55",
+      "Data.NonEmpty.cinchif": "598ffe6070d91b5dc09d262e0c156986c10480937590b745fb15b35c0d052b3d",
+      "Data.Ordering.cinchif": "76b6b4b2dd1e53c7f6b045183ca6cdb1ffde278e74b32e051967783654185b26",
+      "Data.Bytes.cinchif": "50b46b033998206bf2f39b70a5a1be5b546f834f0d334db713d513ebda32275e",
+      "Data.Path.cinchif": "0d69a188b40bf922d4173ff950638e9bc2651c997097ba1d697b51be1e6b487f",
+      "Effect.Process.cinchif": "352bd9ca82d0f75c278d04544626c820cc0d756f33c6fc70e660da103901068e",
+      "Data.String.cinchif": "850ca234bc62b8cf4b746379512082ba8ab54692ba3fd1d0ebc469df4c385c07",
+      "Data.Bool.cinchif": "a750b904562a351e758601a85a2d98a3c9f82b8a0791bfe7d00eeaa1aa2dd632",
+      "Function.Combinators.cinchif": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+      "Effect.Stm.TMVar.cinchif": "7cc06ee21d6183f411cdcf748238619db80c7456e465c4e02d240f7d2cd328b8",
+      "Data.List.cinchif": "cb3186ce824c0adc5b766e1bcdbb8c761c762b0fde12b92461421a43a4d0c04c",
+      "Category.Functor.cinchif": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+      "Data.Producer.cinchif": "c9f217c1c4ef94d699d63721e963d8927fc80c08ca7f4d0ae36cdfde005ac4e7",
+      "Data.Result.cinchif": "96fc58ed104b93e8973d7735dec1a82585b795bd448ac7001ff9515b7fce5a60",
+      "Algebra.Group.cinchif": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+      "Data.Sorted.cinchif": "53208e265433e3f46a9e95b29e1d0985d3402ea27bd35298de2ebef549c14128",
+      "Data.Const.cinchif": "8ba7d4cb8471ccf8c59103fd43d1a3d77cbd6c855e66829d3bdd5e0c87a36090",
+      "Text.Codec.cinchif": "de86014e4d2dad0a4229671b11ebb58e39c5cfa486acee224f22963b342e7b76",
+      "Data.HashMap.cinchif": "4968e9c766928eeab4c3d33d33fe7af52cc63143a90f9e818ae8f71bcd664fe4",
+      "Data.Int.cinchif": "676aaa79a5d32f6f7a48b065e16c0b061584e1b4c192353ca793602b306db45e",
+      "Effect.Io.cinchif": "55a35f37b29b3f1ecd0f6de7efc103c010a4f749fab2078eda713a3e034228b0",
+      "Data.Map.cinchif": "dd9fc690f7444f124e0d116416e71f9d1c99c27865caa8adbc096e797760a7dc",
+      "Effect.Stm.TSem.cinchif": "ff466033aeb3adc97b16b6a6c0b3af16521770145f092beac8dddf7e0ed253bc",
+      "Prelude.cinchif": "a7299d0fa71de14674efbb2bef52366d84c0e9c882996f238d61e537d4467a81",
+      "Relation.Ord.cinchif": "b02ef4dcdb861e67be15ca864080fea29737a5295d8d8afcae31219125176cfb",
+      "Data.Set.cinchif": "890ade94f388f45477726572bd8fa3a559abebd5bd143f64ebd9047e4fcc44e9",
+      "Category.Monad.cinchif": "8c78b566d9719fbe9c1940e75120256995b8694462a06f479096f7db95a09158",
+      "Data.Target.cinchif": "be5fb1e3021691e6b1a5c99657bdeb2c5e220c6e7419b12e8336151069423803",
+      "Data.Char.cinchif": "2dc7da4b446ff99145fcf1f7133aecaa03bfdcdb3d63c08909e62bcf263043a9",
+      "Effect.Stm.TBQueue.cinchif": "1135dba8c934b7d2f1d9260c9c8c30abc3d64ed8a1f7d6a92d5818e53e1b6e72",
+      "Image.Color.cinchif": "159751c58e2084d5ab798bbbbb492604d05e6fe2f91ea00b2f59d16e995b916e",
+      "Data.FromMap.cinchif": "68a0d5bb3b91b16909bd9e29224b808284ac34662ce98a0c79e3f41231770d9f",
+      "Relation.Eq.cinchif": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+      "Data.Identity.cinchif": "aa8d40c6230e13a448e4c5da979715be06aca3401093d367afdfac657a773f62",
+      "Prim.Sys.Darwin.cinchif": "04e6ded640cd2faa5b3c292842c706ce64a9236b82bb47b47348d1cbd050cad0",
+      "Algebra.Semiring.cinchif": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+      "Main.cinchif": "6ea4c343c35a8fae5cd617173d399c51289db36d41df3a1c02228d9211866c13",
+      "Data.Core.cinchif": "456e466db445fe324b0fb09ca6deeff59bf2192d54a7777216f6ba402b298d44",
+      "Effect.Fs.cinchif": "b53758fa24604b6f3097af34b519e3d5451feecf602255ca5e36c515f0ae0b3f",
+      "Effect.Concurrent.MVar.cinchif": "1413af09d8e16d79493665ede7b3f2e97d6c85be0ee3df606de1c2072fdff276",
+      "Data.Option.cinchif": "f59bcdf5b108f39c0dc588490f1e3ba54fcbf60046740b557415d0564abeea58"
+    },
+    "foreign_fixture": {
+      "scope": "Translate committed independent fixed-palette observations into literal read-only fixture tables.",
+      "vectors_sha256": "27ad7d7d7e7318499eaf51ed2ed70c42a856dbb2fadbe01ce1e614c7d1fb0310",
+      "fixture_sha256": "fb1100fce15f97b000fa1b112f55c904a9bd08f826468f7f9606797316d66aaa",
+      "exact_table_entries": 472,
+      "palette_use_queries": 1024,
+      "expected_values_are_literal_sdk_observations": true
+    },
+    "ir_sha256": "f7f5c8f30eb7d171ccf7160b2c04c2000660441ca32295b8f11a3380ed6fd835",
+    "target_triple": "x86_64-unknown-linux-gnu",
+    "fixture_object_sha256": "082a6afbd495f9833b4c75d91593b7af641c2fcb6787068d25115d570316e7d7",
+    "executable_sha256": "9834fa65f3879d754e408b771d5589db2a0f7224749061469d5661ec591931a3",
+    "status": "passed"
+  },
+  "status": "passed"
+}

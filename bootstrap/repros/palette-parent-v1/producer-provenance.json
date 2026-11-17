@@ -1,0 +1,14 @@
+{
+  "scope": "Current Rust producer after canonical entropy comment update; parent palette2/2 passed with same Linux entropy runtime; older frozen1de/D91 inputs unchanged.",
+  "compiler": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+  "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "runtime": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/libcinchruntime.a",
+  "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "source_head": "b9c4e48c",
+  "parent_receipt": "bootstrap/repros/palette-parent-v1/receipt.json",
+  "parent_receipt_sha256": "4fe9f667dd4dc15dd3b7f2151e5c98e69f58f805d1133d8e874352e553bb0bae",
+  "retained_palette_project": "/tmp/cinch-fixed-palette-KuXqZ4",
+  "compiler_copy_independent": true,
+  "runtime_hardlink_to_immutable_frozen_archive": true,
+  "full_native_family_admitted": false
+}
