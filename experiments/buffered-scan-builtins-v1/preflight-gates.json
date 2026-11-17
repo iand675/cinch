@@ -1,0 +1,109 @@
+{
+  "scope": "Complete bounded public pipeline preflight only; no timing, optimization selection or general compiler repair claim.",
+  "baseline_identity_sha256": "6474bb166a9388525f2d7c57b1d483c7e9bc86716c4454a7125f0efbfcc2a681",
+  "candidate_identity_sha256": "07e5a4737b0c7b8a73747bff55fb058272b3b281358f416e21495dcea0a85e01",
+  "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "candidate_identity": {
+    "frontend": "rust",
+    "compiler": "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/cinch",
+    "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+    "runtime": "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/libcinchruntime.a",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "snapshot_sha256": "efddf04be6b84092832f2d1f0d3a174964c2bcc27418aa84ffcfb3105c611577",
+    "snapshot": {
+      "description": "Rust frontend with repaired scalar semantics and embedded phase2 String/Bytes after full parent gates",
+      "source_checkpoint": "cafee61a",
+      "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "rust_profile": {
+        "dev": true,
+        "debug_assertions": true,
+        "debug_symbols": false,
+        "codegen_units": 1
+      },
+      "gates": "bootstrap/stdlib-string-phase2-parent-results.json",
+      "embedded_sources": {
+        "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+        "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+      },
+      "rust_sources": {
+        "compiler/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c",
+        "compiler/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
+        "compiler/src/check_decls.rs": "e33cd60f09ba1a13c02a015abc2fb394abb20f1b9f499e05f5312a09dabf129c"
+      },
+      "scope": "Rust frontend snapshot only; this is not adoption of the provisional Native scalar-import family."
+    },
+    "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+    "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+    "sources": {
+      "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+      "Effect.Scanner.Split.cinch": "d9a764dbfc39838c73df09111f2508eb4e1f31402877b0ce57d43d0181b06eff",
+      "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+      "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+      "Effect.Buffered.Internal.Scan.cinch": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+      "Effect.Buffered.Core.cinch": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+      "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+      "Effect.Scanner.cinch": "ce3a6d9e399dcc0664ff89d1ecbea2966917a64b5ed4a41101e12e1eb213ea63",
+      "Effect.Buffered.Writer.cinch": "bf3bda7ec2866c61b178b17ff37b7a52a202a9e0d86b0a44cea0069cd2e2382a",
+      "Data.Bytes.Build.cinch": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
+      "Effect.Buffered.Reader.cinch": "b0eb53793ea2111749580e5726abaec76f84fb3a1df3b9f3706d1240b696b160",
+      "Main.cinch": "429260f6a651e1580f4dee0bd14985a1a5351e0f3924b488c743604a266a6000"
+    },
+    "compile_command": [
+      "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/cinch",
+      "emit-ir",
+      "/workspace/dasl-stdlib-buffered-io/build/buffered-benchmark-scan-candidate-7e-v1/project/Main.cinch",
+      "-o",
+      "/workspace/dasl-stdlib-buffered-io/build/buffered-benchmark-scan-candidate-7e-v1/benchmark.ll"
+    ],
+    "rc_debug_instrumentation": false,
+    "ordinary_reclaim": true,
+    "source_shadow_used": false,
+    "scope": "Complete public reader/scanner operations and owned writer/transfer pipelines; fresh source-event and mutable-output ownership included. No compiler/provider copies or unrelated optional loop counters.",
+    "source_overrides": "experiments/buffered-scan-builtins-v1/sources",
+    "phase": "ordinary-RC O2 public pipeline build",
+    "link_command": [
+      "clang",
+      "-O2",
+      "/workspace/dasl-stdlib-buffered-io/build/buffered-benchmark-scan-candidate-7e-v1/benchmark.ll",
+      "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/libcinchruntime.a",
+      "-ldl",
+      "-lpthread",
+      "-lm",
+      "-o",
+      "/workspace/dasl-stdlib-buffered-io/build/buffered-benchmark-scan-candidate-7e-v1/benchmark"
+    ],
+    "executable_sha256": "aa84efa6bb1a6de1a9ac62c23cad19b4762c0f2aff07437dfa6e0985808b0f58",
+    "llvm_sha256": "e82a5d5c742d1170172ad6c6372e49bea028ed19bef4ddf9a50471a57cc0c284",
+    "assembly_sha256": "1a70e8926f7dfb58dc46a7c48e1dbef96b7cedfe6d44d7441f33e1dd77098cff",
+    "reference_executable_sha256": "398f38df8829f9e4292a2f01a9e5ca7eb1b75f9b0039bc055527fc788dd4da7c",
+    "reference_source_sha256": "78c9b3c6be14dde1a1134fb71ceb4e13541eee0db74c9f494a504f7e213ef72c",
+    "reference_sdk": "go version go1.27.4 linux/amd64",
+    "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/.tools/llvm/usr/lib/llvm-20/bin\n"
+  },
+  "changed_modules": [
+    "Effect.Scanner.Split.cinch",
+    "Effect.Scanner.cinch",
+    "Main.cinch"
+  ],
+  "inputs": {
+    "build/buffered-benchmark-preflight-v1.json": "15bf21c38280fa57034195364d2eba643e85b211b9bfbce110c44dab915437f2",
+    "build/buffered-benchmark-preflight-fringes-v1.json": "0f1608fe92903d99dc2b7e5082c0a8ede2bad54f10dd6ef830ec6bb056a5acab",
+    "build/buffered-benchmark-scan-candidate-preflight-v1.json": "10b1570bdf16be60d4760d9c54bb94d12a8e7c8b98ce65f3e72c4476c9154a37"
+  },
+  "conditions": 729,
+  "zero_leak_cinch_memory_runs": 1458,
+  "independent_reference_runs": 729,
+  "candidate_artifact_and_preflight_bytes": 24173902,
+  "data_scope": "The same nine public pipelines, three byte patterns, nine sizes0..65536 and iteration counts0/1/3; two alternating prepared owners and U32 counters.",
+  "known_epoch_limitation": "Historical7e0d has a known boxed-Nat comparison memory-attribute bug. This explicit bounded comparison does not claim a general boxed-Nat boundary repair;855/2f functional evidence is separate.",
+  "pending": [
+    "complete1771/840 independent scanner/direct-split corpus runtime gates",
+    "explicitly granted paired baseline/candidate timing and codegen/allocation review",
+    "actual live Multipart owner/error/close controls",
+    "callback cycle still blocks full-family promotion"
+  ]
+}

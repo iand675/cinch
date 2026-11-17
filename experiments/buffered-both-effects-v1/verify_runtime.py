@@ -3,10 +3,13 @@
 from pathlib import Path
 import argparse
 import json
+import sys
 import check
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+sys.path.insert(0, str(ROOT/'tooling'))
+from buffered_saved_artifacts import artifact_digest
 
 
 def main():
@@ -28,8 +31,8 @@ def main():
             assert run['environment']['CINCH_STACK_SIZE'] == '8M'
             assert run['environment']['CINCH_HEAP_LIMIT'] == ('256M' if run['poisoned'] else '32M')
         assert all(step['returncode'] == 0 for step in report['steps'])
-        assert check.digest(path.parent/'consumer.ll') == report['llvm_sha256']
-        assert check.digest(path.parent/'consumer') == report['executable_sha256']
+        assert artifact_digest(ROOT, path.parent/'consumer.ll') == report['llvm_sha256']
+        assert artifact_digest(ROOT, path.parent/'consumer') == report['executable_sha256']
         assert report['artifact_bytes'] <= 20*1024*1024
         gates.append({'frontend': source['frontend'], 'receipt': str(path.relative_to(ROOT)), 'receipt_sha256': check.digest(path),
                       'compiler_sha256': source['compiler_sha256'], 'runtime_sha256': source['runtime_sha256'],

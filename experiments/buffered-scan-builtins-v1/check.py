@@ -30,6 +30,7 @@ def main():
     """Freeze only source modules and stop on the first actual checker result or the standing fifteen-second deadline."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--artifacts', type=Path, required=True)
+    parser.add_argument('--source', type=Path, default=HERE/'Main.cinch')
     parser.add_argument('--frontend', choices=['rust', 'native'], default='rust')
     parser.add_argument('--native-snapshot', type=Path, default=Path('/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot'))
     parser.add_argument('--deadline', type=int, default=15, help='Explicitly granted source-only deadline, at most45 seconds')
@@ -41,7 +42,7 @@ def main():
     project = artifacts/'project'
     project.mkdir(exist_ok=True)
     source = project/'Main.cinch'
-    source.write_bytes((HERE/'Main.cinch').read_bytes())
+    source.write_bytes(args.source.read_bytes())
     snapshot = SNAPSHOT if args.frontend == 'rust' else args.native_snapshot.resolve()
     interfaces = INTERFACES if args.frontend == 'rust' else snapshot/'base-interfaces.json'
     embedded = {row[0] for row in json.loads(interfaces.read_text())['interfaces']}

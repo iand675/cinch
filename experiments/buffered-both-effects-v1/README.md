@@ -53,3 +53,5 @@ python3 experiments/buffered-both-effects-v1/verify_runtime.py
 ```
 
 `runtime-gates.json` records the distinct source/compiler/provider/runtime identities and all four memory outcomes. Actual live native alias, prefix-plus-error and caller-owned file-close runtime cases, retained callbacks and the complete functional corpus remain pending. The known retention cycle still blocks promotion; no collector or callback-lifetime behavior changes.
+
+Closed qualified ELF/IR outputs may be preserved in the verified `build/buffered-completed-functional-v3.tar.gz` recovery archive. The verifier streams indexed artifact bytes and checks their hashes, sizes, modes and unchanged report identity; it does not need to restore large outputs. All source, logs, receipts and benchmark inputs remain plain.

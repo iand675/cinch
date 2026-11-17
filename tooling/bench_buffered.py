@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import resource
+import shutil
 import statistics
 import subprocess
 from validate_buffered import ROOT,NATIVE,closure,digest,host_stack
@@ -28,6 +29,8 @@ def main()->None:
     parser.add_argument('--frontend',choices=['rust','native'],default='rust')
     parser.add_argument('--rust-snapshot',type=Path,default=RUST)
     parser.add_argument('--native-snapshot',type=Path,default=NATIVE)
+    parser.add_argument('--source',type=Path,default=ROOT/'tooling/data/buffered-benchmark.cinch')
+    parser.add_argument('--source-overrides',type=Path,help='Explicit experiment-only module copies; embedded base-family overrides are refused')
     parser.add_argument('--go',type=Path,default=Path('/tmp/cinch-go-current/go/bin/go'))
     parser.add_argument('--artifacts',type=Path,required=True)
     parser.add_argument('--output',type=Path)
@@ -43,6 +46,8 @@ def main()->None:
     if any(size < 0 or size > 65536 for size in args.sizes):parser.error('sizes must be in 0..65536')
     if any(pattern not in [0,1,2] for pattern in args.patterns):parser.error('patterns must be 0, 1 or 2')
     artifacts=args.artifacts.resolve();artifacts.mkdir(parents=True,exist_ok=True)
+    if args.action in ['build','preflight'] and shutil.disk_usage(artifacts).free < 250*1024*1024:
+        raise RuntimeError('standing benchmark start guard requires 250 MiB free')
     def used_bytes()->int:
         """Keep the explicitly granted persistent artifact budget separate from shared frozen tools and warmed SDK caches."""
         return sum(path.stat().st_size for path in artifacts.rglob('*') if path.is_file())
@@ -51,6 +56,8 @@ def main()->None:
         available=25*1024*1024-used_bytes()-256*1024
         if available<=0:raise RuntimeError('buffered benchmark artifact allowance exhausted')
         cap=min(maximum,available)
+        if shutil.disk_usage(artifacts).free < 200*1024*1024+available:
+            raise RuntimeError('standing benchmark reserve requires 200 MiB plus remaining outputs')
         def limits()->None:
             """Keep compiler-host stack explicit and prevent one IR/object/link output from consuming the shared disk."""
             host_stack();resource.setrlimit(resource.RLIMIT_FSIZE,(cap,resource.getrlimit(resource.RLIMIT_FSIZE)[1]))
@@ -74,8 +81,8 @@ def main()->None:
             for key in ['object','metadata']:
                 if digest(Path(objects[key]))!=objects[key+'_sha256']:raise ValueError('native provider payload mismatch')
         project=artifacts/'project';project.mkdir(exist_ok=True)
-        source=project/'Main.cinch';source.write_bytes((ROOT/'tooling/data/buffered-benchmark.cinch').read_bytes())
-        paths=closure(project,source,{row[0] for row in json.loads(interfaces.read_text())['interfaces']})
+        source=project/'Main.cinch';source.write_bytes(args.source.read_bytes())
+        paths=closure(project,source,{row[0] for row in json.loads(interfaces.read_text())['interfaces']},args.source_overrides)
         ir=artifacts/'benchmark.ll';executable=artifacts/'benchmark';assembly=artifacts/'benchmark.s'
         if args.frontend=='rust':
             command=[str(compiler),'check',str(source)] if args.action=='check' else [str(compiler),'emit-ir',str(source),'-o',str(ir)]
@@ -87,6 +94,7 @@ def main()->None:
         if result.returncode:
             diagnostic=ir.with_name(ir.name+'.diagnostics');raise RuntimeError((diagnostic.read_text() if diagnostic.exists() else result.stdout)+result.stderr)
         identity={'frontend':args.frontend,'compiler':str(compiler),'compiler_sha256':digest(compiler),'runtime':str(runtime),'runtime_sha256':digest(runtime),'snapshot_sha256':digest(provenance_path),'snapshot':provenance,'interfaces_sha256':digest(interfaces),'objects_sha256':digest(objects_path),'sources':{path.name:digest(path) for path in paths},'compile_command':command,'rc_debug_instrumentation':False,'ordinary_reclaim':True,'source_shadow_used':False,'scope':'Complete public reader/scanner operations and owned writer/transfer pipelines; fresh source-event and mutable-output ownership included. No compiler/provider copies or unrelated optional loop counters.'}
+        identity['source_overrides']=str(args.source_overrides) if args.source_overrides else None
         if args.frontend=='native':identity['provider']={'sha256':digest(provider_path),'object_sha256':objects['object_sha256'],'metadata_sha256':objects['metadata_sha256']}
         if args.action=='check':
             identity['phase']='source/type/proof check only, no link or execution'
@@ -113,6 +121,8 @@ def main()->None:
         for pattern in args.patterns:
             for size in args.sizes:
                 for count in ([0,1,3] if args.action=='preflight' else [args.iterations]):
+                    if shutil.disk_usage(artifacts).free < 200*1024*1024:
+                        raise RuntimeError('standing benchmark reserve fell below 200 MiB')
                     checksums=set();samples={'cinch':[],'reference':[]};runs=[]
                     for sample in range(1 if args.action=='preflight' else args.samples+1):
                         labels=['cinch','reference'] if sample%2==0 else ['reference','cinch']

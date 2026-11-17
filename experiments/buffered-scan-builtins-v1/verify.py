@@ -4,10 +4,13 @@ from pathlib import Path
 import argparse
 import json
 import re
+import sys
 import check
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+sys.path.insert(0, str(ROOT/'tooling'))
+from buffered_saved_artifacts import artifact_digest
 
 
 def main():
@@ -38,8 +41,8 @@ def main():
             freed = re.search(r'freed=(\d+)', run['stderr'])
             assert allocated and freed and int(allocated[1]) == int(freed[1]) > 1000000
         assert runtime['artifact_bytes'] <= 20*1024*1024
-        assert check.digest(runtime_path.parent/'consumer.ll') == runtime['llvm_sha256']
-        assert check.digest(runtime_path.parent/'consumer') == runtime['executable_sha256']
+        assert artifact_digest(ROOT, runtime_path.parent/'consumer.ll') == runtime['llvm_sha256']
+        assert artifact_digest(ROOT, runtime_path.parent/'consumer') == runtime['executable_sha256']
         gates.append({'frontend': frontend, 'source_receipt': str(source_path.relative_to(ROOT)), 'source_receipt_sha256': check.digest(source_path),
                       'source_seconds': source['seconds'], 'compiler_sha256': source['compiler_sha256'], 'runtime_sha256': source['runtime_sha256'],
                       'interfaces_sha256': source['interfaces_sha256'], 'provenance_sha256': source['provenance_sha256'],

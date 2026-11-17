@@ -26,13 +26,15 @@ def host_stack() -> None:
     resource.setrlimit(resource.RLIMIT_STACK,(64*1024*1024,resource.getrlimit(resource.RLIMIT_STACK)[1]))
 
 
-def closure(project: Path, main: Path, embedded: set[str]) -> list[Path]:
-    """Resolve source-distributed modules without shadowing an embedded base-family module."""
+def closure(project: Path, main: Path, embedded: set[str], source_overrides: Path | None = None) -> list[Path]:
+    """Resolve maintained or explicit candidate modules without shadowing an embedded base-family module."""
+    overrides={path.name[:-6]:path for path in source_overrides.glob('*.cinch')} if source_overrides else {}
+    if set(overrides)&embedded:raise ValueError('candidate may not override embedded base-family source')
     pending=re.findall(r'^\s*import\s+([\w.]+)',main.read_text(),re.M);found=set();paths=[]
     while pending:
         name=pending.pop()
         if name in embedded or name in found:continue
-        found.add(name);source=ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch')
+        found.add(name);source=overrides.get(name,ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch'))
         target=project/(name+'.cinch');target.write_bytes(source.read_bytes());paths.append(target)
         pending.extend(re.findall(r'^\s*import\s+([\w.]+)',target.read_text(),re.M))
     if any((project/(name+'.cinch')).exists() for name in embedded):raise ValueError('embedded source shadow')

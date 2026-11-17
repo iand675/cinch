@@ -19,3 +19,7 @@ python3 experiments/buffered-scan-builtins-v1/verify.py
 ```
 
 The experimental combined-effect live-source work is a separate source epoch. This candidate starts from frozen8d and must be integrated and requalified explicitly if that API is adopted.
+
+The candidate public benchmark is separately frozen under the exact historical 7e0d/c4 compiler/runtime used by the original baseline. Only Scanner, Split and explicit rune/word capability selection in Main differ; the prepared data, U32 counters, checksum operations, ordinary reclamation and independent reference source are unchanged. Its complete 729-condition preflight passes 1,458 normal/poisoned Cinch runs with matching baseline/reference checksums and zero leaks, within the separate 25 MiB output allowance. `preflight-gates.json` and `verify_preflight.py` check these identities. This bounded historical epoch does not claim repair of the known boxed-Nat comparison memory attribute; the 855/2f functional evidence remains separate. No candidate timing or selection is implied.
+
+The closed functional ELF/IR receipts may be stored in the verified `build/buffered-completed-functional-v3.tar.gz` recovery archive. Verification streams their exact indexed bytes, report hashes, sizes and modes without restoring large files. Sources, reports, logs and both benchmark artifact sets remain plain.
