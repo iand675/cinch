@@ -1,0 +1,41 @@
+{
+  "status": "static-proposal-not-child-executed",
+  "root_base_test_file_sha256": "730b8e34ad2909312f44850de07940b6a5362bb2265dfa96da5dac4343467987",
+  "patched_test_file_sha256": "8d7c84d55093dc228d8e59aa72c0ae0354ff1e056233533485273a15fecdd610",
+  "patch_sha256": "4515387269453941c5fe9e77b30583564836af7be0066ddedd1f845c59919ab7",
+  "all_existing_target_names_unchanged": true,
+  "actual_static_target_count": 42,
+  "baseline_tests": 31,
+  "added_tests": 11,
+  "correction": "Prior34/45 metadata was an unexecuted counting assumption; both actual source inventories are31+11=42, no extra3 tests exist. Driver discovers compiled names separately.",
+  "files": {
+    "bootstrap/repros/json-parent-retention-next/README.md": "762949ec0c6fb70fccfde9663e1c779b8720b343deb5e748fb86263b4b012bf5",
+    "bootstrap/repros/json-parent-retention-next/json_parent_gate_common.py": "354ad40aab4a37ba7e3e5483c8e9da5ba9642db0d235051309d742eaf1205626",
+    "bootstrap/repros/json-parent-retention-next/lib_json_codec-retention.patch": "4515387269453941c5fe9e77b30583564836af7be0066ddedd1f845c59919ab7",
+    "bootstrap/repros/json-parent-retention-next/retention-helpers.rs.part": "c9f2efa1fcf5edb3deea6ae25490d76184509ff5a16fcbcb83339e37554bb8c6",
+    "bootstrap/repros/json-parent-retention-next/run_json_parent_gate.py": "61d7e9dbf5d9c258b6bbdf703494b3b98e8adefa8cee6f991b09b42183ef3048"
+  },
+  "rust_checks": [
+    "rustfmt parse/format with skip_children=true",
+    "own/Root patched bytes equal",
+    "42 existing test names retained",
+    "existing source closure and assertions preserved"
+  ],
+  "python_checks": [
+    "AST only",
+    "all helper/class/method docstrings present"
+  ],
+  "child_cargo_test_archive_dedup_execution": false,
+  "root_status": "Root separately applied exact patch and started actual release no-run qualification; not relabeled child855/c4",
+  "default_caps": {
+    "source_phase_start_mib": 350,
+    "soft_pause_mib": 270,
+    "reserve_mib": 250,
+    "build_new_mib": 160,
+    "complete_test_new_mib": 30,
+    "archive_scratch_mib": 10,
+    "dedup_ledger_total_mib": 5
+  },
+  "multi_project_warning": "Two existing tests create two projects; entire test output is capped30MiB and no archival precedes whole-test success; historical Dynamic pair ELF/IR40MiB may require explicit scoped Root resource decision.",
+  "no_source_native_family_or_package_promotion": true
+}

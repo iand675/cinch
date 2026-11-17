@@ -284,9 +284,9 @@
   "all_current_bounded_memory_processes": 36,
   "Root_maintained_test_integration": {
     "mode": "Append eleven functions from the provided fragment to existing compiler/tests/lib_json_codec.rs; no new target, no replacement of existing tests/harness/closure.",
-    "existing_tests": 34,
+    "existing_tests": 31,
     "added_tests": 11,
-    "expected_total_tests": 45,
+    "expected_total_tests": 42,
     "command": [
       "cargo",
       "test",
@@ -299,6 +299,7 @@
       "--test-threads=1"
     ],
     "environment": "Use Root existing qualified producer/cache/environment and actual matched runtime. Child performs no Root edits or Cargo.",
-    "doc_command": "Use Root existing full generated-reference validation workflow after importing all three modules; child docs866 remains separate855 epoch."
+    "doc_command": "Use Root existing full generated-reference validation workflow after importing all three modules; child docs866 remains separate855 epoch.",
+    "count_correction": "Actual source inventory in both lanes is31+11=42; previous34/45 was metadata-only assumption, never an executed count. The parent driver must discover compiled tests."
   }
 }
