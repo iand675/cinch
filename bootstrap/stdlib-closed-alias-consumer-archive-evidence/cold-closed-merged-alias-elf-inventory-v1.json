@@ -1,0 +1,312 @@
+{
+  "status": "read-only inventory only; no archival or unlink performed",
+  "file_count": 16,
+  "original_bytes": 185198664,
+  "all_hashes_match_passed_qualified_receipts": true,
+  "files": [
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o0/candidate-original-nested/consumer",
+      "bytes": 11577312,
+      "sha256": "105cd521134ece55dafc4c45306fc557284ac8f379fa604c7f7a45fd8cd01195",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o0.json",
+      "receipt_sha256": "02677b784d37731cd35f56894a914245266afde67e5b1f389457b8c60fd2dd13",
+      "observation": "original-nested",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 0,
+      "inode": [
+        27,
+        1072008
+      ],
+      "link_count": 1,
+      "age_seconds": 23283.45335841179,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o0/candidate-original-sequenced/consumer",
+      "bytes": 11573152,
+      "sha256": "95c3c2ca952fbb459d519765137d76a457403f57b813201958a01d3af889d77a",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o0.json",
+      "receipt_sha256": "02677b784d37731cd35f56894a914245266afde67e5b1f389457b8c60fd2dd13",
+      "observation": "original-sequenced",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 0,
+      "inode": [
+        27,
+        1072015
+      ],
+      "link_count": 1,
+      "age_seconds": 23278.31499528885,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o0/candidate-trace-True-1-False/consumer",
+      "bytes": 11577216,
+      "sha256": "fcfd89931104a9509b68eaba39eab8b835b7c63426145c673ca9bd2a124eeca6",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o0.json",
+      "receipt_sha256": "02677b784d37731cd35f56894a914245266afde67e5b1f389457b8c60fd2dd13",
+      "observation": "trace-True-1-False",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 0,
+      "inode": [
+        27,
+        1072022
+      ],
+      "link_count": 1,
+      "age_seconds": 23272.84066581726,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o0/candidate-trace-False-128-False/consumer",
+      "bytes": 11577216,
+      "sha256": "888d06ee8c37c7ff80c39863f87589ecab8a5744517f5c75479c3a81109fd230",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o0.json",
+      "receipt_sha256": "02677b784d37731cd35f56894a914245266afde67e5b1f389457b8c60fd2dd13",
+      "observation": "trace-False-128-False",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 0,
+      "inode": [
+        27,
+        1072029
+      ],
+      "link_count": 1,
+      "age_seconds": 23268.076736927032,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o0/candidate-trace-True-255-False/consumer",
+      "bytes": 11577216,
+      "sha256": "5d731440e98ed8efa4b5b454430c428256ca651d28a79d5fc4a293fd6116b546",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o0.json",
+      "receipt_sha256": "02677b784d37731cd35f56894a914245266afde67e5b1f389457b8c60fd2dd13",
+      "observation": "trace-True-255-False",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 0,
+      "inode": [
+        27,
+        1072036
+      ],
+      "link_count": 1,
+      "age_seconds": 23263.56434059143,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o0/candidate-trace-False-1-True/consumer",
+      "bytes": 11577216,
+      "sha256": "56137755b74af0780f1b39af4f284cf67e4e37b990571a95e6495d75abf3b429",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o0.json",
+      "receipt_sha256": "02677b784d37731cd35f56894a914245266afde67e5b1f389457b8c60fd2dd13",
+      "observation": "trace-False-1-True",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 0,
+      "inode": [
+        27,
+        1072043
+      ],
+      "link_count": 1,
+      "age_seconds": 23259.122833251953,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o0/candidate-lexical-function-shadow/consumer",
+      "bytes": 11577536,
+      "sha256": "5af369defd33d0fbcef738f2e9e5d0fff786012f8314a2e7bb4a093e8667669d",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o0.json",
+      "receipt_sha256": "02677b784d37731cd35f56894a914245266afde67e5b1f389457b8c60fd2dd13",
+      "observation": "lexical-function-shadow",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 0,
+      "inode": [
+        27,
+        1072050
+      ],
+      "link_count": 1,
+      "age_seconds": 23254.615040302277,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o0/baseline-original-sequenced/consumer",
+      "bytes": 11573152,
+      "sha256": "95c3c2ca952fbb459d519765137d76a457403f57b813201958a01d3af889d77a",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o0.json",
+      "receipt_sha256": "02677b784d37731cd35f56894a914245266afde67e5b1f389457b8c60fd2dd13",
+      "observation": "original-sequenced",
+      "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+      "opt_level": 0,
+      "inode": [
+        27,
+        1072087
+      ],
+      "link_count": 1,
+      "age_seconds": 23218.24180817604,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o2/candidate-original-nested/consumer",
+      "bytes": 11573088,
+      "sha256": "9fd423181d6a3d3a520eb297369d7925e6ed9ddd4d262b1c9ebd8274e14d5f1f",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o2.json",
+      "receipt_sha256": "3d4f5c65f29244c169c3b13c8a3f8a6751e82d0822655e4cc035dae592116775",
+      "observation": "original-nested",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 2,
+      "inode": [
+        27,
+        1073032
+      ],
+      "link_count": 1,
+      "age_seconds": 22979.218996286392,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o2/candidate-original-sequenced/consumer",
+      "bytes": 11573016,
+      "sha256": "617cf09f9ad8ea973a768845c9a4a1fff9a97604da37c225733d280224b56494",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o2.json",
+      "receipt_sha256": "3d4f5c65f29244c169c3b13c8a3f8a6751e82d0822655e4cc035dae592116775",
+      "observation": "original-sequenced",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 2,
+      "inode": [
+        27,
+        1073039
+      ],
+      "link_count": 1,
+      "age_seconds": 22975.116816043854,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o2/candidate-trace-True-1-False/consumer",
+      "bytes": 11573032,
+      "sha256": "09819c9efe59f2d0ea713767383f2cfa6e6b141d79f27c26483916a5794a09f7",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o2.json",
+      "receipt_sha256": "3d4f5c65f29244c169c3b13c8a3f8a6751e82d0822655e4cc035dae592116775",
+      "observation": "trace-True-1-False",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 2,
+      "inode": [
+        27,
+        1073046
+      ],
+      "link_count": 1,
+      "age_seconds": 22970.775282621384,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o2/candidate-trace-False-128-False/consumer",
+      "bytes": 11573032,
+      "sha256": "ccd4b68682092ddc72eaf3bde055607f513c079ef54238b3882235133d7bcff2",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o2.json",
+      "receipt_sha256": "3d4f5c65f29244c169c3b13c8a3f8a6751e82d0822655e4cc035dae592116775",
+      "observation": "trace-False-128-False",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 2,
+      "inode": [
+        27,
+        1073053
+      ],
+      "link_count": 1,
+      "age_seconds": 22966.553445339203,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o2/candidate-trace-True-255-False/consumer",
+      "bytes": 11573032,
+      "sha256": "228e3817dc184505d35d43be5450f1e0dd1f79a89aa7f618b913ba9583c7bc8e",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o2.json",
+      "receipt_sha256": "3d4f5c65f29244c169c3b13c8a3f8a6751e82d0822655e4cc035dae592116775",
+      "observation": "trace-True-255-False",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 2,
+      "inode": [
+        27,
+        1073060
+      ],
+      "link_count": 1,
+      "age_seconds": 22962.51310992241,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o2/candidate-trace-False-1-True/consumer",
+      "bytes": 11573032,
+      "sha256": "afa56fe5b11c124fb13bc79c25d767dbdd4b13b24f7d7817ae3844b1315efb35",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o2.json",
+      "receipt_sha256": "3d4f5c65f29244c169c3b13c8a3f8a6751e82d0822655e4cc035dae592116775",
+      "observation": "trace-False-1-True",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 2,
+      "inode": [
+        27,
+        1073067
+      ],
+      "link_count": 1,
+      "age_seconds": 22958.107907772064,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o2/candidate-lexical-function-shadow/consumer",
+      "bytes": 11577400,
+      "sha256": "a8be3ca6c29ce1b3b294300cf5b696c320d52862632a124c1c8a1beb71d17672",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o2.json",
+      "receipt_sha256": "3d4f5c65f29244c169c3b13c8a3f8a6751e82d0822655e4cc035dae592116775",
+      "observation": "lexical-function-shadow",
+      "compiler_sha256": "7a3ddfd004ac6fb4f87a41ec4f9987a8db0aca86ac7a05fddae03a1612484d4d",
+      "opt_level": 2,
+      "inode": [
+        27,
+        1073074
+      ],
+      "link_count": 1,
+      "age_seconds": 22952.526681900024,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    },
+    {
+      "path": "/workspace/dasl-stdlib-merged-family/build/merged-final-alias-o2/baseline-original-sequenced/consumer",
+      "bytes": 11573016,
+      "sha256": "617cf09f9ad8ea973a768845c9a4a1fff9a97604da37c225733d280224b56494",
+      "receipt": "/workspace/dasl-stdlib-merged-family/bootstrap/stdlib-merged-native-family-evidence/native-alias-o2.json",
+      "receipt_sha256": "3d4f5c65f29244c169c3b13c8a3f8a6751e82d0822655e4cc035dae592116775",
+      "observation": "original-sequenced",
+      "compiler_sha256": "167a24969606655e3450cd28470a01da67f9138ac6175e89892002a9e02d47cb",
+      "opt_level": 2,
+      "inode": [
+        27,
+        1073111
+      ],
+      "link_count": 1,
+      "age_seconds": 22916.576383829117,
+      "active_executable": false,
+      "benchmark_or_frozen_or_provider_input": false,
+      "recovery_use": "Completed foreign-alias compatibility/independent trace observation; restore exact ELF only for historical replay. Source,LLVM,ASM,C oracle,receipts,frozen compiler/provider/runtime remain separate and raw."
+    }
+  ]
+}
