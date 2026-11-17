@@ -1,0 +1,28 @@
+{
+  "kind": "independent-SDK-edge-runtime-qualification",
+  "package_complete": false,
+  "candidate_selected": false,
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "completed_zero_leak_processes": 4,
+  "groups_per_representation": 3,
+  "oracle": "bootstrap/stdlib-maps-edge-reference-results.json",
+  "oracle_sha256": "d99075df4d58c9ced3920f87878b8f7d6f0d2c0ac7b733be0216e62fe901d17e",
+  "units": {
+    "baseline:edge": {
+      "report": "build/maps-855-baseline-edge-a1-results.json",
+      "exit": 0,
+      "source_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+      "status": "passed",
+      "report_sha256": "626685f0aa0ad117c59c5e3366294aea418dc75977369086079fac3a8b9e5db5"
+    },
+    "entry:edge": {
+      "report": "build/maps-855-entry-edge-a1-results.json",
+      "exit": 0,
+      "source_sha256": "c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078",
+      "status": "passed",
+      "report_sha256": "3676b7ae37dfdaf6430c56d62433e52eedf24d891c5d9f68321b0d5965937d45"
+    }
+  },
+  "progress_report_sha256": "583f09b9150a121cd9a2bc9f2cb4c8163c25d477210e5f72538957e7406d6dd4"
+}
