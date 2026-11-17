@@ -1,0 +1,2 @@
+# Keep the full host process-command snapshot plain locally; publish the scoped audit and its hash.
+/preflight-failure-v1.json
