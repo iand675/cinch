@@ -1,0 +1,113 @@
+-- | Exercise shared writer aliases, advanced output capabilities and reset without closing or flushing old outputs.
+module Main where
+  import Text.Tabwriter.Config
+  import Effect.Tabwriter
+  import Effect.Tabwriter.Internal.Cell as Cell
+  import Effect.Io
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Independent retained callback observations; each fresh offered buffer stays owned by this fixture.
+  data Trace (r :: Region) where
+    -- | Separate logs distinguish actual buffer offers from the advanced capability's private epoch.
+    Trace :: Cell.TabCellRef r (List Bytes) -> Cell.TabCellRef r (List Nat) -> Trace r
+
+  -- | Allocate initialized empty output and epoch logs without invoking any writer callback.
+  trace-new :: forall (r :: Region). Unit ->{IO r} Trace r
+  trace-new unit =
+    let bytes = Cell.cell-new (Nil :: List Bytes) in
+    let epochs = Cell.cell-new (Nil :: List Nat) in Trace bytes epochs
+
+  -- | Capture each exact offer and return a distinct advanced output capability.
+  trace-output :: forall (r :: Region). Trace r -> Nat -> TabOutput r Nat
+  trace-output trace epoch = tab-output (\raw -> case trace of
+    Trace bytes epochs ->
+      let previous = Cell.cell-read bytes in
+      let recorded = Cell.cell-write bytes (Cons raw previous) in
+      let older = Cell.cell-read epochs in
+      let counted = Cell.cell-write epochs (Cons epoch older) in
+      let following = epoch + 1 in
+      let count = nat-to-int (bytes-len raw) in
+      (count, None, trace-output trace following))
+
+  -- | Verify forward epochs so accidentally reusing an earlier output capability cannot pass.
+  epochs-equal :: List Nat -> Nat -> Bool
+  epochs-equal epochs expected = case epochs of
+    Nil -> True
+    Cons actual rest -> actual == expected && epochs-equal rest (expected + 1)
+
+  -- | Compare every captured offer, including its empty final call, with literal independent expectations.
+  offers-equal :: List Bytes -> List Bytes -> Bool
+  offers-equal actual expected = case actual of
+    Nil -> case expected of
+      Nil -> True
+      Cons _ _ -> False
+    Cons raw rest -> case expected of
+      Nil -> False
+      Cons next tail -> eq-i64 (bytes-compare raw next) 0 && offers-equal rest tail
+
+  -- | Observe all exact output offers and the advanced epoch chain through the fixture's own private cells.
+  trace-matches :: forall (r :: Region). Trace r -> List Bytes ->{IO r} Bool
+  trace-matches trace expected = case trace of
+    Trace bytes epochs ->
+      let actual = reverse (Cell.cell-read bytes) in
+      let counts = reverse (Cell.cell-read epochs) in
+      offers-equal actual expected && epochs-equal counts 0
+
+  -- | Test whether one operation has no error, preserving arbitrary payload types in other branches.
+  no-error :: forall e. Option e -> Bool
+  no-error error = case error of
+    None -> True
+    Some _ -> False
+
+  -- | An alias created before writing must flush the same pending cells and use every advanced sink.
+  shared-alias :: forall (r :: Region). TabConfig ->{IO r, Mut r} Bool
+  shared-alias config =
+    let trace = trace-new () in
+    let writer = tab-writer config (trace-output trace 0) in
+    let alias = writer in
+    let raw = string-to-bytes "a\tX\nlong\tY\n" in
+    let (outcome, advanced) = tab-writer-write writer raw in
+    let (error, final) = tab-writer-flush alias in
+    let expected = Cons (string-to-bytes "a") (Cons (string-to-bytes "    ") (Cons (string-to-bytes "X")
+          (Cons (string-to-bytes "\n") (Cons (string-to-bytes "long") (Cons (string-to-bytes " ")
+          (Cons (string-to-bytes "Y") (Cons (string-to-bytes "\n") (Cons (bytes-new 0) Nil)))))))) in
+    tab-write-consumed outcome == bytes-len raw && no-error (tab-write-error outcome) && no-error error && trace-matches trace expected
+
+  -- | Initialization drops pending cells without touching the old output, and all aliases see the replacement.
+  initialize-alias :: forall (r :: Region). TabConfig ->{IO r, Mut r} Bool
+  initialize-alias config =
+    let old = trace-new () in
+    let fresh = trace-new () in
+    let writer = tab-writer config (trace-output old 0) in
+    let alias = writer in
+    let (first, advanced) = tab-writer-write writer (string-to-bytes "discarded\tpending") in
+    let (init-error, initialized) = tab-writer-init alias config (trace-output fresh 0) in
+    let (flush-error, empty) = tab-writer-flush advanced in
+    let (outcome, written) = tab-writer-write writer (string-to-bytes "R\tS\n") in
+    let (error, final) = tab-writer-flush alias in
+    let expected = Cons (bytes-new 0) (Cons (string-to-bytes "R") (Cons (string-to-bytes " ")
+          (Cons (string-to-bytes "S") (Cons (string-to-bytes "\n") (Cons (bytes-new 0) Nil))))) in
+    no-error (tab-write-error first) && no-error init-error && no-error flush-error &&
+      no-error (tab-write-error outcome) && no-error error && trace-matches old Nil && trace-matches fresh expected
+
+  -- | A live callback's complete combined row is accepted only through the matching capability factory.
+  accept-mutable :: forall (r :: Region) e. (Bytes ->{IO r, Mut r} (Int, Option e, TabOutput r e)) -> TabOutput r e
+  accept-mutable step = tab-output-with-mutation step
+
+  -- | Return distinct group indices while keeping actual I/O and mutation in one defining region.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in
+    case tab-config 0 4 1 32 0 of
+      Err _ -> 1
+      Ok config -> if not (shared-alias config) then 2
+        else if not (initialize-alias config) then 3
+        else 0

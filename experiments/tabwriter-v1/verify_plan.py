@@ -15,7 +15,7 @@ def digest(path):
 
 
 def main():
-    """Require nineteen exact records, twelve current identities and explicit unimplemented status for every mapping."""
+    """Require nineteen exact records, twelve current identities and explicit partial qualification for every mapping."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--sdk', type=Path, default=Path('/tmp/cinch-go-current/go'))
     args = parser.parse_args()
@@ -28,7 +28,8 @@ def main():
     assert [row['reference_declaration'] for row in plan['records']] == records
     assert len({row['current_identity'] for row in plan['records']}) == 12
     assert not plan['production_adopted']
-    assert all(row['status'] == 'planned; not implemented or qualified' for row in plan['records'])
+    assert all(row['status'] == 'implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending' for row in plan['records'])
+    assert all(row['source_homes'] and all((HERE / path).exists() for path in row['source_homes']) for row in plan['records'])
     assert provenance['exact_declaration_records'] == 19 and provenance['historical_duplicate_records'] == 7
     assert digest(args.sdk / 'bin/go') == provenance['executable_sha256']
     assert (args.sdk / 'VERSION').read_text() == provenance['version_file']
@@ -48,7 +49,7 @@ def main():
         for origin in origins:
             actual = (args.sdk / origin['file']).read_text().splitlines()[origin['line'] - 1]
             assert record in actual
-    print('Verified19 exact SDK records /12 current identities; all implementation/vector/runtime/performance gates remain open')
+    print('Verified19 exact SDK records /12 current identities with concrete isolated source; full protocol/Native/performance gates remain open')
 
 
 if __name__ == '__main__':

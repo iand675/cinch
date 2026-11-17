@@ -11,7 +11,11 @@
       "record_kind": "current constant value record",
       "planned_native": "Text.Tabwriter.tab-align-right",
       "behavior": "Formatting flag bit 4; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const AlignRight uint",
@@ -19,7 +23,11 @@
       "record_kind": "historical constant typing record",
       "planned_native": "Text.Tabwriter.tab-align-right",
       "behavior": "Formatting flag bit 4; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const Debug = 32",
@@ -27,7 +35,11 @@
       "record_kind": "current constant value record",
       "planned_native": "Text.Tabwriter.tab-debug",
       "behavior": "Formatting flag bit 32; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const Debug uint",
@@ -35,7 +47,11 @@
       "record_kind": "historical constant typing record",
       "planned_native": "Text.Tabwriter.tab-debug",
       "behavior": "Formatting flag bit 32; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const DiscardEmptyColumns = 8",
@@ -43,7 +59,11 @@
       "record_kind": "current constant value record",
       "planned_native": "Text.Tabwriter.tab-discard-empty-columns",
       "behavior": "Formatting flag bit 8; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const DiscardEmptyColumns uint",
@@ -51,7 +71,11 @@
       "record_kind": "historical constant typing record",
       "planned_native": "Text.Tabwriter.tab-discard-empty-columns",
       "behavior": "Formatting flag bit 8; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const Escape = 255",
@@ -59,7 +83,11 @@
       "record_kind": "current constant value record",
       "planned_native": "Text.Tabwriter.tab-escape-byte",
       "behavior": "Raw escape delimiter byte255; it is not its UTF-8 text encoding.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const Escape ideal-char",
@@ -67,7 +95,11 @@
       "record_kind": "historical constant typing record",
       "planned_native": "Text.Tabwriter.tab-escape-byte",
       "behavior": "Raw escape delimiter byte255; it is not its UTF-8 text encoding.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const FilterHTML = 1",
@@ -75,7 +107,11 @@
       "record_kind": "current constant value record",
       "planned_native": "Text.Tabwriter.tab-filter-html",
       "behavior": "Formatting flag bit 1; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const FilterHTML uint",
@@ -83,7 +119,11 @@
       "record_kind": "historical constant typing record",
       "planned_native": "Text.Tabwriter.tab-filter-html",
       "behavior": "Formatting flag bit 1; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const StripEscape = 2",
@@ -91,7 +131,11 @@
       "record_kind": "current constant value record",
       "planned_native": "Text.Tabwriter.tab-strip-escape",
       "behavior": "Formatting flag bit 2; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const StripEscape uint",
@@ -99,7 +143,11 @@
       "record_kind": "historical constant typing record",
       "planned_native": "Text.Tabwriter.tab-strip-escape",
       "behavior": "Formatting flag bit 2; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const TabIndent = 16",
@@ -107,7 +155,11 @@
       "record_kind": "current constant value record",
       "planned_native": "Text.Tabwriter.tab-indent",
       "behavior": "Formatting flag bit 16; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "const TabIndent uint",
@@ -115,7 +167,11 @@
       "record_kind": "historical constant typing record",
       "planned_native": "Text.Tabwriter.tab-indent",
       "behavior": "Formatting flag bit 16; record shares the same current identity as its paired declaration.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Text.Tabwriter.cinch",
+        "sources/Text.Tabwriter.Config.cinch"
+      ]
     },
     {
       "reference_declaration": "func NewWriter(io.Writer, int, int, int, uint8, uint) *Writer",
@@ -123,7 +179,10 @@
       "record_kind": "current constructor",
       "planned_native": "Text.Tabwriter.tab-config + Effect.Tabwriter.tab-writer",
       "behavior": "Checked configuration plus initialized writer; arbitrary owned bytes and output error payloads preserved.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Effect.Tabwriter.cinch"
+      ]
     },
     {
       "reference_declaration": "method (*Writer) Flush() error",
@@ -131,7 +190,10 @@
       "record_kind": "current method",
       "planned_native": "Effect.Tabwriter.tab-writer-flush",
       "behavior": "Flush all buffered layout, complete an unfinished escape for formatting, then reset even after an output error.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Effect.Tabwriter.cinch"
+      ]
     },
     {
       "reference_declaration": "method (*Writer) Init(io.Writer, int, int, int, uint8, uint) *Writer",
@@ -139,7 +201,10 @@
       "record_kind": "current method",
       "planned_native": "Effect.Tabwriter.tab-writer-init",
       "behavior": "Reset buffered layout without flushing/closing the old output; aliases observe the same initialized handle.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Effect.Tabwriter.cinch"
+      ]
     },
     {
       "reference_declaration": "method (*Writer) Write([]uint8) (int, error)",
@@ -147,7 +212,10 @@
       "record_kind": "current method",
       "planned_native": "Effect.Tabwriter.tab-writer-write",
       "behavior": "Return consumed input count and optional original output failure; automatic flush checkpoints and output offers need independent traces.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Effect.Tabwriter.cinch"
+      ]
     },
     {
       "reference_declaration": "type Writer struct",
@@ -155,7 +223,11 @@
       "record_kind": "current opaque initialized handle",
       "planned_native": "Effect.Tabwriter.TabWriter",
       "behavior": "Opaque region-indexed handle; shared alias semantics, private initialized IO cell, no public backing storage.",
-      "status": "planned; not implemented or qualified"
+      "status": "implemented in isolated source; partial Rust qualification; full protocol, Native and performance gates pending",
+      "source_homes": [
+        "sources/Effect.Tabwriter.cinch"
+      ]
     }
-  ]
+  ],
+  "qualification_note": "549 literal complete-input SDK cases and small parser/configuration/shared-alias/reset controls pass330/d91;51 ordinary streaming traces and12 explicit adaptation cases remain separate, with Native/portable/owner/performance review open."
 }

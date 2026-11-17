@@ -1,0 +1,32 @@
+-- | Private initialized managed cells whose reads and replacements require the same I/O region.
+-- Arrays, raw addresses and uninitialized storage never enter a public tabwriter interface.
+module Effect.Tabwriter.Internal.Cell where
+  export TabCellRef, cell-new, cell-read, cell-write
+
+  -- | Existing allocation intrinsic used only by the initialized effectful constructor.
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+
+  -- | Existing checked runtime intrinsic used only to read initialized private slot zero.
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+
+  -- | Existing runtime replacement intrinsic retains the new managed value and releases the old value.
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+
+  -- | An opaque one-slot reference indexed by the region of every observable operation.
+  data TabCellRef (r :: Region) a where
+    -- | Private initialized managed storage; callers never receive its array handle.
+    StoredTabCell :: Array a -> TabCellRef r a
+
+  -- | Allocate and initialize slot zero before returning the private reference.
+  cell-new :: forall (r :: Region) a. a ->{IO r} TabCellRef r a
+  cell-new value =
+    let storage = slots-new 1 in
+    let initialized = slots-write storage 0 value in StoredTabCell storage
+
+  -- | Observe only the initialized slot through the explicit I/O effect.
+  cell-read :: forall (r :: Region) a. TabCellRef r a ->{IO r} a
+  cell-read cell = case cell of StoredTabCell storage -> slots-read storage 0
+
+  -- | Replace the initialized value, preserving ordinary managed ownership counts.
+  cell-write :: forall (r :: Region) a. TabCellRef r a -> a ->{IO r} Unit
+  cell-write cell value = case cell of StoredTabCell storage -> slots-write storage 0 value
