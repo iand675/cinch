@@ -1,5 +1,5 @@
 {
-  "scope": "Source, Rust O0/O2 and historical Native O0 functional checkpoint; Native O2/portable/performance remain unqualified",
+  "scope": "Source, complete Rust and historical Native O0/O2 functional checkpoint plus actual host/wasm/ARM portable consumer; parent checked-RC/PPC and performance pending",
   "source_sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
   "ascii_dependency_commit": "ed70e1bc525ffe3ae8dfdb71233e7d5ed6b7296a",
   "namespace": "Data.Bytes.Fields",
@@ -141,13 +141,10 @@
     "increased_program_limit": false
   },
   "pending": [
-    "Historical Native O2 complete matrix, plus source capability and live mixed-effect gates",
-    "Actual full Fields portable adapter objects",
-    "Parent checked-RC API/capability tests",
-    "Public pipeline benchmarks/codegen review",
+    "Parent checked-RC Rust API fullmatrix/capability/actualPPCobject gate (lib_byte_fields,10tests including3commonprofile contracts)",
+    "Public pipeline functional preflights and paired benchmarks/codegen review",
     "Full strings/bytes inventory integration"
   ],
-  "no_native_or_root66_family_claim": true,
   "no_production_optimization_selected": true,
   "protected_split_source_sha256": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
   "rust_o2": {
@@ -206,7 +203,7 @@
   },
   "total_rust_memory_profiles": 680,
   "historical_native_first_unit": {
-    "scope": "Only temporary/empty ownership, replay, explicit state and a genuine mutation-effect stateful predicate; full Native matrix remains pending",
+    "scope": "Initial temporary/empty ownership, replay, explicit state and genuine mutation-effect predicate unit; complete O0/O2 aggregate recorded separately",
     "receipt": "build/byte-fields-first-native-v4-owners-o0.json",
     "receipt_sha256": "a0df58d76fc35e0b7f6ee98ff36f6dd37044aace9319c4322fcdec004a6351f7",
     "context": "build/byte-fields-first-native-v4-owners-o0-context.json",
@@ -243,7 +240,7 @@
     "no_family_adoption": true
   },
   "historical_native_o0_rows": {
-    "scope": "Full1266 independent output and callback rows; mutation scripts/deep/O2 pending",
+    "scope": "Full independent1266 output/callback row unit; separate owner/mutation/deep units included in complete aggregate",
     "receipt": "build/byte-fields-rows-runtime-native-v4-o0.json",
     "receipt_sha256": "1d9c217093f25c1be093493e0ca30dca1e4914143909a5a5807bf57ff52618b1",
     "context": "build/byte-fields-rows-runtime-native-v4-o0-context.json",
@@ -260,7 +257,7 @@
     "no_family_adoption": true
   },
   "historical_native_o0": {
-    "scope": "Full original1266 output/trace rows,8mutation scripts,2owner/stateful controls andruntime65536deep; distinctIO/Mut live fixture and sourceaccept/refusal contracts still pending",
+    "scope": "Complete original1266 output/trace rows,8mutation scripts,2owner/stateful controls andruntime65536deep; actualdistinctIO/Mut andsourcecontracts separately recorded",
     "memory_profiles": 340,
     "leaked": 0,
     "compiled_rc_debug": true,
@@ -341,5 +338,504 @@
     ],
     "no_new_family_adoption": true
   },
-  "total_original_functional_memory_profiles": 1020
+  "total_original_functional_memory_profiles": 1360,
+  "historical_native_o2": {
+    "memory_profiles": 340,
+    "leaked": 0,
+    "compiled_rc_debug": true,
+    "dynamic_poison_checked": true,
+    "normal_heap": "32M",
+    "poison_heap": "256M",
+    "program_stack": "8M",
+    "compiler_main_stack": "64MiB",
+    "tuple_reference": "historical_native_first_unit",
+    "no_new_family_adoption": true,
+    "scope": "Complete same original scope as NativeO0; allthree accepted O0 IR files verified and relinked atO2 without compiler rerun",
+    "receipts": [
+      {
+        "path": "build/byte-fields-rows-runtime-native-v4-o2.json",
+        "sha256": "7eda9c69f862277019dabc08e9dbe52b3f5aadd84d8c56e02e69b0e865998de9",
+        "group": "rows",
+        "cases": 1266,
+        "memory_profiles": 318,
+        "source_snapshot": "10fb3a78900726574030d0ae7eb8f6b7df44db657e32815c70b74a3ab68263c0",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "additional_runtime_control": null,
+        "llvm_sha256": "2e4b1da6ee59238df2fb356430c2e1f6d3c601382374002d8915ed407d7ed90b",
+        "executable_sha256": "98dd586d6b4aa5c48ee6627352e76cc24fdd28a6270aaa0041c46e064fe0fdcf",
+        "reused_native_emission": {
+          "report": "/workspace/dasl-stdlib-byte-split/build/byte-fields-rows-runtime-native-v4-o0.json",
+          "report_sha256": "1d9c217093f25c1be093493e0ca30dca1e4914143909a5a5807bf57ff52618b1",
+          "llvm_sha256": "2e4b1da6ee59238df2fb356430c2e1f6d3c601382374002d8915ed407d7ed90b",
+          "original_emission_command": [
+            "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/frontend.py",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json",
+            "/workspace/dasl-stdlib-byte-split/build/byte-fields-rows-runtime-native-v4-o0/Bundle.cinch",
+            "/workspace/dasl-stdlib-byte-split/build/byte-fields-rows-runtime-native-v4-o0/consumer.ll"
+          ]
+        }
+      },
+      {
+        "path": "build/byte-fields-owners-runtime-native-v4-o2.json",
+        "sha256": "84d8e374245857d5c4a9feacecb9a9d00ad55cf7980c2e8189b046729e2951ee",
+        "group": "owners",
+        "cases": 2,
+        "memory_profiles": 4,
+        "source_snapshot": "e0c4c7c04c6a4edf0cf411598cabd2e5f4fa3fb019e648a0a50f285e1dc16871",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "additional_runtime_control": null,
+        "llvm_sha256": "92a316c49359f157175a9a85a882580b1f40f3f01b33ac3528ecc6754fab647c",
+        "executable_sha256": "b06d21d61582a33db7832203eea85a18ba03937923363eb95c80ed43eca24042",
+        "reused_native_emission": {
+          "report": "/workspace/dasl-stdlib-byte-split/build/byte-fields-first-native-v4-owners-o0.json",
+          "report_sha256": "a0df58d76fc35e0b7f6ee98ff36f6dd37044aace9319c4322fcdec004a6351f7",
+          "llvm_sha256": "92a316c49359f157175a9a85a882580b1f40f3f01b33ac3528ecc6754fab647c",
+          "original_emission_command": [
+            "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/frontend.py",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json",
+            "/workspace/dasl-stdlib-byte-split/build/byte-fields-first-native-v4-owners-o0/Bundle.cinch",
+            "/workspace/dasl-stdlib-byte-split/build/byte-fields-first-native-v4-owners-o0/consumer.ll"
+          ]
+        }
+      },
+      {
+        "path": "build/byte-fields-effects-deep-runtime-native-v4-o2.json",
+        "sha256": "0eeb728721ab4d6fdabe5008156c574c2483a94a35327f02776e6ffddf9b0728",
+        "group": "effects",
+        "cases": 8,
+        "memory_profiles": 18,
+        "source_snapshot": "e0bbe915ec9a47f0f2033aad8298d4d4486c9083aca02589aaddeda8731583df",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "additional_runtime_control": {
+          "name": "deep",
+          "input_bytes": 65536,
+          "nonempty_fields": 32768
+        },
+        "llvm_sha256": "075e4c69ce8aa701085da3ec77a8f51154858f45423fd1b616aab66b9f395c7e",
+        "executable_sha256": "ff63903dc7514e436c9b0a2b547b4c9d607841ffad109f5ab20e7c24f829265c",
+        "reused_native_emission": {
+          "report": "/workspace/dasl-stdlib-byte-split/build/byte-fields-effects-deep-runtime-native-v4-o0.json",
+          "report_sha256": "858ac499c5d046e085955fa836061e987e2cc68a2e6f3dfcb90ad03999180083",
+          "llvm_sha256": "075e4c69ce8aa701085da3ec77a8f51154858f45423fd1b616aab66b9f395c7e",
+          "original_emission_command": [
+            "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/frontend.py",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json",
+            "/workspace/dasl-stdlib-byte-split/build/byte-fields-effects-deep-runtime-native-v4-o0/Bundle.cinch",
+            "/workspace/dasl-stdlib-byte-split/build/byte-fields-effects-deep-runtime-native-v4-o0/consumer.ll"
+          ]
+        }
+      }
+    ],
+    "same_verified_ir_as_o0": true
+  },
+  "actual_distinct_io_and_mutation": {
+    "memory_profiles": 8,
+    "leaked": 0,
+    "expected_stdout": "a b a b ",
+    "semantics": "One IO predicate/Mut yield factory reused twice; predicate prints each scalar and yield stops after second field before c; explicit lexical Io argument captured",
+    "receipts": [
+      {
+        "path": "build/byte-fields-mixed-runtime-rust-o0.json",
+        "sha256": "94aaea289bb9b209db4cbd967f460d4c58eda1e2398c3a2a087e1d39fcd43cb5",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compiled_rc_debug": false,
+        "opt_level": "0",
+        "entry_sha256": "127a4597bc714c1dd3d27c0d7f02b784a74e72fd307dd4e60f1d974052ccb9e4",
+        "llvm_sha256": "432f87c54c35944d1a27f345e43890ff60e4cc4b38c9cc66a36313f22635b8d4",
+        "executable_sha256": "7d747b47c67b6fa630c56f3265f464475a7167d584cf5b927ffb358d69f19abf",
+        "memory_profiles": 2,
+        "expected_stdout": "a b a b "
+      },
+      {
+        "path": "build/byte-fields-mixed-runtime-rust-o2.json",
+        "sha256": "5c1d0050c06cb5eafb8676c7d2df286e9fcadcd908adcc47dbb18a8d836bb14c",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compiled_rc_debug": false,
+        "opt_level": "2",
+        "entry_sha256": "127a4597bc714c1dd3d27c0d7f02b784a74e72fd307dd4e60f1d974052ccb9e4",
+        "llvm_sha256": "432f87c54c35944d1a27f345e43890ff60e4cc4b38c9cc66a36313f22635b8d4",
+        "executable_sha256": "d6b7ae6042b7c902b0ede5de92554a9fbde6e715b0880d95e8df83c1cadc1c00",
+        "memory_profiles": 2,
+        "expected_stdout": "a b a b "
+      },
+      {
+        "path": "build/byte-fields-mixed-runtime-native-v4-o0.json",
+        "sha256": "afdbbd486922e8b4087142478049399c81278a863b7745223930be40ffa8c7ac",
+        "compiler_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compiled_rc_debug": true,
+        "opt_level": "0",
+        "entry_sha256": "127a4597bc714c1dd3d27c0d7f02b784a74e72fd307dd4e60f1d974052ccb9e4",
+        "llvm_sha256": "ea48158df06da40be45bac1c9c4d6e979f7b665af3d450f34408eb71042fee82",
+        "executable_sha256": "6e68860be6db79b3fa23d62da969c0f8f75e6dd937c3dbbf9a90e080be5e4cc7",
+        "memory_profiles": 2,
+        "expected_stdout": "a b a b "
+      },
+      {
+        "path": "build/byte-fields-mixed-runtime-native-v4-o2.json",
+        "sha256": "0b030f7804fb686a712e3bae1f6ec33e74921dccdcdd86cbd46d4088ea46187d",
+        "compiler_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "compiled_rc_debug": true,
+        "opt_level": "2",
+        "entry_sha256": "127a4597bc714c1dd3d27c0d7f02b784a74e72fd307dd4e60f1d974052ccb9e4",
+        "llvm_sha256": "ea48158df06da40be45bac1c9c4d6e979f7b665af3d450f34408eb71042fee82",
+        "executable_sha256": "22be826ef79655ed2ee3f1a18729df7eee644b36d44e32e35f14ee53d3923fd9",
+        "memory_profiles": 2,
+        "expected_stdout": "a b a b "
+      }
+    ],
+    "first_fixture_failure": "build/byte-fields-mixed-source-check.json (missing lexical Io in the fixture; corrected with explicit capability, no API narrowing)"
+  },
+  "native_source_contracts": [
+    {
+      "path": "build/byte-fields-native-contract-positive.json",
+      "sha256": "d26866893af10c50b7ba7104c601e27c49fc9197839e5e5382616842612b0875",
+      "exit_code": 0,
+      "intended_acceptance": true,
+      "runtime_executed": false,
+      "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "path": "build/byte-fields-native-contract-negative.json",
+      "sha256": "cce1e30daeb1f333d8b42c3c33a1246e40c89e57c704033a7499f0de1b21e546",
+      "exit_code": 4,
+      "intended_acceptance": false,
+      "runtime_executed": false,
+      "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\nbootstrap.check:24204:37: effect rows do not match: performed effects exceed the declared row (performed {(IO r)}, declared {})\n"
+    }
+  ],
+  "portable": {
+    "receipts": [
+      {
+        "path": "build/byte-fields-portable-host-graph.json",
+        "sha256": "c1c884926296076d589918ac1c36b1ae87436eb005b26201d1026ae2fe7fdf33",
+        "target": "host",
+        "entry_sha256": "c49150985e8027f8fabb56c16843e56f2884f72685c0cf4d720b9bbd54ef8d27",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "llvm_sha256": "00e63ab97f601aaad7aa16cdba3ca7b5e39eb2d8ca6e2558f12e55a48788f9fb",
+        "object_sha256": null,
+        "executable_sha256": "6c932deba5bbbedf7e215df17973157320e6b1778ae318726b47650501292dee",
+        "actual_paths": {
+          "Data.Bytes.Fields.collect-space": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space"
+          ],
+          "Data.Bytes.Fields.collect-with": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-with.sp0"
+          ],
+          "Data.Bytes.Fields.visit-with": [
+            "Main.main",
+            "Data.Bytes.Fields.bytes-fields-func-each",
+            "Data.Bytes.Fields.visit-with"
+          ],
+          "Data.Bytes.Fields.scan-space": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space"
+          ],
+          "Data.Bytes.Fields.scan-with": [
+            "Main.main",
+            "Data.Bytes.Fields.bytes-fields-func-each",
+            "Data.Bytes.Fields.visit-with",
+            "Data.Bytes.Fields.byte-fields-next-with",
+            "Data.Bytes.Fields.scan-with"
+          ],
+          "Data.Bytes.View.ascii-space-sixteen.llvm": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Bytes.Fields.ascii-run-end",
+            "Data.Bytes.View.byte-view-ascii-space-run-end",
+            "Data.Bytes.View.ascii-space-blocks",
+            "Data.Bytes.View.ascii-space-sixteen",
+            "Data.Bytes.View.ascii-space-sixteen.llvm"
+          ],
+          "Data.Bytes.View.ascii-space-byte.llvm": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Bytes.Fields.ascii-run-end",
+            "Data.Bytes.View.byte-view-ascii-space-run-end",
+            "Data.Bytes.View.ascii-space-tail",
+            "Data.Bytes.View.ascii-space-byte",
+            "Data.Bytes.View.ascii-space-byte.llvm"
+          ],
+          "Data.Bytes.View.load-byte.llvm": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Bytes.Fields.ascii-run-end",
+            "Data.Bytes.View.byte-view-ascii-space-run-end",
+            "Data.Bytes.View.ascii-space-tail",
+            "Data.Bytes.View.load-byte",
+            "Data.Bytes.View.load-byte.llvm"
+          ],
+          "Data.Bytes.Utf8.utf8-decode-between": [
+            "Main.main",
+            "Data.Bytes.Fields.bytes-fields-func-each",
+            "Data.Bytes.Fields.visit-with",
+            "Data.Bytes.Fields.byte-fields-next-with",
+            "Data.Bytes.Fields.scan-with",
+            "Data.Bytes.View.byte-view-utf8-at",
+            "Data.Bytes.Utf8.utf8-decode-between"
+          ],
+          "Data.Unicode.Kernel.unicode-is-space-code": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Unicode.Kernel.unicode-is-space",
+            "Data.Unicode.Kernel.unicode-is-space-code"
+          ]
+        },
+        "profiles": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ],
+        "foreign_runtime_executed": false
+      },
+      {
+        "path": "build/byte-fields-portable-wasm.json",
+        "sha256": "bdd8f18fb190a322e0a03d71071489048a690cfe0acdd48794861afc53b75e8f",
+        "target": "wasm32-unknown-unknown",
+        "entry_sha256": "c49150985e8027f8fabb56c16843e56f2884f72685c0cf4d720b9bbd54ef8d27",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "llvm_sha256": "afadda6adcd5542a8e13a98ff731093f800f484adbdaab1a47bb8c0ca4ae3009",
+        "object_sha256": "27a0c0737bf91c74525dc533a5399f83c9cdbb960ae7101905afede459522421",
+        "executable_sha256": null,
+        "actual_paths": {
+          "Data.Bytes.Fields.collect-space": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space"
+          ],
+          "Data.Bytes.Fields.collect-with": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-with.sp0"
+          ],
+          "Data.Bytes.Fields.visit-with": [
+            "Main.main",
+            "Data.Bytes.Fields.bytes-fields-func-each",
+            "Data.Bytes.Fields.visit-with"
+          ],
+          "Data.Bytes.Fields.scan-space": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space"
+          ],
+          "Data.Bytes.Fields.scan-with": [
+            "Main.main",
+            "Data.Bytes.Fields.bytes-fields-func-each",
+            "Data.Bytes.Fields.visit-with",
+            "Data.Bytes.Fields.byte-fields-next-with",
+            "Data.Bytes.Fields.scan-with"
+          ],
+          "Data.Bytes.View.ascii-space-sixteen.llvm": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Bytes.Fields.ascii-run-end",
+            "Data.Bytes.View.byte-view-ascii-space-run-end",
+            "Data.Bytes.View.ascii-space-blocks",
+            "Data.Bytes.View.ascii-space-sixteen",
+            "Data.Bytes.View.ascii-space-sixteen.llvm"
+          ],
+          "Data.Bytes.View.ascii-space-byte.llvm": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Bytes.Fields.ascii-run-end",
+            "Data.Bytes.View.byte-view-ascii-space-run-end",
+            "Data.Bytes.View.ascii-space-tail",
+            "Data.Bytes.View.ascii-space-byte",
+            "Data.Bytes.View.ascii-space-byte.llvm"
+          ],
+          "Data.Bytes.View.load-byte.llvm": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Bytes.Fields.ascii-run-end",
+            "Data.Bytes.View.byte-view-ascii-space-run-end",
+            "Data.Bytes.View.ascii-space-tail",
+            "Data.Bytes.View.load-byte",
+            "Data.Bytes.View.load-byte.llvm"
+          ],
+          "Data.Bytes.Utf8.utf8-decode-between": [
+            "Main.main",
+            "Data.Bytes.Fields.bytes-fields-func-each",
+            "Data.Bytes.Fields.visit-with",
+            "Data.Bytes.Fields.byte-fields-next-with",
+            "Data.Bytes.Fields.scan-with",
+            "Data.Bytes.View.byte-view-utf8-at",
+            "Data.Bytes.Utf8.utf8-decode-between"
+          ],
+          "Data.Unicode.Kernel.unicode-is-space-code": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Unicode.Kernel.unicode-is-space",
+            "Data.Unicode.Kernel.unicode-is-space-code"
+          ]
+        },
+        "profiles": [],
+        "foreign_runtime_executed": false
+      },
+      {
+        "path": "build/byte-fields-portable-aarch64.json",
+        "sha256": "1b8f9029e408e109e42f5dfb7900a6cc80be385e0e3d384373791f4ea39e8e6d",
+        "target": "aarch64-unknown-linux-gnu",
+        "entry_sha256": "c49150985e8027f8fabb56c16843e56f2884f72685c0cf4d720b9bbd54ef8d27",
+        "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+        "llvm_sha256": "ed01ce68de58f50f9a7462304c85a7e5f6d75b79d05ce35eca43ce5e4a7aabc3",
+        "object_sha256": "a95659d5a560e88ece36d6aff12c21c3c027702b50f65cb6dbb422133354f3a1",
+        "executable_sha256": null,
+        "actual_paths": {
+          "Data.Bytes.Fields.collect-space": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space"
+          ],
+          "Data.Bytes.Fields.collect-with": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-with.sp0"
+          ],
+          "Data.Bytes.Fields.visit-with": [
+            "Main.main",
+            "Data.Bytes.Fields.bytes-fields-func-each",
+            "Data.Bytes.Fields.visit-with"
+          ],
+          "Data.Bytes.Fields.scan-space": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space"
+          ],
+          "Data.Bytes.Fields.scan-with": [
+            "Main.main",
+            "Data.Bytes.Fields.bytes-fields-func-each",
+            "Data.Bytes.Fields.visit-with",
+            "Data.Bytes.Fields.byte-fields-next-with",
+            "Data.Bytes.Fields.scan-with"
+          ],
+          "Data.Bytes.View.ascii-space-sixteen.llvm": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Bytes.Fields.ascii-run-end",
+            "Data.Bytes.View.byte-view-ascii-space-run-end",
+            "Data.Bytes.View.ascii-space-blocks",
+            "Data.Bytes.View.ascii-space-sixteen",
+            "Data.Bytes.View.ascii-space-sixteen.llvm"
+          ],
+          "Data.Bytes.View.ascii-space-byte.llvm": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Bytes.Fields.ascii-run-end",
+            "Data.Bytes.View.byte-view-ascii-space-run-end",
+            "Data.Bytes.View.ascii-space-tail",
+            "Data.Bytes.View.ascii-space-byte",
+            "Data.Bytes.View.ascii-space-byte.llvm"
+          ],
+          "Data.Bytes.View.load-byte.llvm": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Bytes.Fields.ascii-run-end",
+            "Data.Bytes.View.byte-view-ascii-space-run-end",
+            "Data.Bytes.View.ascii-space-tail",
+            "Data.Bytes.View.load-byte",
+            "Data.Bytes.View.load-byte.llvm"
+          ],
+          "Data.Bytes.Utf8.utf8-decode-between": [
+            "Main.main",
+            "Data.Bytes.Fields.bytes-fields-func-each",
+            "Data.Bytes.Fields.visit-with",
+            "Data.Bytes.Fields.byte-fields-next-with",
+            "Data.Bytes.Fields.scan-with",
+            "Data.Bytes.View.byte-view-utf8-at",
+            "Data.Bytes.Utf8.utf8-decode-between"
+          ],
+          "Data.Unicode.Kernel.unicode-is-space-code": [
+            "Main.main",
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.byte-fields-next",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Unicode.Kernel.unicode-is-space",
+            "Data.Unicode.Kernel.unicode-is-space-code"
+          ]
+        },
+        "profiles": [],
+        "foreign_runtime_executed": false
+      }
+    ],
+    "parent_ppc_pending": true,
+    "raw_cli_ppc_not_claimed": true,
+    "first_fixture_failure": "build/byte-fields-portable-host.json (fixture conditional expected-length Int vs Nat; explicitly annotated Nat)",
+    "first_graph_assertion_failure": "build/byte-fields-portable-host-nat.json (actual reachable collect-with.sp0 specialization; IR/exe preserved plain; no production change)"
+  },
+  "total_child_runtime_memory_profiles": 1370,
+  "no_new_native_or_root66_family_claim": true
 }

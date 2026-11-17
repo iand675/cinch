@@ -1,0 +1,50 @@
+-- | Root complete Unicode/raw-byte fields and mutation-effect traversal in portable object code.
+module Main where
+  import Data.Bytes
+  import Data.Bytes.Fields
+  import Data.Bytes.View
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Mutable.Var
+  import Data.Nat
+  import Data.Unicode.Kernel
+
+  -- | Fill an exact bounded range through ordinary checked byte stores.
+  spaces :: Bytes -> Nat -> Nat -> Unit
+  spaces input at end = if at < end && at < bytes-len input then
+    let saved = bytes-set input at 32 in let next = at + 1 in spaces input next end
+    else ()
+
+  -- | Require the complete ordered list shape without exposing retained backing storage.
+  lengths :: List ByteView -> Bool
+  lengths values = case values of
+    Cons first (Cons second (Cons third Nil)) ->
+      byte-view-length first == 32 && byte-view-length second == 24 && byte-view-length third == 2
+    other -> False
+
+  -- | Record each exact field boundary through a genuine mutation capability.
+  output :: forall (r :: Region). Var r Nat -> ByteView ->{Mut r} Bool
+  output count part = let previous = var-read count in
+    let expected = ((if previous == 0 then 32 else if previous == 1 then 24 else 2) :: Nat) in
+    let next = (if byte-view-length part == expected then previous + 1 else 100) in
+    let saved = var-write count next in True
+
+  -- | Preserve a real predicate effect while using the scalar Unicode classification path.
+  predicate :: forall (r :: Region). Var r Nat -> Char ->{Mut r} Bool
+  predicate count value = let previous = var-read count in let next = previous + 1 in
+    let saved = var-write count next in unicode-is-space value
+
+  -- | Exercise full ASCII blocks, multibyte whitespace, invalid-byte progress and ordered callback effects.
+  main :: Unit ->{Mut r} Int
+  main unit = let raw = bytes-new 96 in
+    let leading = spaces raw 0 18 in let trailing = spaces raw 76 94 in
+    let high = (if 50 < bytes-len raw then bytes-set raw 50 194 else ()) in
+    let low = (if 51 < bytes-len raw then bytes-set raw 51 160 else ()) in
+    let malformed = (if 94 < bytes-len raw then bytes-set raw 94 255 else ()) in
+    let ordinary = lengths (bytes-fields raw) in
+    let scalar = lengths (bytes-fields-func unicode-is-space raw) in
+    let yielded = var-new 0 in let observed = var-new 0 in
+    let visited = bytes-fields-func-each (predicate observed) raw (output yielded) in
+    let output-count = var-read yielded in let predicate-count = var-read observed in
+    if ordinary && scalar && output-count == 3 && predicate-count == 95 then 0 else 1

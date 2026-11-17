@@ -154,7 +154,18 @@ fn project(main: &str) -> tempfile::TempDir {
 
 /// Use checked RC compilation and independent normal/poison memory processes at both optimization levels.
 fn run_depth(checks: Vec<String>, width: usize, optimized: bool, depth: Option<usize>) {
-    let directory = project(&consumer(&checks, width));
+    run_text(
+        &consumer(&checks, width),
+        checks.len().div_ceil(width),
+        optimized,
+        depth,
+        "",
+    );
+}
+
+/// Keep exact IO observations distinct from callback state and runtime ownership diagnostics.
+fn run_text(main: &str, batches: usize, optimized: bool, depth: Option<usize>, stdout: &str) {
+    let directory = project(main);
     let entry = directory.path().join("Main.cinch");
     let executable = directory.path().join("consumer");
     let profile = cinch::core::TargetProfile {
@@ -189,7 +200,7 @@ fn run_depth(checks: Vec<String>, width: usize, optimized: bool, depth: Option<u
         );
     }
     for debug in [false, true] {
-        for index in 0..checks.len().div_ceil(width) {
+        for index in 0..batches {
             let mut command = std::process::Command::new(&executable);
             if let Some(size) = depth {
                 command.args(["deep".to_owned(), size.to_string()]);
@@ -205,7 +216,15 @@ fn run_depth(checks: Vec<String>, width: usize, optimized: bool, depth: Option<u
                 .unwrap();
             if output.status.code() != Some(0)
                 || !String::from_utf8_lossy(&output.stderr).contains("leaked=0")
+                || output.stdout != stdout.as_bytes()
             {
+                std::fs::write(
+                    directory
+                        .path()
+                        .join(format!("run-{optimized}-{debug}-{index}.stdout")),
+                    &output.stdout,
+                )
+                .unwrap();
                 std::fs::write(
                     directory
                         .path()
@@ -296,6 +315,163 @@ fn fields_preserve_combined_callback_rows_and_reject_effect_erasure() {
                 "{diagnostics}"
             );
         }
+    }
+}
+
+/// Actual IO and mutation effects interleave through a retained factory and stop without touching the next field.
+#[test]
+fn fields_distinct_io_predicate_and_mutation_yield_execute_in_order() {
+    for optimized in [false, true] {
+        run_text(
+            include_str!("fixtures/byte-fields-mixed-runtime.cinch"),
+            1,
+            optimized,
+            None,
+            "a b a b ",
+        );
+    }
+}
+
+/// Retain actual definitions so an unrelated runtime load or unused function constant cannot satisfy reachability.
+fn definitions(ir: &str) -> std::collections::BTreeMap<&str, &str> {
+    let mut values = std::collections::BTreeMap::new();
+    let mut offset = 0;
+    for line in ir.split_inclusive('\n') {
+        if line.starts_with("define ") {
+            if let Some((_, suffix)) = line.split_once("@\"") {
+                let (name, _) = suffix.split_once('"').unwrap();
+                let end = offset + ir[offset..].find("\n}").unwrap() + 2;
+                values.insert(name, &ir[offset..end]);
+            }
+        }
+        offset += line.len();
+    }
+    values
+}
+
+/// Follow only complete direct callee operands through the emitted consumer and module closure.
+fn reaches(functions: &std::collections::BTreeMap<&str, &str>, wanted: &str) -> bool {
+    let mut pending = vec!["Main.main"];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(symbol) = pending.pop() {
+        let specialized_collector = wanted == "Data.Bytes.Fields.collect-with"
+            && symbol
+                .strip_prefix(wanted)
+                .and_then(|suffix| suffix.strip_prefix(".sp"))
+                .is_some_and(|suffix| {
+                    !suffix.is_empty() && suffix.bytes().all(|byte| byte.is_ascii_digit())
+                });
+        if symbol == wanted || specialized_collector {
+            return true;
+        }
+        if !seen.insert(symbol) {
+            continue;
+        }
+        for line in functions[symbol]
+            .lines()
+            .filter(|line| line.contains("call "))
+        {
+            for suffix in line.split("@\"").skip(1) {
+                if let Some((callee, following)) = suffix.split_once('"') {
+                    if following.starts_with('(') && functions.contains_key(callee) {
+                        pending.push(callee);
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Complete collectors and genuine mutation-effect traversal retain actual packed/scalar code on every target.
+#[test]
+fn fields_complete_adapter_compiles_for_wasm_arm_and_big_endian() {
+    let source = [
+        include_str!("../prelude/Data/Bytes/Word.cinch"),
+        include_str!("../prelude/Data/Bytes/Utf8.cinch"),
+        include_str!("../prelude/Data/Bytes/View.cinch"),
+        include_str!("../prelude/Data/Unicode/Tables.cinch"),
+        include_str!("../prelude/Data/Unicode/Kernel.cinch"),
+        include_str!("../prelude/Data/Mutable/Var.cinch"),
+        FIELDS,
+        include_str!("fixtures/byte-fields-portable.cinch"),
+    ]
+    .join("\n");
+    let directory = tempfile::tempdir().unwrap().keep();
+    for (triple, arch, endian) in [
+        ("wasm32-unknown-unknown", "wasm32", "little"),
+        ("aarch64-unknown-linux-gnu", "aarch64", "little"),
+        ("powerpc64-unknown-linux-gnu", "powerpc64", "big"),
+    ] {
+        let profile = cinch::driver::target_profile(&cinch::driver::DriverOptions {
+            target: Some(triple.into()),
+            ..Default::default()
+        })
+        .unwrap_or_else(|_| {
+            assert_eq!(arch, "powerpc64");
+            let mut profile = cinch::core::TargetProfile::native();
+            profile.triple = triple.into();
+            profile.arch = arch.into();
+            profile.endian = endian.into();
+            profile
+        });
+        let text = source.clone();
+        let result = std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(move || {
+                let program = cinch::driver::check_sources_profile(
+                    &text,
+                    "byte-fields-full.cinch",
+                    &profile,
+                )?;
+                cinch::codegen::emit_for(&profile, &program)
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        let ir = result.unwrap_or_else(|error| {
+            panic!("{triple}: {error:?}; retained {}", directory.display())
+        });
+        let file = directory.join(format!("{arch}.ll"));
+        std::fs::write(&file, &ir).unwrap();
+        let functions = definitions(&ir);
+        for symbol in [
+            "Data.Bytes.Fields.collect-space",
+            "Data.Bytes.Fields.collect-with",
+            "Data.Bytes.Fields.visit-with",
+            "Data.Bytes.Fields.scan-space",
+            "Data.Bytes.Fields.scan-with",
+            "Data.Bytes.View.ascii-space-sixteen.llvm",
+            "Data.Bytes.View.ascii-space-byte.llvm",
+            "Data.Bytes.View.load-byte.llvm",
+            "Data.Bytes.Utf8.utf8-decode-between",
+            "Data.Unicode.Kernel.unicode-is-space-code",
+        ] {
+            assert!(
+                reaches(&functions, symbol),
+                "unreachable {symbol}; retained {}",
+                file.display()
+            );
+        }
+        let vector = functions["Data.Bytes.View.ascii-space-sixteen.llvm"];
+        assert!(vector.contains("load <16 x i8>") && vector.contains("align 1"));
+        assert!(vector.contains("icmp ule <16 x i8>") && vector.contains("icmp ult <16 x i8>"));
+        assert!(!vector.contains("store "));
+        let output = std::process::Command::new(
+            std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
+        )
+        .args(["-target", triple, "-O2", "-c", "-x", "ir"])
+        .arg(&file)
+        .arg("-o")
+        .arg(file.with_extension("o"))
+        .output()
+        .unwrap();
+        assert!(
+            output.status.success(),
+            "{triple}: {}; retained {}",
+            String::from_utf8_lossy(&output.stderr),
+            directory.display()
+        );
     }
 }
 

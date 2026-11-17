@@ -1,9 +1,10 @@
-# Retained byte fields: Rust O0/O2 and historical Native O0 checkpoint
+# Retained byte fields: functional and portable checkpoint
 
 `Data.Bytes.Fields` implements the four audited field operations with concrete
 state and callback traversal. This checkpoint claims source/type validation and
-the complete Rust O0/O2 and historical Native O0 functional scope below. Native O2, Fields portable objects,
-parent checked-RC API tests and performance review remain pending.
+the complete Rust and historical Native O0/O2 functional scope below, plus real
+host/wasm/ARM portable consumers. Parent checked-RC/PPC API tests and performance
+review remain pending.
 
 | Audited declaration | Primary whole-buffer operation | Bounded-view counterpart |
 | --- | --- | --- |
@@ -74,24 +75,33 @@ stacks are separately 64 MiB. Rust CLI compilation has `rc_debug=false`; actual
 dynamic poisoning is recorded separately. No compiled checked-RC API or Native
 result is claimed by these runs.
 
-The first historical Native unit also accepts and executes temporary/empty-owner,
-replay, explicit-state and genuine mutation-effect stateful-predicate controls.
-Its four normal/poison processes pass with zero leaks and checked-RC compilation.
-This uses the admitted historical `2f077`/V4 pair with consumer runtime `c4b1097b`;
-the compiler host runtime remains separately identified as `80bd5b54`. This small
-unit does not qualify the full Native matrix, mixed-capability contract proof or
-any newer compiler family.
+The historical Native `2f077`/admitted-V4 pair with consumer runtime `c4b1097b`
+passes the same complete original scope at both O0 and O2: 340 processes per
+optimization level. Its compiler-host runtime remains separately `80bd5b54`. O2
+relinks the exact verified accepted O0 LLVM with matching source, module,
+interface, object and runtime hashes. It does not rerun or relabel the compiler.
+All Native runs have checked-RC compilation; none claims a newer compiler family
+or self-built V4 distribution. The original four frontend/optimization gates
+total 1,360 zero-leak processes.
 
-The same historical Native tuple now passes the complete original O0 scope:
-1,266 output/trace rows (318 processes), eight mutation scripts (16), two
-ownership/stateful controls (four), and the runtime-generated 65,536-byte dense
-input (two). All 340 normal/poison processes report zero leaks with checked-RC
-compilation. The deep control reuses the mutation consumer without repeating the
-earlier ownership gate. Native O2, the additional live distinct-IO/mutation
-fixture and source acceptance/refusal contracts remain pending.
+An additional actual IO-predicate/mutation-yield fixture passes all four gates,
+eight further normal/poison processes. One retained factory runs twice, prints
+exactly `a b a b `, and stops before either `c` predicate observation. The IO
+capability is explicitly captured rather than inferred from an effect annotation.
+The first fixture-only missing-capability refusal remains plain.
 
-The actual mixed IO/Mut API/factory proof is accepted, and the negative proof
-reaches the specific `effect rows do not match` rejection. Earlier test-only
+The complete portable consumer reaches eager collection, predicate collection,
+effectful traversal, bounded UTF8 decoding, Unicode classification and the
+actual packed/scalar loads. Host O2 runs normally and poisoned with zero leaks.
+Real wasm32 and AArch64 O2 objects pass header checks. The fixed pure predicate
+causes `collect-with.sp0`; only a numeric specialization of that exact collector
+may satisfy its graph assertion, and a real direct call path is still required.
+The initial fixture-only Nat annotation and graph-assertion failures remain
+plain alongside their input/IR/executable evidence. Raw CLI PowerPC support is
+not claimed; the maintained parent API gate emits the complete PPC object.
+
+Both frontends accept the actual mixed IO/Mut API/factory proof, and both
+negative proofs reach the specific `effect rows do not match` rejection. Earlier test-only
 layout/reserved-name failures are retained and are not counted as intended
 refusals. All 31 module declarations have canonical owned documentation without
 foreign standard-library references.

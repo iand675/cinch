@@ -81,8 +81,9 @@ def main() -> None:
     parser.add_argument('--runtime-archive',type=Path)
     parser.add_argument('--native-interfaces',type=Path)
     parser.add_argument('--native-objects',type=Path)
+    parser.add_argument('--reuse-native-report',type=Path)
     parser.add_argument('--opt-level',choices=['0','2'],default='0')
-    parser.add_argument('--group',choices=['rows','effects','owners','deep','controls'],default='rows')
+    parser.add_argument('--group',choices=['rows','effects','owners','deep','controls','mixed'],default='rows')
     parser.add_argument('--size',type=int,default=65536)
     parser.add_argument('--first',type=int,default=0)
     parser.add_argument('--limit',type=int)
@@ -94,7 +95,7 @@ def main() -> None:
     for row in fixture['effect_controls']:
         expected = effect_control(row)
         assert row['invocations'] == expected['invocations']
-    checks = (['True'] if args.group == 'deep' else [expression(row) for row in fixture['rows']] if args.group == 'rows' else
+    checks = (['True'] if args.group in ['deep','mixed'] else [expression(row) for row in fixture['rows']] if args.group == 'rows' else
               ['owner-case ()','stateful-case ()'] if args.group == 'owners' else
               [effect_expression(row,index) for index,row in enumerate(fixture['effect_controls'])])
     if args.group == 'controls':
@@ -105,7 +106,8 @@ def main() -> None:
     assert checks
     work = args.artifacts.resolve()
     work.mkdir(parents=True,exist_ok=True)
-    text = consumer(checks,args.batch_size)
+    text = ((ROOT/'compiler/tests/fixtures/byte-fields-mixed-runtime.cinch').read_text()
+            if args.group == 'mixed' else consumer(checks,args.batch_size))
     entry = work/'Main.cinch'
     entry.write_text(text)
     dependencies = source_closure(text)
@@ -138,19 +140,39 @@ def main() -> None:
     report['command'] = command
     report['opt_level'] = None if args.check_only else args.opt_level
     report['runtime_size'] = args.size if args.group in ['deep','controls'] else None
+    report['expected_stdout'] = 'a b a b ' if args.group == 'mixed' else ''
     report['selection'] = dict(first=args.first,limit=args.limit,batch_size=args.batch_size)
     report['generator_sha256'] = digest(Path(__file__))
     save()
-    try:
-        compiled = run(command)
-        (work/'compile.log').write_text(compiled.stdout+compiled.stderr)
-    except RuntimeError as error:
-        diagnostics = exe.with_suffix('.ll.diagnostics')
-        detail = str(error) + ('\n'+diagnostics.read_text() if diagnostics.exists() else '')
-        (work/'compile.log').write_text(detail)
-        report.update(status='compile-failed',diagnostics=detail)
+    if args.reuse_native_report:
+        assert args.native_interfaces and not args.check_only and args.runtime_archive
+        previous = json.loads(args.reuse_native_report.read_text())
+        assert previous['status'] == 'passed' and previous['compiled_rc_debug'] is True
+        assert previous['profiles'] and all(value['zero_leaks'] for value in previous['profiles'])
+        for key in ['compiler_sha256','entry_sha256','dependencies','interfaces_sha256','objects_sha256']:
+            assert previous[key] == report[key], f'Native emission provenance changed: {key}'
+        assert previous['runtime_sha256'] == digest(args.runtime_archive)
+        original = args.reuse_native_report.with_suffix('')/'consumer.ll'
+        assert digest(original) == previous['llvm_sha256']
+        report['reused_native_emission'] = dict(report=str(args.reuse_native_report.resolve()),
+            report_sha256=digest(args.reuse_native_report),llvm_sha256=previous['llvm_sha256'],
+            original_emission_command=previous['command'])
+        report['emission_command_not_executed'] = command
+        report['command'] = ['copy-verified-native-ir',str(original.resolve()),str(exe.with_suffix('.ll'))]
+        shutil.copyfile(original,exe.with_suffix('.ll'))
+        (work/'compile.log').write_text('Reused verified exact Native IR; compiler was not executed for this link profile.\n')
         save()
-        raise
+    else:
+        try:
+            compiled = run(command)
+            (work/'compile.log').write_text(compiled.stdout+compiled.stderr)
+        except RuntimeError as error:
+            diagnostics = exe.with_suffix('.ll.diagnostics')
+            detail = str(error) + ('\n'+diagnostics.read_text() if diagnostics.exists() else '')
+            (work/'compile.log').write_text(detail)
+            report.update(status='compile-failed',diagnostics=detail)
+            save()
+            raise
     if args.check_only:
         report['status'] = 'source-checked-only'
         save()
@@ -180,13 +202,14 @@ def main() -> None:
                 arguments = [str(exe),'deep',str(args.size)] if args.group == 'deep' or batch == 'deep' else [str(exe),str(batch)]
                 result = run(arguments,env={**os.environ,'CINCH_RC_DEBUG':str(int(debug)),
                              'CINCH_HEAP_LIMIT':'256M' if debug else '32M','CINCH_STACK_SIZE':'8M','CINCH_LEAK_CHECK':'1'})
+                if 'leaked=0' not in result.stderr or result.stdout != report['expected_stdout']:
+                    raise RuntimeError(f'exact stdout/leak observation failed: {result.stdout!r}\n{result.stderr}')
             except RuntimeError as error:
                 (work/f'run-{debug}-{batch}.log').write_text(str(error))
                 report.update(status='runtime-failed',failed_profile=dict(debug=debug,batch=batch),diagnostics=str(error))
                 save()
                 raise
-            assert 'leaked=0' in result.stderr,result.stderr
-            report['profiles'].append(dict(debug=debug,batch=batch,zero_leaks=True))
+            report['profiles'].append(dict(debug=debug,batch=batch,stdout=result.stdout,zero_leaks=True))
             save()
     report['status'] = 'passed'
     save()
