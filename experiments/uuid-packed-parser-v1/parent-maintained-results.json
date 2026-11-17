@@ -1,0 +1,24 @@
+{
+  "kind": "actual-current-Root-packed-UUID-maintained-gate",
+  "status": "passed",
+  "parent_log": "/tmp/cinch-stdlib-uuid-packed-parent-release.log",
+  "parent_log_sha256": "9a3443d59af3dc68f0408acad3d2b123d3a6edca5d43e66715ec31a39e20e35c",
+  "selected_sources": [
+    "/workspace/dasl-stdlib-io/experiments/uuid-packed-parser-v1/sources/Data.Uuid.cinch"
+  ],
+  "actual_selected_source_sha256": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+  "selection_records": 19,
+  "tests_passed": 8,
+  "elapsed_seconds": 21.39,
+  "compiler_sha256": "ad6e72f9cb4b946c7864b088062a2413974ca7b965153e1d7a413a97e0554e14",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "provenance": "/workspace/dasl-stdlib-io/bootstrap/stdlib-effect-identity-frozen-provenance.json",
+  "provenance_sha256": "3eaaa9dd46eff15faa8c8fc309a21d2fd43d15284511712582d9ce7371d1bbac",
+  "scope": "Parent states frozenad6 uses same current Rust implementation as actual maintained gate. Full independent observations/real entropy-clock-state/checked-RC memory and actual custom-profile PowerPC adapter gates passed. This is a separate epoch from330standalone and the original baseline8.",
+  "not_claimed": [
+    "currentNativefamily",
+    "private-fieldtransport",
+    "packedperformance",
+    "productionselection"
+  ]
+}

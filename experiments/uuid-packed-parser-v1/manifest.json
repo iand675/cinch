@@ -1,6 +1,6 @@
 {
   "kind": "separate-UUID-packed-parser-candidate",
-  "status": "full-standalone-SDK-positional-owner-IO-clock-matrix-passed-portable-parent-and-performance-pending",
+  "status": "standalone-fullmatrix-portable-and-actual-parent8-PPC-passed-matched-performance-pending",
   "baseline_source": "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
   "baseline_source_sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
   "source": "experiments/uuid-packed-parser-v1/sources/Data.Uuid.cinch",
@@ -31,9 +31,8 @@
     "No selection or performance claim before full qualification and paired timing"
   ],
   "pending": [
-    "portable actual adapter objects",
-    "matched public pipeline allocation/ASM preflights and separately granted timing",
-    "Native pure compatibility where admitted"
+    "Native pure compatibility where admitted",
+    "Currentad6/d91 matched baseline/packed public pipeline build+memory/allocation/ASM preflights and separately granted timing"
   ],
   "candidate_selected": false,
   "package_complete": false,
@@ -45,7 +44,8 @@
     "32768metamorphic position/form/byte receiver and input-restoration cases",
     "owner/hash/range controls and actual entropy/wallclock/serialized shared-generator IO",
     "16bounded units/32normal+poison processes allzero leaks; every closed functional output durably archived",
-    "Actual packed-adapter wasm32/AArch64IR and object compilation with packed decoder call paths; PPC CLI refusal remains separate"
+    "Actual packed-adapter wasm32/AArch64IR and object compilation with packed decoder call paths; PPC CLI refusal remains separate",
+    "Actual currentRoot8/PPC gate21.39s selects expected41c8source,actual path/SHA logged; distinct from330andbaseline8"
   ],
   "qualification": {
     "source_doc": "source-doc-results.json",
@@ -54,6 +54,7 @@
     "positional_source_check": "passed after a preserved fixture-only reserved-identifier rename",
     "selected": false,
     "runtime_matrix": "runtime-matrix-results.json",
-    "portable": "portable-results.json"
+    "portable": "portable-results.json",
+    "parent8": "parent-maintained-results.json"
   }
 }
