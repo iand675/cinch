@@ -54,6 +54,8 @@ def assert_actual_query(ir: str) -> None:
         assert call_path(ir, 'Data.Bytes.View.'+caller, 'Data.Bytes.View.'+callee), (caller, callee)
     if re.search(r'^define .*@"Data\.Bytes\.View\.index-forward"\(', ir, re.M):
         assert call_path(ir, 'Data.Bytes.View.byte-view-index-byte', 'Data.Bytes.View.index-forward')
+        for worker in ['index-forward-blocks', 'index-forward-tail']:
+            assert call_path(ir, 'Data.Bytes.View.index-forward', 'Data.Bytes.View.'+worker)
     word = definition(ir,'Data.Bytes.View.load-word.llvm')
     byte = definition(ir,'Data.Bytes.View.load-byte.llvm')
     masks = definition(ir,'Data.Bytes.View.matching-lanes.llvm')
