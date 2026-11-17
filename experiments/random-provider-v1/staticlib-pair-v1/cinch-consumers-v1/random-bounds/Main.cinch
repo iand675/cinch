@@ -1,0 +1,76 @@
+
+module Main where
+
+  import Data.Nat
+  import Data.Result
+  import Effect.Random
+  import Relation.Eq
+  import Relation.Ord
+
+  -- The weight of one check: 0 when it passed, `w` when it failed.
+  weight :: Nat -> Int -> Int
+  weight r w = case r == 0 of
+    True -> 0
+    False -> w
+
+  -- `random-nat-below 1`: bound one has a zero-byte draw and the
+  -- acceptance region `1`, so every draw must be 0 and no entropy is
+  -- consumed (the error arm is a failure signal: bound one is legal).
+  below-one :: forall r. using (io :: Io r) => Nat ->{IO r} Nat
+  below-one n = case n == 0 of
+    True -> 0
+    False -> case random-nat-below 1 of
+      Err e -> 1
+      Ok v -> if v == 0 then below-one (n - 1) else 1
+
+  -- `random-nat-below 4` over 64 draws: every draw in `0 .. 3`, and at
+  -- least two distinct values. 64 draws of a uniform 4-value draw all
+  -- equalling the first has probability 4^-63 (about 2^-126), so the
+  -- distinctness expectation is safe.
+  below-four :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  below-four u = case random-nat-below 4 of
+    Err e -> 1
+    Ok first -> four-rest 63 first False
+
+  four-rest :: forall r. using (io :: Io r) => Nat -> Nat -> Bool ->{IO r} Nat
+  four-rest n first differs = case n == 0 of
+    True -> if differs then 0 else 1
+    False -> case random-nat-below 4 of
+      Err e -> 1
+      Ok v -> case v < 4 of
+        True -> four-rest (n - 1) first (if v == first then differs else True)
+        False -> 1
+
+  -- `random-nat-in-range 5 10` over 64 draws: the upper bound is
+  -- EXCLUSIVE, so every draw is in `5 .. 9`, and at least two distinct
+  -- values appear (the same 4^-63 argument over the five-value range).
+  in-range :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  in-range u = case random-nat-in-range 5 10 of
+    Err e -> 1
+    Ok first -> range-rest 63 first False
+
+  range-rest :: forall r. using (io :: Io r) => Nat -> Nat -> Bool ->{IO r} Nat
+  range-rest n first differs = case n == 0 of
+    True -> if differs then 0 else 1
+    False -> case random-nat-in-range 5 10 of
+      Err e -> 1
+      Ok v -> case 5 <= v && v < 10 of
+        True -> range-rest (n - 1) first (if v == first then differs else True)
+        False -> 1
+
+  -- Two full-word draws: equal ones have probability 2^-64, so pinning
+  -- the inequality is safe and it observes that `random-nat` is a real
+  -- 64-bit draw rather than a narrow one.
+  full-word :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  full-word u =
+    let a = random-nat () in
+    let b = random-nat () in
+    if a == b then 1 else 0
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let c1 = weight (below-one 8) 1 in
+    let c2 = weight (below-four ()) 2 in
+    let c3 = weight (in-range ()) 4 in
+    let c4 = weight (full-word ()) 8 in
+    c1 + c2 + c3 + c4

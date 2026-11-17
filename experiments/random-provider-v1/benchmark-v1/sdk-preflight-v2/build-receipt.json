@@ -1,0 +1,36 @@
+{
+  "scope": "cached-main-only actual SDK reference build; no timing",
+  "command": [
+    "taskset",
+    "-c",
+    "4",
+    "/tmp/cinch-go-current/go/bin/go",
+    "build",
+    "-gcflags=-m=2",
+    "-o",
+    "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/benchmark-v1/sdk-preflight-v2/reference",
+    "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/benchmark-v1/sdk-preflight-v2/reference.go"
+  ],
+  "go_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "source_sha256": "c0a5c6403f172caba52667723a9205024c20b996becb98741322ebd204e5b3be",
+  "environment": {
+    "GOCACHE": "/tmp/cinch-go-surface-cache",
+    "GOTELEMETRY": "off",
+    "GOTOOLCHAIN": "local",
+    "GOMAXPROCS": "1",
+    "GOFLAGS": "-p=1",
+    "TMPDIR": "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/benchmark-v1/sdk-preflight-v2/scratch",
+    "GOTMPDIR": "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/benchmark-v1/sdk-preflight-v2/scratch"
+  },
+  "start_free_bytes": 373493760,
+  "dryrun_receipt_sha256": "2d1d12805c95d28ede3f9f0d703b8c6aac6741593ff8b140fbb97dbd34ed7949",
+  "exit_code": 0,
+  "elapsed_seconds": 0.5861827740154695,
+  "peak_observed_output_plus_cache_bytes": 3084401,
+  "min_observed_free_bytes": 370511872,
+  "private_output_bytes": 2984814,
+  "new_cache_payload_bytes": 99587,
+  "end_free_bytes": 370614272,
+  "guard_violation": null,
+  "reference_executable_sha256": "02e27f79a9ffeb9d7b911cc10b158fb667f7c570ef7ecfbec80a7c7c422659c9"
+}

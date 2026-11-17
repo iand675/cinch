@@ -134,6 +134,13 @@ pub(crate) fn read(fd: i64, buf: &mut [u8]) -> (i64, i64) {
     back::read(fd, buf)
 }
 
+/// Draw cryptographic bytes from the initialized Linux kernel generator.
+/// One blocking syscall, with no retries: the count, or `-1` and errno.
+#[cfg(target_os = "linux")]
+pub(crate) fn getrandom(buf: &mut [u8]) -> (i64, i64) {
+    back::getrandom(buf)
+}
+
 /// Close `fd`: 0, or `-1` and the error number.
 pub(crate) fn close(fd: i64) -> (i64, i64) {
     back::close(fd)

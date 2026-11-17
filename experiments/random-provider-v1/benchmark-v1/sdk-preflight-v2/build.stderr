@@ -1,0 +1,238 @@
+# command-line-arguments
+./reference.go:18:6: can inline fingerprint with cost 32 as: func([]byte) uint64 { if len(bytes) == 0 { return uint64(0) }; return uint64(len(bytes)) + uint64(bytes[0]) + uint64(bytes[len(bytes) / 2]) + uint64(bytes[len(bytes) - 1]) }
+./reference.go:26:6: can inline mix with cost 6 as: func(uint64, uint64) uint64 { return (checksum ^ observation) * uint64(1099511628211) }
+./reference.go:31:6: can inline observeUUID with cost 59 as: func(uuid.UUID, byte) (uint64, uint64) { sink = append(([]byte)(nil), value[:]...); valid := uint64(0); if sink[6] >> uint(4) == version && sink[8] >> uint(6) == byte(2) { valid = uint64(1) }; observation := uint64(sink[0]) + uint64(sink[7]) + uint64(sink[8]) + uint64(sink[15]); return valid, observation & uint64(1023) }
+./reference.go:42:6: cannot inline probe: function too complex: cost 304 exceeds budget 80
+./reference.go:56:6: cannot inline main: function too complex: cost 1978 exceeds budget 80
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6: can inline atomic.(*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).CompareAndSwap with cost 63 as: method(*atomic.Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]) func(*[16]uintptr, *go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }, *go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }) bool { return atomic.CompareAndSwapPointer(&atomic.x.v, unsafe.Pointer(atomic.old), unsafe.Pointer(atomic.new)) }
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:6: can inline atomic.(*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Swap with cost 62 as: method(*atomic.Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]) func(*[16]uintptr, *go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }) *go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int } { return (*go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int })(atomic.SwapPointer(&atomic.x.v, unsafe.Pointer(atomic.new))) }
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:6: can inline atomic.(*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Store with cost 61 as: method(*atomic.Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]) func(*[16]uintptr, *go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }) { atomic.StorePointer(&atomic.x.v, unsafe.Pointer(atomic.val)) }
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:6: can inline atomic.(*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Load with cost 4 as: method(*atomic.Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]) func(*[16]uintptr) *go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int } { return (*go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int })(atomic.LoadPointer(&atomic.x.v)) }
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6: can inline atomic.(*Pointer[os.dirInfo]).CompareAndSwap with cost 70 as: method(*atomic.Pointer[os.dirInfo]) func(*os.dirInfo, *os.dirInfo) bool { return (*atomic.Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).CompareAndSwap(atomic.x, &atomic..dict.Pointer[os.dirInfo], atomic.old, atomic.new) }
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:6: can inline atomic.(*Pointer[os.dirInfo]).Swap with cost 68 as: method(*atomic.Pointer[os.dirInfo]) func(*os.dirInfo) *os.dirInfo { return (*atomic.Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Swap(atomic.x, &atomic..dict.Pointer[os.dirInfo], atomic.new) }
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:6: can inline atomic.(*Pointer[os.dirInfo]).Store with cost 66 as: method(*atomic.Pointer[os.dirInfo]) func(*os.dirInfo) { (*atomic.Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Store(atomic.x, &atomic..dict.Pointer[os.dirInfo], atomic.val) }
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:6: can inline atomic.(*Pointer[os.dirInfo]).Load with cost 9 as: method(*atomic.Pointer[os.dirInfo]) func() *os.dirInfo { return (*atomic.Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Load(atomic.x, &atomic..dict.Pointer[os.dirInfo]) }
+./reference.go:51:12: inlining call to fmt.Printf
+./reference.go:90:40: inlining call to fingerprint
+./reference.go:90:18: inlining call to mix
+./reference.go:102:40: inlining call to fingerprint
+./reference.go:102:18: inlining call to mix
+./reference.go:108:18: inlining call to mix
+./reference.go:114:55: inlining call to time.Time.UnixNano
+./reference.go:114:18: inlining call to mix
+./reference.go:119:40: inlining call to observeUUID
+./reference.go:121:18: inlining call to mix
+./reference.go:126:40: inlining call to observeUUID
+./reference.go:128:18: inlining call to mix
+./reference.go:134:25: inlining call to fingerprint
+./reference.go:135:56: inlining call to time.Duration.Nanoseconds
+./reference.go:135:12: inlining call to fmt.Printf
+./reference.go:114:55: inlining call to time.(*Time).unixSec
+./reference.go:114:55: inlining call to time.(*Time).nsec
+./reference.go:114:55: inlining call to time.(*Time).sec
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6: inlining call to atomic.(*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).CompareAndSwap
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:6: inlining call to atomic.(*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Swap
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:6: inlining call to atomic.(*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Store
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:6: inlining call to atomic.(*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Load
+./reference.go:18:18: bytes does not escape
+./reference.go:32:15: append(([]byte)(nil), value[:]...) escapes to heap in observeUUID:
+./reference.go:32:15:   flow: {heap} ← &{storage for append(([]byte)(nil), value[:]...)}:
+./reference.go:32:15:     from append(([]byte)(nil), value[:]...) (spill) at ./reference.go:32:15
+./reference.go:32:15:     from sink = append(([]byte)(nil), value[:]...) (assign) at ./reference.go:32:7
+./reference.go:32:15: append escapes to heap
+./reference.go:48:9: "actual secure provider failed" escapes to heap in probe:
+./reference.go:48:9:   flow: {heap} ← &{storage for "actual secure provider failed"}:
+./reference.go:48:9:     from "actual secure provider failed" (spill) at ./reference.go:48:9
+./reference.go:48:9:     from panic("actual secure provider failed") (call parameter) at ./reference.go:48:8
+./reference.go:44:60: size escapes to heap in probe:
+./reference.go:44:60:   flow: {storage for ... argument} ← &{storage for size}:
+./reference.go:44:60:     from size (spill) at ./reference.go:44:60
+./reference.go:44:60:     from ... argument (slice-literal-element) at ./reference.go:44:13
+./reference.go:44:60:   flow: {heap} ← {storage for ... argument}:
+./reference.go:44:60:     from ... argument (spill) at ./reference.go:44:13
+./reference.go:44:60:     from fmt.Fprintf(os.Stderr, "BEGIN SDK ENTROPY DRAW len=%d\n", ... argument...) (call parameter) at ./reference.go:44:13
+./reference.go:46:58: size escapes to heap in probe:
+./reference.go:46:58:   flow: {storage for ... argument} ← &{storage for size}:
+./reference.go:46:58:     from size (spill) at ./reference.go:46:58
+./reference.go:46:58:     from ... argument (slice-literal-element) at ./reference.go:46:13
+./reference.go:46:58:   flow: {heap} ← {storage for ... argument}:
+./reference.go:46:58:     from ... argument (spill) at ./reference.go:46:13
+./reference.go:46:58:     from fmt.Fprintf(os.Stderr, "END SDK ENTROPY DRAW len=%d\n", ... argument...) (call parameter) at ./reference.go:46:13
+./reference.go:43:15: make([]byte, size) escapes to heap in probe:
+./reference.go:43:15:   flow: bytes ← &{storage for make([]byte, size)}:
+./reference.go:43:15:     from make([]byte, size) (spill) at ./reference.go:43:15
+./reference.go:43:15:     from bytes := make([]byte, size) (assign) at ./reference.go:43:8
+./reference.go:43:15:   flow: {heap} ← bytes:
+./reference.go:43:15:     from sink = bytes (assign) at ./reference.go:50:7
+./reference.go:51:50: len(sink) escapes to heap in probe:
+./reference.go:51:50:   flow: {storage for ... argument} ← &{storage for len(sink)}:
+./reference.go:51:50:     from len(sink) (spill) at ./reference.go:51:50
+./reference.go:51:50:     from ... argument (slice-literal-element) at ./reference.go:51:12
+./reference.go:51:50:   flow: fmt.a ← &{storage for ... argument}:
+./reference.go:51:50:     from ... argument (spill) at ./reference.go:51:12
+./reference.go:51:50:     from fmt.format, fmt.a := "sdk-probe bytes=%d status=ok\n", ... argument (assign-pair) at ./reference.go:51:12
+./reference.go:51:50:   flow: {heap} ← *fmt.a:
+./reference.go:51:50:     from fmt.Fprintf(os.Stdout, fmt.format, fmt.a...) (call parameter) at ./reference.go:51:12
+./reference.go:43:15: make([]byte, size) escapes to heap
+./reference.go:44:13: ... argument does not escape
+./reference.go:44:60: size escapes to heap
+./reference.go:46:13: ... argument does not escape
+./reference.go:46:58: size escapes to heap
+./reference.go:48:9: "actual secure provider failed" escapes to heap
+./reference.go:51:12: ... argument does not escape
+./reference.go:51:50: len(sink) escapes to heap
+./reference.go:52:20: sink does not escape
+./reference.go:74:13: make([]byte, 0) escapes to heap in main:
+./reference.go:74:13:   flow: {heap} ← &{storage for make([]byte, 0)}:
+./reference.go:74:13:     from make([]byte, 0) (spill) at ./reference.go:74:13
+./reference.go:74:13:     from sink = make([]byte, 0) (assign) at ./reference.go:74:7
+./reference.go:84:11: "actual secure provider failed" escapes to heap in main:
+./reference.go:84:11:   flow: {heap} ← &{storage for "actual secure provider failed"}:
+./reference.go:84:11:     from "actual secure provider failed" (spill) at ./reference.go:84:11
+./reference.go:84:11:     from panic("actual secure provider failed") (call parameter) at ./reference.go:84:10
+./reference.go:95:15: make([]byte, size) escapes to heap in main:
+./reference.go:95:15:   flow: {heap} ← &{storage for make([]byte, size)}:
+./reference.go:95:15:     from make([]byte, size) (spill) at ./reference.go:95:15
+./reference.go:95:15:     from sink = make([]byte, size) (assign) at ./reference.go:95:9
+./reference.go:119:40: append(([]byte)(nil), value[:]...) escapes to heap in main:
+./reference.go:119:40:   flow: {heap} ← &{storage for append(([]byte)(nil), value[:]...)}:
+./reference.go:119:40:     from append(([]byte)(nil), value[:]...) (spill) at ./reference.go:119:40
+./reference.go:119:40:     from sink = append(([]byte)(nil), value[:]...) (assign) at ./reference.go:119:40
+./reference.go:126:40: append(([]byte)(nil), value[:]...) escapes to heap in main:
+./reference.go:126:40:   flow: {heap} ← &{storage for append(([]byte)(nil), value[:]...)}:
+./reference.go:126:40:     from append(([]byte)(nil), value[:]...) (spill) at ./reference.go:126:40
+./reference.go:126:40:     from sink = append(([]byte)(nil), value[:]...) (assign) at ./reference.go:126:40
+./reference.go:81:17: make([]byte, size) escapes to heap in main:
+./reference.go:81:17:   flow: bytes ← &{storage for make([]byte, size)}:
+./reference.go:81:17:     from make([]byte, size) (spill) at ./reference.go:81:17
+./reference.go:81:17:     from bytes := make([]byte, size) (assign) at ./reference.go:81:10
+./reference.go:81:17:   flow: {heap} ← bytes:
+./reference.go:81:17:     from sink = bytes (assign) at ./reference.go:86:9
+./reference.go:135:56: ~r0 escapes to heap in main:
+./reference.go:135:56:   flow: {storage for ... argument} ← &{storage for ~r0}:
+./reference.go:135:56:     from ~r0 (spill) at ./reference.go:135:56
+./reference.go:135:56:     from ... argument (slice-literal-element) at ./reference.go:135:12
+./reference.go:135:56:   flow: fmt.a ← &{storage for ... argument}:
+./reference.go:135:56:     from ... argument (spill) at ./reference.go:135:12
+./reference.go:135:56:     from fmt.format, fmt.a := "%d %d %d %d\n", ... argument (assign-pair) at ./reference.go:135:12
+./reference.go:135:56:   flow: {heap} ← *fmt.a:
+./reference.go:135:56:     from fmt.Fprintf(os.Stdout, fmt.format, fmt.a...) (call parameter) at ./reference.go:135:12
+./reference.go:135:60: valid escapes to heap in main:
+./reference.go:135:60:   flow: {storage for ... argument} ← &{storage for valid}:
+./reference.go:135:60:     from valid (spill) at ./reference.go:135:60
+./reference.go:135:60:     from ... argument (slice-literal-element) at ./reference.go:135:12
+./reference.go:135:60:   flow: fmt.a ← &{storage for ... argument}:
+./reference.go:135:60:     from ... argument (spill) at ./reference.go:135:12
+./reference.go:135:60:     from fmt.format, fmt.a := "%d %d %d %d\n", ... argument (assign-pair) at ./reference.go:135:12
+./reference.go:135:60:   flow: {heap} ← *fmt.a:
+./reference.go:135:60:     from fmt.Fprintf(os.Stdout, fmt.format, fmt.a...) (call parameter) at ./reference.go:135:12
+./reference.go:135:67: checksum escapes to heap in main:
+./reference.go:135:67:   flow: {storage for ... argument} ← &{storage for checksum}:
+./reference.go:135:67:     from checksum (spill) at ./reference.go:135:67
+./reference.go:135:67:     from ... argument (slice-literal-element) at ./reference.go:135:12
+./reference.go:135:67:   flow: fmt.a ← &{storage for ... argument}:
+./reference.go:135:67:     from ... argument (spill) at ./reference.go:135:12
+./reference.go:135:67:     from fmt.format, fmt.a := "%d %d %d %d\n", ... argument (assign-pair) at ./reference.go:135:12
+./reference.go:135:67:   flow: {heap} ← *fmt.a:
+./reference.go:135:67:     from fmt.Fprintf(os.Stdout, fmt.format, fmt.a...) (call parameter) at ./reference.go:135:12
+./reference.go:135:77: retained escapes to heap in main:
+./reference.go:135:77:   flow: {storage for ... argument} ← &{storage for retained}:
+./reference.go:135:77:     from retained (spill) at ./reference.go:135:77
+./reference.go:135:77:     from ... argument (slice-literal-element) at ./reference.go:135:12
+./reference.go:135:77:   flow: fmt.a ← &{storage for ... argument}:
+./reference.go:135:77:     from ... argument (spill) at ./reference.go:135:12
+./reference.go:135:77:     from fmt.format, fmt.a := "%d %d %d %d\n", ... argument (assign-pair) at ./reference.go:135:12
+./reference.go:135:77:   flow: {heap} ← *fmt.a:
+./reference.go:135:77:     from fmt.Fprintf(os.Stdout, fmt.format, fmt.a...) (call parameter) at ./reference.go:135:12
+./reference.go:74:13: make([]byte, 0) escapes to heap
+./reference.go:81:17: make([]byte, size) escapes to heap
+./reference.go:84:11: "actual secure provider failed" escapes to heap
+./reference.go:95:15: make([]byte, size) escapes to heap
+./reference.go:119:40: append escapes to heap
+./reference.go:126:40: append escapes to heap
+./reference.go:135:12: ... argument does not escape
+./reference.go:135:56: ~r0 escapes to heap
+./reference.go:135:60: valid escapes to heap
+./reference.go:135:67: checksum escapes to heap
+./reference.go:135:77: retained escapes to heap
+./reference.go:136:20: sink does not escape
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7: parameter atomic.x leaks to {heap} for (*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).CompareAndSwap with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7:   flow: {heap} ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7:     from atomic.x.v (dot of pointer) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:68:33
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7:     from &atomic.x.v (address-of) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:68:31
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7:     from atomic.CompareAndSwapPointer(&atomic.x.v, unsafe.Pointer(atomic.old), unsafe.Pointer(atomic.new)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:68:30
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:37: parameter atomic.old leaks to {heap} for (*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).CompareAndSwap with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:37:   flow: {heap} ← atomic.old:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:37:     from atomic.CompareAndSwapPointer(&atomic.x.v, unsafe.Pointer(atomic.old), unsafe.Pointer(atomic.new)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:68:30
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:42: parameter atomic.new leaks to {heap} for (*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).CompareAndSwap with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:42:   flow: {heap} ← atomic.new:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:42:     from atomic.CompareAndSwapPointer(&atomic.x.v, unsafe.Pointer(atomic.old), unsafe.Pointer(atomic.new)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:68:30
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7: parameter atomic.x leaks to {heap} for (*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Swap with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7:   flow: {heap} ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7:     from atomic.x.v (dot of pointer) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:64:72
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7:     from &atomic.x.v (address-of) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:64:70
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7:     from atomic.SwapPointer(&atomic.x.v, unsafe.Pointer(atomic.new)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:64:69
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:27: parameter atomic.new leaks to {heap} for (*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Swap with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:27:   flow: {heap} ← atomic.new:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:27:     from atomic.SwapPointer(&atomic.x.v, unsafe.Pointer(atomic.new)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:64:69
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7: parameter atomic.x leaks to {heap} for (*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Store with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7:   flow: {heap} ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7:     from atomic.x.v (dot of pointer) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:61:53
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7:     from &atomic.x.v (address-of) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:61:51
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7:     from atomic.StorePointer(&atomic.x.v, unsafe.Pointer(atomic.val)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:61:50
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:28: parameter atomic.val leaks to {heap} for (*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Store with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:28:   flow: {heap} ← atomic.val:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:28:     from atomic.StorePointer(&atomic.x.v, unsafe.Pointer(atomic.val)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:61:50
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7: parameter atomic.x leaks to {heap} for (*Pointer[go.shape.struct { os.mu sync.Mutex; os.buf *[]uint8; os.nbuf int; os.bufp int }]).Load with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7:   flow: {heap} ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7:     from atomic.x.v (dot of pointer) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:58:60
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7:     from &atomic.x.v (address-of) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:58:58
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7:     from atomic.LoadPointer(&atomic.x.v) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:58:57
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7: parameter atomic.x leaks to {heap} for (*Pointer[os.dirInfo]).CompareAndSwap with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7:   flow: atomic.x ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7:     from atomic.x, atomic..dict, atomic.old, atomic.new := atomic.x, &atomic..dict.Pointer[os.dirInfo], atomic.old, atomic.new (assign-pair) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7:   flow: {heap} ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7:     from atomic.x.v (dot of pointer) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7:     from &atomic.x.v (address-of) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:7:     from atomic.CompareAndSwapPointer(&atomic.x.v, unsafe.Pointer(atomic.old), unsafe.Pointer(atomic.new)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:37: parameter atomic.old leaks to {heap} for (*Pointer[os.dirInfo]).CompareAndSwap with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:37:   flow: atomic.old ← atomic.old:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:37:     from atomic.x, atomic..dict, atomic.old, atomic.new := atomic.x, &atomic..dict.Pointer[os.dirInfo], atomic.old, atomic.new (assign-pair) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:37:   flow: {heap} ← atomic.old:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:37:     from atomic.CompareAndSwapPointer(&atomic.x.v, unsafe.Pointer(atomic.old), unsafe.Pointer(atomic.new)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:42: parameter atomic.new leaks to {heap} for (*Pointer[os.dirInfo]).CompareAndSwap with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:42:   flow: atomic.new ← atomic.new:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:42:     from atomic.x, atomic..dict, atomic.old, atomic.new := atomic.x, &atomic..dict.Pointer[os.dirInfo], atomic.old, atomic.new (assign-pair) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:42:   flow: {heap} ← atomic.new:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:67:42:     from atomic.CompareAndSwapPointer(&atomic.x.v, unsafe.Pointer(atomic.old), unsafe.Pointer(atomic.new)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:67:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7: parameter atomic.x leaks to {heap} for (*Pointer[os.dirInfo]).Swap with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7:   flow: atomic.x ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7:     from atomic.x, atomic..dict, atomic.new := atomic.x, &atomic..dict.Pointer[os.dirInfo], atomic.new (assign-pair) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:64:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7:   flow: {heap} ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7:     from atomic.x.v (dot of pointer) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:64:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7:     from &atomic.x.v (address-of) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:64:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:7:     from atomic.SwapPointer(&atomic.x.v, unsafe.Pointer(atomic.new)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:64:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:27: parameter atomic.new leaks to {heap} for (*Pointer[os.dirInfo]).Swap with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:27:   flow: atomic.new ← atomic.new:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:27:     from atomic.x, atomic..dict, atomic.new := atomic.x, &atomic..dict.Pointer[os.dirInfo], atomic.new (assign-pair) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:64:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:27:   flow: {heap} ← atomic.new:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:64:27:     from atomic.SwapPointer(&atomic.x.v, unsafe.Pointer(atomic.new)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:64:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7: parameter atomic.x leaks to {heap} for (*Pointer[os.dirInfo]).Store with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7:   flow: atomic.x ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7:     from atomic.x, atomic..dict, atomic.val := atomic.x, &atomic..dict.Pointer[os.dirInfo], atomic.val (assign-pair) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:61:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7:   flow: {heap} ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7:     from atomic.x.v (dot of pointer) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:61:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7:     from &atomic.x.v (address-of) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:61:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:7:     from atomic.StorePointer(&atomic.x.v, unsafe.Pointer(atomic.val)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:61:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:28: parameter atomic.val leaks to {heap} for (*Pointer[os.dirInfo]).Store with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:28:   flow: atomic.val ← atomic.val:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:28:     from atomic.x, atomic..dict, atomic.val := atomic.x, &atomic..dict.Pointer[os.dirInfo], atomic.val (assign-pair) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:61:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:28:   flow: {heap} ← atomic.val:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:61:28:     from atomic.StorePointer(&atomic.x.v, unsafe.Pointer(atomic.val)) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:61:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7: parameter atomic.x leaks to {heap} for (*Pointer[os.dirInfo]).Load with derefs=0:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7:   flow: atomic.x ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7:     from atomic.x, atomic..dict := atomic.x, &atomic..dict.Pointer[os.dirInfo] (assign-pair) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:58:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7:   flow: {heap} ← atomic.x:
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7:     from atomic.x.v (dot of pointer) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:58:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7:     from &atomic.x.v (address-of) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:58:6
+/tmp/cinch-go-current/go/src/sync/atomic/type.go:58:7:     from atomic.LoadPointer(&atomic.x.v) (call parameter) at /tmp/cinch-go-current/go/src/sync/atomic/type.go:58:6

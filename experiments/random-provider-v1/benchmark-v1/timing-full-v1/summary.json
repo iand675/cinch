@@ -1,0 +1,23 @@
+{
+  "lease_id": "entropy-full-20261117-v1",
+  "plan_sha256": "fbba650d0c1e34e0c6062905a155c3094a4a1870545dc44a73f7676c4c421ef8",
+  "launcher_sha256": "21e99139e45d3da0bedc166b77491747a2b0b94e4d4871d0d5ba5252c4d2f5f3",
+  "status": "complete",
+  "observations": 1365,
+  "warmup_observations": 195,
+  "timed_observations": 1170,
+  "controls_omitted": [],
+  "regressions_filtered": false,
+  "input_hashes_unchanged": true,
+  "wall_seconds": 11.26924451199011,
+  "report_bytes": 1209849,
+  "hard_wall_limit_seconds": 45.0,
+  "throttled_period_delta": 0,
+  "throttled_usec_delta": 0,
+  "complete_requested_counts": true,
+  "within_report_cap": true,
+  "within_wall_limit": true,
+  "all_raw_observations_retained": true,
+  "throttling_observed": false,
+  "mechanical_qualification_pass": true
+}

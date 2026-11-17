@@ -1,0 +1,4 @@
+
+thread 'platform::tests::platform_exports_are_global_text_symbols' (910901) panicked at /workspace/dasl-stdlib-io/compiler/runtime/src/test_artifacts.rs:18:5:
+no runtime archives beside /workspace/dasl-stdlib-io/experiments/random-provider-v1/root-integration-v1/runtime-tests
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

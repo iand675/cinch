@@ -1,0 +1,32 @@
+{
+  "scope": "Cinch benchmark source/build/generated-boundary/structural preflight only; SDK pending; no timing",
+  "status": "PASS",
+  "source_v1_failure": {
+    "sha256": "7154f14a08e36b1ba87092689d7e38bf137b04e6d92f1ffcdeea003b985f6338",
+    "diagnostic": "102:54 expected Int/got U64: let-bound literal accepted count inferred Int",
+    "retained_epoch": "preflight-v1"
+  },
+  "source_v2_sha256": "543c68d2365ff057ee587064240ca5c38ad143ca554f785cc95e10536bb317ec",
+  "reference_v1_preserved_sha256": "f35b92a3956ec009e5a93b312fa78eee8384b36b5b9f6351c3862d3d12eea9b3",
+  "reference_v2_pending_sha256": "c0a5c6403f172caba52667723a9205024c20b996becb98741322ebd204e5b3be",
+  "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
+  "llvm_sha256": "28c8d1cfd9d8ea87f4f651a5a557a931560228445a565582514d0191852d5c43",
+  "common_object_sha256": "b925426f29ca2dcf23cd11200c77097bcdf04faa5fe4de1d5541e4eb45be1dae",
+  "assembly_sha256": "0c01ba2cba530984aa70ecc2ae8b32a3a3881ff8baa687f22e8a7ca058f46380",
+  "variants": {
+    "baseline": {
+      "archive_sha256": "e75d162d7ed4fe8c34d48b6a5a2683fcc9c339336437213e176f7e60d5b5fa6a",
+      "executable_sha256": "544c4d59098e1a6029a045fb93d4915ce68b79a8698ef306eeb599bfd78a7dda"
+    },
+    "candidate": {
+      "archive_sha256": "663d9a953a404b3fb578e66b9bb5d316b0b5b36e87ae92c1a5ba5dece0fa76b3",
+      "executable_sha256": "f4600f7b6cfcc5c8ad914a5ae979bdb52d7b146b5d6da61dbebf7c10cd4ff155"
+    }
+  },
+  "structural_processes": 208,
+  "all_zero_leak": true,
+  "eligible_timing_samples": 0,
+  "peak_observed_output_bytes": 15672790,
+  "min_observed_free_bytes": 355848192,
+  "guard_breaches": 0
+}

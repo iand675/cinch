@@ -1,0 +1,13 @@
+--- a/compiler/prelude/Effect/Random.cinch
++++ b/compiler/prelude/Effect/Random.cinch
+@@ -7,8 +7,8 @@
+ -- illegal bound is a NAMED `RandomError` value in a `Result` (the house
+ -- style of Effect.Fs and Effect.Process), never a fault.
+ --
+--- The entropy word is the platform layer's own read of `/dev/urandom`
+--- into a fresh boxed buffer (`compiler/runtime/src/platform.rs`, the
++-- The entropy word comes from the operating system's cryptographic generator
++-- as a fresh boxed buffer (`compiler/runtime/src/platform.rs`, the
+ -- `cinch_random_bytes` extern), declared through the compiler's
+ -- recognized intrinsic `cinch.runtime.randomBytes`. The checker pins
+ -- that intrinsic's signature exactly (`Nat -> Bytes`; a mismatch is an

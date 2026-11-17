@@ -1,0 +1,40 @@
+{
+  "scope": "combined preflight identity and pending gates; no timing",
+  "ready_for_timing": false,
+  "eligible_timing_samples": 0,
+  "qualified_counts": [
+    0,
+    1,
+    2,
+    17
+  ],
+  "Cinch_structural_cases": 208,
+  "SDK_structural_cases": 52,
+  "Cinch_source_sha256": "543c68d2365ff057ee587064240ca5c38ad143ca554f785cc95e10536bb317ec",
+  "SDK_source_sha256": "c0a5c6403f172caba52667723a9205024c20b996becb98741322ebd204e5b3be",
+  "Cinch_common_object_sha256": "b925426f29ca2dcf23cd11200c77097bcdf04faa5fe4de1d5541e4eb45be1dae",
+  "Cinch_variants": {
+    "baseline": {
+      "archive_sha256": "e75d162d7ed4fe8c34d48b6a5a2683fcc9c339336437213e176f7e60d5b5fa6a",
+      "executable_sha256": "544c4d59098e1a6029a045fb93d4915ce68b79a8698ef306eeb599bfd78a7dda"
+    },
+    "candidate": {
+      "archive_sha256": "663d9a953a404b3fb578e66b9bb5d316b0b5b36e87ae92c1a5ba5dece0fa76b3",
+      "executable_sha256": "f4600f7b6cfcc5c8ad914a5ae979bdb52d7b146b5d6da61dbebf7c10cd4ff155"
+    }
+  },
+  "SDK_executable_sha256": "02e27f79a9ffeb9d7b911cc10b158fb667f7c570ef7ecfbec80a7c7c422659c9",
+  "provider_distinction": "SDK actual kernel vDSO path observed by syscall stack and17draw trace; Cinch candidate raw getrandom syscall pernonemptydraw",
+  "pending_gates": [
+    "4096iteration target structural preflight underfresh350MiB guard",
+    "exclusive timing lease withprestartCPU/quota/load capture"
+  ],
+  "completed_stage_inputs": {
+    "protocol-v2.json": "459f215f56eb9b88d5d7fa3f5de6e7021b6a93b913a5f85457c0369aa4a7c77f",
+    "preflight-v2/receipt.json": "f6847a1da5dbafeec46799b314ec5a2f1abe883bf2d4e69303b50785fc6b8602",
+    "preflight-v2/boundary-review/review.json": "d421b1a611151e50509b40e289329810310acde99f877fd13fabd7a109e6101a",
+    "sdk-preflight-v2/build-receipt.json": "6afd7341d4bd19ad0747146baa716604990a8c3814c08c738be5f7c09fce687e",
+    "sdk-preflight-v2/preflight-receipt.json": "e14d4cb8c5e796aeddee0f7b1ee0bc8ff1730687241a7b7b6aab3f14a84649c3",
+    "sdk-preflight-v2/qualified-summary.json": "2fd2ab5d92c9f6aa36b59e20dc7f21236ca5d0e825aad6a497c2a4f006dbbba2"
+  }
+}

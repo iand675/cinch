@@ -1,0 +1,13 @@
+{
+  "scope": "Five fixtures completed bothprofiles; aggregate batch output cap reached afterlinkinguuid-control beforeits firstexecution. No semantic failure. Remaining2fixtures use separately bounded units.",
+  "completed_cases": [
+    "c-abi",
+    "random-lengths",
+    "random-bounds",
+    "random-errors",
+    "random-hex"
+  ],
+  "unexecuted_linked_case": "uuid-control",
+  "output_bytes_at_stop": 35375487,
+  "failed_guard": "30MiBaggregatebatchcap"
+}

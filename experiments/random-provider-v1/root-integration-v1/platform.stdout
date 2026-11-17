@@ -1,0 +1,11 @@
+
+running 6 tests
+test platform::tests::argv_capture_round_trips ... ok
+test platform::tests::clock_readings_are_ordered_and_finite ... ok
+test platform::tests::fs_metadata_rename_and_named_errors ... ok
+test platform::tests::fs_mutations_entropy_and_signal_round_trip ... ok
+test platform::tests::process_capture_round_trips ... ok
+test platform::tests::word_buffers_round_trip ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 163 filtered out; finished in 0.01s
+

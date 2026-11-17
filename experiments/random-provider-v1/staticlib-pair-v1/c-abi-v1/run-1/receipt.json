@@ -1,0 +1,203 @@
+{
+  "scope": "actual linked public C ABI, common consumer object and fresh runtime archives; no timing",
+  "source_sha256": "799ee872f140fab5286890420aae3a848f0ceac6162be9e2afa39e2f36cae80d",
+  "clang_path": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+  "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+  "start_free_bytes": 656867328,
+  "commands": [
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "--version"
+      ],
+      "extra_environment": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.06304731298587285,
+      "peak_observed_output_bytes": 189,
+      "min_free_bytes": 656863232,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-std=c11",
+        "-O2",
+        "-g0",
+        "-c",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/c-abi-v1/consumer.c",
+        "-o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/c-abi-v1/run-1/consumer.o"
+      ],
+      "extra_environment": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.08361814101226628,
+      "peak_observed_output_bytes": 979,
+      "min_free_bytes": 656465920,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/c-abi-v1/run-1/consumer.o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/archives-v1/baseline/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/c-abi-v1/run-1/c-abi-baseline"
+      ],
+      "extra_environment": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.1269588389841374,
+      "peak_observed_output_bytes": 5337194,
+      "min_free_bytes": 651005952,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/c-abi-v1/run-1/c-abi-baseline"
+      ],
+      "extra_environment": {
+        "CINCH_ALLOC_STATS": "1",
+        "CINCH_LEAK_CHECK": "1"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.022317362017929554,
+      "peak_observed_output_bytes": 5870096,
+      "min_free_bytes": 649084928,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/c-abi-v1/run-1/c-abi-baseline"
+      ],
+      "extra_environment": {
+        "CINCH_ALLOC_STATS": "1",
+        "CINCH_LEAK_CHECK": "1",
+        "CINCH_RC_DEBUG": "1"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.02266327600227669,
+      "peak_observed_output_bytes": 5871016,
+      "min_free_bytes": 647569408,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/c-abi-v1/run-1/consumer.o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/archives-v1/candidate/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/c-abi-v1/run-1/c-abi-candidate"
+      ],
+      "extra_environment": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.14569444398512132,
+      "peak_observed_output_bytes": 11734614,
+      "min_free_bytes": 641695744,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/c-abi-v1/run-1/c-abi-candidate"
+      ],
+      "extra_environment": {
+        "CINCH_ALLOC_STATS": "1",
+        "CINCH_LEAK_CHECK": "1"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.02254232601262629,
+      "peak_observed_output_bytes": 11735963,
+      "min_free_bytes": 641691648,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/c-abi-v1/run-1/c-abi-candidate"
+      ],
+      "extra_environment": {
+        "CINCH_ALLOC_STATS": "1",
+        "CINCH_LEAK_CHECK": "1",
+        "CINCH_RC_DEBUG": "1"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.022226418019272387,
+      "peak_observed_output_bytes": 11736884,
+      "min_free_bytes": 641269760,
+      "guard_violation": null
+    }
+  ],
+  "variants": {
+    "baseline": {
+      "archive_sha256": "e75d162d7ed4fe8c34d48b6a5a2683fcc9c339336437213e176f7e60d5b5fa6a",
+      "executable_sha256": "620581bdd0e58c23d24fb61e751ba12801ad1b124953520b979fe00d9057a5f8",
+      "runs": [
+        {
+          "mode": "normal",
+          "length_cases": 8,
+          "draws": 16,
+          "negative_cases": 2,
+          "zero_leak": true
+        },
+        {
+          "mode": "poison",
+          "length_cases": 8,
+          "draws": 16,
+          "negative_cases": 2,
+          "zero_leak": true
+        }
+      ]
+    },
+    "candidate": {
+      "archive_sha256": "663d9a953a404b3fb578e66b9bb5d316b0b5b36e87ae92c1a5ba5dece0fa76b3",
+      "executable_sha256": "5968c3d0ee31a66e5f919b0987c684786f3c7e0b98986a0c985aeb38c5cc023f",
+      "runs": [
+        {
+          "mode": "normal",
+          "length_cases": 8,
+          "draws": 16,
+          "negative_cases": 2,
+          "zero_leak": true
+        },
+        {
+          "mode": "poison",
+          "length_cases": 8,
+          "draws": 16,
+          "negative_cases": 2,
+          "zero_leak": true
+        }
+      ]
+    }
+  },
+  "consumer_object_sha256": "410b6fe3ce9db44cc7b811c40e9136c60dc8168e82348dea3d84adfb5a4d7f9a",
+  "end_free_bytes": 641261568,
+  "output_bytes": 11737837,
+  "status": "PASS"
+}

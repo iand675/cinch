@@ -1,0 +1,15 @@
+{
+  "scope": "New explicit adjacent archive-symbol gate; original missing-adjacent-archive failure unchanged.",
+  "command": [
+    "taskset",
+    "-c",
+    "3",
+    "/workspace/dasl-stdlib-io/experiments/random-provider-v1/root-archive-symbols-v2/runtime-tests",
+    "platform_exports_are_global_text_symbols",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "archive_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "test_sha256": "2c1593af934604f1f3e1cc2b63efa86ae4c84458cc0db34c90a5ba63da5d111f"
+}

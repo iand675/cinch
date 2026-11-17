@@ -1,0 +1,21 @@
+{
+  "launcher_syntax": "PASS AST parse only; no benchmark execution",
+  "schedule_check": "PASS 390 processes, 130 complete triples, all 13 controls/conditions, 5 warmups+5 timed per condition/variant, all six order permutations balanced21/22",
+  "estimate": {
+    "source": "existing target4096 process bookkeeping only; no instrument spans used",
+    "preflight_normal_processes": 39,
+    "single_complete_round_seconds": 1.058630513085518,
+    "maximum_observed_process_seconds": 0.06543429198791273,
+    "overhead_allowance_seconds": 2.0,
+    "full_5warmup_30sample_sum_estimate_seconds": 39.05206795799313,
+    "full_5warmup_30sample_max_process_ceiling_seconds": 91.31780856350088,
+    "first_5warmup_5sample_sum_estimate_seconds": 12.58630513085518,
+    "first_5warmup_5sample_max_process_ceiling_seconds": 27.519373875285964,
+    "limits": "estimates are not guarantees under new load; deadline stops preserve all partial observations"
+  },
+  "launcher_sha256": "8f0d8ae3634e269e54b6f96eaa6966be5cabdf7a88e10c7ad8cfed554bd4910d",
+  "input_manifest_sha256": "c762dddf7865973f9be63f7e67ec46eeed0093abe4cfe8c4c38b0da9a80c2e72",
+  "execution_plan_sha256": "6d6eb308725a06e027b99147d35517c149e377dcc1ef4fa42f6a8d20856597d6",
+  "input_payload_bytes": 130242399,
+  "timing_started": false
+}

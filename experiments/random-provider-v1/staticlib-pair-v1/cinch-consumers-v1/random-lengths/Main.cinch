@@ -1,0 +1,52 @@
+
+module Main where
+
+  import Data.Bytes
+  import Data.Nat
+  import Effect.Random
+  import Relation.Eq
+  import Relation.Ord
+
+  -- The weight of one check: 0 when it passed, `w` when it failed.
+  weight :: Nat -> Int -> Int
+  weight r w = case r == 0 of
+    True -> 0
+    False -> w
+
+  -- 0 when `b` has exactly `n` bytes.
+  len-is :: Bytes -> Nat -> Nat
+  len-is b n = case bytes-len b of
+    k -> if k == n then 0 else 1
+
+  -- 0 when the two buffers differ somewhere (the first difference is
+  -- enough, and a length mismatch is one); 1 when every byte agrees. A
+  -- collision of two independent 32-byte OS draws has probability
+  -- 2^-256, so pinning the inequality as an expectation is safe: it is
+  -- not a plausible event in the life of the universe, and a failure
+  -- would mean the entropy source is not entropy.
+  differ :: Bytes -> Bytes -> Nat -> Nat
+  differ a b i =
+    if i >= bytes-len a then (if i >= bytes-len b then 1 else 0)
+    else if i >= bytes-len b then 0
+    else case bytes-get a i == bytes-get b i of
+      True -> differ a b (i + 1)
+      False -> 0
+
+  -- Two draws of the same length, compared byte for byte. (A name here
+  -- may not carry a digit straight after a hyphen: `fresh-32` lexes as
+  -- `fresh` applied to the literal `-32`, so the declarations below
+  -- spell counts out in words.)
+  two-draws-differ :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  two-draws-differ u =
+    let a = random-bytes 32 in
+    let b = random-bytes 32 in
+    differ a b 0
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    -- 0 is the PINNED legal empty request: the runtime boxes an empty
+    -- buffer and the zero-byte read succeeds, so it is a length like any
+    -- other and not an error.
+    let c1 = weight (len-is (random-bytes 0) 0 + len-is (random-bytes 1) 1 + len-is (random-bytes 16) 16 + len-is (random-bytes 65) 65) 1 in
+    let c2 = weight (two-draws-differ ()) 2 in
+    c1 + c2

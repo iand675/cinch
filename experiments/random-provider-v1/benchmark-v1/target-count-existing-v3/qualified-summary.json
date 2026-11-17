@@ -1,0 +1,30 @@
+{
+  "status": "PASS",
+  "scope": "existing-binary target4096 structural gate; no timing eligibility",
+  "Cinch_cases": 52,
+  "Cinch_zero_leak": true,
+  "SDK_cases": 13,
+  "total_cases": 65,
+  "qualified_iteration_count": 4096,
+  "eligible_timing_samples": 0,
+  "full_executable_hashes_before_after_equal": true,
+  "executable_sha256": {
+    "baseline": "544c4d59098e1a6029a045fb93d4915ce68b79a8698ef306eeb599bfd78a7dda",
+    "candidate": "f4600f7b6cfcc5c8ad914a5ae979bdb52d7b146b5d6da61dbebf7c10cd4ff155",
+    "sdk": "02e27f79a9ffeb9d7b911cc10b158fb667f7c570ef7ecfbec80a7c7c422659c9"
+  },
+  "start_free_bytes": 355557376,
+  "minimum_free_bytes": 355004416,
+  "end_free_bytes": 355000320,
+  "reported_output_bytes": 79163,
+  "actual_report_bytes_before_summary": 79882,
+  "peak_observed_report_bytes": 78174,
+  "resource_exception": {
+    "start_bytes": 314572800,
+    "reserve_bytes": 262144000,
+    "report_cap_bytes": 5242880,
+    "normal_new_build_start_bytes_unchanged": 367001600
+  },
+  "guard_breaches": 0,
+  "receipt_sha256": "402939801ea3b0fd2960ed18c743632cb41e3c3eb1f0804b57213a2e71ad819d"
+}

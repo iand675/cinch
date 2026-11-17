@@ -1,0 +1,229 @@
+{
+  "fixture": "uuid-io",
+  "scope": "actual public Cinch fixture; fixed object, fresh archive pair; no timing",
+  "source_manifest_sha256": "2bc2734e2f0a43c96bf417eea301ded07abe4b2ebb2f680d3ed7470f1b8a4375",
+  "runner_sha256": "7a37c48a4c90c1dd838637cfde62764e3e93e99d258313c9b10a626518807152",
+  "compiler_path": "/workspace/dasl-stdlib-io/build/stdlib-projector-release-frozen/cinch",
+  "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
+  "clang_path": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+  "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+  "start_free_bytes": 471543808,
+  "environment": {
+    "LD_LIBRARY_PATH": "/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu",
+    "TMPDIR": "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/scratch",
+    "CINCH_CLANG": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "RUST_MIN_STACK": "67108864",
+    "CINCH_RECLAIM": "1"
+  },
+  "commands": [
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/stdlib-projector-release-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/Main.cinch",
+        "--rebuild",
+        "-o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer.ll"
+      ],
+      "extra_environment": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.9311384680040646,
+      "peak_observed_project_bytes": 2274347,
+      "min_observed_free_bytes": 469184512,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O2",
+        "-c",
+        "-x",
+        "ir",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer.ll",
+        "-o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer.o"
+      ],
+      "extra_environment": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.291733808000572,
+      "peak_observed_project_bytes": 2310159,
+      "min_observed_free_bytes": 469176320,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer.o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/archives-v1/baseline/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer-baseline"
+      ],
+      "extra_environment": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.19895268802065402,
+      "peak_observed_project_bytes": 8193664,
+      "min_observed_free_bytes": 463249408,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer-baseline"
+      ],
+      "extra_environment": {
+        "CINCH_ALLOC_STATS": "1",
+        "CINCH_LEAK_CHECK": "1",
+        "CINCH_HEAP_LIMIT": "32M",
+        "CINCH_STACK_SIZE": "8M",
+        "CINCH_RC_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.025550071004545316,
+      "peak_observed_project_bytes": 8194822,
+      "min_observed_free_bytes": 463249408,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer-baseline"
+      ],
+      "extra_environment": {
+        "CINCH_ALLOC_STATS": "1",
+        "CINCH_LEAK_CHECK": "1",
+        "CINCH_HEAP_LIMIT": "256M",
+        "CINCH_STACK_SIZE": "8M",
+        "CINCH_RC_DEBUG": "1"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.025004708993947133,
+      "peak_observed_project_bytes": 8195587,
+      "min_observed_free_bytes": 463241216,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer.o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/archives-v1/candidate/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer-candidate"
+      ],
+      "extra_environment": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.17401532700750977,
+      "peak_observed_project_bytes": 14079009,
+      "min_observed_free_bytes": 457347072,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer-candidate"
+      ],
+      "extra_environment": {
+        "CINCH_ALLOC_STATS": "1",
+        "CINCH_LEAK_CHECK": "1",
+        "CINCH_HEAP_LIMIT": "32M",
+        "CINCH_STACK_SIZE": "8M",
+        "CINCH_RC_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.024653084023157135,
+      "peak_observed_project_bytes": 14080568,
+      "min_observed_free_bytes": 457347072,
+      "guard_violation": null
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer-candidate"
+      ],
+      "extra_environment": {
+        "CINCH_ALLOC_STATS": "1",
+        "CINCH_LEAK_CHECK": "1",
+        "CINCH_HEAP_LIMIT": "256M",
+        "CINCH_STACK_SIZE": "8M",
+        "CINCH_RC_DEBUG": "1"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.024942810006905347,
+      "peak_observed_project_bytes": 14081335,
+      "min_observed_free_bytes": 457342976,
+      "guard_violation": null
+    }
+  ],
+  "variants": {
+    "baseline": {
+      "archive_sha256": "e75d162d7ed4fe8c34d48b6a5a2683fcc9c339336437213e176f7e60d5b5fa6a",
+      "executable_sha256": "39a5ecf04fa9bb10a8976bf058861214ba8ef387ab589e535f8893be5fb2db36",
+      "runs": [
+        {
+          "mode": "normal",
+          "zero_leak": true,
+          "leak_lines": [
+            "cinch-leak: live=0 immortal=0 leaked=0"
+          ]
+        },
+        {
+          "mode": "poison",
+          "zero_leak": true,
+          "leak_lines": [
+            "cinch-leak: live=0 immortal=0 leaked=0"
+          ]
+        }
+      ]
+    },
+    "candidate": {
+      "archive_sha256": "663d9a953a404b3fb578e66b9bb5d316b0b5b36e87ae92c1a5ba5dece0fa76b3",
+      "executable_sha256": "16db56dc64d861c8dc5e6e9e5c747d3dfd3326fbce2fca847eeb15e011f9eb75",
+      "runs": [
+        {
+          "mode": "normal",
+          "zero_leak": true,
+          "leak_lines": [
+            "cinch-leak: live=0 immortal=0 leaked=0"
+          ]
+        },
+        {
+          "mode": "poison",
+          "zero_leak": true,
+          "leak_lines": [
+            "cinch-leak: live=0 immortal=0 leaked=0"
+          ]
+        }
+      ]
+    }
+  },
+  "ir_sha256": "3d7b6c434a22d2a8ffe29263a6610fbac0a78dfdb79edec63caf7f6ba3880985",
+  "common_object_sha256": "f74f0187225a4c5a2e2ad9e9fa0096eac387b1b1c69decd7275781cb18614e5f",
+  "status": "PASS",
+  "output_project_bytes": 14081959,
+  "end_free_bytes": 457338880
+}

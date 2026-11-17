@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "archive_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "same_defined_C_exports": 216,
+  "external_C_getrandom_dependency": false,
+  "runtime_selected_tests": 37,
+  "linked_public_processes": 14,
+  "normal_poison_zero_leaks": true,
+  "source_code_change_from_measured_candidate": "Only separatelytrackedLinuxcoveragecomment correction plusmaintainedcfgtestmodule; no productionprovider code belowimports changed.",
+  "qualification_receipts": [
+    "experiments/random-provider-v1/root-integration-v1/receipt.json",
+    "experiments/random-provider-v1/root-linked-consumers-v2/receipt.json",
+    "experiments/random-provider-v1/root-linked-uuid-v3/receipt.json"
+  ],
+  "setup_failures_retained": [
+    "experiments/random-provider-v1/root-linked-consumers-v1/setup-failure.json",
+    "experiments/random-provider-v1/root-linked-consumers-v2/batch-resource-stop.json",
+    "experiments/random-provider-v1/root-integration-v1/archive-export.stdout (no adjacent archive; newv2onlycorrectsfixture placement)"
+  ],
+  "integrated_archive_export_gate": {
+    "status": "passed",
+    "receipt": "experiments/random-provider-v1/root-archive-symbols-v2/receipt.json",
+    "archive_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3"
+  }
+}

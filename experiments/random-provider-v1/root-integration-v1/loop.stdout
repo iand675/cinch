@@ -1,0 +1,11 @@
+
+running 6 tests
+test entropy::tests::empty_loop_has_no_calls ... ok
+test entropy::tests::fallback_failure_propagates ... ok
+test entropy::tests::invalid_counts_fail_closed ... ok
+test entropy::tests::ordinary_failures_never_fall_back ... ok
+test entropy::tests::partial_reads_and_interruptions_preserve_progress ... ok
+test entropy::tests::unavailable_syscall_preserves_prefix ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 163 filtered out; finished in 0.00s
+
