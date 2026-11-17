@@ -25,11 +25,17 @@ This includes the consuming-callback heap repair. It is separate from the earlie
 855 and historical Native source checks. No in-flight nominal-Role compiler or
 annotated carrier proposal is used.
 
-`live-runtime-source-gate.json` retains the accepted source/dependency identities.
+`live-runtime-source-gate.json` retains the historical source-first checkpoint;
+`live-runtime-gates.json` records the subsequent successful actual execution.
 `check_multipart_live_effects.py` prepares/checks the fixture;
 `run_multipart_live_effects.py` verifies that exact source gate before guarded
-emission/link and separate normal32MiB/poison256MiB runs with an8MiB runtime stack.
-Compiler host stack is64MiB. Successful functional ELF/LLVM output is recoverably
-archived only after both profiles pass. The runtime stage is queued while disk
-remains below350MiB; this checkpoint does not claim runtime success or production
-adoption. The static19-carrier Region proposal remains completely unchecked.
+emission/link and separate normal 32 MiB/poison 256 MiB runs with an 8 MiB runtime stack.
+Compiler host stack is 64 MiB. Successful functional ELF/LLVM output is recoverably
+archived only after both profiles pass. Both profiles passed with zero managed
+leaks and actual descriptor/path cleanup. Maximum recorded new output was
+16,940,929 bytes; the conservative archive-phase bound also remains below 20 MiB.
+The independent actual matcher object ran its 1,048,576 scalar lane observations.
+All source/compiler/runtime/object/output hashes and full recovery records are
+retained. No production adoption, Native runtime, complete selected-production
+matrix or source-absent kind admission is claimed by this one Rust fixture.
+The static 19-carrier Region proposal remains completely unchecked.
