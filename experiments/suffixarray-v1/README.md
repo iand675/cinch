@@ -4,11 +4,11 @@ This isolated candidate is outside the registered prelude and does not change
 any library inventory or sealed Fields input. Public source checking and
 interface-backed documentation extraction pass on frozen C2. Its first small
 O0 public consumer passes normal/poison memory profiles with zero leaks. The
-literal corpus currently passes inputs 0–55, including 3,920 complete ordered
-lookup results and 112 normal/poison processes. `literal-progress.json` records
-the exact reports; this is a partial slice, not the full 153-input gate. Full
-corpus, adversarial ownership, effectful callbacks and portable gates remain
-pending; no performance or complete-package claim is made. No Cargo build has
+literal corpus passes all 153 inputs, 10,710 complete ordered lookup results and
+306 normal/poison processes. `literal-o0-receipt.json` and `literal-progress.json`
+record exact reports and successful-output recovery. O2, adversarial ownership,
+effectful callbacks and portable gates remain pending; no performance or
+complete-package claim is made. No Cargo build has
 run in this lane.
 
 The pinned SDK oracle now has 153 inputs, 10,710 literal observations, 9,945
