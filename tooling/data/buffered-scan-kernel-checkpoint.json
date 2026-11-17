@@ -1,0 +1,87 @@
+{
+  "source_sha256": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+  "llvm_sha256": "1ae90d4fc70558b11d10ebcd0f82eb7c49e42f71842551e8248c89e4764dbef0",
+  "independent_c_sha256": "ad08184aed57cbd390c6c985539349e214dcffdd151865650ae7afe76e3605a5",
+  "runner_sha256": "8f0846b6b11e3386cfc47136dd2b161a59ced5bc6694c7521a88619d8f96487f",
+  "clang_path": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+  "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+  "clang_version": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/.tools/llvm/usr/lib/llvm-20/bin\n",
+  "cpu": 2,
+  "rows": [
+    {
+      "kind": "host functional math",
+      "opt_level": "0",
+      "command": [
+        "clang",
+        "-O0",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/expected.c",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/production.ll",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/masks-o0"
+      ],
+      "executable_sha256": "d9e5ab15a1a0025457faf600c947a011561659577d72332ec96a9ba7a2160ee5",
+      "stdout": "524288 byte-mask cases, 4096 whitespace/word boundaries, 256 complete lane masks\n"
+    },
+    {
+      "kind": "host functional math",
+      "opt_level": "2",
+      "command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/expected.c",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/production.ll",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/masks-o2"
+      ],
+      "executable_sha256": "81fe4d8eaf1c78f2822d52743070e2517ed0b0f12d9d030aea7525157bf5844e",
+      "stdout": "524288 byte-mask cases, 4096 whitespace/word boundaries, 256 complete lane masks\n"
+    },
+    {
+      "kind": "foreign object compilation only",
+      "target": "wasm32-unknown-wasi",
+      "command": [
+        "clang",
+        "--target=wasm32-unknown-wasi",
+        "-O2",
+        "-c",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/production.ll",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/wasm32-unknown-wasi.o"
+      ],
+      "object_sha256": "4db89b7bcf336ee9b136568969e41142a0efbb6de90660d660255fb84b325281"
+    },
+    {
+      "kind": "foreign object compilation only",
+      "target": "aarch64-unknown-linux-gnu",
+      "command": [
+        "clang",
+        "--target=aarch64-unknown-linux-gnu",
+        "-O2",
+        "-c",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/production.ll",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/aarch64-unknown-linux-gnu.o"
+      ],
+      "object_sha256": "b92daceb816af16c8dc41c46d3419903f4d60f4f5f7c795dfe31d1660ebcb894"
+    },
+    {
+      "kind": "foreign object compilation only",
+      "target": "powerpc64-unknown-linux-gnu",
+      "command": [
+        "clang",
+        "--target=powerpc64-unknown-linux-gnu",
+        "-O2",
+        "-c",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/production.ll",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-kernel-math-v1/powerpc64-unknown-linux-gnu.o"
+      ],
+      "object_sha256": "05220e0b89d09f34901f3b97f08259ce27fab8336c0e930437cbbec7844ab767"
+    }
+  ],
+  "all_passed": true,
+  "scope": "Actual three production primitive bodies. Scalar expectations are deliberately unoptimized. Checked trailing-zero routing, public owner bounds/alias holds, complete frontend ABI and foreign execution are separate gates. No runtime or Cinc leak-check behavior is changed.",
+  "library_checkpoint": "8d0557bddc624a4c700c6849c676e8d5cdef9582",
+  "receipt_sha256": "e9e838f9bafdeba15776ae8c37c13bcf14ebc0f88617e28f7240f3c9a57ad268",
+  "promotion": "Actual production math only; full public owner-span and pipeline qualification remain open, and the retained-callback cycle is not resolved."
+}
