@@ -1,0 +1,7 @@
+{
+  "package": "image/color/palette",
+  "declarations": [
+    "var Plan9 []color.Color",
+    "var WebSafe []color.Color"
+  ]
+}

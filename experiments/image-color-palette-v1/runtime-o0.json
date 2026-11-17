@@ -1,0 +1,90 @@
+{
+  "scope": "Relink exact accepted fixed-palette IR at another backend optimization without re-emission.",
+  "accepted_report": "/workspace/dasl-stdlib-multipart/build/image-color-palette/runtime-3dae-o2-v1/report.json",
+  "accepted_report_sha256": "c91c0b37c83b24248e4330be37ffeae62a0ed7e5ece6e338989d452a2e79b1ca",
+  "compiler": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+  "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+  "runtime": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/libcinchruntime.a",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source_sha256": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd",
+  "source_closure_sha256": {
+    "Image.Color": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+    "Image.Color.Palette": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd"
+  },
+  "consumer_sha256": "31397fcdca1f04670831a9e588054e65e7521fdbbd1e6abb0a92c12ed35c14ae",
+  "vectors_sha256": "27ad7d7d7e7318499eaf51ed2ed70c42a856dbb2fadbe01ce1e614c7d1fb0310",
+  "checked_ir_sha256": "66d706703f4472da36e394934fc6d7bffc70be13874da6fa3e547280620eb203",
+  "fixture_object_sha256": "082a6afbd495f9833b4c75d91593b7af641c2fcb6787068d25115d570316e7d7",
+  "opt": 0,
+  "compiler_reemission": false,
+  "cpu_affinity": [
+    1
+  ],
+  "compiler_host_stack_bytes": 67108864,
+  "runner_sha256": "17123d833a05d9caf5b47d1144d34b5de02ea626042e4320d60e61ddfbd9febe",
+  "initial_free_bytes": 425529344,
+  "resource_policy": {
+    "initial_mib": 350,
+    "reserve_mib": 250,
+    "unit_mib": 30
+  },
+  "commands": [
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/runtime-3dae-o2-v1/consumer.ll",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/runtime-3dae-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/runtime-3dae-o0-v1/consumer"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "seconds": 0.39563648600596935
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/runtime-3dae-o0-v1/consumer"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "seconds": 0.03569862199947238
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color-palette/runtime-3dae-o0-v1/consumer"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "seconds": 0.03750890100491233
+    }
+  ],
+  "profiles": [
+    {
+      "poison": "0",
+      "heap": "32M",
+      "stack": "8M",
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "poison": "1",
+      "heap": "256M",
+      "stack": "8M",
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "executable_sha256": "7845b2c4621dd340b1d3123ed1516cd75f5e13ebaa75a63c57aad1f05188d668",
+  "status": "passed",
+  "final_free_bytes": 419332096,
+  "output_bytes": 6192791
+}

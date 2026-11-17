@@ -1,0 +1,31 @@
+{
+  "scope": "Preserved actual caller-only source failures preceding the qualified v3 closure",
+  "failures": [
+    {
+      "original_report": "/workspace/dasl-stdlib-multipart/build/image-color-palette/source-3dae-v1/report.json",
+      "original_report_sha256": "a0b071d63c0bfb19270e44decc45c0b190df129a4cd52f198a7547b7ec9424b3",
+      "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+      "source_closure_sha256": {
+        "Image.Color": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+        "Image.Color.Palette": "03fe28fd9a01b3d60e4d8c8d32c2335febba39682b0439bfe55c9e020e14fe13"
+      },
+      "main_sha256": "6bdec6cf7fb21ab66206a6d9d98168a09deb92ae91f7ced32bd2506728ce17c6",
+      "stderr": "cinch: /workspace/dasl-stdlib-multipart/build/image-color-palette/source-3dae-v1/Main.cinch: 13:81: expected an expression, found Case\n",
+      "runtime_claim": false,
+      "full_project_remains_plain": true
+    },
+    {
+      "original_report": "/workspace/dasl-stdlib-multipart/build/image-color-palette/source-3dae-v2/report.json",
+      "original_report_sha256": "6b0287379398e6555559c10f14afdf11b8d52f6090bfb4a1eca83675c263ec68",
+      "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+      "source_closure_sha256": {
+        "Image.Color": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+        "Image.Color.Palette": "c86ed914ebf2a7de01fbf564d6c250b92367a01a98a6c76f58b1546fe9bfa1fd"
+      },
+      "main_sha256": "c46e52357ea251f5a787715912747ad6092036680c88b055f8a6a3088b8f9839",
+      "stderr": "cinch: 21:69: type mismatch: expected Nat, got Int (in /workspace/dasl-stdlib-multipart/build/image-color-palette/source-3dae-v2/Main.cinch)\n",
+      "runtime_claim": false,
+      "full_project_remains_plain": true
+    }
+  ]
+}
