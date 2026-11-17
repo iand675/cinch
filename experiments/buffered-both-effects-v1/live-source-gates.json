@@ -1,0 +1,59 @@
+{
+  "scope": "Actual live Part/File alias and positive-prefix/error fixture source/type/proof only; no client execution or promotion.",
+  "intended_runtime_groups": [
+    "adapter construction does not read; original/native/advanced part aliases share progress",
+    "separately delivered header then body exposes positive prefix with mapped opaque caller error",
+    "memory-file snapshot preserves arbitrary bytes and shared alias cursor"
+  ],
+  "first_failure": {
+    "source": "repros/LiveAdapter-region-v1.cinch",
+    "source_sha256": "9d93b22c87cb5fe00ef99389e7adb22cad4e8e5a3acb20a1d9bcfc514de294b9",
+    "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "diagnostic": "cinch: 40:112: type mismatch: expected r#2060, got r#2062 (in /workspace/dasl-stdlib-buffered-io/build/buffered-live-adapter-rust-source-v1/project/Main.cinch)\n",
+    "seconds": 7.339747042016825,
+    "receipt_sha256": "4e9411004d16ca016f46f665f8e6cdaba5d70f019ecc0e006eb43761d2067224"
+  },
+  "corrected_source": {
+    "source": "LiveAdapter.cinch",
+    "source_sha256": "971fa95a011f02ce912f6de9876215672d0a4057105a84f1208514437637b225",
+    "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "provenance_sha256": "f43192b57a4a61514e5a94d5b3c137f040093224a2f1c247b403049c7fa4b037",
+    "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+    "signature_manifest_sha256": "363dc4902375e0b00a5cd4341155e4c4c9dfd7d6e67fe8e6d06d4541940cd328",
+    "source_closure": {
+      "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+      "Effect.Buffered.Core.cinch": "33a0b87ff3bd71c2fb1e518a795452938d84a1bd33d37c09b42ee5def05970c9",
+      "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+      "Text.Multipart.cinch": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2",
+      "Text.Mime.cinch": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+      "Text.Base64.Encoding.cinch": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+      "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+      "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+      "Data.Bytes.Utf8.cinch": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+      "Effect.Multipart.cinch": "7d2164120023d2760f4a51f96f4f2160423b88f82610e2903831cbbf3d2657ef",
+      "Data.Mutable.Var.cinch": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+      "Text.QuotedPrintable.cinch": "cfc475a514b56bc919e4aa3de4e97ed19d09816e25ccdb530cebaee90bf8d6cb",
+      "Experiment.Buffered.Multipart.cinch": "07fb2a5fa362682e21914743c6541ac48dc1f4391ac8b30ac12b3e24e64051bb",
+      "Main.cinch": "971fa95a011f02ce912f6de9876215672d0a4057105a84f1208514437637b225"
+    },
+    "command": [
+      "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/cinch",
+      "check",
+      "/workspace/dasl-stdlib-buffered-io/build/buffered-live-adapter-rust-source-v2/project/Main.cinch"
+    ],
+    "seconds": 11.061372160998872,
+    "deadline_seconds": 15,
+    "receipt_sha256": "b29ecd0518fa208b8b6999903278cb7f73cede68f7367a650fbe2773d0a766da",
+    "outcome": "source/type/proof pass"
+  },
+  "correction": "Fixture helpers use explicit Region and Io dictionary, matching the independently qualified native source pattern. No production/checker/effect-row relaxation.",
+  "pending": [
+    "actual Native source gate",
+    "runtime outcomes for all three fixture groups on both frontends",
+    "disk-backed caller-owned close controls",
+    "retained callback cycle remains a promotion blocker"
+  ]
+}

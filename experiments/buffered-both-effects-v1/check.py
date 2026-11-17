@@ -27,6 +27,12 @@ def host_stack():
     resource.setrlimit(resource.RLIMIT_STACK,(64*1024*1024,resource.getrlimit(resource.RLIMIT_STACK)[1]))
 
 
+def source_limits():
+    """Keep a source-only compiler from writing a large diagnostic/cache file while preserving the runtime harness's separate limits."""
+    host_stack()
+    resource.setrlimit(resource.RLIMIT_FSIZE,(5*1024*1024,resource.getrlimit(resource.RLIMIT_FSIZE)[1]))
+
+
 def source_closure(project,source,embedded,dependency_snapshot):
     """Resolve exact experiment overrides and an optional qualified multipart closure without shadowing the selected base family."""
     overrides={path.name[:-6]:path for path in (HERE/'sources').glob('*.cinch')}
@@ -54,8 +60,10 @@ def main():
     parser.add_argument('--native-snapshot',type=Path,default=NATIVE)
     parser.add_argument('--dependency-snapshot',type=Path)
     parser.add_argument('--expect-refusal',action='store_true')
+    parser.add_argument('--deadline',type=int,help='Optional explicitly granted source-only wall-clock budget')
     parser.add_argument('--cpu',type=int,default=2)
     args=parser.parse_args();os.sched_setaffinity(0,{args.cpu})
+    if args.deadline is not None:assert args.deadline>0
     native=args.native_snapshot.resolve();snapshot=RUST if args.frontend=='rust' else native
     compiler=snapshot/'cinch';runtime=snapshot/'libcinchruntime.a';provenance_path=snapshot/('provenance.json' if args.frontend=='rust' else 'snapshot.json')
     if not provenance_path.exists():provenance_path=snapshot/'provenance.json'
@@ -76,17 +84,27 @@ def main():
         bundle=artifacts/'bundle.cinch';bundle.write_text('\n\n'.join(path.read_text() for path in sorted(paths)))
         command=[str(compiler),'--check','--interfaces',str(interfaces),str(bundle),str(prefix)]
     before=time.monotonic()
-    result=subprocess.run(command,cwd=project,capture_output=True,text=True,preexec_fn=host_stack,env={**os.environ,'CINCH_HEAP_LIMIT':'2G','CINCH_RC_DEBUG':'0','CINCH_LEAK_CHECK':'1'})
-    (artifacts/'check.stdout').write_text(result.stdout);(artifacts/'check.stderr').write_text(result.stderr)
+    timeout=False
+    try:
+        result=subprocess.run(command,cwd=project,capture_output=True,text=True,preexec_fn=source_limits,timeout=args.deadline,env={**os.environ,'CINCH_HEAP_LIMIT':'2G','CINCH_RC_DEBUG':'0','CINCH_LEAK_CHECK':'1'})
+        code,stdout,stderr=result.returncode,result.stdout,result.stderr
+    except subprocess.TimeoutExpired as error:
+        timeout=True;code=None
+        stdout=error.stdout or b'';stderr=error.stderr or b''
+        stdout=stdout.decode() if isinstance(stdout,bytes) else stdout
+        stderr=stderr.decode() if isinstance(stderr,bytes) else stderr
+    (artifacts/'check.stdout').write_text(stdout);(artifacts/'check.stderr').write_text(stderr)
     sidecar=prefix.with_name(prefix.name+'.diagnostics')
-    diagnostic=(sidecar.read_text() if sidecar.exists() else '')+result.stdout+result.stderr
-    report={'status':'source/type/proof check only; no runtime or promotion claim','frontend':args.frontend,'compiler_sha256':digest(compiler),'runtime_sha256':digest(runtime),'provenance_sha256':digest(provenance_path),'provenance':provenance,'interfaces_sha256':digest(interfaces),'dependency_snapshot':str(args.dependency_snapshot) if args.dependency_snapshot else None,'source_shadow_used':False,'sources':{p.name:digest(p) for p in paths},'signature_manifest_sha256':digest(HERE/'signature-impact.json'),'command':command,'returncode':result.returncode,'diagnostic':diagnostic,'seconds':time.monotonic()-before,'compiler_host_heap':'2G','compiler_host_stack_mib':64,'cpu':args.cpu,'expected_effect_refusal':args.expect_refusal}
+    diagnostic=(sidecar.read_text() if sidecar.exists() else '')+stdout+stderr
+    report={'status':'source/type/proof check only; no runtime or promotion claim','frontend':args.frontend,'compiler_sha256':digest(compiler),'runtime_sha256':digest(runtime),'provenance_sha256':digest(provenance_path),'provenance':provenance,'interfaces_sha256':digest(interfaces),'dependency_snapshot':str(args.dependency_snapshot) if args.dependency_snapshot else None,'source_shadow_used':False,'sources':{p.name:digest(p) for p in paths},'signature_manifest_sha256':digest(HERE/'signature-impact.json'),'command':command,'returncode':code,'timeout_without_verdict':timeout,'deadline_seconds':args.deadline,'diagnostic':diagnostic,'seconds':time.monotonic()-before,'compiler_host_heap':'2G','compiler_host_stack_mib':64,'cpu':args.cpu,'expected_effect_refusal':args.expect_refusal}
     (artifacts/'receipt.json').write_text(json.dumps(report,indent=2)+'\n')
-    print(diagnostic or 'Isolated '+args.frontend+' both-effect source check passed',flush=True)
+    if args.deadline is not None:assert sum(path.stat().st_size for path in artifacts.rglob('*') if path.is_file())<=5*1024*1024
+    print(diagnostic or ('Source deadline reached without a verdict' if timeout else 'Isolated '+args.frontend+' both-effect source check passed'),flush=True)
+    if timeout:raise SystemExit(124)
     if args.expect_refusal:
-        if result.returncode==0 or not effect_refusal(diagnostic):raise RuntimeError('expected genuine mutation-row refusal was not observed')
+        if code==0 or not effect_refusal(diagnostic):raise RuntimeError('expected genuine mutation-row refusal was not observed')
         return
-    raise SystemExit(result.returncode)
+    raise SystemExit(code)
 
 
 if __name__=='__main__':main()
