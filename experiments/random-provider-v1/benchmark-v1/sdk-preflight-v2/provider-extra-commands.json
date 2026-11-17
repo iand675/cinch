@@ -1,0 +1,41 @@
+[
+  {
+    "command": [
+      "taskset",
+      "-c",
+      "4",
+      "strace",
+      "-k",
+      "-e",
+      "trace=getrandom",
+      "-o",
+      "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/benchmark-v1/sdk-preflight-v2/probe16-stack.strace",
+      "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/benchmark-v1/sdk-preflight-v2/reference",
+      "probe",
+      "16"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 0.007967404992086813,
+    "timing_eligible": false
+  },
+  {
+    "command": [
+      "taskset",
+      "-c",
+      "4",
+      "strace",
+      "-f",
+      "-e",
+      "trace=getrandom",
+      "-o",
+      "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/benchmark-v1/sdk-preflight-v2/steady17.strace",
+      "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/benchmark-v1/sdk-preflight-v2/reference",
+      "random",
+      "16",
+      "17"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 0.007742418005364016,
+    "timing_eligible": false
+  }
+]

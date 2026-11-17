@@ -19,3 +19,7 @@
 /benchmark-v1/preflight-v2/benchmark-baseline
 /benchmark-v1/preflight-v2/benchmark-candidate
 /benchmark-v1/preflight-v2/project/build/
+# Qualified pinned SDK reference remains plain with its executable identity.
+/benchmark-v1/sdk-preflight-v2/reference
+# Python import metadata is not a benchmark input.
+/benchmark-v1/__pycache__/
