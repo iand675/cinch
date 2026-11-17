@@ -1,0 +1,272 @@
+-- | Immutable 128-bit identifiers with RFC 9562 text, ordering and explicit version 7 state.
+-- Every bit pattern is a valid value. Parsing validates only the accepted text
+-- forms; version and variant bits are set only by generation functions. Values
+-- contain two network-order words and never retain a mutable byte-buffer alias.
+module Data.Uuid where
+  import Data.Core
+  import Data.Nat
+  import Data.Machine
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.String
+  import Data.Ordering
+  import Data.Hash
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Hex
+
+  export Uuid, UuidError, UuidInvalidLength, UuidInvalidText, UuidOutputTooLarge, UuidClockOutOfRange, UuidClockExhausted
+  export ParsedUuid, uuid-validate-text, uuid-required
+  export uuid-nil, uuid-max, uuid-from-words, uuid-from-bytes, uuid-to-bytes
+  export uuid-parse, uuid-parse-bytes, uuid-unmarshal-text, uuid-format, uuid-marshal-text, uuid-append-text
+  export uuid-compare, uuid-equal, uuid-v4-from-random
+  export UuidV7State, uuid-v7-initial, uuid-v7-advance, uuid-v7-from-tick, uuid-v7-step
+
+  -- | Two unsigned words in network significance order, with no mutable backing store.
+  data Uuid where
+    -- | Keep the most significant eight bytes before the least significant eight.
+    UuidBits :: U64 -> U64 -> Uuid
+
+  -- | A checked text, buffer, time or logical-clock refusal.
+  data UuidError where
+    -- | The supplied byte count is not the exact size required by this operation.
+    UuidInvalidLength :: Nat -> UuidError
+    -- | Text has an invalid wrapper, dash position or hexadecimal byte.
+    UuidInvalidText :: UuidError
+    -- | Appending canonical text would exceed the conservative target allocation bound.
+    UuidOutputTooLarge :: UuidError
+    -- | The timestamp cannot be represented by the 48-bit millisecond field.
+    UuidClockOutOfRange :: UuidError
+    -- | Preserving order would overflow the 60-bit logical timestamp.
+    UuidClockExhausted :: UuidError
+
+  -- | A successfully checked text value, retaining the decoded identifier rather than its input buffer.
+  data ParsedUuid where
+    -- | Construct a trusted extraction witness only after total parsing succeeds.
+    CheckedUuid :: Uuid -> ParsedUuid
+
+  -- | Explicit version 7 ordering history for one independent generation sequence.
+  data UuidV7State where
+    -- | Remember whole Unix seconds separately from the full logical timestamp.
+    V7Clock :: Nat -> Nat -> UuidV7State
+
+  -- | Construct any identifier value directly from its two network-order words.
+  uuid-from-words :: U64 -> U64 -> Uuid
+  uuid-from-words high low = UuidBits high low
+
+  -- | The all-zero identifier, independent of any optional or absent carrier.
+  uuid-nil :: Uuid
+  uuid-nil = UuidBits 0 0
+
+  -- | The all-one identifier; no version restriction excludes this sentinel value.
+  uuid-max :: Uuid
+  uuid-max = UuidBits 18446744073709551615 18446744073709551615
+
+  -- | Reverse one complete word when moving between network and little-endian buffer access.
+  prim network-word :: U64 -> U64 where
+    llvm {
+      %value = call i64 @llvm.bswap.i64(i64 %0)
+      ret i64 %value
+    }
+
+  -- | Compare two complete packed identifiers without signed casts or per-byte allocation.
+  prim compare-packed :: U64 -> U64 -> U64 -> U64 -> I64 where
+    llvm {
+      %hi_lt = icmp ult i64 %0, %2
+      %hi_eq = icmp eq i64 %0, %2
+      %lo_lt = icmp ult i64 %1, %3
+      %lo_eq = icmp eq i64 %1, %3
+      %equal = and i1 %hi_eq, %lo_eq
+      %tail_lt = and i1 %hi_eq, %lo_lt
+      %less = or i1 %hi_lt, %tail_lt
+      %ordered = select i1 %less, i64 -1, i64 1
+      %value = select i1 %equal, i64 0, i64 %ordered
+      ret i64 %value
+    }
+
+  -- | Compare the full 128-bit network order, including reserved and unfamiliar version bits.
+  uuid-compare :: Uuid -> Uuid -> Ordering
+  uuid-compare first second =
+    case first of
+      UuidBits high low -> case second of
+        UuidBits other-high other-low ->
+          let order = compare-packed high low other-high other-low in
+          if lt-i64 order 0 then LT else if gt-i64 order 0 then GT else EQ
+
+  -- | Test complete identifier equality without pointer identity shortcuts.
+  uuid-equal :: Uuid -> Uuid -> Bool
+  uuid-equal first second = case uuid-compare first second of EQ -> True; other -> False
+
+  -- | Read exactly 16 bytes and copy their bits into an immutable value.
+  uuid-from-bytes :: Bytes -> Result UuidError Uuid
+  uuid-from-bytes input =
+    if bytes-len input == 16 then
+      Ok (UuidBits (network-word (bytes-read-le64 input 0)) (network-word (bytes-read-le64 input 8)))
+    else Err (UuidInvalidLength (bytes-len input))
+
+  -- | Return a fresh 16-byte network-order buffer; mutating it cannot change the identifier.
+  uuid-to-bytes :: Uuid -> Bytes
+  uuid-to-bytes value = case value of
+    UuidBits high low ->
+      let out = bytes-new 16 in
+      let first = bytes-write-le64 out 0 (network-word high) in
+      let second = bytes-write-le64 out 8 (network-word low) in out
+
+  -- | Decode exactly 32 packed hexadecimal bytes with the qualified SIMD hexadecimal worker.
+  decode-compact :: Bytes -> Result UuidError Uuid
+  decode-compact input = case hex-decode-prefix input of
+    (out, None) -> uuid-from-bytes out
+    (out, Some error) -> Err UuidInvalidText
+
+  -- | Check fixed punctuation before copying the 32 hexadecimal bytes into one SIMD-friendly payload.
+  decode-dashed :: using (start + 36 <= bytes-len input) => (input :: Bytes) -> (start :: Nat) -> Result UuidError Uuid
+  decode-dashed input start =
+    if bytes-get input (start + 8) == 45 && bytes-get input (start + 13) == 45 && bytes-get input (start + 18) == 45 && bytes-get input (start + 23) == 45 then
+      let compact = bytes-new 32 in
+      let a = bytes-copy-range compact input 0 start 8 in
+      let b = bytes-copy-range compact input 8 (start + 9) 4 in
+      let c = bytes-copy-range compact input 12 (start + 14) 4 in
+      let d = bytes-copy-range compact input 16 (start + 19) 4 in
+      let e = bytes-copy-range compact input 20 (start + 24) 12 in decode-compact compact
+    else Err UuidInvalidText
+
+  -- | Parse canonical, brace-wrapped, exact lowercase URN or compact ASCII forms without trimming.
+  uuid-parse-bytes :: Bytes -> Result UuidError Uuid
+  uuid-parse-bytes input =
+    let length = bytes-len input in
+    if length == 32 then decode-compact input
+    else if length == 36 then decode-dashed input 0
+    else if length == 38 then
+      if bytes-get input 0 == 123 && bytes-get input 37 == 125 then decode-dashed input 1 else Err UuidInvalidText
+    else if length == 45 then
+      if eq-u64 (bytes-read-le64 input 0) 7235443422699352693 && bytes-get input 8 == 58 then decode-dashed input 9 else Err UuidInvalidText
+    else Err (UuidInvalidLength length)
+
+  -- | Parse text atomically; hexadecimal letter case is accepted without validating version or variant bits.
+  uuid-parse :: String -> Result UuidError Uuid
+  uuid-parse text = uuid-parse-bytes (string-to-bytes text)
+
+  -- | Replace an immutable receiver on success and preserve every original bit on malformed text.
+  uuid-unmarshal-text :: Uuid -> Bytes -> (Uuid, Option UuidError)
+  uuid-unmarshal-text previous text = case uuid-parse-bytes text of
+    Ok value -> (value, None)
+    Err error -> (previous, Some error)
+
+  -- | Check a trusted-text witness explicitly, retaining ordinary parse errors for invalid input.
+  uuid-validate-text :: String -> Result UuidError ParsedUuid
+  uuid-validate-text text = case uuid-parse text of Ok value -> Ok (CheckedUuid value); Err error -> Err error
+
+  -- | Extract a previously checked identifier without a partial parser or runtime panic.
+  uuid-required :: ParsedUuid -> Uuid
+  uuid-required checked = case checked of CheckedUuid value -> value
+
+  -- | Write a compact hexadecimal payload into a proved 36-byte canonical destination range.
+  write-canonical :: using (start + 36 <= bytes-len out, bytes-len hex == 32) => (out :: Bytes) -> (start :: Nat) -> (hex :: Bytes) -> Unit
+  write-canonical out start hex =
+    let a = bytes-copy-range out hex start 0 8 in
+    let da = bytes-set out (start + 8) 45 in
+    let b = bytes-copy-range out hex (start + 9) 8 4 in
+    let db = bytes-set out (start + 13) 45 in
+    let c = bytes-copy-range out hex (start + 14) 12 4 in
+    let dc = bytes-set out (start + 18) 45 in
+    let d = bytes-copy-range out hex (start + 19) 16 4 in
+    let dd = bytes-set out (start + 23) 45 in
+    bytes-copy-range out hex (start + 24) 20 12
+
+  -- | Encode all bits with existing SIMD hex lanes and fixed lowercase canonical punctuation.
+  uuid-marshal-text :: Uuid -> Bytes
+  uuid-marshal-text value =
+    let hex = hex-encode-bytes (uuid-to-bytes value) in
+    let out = bytes-new 36 in
+    if bytes-len hex == 32 then let written = write-canonical out 0 hex in out else out
+
+  -- | Return the canonical 36-byte lowercase string; all generated bytes are valid ASCII.
+  uuid-format :: Uuid -> String
+  uuid-format value = case string-from-bytes (uuid-marshal-text value) of Some text -> text; None -> empty-string
+
+  -- | Reserve output bytes and conservative object overhead within the target's signed allocation range.
+  maximum-prefix :: Nat
+  maximum-prefix = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 (wrapping-sub-u64 (wrapping-shr-u64 (wrapping-usize-to-u64 max-bound-usize) 1) 100)) 9223372036854775807)
+
+  -- | Copy an arbitrary prefix and append canonical text without exposing mutable aliases or partial output.
+  uuid-append-text :: Bytes -> Uuid -> Result UuidError Bytes
+  uuid-append-text prefix value =
+    let start = bytes-len prefix in
+    if start <= maximum-prefix then
+      let out = bytes-new (start + 36) in
+      let copied = bytes-copy-range out prefix 0 0 start in
+      let hex = hex-encode-bytes (uuid-to-bytes value) in
+      if bytes-len hex == 32 then let written = write-canonical out start hex in Ok out else Err UuidInvalidText
+    else Err UuidOutputTooLarge
+
+  -- | Set version 4 and RFC variant10 while preserving the other 122 supplied entropy bits.
+  uuid-v4-from-random :: Bytes -> Result UuidError Uuid
+  uuid-v4-from-random entropy = case uuid-from-bytes entropy of
+    Err error -> Err error
+    Ok value -> case value of
+      UuidBits high low -> Ok (UuidBits (bit-or-u64 (bit-and-u64 high 18446744073709490175) 16384) (bit-or-u64 (bit-and-u64 low 4611686018427387903) 9223372036854775808))
+
+  -- | Begin one independent version 7 sequence without a hidden shared process-global counter.
+  uuid-v7-initial :: UuidV7State
+  uuid-v7-initial = V7Clock 0 0
+
+  -- | Advance the 60-bit timestamp, retaining same-second rollback ordering and resetting only on whole-second rollback.
+  uuid-v7-advance :: UuidV7State -> Nat -> Result UuidError (UuidV7State, U64)
+  uuid-v7-advance state unix-nanos = case state of
+    V7Clock previous-seconds previous-tick ->
+      let milliseconds = nat-div unix-nanos 1000000 in
+      if milliseconds < 281474976710656 then
+        let seconds = nat-div unix-nanos 1000000000 in
+        let fraction = nat-div ((nat-rem unix-nanos 1000000) * 4096) 1000000 in
+        let sampled = milliseconds * 4096 + fraction in
+        let tick = if previous-seconds > seconds then sampled else if sampled <= previous-tick then previous-tick + 1 else sampled in
+        if tick <= 1152921504606846975 then
+          Ok (V7Clock seconds tick, wrapping-i64-to-u64 (nat-to-i64 tick))
+        else Err UuidClockExhausted
+      else Err UuidClockOutOfRange
+
+  -- | Combine a checked logical timestamp with eight supplied random bytes, retaining 62 random bits.
+  uuid-v7-from-tick :: U64 -> Bytes -> Result UuidError Uuid
+  uuid-v7-from-tick tick entropy =
+    if le-u64 tick 1152921504606846975 then
+      if bytes-len entropy == 8 then
+        let high = bit-or-u64 (bit-or-u64 (bit-and-u64 (wrapping-shl-u64 tick 4) 18446744073709486080) (bit-and-u64 tick 4095)) 28672 in
+        let low = bit-or-u64 (bit-and-u64 (network-word (bytes-read-le64 entropy 0)) 4611686018427387903) 9223372036854775808 in
+        Ok (UuidBits high low)
+      else Err (UuidInvalidLength (bytes-len entropy))
+    else Err UuidClockOutOfRange
+
+  -- | Run a pure version 7 transition with explicit time and entropy; refusal returns no replacement state.
+  uuid-v7-step :: UuidV7State -> Nat -> Bytes -> Result UuidError (UuidV7State, Uuid)
+  uuid-v7-step state unix-nanos entropy =
+    if bytes-len entropy == 8 then case uuid-v7-advance state unix-nanos of
+      Err error -> Err error
+      Ok pair -> case pair of (next, tick) -> case uuid-v7-from-tick tick entropy of Err error -> Err error; Ok value -> Ok (next, value)
+    else Err (UuidInvalidLength (bytes-len entropy))
+
+  -- | Complete-bit equality for identifier values.
+  implicit instance Eq_Uuid :: Eq Uuid where
+    -- Equal identifiers have the same 128 payload bits.
+    (==) first second = uuid-equal first second
+    -- Inequality is the complement of complete-bit equality.
+    (/=) first second = not (uuid-equal first second)
+
+  -- | Unsigned network-order comparison, consistent with complete-bit equality.
+  implicit instance Ord_Uuid :: Ord Uuid where
+    -- Test strict network-order precedence.
+    (<) first second = case uuid-compare first second of LT -> True; other -> False
+    -- Test network order allowing equality.
+    (<=) first second = case uuid-compare first second of GT -> False; other -> True
+    -- Test strict network-order succession.
+    (>) first second = case uuid-compare first second of GT -> True; other -> False
+    -- Test reverse network order allowing equality.
+    (>=) first second = case uuid-compare first second of LT -> False; other -> True
+
+  -- | Hash both complete words; hash collisions never replace identifier equality.
+  implicit instance Hash_Uuid :: Hash Uuid where
+    -- Mix both network words into a deterministic nonnegative machine-sized digest.
+    hash value = case value of
+      UuidBits high low ->
+        let combined = bit-xor-u64 high (rotate-left-u64 low 29) in
+        let mixed = wrapping-mul-u64 (bit-xor-u64 combined (wrapping-shr-u64 combined 33)) 11400714819323198485 in
+        nat-from-i64 (mask-i64 (wrapping-u64-to-i64 mixed) 9223372036854775807)

@@ -1,12 +1,8 @@
 {
-  "kind": "minimal-UUID-candidate-integration-proposal",
+  "kind": "additive-isolated-UUID-candidate-integration-proposal",
   "source_basis": "c244166183e6be61f0bace69e5b9c5a87a2fceda",
   "apply_now": false,
   "candidate_isolated_until": "Portable and matched benchmark review; Native-family claims remain separate.",
-  "production_files": [
-    "compiler/prelude/Data/Uuid.cinch",
-    "compiler/prelude/Effect/Uuid.cinch"
-  ],
   "sdk_free_test_files": [
     "compiler/tests/lib_uuid.rs",
     "compiler/tests/fixtures/uuid-vectors.json",
@@ -22,16 +18,16 @@
   ],
   "files": [
     {
-      "path": "compiler/prelude/Data/Uuid.cinch",
+      "path": "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
       "sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c"
     },
     {
-      "path": "compiler/prelude/Effect/Uuid.cinch",
+      "path": "experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch",
       "sha256": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3"
     },
     {
       "path": "compiler/tests/lib_uuid.rs",
-      "sha256": "17ee5b6378297e584502edba481425c770c4a2307fce2c8880775e19783d5429"
+      "sha256": "bb3ca63ba3e7c2b01244d93a48c8a3157f6f52b03663de0310ecd804f10922a3"
     },
     {
       "path": "compiler/tests/fixtures/uuid-vectors.json",
@@ -72,6 +68,10 @@
     {
       "path": "compiler/tests/fixtures/uuid-v7.cinch.in",
       "sha256": "7aa8067eaf457383609a94c420a09935b3efc8805d827ffd68aa303d44bc52aa"
+    },
+    {
+      "path": "experiments/uuid-candidate-v1/README.md",
+      "sha256": "d86d217125831f8c4ec4c715ac96a0eb673197448800366edc9a9a9f275a5fa7"
     }
   ],
   "requires_no_reference_sdk_at_test_time": true,
@@ -99,5 +99,15 @@
     "bootstrap/stdlib-uuid-native-source-results.json",
     "bootstrap/stdlib-uuid-native-runtime-results.json",
     "tooling/validate_uuid_native.py"
+  ],
+  "candidate_source_files": [
+    "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
+    "experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch"
+  ],
+  "requires_no_prelude_edits": true,
+  "source_selection": "Maintained Rust tests include byte-identical isolated candidate sources and write them as explicit project-local Data.Uuid and Effect.Uuid modules. The repository prelude is not modified by this manifest.",
+  "failure_retention": "QualificationDirectory keeps runtime, generated-vector and portable projects during unwinding; generated source, compiler errors, runtime output and external object diagnostics remain plain.",
+  "candidate_review_files": [
+    "experiments/uuid-candidate-v1/README.md"
   ]
 }

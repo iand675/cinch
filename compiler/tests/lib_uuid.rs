@@ -2,12 +2,47 @@
 mod common;
 use cinch::driver::Mode;
 
+/// Retain every generated source and compiler artifact when qualification unwinds.
+struct QualificationDirectory(Option<tempfile::TempDir>);
+
+impl QualificationDirectory {
+    /// Create one owned project that cleans up only after a successful qualification.
+    fn new() -> Self {
+        Self(Some(tempfile::tempdir().unwrap()))
+    }
+
+    /// Locate the project without transferring its cleanup responsibility.
+    fn path(&self) -> &std::path::Path {
+        self.0.as_ref().unwrap().path()
+    }
+}
+
+impl Drop for QualificationDirectory {
+    /// Preserve failing compiler, process and portable-object projects during unwinding.
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            if let Some(directory) = self.0.take() {
+                eprintln!(
+                    "retained failed UUID qualification: {}",
+                    directory.keep().display()
+                );
+            }
+        }
+    }
+}
+
 /// Compile actual candidate modules and execute normal and separately poisoned owner checks.
 fn run(source: &str) {
-    let directory = tempfile::tempdir().unwrap();
+    let directory = QualificationDirectory::new();
     for (module, source) in [
-        ("Data.Uuid", include_str!("../prelude/Data/Uuid.cinch")),
-        ("Effect.Uuid", include_str!("../prelude/Effect/Uuid.cinch")),
+        (
+            "Data.Uuid",
+            include_str!("../../experiments/uuid-candidate-v1/sources/Data.Uuid.cinch"),
+        ),
+        (
+            "Effect.Uuid",
+            include_str!("../../experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch"),
+        ),
         ("Text.Hex", include_str!("../prelude/Text/Hex.cinch")),
         (
             "Data.Bytes.Word",
@@ -43,7 +78,13 @@ fn run(source: &str) {
         Some(executable.clone()),
         &profile,
     )
-    .unwrap();
+    .unwrap_or_else(|error| {
+        let _ = std::fs::write(
+            directory.path().join("compiler.error"),
+            format!("{error:?}"),
+        );
+        panic!("UUID compilation failed: {error:?}");
+    });
     for poisoned in [false, true] {
         let output = std::process::Command::new(&executable)
             .env("CINCH_HEAP_LIMIT", if poisoned { "256M" } else { "32M" })
@@ -52,6 +93,17 @@ fn run(source: &str) {
             .env("CINCH_RC_DEBUG", if poisoned { "1" } else { "0" })
             .output()
             .unwrap();
+        let label = if poisoned { "poison" } else { "normal" };
+        std::fs::write(
+            directory.path().join(format!("{label}.stdout")),
+            &output.stdout,
+        )
+        .unwrap();
+        std::fs::write(
+            directory.path().join(format!("{label}.stderr")),
+            &output.stderr,
+        )
+        .unwrap();
         assert_eq!(
             output.status.code(),
             Some(0),
@@ -83,7 +135,7 @@ fn uuid_matches_all_independent_public_observations() {
         let count = fixture[mode].as_array().unwrap().len();
         assert_eq!(count, expected);
         for start in (0..count).step_by(128) {
-            let directory = tempfile::tempdir().unwrap();
+            let directory = QualificationDirectory::new();
             let path = directory.path().join("Main.cinch");
             let status = std::process::Command::new("python3")
                 .arg(repository.join("tooling/generate_uuid_cases.py"))
@@ -97,9 +149,15 @@ fn uuid_matches_all_independent_public_observations() {
                     "--output",
                 ])
                 .arg(&path)
-                .status()
+                .output()
                 .unwrap();
-            assert!(status.success());
+            std::fs::write(directory.path().join("generator.stdout"), &status.stdout).unwrap();
+            std::fs::write(directory.path().join("generator.stderr"), &status.stderr).unwrap();
+            assert!(
+                status.status.success(),
+                "{}",
+                String::from_utf8_lossy(&status.stderr)
+            );
             run(&std::fs::read_to_string(path).unwrap());
         }
     }
@@ -121,8 +179,14 @@ fn uuid_uses_real_entropy_clock_and_shared_generator_state() {
 #[test]
 fn uuid_declarations_have_canonical_documentation() {
     for (module, source) in [
-        ("Data.Uuid", include_str!("../prelude/Data/Uuid.cinch")),
-        ("Effect.Uuid", include_str!("../prelude/Effect/Uuid.cinch")),
+        (
+            "Data.Uuid",
+            include_str!("../../experiments/uuid-candidate-v1/sources/Data.Uuid.cinch"),
+        ),
+        (
+            "Effect.Uuid",
+            include_str!("../../experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch"),
+        ),
     ] {
         let parsed =
             cinch::cinchdoc::parse_source(source, Some(module), module, None, false).unwrap();
@@ -149,9 +213,12 @@ fn uuid_full_adapters_compile_for_portable_targets() {
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
         ("powerpc64-unknown-linux-gnu", "powerpc64", "big"),
     ] {
-        let directory = tempfile::tempdir().unwrap();
+        let directory = QualificationDirectory::new();
         for (module, source) in [
-            ("Data.Uuid", include_str!("../prelude/Data/Uuid.cinch")),
+            (
+                "Data.Uuid",
+                include_str!("../../experiments/uuid-candidate-v1/sources/Data.Uuid.cinch"),
+            ),
             ("Text.Hex", include_str!("../prelude/Text/Hex.cinch")),
             (
                 "Data.Bytes.Word",
@@ -188,7 +255,13 @@ fn uuid_full_adapters_compile_for_portable_targets() {
             Some(ir_path.clone()),
             &profile,
         )
-        .unwrap();
+        .unwrap_or_else(|error| {
+            let _ = std::fs::write(
+                directory.path().join("compiler.error"),
+                format!("{error:?}"),
+            );
+            panic!("UUID portable emission failed for {triple}: {error:?}");
+        });
         let ir = std::fs::read_to_string(&ir_path).unwrap();
         for actual_body in ["Data.Uuid.compare-packed", "@llvm.bswap.i64", "<8 x i8>"] {
             assert!(
@@ -205,6 +278,8 @@ fn uuid_full_adapters_compile_for_portable_targets() {
         .arg(directory.path().join("consumer.o"))
         .output()
         .unwrap();
+        std::fs::write(directory.path().join("clang.stdout"), &output.stdout).unwrap();
+        std::fs::write(directory.path().join("clang.stderr"), &output.stderr).unwrap();
         assert!(
             output.status.success(),
             "{triple}: {}",
