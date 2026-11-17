@@ -334,6 +334,9 @@ def main() -> None:
     parser.add_argument("--opt", type=int, choices=(0, 2), default=2, help="Explicit consumer optimization; use distinct work directories for each epoch")
     parser.add_argument("--effect-source", type=Path, help="Explicit immutable Effect.Multipart source candidate; its path and exact hash are recorded")
     parser.add_argument("--text-source", type=Path, help="Explicit immutable Text.Multipart source candidate; its path and exact hash are recorded")
+    parser.add_argument("--start-free-mib", type=int, default=0, help="Explicit coordinated initial disk guard; zero preserves historical invocation policy")
+    parser.add_argument("--pause-free-mib", type=int, default=0, help="Explicit disk reserve checked at every compiler/link/profile boundary")
+    parser.add_argument("--unarchived-cap-mib", type=int, default=0, help="Bound newly generated plain outputs in this work directory")
     args = parser.parse_args()
     if args.rust and not args.rust_runtime:
         parser.error("--rust requires its exact --rust-runtime")
@@ -342,6 +345,8 @@ def main() -> None:
     if not args.prepare_only and not args.rust and not args.native:
         parser.error("select at least one explicit compiler/runtime pair")
     work = args.work.resolve(); work.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(work).free < args.start_free_mib * 1024 * 1024:
+        raise RuntimeError("resource pause before preparation; no compiler or runtime started")
     if not args.resume:
         shutil.copyfile(Path(__file__), work / "runner.py")
     counts, per_case_modules = prepare(work, args.vectors, args.group_size, args.effect_source, args.text_source, args.form_group_size)
@@ -354,7 +359,9 @@ def main() -> None:
         os.sched_setaffinity(0, {args.cpu})
     resource.setrlimit(resource.RLIMIT_STACK, (67108864, resource.getrlimit(resource.RLIMIT_STACK)[1]))
     clang = os.environ.get("CINCH_CLANG", "clang")
+    initial_plain_bytes = sum(path.stat().st_size for path in work.rglob("*") if path.is_file() and not path.name.endswith(".gz"))
     report = {"format": 1, "scope": "prepared families only; full package qualification pending",
+              "initial_plain_bytes": initial_plain_bytes,
               "runner_sha256": digest(Path(__file__)), "vectors_sha256": digest(args.vectors),
               "compiler_host_stack_bytes": 67108864,
               "consumer_optimization": args.opt,
@@ -369,6 +376,17 @@ def main() -> None:
             if previous[key] != report[key]:
                 raise RuntimeError("changed source/object cannot resume: " + key)
         report = previous
+
+    def guard(phase: str) -> None:
+        """Record the actual reserve and plain-output growth before the next process."""
+        free = shutil.disk_usage(work).free
+        growth = sum(path.stat().st_size for path in work.rglob("*") if path.is_file() and not path.name.endswith(".gz")) - report.get("initial_plain_bytes", initial_plain_bytes)
+        report.setdefault("resource_boundaries", []).append({"phase": phase, "free_bytes": free,
+            "pause_free_mib": args.pause_free_mib, "new_unarchived_bytes": growth,
+            "unarchived_cap_mib": args.unarchived_cap_mib})
+        (work / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+        if free < args.pause_free_mib * 1024 * 1024 or (args.unarchived_cap_mib and growth > args.unarchived_cap_mib * 1024 * 1024):
+            raise RuntimeError("resource pause before " + phase + "; no further process started")
 
     def execute(command: list, env: dict | None = None):
         """Preserve failed exact commands before returning the diagnostic boundary."""
@@ -407,23 +425,35 @@ def main() -> None:
             shutil.copyfile(work / (name + ".source"), work / "Main.cinch")
             (work / "bundle.source").write_text("\n".join((work / (module + ".cinch")).read_text() for module in per_case_modules[name]) + "\n" + (work / "Main.cinch").read_text())
             ir, exe = work / f"{label}-{name}.ll", work / f"{label}-{name}"
-            command = [str(compiler), "emit-ir", str(work / "Main.cinch"), "-o", str(ir)] if label == "rust" else [str(compiler), "--emit-ir", "--rc-debug", "--interfaces", str(snap / "base-interfaces.json"), "--objects", str(snap / "objects.json"), str(work / "bundle.source"), str(ir)]
-            started = time.monotonic()
-            result = execute(command, {**os.environ, "RUST_MIN_STACK": "67108864", "CINCH_STACK_SIZE": "64M"})
-            target = re.search(r'target triple = "([^"]+)"', ir.read_text())
-            if target is None and label != "native":
-                raise RuntimeError("Rust emission omitted its actual target triple")
-            triple = target.group(1) if target else config["target"]
-            row = {"frontend": label, "case": name, "count": counts[name], "command": command,
-                   "compile_seconds": time.monotonic() - started, "stdout": result.stdout, "stderr": result.stderr,
-                   "source_sha256": digest(work / "Main.cinch"), "ir_sha256": digest(ir), "target": triple, "profiles": []}
-            report["runs"].append(row)
-            link = [clang, "-O" + str(args.opt), "--target=" + triple, str(ir), str(work / "fixture.o"), str(work / "kernels.o")]
-            if label == "native":
-                link.append(str(provider))
-            execute(link + [str(runtime), "-ldl", "-lpthread", "-lm", "-o", str(exe)])
-            row["executable_sha256"] = digest(exe)
+            row = next((entry for entry in report["runs"] if entry["frontend"] == label and entry["case"] == name), None)
+            if row is None:
+                guard("emit-" + label + "-" + name)
+                command = [str(compiler), "emit-ir", str(work / "Main.cinch"), "-o", str(ir)] if label == "rust" else [str(compiler), "--emit-ir", "--rc-debug", "--interfaces", str(snap / "base-interfaces.json"), "--objects", str(snap / "objects.json"), str(work / "bundle.source"), str(ir)]
+                started = time.monotonic()
+                result = execute(command, {**os.environ, "RUST_MIN_STACK": "67108864", "CINCH_STACK_SIZE": "64M"})
+                target = re.search(r'target triple = "([^"]+)"', ir.read_text())
+                if target is None and label != "native":
+                    raise RuntimeError("Rust emission omitted its actual target triple")
+                triple = target.group(1) if target else config["target"]
+                row = {"frontend": label, "case": name, "count": counts[name], "command": command,
+                       "compile_seconds": time.monotonic() - started, "stdout": result.stdout, "stderr": result.stderr,
+                       "source_sha256": digest(work / "Main.cinch"), "ir_sha256": digest(ir), "target": triple, "profiles": []}
+                report["runs"].append(row)
+            elif digest(ir) != row["ir_sha256"] or digest(work / "Main.cinch") != row["source_sha256"]:
+                raise RuntimeError("changed partially completed source or checked LLVM")
+            if "executable_sha256" not in row:
+                link = [clang, "-O" + str(args.opt), "--target=" + row["target"], str(ir), str(work / "fixture.o"), str(work / "kernels.o")]
+                if label == "native":
+                    link.append(str(provider))
+                guard("link-" + label + "-" + name)
+                execute(link + [str(runtime), "-ldl", "-lpthread", "-lm", "-o", str(exe)])
+                row["executable_sha256"] = digest(exe)
+            elif digest(exe) != row["executable_sha256"]:
+                raise RuntimeError("changed partially completed executable")
             for poison, heap in (("0", "32M"), ("1", "256M")):
+                if any(profile["poison"] == poison for profile in row["profiles"]):
+                    continue
+                guard("profile-" + label + "-" + name + "-" + poison)
                 env = {**os.environ, "CINCH_RC_DEBUG": poison, "CINCH_LEAK_CHECK": "1",
                        "CINCH_HEAP_LIMIT": heap, "CINCH_STACK_SIZE": "8M"}
                 result = execute([str(exe)], env)
