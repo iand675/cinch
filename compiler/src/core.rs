@@ -5954,7 +5954,8 @@ fn prim_touches_wide(op: PrimOp) -> bool {
         | FClass { ty, .. }
         | TotalOrder { ty } => ty.is_wide(),
         Conv { from, to, .. } => from.is_wide() || to.is_wide(),
-        Array { packed, .. } => packed.is_some_and(Scalar::is_wide),
+        Array { classes, packed, .. } => packed.is_some_and(Scalar::is_wide)
+            || packed.is_none() && classes.contains(&Class::Wide),
         Nat(NatOp::FromU128 | NatOp::ToU128) | Int(IntOp::FromI128 | IntOp::ToI128) => true,
         _ => false,
     }

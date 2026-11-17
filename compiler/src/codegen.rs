@@ -4787,7 +4787,7 @@ impl NarrowSig {
         if !op.touches_wide() {
             return None;
         }
-        if matches!(op, PrimOp::MVar { .. } | PrimOp::Slots { .. }) {
+        if matches!(op, PrimOp::MVar { .. } | PrimOp::Slots { .. } | PrimOp::Array { packed: None, .. }) {
             let cross = |c| if c == Class::Wide { Cross::WIDE } else { Cross::WORD };
             return Some(NarrowSig { params: prim_param_classes(op).into_iter().map(cross).collect(),
                 ret: cross(prim_result_class(op).unwrap_or(Class::Raw)) });
@@ -6059,6 +6059,15 @@ fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op:
     }
     if let Slots { op: slot_op, classes } = op {
         slots_codegen::emit(b, reg, slot_op, classes);
+        return Ok(());
+    }
+    if let Array { op: array_op, classes, packed: None } = op {
+        // A columnar zip synthesizes tuple fields inside the word-only
+        // runtime. It needs a layout-aware bridge before a field may be wide.
+        if array_op == crate::arrays::ArrayOp::Zip {
+            return err("`columnarZip` with an I128/U128 tuple field is not lowered yet: the columnar runtime requires a wide tuple layout bridge");
+        }
+        arrays_codegen::emit_generic_wide(b, reg, name, op, array_op, classes);
         return Ok(());
     }
     // `Usize`/`Isize` take the target's width (a conversion's other end).
