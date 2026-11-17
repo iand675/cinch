@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import resource
 import statistics
 import subprocess
 
@@ -59,10 +60,22 @@ def main():
     parser.add_argument('--clang', required=True)
     parser.add_argument('--samples', type=int, default=7)
     parser.add_argument('--work-bytes', type=int, default=1024 * 1024)
+    parser.add_argument('--artifact-root', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--preflight-only', action='store_true')
     args = parser.parse_args()
+    if args.samples < 1 or args.work_bytes < 1:
+        parser.error('samples and work bytes must be positive')
+    if args.artifact_root.exists() and any(args.artifact_root.iterdir()):
+        parser.error('fresh emission requires an empty artifact directory; select another epoch')
+    if args.output.exists():
+        parser.error('select a new output path to preserve earlier measurements')
+    soft, hard = resource.getrlimit(resource.RLIMIT_STACK)
+    resource.setrlimit(resource.RLIMIT_STACK, (max(soft, 64 * 1024 * 1024), hard))
     root = Path(__file__).resolve().parents[1]
-    work = root / 'build/constant-time-buffers-benchmark-v1'
-    work.mkdir(exist_ok=True)
+    work = args.artifact_root.resolve()
+    work.mkdir(parents=True, exist_ok=True)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     library = (root / 'compiler/prelude/Crypto/ConstantTime.cinch').read_text()
     support = root / 'benchmarks/stdlib/constant-time-equality.c'
     report = {'compiler_sha256': digest(args.compiler), 'runtime_sha256': digest(args.runtime),
@@ -76,7 +89,7 @@ def main():
 
     def save():
         """Retain completed observations before any dependent assertion or build."""
-        (work / 'results.json').write_text(json.dumps(report, indent=2) + '\n')
+        args.output.write_text(json.dumps(report, indent=2) + '\n')
 
     executables = {}
     for variant in ['scalar', 'packed']:
@@ -123,6 +136,12 @@ def main():
                 for poisoned in [False, True]:
                     report['preflight'].append(run(variant, size, 3, mode, poisoned))
     save()
+    if args.preflight_only:
+        report['cpu_stat_after'] = Path('/sys/fs/cgroup/cpu.stat').read_text()
+        report['status'] = 'preflight-passed'
+        save()
+        print(json.dumps({'preflight': len(report['preflight']), 'timings': 0}))
+        return
     for sample in range(args.samples):
         for size in [16, 256, 4096, 65536]:
             count = max(16, args.work_bytes // size)
