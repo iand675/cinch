@@ -1,0 +1,8 @@
+{
+  "source_commit": "c0356a1d",
+  "files": {
+    "bootstrap/stdlib-uuid-operation-mapping.json": "5443134178fad89aa4968b051bd9347c71a7ef4ddab09a93a5e954968e1dfde0",
+    "bootstrap/stdlib-uuid-operation-mapping.md": "64beea5ae63f0914d9a5f03c6426804e9377281ae5fae7e6055b8adb8182970a"
+  },
+  "scope": "Operation-level mapping only; source identity, isolated availability and SDK source checked. No source code or existing oracle modified."
+}

@@ -1493,9 +1493,8 @@
       "status": "partial",
       "cinch_modules": [],
       "remaining": [
-        "Full current-candidate O0 corpus",
         "Current Native family qualification",
-        "Public pipeline benchmarks and performance review",
+        "Performance improvements and optimized candidate review",
         "Production module selection and generated reference"
       ],
       "reference_declarations": 37,
@@ -1515,7 +1514,12 @@
       "tests": [
         "lib_multipart_promotion"
       ],
-      "review": "All37 reference declarations have explicit candidate mappings. Combined Rust330/d91 O2 corpus passes1128 independent observations in46 normal/poison processes with zero leaks; current f9/d91 maintained parent gate passes2/2 with genuine19 defining Region contracts. Source/metadata/runtime epochs remain distinct. Production selection and benchmarks remain pending; no package completion claimed."
+      "review": "All37 reference declarations have explicit candidate mappings. Combined Rust330/d91 corpora pass1128 observations in23consumers/46 normal-poison processes separately atO2 and exact accepted-IR O0, zero leaks. The current-source baseline benchmark completes16conditions/288interleaved warmup-sample observations with192 Cinch zero-leak processes; raw samples, regressions and remaining reference gaps are retained. Root f9/d91 maintained parent gate passes2/2 with genuine19 defining Region contracts. Source/metadata/runtime epochs remain distinct. Optimized candidates, current Native family and production selection require separate review; no package completion claimed.",
+      "benchmark_evidence": "experiments/multipart-promotion-v1/performance-results.json",
+      "corpus_evidence": [
+        "experiments/multipart-promotion-v1/corpus-o2-gate.json",
+        "experiments/multipart-promotion-v1/corpus-o0-gate.json"
+      ]
     },
     {
       "reference_package": "mime/quotedprintable",
@@ -2199,10 +2203,32 @@
     },
     {
       "reference_package": "uuid",
-      "status": "unreviewed",
+      "status": "partial",
       "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 13
+      "remaining": [
+        "Production module selection and generated reference",
+        "Concurrent shared-generator stress",
+        "Full current Native family qualification",
+        "Performance improvements and review of explicit immutable/total/stateful adaptations"
+      ],
+      "reference_declarations": 13,
+      "candidate_modules": [
+        {
+          "module": "Data.Uuid",
+          "path": "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
+          "availability": "Isolated review candidate; absent from production prelude"
+        },
+        {
+          "module": "Effect.Uuid",
+          "path": "experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch",
+          "availability": "Isolated review candidate; absent from production prelude"
+        }
+      ],
+      "capability_mapping": "bootstrap/stdlib-uuid-operation-mapping.json",
+      "tests": [
+        "lib_uuid"
+      ],
+      "review": "All13 installed reference declarations have explicit operation-level candidate mappings, including total parsed witnesses, immutable receiver replacement and explicit serialized V7 state. Root release parent passes8/8; independent fixtures cover660 parse,204 append,370 comparison,9 clock sequences and48 actual secure-generation payload observations. Qualified sources remain isolated experiments. Benchmark samples show remaining parse/render/generation costs and variable measurements; the missing initial quota counter is explicit. No production selection or package completion claimed."
     },
     {
       "reference_package": "weak",

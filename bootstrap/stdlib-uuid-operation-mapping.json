@@ -1,0 +1,168 @@
+{
+  "kind": "UUID-operation-level-installed-SDK-mapping",
+  "sdk": "go1.27.4",
+  "installed_sdk_root": "/tmp/cinch-go-current/go",
+  "sdk_source": "/tmp/cinch-go-current/go/src/uuid/uuid.go",
+  "sdk_source_sha256": "a84d62dd9ebab02c4c23af46888e81c45d4d0be345c08d2f18e471656c650738",
+  "public_declarations": 13,
+  "mapped_declarations": 13,
+  "mapping_kind": "13capabilities mapped with explicit immutable/total/explicit-state adaptations; not a package-completion claim",
+  "candidate_source_sha256": {
+    "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+    "experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3"
+  },
+  "rows": [
+    {
+      "sdk_name": "UUID",
+      "sdk_declaration": "type UUID [16]byte",
+      "source_line": 33,
+      "candidate": "Data.Uuid.Uuid; uuid-from-words; uuid-from-bytes; uuid-to-bytes; Eq/Ord/Hash",
+      "behavior_and_adaptation": "All128-bit patterns are representable. Immutable two-word values replace mutable public array representation; byte conversions copy and length-check.",
+      "functional_coverage": "370 compare rows; control ownership/hash/boundaries;48 recorded generated payloads",
+      "benchmark_coverage": "Prepared-value compare and parse including fresh byte snapshot",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "Parse",
+      "sdk_declaration": "func Parse(s string) (UUID, error)",
+      "source_line": 45,
+      "candidate": "uuid-parse; uuid-parse-bytes",
+      "behavior_and_adaptation": "Exact compact32/canonical36/brace38/lowercase-URN45 forms; mixed-case hexadecimal; no trimming or wrapper composition. Structured total errors.",
+      "functional_coverage": "660 parse/receiver/strict cases across both heaps; Root maintained gate",
+      "benchmark_coverage": "Five actual parse forms including invalid final digit",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "MustParse",
+      "sdk_declaration": "func MustParse(s string) UUID",
+      "source_line": 54,
+      "candidate": "uuid-validate-text -> Result UuidError ParsedUuid; uuid-required",
+      "behavior_and_adaptation": "Intentional total adaptation: invalid input returns Err; opaque successful witness permits total extraction. No panic-producing parser is exposed.",
+      "functional_coverage": "All660 recorded strict-parser success/panic classifications are checked as witness success/refusal",
+      "benchmark_coverage": "Uses timed parser core; witness/extraction wrapper not separately timed",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "New",
+      "sdk_declaration": "func New() UUID",
+      "source_line": 66,
+      "candidate": "Effect.Uuid.uuid-new",
+      "behavior_and_adaptation": "Actual secure entropy under IO; current default is version4. Result expresses checked construction refusals; current entropy primitive retains its platform fault boundary.",
+      "functional_coverage": "48 recorded actual New/V4/V7 payloads plus live system IO fixture; parent checked-RC gate",
+      "benchmark_coverage": "Actual default generation,256draws per timed process; invariant-only cross-run comparison",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "Nil",
+      "sdk_declaration": "func Nil() UUID",
+      "source_line": 76,
+      "candidate": "uuid-nil",
+      "behavior_and_adaptation": "Pure immutable all-zero identifier. Factory call becomes a value.",
+      "functional_coverage": "Parser/compare rows, owner/hash/trusted controls, exact formatting",
+      "benchmark_coverage": "Constant setup/control; no isolated timing needed",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "Max",
+      "sdk_declaration": "func Max() UUID",
+      "source_line": 85,
+      "candidate": "uuid-max",
+      "behavior_and_adaptation": "Pure immutable all-one identifier, without imposing a version/variant validity restriction.",
+      "functional_coverage": "Parser/compare rows, supplied-entropy masks, hash/equality and exact formatting",
+      "benchmark_coverage": "Control/setup; no isolated timing needed",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "String",
+      "sdk_declaration": "func (u UUID) String() string",
+      "source_line": 95,
+      "candidate": "uuid-format",
+      "behavior_and_adaptation": "Canonical lowercase36-character text.",
+      "functional_coverage": "Canonical outcomes for all660 parse cases; compare/append/generated fixtures also format values",
+      "benchmark_coverage": "Canonical byte-rendering pipeline measured; String conversion wrapper not separately timed",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "MarshalText",
+      "sdk_declaration": "func (u UUID) MarshalText() ([]byte, error)",
+      "source_line": 102,
+      "candidate": "uuid-marshal-text",
+      "behavior_and_adaptation": "Fresh mutable canonical ASCII byte buffer; total result omits an error that cannot occur for a complete identifier.",
+      "functional_coverage": "Canonical outcomes and immutable value snapshots, all660 parser observations; parent gate",
+      "benchmark_coverage": "Direct canonical byte-rendering workload",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "AppendText",
+      "sdk_declaration": "func (u UUID) AppendText(b []byte) ([]byte, error)",
+      "source_line": 108,
+      "candidate": "uuid-append-text",
+      "behavior_and_adaptation": "Copy arbitrary prefix into a fresh canonical-suffixed buffer, preserving aliases to the original prefix. Conservative target-allocation bound returns an explicit error.",
+      "functional_coverage": "204 independently recorded arbitrary-prefix cases and retained-prefix checks, normal+poison",
+      "benchmark_coverage": "Prefix lengths0,64,4096; complete immutable prefix-copy pipeline",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "UnmarshalText",
+      "sdk_declaration": "func (u *UUID) UnmarshalText(b []byte) error",
+      "source_line": 124,
+      "candidate": "uuid-unmarshal-text previous bytes -> (Uuid, Option UuidError)",
+      "behavior_and_adaptation": "Intentional immutable adaptation: return replacement on success; return the complete unchanged previous value with an error on refusal.",
+      "functional_coverage": "660 receiver-state cases explicitly compare actual replacement/preservation with recorded SDK receiver outcomes",
+      "benchmark_coverage": "Timed parser core; immutable receiver wrapper not separately timed",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "Compare",
+      "sdk_declaration": "func (u UUID) Compare(v UUID) int",
+      "source_line": 177,
+      "candidate": "uuid-compare -> Ordering; uuid-equal; Eq/Ord",
+      "behavior_and_adaptation": "Unsigned full128-bit lexicographic order, including unfamiliar version/variant bits; -1/0/+1 adapts to LT/EQ/GT. Packed LLVM implementation.",
+      "functional_coverage": "370 full-value independent comparisons, Eq/Hash controls, portable actual-adapter objects",
+      "benchmark_coverage": "Prepared values; original/direct harness controls and same-method reference",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "NewV4",
+      "sdk_declaration": "func NewV4() UUID",
+      "source_line": 189,
+      "candidate": "Effect.Uuid.uuid-new-v4; pure uuid-v4-from-random",
+      "behavior_and_adaptation": "Acquire actual secure16-byte entropy; replace only version/variant bits, retaining122random bits. No seeded/deterministic IO substitute.",
+      "functional_coverage": "48 actual payload rows across all generators; all-zero/all-one supplied-entropy masks; live IO checks",
+      "benchmark_coverage": "Actual V4 generation; observed version/variant and variable payload fingerprint",
+      "availability": "isolated-source candidate only"
+    },
+    {
+      "sdk_name": "NewV7",
+      "sdk_declaration": "func NewV7() UUID",
+      "source_line": 210,
+      "candidate": "uuid-v7-initial-state; uuid-v7-advance; uuid-v7-from-tick; uuid-v7-step; uuid-v7-generator; uuid-new-v7",
+      "behavior_and_adaptation": "Explicit per-generator serialized state replaces hidden process-global state. Sample wall time under MVar; same-second equal/backward time increments60-bit tick, whole-second rollback resets ordering constraint, fractional carry preserved. Commit transition then draw actual8-byte entropy. Full IO/MVar/Diverge row.",
+      "functional_coverage": "9 independent controlled-clock sequences incl4097ties/carry/both rollback kinds;48 actual payload rows; sequential live shared-generator IO",
+      "benchmark_coverage": "Actual V7 clock/state/entropy pipeline; no random-payload equality; cross-task stress not yet run",
+      "availability": "isolated-source candidate only"
+    }
+  ],
+  "qualification": {
+    "frozen_rust": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2 / runtime d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "independent_vectors": "660parse/204append/370compare/9clock sequences/48actual secure generations",
+    "memory": "normal32MiB and poison256MiB,8MiBstack,zero leaks",
+    "parent_maintained_gate": "Root reports release lib_uuid8/8PASS18.38s, including actual custom-profile PPC adapter objects, at published ae09257f. Parent records its own actual compiler identity; this is not relabeled330CLI PPC support.",
+    "historical_native": "Exact2f077/80bd pure bundle source and256/660parse observations passed. Full pure matrix incomplete; no IO/MVar/new-family adoption.",
+    "docs": "47canonical nodes,zero diagnostics/orphans",
+    "benchmark": "13workloads/336timed observations with exact matching-count99-process memory preflight; original/direct/SIMD/scalar/reference inputs kept plain. Missing pre-start cgroup counter and variance limits explicitly retained."
+  },
+  "gaps": [
+    "Production prelude/distribution availability: Root integrated only experiments/uuid-candidate-v1 plus SDK-free tests; user-facing Data.Uuid/Effect.Uuid are not promoted.",
+    "Review intentional adaptations: total checked-parser witness instead of panic, immutable receiver replacement, and explicit per-generator V7 state instead of implicit process-global state.",
+    "Full historical Native pure matrix remains incomplete; current Native IO/MVar family qualification is separate and unclaimed.",
+    "Concurrent shared-generator stress is not yet run; sequential shared-state IO, pure rollback/monotonic transitions and actual MVar operations are qualified.",
+    "Standalone String conversion, witness/extraction and immutable-unmarshal convenience wrappers are functionally covered but not individually timed.",
+    "Structured error values preserve acceptance/refusal and receiver state; SDK error-message identity is not promised. Entropy OS failure handling inherits Effect.Random platform boundary.",
+    "Packed parser optimization is design-only/unselected; observed canonical parse/render/generation gaps need further diagnosis.",
+    "No exact per-window throttle delta: timing runner omitted pre-start cgroup telemetry; raw completion counters, all samples and variability are preserved."
+  ],
+  "candidate_selected": false,
+  "package_complete": false,
+  "proposed_inventory_status": "partial; isolated candidate covers all13 reviewed capabilities with explicit adaptations and pending gates"
+}
