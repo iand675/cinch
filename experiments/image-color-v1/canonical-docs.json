@@ -1,0 +1,22 @@
+{
+  "scope": "Actual current3dae canonical source documentation extraction; no runtime/codegen claim.",
+  "command": [
+    "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+    "doc",
+    "extract",
+    "/workspace/dasl-stdlib-multipart/experiments/image-color-v1/sources/Image.Color.cinch",
+    "--module",
+    "Image.Color",
+    "--out",
+    "/workspace/dasl-stdlib-multipart/build/image-color/source-3dae-v3/docs.json"
+  ],
+  "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+  "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+  "declarations": 95,
+  "all_canonical": true,
+  "diagnostics": [],
+  "orphans": [],
+  "returncode": 0,
+  "stdout": "",
+  "stderr": ""
+}

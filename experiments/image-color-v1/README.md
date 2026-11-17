@@ -19,4 +19,12 @@ Packing and bounded channel extraction use machine words, with no per-channel ar
 
 An independent pinned SDK generator will capture concrete model/channel observations, every builtin conversion, custom model callbacks, palette empty/tie/alpha cases, boundary16-bit rounding, deterministic adversarial color cubes and seeded samples. A separate scalar arithmetic implementation will cross-check conversion/kernel results. Runtime gates will use explicit compiler/runtime identities, O0/O2, normal32MiB and poison256MiB heaps,8MiB runtime stacks and zero leaks. Public paired benchmarks will measure complete conversion/palette pipelines with observable output/retained-input checksums against the pinned reference; all samples/regressions and allocation differences remain visible. Root must grant exclusive timing separately.
 
-No compiler has run for this experiment yet. Source/reference preparation comes first; any compile uses the coordinated CPU token,350MiB initial/250MiB reserve guards and bounded outputs. Root owns integration, production selection, shared inventory/docs and Cargo.
+## Initial source and independent reference checkpoint
+
+The complete source now passes qualified current Rust3dae/d91 source/type/proof checking. Its exact source is `151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707`; the complete genuine defining interface closure remains plain under `build/image-color/source-3dae-v3`. All95 declarations/constructors have canonical documentation, with zero diagnostics/orphans. This is not a runtime or optimized-code claim.
+
+Actual pinned SDK generation produced1,808 concrete source colors with all11 builtin model results,343 direct RGB conversion triples,96 direct CMYK conversions,15 palette cases and standard/custom-model observations. Every one of22,857 exact observations agrees with a separate scalar mathematical implementation. `vectors.json`, `sdk-generation.json` and `scalar-validation.json` retain exact input/output/tool identities; CI consumes committed fixtures without an SDK dependency.
+
+Earlier330 layout,3dae reserved-name and LLVM no-jump diagnostics remain in complete separate failed projects. Zero-divisor handling now uses selected safe divisors and selected results, preserving the zero-alpha/black branches within checked jump-free primitives. No compiler guard was changed.
+
+Runtime, portable objects, source-absent API, ownership and public performance gates remain pending. Every future compile uses the coordinated CPU token,350MiB initial/250MiB reserve guards and bounded outputs. Root owns integration, production selection, shared inventory/docs and Cargo.
