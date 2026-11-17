@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT = ROOT / "design/stdlib-surface.json"
 
 HOMES = {
-    "bufio": ["Effect.Stream"], "bytes": ["Data.Bytes", "Data.Bytes.Word", "Data.Bytes.Search", "Data.Bytes.Build", "Data.StringIo"],
+    "bufio": ["Effect.Stream", "Effect.Buffered.Core"], "bytes": ["Data.Bytes", "Data.Bytes.Word", "Data.Bytes.Search", "Data.Bytes.Build", "Data.StringIo", "Data.Bytes.View"],
     "html": ["Text.Html"],
     "cmp": ["Data.Compare", "Relation.Ord"], "compress/flate": ["Text.Zlib"], "compress/zlib": ["Text.Zlib"],
     "container/heap": ["Data.Mutable.Heap", "Data.Mutable.HeapView"], "container/list": ["Data.List", "Data.Mutable.LinkedList"], "container/ring": ["Data.Mutable.Ring"], "context": ["Effect.Concurrent", "Effect.Clock"],

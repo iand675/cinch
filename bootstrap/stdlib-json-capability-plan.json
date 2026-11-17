@@ -1433,6 +1433,15 @@
       },
       "evidence": "stdlib-json-map-evidence.json",
       "scope": "Persistent balanced typed maps, explicit scalar/raw-byte/JSON-valued keys, original quoted key views, key normalization/sorting before value callbacks, partial updates and invalid-value metadata. Binary32, dynamic convenience descriptors, general numeric string casts, complete method/error adapters and effects remain open."
+    },
+    {
+      "module": "Text.Json.Codec and Text.Json.Value",
+      "source_sha256": {
+        "Text.Json.Codec": "a82979e9c5b8039b3438411419242ba5623dc1b81bbd23744d5c85241a6d0603",
+        "Text.Json.Value": "5b44b8760e6733e9f30f08082649a85faaf74d6f39e10741c10b3842a6cc86f7"
+      },
+      "evidence": "stdlib-json-raw-number-evidence.json",
+      "scope": "Raw numeric spellings, value-plus-error conversion outcomes, exact malformed-byte error inputs, strict marshaling and checked conversion guards. Dynamic/legacy values, full method/error mappings, effect adapters and complete public-pipeline benchmarks remain open."
     }
   ],
   "native_map_adaptations": {

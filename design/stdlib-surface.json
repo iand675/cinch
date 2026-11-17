@@ -22,14 +22,21 @@
       "reference_package": "bufio",
       "status": "partial",
       "cinch_modules": [
-        "Effect.Stream"
+        "Effect.Stream",
+        "Effect.Buffered.Core"
       ],
       "remaining": [
         "buffered readers and writers",
         "scanner split functions and token limits",
         "peek/discard/unread contracts"
       ],
-      "reference_declarations": 80
+      "reference_declarations": 80,
+      "capability_mapping": "tooling/data/buffered-capabilities.json",
+      "foundation_evidence": "tooling/data/buffered-core-checkpoint.json",
+      "tests": [
+        "lib_buffered_io"
+      ],
+      "review": "Only the explicit event/transfer foundation is integrated: signed progress, simultaneous prefix/error observations, live advanced callbacks and initialized I/O cells. Both frozen frontends pass eight source-selected normal/poison processes and effect/private-constructor controls. Full80 Reader/Writer/Scanner implementation and public pipeline benchmarks remain in progress; no package completion is claimed."
     },
     {
       "reference_package": "bytes",
@@ -44,7 +51,7 @@
       ],
       "remaining": [
         "Complete the 102-record capability review, including splitting, iteration, replacement, Unicode operations and buffer APIs",
-        "General byte-view search/cut/compare and stable compiled patterns are implemented; further byte families remain open"
+        "General byte-view search/cut/compare, stable compiled patterns and exact-byte bounded-view queries are implemented; further byte families remain open"
       ],
       "reference_declarations": 102,
       "tests": [
@@ -55,7 +62,7 @@
         "bootstrap/stdlib-byte-view-selected-results.json"
       ],
       "capabilities": {
-        "IndexByte": "Data.Bytes.Search.bytes-index-byte -> Option Nat",
+        "IndexByte": "Data.Bytes.Search.bytes-index-byte; Data.Bytes.View.byte-view-index-byte additionally queries owner-retaining bounded views with relative offsets",
         "LastIndexByte": "Data.Bytes.Search.bytes-last-index-byte -> Option Nat",
         "Clone": "Data.Bytes.Build.bytes-clone; always fresh mutable output",
         "Repeat": "Data.Bytes.Build.bytes-repeat; count-first checked natural input",
@@ -72,7 +79,8 @@
         "CutSuffix": "Data.Bytes.View.bytes-cut-suffix",
         "Compare": "Data.Bytes.bytes-compare; byte-view-compare is additionally available",
         "Equal": "Data.Bytes Eq_Bytes; byte-view-equal is additionally available"
-      }
+      },
+      "byte_view_index_evidence": "bootstrap/stdlib-byte-view-index-byte-results.json"
     },
     {
       "reference_package": "cmp",
@@ -810,7 +818,7 @@
         "Text.Json.Value"
       ],
       "remaining": [
-        "Dynamic values, raw Number conversion outcomes and complete error/capability mapping",
+        "Dynamic values, legacy bridges and complete error/capability mapping",
         "Effectful incremental encoder/decoder adapters and complete streaming contracts",
         "Full public-pipeline benchmarks and final92-record review"
       ],
@@ -821,7 +829,8 @@
       ],
       "benchmarks": [],
       "capability_mapping": "bootstrap/stdlib-json-capability-plan.json (all92 records remain in scope)",
-      "review": "The owned source/tape core, machine integer and binary codecs, exact binary32/binary64 conversion, record policies and persistent maps with explicit key capabilities are implemented. Binary32 uses exact midpoint comparisons and shortest-roundtrip coefficients;600 independent cases and retained-output controls pass both frozen frontends. Map names are snapshotted and repaired before byte-order sorting, with original key views retained for callbacks. Expanded parent integration gates remain pending. Dynamic/raw-number behavior, incremental effectful streams and final92-record/benchmark review remain open."
+      "review": "The owned source/tape core, machine integer/binary codecs, exact binary32/binary64 conversion, record policies, persistent maps and raw numeric result/error adapters are implemented. Raw Number construction preserves arbitrary bytes, conversion outcomes retain both numeric values and exact input-bearing syntax/range errors, and strict marshaling validates spellings. Both frozen frontends pass the selected raw/edge/kernel/owner and affected conversion matrices; 652 declarations have canonical documentation. Dynamic values and legacy bridges, complete error/method mappings, effectful streaming, paired public pipelines and final92-record review remain open.",
+      "raw_number_evidence": "bootstrap/stdlib-json-raw-number-evidence.json"
     },
     {
       "reference_package": "encoding/json/jsontext",

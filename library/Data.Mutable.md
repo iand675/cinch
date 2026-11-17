@@ -1236,6 +1236,27 @@ Remove all elements under the supplied consistent ordering, leaving an empty hea
 
 [Source](/reference-sources/Data.Mutable.Heap.cinch) · line 316
 
+<a id="value-686561702d666978"></a>
+
+## `heap-fix`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-fix</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>))</code></pre>
+
+Repair an existing element after its externally mutable priority changes.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 378
+
+<a id="value-686561702d6669782d6279"></a>
+
+## `heap-fix-by`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-fix-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+
+Restore one changed position, returning False without mutation for an absent index.
+The comparator and all other priorities must remain stable during repair.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 383
+
 <a id="value-686561702d66726f6d2d6c697374"></a>
 
 ## `heap-from-list`
@@ -1255,6 +1276,38 @@ Build a min-heap from a list in linear work.
 Build a heap bottom-up under a consistent strict ordering in linear work.
 
 [Source](/reference-sources/Data.Mutable.Heap.cinch) · line 263
+
+<a id="value-686561702d676574"></a>
+
+## `heap-get`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-get</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+
+Observe a checked position in the heap's current storage order.
+Indices change during repairs; applications needing stable identities can
+keep them in element values or use Data.Mutable.HeapView callbacks.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 334
+
+<a id="value-686561702d696e6974"></a>
+
+## `heap-init`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-init</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
+
+Rebuild all subtrees under the natural ordering in linear work.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 395
+
+<a id="value-686561702d696e69742d6279"></a>
+
+## `heap-init-by`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-init-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+
+Reestablish every subtree after changing the ordering or multiple mutable priorities.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 399
 
 <a id="value-686561702d69732d656d707479"></a>
 
@@ -1335,6 +1388,48 @@ Insert under the natural ordering, preserving the min-heap invariant.
 Insert under a strict ordering consistent with the heap's other operations.
 
 [Source](/reference-sources/Data.Mutable.Heap.cinch) · line 159
+
+<a id="value-686561702d72656d6f7665"></a>
+
+## `heap-remove`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-remove</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+
+Remove any checked position under the natural ordering.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 357
+
+<a id="value-686561702d72656d6f76652d6279"></a>
+
+## `heap-remove-by`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-remove-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+
+Remove a checked position and repair the displaced last element in logarithmic work.
+The returned value is exactly the element previously at that position.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 362
+
+<a id="value-686561702d7265706c616365"></a>
+
+## `heap-replace`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-replace</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+
+Replace one existing position and repair heap order under the natural ordering.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 340
+
+<a id="value-686561702d7265706c6163652d6279"></a>
+
+## `heap-replace-by`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-replace-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Heap</span>.<span class="tok-constructor">Heap</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))))</code></pre>
+
+Replace a checked position and return its old value, repairing in logarithmic work.
+An absent index returns None without changing the heap.
+
+[Source](/reference-sources/Data.Mutable.Heap.cinch) · line 345
 
 <a id="value-686561702d746f2d6c697374"></a>
 

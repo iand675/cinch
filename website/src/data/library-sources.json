@@ -165,9 +165,9 @@
     {
       "module": "Data.Bytes.View",
       "path": "compiler/prelude/Data/Bytes/View.cinch",
-      "sha256": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+      "sha256": "966efd5cff80d7bc922b07c6d718373318fe5ad2275eff12072b157e4de3da23",
       "embedded": false,
-      "values": 48,
+      "values": 49,
       "public_methods": 0
     },
     {
@@ -415,7 +415,7 @@
       "path": "compiler/prelude/Data/Mutable/Heap.cinch",
       "sha256": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
       "embedded": false,
-      "values": 15,
+      "values": 24,
       "public_methods": 0
     },
     {
@@ -487,7 +487,7 @@
       "path": "compiler/prelude/Data/Mutable.cinch",
       "sha256": "6e6c039972d5efd23e30bdf1ca35c5bdf9967065ed8765a0384ec688f0c09206",
       "embedded": false,
-      "values": 209,
+      "values": 218,
       "public_methods": 0
     },
     {
@@ -728,6 +728,22 @@
       "sha256": "ccc9fe29127f391045105575e80fb446b3452798f2e3166f939521c51b10470c",
       "embedded": false,
       "values": 8,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Buffered.Core",
+      "path": "compiler/prelude/Effect/Buffered/Core.cinch",
+      "sha256": "39a906a4139c7603caf63d75a09cba0443f01c01825b39e145501160975557e2",
+      "embedded": false,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Buffered.Internal.Cell",
+      "path": "compiler/prelude/Effect/Buffered/Internal/Cell.cinch",
+      "sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+      "embedded": false,
+      "values": 3,
       "public_methods": 0
     },
     {
@@ -1213,7 +1229,7 @@
     {
       "module": "Text.Json.Codec",
       "path": "compiler/prelude/Text/Json/Codec.cinch",
-      "sha256": "cd4a4f621e748b5d8bcf686062429919abbb2c4e9c98d2fa43c8af63fff5bc13",
+      "sha256": "a82979e9c5b8039b3438411419242ba5623dc1b81bbd23744d5c85241a6d0603",
       "embedded": false,
       "values": 101,
       "public_methods": 0
@@ -1221,9 +1237,9 @@
     {
       "module": "Text.Json.Value",
       "path": "compiler/prelude/Text/Json/Value.cinch",
-      "sha256": "57f516647f493fa1433c066649f00c406a8eb1040b9ed5c50f096086e2c40b54",
+      "sha256": "5b44b8760e6733e9f30f08082649a85faaf74d6f39e10741c10b3842a6cc86f7",
       "embedded": false,
-      "values": 52,
+      "values": 69,
       "public_methods": 0
     },
     {
