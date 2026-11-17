@@ -1,0 +1,116 @@
+{
+  "description": "Independent configurable JSON consumers; normal reclamation and separate poisoned-free validation",
+  "frontend": "rust",
+  "opt_level": 2,
+  "native_link_policy": null,
+  "runner_sha256": "d09b608b5ab4848cb6073c21c5823de82720162c47a238b6bb37cba8ac3ea85f",
+  "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+  "sources": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "376488101b0f438023f1a6ff8556d78009f799d5549305033523a9ba1fa03db6",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "86cf9e0a6a660893a1eb8b42eaf4ab1bda7dbea901f7e723b64ddbbed73a4364",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Text.Json.Dynamic": "21fec7f0e682aac080882e8f8875a187528e58773fa121f70aff815c81985ca5",
+    "Data.Json": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b",
+    "Text.Codec": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29",
+    "Text.Json.Legacy": "c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826"
+  },
+  "fixture_sha256": "0e1cf2647c83c0f9602e5430ed18025a7f1536ff2c2adaf9139363b0533de6b8",
+  "reference_fixtures": {
+    "dynamic": "04cf44850bb24e27c435ca12b4ec6108212bfe1dcd2606b4e8689e1ff06b553b",
+    "dynamic-control": "0e1cf2647c83c0f9602e5430ed18025a7f1536ff2c2adaf9139363b0533de6b8"
+  },
+  "cpu_affinity": [
+    2
+  ],
+  "compiler_host_stack_kib": 65536,
+  "consumer_stack_limit": "8M",
+  "suites": [
+    {
+      "suite": "dynamic",
+      "consumer_source_sha256": "3ca76b4e6cc380da5cf637fa51a9d33d2bf4573b86dd46fa86c63cfa7d6234cf",
+      "llvm_sha256": "10ef55efc34c6484352f96f3774d6d202998ce020382053d5e842b03679f4f34",
+      "build_seconds": 46.8123463410011,
+      "runs": [
+        {
+          "poisoned_free_validation": false,
+          "heap_limit": "32M",
+          "stdout": "",
+          "stats": {
+            "blocks": 309700,
+            "bytes": 8162179,
+            "peak": 3450,
+            "header-blocks": 275175,
+            "header-bytes": 7979688,
+            "immortal": 0,
+            "freed": 275175,
+            "live": 0
+          },
+          "leaked": 0
+        },
+        {
+          "poisoned_free_validation": true,
+          "heap_limit": "256M",
+          "stdout": "",
+          "stats": {
+            "blocks": 309700,
+            "bytes": 8162179,
+            "peak": 7979917,
+            "header-blocks": 275175,
+            "header-bytes": 7979688,
+            "immortal": 0,
+            "freed": 275175,
+            "live": 0
+          },
+          "leaked": 0
+        }
+      ]
+    },
+    {
+      "suite": "dynamic-control",
+      "consumer_source_sha256": "22d1fd6b6a6f17b45248128ab779c110af98876624072ccd0c2647b8d7dd222f",
+      "llvm_sha256": "422b95829dc3bcffe0a5c672440e1082228080a3e1473653b35c684348b31c1f",
+      "build_seconds": 24.10461041999224,
+      "runs": [
+        {
+          "poisoned_free_validation": false,
+          "heap_limit": "32M",
+          "stdout": "",
+          "stats": {
+            "blocks": 1832179,
+            "bytes": 47578893,
+            "peak": 2680605,
+            "header-blocks": 1718959,
+            "header-bytes": 46937176,
+            "immortal": 0,
+            "freed": 1718959,
+            "live": 0
+          },
+          "leaked": 0
+        },
+        {
+          "poisoned_free_validation": true,
+          "heap_limit": "256M",
+          "stdout": "",
+          "stats": {
+            "blocks": 1832179,
+            "bytes": 47578893,
+            "peak": 46937425,
+            "header-blocks": 1718959,
+            "header-bytes": 46937176,
+            "immortal": 0,
+            "freed": 1718959,
+            "live": 0
+          },
+          "leaked": 0
+        }
+      ]
+    }
+  ],
+  "observed_runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+}

@@ -1,0 +1,79 @@
+-- | Unaligned little-endian machine-word access to byte buffers.
+-- Bounds are explicit preconditions in the public signatures. Reads and writes
+-- access exactly the proved byte range. Private LLVM loads retain the backing
+-- buffer until completion; raw pointers never enter the public interface. The
+-- packed words feed SIMD and SWAR kernels. Wire order is independent of host
+-- endianness. Concurrent mutation follows the same rules as Data.Bytes.
+module Data.Bytes.Word where
+
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+
+  export bytes-read-le32, bytes-read-le64, bytes-write-le32, bytes-write-le64
+
+  -- | Read exactly 4 bytes as a little-endian U32. Alignment is unrestricted. The caller must prove pos + 4 <= bytes-len b; no tail bytes are read.
+  bytes-read-le32 :: using (pos + 4 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U32
+  bytes-read-le32 b pos = hold-bytes b (load-le32 (bytes-data b) (nat-to-i64 pos))
+
+  -- | Write exactly 4 low-to-high bytes of a U32. The caller must prove pos + 4 <= bytes-len b; bytes outside that range are preserved.
+  bytes-write-le32 :: using (pos + 4 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U32 -> Unit
+  bytes-write-le32 b pos x =
+    let w0 = bytes-set b pos (u8-to-nat (wrapping-u32-to-u8 x)) in
+    let w1 = bytes-set b (pos + 1) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 8))) in
+    let w2 = bytes-set b (pos + 2) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 16))) in
+    bytes-set b (pos + 3) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 24)))
+
+  -- | Read exactly 8 bytes as a little-endian U64. Alignment is unrestricted. The caller must prove pos + 8 <= bytes-len b; no tail bytes are read.
+  bytes-read-le64 :: using (pos + 8 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U64
+  bytes-read-le64 b pos = hold-bytes b (load-le64 (bytes-data b) (nat-to-i64 pos))
+
+  -- | Write exactly 8 low-to-high bytes of a U64. The caller must prove pos + 8 <= bytes-len b; bytes outside that range are preserved.
+  bytes-write-le64 :: using (pos + 8 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U64 -> Unit
+  bytes-write-le64 b pos x =
+    let w0 = bytes-set b pos (u8-to-nat (wrapping-u64-to-u8 x)) in
+    let w1 = bytes-set b (pos + 1) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 8))) in
+    let w2 = bytes-set b (pos + 2) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 16))) in
+    let w3 = bytes-set b (pos + 3) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 24))) in
+    let w4 = bytes-set b (pos + 4) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 32))) in
+    let w5 = bytes-set b (pos + 5) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 40))) in
+    let w6 = bytes-set b (pos + 6) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 48))) in
+    bytes-set b (pos + 7) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 56)))
+
+  -- | Load exactly 4 bytes from a proved private address, normalizing host endianness.
+  prim load-le32 :: I64 -> I64 -> U32 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i32, ptr %at, align 1
+      ret i32 %word
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i32, ptr %at, align 1
+      %value = call i32 @llvm.bswap.i32(i32 %word)
+      ret i32 %value
+    } when endian big
+
+  -- | Load exactly 8 bytes from a proved private address, normalizing host endianness.
+  prim load-le64 :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      ret i64 %word
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      %value = call i64 @llvm.bswap.i64(i64 %word)
+      ret i64 %value
+    } when endian big
+
+  -- | Keep the backing buffer alive until a raw load has completed. The strict
+  -- argument and runtime length read retain the owner across inline kernels.
+  hold-bytes :: forall a. Bytes -> a -> a
+  hold-bytes b value = case bytes-len b of
+    _ -> value

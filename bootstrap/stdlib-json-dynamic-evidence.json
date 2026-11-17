@@ -1,0 +1,159 @@
+{
+  "status": "Dynamic values, explicit established-codec bridges and owned semantic context increment; full92 remains partial",
+  "sources": {
+    "Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Value": "376488101b0f438023f1a6ff8556d78009f799d5549305033523a9ba1fa03db6",
+    "Codec": "86cf9e0a6a660893a1eb8b42eaf4ab1bda7dbea901f7e723b64ddbbed73a4364",
+    "Dynamic": "21fec7f0e682aac080882e8f8875a187528e58773fa121f70aff815c81985ca5",
+    "Legacy": "c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826"
+  },
+  "utf8_dependency": {
+    "source_sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "published_parent": "7e8575",
+    "implementation_unchanged": true
+  },
+  "compiler_epochs": {
+    "rust": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+    "native-raw": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+  },
+  "runtime_epochs": {
+    "rust": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "native-raw": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+  },
+  "rust_embedded_sources": {
+    "Data.String": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+    "Data.Bytes": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+  },
+  "documentation": {
+    "Binary32": {
+      "canonical_declarations": 25,
+      "extract_sha256": "fd84ca33ba38a978b50d7f44146e732c1a3b620f756b3cef2c0d6eff793b6891",
+      "diagnostics": 0,
+      "orphans": 0
+    },
+    "Value": {
+      "canonical_declarations": 326,
+      "extract_sha256": "b261ffd6eda7fbc72aa1e1a739e2def6805394155170088ec5250ef84b8dda24",
+      "diagnostics": 0,
+      "orphans": 0
+    },
+    "Codec": {
+      "canonical_declarations": 313,
+      "extract_sha256": "8379c36faad3cef7658afe94082d2d96d9885b08e7d7c6f62a0d1291ec9ae46d",
+      "diagnostics": 0,
+      "orphans": 0
+    },
+    "Dynamic": {
+      "canonical_declarations": 73,
+      "extract_sha256": "4f9c0eb24b27d818ac8d400a2f9089564a1f2e5a97cb537341a8e9e4a77d140f",
+      "diagnostics": 0,
+      "orphans": 0
+    },
+    "Legacy": {
+      "canonical_declarations": 21,
+      "extract_sha256": "ea4651b5c45676a75cd82aec29ea1fa4f7e995aa73cd03a2106e49b253614a91",
+      "diagnostics": 0,
+      "orphans": 0
+    }
+  },
+  "matrices": [
+    {
+      "frontend": "rust",
+      "suite": "dynamic",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-dynamic-final-rust-v2-results.json",
+      "receipt_sha256": "e8bfe3c6aa8f8f0c30e01935cf952140a5e7c7e731dd30e71da8aff1169496dc",
+      "llvm_sha256": "10ef55efc34c6484352f96f3774d6d202998ce020382053d5e842b03679f4f34",
+      "consumer_sha256": "3ca76b4e6cc380da5cf637fa51a9d33d2bf4573b86dd46fa86c63cfa7d6234cf",
+      "normal_peak_bytes": 3450,
+      "poison_peak_bytes": 7979917
+    },
+    {
+      "frontend": "rust",
+      "suite": "dynamic-control",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-dynamic-final-rust-v2-results.json",
+      "receipt_sha256": "e8bfe3c6aa8f8f0c30e01935cf952140a5e7c7e731dd30e71da8aff1169496dc",
+      "llvm_sha256": "422b95829dc3bcffe0a5c672440e1082228080a3e1473653b35c684348b31c1f",
+      "consumer_sha256": "22d1fd6b6a6f17b45248128ab779c110af98876624072ccd0c2647b8d7dd222f",
+      "normal_peak_bytes": 2680605,
+      "poison_peak_bytes": 46937425
+    },
+    {
+      "frontend": "rust",
+      "suite": "dynamic-edge",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-dynamic-edge-rust-v2-results.json",
+      "receipt_sha256": "451fc33e9427954022654d28dec4ffd7d0d8f19fe9d9d3e8facd27a55ebf0328",
+      "llvm_sha256": "1b4f6b14f0584ffe2f2550ac47da7acff2d130c968c1fecd1f744878650a4294",
+      "consumer_sha256": "7681fa91f3c1a866782cdd39620a1b4d335d89383e7a2813ad2e8cda035a38a8",
+      "normal_peak_bytes": 3037,
+      "poison_peak_bytes": 762033
+    },
+    {
+      "frontend": "native-raw",
+      "suite": "dynamic",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-dynamic-native-raw-v1-results.json",
+      "receipt_sha256": "f85a022e49f1a855cd9bbec2c1e1fb0e12b16bbd393e2a3f8fe76e86c16276ad",
+      "llvm_sha256": "d15bf48df1fabdc9bbada64ab80886bae8c988248f0645347b8041f1591f589d",
+      "consumer_sha256": "3ca76b4e6cc380da5cf637fa51a9d33d2bf4573b86dd46fa86c63cfa7d6234cf",
+      "normal_peak_bytes": 4257,
+      "poison_peak_bytes": 8981197
+    },
+    {
+      "frontend": "native-raw",
+      "suite": "dynamic-edge",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-dynamic-edge-native-raw-v1-results.json",
+      "receipt_sha256": "1c15280e596f576e2986613d15125d6ebbd80290795885962e496b3852a84991",
+      "llvm_sha256": "fd1963ed744cc4497f501c8635ec368911cdd77ded469b05fb90623f231067e9",
+      "consumer_sha256": "7681fa91f3c1a866782cdd39620a1b4d335d89383e7a2813ad2e8cda035a38a8",
+      "normal_peak_bytes": 3519,
+      "poison_peak_bytes": 865191
+    },
+    {
+      "frontend": "native-raw",
+      "suite": "dynamic-control",
+      "opt_level": 2,
+      "receipt": "bootstrap/stdlib-json-dynamic-control-native-raw-v2-results.json",
+      "receipt_sha256": "2c366303e88e79eff006529ff022e75ddbfa38d1a38cc134e2ecc6886823b1f0",
+      "llvm_sha256": "38d17d8d8c9e2f97e6a221da2ddcd09c052cc73e8c27a2e7aa2062e16dbdddd6",
+      "consumer_sha256": "22d1fd6b6a6f17b45248128ab779c110af98876624072ccd0c2647b8d7dd222f",
+      "normal_peak_bytes": 3960789,
+      "poison_peak_bytes": 52371515
+    }
+  ],
+  "same_selected_source_memory_processes": 12,
+  "independent_observations_per_frontend": {
+    "base": 430,
+    "focused_path_offset_edges": 40
+  },
+  "control_groups_per_frontend": 10,
+  "maximum_container_depth": 10000,
+  "flat_array_elements": 4096,
+  "retained_pipeline_repetitions": 512,
+  "reference_generator_sha256": "a09a1f3b493bebe732f9cef6b78572e500d74e5ebddb3aa85ed7f2038b2a5b3d",
+  "consumer_generator_sha256": "b2bb1a6a5f2abf2274d757bff3aa4ec4056847bfc256fb860efa04ebc6fe6774",
+  "reference_fixtures": {
+    "dynamic": "04cf44850bb24e27c435ca12b4ec6108212bfe1dcd2606b4e8689e1ff06b553b",
+    "dynamic-edge": "11bd3411d6157f89d556338d1aee255494362f10632afe95f7183b1cf5bf06b1"
+  },
+  "value_review": "Private direct recursive spines; exact owned application string/name bytes; last decoded duplicate wins; normalize all names before value callbacks; explicit frame loops and one final fragment join. Present typed-null containers and opaque typed payloads stay distinct from an absent dynamic value for omission.",
+  "typed_payload_review": "Explicit JsonType capabilities retain their application value/descriptor, preserve child error identity, forward options and follow the supplied application's alias contract. Opaque payloads have no fabricated decoded shape; legacy projection invokes their complete encoder once then exact-decodes.",
+  "error_review": "Default numeric overflow installs floating zero and continues; first error retains source end and pointer-escaped dotted path. Disabled continuation stops with exact constructed prefix and owned semantic start offset/token/pointer/type/cause. Syntax partial mutation and other full reporting-policy behaviors remain open.",
+  "legacy_review": "Explicit iterative Data.Json conversions preserve integer precision and direct floating payloads. Fraction/exponent exact numbers project to finite F64, typed null collections project to JNull, malformed strings/keys/numbers/spines refuse. Existing Text.Codec capabilities adapt explicitly with preserved mismatch/range causes and prior application values; legacy APIs are unchanged.",
+  "historical_attempts": "Initial fixture layout/helper/reserved-name diagnostics and class-constraint grammar probe precede selected controls. Pre-path-fix edge found pointer escaping in default dotted paths; corrected before selected gates. Original Native ten-control redundantly shadowed unchanged embedded Data.Json/Text.Codec homes; exact object mode lost imported total-body authority and refused existing Word proof. Selected harness consumes the strict embedded class/constructor/instance contracts, with unchanged-source guards and recorded CIF identities; no Word/library/checker/runtime weakening. Original failure remains deterministically preserved under bootstrap/repros/json-dynamic-native-word-proof. Earlier source/closure receipts are not blended.",
+  "portable_scope": "No new production LLVM primitive or runtime intrinsic; UTF8 and frozen binary32/numeric kernels are unchanged. Parent owns whole integration/portable target gates; no new foreign execution claimed.",
+  "parent_owned_checks_pending": [
+    "Expanded lib_json_codec and lib_json_value targets",
+    "Module import/documentation inventory",
+    "Integration/provider/full-suite gates"
+  ],
+  "performance_status": "No speed claim; paired public pipelines/lowering remain mandatory.",
+  "full_scope_remaining": [
+    "Complete containing-record/error and independent read/write/text capabilities",
+    "Real bounded Effect.Json Decoder/Encoder including disabled-policy syntax partial mutation",
+    "Paired public pipeline benchmarks/lowering and precise all92 reconciliation"
+  ]
+}

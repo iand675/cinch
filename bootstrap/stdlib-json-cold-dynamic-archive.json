@@ -1,0 +1,20 @@
+{
+  "description": "Closed pretyped/pre-escaped-path dynamic functional executables/LLVM only; all final selected clients and every source/reference/log/docs/compiler/provider/runtime/benchmark input retained in place",
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-dynamic-pretyped-prepath-20261117.tar.gz",
+  "archive_sha256": "e321775a703322b9fd7348273fe10c3c1a1ddc6779875ad3ec2ccf064bb857b8",
+  "archive_bytes": 17544033,
+  "decompressed_tar_sha256": "273cab188d05b9df788d52f926abdb4cd50582f6aa0ffe05aa27bd606af8fc82",
+  "decompressed_tar_bytes": 80527360,
+  "original_file_bytes": 80508065,
+  "verified": true,
+  "originals_removed": true,
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-dynamic-pretyped-prepath-20261117.tar.gz -C /workspace/dasl-stdlib-json",
+  "historical_receipts": [
+    "bootstrap/stdlib-json-dynamic-rust-v3-results.json",
+    "bootstrap/stdlib-json-dynamic-final-rust-v1-results.json",
+    "bootstrap/stdlib-json-dynamic-control-rust-v2-results.json"
+  ],
+  "index": "bootstrap/stdlib-json-cold-dynamic-archive-index.json",
+  "index_sha256": "10608f506744e14c471265d9ad69daf4d9b55d24e97a36e3f786fdcc674ef414",
+  "entries": 8
+}

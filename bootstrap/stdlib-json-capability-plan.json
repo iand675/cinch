@@ -113,20 +113,26 @@
       "surface": "historical-v1-form-or-shared",
       "group": "typed-codecs",
       "planned_cinch_capabilities": [
-        "json-marshal"
+        "json-marshal",
+        "json-any-type",
+        "json-any-typed",
+        "json-legacy-type"
       ],
-      "status": "implemented-generic-typed-capability; built-in catalogue partial",
-      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional replacement substitute for reflection and mutation. JsonDecoded preserves partial value, first error and fatal/continuation state. All signed/unsigned machine widths and binary byte values are tested; binary32, dynamic convenience descriptors and complete record error metadata remain open."
+      "status": "implemented-typed-and-dynamic-core; independent methods and complete reporting policies remain partial",
+      "review_note": "JsonType supplies explicit defaults, omission and encode/update capabilities; record projection/functional replacement replace reflection/mutation. Machine widths, exact binary32, binary bytes, balanced typed maps and owned dynamic shapes are implemented. JsonAny selects F64 or exact JsonNumber, retains raw application byte strings/names, last decoded duplicates, present-null identity and opaque typed application capabilities. Iterative Data.Json/Text.Codec bridges are explicit projections. Complete containing-record/error context, independent read/write/text methods, all reporting-policy behavior and public pipeline measurements remain mandatory; this row is not final equivalence."
     },
     {
       "reference_declaration": "func MarshalIndent(interface{}, string, string) ([]uint8, error)",
       "surface": "historical-v1-form-or-shared",
       "group": "typed-codecs",
       "planned_cinch_capabilities": [
-        "json-marshal-indent"
+        "json-marshal-indent",
+        "json-any-type",
+        "json-any-typed",
+        "json-legacy-type"
       ],
-      "status": "implemented-generic-typed-capability; built-in catalogue partial",
-      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional replacement substitute for reflection and mutation. JsonDecoded preserves partial value, first error and fatal/continuation state. All signed/unsigned machine widths and binary byte values are tested; binary32, dynamic convenience descriptors and complete record error metadata remain open."
+      "status": "implemented-typed-and-dynamic-core; independent methods and complete reporting policies remain partial",
+      "review_note": "JsonType supplies explicit defaults, omission and encode/update capabilities; record projection/functional replacement replace reflection/mutation. Machine widths, exact binary32, binary bytes, balanced typed maps and owned dynamic shapes are implemented. JsonAny selects F64 or exact JsonNumber, retains raw application byte strings/names, last decoded duplicates, present-null identity and opaque typed application capabilities. Iterative Data.Json/Text.Codec bridges are explicit projections. Complete containing-record/error context, independent read/write/text methods, all reporting-policy behavior and public pipeline measurements remain mandatory; this row is not final equivalence."
     },
     {
       "reference_declaration": "func MatchCaseSensitiveDelimiter(bool) jsonopts.Options",
@@ -215,10 +221,12 @@
       "planned_cinch_capabilities": [
         "JsonPolicies",
         "json-configure-policies",
-        "json-continue-after-type-errors"
+        "json-continue-after-type-errors",
+        "JsonSemanticInfo",
+        "json-error-semantic"
       ],
-      "status": "implemented-policy-values; applicable built-in behavior continues with the descriptor catalogue",
-      "review_note": "Immutable assignments select independent flags and later assignments override earlier ones. Explicit descriptor callbacks inspect the same policies. These values adapt this package facade; they do not claim implementation of separate successor packages or implicit addressability/reflection."
+      "status": "implemented-policy-value and valid-document dynamic abort context; complete reporting behavior partial",
+      "review_note": "Dynamic valid-document aborts preserve the constructed prefix and owned semantic action/start/token/pointer/type/cause; default dynamic numeric errors retain token end and pointer-escaped dotted paths and continue. The false flag also requires malformed-document gradual mutation, descriptor validation and different custom error wrapping. Pure json-update-with still prevalidates full syntax, so those behaviors remain mandatory with complete error/capability and Effect.Json work. Do not treat a continuation toggle as complete implementation."
     },
     {
       "reference_declaration": "func StringifyWithLegacySemantics(bool) jsonopts.Options",
@@ -238,10 +246,13 @@
       "group": "typed-codecs",
       "planned_cinch_capabilities": [
         "json-unmarshal",
-        "json-update"
+        "json-update",
+        "json-any-type",
+        "json-any-typed",
+        "json-legacy-type"
       ],
-      "status": "implemented-generic-typed-capability; built-in catalogue partial",
-      "review_note": "JsonType supplies explicit default/zero/empty/encode/update capabilities. Record projection and functional replacement substitute for reflection and mutation. JsonDecoded preserves partial value, first error and fatal/continuation state. All signed/unsigned machine widths and binary byte values are tested; binary32, dynamic convenience descriptors and complete record error metadata remain open."
+      "status": "implemented-typed-and-dynamic-core; independent methods and complete reporting policies remain partial",
+      "review_note": "JsonType supplies explicit defaults, omission and encode/update capabilities; record projection/functional replacement replace reflection/mutation. Machine widths, exact binary32, binary bytes, balanced typed maps and owned dynamic shapes are implemented. JsonAny selects F64 or exact JsonNumber, retains raw application byte strings/names, last decoded duplicates, present-null identity and opaque typed application capabilities. Iterative Data.Json/Text.Codec bridges are explicit projections. Complete containing-record/error context, independent read/write/text methods, all reporting-policy behavior and public pipeline measurements remain mandatory; this row is not final equivalence."
     },
     {
       "reference_declaration": "func UnmarshalArrayFromAnyLength(bool) jsonopts.Options",

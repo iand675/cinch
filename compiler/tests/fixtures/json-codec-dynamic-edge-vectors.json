@@ -1,0 +1,2067 @@
+{
+  "abort": [
+    {
+      "error": {
+        "cause": "value out of range",
+        "kind": "*json.SemanticError",
+        "message": "json: cannot unmarshal JSON number 1e9999 into Go float64 within \"/a~1b/~0/0\": value out of range",
+        "offset": 13,
+        "pointer": "/a~1b/~0/0",
+        "pointer_hex": "2f617e31622f7e302f30",
+        "type": "float64",
+        "value_hex": "316539393939"
+      },
+      "input_hex": "7b22612f62223a7b227e223a5b3165393939395d7d7d",
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "612f62",
+          "kind": "key"
+        },
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "7e",
+          "kind": "key"
+        },
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-array"
+        },
+        {
+          "kind": "end-object"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object"
+    },
+    {
+      "error": {
+        "cause": "value out of range",
+        "kind": "*json.SemanticError",
+        "message": "json: cannot unmarshal JSON number 1e9999 into Go float64 within \"/\": value out of range",
+        "offset": 4,
+        "pointer": "/",
+        "pointer_hex": "2f",
+        "type": "float64",
+        "value_hex": "316539393939"
+      },
+      "input_hex": "7b22223a3165393939397d",
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object"
+    },
+    {
+      "error": {
+        "cause": "value out of range",
+        "kind": "*json.SemanticError",
+        "message": "json: cannot unmarshal JSON number 1e9999 into Go float64 within \"/a\": value out of range",
+        "offset": 11,
+        "pointer": "/a",
+        "pointer_hex": "2f61",
+        "type": "float64",
+        "value_hex": "316539393939"
+      },
+      "input_hex": "200a7b20226122203a2020316539393939202c20226222203a20327d",
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "61",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object"
+    },
+    {
+      "error": {
+        "cause": "value out of range",
+        "kind": "*json.SemanticError",
+        "message": "json: cannot unmarshal JSON number 1e9999 into Go float64 within \"/0\": value out of range",
+        "offset": 3,
+        "pointer": "/0",
+        "pointer_hex": "2f30",
+        "type": "float64",
+        "value_hex": "316539393939"
+      },
+      "input_hex": "5b2020316539393939202c2032205d",
+      "nodes": [
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-array"
+        }
+      ],
+      "prior": "object"
+    },
+    {
+      "error": {
+        "cause": "value out of range",
+        "kind": "*json.SemanticError",
+        "message": "json: cannot unmarshal JSON number 1e9999 into Go float64 within \"/a.b/0\": value out of range",
+        "offset": 8,
+        "pointer": "/a.b/0",
+        "pointer_hex": "2f612e622f30",
+        "type": "float64",
+        "value_hex": "316539393939"
+      },
+      "input_hex": "7b22612e62223a5b3165393939395d7d",
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "612e62",
+          "kind": "key"
+        },
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-array"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object"
+    },
+    {
+      "error": {
+        "cause": "value out of range",
+        "kind": "*json.SemanticError",
+        "message": "json: cannot unmarshal JSON number 1e9999 into Go float64 within \"/é\": value out of range",
+        "offset": 6,
+        "pointer": "/é",
+        "pointer_hex": "2fc3a9",
+        "type": "float64",
+        "value_hex": "316539393939"
+      },
+      "input_hex": "7b22c3a9223a3165393939397d",
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "c3a9",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object"
+    },
+    {
+      "error": {
+        "cause": "value out of range",
+        "kind": "*json.SemanticError",
+        "message": "json: cannot unmarshal JSON number 1e9999 into Go float64 after offset 1: value out of range",
+        "offset": 1,
+        "pointer": "",
+        "pointer_hex": "",
+        "type": "float64",
+        "value_hex": "316539393939"
+      },
+      "input_hex": "20316539393939200a",
+      "nodes": [
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        }
+      ],
+      "prior": "object"
+    },
+    {
+      "error": {
+        "cause": "value out of range",
+        "kind": "*json.SemanticError",
+        "message": "json: cannot unmarshal JSON number 1e9999 into Go float64 within \"/�\": value out of range",
+        "offset": 5,
+        "pointer": "/�",
+        "pointer_hex": "2fefbfbd",
+        "type": "float64",
+        "value_hex": "316539393939"
+      },
+      "input_hex": "7b22ff223a3165393939397d",
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "efbfbd",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object"
+    }
+  ],
+  "application": [],
+  "decode": [
+    {
+      "error": {
+        "field": "a~1b.~0.0",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into .a~1b.~0.0 of type float64",
+        "offset": 19,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "7b22612f62223a7b227e223a5b3165393939395d7d7d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612f62223a7b227e223a5b305d7d7d7d",
+          "output_hex": "7b22612f62223a7b227e223a5b305d7d7d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612f62223a7b227e223a5b305d7d7d7d",
+          "output_hex": "7b22612f62223a7b227e223a5b305d7d7d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "612f62",
+          "kind": "key"
+        },
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "7e",
+          "kind": "key"
+        },
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-array"
+        },
+        {
+          "kind": "end-object"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "7b22612f62223a7b227e223a5b3165393939395d7d7d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612f62223a7b227e223a5b3165393939395d7d7d7d",
+          "output_hex": "7b22612f62223a7b227e223a5b3165393939395d7d7d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612f62223a7b227e223a5b3165393939395d7d7d7d",
+          "output_hex": "7b22612f62223a7b227e223a5b3165393939395d7d7d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "612f62",
+          "kind": "key"
+        },
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "7e",
+          "kind": "key"
+        },
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "kind": "end-array"
+        },
+        {
+          "kind": "end-object"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "a~1b.~0.0",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into .a~1b.~0.0 of type float64",
+        "offset": 19,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "7b22612f62223a7b227e223a5b3165393939395d7d7d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612f62223a7b227e223a5b305d7d7d7d",
+          "output_hex": "7b22612f62223a7b227e223a5b305d7d7d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612f62223a7b227e223a5b305d7d7d7d",
+          "output_hex": "7b22612f62223a7b227e223a5b305d7d7d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "612f62",
+          "kind": "key"
+        },
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "7e",
+          "kind": "key"
+        },
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-array"
+        },
+        {
+          "kind": "end-object"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "7b22612f62223a7b227e223a5b3165393939395d7d7d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612f62223a7b227e223a5b3165393939395d7d7d7d",
+          "output_hex": "7b22612f62223a7b227e223a5b3165393939395d7d7d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612f62223a7b227e223a5b3165393939395d7d7d7d",
+          "output_hex": "7b22612f62223a7b227e223a5b3165393939395d7d7d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "612f62",
+          "kind": "key"
+        },
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "7e",
+          "kind": "key"
+        },
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "kind": "end-array"
+        },
+        {
+          "kind": "end-object"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into Go value of type float64",
+        "offset": 10,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "7b22223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22223a307d7d",
+          "output_hex": "7b22223a307d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22223a307d7d",
+          "output_hex": "7b22223a307d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "7b22223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22223a3165393939397d7d",
+          "output_hex": "7b22223a3165393939397d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22223a3165393939397d7d",
+          "output_hex": "7b22223a3165393939397d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "",
+          "kind": "key"
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into Go value of type float64",
+        "offset": 10,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "7b22223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22223a307d7d",
+          "output_hex": "7b22223a307d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22223a307d7d",
+          "output_hex": "7b22223a307d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "7b22223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22223a3165393939397d7d",
+          "output_hex": "7b22223a3165393939397d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22223a3165393939397d7d",
+          "output_hex": "7b22223a3165393939397d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "",
+          "kind": "key"
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "a",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into Go struct field .a of type float64",
+        "offset": 17,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "200a7b20226122203a2020316539393939202c20226222203a20327d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b2261223a302c2262223a327d7d",
+          "output_hex": "7b2261223a302c2262223a327d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b2261223a302c2262223a327d7d",
+          "output_hex": "7b2261223a302c2262223a327d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 2,
+          "nil": false
+        },
+        {
+          "hex": "61",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "hex": "62",
+          "kind": "key"
+        },
+        {
+          "bits": "4000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "200a7b20226122203a2020316539393939202c20226222203a20327d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b2261223a3165393939392c2262223a327d7d",
+          "output_hex": "7b2261223a3165393939392c2262223a327d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b2261223a3165393939392c2262223a327d7d",
+          "output_hex": "7b2261223a3165393939392c2262223a327d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 2,
+          "nil": false
+        },
+        {
+          "hex": "61",
+          "kind": "key"
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "hex": "62",
+          "kind": "key"
+        },
+        {
+          "hex": "32",
+          "kind": "number"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "a",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into Go struct field .a of type float64",
+        "offset": 17,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "200a7b20226122203a2020316539393939202c20226222203a20327d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b2261223a302c2262223a327d7d",
+          "output_hex": "7b2261223a302c2262223a327d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b2261223a302c2262223a327d7d",
+          "output_hex": "7b2261223a302c2262223a327d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 2,
+          "nil": false
+        },
+        {
+          "hex": "61",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "hex": "62",
+          "kind": "key"
+        },
+        {
+          "bits": "4000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "200a7b20226122203a2020316539393939202c20226222203a20327d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b2261223a3165393939392c2262223a327d7d",
+          "output_hex": "7b2261223a3165393939392c2262223a327d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b2261223a3165393939392c2262223a327d7d",
+          "output_hex": "7b2261223a3165393939392c2262223a327d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 2,
+          "nil": false
+        },
+        {
+          "hex": "61",
+          "kind": "key"
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "hex": "62",
+          "kind": "key"
+        },
+        {
+          "hex": "32",
+          "kind": "number"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "0",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into .0 of type float64",
+        "offset": 9,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "5b2020316539393939202c2032205d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a5b302c325d7d",
+          "output_hex": "5b302c325d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a5b302c325d7d",
+          "output_hex": "5b302c325d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "array",
+          "length": 2,
+          "nil": false
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "bits": "4000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-array"
+        }
+      ],
+      "prior": "null",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "5b2020316539393939202c2032205d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a5b3165393939392c325d7d",
+          "output_hex": "5b3165393939392c325d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a5b3165393939392c325d7d",
+          "output_hex": "5b3165393939392c325d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "array",
+          "length": 2,
+          "nil": false
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "hex": "32",
+          "kind": "number"
+        },
+        {
+          "kind": "end-array"
+        }
+      ],
+      "prior": "null",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "0",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into .0 of type float64",
+        "offset": 9,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "5b2020316539393939202c2032205d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a5b302c325d7d",
+          "output_hex": "5b302c325d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a5b302c325d7d",
+          "output_hex": "5b302c325d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "array",
+          "length": 2,
+          "nil": false
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "bits": "4000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-array"
+        }
+      ],
+      "prior": "object",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "5b2020316539393939202c2032205d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a5b3165393939392c325d7d",
+          "output_hex": "5b3165393939392c325d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a5b3165393939392c325d7d",
+          "output_hex": "5b3165393939392c325d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "array",
+          "length": 2,
+          "nil": false
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "hex": "32",
+          "kind": "number"
+        },
+        {
+          "kind": "end-array"
+        }
+      ],
+      "prior": "object",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "a.b.0",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into .a.b.0 of type float64",
+        "offset": 14,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "7b22612e62223a5b3165393939395d7d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612e62223a5b305d7d7d",
+          "output_hex": "7b22612e62223a5b305d7d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612e62223a5b305d7d7d",
+          "output_hex": "7b22612e62223a5b305d7d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "612e62",
+          "kind": "key"
+        },
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-array"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "7b22612e62223a5b3165393939395d7d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612e62223a5b3165393939395d7d7d",
+          "output_hex": "7b22612e62223a5b3165393939395d7d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612e62223a5b3165393939395d7d7d",
+          "output_hex": "7b22612e62223a5b3165393939395d7d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "612e62",
+          "kind": "key"
+        },
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "kind": "end-array"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "a.b.0",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into .a.b.0 of type float64",
+        "offset": 14,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "7b22612e62223a5b3165393939395d7d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612e62223a5b305d7d7d",
+          "output_hex": "7b22612e62223a5b305d7d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612e62223a5b305d7d7d",
+          "output_hex": "7b22612e62223a5b305d7d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "612e62",
+          "kind": "key"
+        },
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-array"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "7b22612e62223a5b3165393939395d7d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612e62223a5b3165393939395d7d7d",
+          "output_hex": "7b22612e62223a5b3165393939395d7d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22612e62223a5b3165393939395d7d7d",
+          "output_hex": "7b22612e62223a5b3165393939395d7d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "612e62",
+          "kind": "key"
+        },
+        {
+          "kind": "array",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "kind": "end-array"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "é",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into Go struct field .é of type float64",
+        "offset": 12,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "7b22c3a9223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22c3a9223a307d7d",
+          "output_hex": "7b22c3a9223a307d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22c3a9223a307d7d",
+          "output_hex": "7b22c3a9223a307d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "c3a9",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "7b22c3a9223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22c3a9223a3165393939397d7d",
+          "output_hex": "7b22c3a9223a3165393939397d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22c3a9223a3165393939397d7d",
+          "output_hex": "7b22c3a9223a3165393939397d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "c3a9",
+          "kind": "key"
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "é",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into Go struct field .é of type float64",
+        "offset": 12,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "7b22c3a9223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22c3a9223a307d7d",
+          "output_hex": "7b22c3a9223a307d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22c3a9223a307d7d",
+          "output_hex": "7b22c3a9223a307d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "c3a9",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "7b22c3a9223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22c3a9223a3165393939397d7d",
+          "output_hex": "7b22c3a9223a3165393939397d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22c3a9223a3165393939397d7d",
+          "output_hex": "7b22c3a9223a3165393939397d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "c3a9",
+          "kind": "key"
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into Go value of type float64",
+        "offset": 7,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "20316539393939200a",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a307d",
+          "output_hex": "30"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a307d",
+          "output_hex": "30"
+        }
+      ],
+      "nodes": [
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        }
+      ],
+      "prior": "null",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "20316539393939200a",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a3165393939397d",
+          "output_hex": "316539393939"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a3165393939397d",
+          "output_hex": "316539393939"
+        }
+      ],
+      "nodes": [
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        }
+      ],
+      "prior": "null",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into Go value of type float64",
+        "offset": 7,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "20316539393939200a",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a307d",
+          "output_hex": "30"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a307d",
+          "output_hex": "30"
+        }
+      ],
+      "nodes": [
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        }
+      ],
+      "prior": "object",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "20316539393939200a",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a3165393939397d",
+          "output_hex": "316539393939"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a3165393939397d",
+          "output_hex": "316539393939"
+        }
+      ],
+      "nodes": [
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        }
+      ],
+      "prior": "object",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "�",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into Go struct field .� of type float64",
+        "offset": 11,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "7b22ff223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22efbfbd223a307d7d",
+          "output_hex": "7b22efbfbd223a307d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22efbfbd223a307d7d",
+          "output_hex": "7b22efbfbd223a307d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "efbfbd",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "7b22ff223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22efbfbd223a3165393939397d7d",
+          "output_hex": "7b22efbfbd223a3165393939397d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22efbfbd223a3165393939397d7d",
+          "output_hex": "7b22efbfbd223a3165393939397d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "efbfbd",
+          "kind": "key"
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "null",
+      "use_number": true
+    },
+    {
+      "error": {
+        "field": "�",
+        "kind": "*json.UnmarshalTypeError",
+        "message": "json: cannot unmarshal number 1e9999 into Go struct field .� of type float64",
+        "offset": 11,
+        "struct": "",
+        "type": "float64",
+        "value": "number 1e9999"
+      },
+      "input_hex": "7b22ff223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22efbfbd223a307d7d",
+          "output_hex": "7b22efbfbd223a307d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22efbfbd223a307d7d",
+          "output_hex": "7b22efbfbd223a307d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "efbfbd",
+          "kind": "key"
+        },
+        {
+          "bits": "0000000000000000",
+          "kind": "float"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": false
+    },
+    {
+      "error": {
+        "kind": "none"
+      },
+      "input_hex": "7b22ff223a3165393939397d",
+      "marshal": [
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": false,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22efbfbd223a3165393939397d7d",
+          "output_hex": "7b22efbfbd223a3165393939397d"
+        },
+        {
+          "error": {
+            "kind": "none"
+          },
+          "html": true,
+          "omitted_error": {
+            "kind": "none"
+          },
+          "omitted_hex": "7b2276616c7565223a7b22efbfbd223a3165393939397d7d",
+          "output_hex": "7b22efbfbd223a3165393939397d"
+        }
+      ],
+      "nodes": [
+        {
+          "kind": "object",
+          "length": 1,
+          "nil": false
+        },
+        {
+          "hex": "efbfbd",
+          "kind": "key"
+        },
+        {
+          "hex": "316539393939",
+          "kind": "number"
+        },
+        {
+          "kind": "end-object"
+        }
+      ],
+      "prior": "object",
+      "use_number": true
+    }
+  ]
+}
