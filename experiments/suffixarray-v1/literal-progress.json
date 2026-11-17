@@ -1,0 +1,54 @@
+{
+  "scope": "Partial O0 actual suffix literal corpus, no completion or performance claim",
+  "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78",
+  "compiler_sha256": "c2ae24e64f7999060dce8610618f316710f6300ca29e89b9335056936344a86e",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "inputs_passed": 32,
+  "inputs_total": 153,
+  "observations_passed": 2240,
+  "zero_leak_profiles": 64,
+  "reports": [
+    {
+      "path": "build/suffixarray-v1-runtime-literals-o0-0000-v2.json",
+      "sha256": "6a292cf2fc7d4217e8d254dfe12bc5df835ab4db324b2969057f8b2a0af183fc",
+      "start": 0,
+      "inputs": 8,
+      "observations": 560,
+      "profiles": 16,
+      "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78"
+    },
+    {
+      "path": "build/suffixarray-v1-runtime-literals-o0-0008.json",
+      "sha256": "e545d865066335d8cd084c901e9bca2d5629a53e0bff517c060b7a163d19724a",
+      "start": 8,
+      "inputs": 8,
+      "observations": 560,
+      "profiles": 16,
+      "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78"
+    },
+    {
+      "path": "build/suffixarray-v1-runtime-literals-o0-0016.json",
+      "sha256": "7690ad269249085060154680b6a8861f7a4acb40894afa8cd7834116a2c88f10",
+      "start": 16,
+      "inputs": 8,
+      "observations": 560,
+      "profiles": 16,
+      "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78"
+    },
+    {
+      "path": "build/suffixarray-v1-runtime-literals-o0-0024.json",
+      "sha256": "cbb5e47c5c052cdc82919a88779e3cf0a10168d2eb7357b7fb6e3ac46513138a",
+      "start": 24,
+      "inputs": 8,
+      "observations": 560,
+      "profiles": 16,
+      "source_sha256": "16b8999ffbc6fa9d1b899a4afd3abfddec3602ceab072e693baf530948afed78"
+    }
+  ],
+  "next_input": 32,
+  "resource_paused_before_next_compiler": true,
+  "recovery_index": "build/suffixarray-v1-functional-recovery/index.json",
+  "recovery_scope": "Only passed matching consumer ELF/LLVM, complete hash/size/mode/uid/gid/nsmtime, compressed+decoded verification and archive/index fsync before unlink; sources/interfaces/oracle/frozen/failed inputs plain",
+  "controls_source_sha256": "e283b4b2bf44a715700539b85058d5193fac65b3cd8633d69607b6e40180ecc3",
+  "controls_status": "prepared-static-untyped-not-run"
+}
