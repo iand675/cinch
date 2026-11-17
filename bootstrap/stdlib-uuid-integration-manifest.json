@@ -85,11 +85,19 @@
   "benchmark_review_paths": [
     "tooling/data/uuid-benchmark.cinch",
     "tooling/bench_uuid_reference.go",
-    "tooling/bench_uuid.py"
+    "tooling/bench_uuid.py",
+    "tooling/data/uuid-generation-benchmark.cinch",
+    "tooling/bench_uuid_generation_reference.go"
   ],
   "reference_provenance_paths": [
     "tooling/go_uuid_vectors_test.go",
     "bootstrap/repros/uuid-reference-initial/oracle_test.go",
     "bootstrap/stdlib-uuid-reference-results.json"
+  ],
+  "historical_native_review_paths": [
+    "bootstrap/stdlib-uuid-native-pair-review.json",
+    "bootstrap/stdlib-uuid-native-source-results.json",
+    "bootstrap/stdlib-uuid-native-runtime-results.json",
+    "tooling/validate_uuid_native.py"
   ]
 }

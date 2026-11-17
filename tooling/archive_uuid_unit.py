@@ -36,8 +36,15 @@ def main() -> None:
     resource.setrlimit(resource.RLIMIT_FSIZE,(10*1024*1024,10*1024*1024))
     report=json.loads(args.report.read_text())
     assert report['status']=='passed' and 'closed_archive' not in report
-    assert report['compiler_sha256']=='330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2'
-    assert report['runtime_sha256']=='d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf'
+    epoch=(report['compiler_sha256'],report['runtime_sha256'])
+    rust=('330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2','d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf')
+    native=('2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f','80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141')
+    assert epoch in (rust,native)
+    if epoch==native:
+        assert report['kind']=='strict-historical-Native-pure-UUID-unit' and not report['io_or_mvar_requested']
+        assert report['interface_sha256']=='1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256'
+        assert report['objects_sha256']=='22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624'
+        assert report['provider_object_sha256']=='46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64'
     assert len(report['runs'])==2 and [r['poisoned_free'] for r in report['runs']]==[False,True]
     for run in report['runs']:
         assert run['exit']==0 and run['stdout']=='' and run['stack']=='8M'
@@ -46,7 +53,7 @@ def main() -> None:
     executable=Path(report['runs'][0]['command'][0]).resolve();llvm=executable.with_suffix('.ll')
     assert executable.parent.parent==ROOT/'build' and executable.parent.name.startswith('uuid-') and executable.name=='consumer'
     assert digest(executable)==report['executable_sha256'] and digest(llvm)==report['llvm_sha256']
-    for module,expected in report['sources'].items():assert digest(executable.parent/(module+'.cinch'))==expected
+    for module,expected in report['sources'].items():assert digest(executable.parent/(module if module.endswith('.cinch') else module+'.cinch'))==expected
     files=[executable,llvm]+sorted(p for p in (executable.parent/'build').rglob('*') if p.is_file())
     assert all(not p.is_symlink() and p.is_relative_to(executable.parent) for p in files)
     members={str(p.relative_to(ROOT)):{'sha256':digest(p),'bytes':p.stat().st_size,'mode':stat.S_IMODE(p.stat().st_mode)} for p in files}
