@@ -13,7 +13,7 @@ import re
 import resource
 import shutil
 from check_compare import digest, run
-from check_multipart import archive_completed, artifact_digest, build_fixture
+from multipart_qualification_support import archive_completed, artifact_digest, build_fixture
 
 
 def main() -> None:

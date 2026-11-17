@@ -41,3 +41,14 @@ It initializes the exact host runtime through an ordinary build, checks fresh
 source and genuine metadata, then runs the same live fixture in both profiles.
 An explicit current compiler is recorded as its own epoch; the stored330
 receipts are never relabeled as current-compiler evidence.
+
+The additive integration file manifest is `integration-files.json`, based on
+Root `ac1bb2e4`. It copies only this isolated candidate, its maintained SDK-free
+target/entrypoints/support and four actual fixture fragments plus the C fixture.
+It does not copy baseline production modules/runners or historical experiment
+source directories. Existing Root `bench_stdlib.py` and `check_compare.py` supply
+source closure, hashing, process execution and ordinary runtime initialization;
+the manifest records these read-only dependencies without replacing Root files.
+The standalone support module retains byte-identical bodies of the previously
+executed object, archive and recovery helpers. Provenance paths to earlier
+experiments remain historical references, not required missing inputs.

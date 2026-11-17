@@ -16,7 +16,7 @@ import shutil
 import subprocess
 from bench_stdlib import source_closure
 from check_compare import digest
-from check_multipart_effect_experiment import archive_cache
+from multipart_qualification_support import archive_cache
 
 
 #: Production-independent reviewed effect candidate and maintained fixture support.

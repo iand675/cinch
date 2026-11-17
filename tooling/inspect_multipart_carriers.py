@@ -16,7 +16,7 @@ import resource
 import shutil
 import subprocess
 from check_compare import digest
-from check_multipart_effect_experiment import archive_cache
+from multipart_qualification_support import archive_cache
 
 
 def contracts(interface: dict) -> dict:

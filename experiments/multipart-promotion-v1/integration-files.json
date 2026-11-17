@@ -1,0 +1,171 @@
+{
+  "scope": "Explicit additive file integration against Root ac1bb2e4; no baseline production selection, baseline runner or historical experiment source directory.",
+  "root_base": "ac1bb2e4",
+  "files": [
+    {
+      "path": "compiler/tests/fixtures/multipart-fixture.c",
+      "sha256": "d7f4d61d7b052ff6d469fa65e290c474125738203e922afa7b29bbca044b40ef",
+      "bytes": 19004,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "compiler/tests/lib_multipart_promotion.rs",
+      "sha256": "2d386ced9668c9a1a678f4ea83e8bcc06bceafe15f8a0fe7da483a60c90ea055",
+      "bytes": 4745,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "experiments/multipart-promotion-v1/README.md",
+      "sha256": "f50d285609d2ca09d78082fb90f5c106faece6cb46f8fe17ecaf0705a9a001f2",
+      "bytes": 3509,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "experiments/multipart-promotion-v1/live-runtime-gate.json",
+      "sha256": "b560f9a8da9670ed830bdfc7dca0a0638bf65543eb156aa97a10b701e488af8c",
+      "bytes": 4391,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "experiments/multipart-promotion-v1/manifest.json",
+      "sha256": "fb788519b2d99a262574b0c2f67c7d945323a297dad724ff1f1730e4f9169250",
+      "bytes": 8823,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "experiments/multipart-promotion-v1/metadata-gate.json",
+      "sha256": "ba8a255a342e0d5b290ac6076489d97fedac9efd73300f28dbad902ba5966ce9",
+      "bytes": 12659,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "experiments/multipart-promotion-v1/source-gate.json",
+      "sha256": "072731add3514c64a615f5be72eb918a95ca01d106c3bb050fc33c6354e32305",
+      "bytes": 10924,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "experiments/multipart-promotion-v1/sources/Effect.Multipart.cinch",
+      "sha256": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b",
+      "bytes": 108626,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "experiments/multipart-promotion-v1/sources/Text.Multipart.cinch",
+      "sha256": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2",
+      "bytes": 31774,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "tooling/check_multipart_live_effects.py",
+      "sha256": "bfdf4c294a96f215aa2adeef5febdfe6e6104d1c3f5984114cc9993b8eff4db6",
+      "bytes": 8363,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "tooling/data/multipart-consumer.cinchpart",
+      "sha256": "eb2898b83c77c3936199becfa09f7c4af27319884f9a6579e7966f6003a39edd",
+      "bytes": 22084,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "tooling/data/multipart-live-effects.cinchpart",
+      "sha256": "9f67da27f8242377b447e9b4f11f637164d3ee521d976525b9f2b44a84dbcc84",
+      "bytes": 11092,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "tooling/data/multipart-managed-storage.cinchpart",
+      "sha256": "21cad2e303ac6020654b302a23446d9059efdd01ea4d8a95a0310859b37518b7",
+      "bytes": 8878,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "tooling/data/multipart-storage.cinchpart",
+      "sha256": "590c50762d7271e4c35e0468fcc1743c1a62bda703fa9e4b588c1e38db6c24ee",
+      "bytes": 25319,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "tooling/inspect_multipart_carriers.py",
+      "sha256": "97160a9f1e24e8bfb53fdcbe9240c6ce01df7b626cc7783e19a27d1e50286e6d",
+      "bytes": 8307,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "tooling/multipart_qualification_support.py",
+      "sha256": "35def1aa4e226953430d6179c87eafca2e0cec2c3fcf49816981fbb75cecb8ed",
+      "bytes": 10700,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "tooling/qualify_multipart_promotion.py",
+      "sha256": "88256513e3062c40bad41a3995f75bd2641c2f6c357854df0b1b1a3afb7889b4",
+      "bytes": 3933,
+      "root_action": "add (absent at base)"
+    },
+    {
+      "path": "tooling/run_multipart_live_effects.py",
+      "sha256": "69c809d82b9ce4a28207b4ababa549f8bbecae776257ea2c9c381cf662229ceb",
+      "bytes": 6757,
+      "root_action": "add (absent at base)"
+    }
+  ],
+  "total_bytes": 309888,
+  "existing_read_only_dependencies": [
+    {
+      "path": "tooling/bench_stdlib.py",
+      "root_blob_sha256": "68946f9806b7b909089cc7db36b6d5132c9f2eafb9483bc84436d27273c8b3cf",
+      "required_functions": [
+        "source_closure"
+      ],
+      "action": "reuse Root file unchanged"
+    },
+    {
+      "path": "tooling/check_compare.py",
+      "root_blob_sha256": "2cc7faf4fd24a0ee8af0bb85a9b46dc289cc0aa969181927213dea0721d474af",
+      "required_functions": [
+        "digest",
+        "run",
+        "initialize_runtime"
+      ],
+      "action": "reuse Root file unchanged"
+    }
+  ],
+  "target": "cargo test --test lib_multipart_promotion",
+  "cargo_run_locally": false,
+  "guarded_standalone_corpus": "Separate prepared work; full1128 current-source corpus is not yet claimed.",
+  "provenance": "Committed source/metadata/live receipts describe330/d91 only; current CI records its actual compiler/runtime and does not relabel historicalNative or unannotated epochs.",
+  "support_body_provenance": [
+    {
+      "function": "artifact_digest",
+      "body_sha256": "470428345043d8f3392bc0267578e395ef8077eabf166246eb62229eaf840e33",
+      "historical_implementation": "f65063a5:tooling/check_multipart.py",
+      "byte_identical_to_exercised_body": true
+    },
+    {
+      "function": "archive_completed",
+      "body_sha256": "75854ab0a938447fa918964dc1f2402541eea57ca1cf74f48e6c9ab2d37fe282",
+      "historical_implementation": "f65063a5:tooling/check_multipart.py",
+      "byte_identical_to_exercised_body": true
+    },
+    {
+      "function": "build_fixture",
+      "body_sha256": "0331ffa662c53ebb017907c39146821af0e7a19cf6f7be840f64e773f5b5ebf6",
+      "historical_implementation": "f65063a5:tooling/check_multipart.py",
+      "byte_identical_to_exercised_body": true
+    },
+    {
+      "function": "archive_cache",
+      "body_sha256": "c8cf4713f0683b9046f0c5cf1c668dc5617dca5f2573e8d6bba76b39001f94c6",
+      "historical_implementation": "dd934933:tooling/check_multipart_effect_experiment.py",
+      "byte_identical_to_exercised_body": true
+    }
+  ],
+  "static_dependency_audit": {
+    "python_baseline_and_historical_imports": false,
+    "source_distributed_modules": 11,
+    "all_source_imports_exist_on_root_or_additive_candidate": true,
+    "support_helper_bodies_byte_identical": true
+  }
+}
