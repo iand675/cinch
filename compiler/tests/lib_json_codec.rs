@@ -415,3 +415,9 @@ fn json_method_error_families_prefixes_and_context_match_observations() {
 fn json_update_error_identity_records_and_continuation_match_observations() {
     run(include_str!("fixtures/json-codec-error-updates.cinch"));
 }
+
+/// Conventional field paths and precise pointers retain distinct metadata and user-owned errors.
+#[test]
+fn json_read_field_context_preserves_conventional_paths_and_precise_pointers() {
+    run(include_str!("fixtures/json-codec-read-field-context.cinch"));
+}

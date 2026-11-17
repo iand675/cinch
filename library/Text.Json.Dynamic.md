@@ -275,4 +275,4 @@ Inspect an opaque typed payload's label without fabricating a decoded representa
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json/Dynamic.cinch`. Source SHA-256: `21fec7f0e682aac080882e8f8875a187528e58773fa121f70aff815c81985ca5`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json/Dynamic.cinch`. Source SHA-256: `81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

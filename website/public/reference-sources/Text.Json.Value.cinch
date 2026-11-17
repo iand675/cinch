@@ -27,8 +27,13 @@ module Text.Json.Value where
   export JsonNumericResult, json-numeric-value, json-numeric-error, json-numeric-result, JsonNumberError, json-error-numeric
   export json-number-from-text, json-number-from-bytes, json-number-bytes, json-number-check, json-number-int64-result, json-number-float64-result
   export JsonUnknownField, JsonCustomError, JsonPathError, JsonEncodingError, JsonTypeCause, JsonUnsupportedType
+  export JsonTypeInfo, JsonTypeInfoError, json-type-info, json-type-info-with-record-field, json-error-type-info, json-error-record
+  export json-type-error-type, json-type-error-value, json-type-error-offset, json-type-error-record, json-type-error-field
+  export JsonReturnedError, json-error-returned, json-preserve-error-context, json-error-preserved-context
+  export JsonWriteInfo, json-write-info, json-write-written-bytes, json-write-logical-prefix, JsonWrittenError, json-error-write-info, json-error-written-bytes
   export JsonSemanticError, JsonSemanticInfo, json-semantic-info, json-error-semantic
   export json-semantic-action, json-semantic-offset, json-semantic-pointer, json-semantic-bytes, json-semantic-type
+  export json-semantic-info-with-value, json-semantic-info-with-optional-type, json-semantic-type-option, json-semantic-with-type, json-semantic-field-path, json-semantic-with-field-path, json-semantic-kind, json-semantic-kind-byte, json-semantic-reported-bytes, json-semantic-with-pointer, json-semantic-with-offset
   export json-error-message, json-error-offset, json-error-path, json-error-type, json-error-value, json-error-cause
   export JsonNumber, json-zero-number, json-empty-number, json-number, json-number-text, json-number-int64, json-number-float64, json-number-float32
   export JsonRawMessage, json-raw-null, json-raw-from-bytes, json-raw-bytes, json-raw-replace
@@ -39,6 +44,7 @@ module Text.Json.Value where
   export json-array-length, json-array-get, json-array-values
   export JsonMember, json-member-name, json-member-value, json-member-key, json-object-members, json-object-lookup
   export json-indent-bytes, json-append-indent-bytes
+  export json-indent-prefix, json-prefix-next-offset
   export json-valid, json-compact, json-append-compact, json-indent, json-append-indent, json-html-escape, json-append-html-escape
   export json-quote, json-quote-bytes
   export JsonLexState, json-lex-start, JsonLexStep, JsonLexEnd, JsonLexNeedInput, JsonLexToken, JsonLexFailure
@@ -64,34 +70,144 @@ module Text.Json.Value where
     -- | Private completed numeric value and original conversion error.
     NumericResult :: a -> Option JsonNumericError -> JsonNumericResult a
 
+  -- | Immutable optional application identity, actual value, source position and record context for a type refusal.
+  data JsonTypeInfo where
+    -- | Private optional type, value description, byte offset, record name and field path.
+    TypeInfo :: Option String -> String -> Nat -> String -> String -> JsonTypeInfo
+
+  -- | Construct explicit type metadata without conflating an absent identity and an empty application label.
+  json-type-info :: Option String -> String -> Nat -> String -> String -> JsonTypeInfo
+  json-type-info label actual offset record-name field = TypeInfo label actual offset record-name field
+
+  -- | Inspect the optional application identity of a type refusal.
+  json-type-error-type :: JsonTypeInfo -> Option String
+  json-type-error-type info = case info of TypeInfo label actual offset record-name field -> label
+
+  -- | Inspect the original source value description of a type refusal.
+  json-type-error-value :: JsonTypeInfo -> String
+  json-type-error-value info = case info of TypeInfo label actual offset record-name field -> actual
+
+  -- | Inspect the original byte offset reported by a type refusal.
+  json-type-error-offset :: JsonTypeInfo -> Nat
+  json-type-error-offset info = case info of TypeInfo label actual offset record-name field -> offset
+
+  -- | Inspect the independently named root application record.
+  json-type-error-record :: JsonTypeInfo -> String
+  json-type-error-record info = case info of TypeInfo label actual offset record-name field -> record-name
+
+  -- | Inspect the original escaped application field path.
+  json-type-error-field :: JsonTypeInfo -> String
+  json-type-error-field info = case info of TypeInfo label actual offset record-name field -> field
+
+  -- | Replace record and field context while sharing immutable identity and value metadata.
+  json-type-info-with-record-field :: JsonTypeInfo -> String -> String -> JsonTypeInfo
+  json-type-info-with-record-field info next-record next-field = case info of TypeInfo label actual offset record-name field -> TypeInfo label actual offset next-record next-field
+
   -- | Owned operation context for a conversion that stops at the first semantic failure.
   data JsonSemanticInfo where
-    -- | Private action, original byte offset, JSON pointer, exact token bytes and application type.
-    SemanticInfo :: String -> Nat -> String -> Bytes -> String -> JsonSemanticInfo
+    -- | Private action, original byte offset, JSON pointer, exact token bytes, optional application type, lexical kind, reported bytes and optional conventional field path.
+    SemanticInfo :: String -> Nat -> String -> Bytes -> Option String -> U8 -> Bytes -> Option String -> JsonSemanticInfo
 
   -- | Snapshot exact source bytes while constructing explicit semantic conversion metadata.
   json-semantic-info :: String -> Nat -> String -> Bytes -> String -> JsonSemanticInfo
-  json-semantic-info action offset pointer input label = SemanticInfo action offset pointer (snapshot input 0 (bytes-len input)) label
+  json-semantic-info action offset pointer input label = json-semantic-info-with-value action offset pointer input label (semantic-token-kind input) (bytes-new 0)
+
+  -- | Classify a complete token's leading byte, using zero for unavailable kind and digit zero for every number.
+  semantic-token-kind :: Bytes -> U8
+  semantic-token-kind input =
+    if bytes-len input > 0 then
+      let first = bytes-get input 0 in
+      if first == 34 then 34 else if first == 91 then 91 else if first == 123 then 123
+      else if first == 110 then 110 else if first == 116 then 116 else if first == 102 then 102
+      else if first == 45 || (first >= 48 && first <= 57) then 48 else 0
+    else 0
+
+  -- | Snapshot source context and independently reported value bytes, retaining an explicit lexical kind byte.
+  -- Kind bytes use the opening delimiter, n/t/f for null and booleans, digit
+  -- zero for a number, and zero when the conversion does not identify a kind.
+  json-semantic-info-with-value :: String -> Nat -> String -> Bytes -> String -> U8 -> Bytes -> JsonSemanticInfo
+  json-semantic-info-with-value action offset pointer input label kind reported = json-semantic-info-with-optional-type action offset pointer input (Some label) kind reported
+
+  -- | Snapshot exact semantic bytes while preserving absence of an application type independently of an empty label.
+  json-semantic-info-with-optional-type :: String -> Nat -> String -> Bytes -> Option String -> U8 -> Bytes -> JsonSemanticInfo
+  json-semantic-info-with-optional-type action offset pointer input label kind reported = SemanticInfo action offset pointer (snapshot input 0 (bytes-len input)) label kind (snapshot reported 0 (bytes-len reported)) None
+
+  -- | Inspect the exact lexical kind byte, preserving true, false and unspecified distinctions.
+  json-semantic-kind-byte :: JsonSemanticInfo -> U8
+  json-semantic-kind-byte info = case info of SemanticInfo action offset pointer input label kind reported field-path -> kind
+
+  -- | Inspect the semantic source category while retaining exact lexical distinctions through the byte getter.
+  json-semantic-kind :: JsonSemanticInfo -> JsonKind
+  json-semantic-kind info =
+    let kind = json-semantic-kind-byte info in
+    if eq-u8 kind 34 then JsonStringKind else if eq-u8 kind 91 then JsonArrayKind else if eq-u8 kind 123 then JsonObjectKind
+    else if eq-u8 kind 110 then JsonNullKind else if eq-u8 kind 116 || eq-u8 kind 102 then JsonBooleanKind
+    else if eq-u8 kind 48 then JsonNumberKind else JsonInvalidKind
+
+  -- | Export a fresh copy of the independently reported value, which may be empty despite retained original source bytes.
+  json-semantic-reported-bytes :: JsonSemanticInfo -> Bytes
+  json-semantic-reported-bytes info = case info of SemanticInfo action offset pointer input label kind reported field-path -> snapshot reported 0 (bytes-len reported)
+
+  -- | Replace only the pointer while retaining immutable source, reported value and operation metadata.
+  json-semantic-with-pointer :: JsonSemanticInfo -> String -> JsonSemanticInfo
+  json-semantic-with-pointer info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action offset next input label kind reported field-path
 
   -- | Inspect the conversion operation, such as marshal or unmarshal.
   json-semantic-action :: JsonSemanticInfo -> String
-  json-semantic-action info = case info of SemanticInfo action offset pointer input label -> action
+  json-semantic-action info = case info of SemanticInfo action offset pointer input label kind reported field-path -> action
 
   -- | Inspect the original zero-based byte offset at which semantic conversion began.
   json-semantic-offset :: JsonSemanticInfo -> Nat
-  json-semantic-offset info = case info of SemanticInfo action offset pointer input label -> offset
+  json-semantic-offset info = case info of SemanticInfo action offset pointer input label kind reported field-path -> offset
 
   -- | Inspect the escaped JSON pointer identifying the original source value.
   json-semantic-pointer :: JsonSemanticInfo -> String
-  json-semantic-pointer info = case info of SemanticInfo action offset pointer input label -> pointer
+  json-semantic-pointer info = case info of SemanticInfo action offset pointer input label kind reported field-path -> pointer
 
   -- | Export an independent copy of the original complete source token.
   json-semantic-bytes :: JsonSemanticInfo -> Bytes
-  json-semantic-bytes info = case info of SemanticInfo action offset pointer input label -> snapshot input 0 (bytes-len input)
+  json-semantic-bytes info = case info of SemanticInfo action offset pointer input label kind reported field-path -> snapshot input 0 (bytes-len input)
 
-  -- | Inspect the explicit application type associated with the conversion refusal.
+  -- | Inspect the application type as text, using empty text when no identity was supplied.
   json-semantic-type :: JsonSemanticInfo -> String
-  json-semantic-type info = case info of SemanticInfo action offset pointer input label -> label
+  json-semantic-type info = case json-semantic-type-option info of None -> ""; Some label -> label
+
+  -- | Inspect the optional application identity without conflating absence and an explicitly empty label.
+  json-semantic-type-option :: JsonSemanticInfo -> Option String
+  json-semantic-type-option info = case info of SemanticInfo action offset pointer input label kind reported field-path -> label
+
+  -- | Replace only optional application identity while retaining immutable source and reported-value owners.
+  json-semantic-with-type :: JsonSemanticInfo -> Option String -> JsonSemanticInfo
+  json-semantic-with-type info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action offset pointer input next kind reported field-path
+
+  -- | Inspect conventional field context only when supplied independently from the precise semantic pointer.
+  json-semantic-field-path :: JsonSemanticInfo -> Option String
+  json-semantic-field-path info = case info of SemanticInfo action offset pointer input label kind reported field-path -> field-path
+
+  -- | Replace conventional field context while sharing immutable source, identity and reported-value owners.
+  json-semantic-with-field-path :: JsonSemanticInfo -> Option String -> JsonSemanticInfo
+  json-semantic-with-field-path info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action offset pointer input label kind reported next
+
+  -- | Owned bytes already emitted and the logical compact prefix before a failing next value.
+  data JsonWriteInfo where
+    -- | Private immutable snapshots of written output and logical next-value context.
+    WriteInfo :: Bytes -> Bytes -> JsonWriteInfo
+
+  -- | Snapshot written output and logical delimiter context independently from caller mutation.
+  json-write-info :: Bytes -> Bytes -> JsonWriteInfo
+  json-write-info written logical = WriteInfo (snapshot written 0 (bytes-len written)) (snapshot logical 0 (bytes-len logical))
+
+  -- | Export a fresh copy of the output emitted before an encoding refusal.
+  json-write-written-bytes :: JsonWriteInfo -> Bytes
+  json-write-written-bytes info = case info of WriteInfo written logical -> snapshot written 0 (bytes-len written)
+
+  -- | Export the compact next-value context, including delimiters counted before they are emitted.
+  json-write-logical-prefix :: JsonWriteInfo -> Bytes
+  json-write-logical-prefix info = case info of WriteInfo written logical -> snapshot logical 0 (bytes-len logical)
+
+  -- | Replace only the semantic byte offset while sharing immutable token and reported-value owners.
+  json-semantic-with-offset :: JsonSemanticInfo -> Nat -> JsonSemanticInfo
+  json-semantic-with-offset info next = case info of SemanticInfo action offset pointer input label kind reported field-path -> SemanticInfo action next pointer input label kind reported field-path
 
   -- | Structured JSON syntax, type, configuration and custom conversion diagnostics.
   data JsonError where
@@ -101,6 +217,8 @@ module Text.Json.Value where
     JsonTypeError :: String -> String -> Nat -> String -> JsonError
     -- | Conversion mismatch metadata and its retained numeric/text conversion cause.
     JsonTypeCause :: String -> String -> Nat -> String -> JsonError -> JsonError
+    -- | Exact optional type, record and field metadata with the original conversion cause.
+    JsonTypeInfoError :: JsonTypeInfo -> JsonError -> JsonError
     -- | A type descriptor with no supported JSON representation.
     JsonUnsupportedType :: String -> JsonError
     -- | An unsupported or unrepresentable value, with its application type label.
@@ -111,6 +229,12 @@ module Text.Json.Value where
     JsonUnknownField :: String -> Nat -> String -> JsonError
     -- | A custom conversion's type label and original structured cause.
     JsonCustomError :: String -> JsonError -> JsonError
+    -- | A method-returned cause whose existing identity and context survive containing application values.
+    JsonReturnedError :: JsonError -> JsonError
+    -- | Private origin barrier retaining application-owned context until its public encoding boundary.
+    PreservedContext :: JsonError -> JsonError
+    -- | Transparent diagnostic context with independently owned partial output and logical next-value bytes.
+    JsonWrittenError :: JsonWriteInfo -> JsonError -> JsonError
     -- | Additional application path context around an existing conversion diagnostic.
     JsonPathError :: String -> JsonError -> JsonError
     -- | Explicit strict text conversion failure with its original byte offset.
@@ -125,6 +249,10 @@ module Text.Json.Value where
   -- | Render a diagnostic using JSON and application type names.
   json-error-message :: JsonError -> String
   json-error-message error = case error of
+    JsonTypeInfoError info cause -> string-concat-all ["cannot unmarshal ", json-type-error-value info, " into ", (case json-type-error-type info of None -> "unspecified application type"; Some label -> label)]
+    JsonReturnedError cause -> json-error-message cause
+    PreservedContext cause -> json-error-message cause
+    JsonWrittenError info cause -> json-error-message cause
     JsonSyntaxError offset message -> message
     JsonTypeError expected actual offset path -> string-concat-all ["cannot decode ", actual, " as ", expected, if path == "" then "" else string-concat " at " path]
     JsonTypeCause expected actual offset path cause -> json-error-message (JsonTypeError expected actual offset path)
@@ -142,6 +270,10 @@ module Text.Json.Value where
   -- | Original byte offset when one exists, otherwise zero.
   json-error-offset :: JsonError -> Nat
   json-error-offset error = case error of
+    JsonTypeInfoError info cause -> json-type-error-offset info
+    JsonReturnedError cause -> json-error-offset cause
+    PreservedContext cause -> json-error-offset cause
+    JsonWrittenError info cause -> json-error-offset cause
     JsonSyntaxError offset message -> offset
     JsonTypeError expected actual offset path -> offset
     JsonTypeCause expected actual offset path cause -> offset
@@ -159,29 +291,41 @@ module Text.Json.Value where
   -- | Application member/index path carried by a diagnostic.
   json-error-path :: JsonError -> String
   json-error-path error = case error of
+    JsonTypeInfoError info cause -> json-type-error-field info
+    JsonReturnedError cause -> json-error-path cause
+    PreservedContext cause -> json-error-path cause
+    JsonWrittenError info cause -> json-error-path cause
     JsonTypeError expected actual offset path -> path
     JsonTypeCause expected actual offset path cause -> path
     JsonUnknownField name offset path -> path
     JsonCustomError label cause -> json-error-path cause
     JsonPathError path cause -> path
-    JsonSemanticError info cause -> json-semantic-pointer info
+    JsonSemanticError info cause -> case json-semantic-field-path info of None -> json-semantic-pointer info; Some path -> path
     other -> ""
 
   -- | Application type label associated with a conversion failure.
   json-error-type :: JsonError -> Option String
   json-error-type error = case error of
+    JsonTypeInfoError info cause -> json-type-error-type info
+    JsonReturnedError cause -> json-error-type cause
+    PreservedContext cause -> json-error-type cause
+    JsonWrittenError info cause -> json-error-type cause
     JsonTypeError expected actual offset path -> Some expected
     JsonTypeCause expected actual offset path cause -> Some expected
     JsonUnsupportedType label -> Some label
     JsonValueError label message -> Some label
     JsonCustomError label cause -> Some label
     JsonPathError path cause -> json-error-type cause
-    JsonSemanticError info cause -> Some (json-semantic-type info)
+    JsonSemanticError info cause -> json-semantic-type-option info
     other -> None
 
   -- | Actual value description associated with a conversion failure.
   json-error-value :: JsonError -> Option String
   json-error-value error = case error of
+    JsonTypeInfoError info cause -> Some (json-type-error-value info)
+    JsonReturnedError cause -> json-error-value cause
+    PreservedContext cause -> json-error-value cause
+    JsonWrittenError info cause -> json-error-value cause
     JsonTypeError expected actual offset path -> Some actual
     JsonTypeCause expected actual offset path cause -> Some actual
     JsonValueError label message -> Some message
@@ -194,15 +338,69 @@ module Text.Json.Value where
   -- | Inspect a wrapped custom conversion or path diagnostic without flattening it.
   json-error-cause :: JsonError -> Option JsonError
   json-error-cause error = case error of
+    JsonTypeInfoError info cause -> Some cause
     JsonTypeCause expected actual offset path cause -> Some cause
     JsonCustomError label cause -> Some cause
     JsonPathError path cause -> Some cause
     JsonSemanticError info cause -> Some cause
+    JsonReturnedError cause -> Some cause
+    PreservedContext cause -> Some cause
+    JsonWrittenError info cause -> json-error-cause cause
     other -> None
+
+  -- | Inspect output context attached by an encoding boundary without treating a returned callback cause as emitted output.
+  json-error-write-info :: JsonError -> Option JsonWriteInfo
+  json-error-write-info error = case error of JsonWrittenError info cause -> Some info; other -> None
+
+  -- | Export independently owned partial output when an encoding boundary retained it.
+  json-error-written-bytes :: JsonError -> Option Bytes
+  json-error-written-bytes error = case json-error-write-info error of None -> None; Some info -> Some (json-write-written-bytes info)
+
+  -- | Retain application-owned context across automatic encoding container decoration.
+  json-preserve-error-context :: JsonError -> JsonError
+  json-preserve-error-context error = PreservedContext error
+
+  -- | Recover an origin-protected cause at the public encoding boundary without altering its error family.
+  json-error-preserved-context :: JsonError -> Option JsonError
+  json-error-preserved-context error = case error of PreservedContext cause -> Some cause; other -> None
+
+  -- | Recover an original method-returned error through containing conversion wrappers.
+  json-error-returned :: JsonError -> Option JsonError
+  json-error-returned error = case error of
+    JsonTypeInfoError info cause -> json-error-returned cause
+    JsonReturnedError cause -> Some cause
+    PreservedContext cause -> Some cause
+    JsonWrittenError info cause -> json-error-returned cause
+    JsonCustomError label cause -> json-error-returned cause
+    JsonPathError path cause -> json-error-returned cause
+    JsonTypeCause expected actual offset path cause -> json-error-returned cause
+    JsonSemanticError info cause -> json-error-returned cause
+    other -> None
+
+  -- | Recover exact type metadata through ordinary path and conversion context without flattening its cause.
+  json-error-type-info :: JsonError -> Option JsonTypeInfo
+  json-error-type-info error = case error of
+    JsonTypeInfoError info cause -> Some info
+    JsonTypeError expected actual offset path -> Some (json-type-info (Some expected) actual offset "" path)
+    JsonTypeCause expected actual offset path cause -> Some (json-type-info (Some expected) actual offset "" path)
+    JsonReturnedError cause -> json-error-type-info cause
+    PreservedContext cause -> json-error-type-info cause
+    JsonWrittenError info cause -> json-error-type-info cause
+    JsonCustomError label cause -> json-error-type-info cause
+    JsonPathError path cause -> case json-error-type-info cause of None -> None; Some info -> Some (json-type-info-with-record-field info (json-type-error-record info) path)
+    other -> None
+
+  -- | Inspect the root record name independently from the escaped field path.
+  json-error-record :: JsonError -> String
+  json-error-record error = case json-error-type-info error of None -> ""; Some info -> json-type-error-record info
 
   -- | Whether a value failure lacks a valid application value, after custom/path context is removed.
   json-error-invalid-value :: JsonError -> Bool
   json-error-invalid-value error = case error of
+    JsonTypeInfoError info cause -> json-error-invalid-value cause
+    JsonReturnedError cause -> json-error-invalid-value cause
+    PreservedContext cause -> json-error-invalid-value cause
+    JsonWrittenError info cause -> json-error-invalid-value cause
     JsonInvalidValueError message -> True
     JsonPathError path cause -> json-error-invalid-value cause
     JsonCustomError label cause -> json-error-invalid-value cause
@@ -212,6 +410,10 @@ module Text.Json.Value where
   -- | Recover numeric metadata through custom, path and typed-cause wrappers.
   json-error-numeric :: JsonError -> Option JsonNumericError
   json-error-numeric error = case error of
+    JsonTypeInfoError info cause -> json-error-numeric cause
+    JsonReturnedError cause -> json-error-numeric cause
+    PreservedContext cause -> json-error-numeric cause
+    JsonWrittenError info cause -> json-error-numeric cause
     JsonNumberError numeric -> Some numeric
     JsonCustomError label cause -> json-error-numeric cause
     JsonPathError path cause -> json-error-numeric cause
@@ -222,6 +424,10 @@ module Text.Json.Value where
   -- | Recover semantic source context through containing custom, path and typed-cause adapters.
   json-error-semantic :: JsonError -> Option JsonSemanticInfo
   json-error-semantic error = case error of
+    JsonTypeInfoError info cause -> json-error-semantic cause
+    JsonReturnedError cause -> json-error-semantic cause
+    PreservedContext cause -> json-error-semantic cause
+    JsonWrittenError info cause -> json-error-semantic cause
     JsonSemanticError info cause -> Some info
     JsonCustomError label cause -> json-error-semantic cause
     JsonPathError path cause -> json-error-semantic cause
@@ -1815,10 +2021,15 @@ module Text.Json.Value where
   format-previous tag = if opens-container tag then FormatOpen else case tag of JsonLexComma -> FormatComma; other -> FormatOther
 
   -- | Compute exact formatter size using preserved token spans and mathematical indentation widths.
-  format-size :: Bytes -> Nat -> Bool -> Nat -> Nat -> Nat -> FormatPrevious -> Nat -> Result JsonError Nat
-  format-size input at pretty prefix-size step-size depth previous total =
+  format-size :: Bytes -> Nat -> Bool -> Nat -> Nat -> Nat -> FormatPrevious -> Nat -> Bool -> Result JsonError Nat
+  format-size input at pretty prefix-size step-size depth previous total next-value =
     case json-lex-read LexIdle input at 0 True of
-      JsonLexEnd end -> Ok total
+      JsonLexEnd end ->
+        if next-value then
+          case indentation-before pretty JsonLexNull previous depth of
+            None -> Ok total
+            Some level -> Ok (total + 1 + prefix-size + step-size * level)
+        else Ok total
       JsonLexFailure error next -> Err error
       JsonLexNeedInput state next -> Err (JsonSyntaxError next "unexpected end of JSON input")
       JsonLexToken token next -> case token of
@@ -1826,7 +2037,7 @@ module Text.Json.Value where
           if start <= end then
             let before = case indentation-before pretty tag previous depth of None -> 0; Some level -> 1 + prefix-size + step-size * level in
             let after = case tag of JsonLexColon -> if pretty then (1 :: Nat) else 0; other -> 0 in
-            format-size input next pretty prefix-size step-size (format-depth tag depth) (format-previous tag) (total + before + (end - start) + after)
+            format-size input next pretty prefix-size step-size (format-depth tag depth) (format-previous tag) (total + before + (end - start) + after) next-value
           else Err (JsonValueError "format" "token source interval is reversed")
 
   -- | Copy one complete source interval only after checking both destination and source capacities.
@@ -1880,7 +2091,7 @@ module Text.Json.Value where
     case validate-input input of
       Err error -> Err error
       Ok value-end ->
-        case format-size input 0 pretty (bytes-len prefix) (bytes-len step) 0 FormatNone 0 of
+        case format-size input 0 pretty (bytes-len prefix) (bytes-len step) 0 FormatNone 0 False of
           Err error -> Err error
           Ok body-size ->
             let tail-size = if pretty && value-end <= bytes-len input then bytes-len input - value-end else 0 in
@@ -1889,6 +2100,27 @@ module Text.Json.Value where
             case format-write input 0 pretty prefix step 0 FormatNone out before of
               Err error -> Err error
               Ok after -> let trailing = copy-span out after input value-end tail-size in Ok out
+
+  -- | Format a lexically complete JSON prefix without requiring its containers or pending members to be complete.
+  -- Every token must be complete. This operation retains only token spelling
+  -- and indentation; it does not accept a prefix as a complete JSON value.
+  json-indent-prefix :: Bytes -> String -> String -> Result JsonError Bytes
+  json-indent-prefix input prefix step =
+    let prefix-bytes = string-to-bytes prefix in let step-bytes = string-to-bytes step in
+    case format-size input 0 True (bytes-len prefix-bytes) (bytes-len step-bytes) 0 FormatNone 0 False of
+      Err error -> Err error
+      Ok size ->
+        let output = bytes-new size in
+        case format-write input 0 True prefix-bytes step-bytes 0 FormatNone output 0 of
+          Err error -> Err error
+          Ok written -> Ok output
+
+  -- | Count the logical byte position of a next value after a lexically complete prefix.
+  -- The caller includes any upcoming colon or comma in the prefix. Pretty
+  -- mode additionally counts colon spacing and pending container indentation.
+  -- This is a diagnostic operation, not complete-document validation.
+  json-prefix-next-offset :: Bytes -> Bool -> String -> String -> Result JsonError Nat
+  json-prefix-next-offset input pretty prefix step = format-size input 0 pretty (bytes-len (string-to-bytes prefix)) (bytes-len (string-to-bytes step)) 0 FormatNone 0 True
 
   -- | Append compact validated JSON while retaining numeric spellings and original string escape bytes.
   json-append-compact :: Bytes -> Bytes -> Result JsonError Bytes

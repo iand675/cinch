@@ -1261,15 +1261,15 @@
     {
       "module": "Text.Json.Codec",
       "path": "compiler/prelude/Text/Json/Codec.cinch",
-      "sha256": "86cf9e0a6a660893a1eb8b42eaf4ab1bda7dbea901f7e723b64ddbbed73a4364",
+      "sha256": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3",
       "embedded": false,
-      "values": 102,
+      "values": 123,
       "public_methods": 0
     },
     {
       "module": "Text.Json.Dynamic",
       "path": "compiler/prelude/Text/Json/Dynamic.cinch",
-      "sha256": "21fec7f0e682aac080882e8f8875a187528e58773fa121f70aff815c81985ca5",
+      "sha256": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93",
       "embedded": false,
       "values": 23,
       "public_methods": 0
@@ -1285,9 +1285,9 @@
     {
       "module": "Text.Json.Value",
       "path": "compiler/prelude/Text/Json/Value.cinch",
-      "sha256": "376488101b0f438023f1a6ff8556d78009f799d5549305033523a9ba1fa03db6",
+      "sha256": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
       "embedded": false,
-      "values": 76,
+      "values": 106,
       "public_methods": 0
     },
     {
