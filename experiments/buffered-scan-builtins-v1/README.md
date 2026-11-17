@@ -1,0 +1,21 @@
+# Span-native scanner built-ins
+
+This isolated candidate addresses a measured algorithm cost without changing custom callback ownership. The maintained `8d0557bd` prelude and its public benchmark artifacts remain frozen.
+
+The generic `scan-split` capability must pass a fresh logical input snapshot to arbitrary mutable callbacks and snapshot any returned token. Wrapping each direct built-in function through that generic path therefore copies the unread span for every token. With a fixed buffer this adds work proportional to buffer length per token; it is separate from the measured reference-count/result allocations.
+
+`generate.py` verifies the exact two original source hashes and creates experiment-only copies. Four explicit first-class capabilities select private trusted variants: `scan-byte-split`, `scan-rune-split`, `scan-line-split` and `scan-word-split`. The default scanner selects the line capability. Direct `scan-bytes/runes/lines/words` functions remain unchanged, as does `scan-split` custom input/token isolation. No function pointer identity, layout access or unchecked store is involved.
+
+The built-ins read only validated half-open owner spans and publish independently mutable tokens. Lines and whitespace runs reuse the existing packed eight-byte scans. Unicode fringes decode through the bounded UTF-8 span API. Nonterminal non-ASCII rune fullness inspects a fresh prefix of at most four bytes; ASCII runes do not copy the unread suffix. Relative advances are calculated from absolute checked endpoints. Invalid bounds retain a named refusal.
+
+The direct-split differential fixture enumerates every byte value between delimiter and UTF-8 fringes, every bounded start/end pair, and terminal/nonterminal mode. It also covers Unicode whitespace, fresh token/owner mutation, custom input mutation, reversed bounds and huge bounds. This complements the pinned independent direct-split and complete scanner corpora; it does not replace those broader gates.
+
+Both generated modules and the complete differential fixture now pass source/type/proof checks under 855/c4 and admitted 2f/V2/80bd. Both exact-source runtime units also pass explicit LLVM 20 O2 links, normal 32 MiB and poisoned 256 MiB heaps, fixed 8 MiB stacks, and zero live/leaked blocks. The controls cover 114,320 differential span comparisons plus fresh/custom owner mutations and invalid bounds. The first Split-only source receipt is retained separately. Native's first 15-second source deadline yielded no verdict; the exact same source passed in 15.17 seconds within the subsequently granted 45-second window.
+
+`gates.json` and `verify.py` retain the exact source/tool/IR/executable identities and all four memory outcomes. The creation-time pending status in `candidate.json` is superseded only by these specific gates. Full independent 1,771-observation scanner and 840-observation direct-split corpora, plus the public performance comparison, remain pending. The existing generic-wrapper baseline and the eventual capability-based candidate need distinct source identities in any public comparison. The broader callback cycle remains a promotion blocker.
+
+```sh
+python3 experiments/buffered-scan-builtins-v1/verify.py
+```
+
+The experimental combined-effect live-source work is a separate source epoch. This candidate starts from frozen8d and must be integrated and requalified explicitly if that API is adopted.
