@@ -1,0 +1,78 @@
+-- | Exercise arbitrary original error representations and retained error closures after writer state is reclaimed.
+module Main where
+  import Effect.Tabwriter
+  import Text.Tabwriter.Config
+  import Effect.Io
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Construct an exact floating payload without a floating literal or numeric conversion.
+  prim double-of-bits :: U64 -> F64 where
+    llvm {
+      %value = bitcast i64 %0 to double
+      ret double %value
+    }
+
+  -- | Observe all floating payload bits, including NaN payloads and signed zero.
+  prim double-bits :: F64 -> U64 where
+    llvm {
+      %value = bitcast double %0 to i64
+      ret i64 %value
+    }
+
+  -- | Return the original floating value alongside a distinct malformed report, preserving error priority.
+  floating-output :: forall (r :: Region). F64 -> TabOutput r F64
+  floating-output value = tab-output (\raw -> ((0 - 1), Some value, floating-output value))
+
+  -- | A generic error field must preserve every bit and must not scan floating data as a managed address.
+  floating-error :: forall (r :: Region). TabConfig -> U64 ->{IO r, Mut r} Bool
+  floating-error config expected =
+    let value = double-of-bits expected in
+    let writer = tab-writer config (floating-output value) in
+    let (outcome, advanced) = tab-writer-write writer (bytes-from-list [65, 9, 66, 12]) in
+    case tab-write-error outcome of
+      Some (TabOutputFailure original) ->
+        let actual = double-bits original in eq-u64 actual expected && tab-write-consumed outcome == 4
+      _ -> False
+
+  -- | Return an original function error without replacing its captured owner or its callable representation.
+  closure-output :: forall (r :: Region). (Unit -> Int) -> TabOutput r (Unit -> Int)
+  closure-output error = tab-output (\raw -> (0, Some error, closure-output error))
+
+  -- | Build a retained error closure whose bytes and writer are local to this factory.
+  retained-error :: forall (r :: Region). TabConfig ->{IO r, Mut r} (Unit -> Int)
+  retained-error config =
+    let owned = bytes-from-list [123] in
+    let error = (\unit -> if bytes-len owned > 0 then nat-to-int (bytes-get owned 0) else (0 - 7)) in
+    let writer = tab-writer config (closure-output error) in
+    let (outcome, advanced) = tab-writer-write writer (bytes-from-list [65, 9, 66, 12]) in
+    case tab-write-error outcome of
+      Some (TabOutputFailure original) -> original
+      _ -> (\unit -> (0 - 8))
+
+  -- | Churn independent managed allocations while retaining the returned callable error owner.
+  retained-check :: forall (r :: Region). TabConfig -> Nat ->{IO r, Mut r} Bool
+  retained-check config remaining = if remaining == 0 then True else
+    let error = retained-error config in
+    let raw = bytes-new 4096 in
+    let filled = bytes-set raw 0 99 in
+    let observed = error () in
+    if observed == 123 && bytes-get raw 0 == 99 then
+      let following = remaining - 1 in retained-check config following
+    else False
+
+  -- | Return distinct owner/representation failure groups under the actual combined region row.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in
+    case tab-config 0 4 1 32 0 of
+      Err _ -> 1
+      Ok config -> if not (floating-error config 9221120237041095220) then 2
+        else if not (floating-error config 9223372036854775808) then 3
+        else if not (retained-check config 128) then 4
+        else 0
