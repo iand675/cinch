@@ -1,0 +1,18 @@
+{
+  "scope": "Fresh checked Rust producer/publicprivate rows and source-only identity/owner/task controls; excludes Native importer construction.",
+  "command": [
+    "/tmp/cinch-stdlib-root-cargo-gate.sh",
+    "test",
+    "--release",
+    "--test",
+    "interface_mvar_contracts",
+    "--",
+    "--skip",
+    "source_absent",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 21.245049930992536,
+  "end_free_bytes": 555286528,
+  "compiler_sha256": "1de170e0cce1c6eb000e07c6fe44f75377afc9f1840066cc09a52fa36b831f51"
+}

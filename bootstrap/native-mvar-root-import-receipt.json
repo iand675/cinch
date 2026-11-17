@@ -1,0 +1,54 @@
+{
+  "source_manifest_commit": "a8bdd5b8",
+  "source_manifest_sha256": "66dede32b66db4052575c14bebef745678e69a3465333a33bd05c406c5e38fd6",
+  "native_changed_files": 12,
+  "rust_transport_commit": "959f2643",
+  "rust_followup_commit": "cb921c57",
+  "validation": "Current344releaseunits+11source/profilecontrols+8freshNativeimportercontrols pass; see native-private-usage-qualified-results-v1.json. Historical receipts retained.",
+  "new_native_declaration_docs": {
+    "new_declarations": 78,
+    "canonical_comments": 78,
+    "diagnostics": 0,
+    "comparison_base": "820d234b",
+    "parser_compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8"
+  },
+  "single_task_transfer_controls_commit": "b67692129810d3d7c9924339dd5b1c1eb1f6e765",
+  "private_unit_tests": {
+    "passed": 4,
+    "failed": 0,
+    "log": "/tmp/cinch-stdlib-mvar-contract-private-release.log",
+    "log_sha256": "dcc19b8b57ae9cf8778862c994f0330c646fa44369f54ee8576dea069e0b182d"
+  },
+  "full_unit_tests": {
+    "passed": 343,
+    "failed": 0,
+    "runtime_seconds": 106.24,
+    "log": "/tmp/cinch-stdlib-mvar-full-units-release.log",
+    "log_sha256": "9355b4369f547378caa21ff53d580047a0a12b4f639518a8ea350ef8c2d3607c"
+  },
+  "genuine_producer_test": {
+    "passed": 1,
+    "failed": 0,
+    "runtime_seconds": 0.87,
+    "log": "/tmp/cinch-stdlib-mvar-producer-release.log",
+    "log_sha256": "b98302fc63544716152baf63c8112d3341925d7363e60de2372c5ffbefb39662"
+  },
+  "corrections": {
+    "source_effect_identity": "940046891514742093e7ca3d24dc97e54cc7be38",
+    "unresolved_native_rows": "f87756f5f8672ca5737a9f9e932765e2b8a35625",
+    "source_and_legacy_controls": "5b9e57d751e8e416044b2b73360bd9288c2fc6d1",
+    "qualified_fixture_default_exports": "94a1ee8b5f975c6c774ba6e8d36b859f59698e05",
+    "native_transfer": "Root opaque CoreData without fields fails closed; required positive Nat proof remains open",
+    "shared_native_checker": "One actual compiler per target invocation, separate per-case source/manifests; compiler input root is outside the stale-project pruner."
+  },
+  "latest_full_unit_tests": {
+    "passed": 343,
+    "failed": 0,
+    "runtime_seconds": 105.35,
+    "log": "/tmp/cinch-stdlib-mvar-identity-full-units-release.log",
+    "log_sha256": "5beb49964673ba880104f156738c6a5f682c4df6fc675016ee6d72385a320178"
+  },
+  "first_full_native_target": "bootstrap/repros/mvar-contract-parent-v1/receipt.json",
+  "historical_validation_before_private_usage": "Rust343 pass after source identity repair; pure controls9/10, remaining qualified fixture exposes effect-module visibility gap. Fresh4Native authority tests currently running; no provider/family admission.",
+  "current_private_usage_qualification": "bootstrap/native-private-usage-qualified-results-v1.json"
+}

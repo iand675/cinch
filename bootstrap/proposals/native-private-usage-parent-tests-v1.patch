@@ -1,0 +1,314 @@
+--- a/compiler/tests/interface_mvar_contracts.rs
++++ b/compiler/tests/interface_mvar_contracts.rs
+@@ -126,6 +126,26 @@
+         .iter()
+         .find(|row| row.module == "MVarFacade")
+         .unwrap();
++    let public_type = owner
++        .exports
++        .types
++        .iter()
++        .find(|row| row.name == "MVar")
++        .unwrap();
++    let reexported_type = facade
++        .exports
++        .types
++        .iter()
++        .find(|row| row.name == "MVar")
++        .unwrap();
++    assert!(public_type.ctors.is_empty() && reexported_type.ctors.is_empty());
++    let proof = public_type
++        .ownership
++        .as_ref()
++        .expect("checked private fields survive a header-only import");
++    assert_eq!(reexported_type.ownership.as_ref(), Some(proof));
++    assert_eq!(proof.constructors.as_deref().unwrap(), ["MVarOwner.MkMVar"]);
++    assert_eq!(proof.usage.as_ref().unwrap()[0].fields, ["(MVarCell a)"]);
+     assert_eq!(owner.exports.values.len(), 14);
+     for operation in cinch::mvar::MVarOp::ALL {
+         let external = format!("cinch.runtime.{}", operation.name());
+@@ -236,6 +256,29 @@
+         assert_eq!(Iface::from_json(&interface.to_json()).unwrap(), *interface);
+     }
+     common::cleanup(&dir);
++}
++
++/// Genuine source declarations cannot replace the kernel or scalar identities used by private-field export.
++#[test]
++fn private_usage_fields_keep_reserved_kernel_and_scalar_identity() {
++    for (head, parameters, result) in [
++        ("MVarCell", "a", "MVarCell a"),
++        ("U64", "", "U64"),
++        ("I128", "", "I128"),
++        ("U128", "", "U128"),
++        ("Char", "", "Char"),
++    ] {
++        let source = format!("-- | A source declaration cannot acquire a compiler-owned field identity.\nmodule Main where\n  -- | This mutable payload must never be classified as a kernel cell or raw scalar.\n  data {head} {parameters} where\n    -- | Refuse the declaration before any private field proof can be exported.\n    Counterfeit :: Bytes -> {result}\n  -- | No intrinsic or task executes in a source-identity refusal.\n  main :: Int\n  main = 0\n");
++        let directory = ProjectEvidence(common::project(
++            "usage_reserved_identity",
++            &[("Main.cinch", &source)],
++        ));
++        let outcome = common::check(&directory, "Main.cinch");
++        std::fs::write(directory.join("source-check.txt"), format!("{outcome:?}")).unwrap();
++        let error = outcome.expect_err("source cannot redefine a sealed kernel or scalar head");
++        assert!(error.contains("builtin"), "{head}: {error}");
++        common::cleanup(&directory);
++    }
+ }
+ 
+ /// Retain a complete manifest of genuine or deliberately contradictory test contracts.
+@@ -647,12 +690,12 @@
+     let (directory, executable) = native_checker();
+     manifest(&directory, &interfaces);
+     std::fs::remove_file(source.join("Producer.cinch")).unwrap();
++    let mut sharing_outcomes = Vec::new();
+     for (carrier, read, payload, expected) in [
+         ("MVarCell", "cell-read", "Nat", 0),
+         ("MVarCell", "cell-read", "Bytes", 4),
+-        // Public opaque nominals currently lack the private field types needed for this proof.
+-        // Nat success remains a mandatory full-feature admission gate, not supplied by row transport.
+-        ("Cells.MVar", "Cells.mvar-read", "Nat", 4),
++        // Genuine private-field facts must prove the public wrapper without revealing its constructor.
++        ("Cells.MVar", "Cells.mvar-read", "Nat", 0),
+         ("Cells.MVar", "Cells.mvar-read", "Bytes", 4),
+     ] {
+         let observe = if payload == "Bytes" {
+@@ -667,13 +710,7 @@
+             "import KernelMVar\n  import MVarFacade as Cells",
+             &declaration,
+         );
+-        assert_eq!(status, expected, "{carrier} {payload}: {report}");
+-        if expected == 4 {
+-            assert!(
+-                report.contains("shar") || report.contains("task") || report.contains("transfer"),
+-                "{report}"
+-            );
+-        }
++        sharing_outcomes.push((format!("{carrier} {payload}"), expected, status, report));
+     }
+     // A single linear handle can still refer to a cell aliased outside this function.
+     // Check Transfer independently: the two-task Share controls above cannot establish it.
+@@ -704,7 +741,16 @@
+         );
+         transfer_outcomes.push((label, required, status, report));
+     }
+-    // Preserve all five actual importer outcomes before asserting either availability or safety.
++    // Preserve both capture forms before asserting either availability or safety.
++    for (label, required, status, report) in sharing_outcomes {
++        assert_eq!(status, required, "shared capture {label}: {report}");
++        if required == 4 {
++            assert!(
++                report.contains("shar") || report.contains("task") || report.contains("transfer"),
++                "{report}"
++            );
++        }
++    }
+     for (label, required, status, report) in transfer_outcomes {
+         assert_eq!(status, required, "single-task %1 capture {label}: {report}");
+         if required == 4 {
+@@ -713,6 +759,205 @@
+                 "{report}"
+             );
+         }
++    }
++    common::cleanup(&directory);
++    common::cleanup(&source);
++}
++
++/// Header-only imports retain structural usage facts independently of public method selection and order.
++#[test]
++fn source_absent_mvar_header_proofs_do_not_depend_on_method_imports() {
++    let (source, interfaces) = producer();
++    let (directory, executable) = native_checker();
++    manifest(&directory, &interfaces);
++    std::fs::remove_file(source.join("Producer.cinch")).unwrap();
++    let mut outcomes = Vec::new();
++    for owner in ["MVarOwner", "MVarFacade"] {
++        for (payload, required) in [("Nat", 0), ("Bytes", 4)] {
++            for usage in ["->", "%1 ->"] {
++                let declarations = format!("-- | Observe a strict handle without importing any cell operation.\n  observe :: forall a. a -> Nat\n  observe value = 1\n  -- | The exact nominal header must suffice for both shared and one-shot task captures.\n  work :: forall (r :: Region). using (io :: Io r) => Cell {payload} {usage}{{Async r, Cancel r, Diverge}} Result LoadError Nat\n  work cell = withScope $ \\scope -> do\n    task <- spawn scope (\\() -> Ok (observe cell))\n    joinAllOrCancel scope task");
++                let (status, report) = consumer(
++                    &directory,
++                    &executable,
++                    &format!("import {owner} (MVar as Cell)"),
++                    &declarations,
++                );
++                outcomes.push((
++                    format!("{owner}/{payload}/{usage}"),
++                    required,
++                    status,
++                    report,
++                ));
++            }
++        }
++    }
++    // Private field evidence must not turn the representation constructor into a public source name.
++    let (status, report) = consumer(
++        &directory,
++        &executable,
++        "import MVarFacade as Cells",
++        "forge :: MVarCell Nat -> Cells.MVar Nat\n  forge cell = Cells.MkMVar cell",
++    );
++    assert_ne!(
++        status, 0,
++        "private constructor became source-visible: {report}"
++    );
++    for (label, required, status, report) in outcomes {
++        assert_eq!(status, required, "header-only {label}: {report}");
++    }
++    let (status, report) = consumer(&directory, &executable, "import HiddenUsage (Handle)",
++        "-- | Check every private alternative, including the one not storing the apparent Nat payload.\n  observe :: forall a. a -> Nat\n  observe value = 1\n  work :: forall (r :: Region). using (io :: Io r) => Handle Nat ->{Async r, Cancel r, Diverge} Result LoadError Nat\n  work value = withScope $ \\scope -> do\n    task <- spawn scope (\\() -> Ok (observe value))\n    joinAllOrCancel scope task");
++    assert_eq!(
++        status, 4,
++        "a private Bytes alternative must participate in the complete proof: {report}"
++    );
++    let (status, report) = consumer(&directory, &executable, "import HiddenUsage (RegionHandle)",
++        "-- | Reconstruct exact header roles and private borrow-field scope without creating a source constructor.\n  keep :: forall (r :: Region) a. RegionHandle r a -> RegionHandle r a\n  keep value = value");
++    assert_eq!(
++        status, 0,
++        "explicit Region field proof must retain its owner and bound carrier roles: {report}"
++    );
++    common::cleanup(&directory);
++    common::cleanup(&source);
++}
++
++/// Change only the ownership syntax in every occurrence while preserving real source-produced owners.
++fn change_usage_contract(value: &mut serde_json::Value, fault: &str) {
++    match value {
++        serde_json::Value::Object(row) => {
++            if row.get("identity").and_then(|v| v.as_str()) == Some("MVarOwner.MVar")
++                && row.contains_key("usage")
++            {
++                let usage = row.get_mut("usage").unwrap().as_array_mut().unwrap();
++                assert_eq!(
++                    usage.len(),
++                    1,
++                    "actual checked wrapper has exactly one private constructor"
++                );
++                match fault {
++                    "callback" => usage[0]["fields"] = serde_json::json!(["(Nat -> Nat)"]),
++                    "nested-forall" => usage[0]["fields"] = serde_json::json!(["forall a. a -> a"]),
++                    "unknown-owner" => {
++                        usage[0]["fields"] = serde_json::json!(["(Other.MVarCell a)"])
++                    }
++                    "wrong-result" => usage[0]["result"] = serde_json::json!("(Other.Hidden a)"),
++                    "missing-result-argument" => {
++                        usage[0]["result"] = serde_json::json!("MVarOwner.MVar")
++                    }
++                    _ => unreachable!(),
++                }
++            }
++            for value in row.values_mut() {
++                change_usage_contract(value, fault);
++            }
++        }
++        serde_json::Value::Array(rows) => {
++            for value in rows {
++                change_usage_contract(value, fault);
++            }
++        }
++        _ => {}
++    }
++}
++
++/// Structurally valid metadata cannot supply task evidence through unsupported fields or a different result owner.
++#[test]
++fn source_absent_private_usage_proofs_reject_unsupported_carriers_and_results() {
++    let (source, interfaces) = producer();
++    let (directory, executable) = native_checker();
++    std::fs::remove_file(source.join("Producer.cinch")).unwrap();
++    let declaration = "-- | The actual importer must validate the proof before any task can use it.\n  observe :: forall a. a -> Nat\n  observe value = 1\n  work :: forall (r :: Region). using (io :: Io r) => Cell Nat ->{Async r, Cancel r, Diverge} Result LoadError Nat\n  work cell = withScope $ \\scope -> do\n    task <- spawn scope (\\() -> Ok (observe cell))\n    joinAllOrCancel scope task";
++    let mut outcomes = Vec::new();
++    for fault in [
++        "callback",
++        "nested-forall",
++        "unknown-owner",
++        "wrong-result",
++        "missing-result-argument",
++    ] {
++        let mut changed: Vec<Iface> = interfaces
++            .iter()
++            .map(|interface| {
++                let mut value: serde_json::Value =
++                    serde_json::from_str(&interface.to_json()).unwrap();
++                change_usage_contract(&mut value, fault);
++                Iface::from_json(&value.to_string())
++                    .expect("fault is structural JSON, not an envelope parse error")
++            })
++            .collect();
++        rehash(&mut changed);
++        manifest(&directory, &changed);
++        let (status, report) = consumer(
++            &directory,
++            &executable,
++            "import MVarFacade (MVar as Cell)",
++            declaration,
++        );
++        outcomes.push((fault, status, report));
++    }
++    // Preserve all five independent semantic refusals before asserting them.
++    for (fault, status, report) in outcomes {
++        assert_eq!(
++            status, 4,
++            "unsupported private-field proof {fault}: {report}"
++        );
++    }
++    common::cleanup(&directory);
++    common::cleanup(&source);
++}
++
++/// Reexports cannot replace defining fields or alter the header roles that those fields quantify over.
++#[test]
++fn source_absent_private_usage_headers_reject_contradictory_defining_authority() {
++    let (source, interfaces) = producer();
++    let (directory, executable) = native_checker();
++    std::fs::remove_file(source.join("Producer.cinch")).unwrap();
++    let mut outcomes = Vec::new();
++    for fault in [
++        "field-contradiction",
++        "missing-constructor",
++        "duplicate-constructor",
++        "wrong-owner",
++        "wrong-role",
++    ] {
++        let mut changed = interfaces.clone();
++        let facade = changed
++            .iter_mut()
++            .find(|row| row.module == "MVarFacade")
++            .unwrap();
++        let proof = facade
++            .exports
++            .types
++            .iter_mut()
++            .find(|row| row.name == "MVar")
++            .unwrap()
++            .ownership
++            .as_mut()
++            .expect("genuine reexport retains the defining usage proof");
++        match fault {
++            "field-contradiction" => {
++                proof.usage.as_mut().unwrap()[0].fields = vec!["(MVarCell Bytes)".into()]
++            }
++            "missing-constructor" => proof.usage.as_mut().unwrap().clear(),
++            "duplicate-constructor" => {
++                let row = proof.usage.as_ref().unwrap()[0].clone();
++                proof.usage.as_mut().unwrap().push(row);
++            }
++            "wrong-owner" => proof.identity = "Other.Cell".into(),
++            "wrong-role" => proof.parameters[0].kind = "Region".into(),
++            _ => unreachable!(),
++        }
++        rehash(&mut changed);
++        manifest(&directory, &changed);
++        let (status, report) = consumer(&directory, &executable, "import MVarFacade (MVar as Cell)",
++            "-- | Header admission must fail even without executing or importing a cell operation.\n  identity :: Cell Nat -> Cell Nat\n  identity value = value");
++        outcomes.push((fault, status, report));
++    }
++    for (fault, status, report) in outcomes {
++        assert_eq!(
++            status, 90,
++            "contradictory defining usage authority {fault}: {report}"
++        );
+     }
+     common::cleanup(&directory);
+     common::cleanup(&source);

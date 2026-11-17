@@ -3,7 +3,7 @@
 module Bootstrap.Nominal where
 
   import Bootstrap.Ast
-  import Bootstrap.Builtin (array-type-name)
+  import Bootstrap.Builtin (array-type-name, mvar-type-name)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Data.Json
   import Text.Lex (Span)
@@ -15,6 +15,7 @@ module Bootstrap.Nominal where
   export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
   export global-data-core-nil, global-data-core-cons, global-data-core-list, global-data-core-result, global-data-core-option, global-data-core-some, global-data-core-none, global-data-core-ok, global-data-core-err, global-data-string-string, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-relation-ord-ord, global-data-ordering-ordering, global-data-ordering-lt, global-data-ordering-eq, global-data-ordering-gt, global-algebra-arithmetic-nonzero, global-data-bool-not
   export stage-quotation-module, stage-code-type-name, global-stage-code
+  export nominal-entry-valid
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -199,7 +200,7 @@ module Bootstrap.Nominal where
   global-stage-code :: String
   global-stage-code = "m.$23stage$2dquotation.$23StageCode"
   kernel-type-name :: String -> Bool
-  kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
+  kernel-type-name name = array-type-name name || mvar-type-name name || has name ["Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
   nonempty :: Json -> Bool
   nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
   unique-strings :: Json -> List String -> Bool
@@ -222,12 +223,49 @@ module Bootstrap.Nominal where
     && not (parameter-has-name (text (field "binder" template)) (field "parameters" row))
   null-field :: String -> Json -> Bool
   null-field name row = present name row && (case field name row of JNull -> True; other -> False)
+  -- | Test exact defining constructor membership without introducing source-visible names.
+  usage-member :: String -> Json -> Bool
+  usage-member name rows = case rows of JArr (JStr first) rest -> same name first || usage-member name rest; other -> False
+  -- | Reject executable or layout metadata in the dedicated usage-only constructor rows.
+  usage-keys :: Json -> List String -> Bool
+  usage-keys row seen = case row of
+    JObj key value rest -> has key ["identity", "fields", "result"] && not (has key seen) && usage-keys rest (Cons key seen)
+    JObjEnd -> list-length seen == 3
+    other -> False
+  -- | Validate complete constructor coverage before a later typed field decoder can use the proof.
+  usage-rows-valid :: Json -> Json -> List String -> Bool
+  usage-rows-valid rows constructors seen = case rows of
+    JArr row rest -> let identity = text (field "identity" row) in
+      usage-keys row Nil && usage-member identity constructors && not (has identity seen)
+      && nonempty (field "result" row) && usage-strings (field "fields" row)
+      && usage-rows-valid rest constructors (Cons identity seen)
+    JArrEnd -> usage-coverage constructors seen
+    other -> False
+  -- | Keep field syntax nonempty; its carrier grammar is checked independently after kind admission.
+  usage-strings :: Json -> Bool
+  usage-strings rows = case rows of JArr first rest -> nonempty first && usage-strings rest; JArrEnd -> True; other -> False
+  -- | Require every defining constructor, including private constructors, exactly once.
+  usage-coverage :: Json -> List String -> Bool
+  usage-coverage rows seen = case rows of JArr (JStr first) rest -> has first seen && usage-coverage rest seen; JArrEnd -> True; other -> False
+  -- | Keep a proof-bearing nominal limited to its complete defining identity and usage-only schema.
+  usage-contract-keys :: Json -> List String -> Bool
+  usage-contract-keys row seen = case row of
+    JObj key value rest -> has key ["identity", "kind", "params", "parameters", "constructors", "refinement", "usage"]
+      && not (has key seen) && usage-contract-keys rest (Cons key seen)
+    JObjEnd -> list-length seen == 7
+    other -> False
+  -- | Absence preserves old metadata; a present proof must cover a nonempty data family completely.
+  usage-valid :: Json -> Bool
+  usage-valid row = if not (present "usage" row) then True else
+    usage-contract-keys row Nil && same (text (field "kind" row)) "data" && (case field "constructors" row of
+      JArr first rest -> usage-rows-valid (field "usage" row) (JArr first rest) Nil
+      other -> False)
   valid-nominal-body :: Json -> Bool
   valid-nominal-body row = let kind = text (field "kind" row) in
-    if same kind "refinement" then null-field "constructors" row && valid-refinement-row row
+    usage-valid row && (if same kind "refinement" then null-field "constructors" row && valid-refinement-row row
     else null-field "refinement" row &&
       (if same kind "data" then unique-strings (field "constructors" row) Nil
-       else (same kind "opaque" || same kind "signature") && null-field "constructors" row)
+       else (same kind "opaque" || same kind "signature") && null-field "constructors" row))
   valid-nominals :: Json -> List String -> Bool
   valid-nominals rows seen = case rows of
     JArr row rest -> let identity = text (field "identity" row) in
@@ -237,6 +275,9 @@ module Bootstrap.Nominal where
       && valid-nominals rest (Cons identity seen)
     JArrEnd -> True
     other -> False
+  -- | Validate a standalone defining contract with the same rules as occurrence-resolved nominal rows.
+  nominal-entry-valid :: Json -> Bool
+  nominal-entry-valid row = valid-nominals (JArr row JArrEnd) Nil
   resolved-entry-valid :: Json -> Bool
   resolved-entry-valid metadata = present "resolved" metadata && (case field "resolved" metadata of
     JNull -> True
@@ -384,7 +425,8 @@ module Bootstrap.Nominal where
     other -> fail (type-expr-span labels) "invalid resolved effect label spine"
   qualify-effect :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-effect locals label = case label of
-    TName s name -> if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (label, Nil)
+    TName s name -> if same name "MVar" && mvar-type-name "MVarCell" then (TName s "#kernel.MVar", Nil)
+      else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (label, Nil)
       else fail s "resolved effect label needs a kernel contract"
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
       if has name ["IO", "Async", "Cancel", "Eval", "Mut"] && has region locals then (label, Nil)

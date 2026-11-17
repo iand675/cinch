@@ -1,0 +1,13 @@
+{
+  "scope": "Fresh normal Rust private-usage producer, compiled and full344lib model validated; genuine Native importer/ABI admission remains pending. Compiler copy is independent/immutable; exactD91 runtime hardlink.",
+  "compiler_path": "/workspace/dasl-stdlib-io/build/stdlib-private-usage-producer-frozen/cinch",
+  "compiler_sha256": "1de170e0cce1c6eb000e07c6fe44f75377afc9f1840066cc09a52fa36b831f51",
+  "runtime_path": "/workspace/dasl-stdlib-io/build/stdlib-private-usage-producer-frozen/libcinchruntime.a",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source_import_manifest_sha256": "aa21b9554f64a6a4471cb18ab1c170227f39eaad5558077e821734e484bd3d29",
+  "normal_build_receipt_sha256": "bc3e1b42498299f0cca16b654c8c4dc5ec1cf8233d3873c4b3c311e36ed325f7",
+  "full344_receipt_sha256": "df2fb3994ce45902e76e540cb7c28e622f832a741448eabe0ffa5bef351a013a",
+  "source52_sha256": "4eff89639337c80964431969e41f3ffa351d28ff5c9f988e6781c864c5cb7dd5",
+  "root_head": "fac1d290",
+  "unpublished_overlays_explicit": true
+}

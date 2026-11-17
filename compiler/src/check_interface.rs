@@ -454,6 +454,84 @@ impl Checker {
         })
     }
 
+    /// Find canonical kernel MVar effects in checked types, including latent callback rows.
+    fn interface_type_mentions_mvar(ty: &Ty) -> bool {
+        let row = |effects: &EffRow| effects.labels.iter().any(|label| label.head.as_str() == "MVar");
+        match ty {
+            Ty::Fun(domain, _, effects, result)
+            | Ty::Pi { dom: domain, eff: effects, cod: result, .. } =>
+                row(effects) || Self::interface_type_mentions_mvar(domain)
+                    || Self::interface_type_mentions_mvar(result),
+            Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().any(Self::interface_type_mentions_mvar),
+            Ty::App(head, args) => Self::interface_type_mentions_mvar(head)
+                || args.iter().any(Self::interface_type_mentions_mvar),
+            Ty::Thunk { eff, inner } | Ty::Lazy { eff, inner, .. } =>
+                row(eff) || Self::interface_type_mentions_mvar(inner),
+            Ty::Later(inner) | Ty::Ref(_, inner) | Ty::Mut(_, inner)
+            | Ty::Ptr { pointee: inner, .. } => Self::interface_type_mentions_mvar(inner),
+            Ty::Sigma { dom, cod, .. } => Self::interface_type_mentions_mvar(dom)
+                || Self::interface_type_mentions_mvar(cod),
+            Ty::Forall(scheme) => Self::interface_type_mentions_mvar(&scheme.ty),
+            Ty::Handler { label, input, output, eff, .. } => label.head.as_str() == "MVar"
+                || row(eff) || Self::interface_type_mentions_mvar(input)
+                || Self::interface_type_mentions_mvar(output),
+            _ => false,
+        }
+    }
+
+    /// Serialize MVar only after the complete closed row agrees with checked semantic identities.
+    ///
+    /// Source-owned effects keep their qualified heads. Existing unsupported open rows and
+    /// unpaired source-only rendering receive no new authority from this checked path.
+    fn resolved_checked_kernel_effect_row(
+        &self, source: &ast::EffectRow, checked: &EffRow, scheme: &Scheme, vars: &[String],
+    ) -> Option<String> {
+        let actual_mvar = checked.labels.iter().any(|label| label.head.as_str() == "MVar");
+        let source_mvar = source.labels.iter().any(|(path, _)|
+            self.effect_head(path, false).ok().as_deref() == Some("MVar"));
+        if !actual_mvar && !source_mvar {
+            return self.resolved_kernel_effect_row(source, scheme, vars);
+        }
+        if source.tail.is_some() || !matches!(checked.tail, crate::types::RowTail::Closed) {
+            return None;
+        }
+        let mut other = source.clone();
+        other.labels.clear();
+        let mut declared = Vec::new();
+        for (path, arguments) in &source.labels {
+            let parts = path.parts();
+            let [name] = parts.as_slice() else { return None };
+            let head = self.effect_head(path, false).ok()?;
+            if head != *name { return None }
+            let argument = match arguments.as_slice() {
+                [] => None,
+                [region] => Some(region.text.clone()),
+                _ => return None,
+            };
+            if head == "MVar" {
+                if argument.is_some() { return None }
+            } else {
+                other.labels.push((path.clone(), arguments.clone()));
+            }
+            declared.push((head, argument));
+        }
+        // Reuse the existing closed-kernel and Region-kind checks for every other label.
+        self.resolved_kernel_effect_row(&other, scheme, vars)?;
+        declared.sort();
+        declared.dedup();
+        let mut actual: Vec<_> = checked.labels.iter()
+            .map(|label| (label.head.to_string(), label.arg.as_ref().map(|arg| arg.to_string())))
+            .collect();
+        actual.sort();
+        actual.dedup();
+        if declared != actual { return None }
+        let mut labels: Vec<_> = declared.into_iter().map(|(head, argument)| match argument {
+            Some(region) => format!("{head} {region}"),
+            None => head,
+        }).collect();
+        labels.sort();
+        Some(format!("{{{}}}", labels.join(", ")))
+    }
 
     // Keep the original syntax's defining identities, but read anonymous
     // predicates from the checked type. Conversion must never run again
@@ -474,8 +552,8 @@ impl Checker {
             }
         }
         // Keep existing canonical application parentheses for contracts
-        // without predicates. Only logical structure needs checked printing.
-        if !carries_predicates(checked) {
+        // without predicates or kernel MVar effects. Those structures need checked printing.
+        if !carries_predicates(checked) && !Self::interface_type_mentions_mvar(checked) {
             return self.resolved_source_type(source, scheme, vars, references, display);
         }
         // Print propositions from their checked structure. Operator source
@@ -533,22 +611,31 @@ impl Checker {
             return Some(format!("(refined ({predicate}) {carrier_text})"));
         }
         match (source, checked) {
-            (ast::Type::Fun { arg, res, mult: None, eff, .. }, Ty::Fun(domain, _, _, codomain)) => {
+            (ast::Type::Fun { arg, res, mult: None, eff, .. }, Ty::Fun(domain, _, actual_row, codomain)) => {
                 let domain_text = self.resolved_checked_source_type(arg, domain, scheme, vars, references, arguments, display)?;
-                let effects = match eff { None => String::new(), Some(row) => self.resolved_kernel_effect_row(row, scheme, vars)? };
+                let effects = match eff {
+                    None if !actual_row.labels.iter().any(|label| label.head.as_str() == "MVar") => String::new(),
+                    None => return None,
+                    Some(row) => self.resolved_checked_kernel_effect_row(row, actual_row, scheme, vars)?,
+                };
                 let mut next = arguments.to_vec();
                 next.push((None, (**domain).clone()));
                 let result = self.resolved_checked_source_type(res, codomain, scheme, vars, references, &next, display)?;
                 Some(format!("({domain_text} ->{effects} {result})"))
             }
-            (ast::Type::DepFun(name, domain, None, row, result, _), Ty::Fun(dom, _, _, cod) | Ty::Pi { dom, cod, .. }) => {
+            (ast::Type::DepFun(name, domain, None, row, result, _),
+                Ty::Fun(dom, _, actual_row, cod) | Ty::Pi { dom, eff: actual_row, cod, .. }) => {
                 if vars.contains(&name.text) { return None }
                 let domain_text = self.resolved_checked_source_type(domain, dom, scheme, vars, references, arguments, display)?;
                 let mut bound = vars.to_vec();
                 bound.push(name.text.clone());
                 let mut next = arguments.to_vec();
                 next.push((Some(name.text.clone()), (**dom).clone()));
-                let effects = match row { None => String::new(), Some(row) => self.resolved_kernel_effect_row(row, scheme, &bound)? };
+                let effects = match row {
+                    None if !actual_row.labels.iter().any(|label| label.head.as_str() == "MVar") => String::new(),
+                    None => return None,
+                    Some(row) => self.resolved_checked_kernel_effect_row(row, actual_row, scheme, &bound)?,
+                };
                 let result = self.resolved_checked_source_type(result, cod, scheme, &bound, references, &next, display)?;
                 Some(format!("(({} :: {domain_text}) ->{effects} {result})", name.text))
             }
@@ -561,6 +648,7 @@ impl Checker {
                 let args = source_args.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments, display)).collect::<Option<Vec<_>>>()?;
                 Some(format!("({head} {})", args.join(" ")))
             }
+            _ if Self::interface_type_mentions_mvar(checked) => None,
             _ => self.resolved_source_type(source, scheme, vars, references, display),
         }
     }
@@ -679,6 +767,68 @@ impl Checker {
         })
     }
 
+    /// Print a first-order ownership field from checked types and actual nominal parameter roles.
+    fn interface_usage_field(&self, ty: &Ty, parameters: &[crate::interface::ParameterExport]) -> Option<String> {
+        let region = |name: &str| parameters.iter().any(|p| p.name == name && p.kind == "Region");
+        match ty {
+            Ty::Nat | Ty::Int | Ty::Bool | Ty::Unit | Ty::Bytes | Ty::Sym | Ty::Prim(_) => Some(ty.to_string()),
+            Ty::Param(name) if parameters.iter().any(|p| p.name == name.as_str() && p.kind == "Type") => Some(name.to_string()),
+            Ty::Tuple(fields) => Some(format!("({})", fields.iter().map(|field| self.interface_usage_field(field, parameters))
+                .collect::<Option<Vec<_>>>()?.join(", "))),
+            // Adt carries the checked defining identity here. Registration reserves this
+            // kernel head; a qualified source nominal never acquires its bare identity.
+            Ty::Adt(name, arguments) if name.as_str() == "MVarCell" && arguments.len() == 1 =>
+                Some(format!("(MVarCell {})", self.interface_usage_field(&arguments[0], parameters)?)),
+            Ty::Ref(name, carrier) | Ty::Mut(name, carrier) if region(name.as_str()) =>
+                Some(format!("({} {name} {})", if matches!(ty, Ty::Ref(..)) { "Ref" } else { "Mut" },
+                    self.interface_usage_field(carrier, parameters)?)),
+            _ => None,
+        }
+    }
+
+    /// Retain actual complete private fields solely for structural task-property checking.
+    fn interface_usage_nominal(
+        &self, info: &TypeKind, parameters: &[crate::interface::ParameterExport],
+    ) -> Option<crate::interface::NominalContract> {
+        if !info.data_family || info.opaque || info.refine.is_some() || info.ctors.is_empty()
+            || self.codata_types.contains(&(info.module.clone(), info.name.clone()))
+            || parameters.len() != info.param_kinds.len()
+            || parameters.iter().any(|p| !matches!(p.kind.as_str(), "Type" | "Region")) {
+            return None;
+        }
+        let arguments: Vec<_> = parameters.iter().map(|p| if p.kind == "Region" {
+            Ty::Region(p.name.as_str().into())
+        } else { Ty::Param(p.name.as_str().into()) }).collect();
+        let owner = format!("{}.{}", info.module, info.name);
+        let result = if parameters.is_empty() { owner.clone() } else {
+            format!("({owner} {})", parameters.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(" "))
+        };
+        let mut usage = Vec::new();
+        for (name, _) in &info.ctors {
+            let constructor = self.ctor_of_type(info, name).ok()?;
+            let scheme = &constructor.scheme;
+            if !scheme.ctx.is_empty() || !scheme.obligs.is_empty() || !scheme.evidence_params.is_empty()
+                || !scheme.idx_params.is_empty() || !scheme.val_params.is_empty() || !scheme.prop_params.is_empty()
+                || !scheme.row_params.is_empty() || !scheme.con_params.is_empty() {
+                return None;
+            }
+            let parts = self.ctor_parts(&constructor, &arguments).ok()?;
+            if !parts.local_idx.is_empty() || parts.res_args != arguments || parts.fields.iter().any(|(_, _, erased)| *erased) {
+                return None;
+            }
+            let fields = parts.fields.iter().map(|(_, ty, _)| self.interface_usage_field(ty, parameters))
+                .collect::<Option<Vec<_>>>()?;
+            usage.push(crate::interface::ConstructorUsage {
+                identity: format!("{}.{}", info.module, name), fields, result: result.clone(),
+            });
+        }
+        Some(crate::interface::NominalContract {
+            identity: owner, kind: "data".into(), parameters: parameters.to_vec(),
+            constructors: Some(info.ctors.iter().map(|(name, _)| format!("{}.{}", info.module, name)).collect()),
+            refinement: None, usage: Some(usage),
+        })
+    }
+
     fn resolved_interface_scheme(&self, module: &str, name: &str) -> Option<crate::interface::ResolvedScheme> {
         let source = self.interface_source_schemes.get(&(module.to_string(), name.to_string()))?;
         // Identities were captured by checked definition-site conversion.
@@ -719,8 +869,9 @@ impl Checker {
             let signature = self.qualified_sigs.contains_key(&(module.clone(), name.clone()));
             let params = info.refine.as_ref().map(|r| r.params.as_slice()).unwrap_or(&[]);
             let parameters = self.interface_parameters(module, name, params, &info.param_kinds);
+            let usage = self.interface_usage_nominal(info, &parameters).and_then(|proof| proof.usage);
             nominals.push(crate::interface::NominalContract {
-                refinement,
+                refinement, usage,
                 identity: format!("{module}.{name}"),
                 kind: if refined { "refinement" } else if signature { "signature" } else if info.opaque { "opaque" } else { "data" }.to_string(),
                 parameters,
@@ -728,5 +879,122 @@ impl Checker {
             });
         }
         Some(crate::interface::ResolvedScheme { scheme: source.text.clone(), nominals, measures })
+    }
+}
+
+#[cfg(test)]
+mod mvar_effect_contract_tests {
+    use super::*;
+
+    /// Construct source labels without pretending their spelling supplies checked semantic evidence.
+    fn row(labels: &[(&str, &[&str])]) -> ast::EffectRow {
+        let span = ast::Span::new(1, 1);
+        ast::EffectRow {
+            labels: labels.iter().map(|(head, args)| (
+                ast::ConPath { segments: head.split('.').map(|part| ast::Name::new(part, span)).collect() },
+                args.iter().map(|arg| ast::Name::new(*arg, span)).collect(),
+            )).collect(),
+            tail: None,
+            span,
+        }
+    }
+
+    /// Keep the complete checked blocking/cancellation row and its Region identity.
+    #[test]
+    fn checked_mvar_rows_preserve_divergence_and_region_identity() {
+        let checker = Checker::new();
+        let source = row(&[("MVar", &[]), ("Diverge", &[]), ("Cancel", &["r"])]);
+        let mut scheme = Scheme::mono(Ty::Unit);
+        scheme.region_params = vec!["r".into(), "s".into()];
+        let vars = vec!["r".to_string(), "s".to_string()];
+        let actual = EffRow::closed(vec![EffLabel::plain("Diverge"),
+            EffLabel::with_arg("Cancel", "r"), EffLabel::plain("MVar")]);
+        assert_eq!(checker.resolved_checked_kernel_effect_row(&source, &actual, &scheme, &vars),
+            Some("{Cancel r, Diverge, MVar}".to_string()));
+        for changed in [
+            EffRow::closed(vec![EffLabel::plain("MVar"), EffLabel::with_arg("Cancel", "r")]),
+            EffRow::closed(vec![EffLabel::plain("MVar"), EffLabel::plain("Diverge"), EffLabel::with_arg("Cancel", "s")]),
+            EffRow::closed(vec![EffLabel::plain("Owner.MVar"), EffLabel::plain("Diverge"), EffLabel::with_arg("Cancel", "r")]),
+        ] {
+            assert!(checker.resolved_checked_kernel_effect_row(&source, &changed, &scheme, &vars).is_none());
+        }
+    }
+
+    /// Refuse open rows, invented MVar region arguments and non-Region cancellation parameters.
+    #[test]
+    fn checked_mvar_rows_do_not_widen_open_or_role_contracts() {
+        let checker = Checker::new();
+        let source = row(&[("MVar", &[])]);
+        let scheme = Scheme::mono(Ty::Unit);
+        let actual = EffRow::closed(vec![EffLabel::plain("MVar")]);
+        let mut open = source.clone();
+        open.tail = Some(ast::Name::new("e", ast::Span::new(1, 1)));
+        assert!(checker.resolved_checked_kernel_effect_row(&open, &actual, &scheme, &[]).is_none());
+        let open_actual = EffRow { labels: actual.labels.clone(), tail: crate::types::RowTail::Rigid("e".into()) };
+        assert!(checker.resolved_checked_kernel_effect_row(&source, &open_actual, &scheme, &[]).is_none());
+        let wrong_arity = row(&[("MVar", &["r"])]);
+        assert!(checker.resolved_checked_kernel_effect_row(&wrong_arity, &actual, &scheme, &[]).is_none());
+        let wrong_role = row(&[("MVar", &[]), ("Cancel", &["r"])]);
+        let actual = EffRow::closed(vec![EffLabel::plain("MVar"), EffLabel::with_arg("Cancel", "r")]);
+        assert!(checker.resolved_checked_kernel_effect_row(&wrong_role, &actual, &scheme, &["r".to_string()]).is_none());
+    }
+
+    /// A checked result predicate never bypasses the enclosing complete effect-row comparison.
+    #[test]
+    fn refined_mvar_results_keep_full_checked_effect_parity() {
+        let checker = Checker::new();
+        let span = ast::Span::new(1, 1);
+        let named = |text: &str| ast::Type::Con(ast::ConPath {
+            segments: vec![ast::Name::new(text, span)],
+        }, span);
+        let predicate_source = ast::Type::Infix(vec![
+            ast::Type::Var(ast::Name::new("r", span), span),
+            ast::Type::Num("0".to_string(), span),
+        ], vec![ast::Name::new(">=", span)], span);
+        let refined_source = ast::Type::App(Box::new(ast::Type::App(
+            Box::new(named("refined")), Box::new(predicate_source), span,
+        )), Box::new(named("Nat")), span);
+        let source = ast::Type::Fun {
+            arg: Box::new(ast::Type::Unit(span)), mult: None,
+            eff: Some(row(&[("MVar", &[]), ("Diverge", &[])])),
+            res: Box::new(refined_source), span,
+        };
+        let refined = Ty::Adt("refined".into(), vec![
+            Ty::Prp(Box::new(PTerm::Cmp(crate::types::IdxCmp::Ge,
+                Box::new(ITerm::Var("r".into())), Box::new(ITerm::Num("0".into()))))),
+            Ty::Nat,
+        ]);
+        let render = |source: &ast::Type, actual: EffRow| {
+            let checked = Ty::fun_eff(Ty::Unit, actual, refined.clone());
+            checker.resolved_checked_source_type(source, &checked, &Scheme::mono(checked.clone()),
+                &[], &mut std::collections::BTreeSet::new(), &[], false)
+        };
+        let actual = EffRow::closed(vec![EffLabel::plain("MVar"), EffLabel::plain("Diverge")]);
+        let printed = render(&source, actual.clone()).expect("refined result with its actual closed row");
+        assert!(printed.contains("refined") && printed.contains("cinch-result"));
+        assert!(printed.contains("Diverge") && printed.contains("MVar"));
+        for changed in [
+            EffRow::closed(vec![EffLabel::plain("MVar")]),
+            EffRow::closed(vec![EffLabel::plain("Owner.MVar"), EffLabel::plain("Diverge")]),
+            EffRow::closed(vec![EffLabel::plain("MVar"), EffLabel::plain("Diverge"), EffLabel::plain("Blocking")]),
+        ] {
+            assert!(render(&source, changed).is_none());
+        }
+        let mut pure_source = source;
+        let ast::Type::Fun { eff, .. } = &mut pure_source else { unreachable!() };
+        *eff = None;
+        assert!(render(&pure_source, actual).is_none());
+    }
+
+    /// Neither a pure source row nor the legacy unpaired renderer can erase a checked MVar effect.
+    #[test]
+    fn latent_mvar_effects_require_paired_printing() {
+        let checker = Checker::new();
+        let scheme = Scheme::mono(Ty::Unit);
+        let actual = EffRow::closed(vec![EffLabel::plain("MVar")]);
+        assert!(checker.resolved_checked_kernel_effect_row(&row(&[]), &actual, &scheme, &[]).is_none());
+        assert!(checker.resolved_kernel_effect_row(&row(&[("MVar", &[])]), &scheme, &[]).is_none());
+        let callback = Ty::fun_eff(Ty::Unit, actual, Ty::Unit);
+        assert!(Checker::interface_type_mentions_mvar(&Ty::Adt("Holder".into(), vec![callback])));
     }
 }

@@ -116,6 +116,10 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
         std::fs::write(dir.join("Bootstrap.Object.cinch"), include_str!("../../../bootstrap/Bootstrap.Object.cinch"))
             .expect("checked runtime object dependency");
     }
+    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Usage.cinch" | "Bootstrap.Typing.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Export.cinch" | "Bootstrap.ExportNominal.cinch" | "Bootstrap.Pipeline.cinch")) {
+        std::fs::write(dir.join("Bootstrap.Usage.cinch"), include_str!("../../../bootstrap/Bootstrap.Usage.cinch"))
+            .expect("checked usage-only private field dependency");
+    }
     std::fs::write(dir.join("Bootstrap.RuntimeAbi.cinch"), include_str!("../../../bootstrap/Bootstrap.RuntimeAbi.cinch"))
         .expect("exact runtime ABI dependency");
     if files.iter().any(|(name, _)| *name == "Bootstrap.Pipeline.cinch") {

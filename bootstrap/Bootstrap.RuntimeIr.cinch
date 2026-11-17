@@ -4,11 +4,11 @@
 -- runtime words throughout. Unsupported Core produces errors, never IR.
 module Bootstrap.RuntimeIr where
   import Bootstrap.Check (CheckedProgram, checked-elaboration)
-  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, scalar-intrinsic-scheme)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
   import Bootstrap.Foreign
-  import Bootstrap.Builtin (array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic)
+  import Bootstrap.Builtin (array-plan, array-type-name, mvar-plan, mvar-type-name, mvar-arity, mvar-consumes, mvar-optional, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-shape-name)
   import Bootstrap.Index
   import Bootstrap.ExportType (export-global)
   import Bootstrap.Nominal (interface-global, global-data-core-cons, global-data-core-err, global-data-core-list, global-data-core-nil, global-data-core-none, global-data-core-ok, global-data-core-option, global-data-core-result, global-data-core-some)
@@ -65,6 +65,8 @@ module Bootstrap.RuntimeIr where
     StubDemand :: String -> List Nat -> Demand
     DictionaryDemand :: String -> List Nat -> Demand
     ArrayDemand :: String -> List Nat -> Demand
+    -- | Request a checked MVar wrapper with its concrete payload representation.
+    MVarDemand :: String -> List Nat -> Demand
     BuiltinDemand :: String -> Demand
     MemoWorker :: Demand
     ExternalDemand :: RuntimeUnit -> Demand
@@ -330,7 +332,7 @@ module Bootstrap.RuntimeIr where
       UTuple fields -> if field-types context fields 0 then Some 1 else None
       other -> case type-head ty of
         UCon name kind -> if (same name "b.Io" && kind-equal kind (KFun KRegion KType)) || (same name "b.Scope" && kind-equal kind scope-kind) || (same name "b.Task" && kind-equal kind task-kind) then Some 0
-          else if array-type-name name && kind-equal kind (KFun KType KType) then Some 1
+          else if (array-type-name name || mvar-type-name name) && kind-equal kind (KFun KType KType) then Some 1
           else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
           (case data-declaration name (program-data datas) of
             Some d -> Some 1
@@ -456,6 +458,7 @@ module Bootstrap.RuntimeIr where
     StubDemand name classes -> cat [name, ".app"]
     DictionaryDemand name classes -> dictionary-name name classes
     ArrayDemand name classes -> array-symbol name classes
+    MVarDemand name classes -> specialized-name name classes
     BuiltinDemand name -> name
     MemoWorker -> "runtime:memo"
     ExternalDemand unit -> cat ["external:", unit-symbol unit]
@@ -941,9 +944,41 @@ module Bootstrap.RuntimeIr where
       else None
     other -> None
 
-  -- | Consult actual source parameter counts and reject hidden dictionary captures before eliding a closure.
+  -- | Elide a pure bare foreign function alias only for one complete checked positional call.
+  -- Argument witness lets remain in place; partial, escaping, branching and shadowed uses keep their existing lowering.
+  fuse-scoped-foreign-plan :: String -> ForeignPlan -> CoreTerm -> Option CoreTerm
+  fuse-scoped-foreign-plan binding plan term = case term of
+    CLet sp ty id name sc rhs body -> case rhs of
+      CUse at function symbol role Nil ->
+        if same name "#argument-function" && same role "foreign" && same symbol binding
+          && list-length (scheme-params sc) == 0 && list-length (scheme-requirements sc) == 0
+          && ordinary-call-type function && scheme-equivalent sc (mono function)
+          && scheme-equivalent sc (foreign-scheme plan)
+          && (case core-effects rhs of URow UEnd -> True; other -> False) then
+          (let count = list-length (foreign-parameters plan) in
+           if count > 0 && scoped-call-saturated id count body then Some (specialize-local id sc rhs body) else None)
+        else None
+      other -> None
+    other -> None
+
+  -- | Obtain foreign authority from the checked binding index, never the alias's display spelling.
+  fuse-scoped-foreign :: Writer -> CoreTerm -> Option CoreTerm
+  fuse-scoped-foreign w term = case term of
+    CLet sp ty id name sc (CUse at function symbol role Nil) body ->
+      (case program-foreign-binding symbol (writer-program w) of
+        Some plan -> fuse-scoped-foreign-plan symbol plan term
+        None -> None)
+    other -> None
+
+  -- | Select a guarded static foreign alias or the existing proper source-call fusion.
   fuse-scoped-call :: List CoreDefinition -> Writer -> CoreTerm -> Option CoreTerm
-  fuse-scoped-call definitions w term = case scoped-partial-name term of
+  fuse-scoped-call definitions w term = case fuse-scoped-foreign w term of
+    Some fused -> Some fused
+    None -> fuse-scoped-source-call definitions w term
+
+  -- | Consult actual source parameter counts and reject hidden dictionary captures before eliding a source closure.
+  fuse-scoped-source-call :: List CoreDefinition -> Writer -> CoreTerm -> Option CoreTerm
+  fuse-scoped-source-call definitions w term = case scoped-partial-name term of
     Some name -> case definition name definitions of
       Some d -> case field-owner name (program-instances (writer-program w)) of
         Some owner -> None
@@ -1627,10 +1662,102 @@ module Bootstrap.RuntimeIr where
       case array-lower started operation format classes of
         (made, result) -> let done = array-drop-arguments parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}"
 
+  -- | Keep actual payload classes in partial closures; consumption is a separate worker rule.
+  mvar-argument-classes :: Nat -> Nat -> List Nat
+  mvar-argument-classes operation element = if operation == 0 then [element]
+    else if operation == 1 then [0] else if mvar-arity operation == 2 then [1, element] else [1]
+
+  -- | Evaluate a checked MVar call in ordinary argument order and refuse unsupported wide storage.
+  mvar-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
+  mvar-call definitions locals w sp name actuals givens args = case mvar-plan name of
+    Some (operation, scheme) -> case class-vector (writer-context w) actuals of
+      Some [element] -> if element == 3 then unsupported w sp "MVar I128/U128 payload requires a checked boxed-wide bridge; it is not lowered yet"
+        else if element > 2 || list-length givens /= 0 then unsupported w sp "MVar intrinsic needs its exact checked representation parameter"
+        else let parameters = mvar-argument-classes operation element in
+          let count = mvar-arity operation in let worker = specialized-name name [element] in
+          (case expressions definitions locals (request-demand (MVarDemand name [element]) w) (take-terms count args) of
+            (ready, values) -> if list-length values < count then closure sp worker parameters values ready else
+              (case call ready (symbol worker) values of
+                (done, result) -> apply-terms definitions locals done result (drop-terms count args)))
+      other -> unsupported w sp "MVar payload needs one checked runtime representation"
+    None -> unsupported w sp "MVar operation is unavailable in the selected ABI"
+
+  -- | Drop borrowed counted arguments after access while skipping values consumed on every outcome.
+  mvar-drop-arguments :: Nat -> List Nat -> Nat -> Writer -> Writer
+  mvar-drop-arguments operation classes index w = case classes of
+    Nil -> w
+    Cons first rest -> mvar-drop-arguments operation rest (index + 1)
+      (if first == 0 || mvar-consumes operation index then w else count-line False (cat ["%arg", nat-to-string index]) w)
+
+  -- | Construct Option only from the canonical source family, loading output solely on success.
+  mvar-option :: Writer -> Nat -> String -> String -> (Writer, String)
+  mvar-option w element status output = let sp = Span 0 0 1 1 in
+    case (constructor (global-data-core-some) (writer-data w), constructor (global-data-core-none) (writer-data w)) of
+      (Some (owner, some-tag, some-constructor), Some (none-owner, none-tag, none-constructor)) ->
+        if not (same owner (global-data-core-option) && same owner none-owner) || some-tag /= 1 || none-tag /= 0 || list-length (core-constructor-fields some-constructor) /= 1 || list-length (core-constructor-fields none-constructor) /= 0 then unsupported w sp "MVar result needs its checked Option declaration" else
+        (case data-declaration owner (writer-data w) of
+          Some d -> if list-length (core-data-constructors d) /= 2 || not (case core-constructor-fields some-constructor of [field] -> array-binder-field d field; other -> False) then unsupported w sp "MVar Option payload disagrees with its checked parameter" else
+            (case request-data sp d [element] w of
+              (planned, descriptor) ->
+                let (one, failure) = fresh planned "mvarnone" in let (two, success) = fresh one "mvarsome" in
+                let (three, end) = fresh two "mvardone" in let (four, slot) = fresh three "%ptr" in
+                let (five, predicate) = fresh four "%v" in
+                let split = line (line (line five (cat ["  ", slot, " = alloca i64"])) (cat ["  ", predicate, " = icmp eq i64 ", status, ", 0"])) (cat ["  br i1 ", predicate, ", label %", failure, ", label %", success]) in
+                (case allocate (line split (cat [failure, ":"])) (data-descriptor descriptor none-tag) Nil of
+                  (absent, none) ->
+                    let next = line (line (line absent (cat ["  store i64 ", none, ", ptr ", slot])) (cat ["  br label %", end])) (cat [success, ":"]) in
+                    let (loaded, payload) = fresh next "%v" in
+                    let read = line loaded (cat ["  ", payload, " = load i64, ptr ", output, ", align 8"]) in
+                    (case allocate read (data-descriptor descriptor some-tag) [payload] of
+                      (present, some) ->
+                        let joined = line (line (line present (cat ["  store i64 ", some, ", ptr ", slot])) (cat ["  br label %", end])) (cat [end, ":"]) in
+                        let (ready, value) = fresh joined "%v" in (line ready (cat ["  ", value, " = load i64, ptr ", slot]), value))))
+          None -> unsupported w sp "MVar result has no defining Option family")
+      other -> unsupported w sp "MVar result has no checked Option constructors"
+
+  -- | Select the exact runtime access opcode without treating zero as an absent payload.
+  mvar-runtime-operation :: Nat -> Nat
+  mvar-runtime-operation operation = if operation == 2 || operation == 6 || operation == 10 then 0
+    else if operation == 3 || operation == 7 || operation == 11 then 1
+    else if operation == 4 || operation == 8 || operation == 12 then 2
+    else if operation == 5 || operation == 13 then 3 else 4
+
+  -- | Keep blocking, nonblocking and cooperative-cancellation modes distinct.
+  mvar-runtime-mode :: Nat -> Nat
+  mvar-runtime-mode operation = if operation >= 10 then 2
+    else if operation == 6 || operation == 7 || operation == 8 || operation == 9 then 1 else 0
+
+  -- | Lower word payloads with status separate from output and ownership retained on all paths.
+  mvar-lower :: Writer -> Nat -> Nat -> (Writer, String)
+  mvar-lower w operation element =
+    if operation == 0 || operation == 1 then call w "@cinch_mvar_new" [if operation == 0 then "%arg0" else "0", nat-to-string element, if operation == 0 then "1" else "0"]
+    else
+      let (one, output) = fresh w "%ptr" in let (two, status) = fresh one "%v" in
+      let value = if mvar-arity operation == 2 then "%arg1" else "0" in
+      let access-line = cat ["  ", status, " = call i64 @cinch_mvar_access(i64 %arg0, i64 ", value, ", i64 ", nat-to-string (mvar-runtime-operation operation), ", i64 ", nat-to-string (mvar-runtime-mode operation), ", ptr ", output, ")"] in
+      let accessed = line (line two (cat ["  ", output, " = alloca i64, align 8"])) access-line in
+      if mvar-optional operation then mvar-option accessed element status output
+      else if operation == 7 || operation == 9 || operation == 11 then (accessed, status)
+      else if operation == 3 then (accessed, "0") else
+        let (ready, result) = fresh accessed "%v" in (line ready (cat ["  ", result, " = load i64, ptr ", output, ", align 8"]), result)
+
+  -- | Emit a concrete MVar worker, with runtime-consumed inputs excluded from the final drops.
+  mvar-worker :: String -> List Nat -> Writer -> Writer
+  mvar-worker name classes w = case (mvar-plan name, classes) of
+    (Some (operation, scheme), [element]) -> if element > 2 then refuse w (Span 0 0 1 1) "MVar I128/U128 payload requires a checked boxed-wide bridge; it is not lowered yet" else
+      let parameters = mvar-argument-classes operation element in
+      let worker = specialized-name name classes in
+      let started = line (line w (cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(", join (argument-words (value-parameters (mvar-arity operation) 0)), ") {"])) "entry:" in
+      (case mvar-lower started operation element of
+        (made, result) -> let done = mvar-drop-arguments operation parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}")
+    other -> refuse w (Span 0 0 1 1) "MVar worker needs an available canonical operation and one checked payload class"
+
   builtin-known :: String -> Bool
   builtin-known name = machine-integer-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioRead" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal" || same name "cinch.runtime.slotsFoldNat" || (case platform-intrinsic name of Some plan -> True; None -> False)
+  -- | Recognize only the closed scalar registry and the established wide integer operations.
   machine-integer-builtin :: String -> Bool
-  machine-integer-builtin name = same name "cinch.prim.eqI64" || same name "cinch.prim.neI64" || (case wrapping-worker-plan name of Some plan -> True; None -> False) || wide-builtin name
+  machine-integer-builtin name = (case scalar-intrinsic name of Some operation -> True; None -> False)
+    || same name "cinch.prim.eqI64" || same name "cinch.prim.neI64" || (case wrapping-worker-plan name of Some plan -> True; None -> False) || wide-builtin name
   -- The wide intrinsics (Bootstrap.Builtin.wide-intrinsic) lower to one
   -- `i128` instruction: Wide arguments, and a Bool word or a Wide result.
   wide-builtin :: String -> Bool
@@ -1659,8 +1786,17 @@ module Bootstrap.RuntimeIr where
     else (computed, value)
   nat-arithmetic-builtin :: String -> Bool
   nat-arithmetic-builtin name = case nat-arithmetic-extern name of Some external -> True; None -> False
+  -- | Preserve the exact scalar arity and every established non-scalar ownership class.
   builtin-classes :: String -> List Nat
-  builtin-classes name = if wide-builtin name then [3, 3] else if same name "cinch.runtime.slotsFoldNat" then [2] else if machine-integer-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioRead" || same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else case platform-intrinsic name of
+  builtin-classes name = case scalar-intrinsic name of
+    Some operation -> scalar-argument-classes (scalar-operation-arguments operation)
+    None -> other-builtin-classes name
+  -- | Retain one raw word per scalar argument, including unary and partially applied operations.
+  scalar-argument-classes :: List ScalarShape -> List Nat
+  scalar-argument-classes arguments = case arguments of Nil -> Nil; Cons first rest -> Cons 0 (scalar-argument-classes rest)
+  -- | Preserve the existing non-scalar ownership and argument conventions.
+  other-builtin-classes :: String -> List Nat
+  other-builtin-classes name = if wide-builtin name then [3, 3] else if same name "cinch.runtime.slotsFoldNat" then [2] else if machine-integer-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioRead" || same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else case platform-intrinsic name of
     Some (scheme, external, arguments, result) -> platform-classes arguments
     None -> [1]
   -- A Unit argument the extern does not take is still the worker's raw word.
@@ -1728,6 +1864,7 @@ module Bootstrap.RuntimeIr where
           if list-length all < list-length classes then closure sp name classes all ready else
             (case typed-call ready (builtin-result-llvm name) (symbol name) (builtin-arguments name all) of
               (done, result) -> apply-terms definitions locals done result (drop-terms missing args)))
+  -- | Emit a checked intrinsic worker without importing executable text from interface metadata.
   builtin-worker :: String -> Writer -> Writer
   builtin-worker name w =
     let classes = builtin-classes name in
@@ -1737,6 +1874,10 @@ module Bootstrap.RuntimeIr where
         Some (scheme, operation) -> if same operation "eq" || same operation "ne" then compare-typed started "i128" operation "%arg0" "%arg1"
           else (let (ready, value) = fresh started "%v" in (line ready (cat ["  ", value, " = ", operation, " i128 %arg0, %arg1"]), value))
         None -> unsupported started (Span 0 0 1 1) "checked wide worker has no operation")
+      else if (case scalar-intrinsic name of Some operation -> True; None -> False) then
+        (case scalar-intrinsic name of
+          Some operation -> scalar-intrinsic-worker started operation
+          None -> unsupported started (Span 0 0 1 1) "checked scalar worker has no operation")
       else if same name "cinch.prim.eqI64" then compare-word started "eq" "%arg0" "%arg1"
       else if same name "cinch.prim.neI64" then compare-word started "ne" "%arg0" "%arg1"
       else if machine-integer-builtin name then
@@ -1782,7 +1923,7 @@ module Bootstrap.RuntimeIr where
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
   call-name :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
-  call-name definitions locals w sp name actuals givens args = if (case program-foreign-binding name (writer-program w) of Some plan -> True; None -> False) then foreign-call definitions locals w sp name givens args else if (case array-plan name of Some plan -> True; None -> False) then array-call definitions locals w sp name actuals givens args else if builtin-known name then builtin-call definitions locals w sp name actuals givens args else
+  call-name definitions locals w sp name actuals givens args = if (case program-foreign-binding name (writer-program w) of Some plan -> True; None -> False) then foreign-call definitions locals w sp name givens args else if (case mvar-plan name of Some plan -> True; None -> False) then mvar-call definitions locals w sp name actuals givens args else if (case array-plan name of Some plan -> True; None -> False) then array-call definitions locals w sp name actuals givens args else if builtin-known name then builtin-call definitions locals w sp name actuals givens args else
     case instance-named name (program-instances (writer-program w)) of
       Some factory -> case scheme-classes (writer-context w) (scheme-params (instance-scheme factory)) actuals of
         Some classes -> if (case args of Nil -> True; other -> False) && list-length givens == list-length (scheme-requirements (instance-scheme factory)) then
@@ -1932,6 +2073,64 @@ module Bootstrap.RuntimeIr where
       let (ready, result) = fresh narrow "%foreign" in (line ready (cat ["  ", result, " = zext i32 ", bits, " to i64"]), result)
     else let (next, result) = fresh w "%foreign" in
       (line next (cat ["  ", result, " = ", if foreign-signed parameter then "sext " else "zext ", ty, " ", value, " to i64"]), result)
+  -- | Lower a checked pure scalar using the existing integer operand and result ABI bridges.
+  scalar-intrinsic-worker :: Writer -> ScalarOperation -> (Writer, String)
+  scalar-intrinsic-worker w operation = case primitive-layout (scalar-intrinsic-scheme operation) of
+    Err error -> unsupported w (Span 0 0 1 1) (string-concat "checked scalar ABI is not representable: " error)
+    Ok (arguments, result) -> case scalar-worker-operands w arguments 0 of
+      (ready, values) -> scalar-worker-operation ready operation arguments result values
+  -- | Normalize each already evaluated machine word exactly once at its declared integer width.
+  scalar-worker-operands :: Writer -> List ForeignParameter -> Nat -> (Writer, List String)
+  scalar-worker-operands w parameters index = case parameters of
+    Nil -> (w, Nil)
+    Cons first rest -> case foreign-marshal-one w first (cat ["%arg", nat-to-string index]) of
+      (ready, value) -> case scalar-worker-operands ready rest (index + 1) of
+        (done, values) -> (done, Cons value values)
+  -- | Dispatch only compiler-selected scalar operations with their exact checked argument counts.
+  scalar-worker-operation :: Writer -> ScalarOperation -> List ForeignParameter -> ForeignParameter -> List String -> (Writer, String)
+  scalar-worker-operation w operation arguments result values =
+    let code = scalar-operation-code operation in
+    case (arguments, values) of
+      ([source], [value]) -> if same code "convert" then scalar-worker-convert w source result value
+        else if same code "not" then
+          (let (ready, computed) = fresh w "%scalar" in
+           foreign-result-word (line ready (cat ["  ", computed, " = xor ", foreign-llvm-type source, " ", value, ", -1"])) result computed)
+        else unsupported w (Span 0 0 1 1) "unary scalar operation is outside its checked subset"
+      ([first, second], [left, right]) ->
+        if same (scalar-shape-name (scalar-operation-result operation)) "Bool" then
+          compare-typed w (foreign-llvm-type first) (scalar-comparison-predicate code (foreign-signed first)) left right
+        else if same code "shl" || same code "shr" then scalar-worker-shift w code first second result left right
+        else if same code "add" || same code "sub" || same code "mul" || same code "and" || same code "or" || same code "xor" then
+          (let (ready, computed) = fresh w "%scalar" in
+           foreign-result-word (line ready (cat ["  ", computed, " = ", code, " ", foreign-llvm-type first, " ", left, ", ", right])) result computed)
+        else unsupported w (Span 0 0 1 1) "binary scalar operation is outside its checked subset"
+      other -> unsupported w (Span 0 0 1 1) "scalar argument vector differs from its checked operation"
+  -- | Keep equality neutral and choose the declared signed ordering for relational comparisons.
+  scalar-comparison-predicate :: String -> Bool -> String
+  scalar-comparison-predicate code signed = if same code "eq" || same code "ne" then code
+    else string-concat (if signed then "s" else "u") code
+  -- | Preserve canonical wrapping conversion bits before applying the destination's word extension.
+  scalar-worker-convert :: Writer -> ForeignParameter -> ForeignParameter -> String -> (Writer, String)
+  scalar-worker-convert w source destination value =
+    if foreign-width source == foreign-width destination then foreign-result-word w destination value
+    else let operation = (if foreign-width destination < foreign-width source then "trunc" else if foreign-signed source then "sext" else "zext") in
+      let (ready, converted) = fresh w "%scalar" in
+      foreign-result-word (line ready (cat ["  ", converted, " = ", operation, " ", foreign-llvm-type source,
+        " ", value, " to ", foreign-llvm-type destination])) destination converted
+  -- | Mask the canonical U32 shift count before any LLVM shift can observe an oversized operand.
+  scalar-worker-shift :: Writer -> String -> ForeignParameter -> ForeignParameter -> ForeignParameter -> String -> String -> (Writer, String)
+  scalar-worker-shift w code source count result value amount =
+    let width = foreign-width source * 8 in
+    if 1 <= width && (width == 8 || width == 16 || width == 32 || width == 64) then
+      (case foreign-result-word w count amount of
+        (ready, word) -> let (masked, bounded) = fresh ready "%scalar" in
+          let limited = line masked (cat ["  ", bounded, " = and i64 ", word, ", ", nat-to-string (width - 1)]) in
+          case foreign-marshal-one limited source bounded of
+            (narrowed, shift) -> let operation = if same code "shl" then "shl" else if foreign-signed source then "ashr" else "lshr" in
+              let (done, computed) = fresh narrowed "%scalar" in
+              foreign-result-word (line done (cat ["  ", computed, " = ", operation, " ", foreign-llvm-type source,
+                " ", value, ", ", shift])) result computed)
+    else unsupported w (Span 0 0 1 1) "scalar shift has no supported positive integer width"
   foreign-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List String -> List CoreTerm -> (Writer, String)
   foreign-call definitions locals w sp name givens args = case program-foreign-binding name (writer-program w) of
     None -> unsupported w sp "foreign call has no checked ABI plan"
@@ -4618,6 +4817,7 @@ module Bootstrap.RuntimeIr where
           StubDemand name classes -> workers definitions (app-stub name classes claimed)
           DictionaryDemand name classes -> workers definitions (dictionary-worker definitions name classes claimed)
           ArrayDemand name classes -> workers definitions (array-worker name classes claimed)
+          MVarDemand name classes -> workers definitions (mvar-worker name classes claimed)
           BuiltinDemand name -> workers definitions (builtin-worker name claimed)
           MemoWorker -> workers definitions (memo-worker claimed)
           ExternalDemand unit -> workers definitions (external-worker unit claimed)
@@ -4663,6 +4863,7 @@ module Bootstrap.RuntimeIr where
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
+    "declare i64 @cinch_mvar_new(i64, i64, i64)\ndeclare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)\n",
     "declare i64 @cinch_slots_new(i64, i64)\ndeclare i64 @cinch_slots_move(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_slots_clear(i64, i64, i64)\ndeclare i64 @cinch_slots_fault(i64)\ndeclare i64 @cinch_nat_low_word(i64)\ndeclare void @llvm.prefetch.p0(ptr, i32, i32, i32)\n",
     "declare i64 @cinch_io_read(i64)\ndeclare i64 @cinch_text_sha256(i64)\ndeclare i64 @cinch_text_sha512(i64)\ndeclare i64 @cinch_text_sha1(i64)\ndeclare i64 @cinch_text_md5(i64)\ndeclare i64 @cinch_text_hmac_sha256(i64, i64)\n",
     "declare i64 @cinch_random_bytes(i64)\ndeclare i64 @cinch_fs_mkdir(i64, i64)\ndeclare i64 @cinch_fs_remove(i64, i64)\ndeclare i64 @cinch_fs_temp_dir()\ndeclare i64 @cinch_signal_send(i64, i64)\ndeclare i64 @cinch_arena_new(i64)\ndeclare i64 @cinch_arena_leave(i64)\ndeclare i64 @cinch_argv_count()\n",

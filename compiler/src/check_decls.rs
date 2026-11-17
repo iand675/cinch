@@ -17708,7 +17708,7 @@ impl Checker {
                     name: local.clone(),
                     identity: format!("{}.{}", d.module, d.name),
                     params,
-                    parameters,
+                    parameters: parameters.clone(),
                     kind: if t.refine.is_some() {
                         "refinement".to_string()
                     } else if t.opaque {
@@ -17723,6 +17723,7 @@ impl Checker {
                         "data".to_string()
                     },
                     ctors,
+                    ownership: self.interface_usage_nominal(&t, &parameters),
                     fields: t.fields.clone().unwrap_or_default(),
                     refinement: self.resolved_list_refinement(&t).or_else(|| t.refine.as_ref().map(|r| RefinementExport {
                         binder: r.binder.clone(),

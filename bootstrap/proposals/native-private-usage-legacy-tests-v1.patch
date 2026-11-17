@@ -1,0 +1,67 @@
+--- a/compiler/tests/interface_mvar_contracts.rs
++++ b/compiler/tests/interface_mvar_contracts.rs
+@@ -1297,3 +1297,64 @@
+     common::cleanup(&directory);
+     common::cleanup(&source);
+ }
++
++/// Remove only optional private usage facts, preserving ordinary owner, role, constructor and effect contracts.
++fn omit_optional_private_usage(value: &mut serde_json::Value) {
++    match value {
++        serde_json::Value::Object(row) => {
++            if row.contains_key("identity") && row.contains_key("parameters") {
++                if row.contains_key("constructors") { row.remove("usage"); }
++                if row.contains_key("ctors") { row.remove("ownership"); }
++            }
++            for value in row.values_mut() { omit_optional_private_usage(value); }
++        }
++        serde_json::Value::Array(rows) => for value in rows { omit_optional_private_usage(value); },
++        _ => {},
++    }
++}
++
++/// Legacy interfaces cannot regain mutable-cell transfer safety when their optional private facts are unavailable.
++#[test]
++fn source_absent_legacy_private_fields_remain_conservative() {
++    let (source, interfaces) = producer();
++    let (directory, executable) = native_checker();
++    std::fs::remove_file(source.join("Producer.cinch")).unwrap();
++    let mut legacy: Vec<Iface> = interfaces.iter().map(|interface| {
++        let mut value: serde_json::Value = serde_json::from_str(&interface.to_json()).unwrap();
++        omit_optional_private_usage(&mut value);
++        Iface::from_json(&value.to_string()).expect("the optional keys may be absent in a valid legacy contract")
++    }).collect();
++    rehash(&mut legacy);
++    let mut outcomes = Vec::new();
++    for (label, contracts, has_proof) in [("genuine", &interfaces, true), ("legacy", &legacy, false)] {
++        manifest(&directory, contracts);
++        for owner in ["MVarOwner", "MVarFacade"] {
++            for payload in ["Nat", "Bytes"] {
++                for usage in ["->", "%1 ->"] {
++                    let required = if has_proof && payload == "Nat" { 0 } else { 4 };
++                    let declarations = format!("-- | Observe a strict handle without importing methods or its private constructor.\n  observe :: forall a. a -> Nat\n  observe value = 1\n  -- | A linear handle does not imply exclusive access to the cell's stored buffer.\n  work :: forall (r :: Region). using (io :: Io r) => Cell {payload} {usage}{{Async r, Cancel r, Diverge}} Result LoadError Nat\n  work cell = withScope $ \\scope -> do\n    task <- spawn scope (\\() -> Ok (observe cell))\n    joinAllOrCancel scope task");
++                    let (status, report) = consumer(&directory, &executable,
++                        &format!("import {owner} (MVar as Cell)"), &declarations);
++                    outcomes.push((format!("{label}/header/{owner}/{payload}/{usage}"), required, status, report));
++                }
++            }
++        }
++        // A result-only nominal mention must recover abstract CoreData rather than reach the unknown-type fallback.
++        for payload in ["Nat", "Bytes"] {
++            let required = if has_proof && payload == "Nat" { 0 } else { 4 };
++            let declarations = format!("-- | Keep the public wrapper type out of the client's source scope.\n  observe :: forall a. a -> Nat\n  observe value = 1\n  -- | Derive the handle from a checked imported result and still enforce its actual stored payload.\n  work :: forall (r :: Region). using (io :: Io r) => {payload} %1 ->{{Async r, Cancel r, Diverge, MVar}} Result LoadError Nat\n  work input = do\n    cell <- allocate input\n    withScope $ \\scope -> do\n      task <- spawn scope (\\() -> Ok (observe cell))\n      joinAllOrCancel scope task");
++            let (status, report) = consumer(&directory, &executable,
++                "import MVarFacade (mvar-new as allocate)", &declarations);
++            outcomes.push((format!("{label}/result-only/{payload}"), required, status, report));
++        }
++        let (status, report) = consumer(&directory, &executable, "",
++            "-- | Ordinary owned Bytes transfer remains distinct from moving one alias to a shared cell.\n  work :: forall (r :: Region). using (io :: Io r) => Bytes %1 ->{Async r, Cancel r, Diverge} Result LoadError Nat\n  work value = withScope $ \\scope -> do\n    task <- spawn scope (\\() -> Ok (bytes-len value))\n    joinAllOrCancel scope task");
++        outcomes.push((format!("{label}/owned-Bytes"), 0, status, report));
++    }
++    // Preserve every independent import and verdict before asserting either availability or refusal.
++    for (label, required, status, report) in outcomes {
++        assert_eq!(status, required, "optional private-field scope {label}: {report}");
++    }
++    common::cleanup(&directory);
++    common::cleanup(&source);
++}

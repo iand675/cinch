@@ -365,9 +365,22 @@ pub struct NominalContract {
     /// This grants no source names or field access. Opaque types and
     /// signature dictionary types use None.
     pub constructors: Option<Vec<String>>,
+    /// Complete checked private fields for ownership reasoning only; grants no constructor or body authority.
+    pub usage: Option<Vec<ConstructorUsage>>,
     /// The checked defining template for a refinement, including private
     /// refinements mentioned by an exported value. It grants no source names.
     pub refinement: Option<RefinementExport>,
+}
+
+/// One actual defining constructor's closed first-order fields, with no tag or callable ABI.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ConstructorUsage {
+    /// Defining identity used for coverage checks, never a source name or runtime tag grant.
+    pub identity: String,
+    /// Complete first-order fields under the nominal's declared parameter roles.
+    pub fields: Vec<String>,
+    /// Exact defining result owner applied to its parameters in declaration order.
+    pub result: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -379,6 +392,8 @@ pub struct TypeExport {
     /// `data`, `record`, `refinement`, or `opaque`.
     pub kind: String,
     pub ctors: Vec<CtorExport>,
+    /// Defining private field proof for task properties; it does not extend the public constructor table.
+    pub ownership: Option<NominalContract>,
     /// Record field names in declaration order.
     pub fields: Vec<String>,
     pub refinement: Option<RefinementExport>,
@@ -856,7 +871,7 @@ impl Iface {
             (
                 "types",
                 JsonValue::arr(&types, |t| {
-                    JsonValue::obj([
+                    let mut value = JsonValue::obj([
                         ("name", (&t.name).into()),
                         ("identity", (&t.identity).into()),
                         ("params", (&t.params).into()),
@@ -884,7 +899,11 @@ impl Iface {
                             }),
                         ),
                         ("fields", (&t.fields).into()),
-                    ])
+                    ]);
+                    if let (JsonValue::Obj(row), Some(contract)) = (&mut value, &t.ownership) {
+                        row.insert("ownership".into(), nominal_contract_json(contract));
+                    }
+                    value
                 }),
             ),
             (
@@ -1215,6 +1234,7 @@ impl Iface {
                 parameters: field_parameters(o)?,
                 kind: field_str(o, "kind")?,
                 ctors,
+                ownership: o.get("ownership").map(|row| row.as_object().and_then(field_nominal_contract)).transpose()?,
                 fields: field_list(o, "fields")?,
                 refinement: match o.get("refinement") {
                     Some(JsonValue::Null) => None,
@@ -1229,6 +1249,13 @@ impl Iface {
                     None => return Err(ParseError("refinement".into())),
                 },
             };
+            if let Some(proof) = &exported.ownership {
+                if !matches!(exported.kind.as_str(), "data" | "record") || proof.kind != "data"
+                    || proof.identity != exported.identity || proof.parameters != exported.parameters || proof.usage.is_none()
+                    || !exported.ctors.iter().all(|constructor| proof.constructors.as_ref().is_some_and(|all| all.contains(&constructor.symbol))) {
+                    return Err(ParseError("public type and private ownership contract disagree".into()));
+                }
+            }
             if (exported.kind == "refinement") != exported.refinement.is_some() {
                 return Err(ParseError("a refinement type must publish its definition".into()));
             }
@@ -1908,6 +1935,29 @@ fn read_guarded_nat_body(value: &JsonValue) -> Result<GuardedNatBody, ParseError
     Ok(GuardedNatBody { parameters, root })
 }
 
+/// Serialize optional private ownership fields without changing legacy nominal bytes when absent.
+fn nominal_contract_json(n: &NominalContract) -> JsonValue {
+    let mut value = JsonValue::obj([
+        ("identity", (&n.identity).into()),
+        ("kind", (&n.kind).into()),
+        ("params", n.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>().into()),
+        ("parameters", JsonValue::arr(&n.parameters, |p| JsonValue::obj([
+            ("name", (&p.name).into()), ("kind", (&p.kind).into()), ("implicit", p.implicit.into()),
+        ]))),
+        ("constructors", n.constructors.clone().into()),
+        ("refinement", n.refinement.as_ref().map_or(JsonValue::Null, |r| JsonValue::obj([
+            ("binder", (&r.binder).into()), ("carrier", (&r.carrier).into()), ("predicate", (&r.predicate).into()),
+        ]))),
+    ]);
+    if let (JsonValue::Obj(row), Some(constructors)) = (&mut value, &n.usage) {
+        row.insert("usage".into(), JsonValue::arr(constructors, |constructor| JsonValue::obj([
+            ("identity", (&constructor.identity).into()), ("fields", (&constructor.fields).into()),
+            ("result", (&constructor.result).into()),
+        ])));
+    }
+    value
+}
+
 fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
     let Some(scheme) = scheme else { return JsonValue::Null };
     let mut nominals = scheme.nominals.clone();
@@ -1919,44 +1969,51 @@ fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
             ("resolved", resolved_scheme_json(Some(&m.resolved))),
             ("total_body", parse_json(&m.total_body.to_json()).expect("checked measure graph JSON")),
         ]))),
-        ("nominals", JsonValue::arr(&nominals, |n| JsonValue::obj([
-            ("identity", (&n.identity).into()),
-            ("kind", (&n.kind).into()),
-            ("params", n.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>().into()),
-            ("parameters", JsonValue::arr(&n.parameters, |p| JsonValue::obj([
-                ("name", (&p.name).into()), ("kind", (&p.kind).into()), ("implicit", p.implicit.into()),
-            ]))),
-            ("constructors", n.constructors.clone().into()),
-            ("refinement", match &n.refinement {
-                None => JsonValue::Null,
-                Some(r) => JsonValue::obj([
-                    ("binder", (&r.binder).into()),
-                    ("carrier", (&r.carrier).into()),
-                    ("predicate", (&r.predicate).into()),
-                ]),
-            }),
-        ]))),
+        ("nominals", JsonValue::arr(&nominals, nominal_contract_json)),
     ])
 }
 
-fn field_resolved_scheme(o: &BTreeMap<String, JsonValue>) -> Result<Option<ResolvedScheme>, ParseError> {
-    field_resolved_scheme_depth(o, 0)
+/// Validate complete private constructor coverage without treating fields as callable declarations.
+fn field_constructor_usage(
+    row: &BTreeMap<String, JsonValue>, owner: &str, kind: &str, constructors: &Option<Vec<String>>,
+) -> Result<Option<Vec<ConstructorUsage>>, ParseError> {
+    let Some(value) = row.get("usage") else { return Ok(None) };
+    if row.len() != 7 || row.keys().any(|key| !matches!(key.as_str(),
+        "identity" | "kind" | "params" | "parameters" | "constructors" | "refinement" | "usage")) {
+        return Err(ParseError("private ownership contract contains unsupported metadata".into()));
+    }
+    let Some(expected) = constructors.as_ref().filter(|rows| kind == "data" && !rows.is_empty()) else {
+        return Err(ParseError("private ownership fields require a complete nonempty data constructor set".into()));
+    };
+    let home = owner.rsplit_once('.').map(|(home, _)| home).ok_or_else(|| ParseError("private ownership owner".into()))?;
+    let mut fields = Vec::new();
+    for value in value.as_array()? {
+        let value = value.as_object()?;
+        if value.len() != 3 || value.keys().any(|key| !matches!(key.as_str(), "identity" | "fields" | "result")) {
+            return Err(ParseError("private ownership fields contain non-usage metadata".into()));
+        }
+        let identity = field_str(value, "identity")?;
+        let result = field_str(value, "result")?;
+        let arguments = field_list(value, "fields")?;
+        if !expected.contains(&identity) || identity.rsplit_once('.').map(|(owner, _)| owner) != Some(home)
+            || fields.iter().any(|prior: &ConstructorUsage| prior.identity == identity)
+            || result.is_empty() || arguments.iter().any(String::is_empty) {
+            return Err(ParseError("invalid defining private constructor fields".into()));
+        }
+        fields.push(ConstructorUsage { identity, fields: arguments, result });
+    }
+    if fields.len() != expected.len() {
+        return Err(ParseError("private ownership field table omits a defining constructor".into()));
+    }
+    Ok(Some(fields))
 }
-fn field_resolved_scheme_depth(o: &BTreeMap<String, JsonValue>, depth: usize) -> Result<Option<ResolvedScheme>, ParseError> {
-    if depth > 1 { return Err(ParseError("nested defining measure schemes are unsupported".into())) }
-    let value = o.get("resolved").ok_or_else(|| ParseError("resolved scheme".into()))?;
-    if matches!(value, JsonValue::Null) { return Ok(None) }
-    let value = value.as_object()?;
-    let scheme = field_str(value, "scheme")?;
-    if scheme.is_empty() { return Err(ParseError("empty resolved scheme".into())) }
-    let rows = value.get("nominals").ok_or_else(|| ParseError("nominals".into()))?.as_array()?;
-    let mut nominals: Vec<NominalContract> = Vec::new();
-    for row in rows {
-        let row = row.as_object()?;
+
+/// Read a defining nominal contract; semantic field qualification belongs to the actual checker.
+fn field_nominal_contract(row: &BTreeMap<String, JsonValue>) -> Result<NominalContract, ParseError> {
         let identity = field_str(row, "identity")?;
         let kind = field_str(row, "kind")?;
         let parameters = field_parameters(row)?;
-        if identity.is_empty() || nominals.iter().any(|n| n.identity == identity)
+        if identity.is_empty()
             || !matches!(kind.as_str(), "data" | "opaque" | "signature" | "refinement")
             || field_list(row, "params")? != parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>() {
             return Err(ParseError("invalid resolved nominal contract".into()));
@@ -1989,7 +2046,28 @@ fn field_resolved_scheme_depth(o: &BTreeMap<String, JsonValue>, depth: usize) ->
             }
             _ => return Err(ParseError("inconsistent defining refinement payload".into())),
         };
-        nominals.push(NominalContract { identity, kind, parameters, constructors, refinement });
+        let usage = field_constructor_usage(row, &identity, &kind, &constructors)?;
+        Ok(NominalContract { identity, kind, parameters, constructors, refinement, usage })
+}
+
+fn field_resolved_scheme(o: &BTreeMap<String, JsonValue>) -> Result<Option<ResolvedScheme>, ParseError> {
+    field_resolved_scheme_depth(o, 0)
+}
+fn field_resolved_scheme_depth(o: &BTreeMap<String, JsonValue>, depth: usize) -> Result<Option<ResolvedScheme>, ParseError> {
+    if depth > 1 { return Err(ParseError("nested defining measure schemes are unsupported".into())) }
+    let value = o.get("resolved").ok_or_else(|| ParseError("resolved scheme".into()))?;
+    if matches!(value, JsonValue::Null) { return Ok(None) }
+    let value = value.as_object()?;
+    let scheme = field_str(value, "scheme")?;
+    if scheme.is_empty() { return Err(ParseError("empty resolved scheme".into())) }
+    let rows = value.get("nominals").ok_or_else(|| ParseError("nominals".into()))?.as_array()?;
+    let mut nominals: Vec<NominalContract> = Vec::new();
+    for row in rows {
+        let nominal = field_nominal_contract(row.as_object()?)?;
+        if nominals.iter().any(|n| n.identity == nominal.identity) {
+            return Err(ParseError("duplicate resolved nominal contract".into()));
+        }
+        nominals.push(nominal);
     }
     let mut measures: Vec<MeasureContract> = Vec::new();
     if let Some(rows) = value.get("measures") {
@@ -2337,6 +2415,7 @@ mod tests {
             arity: 3,
         });
         f.exports.types.push(TypeExport {
+            ownership: None,
             name: "Tree".into(),
             identity: "Main.Tree".into(),
             params: vec!["a".into()],
@@ -2510,6 +2589,44 @@ mod tests {
         let text = f.to_json();
         let back = Iface::from_json(&text).expect("parse");
         assert_eq!(f, back);
+    }
+
+    /// Optional field evidence retains complete constructor coverage without changing public visibility.
+    #[test]
+    fn private_usage_contract_round_trips_without_public_constructors() {
+        let mut iface = Iface::new("Cells", "checked-source");
+        let parameters = vec![ParameterExport { name: "a".into(), kind: "Type".into(), implicit: false }];
+        let proof = NominalContract {
+            identity: "Cells.Cell".into(), kind: "data".into(), parameters: parameters.clone(),
+            constructors: Some(vec!["Cells.PrivateCell".into()]), refinement: None,
+            usage: Some(vec![ConstructorUsage {
+                identity: "Cells.PrivateCell".into(), fields: vec!["(MVarCell a)".into()], result: "(Cells.Cell a)".into(),
+            }]),
+        };
+        iface.exports.types.push(TypeExport {
+            name: "Cell".into(), identity: proof.identity.clone(), params: vec!["a".into()], parameters,
+            kind: "data".into(), ctors: vec![], ownership: Some(proof), fields: vec![], refinement: None,
+        });
+        let text = iface.to_json();
+        let decoded = Iface::from_json(&text).expect("complete private field proof");
+        assert_eq!(decoded, iface);
+        assert!(decoded.exports.types[0].ctors.is_empty(), "proofs grant no constructor names or tags");
+        let contract = decoded.exports.types[0].ownership.as_ref().unwrap();
+        assert_eq!(contract.usage.as_ref().unwrap()[0].fields, ["(MVarCell a)"]);
+        let legacy = sample().to_json();
+        assert!(!legacy.contains("\"ownership\"") && !legacy.contains("\"usage\""));
+        assert_eq!(Iface::from_json(&legacy).unwrap().to_json(), legacy);
+
+        for invalid in [
+            text.replace("\"ownership\":{", "\"ownership\":{\"body\":{},"),
+            text.replace("\"usage\":[{", "\"usage\":[{\"tag\":0,"),
+            text.replace("\"usage\":[{", "\"usage\":[{\"body\":{},"),
+            text.replace("\"constructors\":[\"Cells.PrivateCell\"]", "\"constructors\":[\"Cells.PrivateCell\",\"Cells.Missing\"]"),
+            text.replace("\"identity\":\"Cells.PrivateCell\"", "\"identity\":\"Other.PrivateCell\""),
+        ] {
+            assert_ne!(invalid, text);
+            assert!(Iface::from_json(&invalid).is_err(), "invalid usage authority: {invalid}");
+        }
     }
 
     #[test]

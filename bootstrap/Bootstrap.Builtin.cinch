@@ -9,9 +9,102 @@ module Bootstrap.Builtin where
   import Data.Json
   import Text.Lex (Span)
   import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Scan (string-starts-with, string-drop)
 
   export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, platform-intrinsic, total-primitive
+  export mvar-plan, mvar-type-name, mvar-arity, mvar-consumes, mvar-optional
   export par-lowering-name
+  export ScalarShape, ScalarOperation, scalar-shape-name, scalar-shape-width, scalar-shape-signed
+  export scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-operation-scheme, scalar-intrinsic
+
+  -- | Describe one canonical integer carrier independently of a source binding's display name.
+  data ScalarShape where
+    -- | Retain the builtin nominal identity, fixed bit width, and signed interpretation.
+    ScalarShape :: String -> Nat -> Bool -> ScalarShape
+  -- | Retain a closed pure scalar operation from the compiler's intrinsic vocabulary.
+  data ScalarOperation where
+    -- | Pair exact operand/result carriers with a compiler-selected operation code.
+    ScalarOperation :: List ScalarShape -> ScalarShape -> String -> ScalarOperation
+  -- | Read the canonical nominal identity required by a scalar operation.
+  scalar-shape-name :: ScalarShape -> String
+  scalar-shape-name shape = case shape of ScalarShape name width signed -> name
+  -- | Read the fixed LLVM integer width of a scalar carrier.
+  scalar-shape-width :: ScalarShape -> Nat
+  scalar-shape-width shape = case shape of ScalarShape name width signed -> width
+  -- | Distinguish sign extension from zero extension at a scalar result boundary.
+  scalar-shape-signed :: ScalarShape -> Bool
+  scalar-shape-signed shape = case shape of ScalarShape name width signed -> signed
+  -- | Read every operand in its original evaluation order.
+  scalar-operation-arguments :: ScalarOperation -> List ScalarShape
+  scalar-operation-arguments operation = case operation of ScalarOperation arguments result code -> arguments
+  -- | Read the declared scalar result carrier.
+  scalar-operation-result :: ScalarOperation -> ScalarShape
+  scalar-operation-result operation = case operation of ScalarOperation arguments result code -> result
+  -- | Read an operation code selected only by the closed intrinsic registry.
+  scalar-operation-code :: ScalarOperation -> String
+  scalar-operation-code operation = case operation of ScalarOperation arguments result code -> code
+  -- | Render the exact first-order nominal scheme used for source intrinsic validation.
+  scalar-operation-scheme :: ScalarOperation -> String
+  scalar-operation-scheme operation = scalar-argument-scheme (scalar-operation-arguments operation)
+    (scalar-shape-name (scalar-operation-result operation))
+  -- | Preserve scalar arrow order without adding implicit values or constraints.
+  scalar-argument-scheme :: List ScalarShape -> String -> String
+  scalar-argument-scheme arguments result = case arguments of
+    Nil -> result
+    Cons first rest -> string-concat-all [scalar-shape-name first, " -> ", scalar-argument-scheme rest result]
+  -- | Admit only fixed integer nominals supported by the one-word Native scalar ABI.
+  scalar-shape :: String -> Option ScalarShape
+  scalar-shape name =
+    if string-compare name "I8" == 0 then Some (ScalarShape "I8" 8 True)
+    else if string-compare name "I16" == 0 then Some (ScalarShape "I16" 16 True)
+    else if string-compare name "I32" == 0 then Some (ScalarShape "I32" 32 True)
+    else if string-compare name "I64" == 0 then Some (ScalarShape "I64" 64 True)
+    else if string-compare name "U8" == 0 then Some (ScalarShape "U8" 8 False)
+    else if string-compare name "U16" == 0 then Some (ScalarShape "U16" 16 False)
+    else if string-compare name "U32" == 0 then Some (ScalarShape "U32" 32 False)
+    else if string-compare name "U64" == 0 then Some (ScalarShape "U64" 64 False)
+    else None
+  -- | Decode only canonical operation identifiers, never user-facing function names or LLVM text.
+  scalar-intrinsic :: String -> Option ScalarOperation
+  scalar-intrinsic symbol = if string-starts-with "cinch.prim." symbol then
+    scalar-family (string-drop 11 symbol) scalar-prefixes
+    else None
+  -- | Enumerate the pure arithmetic, bit, comparison, and masked-shift opcode families.
+  scalar-prefixes :: List (String, String)
+  scalar-prefixes = [("wrappingAdd", "add"), ("wrappingSub", "sub"), ("wrappingMul", "mul"),
+    ("bitAnd", "and"), ("bitOr", "or"), ("bitXor", "xor"), ("bitNot", "not"),
+    ("wrappingShl", "shl"), ("wrappingShr", "shr"), ("eq", "eq"), ("ne", "ne"),
+    ("lt", "lt"), ("le", "le"), ("gt", "gt"), ("ge", "ge")]
+  -- | Match a canonical family and require an exact supported nominal suffix.
+  scalar-family :: String -> List (String, String) -> Option ScalarOperation
+  scalar-family body families = case families of
+    Nil -> scalar-wrapping-conversion body ["I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
+    Cons (prefix, code) rest -> if string-starts-with prefix body then
+      (case scalar-shape (string-drop (string-length prefix) body) of
+        Some shape -> Some (scalar-family-operation code shape)
+        None -> scalar-family body rest)
+      else scalar-family body rest
+  -- | Construct a fixed scalar signature; shift counts retain their canonical U32 carrier.
+  scalar-family-operation :: String -> ScalarShape -> ScalarOperation
+  scalar-family-operation code shape =
+    if string-compare code "not" == 0 then ScalarOperation [shape] shape code
+    else if string-compare code "shl" == 0 || string-compare code "shr" == 0 then
+      ScalarOperation [shape, ScalarShape "U32" 32 False] shape code
+    else if string-compare code "eq" == 0 || string-compare code "ne" == 0
+      || string-compare code "lt" == 0 || string-compare code "le" == 0
+      || string-compare code "gt" == 0 || string-compare code "ge" == 0 then
+      ScalarOperation [shape, shape] (ScalarShape "Bool" 1 False) code
+    else ScalarOperation [shape, shape] shape code
+  -- | Match only wrapping integer conversions whose opcode explicitly names both carriers.
+  scalar-wrapping-conversion :: String -> List String -> Option ScalarOperation
+  scalar-wrapping-conversion body names = case names of
+    Nil -> None
+    Cons name rest -> let prefix = string-concat-all ["wrapping", name, "To"] in
+      if string-starts-with prefix body then
+        (case (scalar-shape name, scalar-shape (string-drop (string-length prefix) body)) of
+          (Some source, Some destination) -> Some (ScalarOperation [source] destination "convert")
+          other -> None)
+      else scalar-wrapping-conversion body rest
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
@@ -53,11 +146,17 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.prim.wrappingSubU32" == 0 then Some "sub"
     else None
 
-  -- The selected runtime ABI's pure intrinsics. The returned scheme is checked
+  -- The selected runtime ABI's checked intrinsics. The returned scheme is checked
   -- against the declaration, not taken on trust from foreign source text.
   -- The extern is retained separately from the language-level identity.
+  -- | Require the canonical scalar or established runtime scheme for an intrinsic declaration.
   intrinsic-contract :: String -> Option (String, String)
-  intrinsic-contract symbol =
+  intrinsic-contract symbol = case scalar-intrinsic symbol of
+    Some operation -> Some (scalar-operation-scheme operation, symbol)
+    None -> other-intrinsic-contract symbol
+  -- | Preserve the established non-scalar intrinsic contracts and their runtime targets.
+  other-intrinsic-contract :: String -> Option (String, String)
+  other-intrinsic-contract symbol =
     -- Machine primitives retain their canonical operation identity. They
     -- lower directly to LLVM, rather than naming an unchecked C function.
     if string-compare symbol "cinch.prim.eqI64" == 0 || string-compare symbol "cinch.prim.neI64" == 0 then
@@ -80,9 +179,11 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.slotsFoldNat" == 0 then Some ("Nat -> U64", "cinch_nat_low_word")
     else case nat-arithmetic-extern symbol of
       Some external -> Some ("Nat -> Nat -> Nat", external)
-      None -> case array-plan symbol of
-        Some (operation, format, scheme) -> Some (scheme, array-extern operation)
-        None -> None
+      None -> case mvar-plan symbol of
+        Some (operation, scheme) -> Some (scheme, if operation < 2 then "cinch_mvar_new" else "cinch_mvar_access")
+        None -> case array-plan symbol of
+          Some (operation, format, scheme) -> Some (scheme, array-extern operation)
+          None -> None
 
   -- Runtime operations over buffers, the platform, sockets, piped children
   -- and pseudo-terminals: canonical scheme, runtime extern, argument
@@ -319,6 +420,41 @@ module Bootstrap.Builtin where
     , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"
     , decision-constructor "No" 1 "forall (p :: Prop). (h :: Not p) -> Dec p"
     ]
+
+  -- | Recognize the sealed carrier at its minimum ABI; runtime capability admission remains separate.
+  mvar-type-name :: String -> Bool
+  mvar-type-name name = runtime-abi-int >= 10 && string-compare name "MVarCell" == 0
+
+  -- | Pair each checked MVar opcode with its complete canonical effectful scheme.
+  mvar-plan :: String -> Option (Nat, String)
+  mvar-plan symbol = if runtime-abi-int < 10 then None else
+    if string-compare symbol "cinch.runtime.mvarNew" == 0 then Some (0, "forall a. a ->{MVar} MVarCell a")
+    else if string-compare symbol "cinch.runtime.mvarNewEmpty" == 0 then Some (1, "forall a. Unit ->{MVar} MVarCell a")
+    else if string-compare symbol "cinch.runtime.mvarTake" == 0 then Some (2, "forall a. MVarCell a ->{MVar, Diverge} a")
+    else if string-compare symbol "cinch.runtime.mvarPut" == 0 then Some (3, "forall a. MVarCell a -> a ->{MVar, Diverge} Unit")
+    else if string-compare symbol "cinch.runtime.mvarRead" == 0 then Some (4, "forall a. MVarCell a ->{MVar, Diverge} a")
+    else if string-compare symbol "cinch.runtime.mvarSwap" == 0 then Some (5, "forall a. MVarCell a -> a ->{MVar, Diverge} a")
+    else if string-compare symbol "cinch.runtime.mvarTryTake" == 0 then Some (6, "forall a. MVarCell a ->{MVar} Option a")
+    else if string-compare symbol "cinch.runtime.mvarTryPut" == 0 then Some (7, "forall a. MVarCell a -> a ->{MVar} Bool")
+    else if string-compare symbol "cinch.runtime.mvarTryRead" == 0 then Some (8, "forall a. MVarCell a ->{MVar} Option a")
+    else if string-compare symbol "cinch.runtime.mvarIsEmpty" == 0 then Some (9, "forall a. MVarCell a ->{MVar} Bool")
+    else if string-compare symbol "cinch.runtime.mvarTakeOrCancel" == 0 then Some (10, "forall a. MVarCell a ->{MVar, Diverge} Option a")
+    else if string-compare symbol "cinch.runtime.mvarPutOrCancel" == 0 then Some (11, "forall a. MVarCell a -> a ->{MVar, Diverge} Bool")
+    else if string-compare symbol "cinch.runtime.mvarReadOrCancel" == 0 then Some (12, "forall a. MVarCell a ->{MVar, Diverge} Option a")
+    else if string-compare symbol "cinch.runtime.mvarSwapOrCancel" == 0 then Some (13, "forall a. MVarCell a -> a ->{MVar, Diverge} Option a")
+    else None
+
+  -- | Count value arguments without changing the ownership of captured partial arguments.
+  mvar-arity :: Nat -> Nat
+  mvar-arity operation = if operation == 3 || operation == 5 || operation == 7 || operation == 11 || operation == 13 then 2 else 1
+
+  -- | Identify the value reference transferred to the runtime on every outcome.
+  mvar-consumes :: Nat -> Nat -> Bool
+  mvar-consumes operation index = (operation == 0 && index == 0) || (mvar-arity operation == 2 && index == 1)
+
+  -- | Distinguish status-bearing optional payloads from Bool, Unit and direct results.
+  mvar-optional :: Nat -> Bool
+  mvar-optional operation = operation == 6 || operation == 8 || operation == 10 || operation == 12 || operation == 13
 
   -- Array, Tensor and Columnar are primitive starting with ABI 6.
   array-type-name :: String -> Bool

@@ -1,0 +1,115 @@
+{
+  "scope": "Reviewed private usage-field candidate overlay; unqualified host producer and Native importer until actual gates. Root existing fixes and shared checker retained.",
+  "feature_revision": "3c55d5608a89a62f7a403f6017ba798594856bd8",
+  "parent_head": "fac1d290ab36172b7bfc1d402ee985eba80e9b3e",
+  "claims_sha256": "449ceac07839cfd5f28b4893ece68b3840cd2dd788e4144136897b69ce84a84b",
+  "feature_delta_sha256": "e77664f80e7e17ccf1a8b93b3e8f24a6fc3a62c73bd68174a454d623c479cd64",
+  "source52_qualified_sha256": "4eff89639337c80964431969e41f3ffa351d28ff5c9f988e6781c864c5cb7dd5",
+  "files": [
+    {
+      "path": "bootstrap/Bootstrap.Export.cinch",
+      "base_sha256": "1d53cf52d044ff9d2d69c8dacb183e4ab17a6812afb6b83ba33c7753fea10571",
+      "target_sha256": "5cb2a42c59b3479c6957b530594146e7f918ac5ddf0028893a8390d481ed3b6b",
+      "target_bytes": 76405,
+      "feature_revision_target_sha256": "5cb2a42c59b3479c6957b530594146e7f918ac5ddf0028893a8390d481ed3b6b"
+    },
+    {
+      "path": "bootstrap/Bootstrap.ExportNominal.cinch",
+      "base_sha256": "0343a532664878f372ff36fed4d3a9681efe81778fb501bc5938fe07605013c3",
+      "target_sha256": "07f8736ddef0aaa013396bfc7d11f6491ace52c2d94de7f02fe8237b76bf83e2",
+      "target_bytes": 25824,
+      "feature_revision_target_sha256": "07f8736ddef0aaa013396bfc7d11f6491ace52c2d94de7f02fe8237b76bf83e2"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Infer.cinch",
+      "base_sha256": "ec65f6d76a94b7845b09c1c235099edb3d1147cdb7551b78994f19f848321726",
+      "target_sha256": "b17c87f7508d41bca193712111574b875b8ad98535cd15a68b131294cb242bbc",
+      "target_bytes": 690246,
+      "feature_revision_target_sha256": "b17c87f7508d41bca193712111574b875b8ad98535cd15a68b131294cb242bbc"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Load.cinch",
+      "base_sha256": "818bf63f15ca8673acf4b81356045a92d79f3a306435b9b29cfc41661172e209",
+      "target_sha256": "a74f583c81b103410a40db260f3ef9436deffb82596604e8ec918913da300bbd",
+      "target_bytes": 75483,
+      "feature_revision_target_sha256": "a74f583c81b103410a40db260f3ef9436deffb82596604e8ec918913da300bbd"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Nominal.cinch",
+      "base_sha256": "0a43f19e0189e52a0d999fa4bfd3b35e9fc3be22ce9f7c66211dd861f5cddbed",
+      "target_sha256": "56912af721a64c763d5d82ffb90eb4f13e9ae5d74c1f5898875422e3812a9de0",
+      "target_bytes": 33178,
+      "feature_revision_target_sha256": "56912af721a64c763d5d82ffb90eb4f13e9ae5d74c1f5898875422e3812a9de0"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Typing.cinch",
+      "base_sha256": "052d61073cd2a00e8f1908c0cc7a54a1bfa2b8c5021aa44fc72c10280a3dc98b",
+      "target_sha256": "a10290cbda55356cde674d6d7ea962a30b8a36208a49709e1c8c7d09aee17d57",
+      "target_bytes": 135375,
+      "feature_revision_target_sha256": "a10290cbda55356cde674d6d7ea962a30b8a36208a49709e1c8c7d09aee17d57"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Usage.cinch",
+      "base_sha256": null,
+      "target_sha256": "ec17074ae4029f31c85940e62e2cc56d57dae1ab05e6d55978ec8e01f4f19f86",
+      "target_bytes": 28060,
+      "feature_revision_target_sha256": "ec17074ae4029f31c85940e62e2cc56d57dae1ab05e6d55978ec8e01f4f19f86"
+    },
+    {
+      "path": "compiler/src/check_decls.rs",
+      "base_sha256": "c166574a3cee0015f57ece9d179ba489e9b4ed1fb65d7490f0e72a2c30ce2ebc",
+      "target_sha256": "539e17176cdeee0d5ab21c1636979d955a450354d307787559289ae07b08d41f",
+      "target_bytes": 1114228,
+      "feature_revision_target_sha256": "539e17176cdeee0d5ab21c1636979d955a450354d307787559289ae07b08d41f"
+    },
+    {
+      "path": "compiler/src/check_interface.rs",
+      "base_sha256": "1a3fe927a1d55257680d508db9c9a5bd2cade8c2f97c12dfc0a9886d6c5d067d",
+      "target_sha256": "48fd280c6a2ae718a4144c391eb43a08b95cd8314abb3f898a844df71deec38d",
+      "target_bytes": 55507,
+      "feature_revision_target_sha256": "48fd280c6a2ae718a4144c391eb43a08b95cd8314abb3f898a844df71deec38d"
+    },
+    {
+      "path": "compiler/src/interface.rs",
+      "base_sha256": "4c9158a507200c937751927537f22a3025f95bdb35efbbb3040e786a379ea95a",
+      "target_sha256": "208bc79781dbe0e5ae8aa7cdb75f62e33f37db4af5180f2ce58a8cf7ea1b0bd6",
+      "target_bytes": 182074,
+      "feature_revision_target_sha256": "208bc79781dbe0e5ae8aa7cdb75f62e33f37db4af5180f2ce58a8cf7ea1b0bd6"
+    },
+    {
+      "path": "compiler/tests/bootstrap_load.rs",
+      "base_sha256": "1fa35572ef99fe073eac60cf969e10cb00c4933384f3ace67627273de65810b4",
+      "target_sha256": "22abf99a72e1eb4bbf75ab552685393f873c2371d978745b3bc1f728e3af8db5",
+      "target_bytes": 17488,
+      "feature_revision_target_sha256": "22abf99a72e1eb4bbf75ab552685393f873c2371d978745b3bc1f728e3af8db5"
+    },
+    {
+      "path": "compiler/tests/bootstrap_nominals.rs",
+      "base_sha256": "5b139891dff87c00f5e137083ae8ed9fadb0ade40215a9f34e6baac4cd931737",
+      "target_sha256": "f071f9bce645af13ff11c680b6ed45a279502dc6d5ee2456e9f14a983c7f1b20",
+      "target_bytes": 9172,
+      "feature_revision_target_sha256": "f071f9bce645af13ff11c680b6ed45a279502dc6d5ee2456e9f14a983c7f1b20"
+    },
+    {
+      "path": "compiler/tests/common/mod.rs",
+      "base_sha256": "16fd3dc3e900c8f795d4dec74752a80bb4408274c454ff644bc40fdcc3a4845a",
+      "target_sha256": "1246faf0971de03f8ab17dc874d7a16f247cee94de93c82902db2c4fb6b04f52",
+      "target_bytes": 20635,
+      "feature_revision_target_sha256": "1246faf0971de03f8ab17dc874d7a16f247cee94de93c82902db2c4fb6b04f52"
+    },
+    {
+      "path": "compiler/tests/fixtures/mvar-interface-contracts.cinch",
+      "base_sha256": "d26d1b3b6bc05aecf43e57fd1895153f9ee6490bf42f5f521f37ae38c8b2066a",
+      "target_sha256": "c88b7f4c15a338ca0a0f40d9d83ee72f4f1178b7ef660281d973a9f71cf54b28",
+      "target_bytes": 2634,
+      "feature_revision_target_sha256": "c88b7f4c15a338ca0a0f40d9d83ee72f4f1178b7ef660281d973a9f71cf54b28"
+    },
+    {
+      "path": "compiler/tests/interface_mvar_contracts.rs",
+      "base_sha256": "bd4204c2c4f4686baf187cb21ed476124532caf1ee2f238ccce3bebf7a71e1d4",
+      "target_sha256": "a9b3d3740d30591b78e8a1e45582ed2fccee366e3186ca8bb937bab138ebe7b6",
+      "target_bytes": 52652,
+      "feature_revision_target_sha256": "5387b21fea5bfcd6ee8e0958975b37de1aa26fd1a2b34b7ba546452c08a0347d"
+    }
+  ]
+}

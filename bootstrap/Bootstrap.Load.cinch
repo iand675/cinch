@@ -15,7 +15,7 @@ module Bootstrap.Load where
   import Bootstrap.Total
   import Bootstrap.Interface (iface-parse, iface-schema-version, iface-hash, fnv-source-hash)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures)
+  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures, nominal-entry-valid)
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
   import Data.Json
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
@@ -34,7 +34,9 @@ module Bootstrap.Load where
   export load-interface-from-document, load-interface-set-from-documents
   export loaded-entry, loaded-private-methods
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
+  export load-checked-body-interface-set-from-documents
   export check-interface-set, interface-set-members
+  export contract-nominals
   export interface-set-body, interface-set-has-body
 
   data ImportedValue where
@@ -122,6 +124,33 @@ module Bootstrap.Load where
   load-checked-interface-set-from-contracts inputs = case load-interface-set-from-contracts inputs of
     Err error -> Err error
     Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
+
+  -- | Validate every document and its claimed identity before retaining optional
+  -- body authority from complete, unchanged dependency closures. Source-replaced
+  -- homes and every interface depending on them contribute no body authority.
+  -- The ordinary interface and artifact admission paths remain strict.
+  load-checked-body-interface-set-from-documents :: List (String, String, Json) -> Result String InterfaceSet
+  load-checked-body-interface-set-from-documents inputs = case read-document-set inputs Nil of
+    Err error -> Err error
+    Ok members -> check-interface-set (body-closed-interfaces members)
+
+  -- | Remove whole interfaces until every retained declared dependency has its
+  -- exact original identity. The final strict set check validates all retained
+  -- nominal, signature and executable-body contracts without editing their rows.
+  body-closed-interfaces :: List LoadedInterface -> List LoadedInterface
+  body-closed-interfaces members =
+    let retained = retain-body-closed-interfaces members (index-interfaces members) in
+    if list-length retained == list-length members then retained
+    else body-closed-interfaces retained
+
+  -- | Preserve an interface only when all of its declared imports are present
+  -- with matching hashes in this iteration's complete candidate set.
+  retain-body-closed-interfaces :: List LoadedInterface -> InterfaceIndex -> List LoadedInterface
+  retain-body-closed-interfaces members index = case members of
+    Nil -> Nil
+    Cons member rest -> case verify-refs (loaded-imports member) index of
+      Err error -> retain-body-closed-interfaces rest index
+      Ok unit -> Cons member (retain-body-closed-interfaces rest index)
 
   loaded-module :: LoadedInterface -> String
   loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> name
@@ -457,6 +486,7 @@ module Bootstrap.Load where
       && member kind ["data", "record", "codata", "opaque", "refinement", "signature"]
       && parameters-valid (field "parameters" row) (field "params" row) Nil
       && ctors-valid (field "ctors" row) Nil && strings-p (field "fields" row)
+      && ownership-header-valid row
       && (if same kind "codata" then
         (case field "ctors" row of JArr observation JArrEnd -> record-contract-valid row && (case field "resolved" observation of JNull -> False; other -> True); other -> False)
         else not (same kind "record") || record-contract-valid row)
@@ -469,6 +499,28 @@ module Bootstrap.Load where
       && types-valid rest (Cons name seen)
     JArrEnd -> True
     other -> False
+
+  -- | Match an optional private-field proof to the actual public owner, roles and exposed constructors.
+  ownership-header-valid :: Json -> Bool
+  ownership-header-valid row = if not (has-field "ownership" row) then True else
+    let definition = field "ownership" row in
+    member (text (field "kind" row)) ["data", "record"] && nominal-entry-valid definition
+      && same (text (field "kind" definition)) "data" && has-field "usage" definition
+      && same (text (field "identity" row)) (text (field "identity" definition))
+      && bytes-compare (canonical-bytes (field "parameters" row)) (canonical-bytes (field "parameters" definition)) == 0
+      && bytes-compare (canonical-bytes (field "params" row)) (canonical-bytes (field "params" definition)) == 0
+      && ownership-public-constructors (field "ctors" row) (field "constructors" definition)
+
+  -- | Require every public constructor to belong to the complete checked family without exposing private names.
+  ownership-public-constructors :: Json -> Json -> Bool
+  ownership-public-constructors rows names = case rows of
+    JArr row rest -> ownership-constructor-present (text (field "symbol" row)) names && ownership-public-constructors rest names
+    JArrEnd -> True
+    other -> False
+
+  -- | Compare exact defining identities in the usage contract, never display names or tags.
+  ownership-constructor-present :: String -> Json -> Bool
+  ownership-constructor-present name rows = case rows of JArr (JStr first) rest -> same name first || ownership-constructor-present name rest; other -> False
 
   method-default-valid :: Json -> Bool
   method-default-valid row = case row of
@@ -957,10 +1009,20 @@ module Bootstrap.Load where
     JArr row rest -> conditional-method-nominals (field "method_contracts" row) <> conditional-instance-nominals rest
     other -> Nil
   interface-nominals :: LoadedInterface -> List Json
-  interface-nominals i = let exports = field "exports" (loaded-contract i) in
+  interface-nominals i = contract-nominals (loaded-contract i)
+  -- | Project only recognized contract positions, excluding arbitrary body, layout and diagnostic JSON.
+  contract-nominals :: Json -> List Json
+  contract-nominals document = let exports = field "exports" document in
     exported-nominals (field "values" exports) <> constructor-nominals (field "types" exports)
+      <> ownership-nominals (field "types" exports)
       <> method-nominals (field "signatures" exports)
       <> exported-nominals (field "instances" exports) <> conditional-instance-nominals (field "instances" exports)
+
+  -- | Include header-only ownership proofs in the same closed defining-contract comparison as all value uses.
+  ownership-nominals :: Json -> List Json
+  ownership-nominals rows = case rows of
+    JArr row rest -> (if has-field "ownership" row then [field "ownership" row] else Nil) <> ownership-nominals rest
+    other -> Nil
   dependency-names :: List (String, String) -> List String
   dependency-names refs = case refs of Nil -> Nil; Cons (name, hash) rest -> Cons name (dependency-names rest)
   reachable-modules :: List String -> InterfaceIndex -> List String -> List String

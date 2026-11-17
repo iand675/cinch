@@ -1,0 +1,23 @@
+{
+  "scope": "Necessary fresh host private-usage model qualification; dedicated128MiB compiler-output allowance, unchanged350MiB initial/250MiB reserve. No benchmark.",
+  "command": [
+    "/tmp/cinch-stdlib-root-cargo-gate.sh",
+    "test",
+    "--release",
+    "--lib",
+    "private_usage_contract_round_trips_without_public_constructors",
+    "--",
+    "--nocapture"
+  ],
+  "start_free_bytes": 711360512,
+  "output_cap_bytes": 134217728,
+  "reserve_bytes": 262144000,
+  "timeout_seconds": 600,
+  "status": "failed-or-resource-stopped",
+  "exit_code": -15,
+  "guard_reason": "reserve/output/timeout guard",
+  "elapsed_seconds": 53.06076591499732,
+  "peak_new_or_replaced_allocated_bytes": 166756352,
+  "minimum_free_bytes": 568999936,
+  "end_free_bytes": 568999936
+}
