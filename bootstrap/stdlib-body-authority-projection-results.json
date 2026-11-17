@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "source-typing-passed; focused functional gates pending",
+  "status": "focused-loader-functional-gates-passed; actual modified Native compiler/family pending",
   "publication_approved": false,
   "full_native_family_admission": false,
   "original_refined_mask_source_sha256": "2c6d66b29d9ab7d0c9039f0309d9d353a5e629f483e46c092aaaf3452c225c08",
@@ -78,7 +78,7 @@
   },
   "prepared_loader_tests": {
     "source_module_count": 15,
-    "bundle_sha256": "f2a1d90b074dd355cd2867c88f2cedcd88640300ecbd2b889f12516c27064169",
+    "bundle_sha256": "68025538aed6eaea03e48c8a7c57d717508e1d5a34bdfccdaa49b8d7cccceafe",
     "input_documents_sha256": {
       "Algebra.Arithmetic": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
       "Algebra.Bits": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
@@ -147,7 +147,7 @@
       "Text.Show": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397"
     },
     "damaged_documents_sha256": {
-      "forged-nat-body.cinchif": "4a8d81bcfbfbaf5ec119dcefab0eca46d4b82270c29f7c799ee830e475f96e35",
+      "forged-nat-body.cinchif": "ee89016dde966d27ca4b676582bd916eb82368e1f2a116e7081f35d776ad0bd4",
       "forged-option-nominal.cinchif": "04853bcc39e1668a66e58c9cfa67144dd68a25396df315a2507d158b171cd3b7",
       "stale-nat-dependency.cinchif": "a4d173ef6881dc30bec2194b09776047eac0fd14d554f71fd242b56d883ce072",
       "malformed-machine-body.cinchif": "a091cd4ad29a5657c8d117be996a056dc268ef12e921b9fbd5888c3ebf2eb0e6"
@@ -172,7 +172,7 @@
             ]
           ]
         },
-        "runtime_status": "not run; budget held"
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
       },
       {
         "name": "source-overlays",
@@ -198,7 +198,7 @@
             ]
           ]
         },
-        "runtime_status": "not run; budget held"
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
       },
       {
         "name": "shadowed-defining-home",
@@ -219,7 +219,7 @@
             ]
           ]
         },
-        "runtime_status": "not run; budget held"
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
       },
       {
         "name": "shadowed-transitive-dependency",
@@ -241,11 +241,11 @@
             ]
           ]
         },
-        "runtime_status": "not run; budget held"
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
       },
       {
         "name": "mismatched-dependency",
-        "manifest_sha256": "746ac1121a2ef7a7cac552d473ce968caae42af7ef3fbca92ed40fe318a99db2",
+        "manifest_sha256": "99531a397abb0d0d1880054e7347ed8f5787316bbd921780b59ac800da9a00a3",
         "expected": {
           "expected_error": null,
           "member_count": null,
@@ -262,7 +262,7 @@
             ]
           ]
         },
-        "runtime_status": "not run; budget held"
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
       },
       {
         "name": "bad-hash-in-excluded-home",
@@ -279,11 +279,11 @@
             ]
           ]
         },
-        "runtime_status": "not run; budget held"
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
       },
       {
         "name": "bad-body-in-excluded-home",
-        "manifest_sha256": "7a77ec19d407565c1db80019d4b049c97b1db7ad798109787c9874c12650204b",
+        "manifest_sha256": "95460ad0f2f2d6ba55bcbe7b2424094af631719cdcb91019de9e5a6fa7eb970e",
         "expected": {
           "expected_error": "Data.Machine: malformed interface contract envelope",
           "member_count": null,
@@ -296,11 +296,11 @@
             ]
           ]
         },
-        "runtime_status": "not run; budget held"
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
       },
       {
         "name": "forged-body-dependency",
-        "manifest_sha256": "76801221ec96926072488622e070dda36da29921b5ef2e340384e175b1fce0fd",
+        "manifest_sha256": "be8d6b084801cee146d6af2303ca2b1d69ecb441a4425dc4e45a9a51c153c8ed",
         "expected": {
           "expected_error": "Data.Nat: total body dependency is outside the checked module closure: Outside.evil",
           "member_count": null,
@@ -313,13 +313,13 @@
             ]
           ]
         },
-        "runtime_status": "not run; budget held"
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
       },
       {
         "name": "conflicting-retained-nominal",
-        "manifest_sha256": "47a17647eeea2ac81bcb9c69c7cfd4d079e3395e63f60ab3c697b1ac82268b54",
+        "manifest_sha256": "b9077c78c4213fa3b5df4049a2a97fbb2c0b45068d1009edc94d24d497394a72",
         "expected": {
-          "expected_error": "conflicting defining nominal contracts: Data.Core.Option",
+          "expected_error": "Data.Option: conflicting defining nominal contracts: Data.Core.Option",
           "member_count": null,
           "present_members": [],
           "absent_members": [],
@@ -330,15 +330,93 @@
             ]
           ]
         },
-        "runtime_status": "not run; budget held"
+        "runtime_status": "passed normal and poisoned profiles with zero leaks"
       }
     ],
-    "runtime_profiles_executed": 0
+    "runtime_profiles_executed": 18
   },
   "remaining_gates": [
-    "Small loader harness emit/link and nine independent observations in normal and poisoned memory profiles",
     "Actual modified Native compiler exact Word baseline/source-overlay emission and negative source-shadow controls",
     "Required full fresh Native compiler-family gates before adoption"
   ],
-  "frozen_provider_runtime_and_original_stage1_plan_changed": false
+  "frozen_provider_runtime_and_original_stage1_plan_changed": false,
+  "focused_loader_runtime": {
+    "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+    "producer_provenance": {
+      "source_checkpoint": "b03018f7",
+      "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "scope": "Rust frontend after staged scalar repair; no Native-family adoption",
+      "rust_profile": {
+        "debug_assertions": true,
+        "debug_symbols": false,
+        "codegen_units": 1
+      },
+      "source_sha256": {
+        "compiler/src/core.rs": "f88db704c8632df0d1a557dd625de399c3465663d4e52dad93b0ce90352a1f1c",
+        "compiler/src/codegen.rs": "f6e2ac953b95c0a898d9b30da30fda1d02d124a075a9a91e5781a436247fa38f",
+        "compiler/src/check_decls.rs": "d27d3ba9fd17b8f2183fbb3c9508625a12f45b1c2af42cb51dc90d0876b316a4"
+      },
+      "gates": "bootstrap/stdlib-staged-word-parent-results.json"
+    },
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "clang": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+    "consumer_opt_level": 0,
+    "consumer_rc_debug_compiled": false,
+    "bundle_sha256": "68025538aed6eaea03e48c8a7c57d717508e1d5a34bdfccdaa49b8d7cccceafe",
+    "llvm_sha256": "46616cdaf4c3865194a89086d604c970a085d0514e3eb71be8f42362ed8320e4",
+    "executable_sha256": "0a4b1a8930b7626e25cb929b5c5d672afc9cbe7b27b8d5088ff357e43e5dec99",
+    "report_sha256": "82c74a024dc3592426261559604003c75862c5af01847b705e7b457a7ea0f390",
+    "cases": 9,
+    "normal_profiles": 9,
+    "poisoned_profiles": 9,
+    "all_zero_leaks": true,
+    "consumer_stack": "8M",
+    "normal_heap": "32M",
+    "poisoned_heap": "256M",
+    "steps": [
+      {
+        "name": "emit",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/staged-word-safe-frozen/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-runtime-r2/Bundle.cinch",
+          "-o",
+          "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-runtime-r2/consumer.ll"
+        ],
+        "exit": 0,
+        "seconds": 12.817908224998973
+      },
+      {
+        "name": "link",
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O0",
+          "-Wno-override-module",
+          "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-runtime-r2/consumer.ll",
+          "/workspace/dasl-stdlib-io/build/staged-word-safe-frozen/libcinchruntime.a",
+          "-ldl",
+          "-lpthread",
+          "-lm",
+          "-o",
+          "/workspace/dasl-stdlib-source-body-closure/build/body-closure-loader-runtime-r2/consumer"
+        ],
+        "exit": 0,
+        "seconds": 1.4146802670002216
+      }
+    ],
+    "negative_refusals": "Exact fully qualified diagnostic equality; no broad substring acceptance.",
+    "retained_output_bytes": 24122122
+  },
+  "retained_initial_test_failures": [
+    {
+      "report": "initial-runtime-r1-report.json",
+      "description": "The original synthetic Outside helper was unreachable, so the existing envelope check correctly refused it earlier than the test expected. Corrected fixture makes the actual root call the included helper; final exact outside-closure refusal passes."
+    },
+    {
+      "report": "initial-reachable-fixture-report.json",
+      "description": "The original harness reversed string-contains arguments; the actual nominal-contract refusal was correct. Final harness compares exact full diagnostics and all nine cases pass. Production compiler sources were unchanged during both test corrections."
+    }
+  ]
 }

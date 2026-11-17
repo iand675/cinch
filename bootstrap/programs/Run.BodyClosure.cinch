@@ -10,7 +10,6 @@ module Main where
   import Effect.Process (process-args)
   import Text.Json (parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Text.Scan (string-contains)
 
   -- | Read a named observation field without interpreting absent fields as evidence.
   field :: String -> Json -> Json
@@ -75,7 +74,7 @@ module Main where
   observe :: forall r. using (io :: Io r) => Json -> List (String, String, Json) ->{IO r} Int
   observe manifest inputs = case load-checked-body-interface-set-from-documents inputs of
     Err message -> (case field "expected_error" manifest of
-      JStr expected -> if string-compare expected "" /= 0 && string-contains message expected then 0 else failure message
+      JStr expected -> if string-compare expected "" /= 0 && string-compare message expected == 0 then 0 else failure message
       other -> failure message)
     Ok interfaces -> (case field "expected_error" manifest of
       JNull -> let members = interface-set-members interfaces in

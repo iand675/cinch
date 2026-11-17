@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import time
 
@@ -97,6 +98,9 @@ def prepare(interfaces: Path, artifacts: Path) -> dict:
     graph = addition['method_bodies'][0]['total_body']
     foreign = copy.deepcopy(graph['definitions'][0])
     foreign['identity'] = 'Outside.evil'
+    graph['definitions'][0]['body'] = {'node': 'call', 'target': foreign['identity'],
+                                       'arguments': [{'node': 'local', 'slot': 0},
+                                                     {'node': 'local', 'slot': 1}]}
     graph['definitions'].append(foreign)
     fixture('forged-body-dependency', replace(rows, 'Data.Nat', forged, 'forged-nat-body'),
             error='Data.Nat: total body dependency is outside the checked module closure: Outside.evil')
@@ -105,7 +109,7 @@ def prepare(interfaces: Path, artifacts: Path) -> dict:
     mention = next(row for row in nominal['exports']['instances'][0]['resolved']['nominals'] if row['identity'] == 'Data.Core.Option')
     mention['constructors'][0] = 'Data.Core.ForgedNone'
     fixture('conflicting-retained-nominal', replace(rows, 'Data.Option', nominal, 'forged-option-nominal'),
-            error='conflicting defining nominal contracts: Data.Core.Option')
+            error='Data.Option: conflicting defining nominal contracts: Data.Core.Option')
 
     files = loader_sources()
     bundle = artifacts / 'Bundle.cinch'
@@ -128,6 +132,8 @@ def main() -> None:
     parser.add_argument('--runtime', type=Path)
     parser.add_argument('--provenance', type=Path,
                         help='Frozen producer receipt; defaults to provenance.json beside the compiler')
+    parser.add_argument('--clang', type=Path,
+                        help='Explicit LLVM linker driver; defaults to CINCH_CLANG or the current toolchain path')
     parser.add_argument('--prepare-only', action='store_true')
     parser.add_argument('--cpu', type=int, default=1)
     args = parser.parse_args()
@@ -146,14 +152,22 @@ def main() -> None:
     compiler_hash, runtime_hash = sha(args.compiler), sha(args.runtime)
     if provenance.get('compiler_sha256') != compiler_hash or provenance.get('runtime_sha256') != runtime_hash:
         raise SystemExit('compiler/runtime hashes disagree with the explicit frozen provenance')
+    selected_clang = args.clang or os.environ.get('CINCH_CLANG') or shutil.which('clang')
+    if selected_clang is None:
+        raise SystemExit('no LLVM linker driver is available; provide --clang or CINCH_CLANG')
+    clang = Path(selected_clang).resolve()
+    if not clang.is_file():
+        raise SystemExit(f'explicit LLVM linker driver is missing: {clang}')
     report.update(compiler_sha256=compiler_hash, runtime_sha256=runtime_hash,
                   producer_provenance=provenance, producer_provenance_sha256=sha(provenance_path),
+                  clang=str(clang), clang_sha256=sha(clang), consumer_opt_level=0,
                   compiler_host_profile='frozen Rust CLI; no experimental compiler-family claim', consumer_rc_debug_compiled=False)
+    report['status'] = 'focused-loader-gates-running'
     llvm = args.artifacts / 'consumer.ll'
     executable = args.artifacts / 'consumer'
     environment = {**os.environ, 'CARGO_BUILD_JOBS': '1', 'RUST_TEST_THREADS': '1', 'RUST_MIN_STACK': '67108864', 'CARGO_INCREMENTAL': '0', 'CINCH_HEAP_LIMIT': '2G', 'CINCH_STACK_SIZE': '64M'}
     commands = [('emit', [str(args.compiler.resolve()), 'emit-ir', report['bundle'], '-o', str(llvm)]),
-                ('link', ['clang', '-O0', '-Wno-override-module', str(llvm), str(args.runtime.resolve()), '-ldl', '-lpthread', '-lm', '-o', str(executable)])]
+                ('link', [str(clang), '-O0', '-Wno-override-module', str(llvm), str(args.runtime.resolve()), '-ldl', '-lpthread', '-lm', '-o', str(executable)])]
     for label, command in commands:
         before = time.monotonic()
         run = subprocess.run(['taskset', '-c', str(args.cpu), *command], cwd=args.artifacts, env=environment, capture_output=True, text=True)
@@ -161,6 +175,8 @@ def main() -> None:
         report['steps'].append({'name': label, 'command': command, 'exit': run.returncode, 'seconds': time.monotonic() - before})
         write_json(output, report)
         if run.returncode:
+            report['status'] = f'{label}-failed'
+            write_json(output, report)
             raise SystemExit(f'{label} failed; preserved {output}')
     report.update(llvm_sha256=sha(llvm), executable_sha256=sha(executable))
     for case in report['fixtures']:
@@ -169,9 +185,14 @@ def main() -> None:
             run = subprocess.run(['taskset', '-c', str(args.cpu), str(executable), case['manifest']], cwd=args.artifacts, env=env, capture_output=True, text=True)
             label = case['name'] + ('-poison' if poisoned else '-normal')
             (args.artifacts / f'{label}.log').write_text(run.stdout + run.stderr)
-            report['runtime_profiles'].append({'name': label, 'exit': run.returncode, 'stderr': run.stderr})
+            detail = args.artifacts / 'body-closure-detail.txt'
+            report['runtime_profiles'].append({'name': label, 'exit': run.returncode, 'stderr': run.stderr,
+                                              'unexpected_detail': detail.read_text() if detail.exists() else None})
             write_json(output, report)
             if run.returncode or 'leaked=0' not in run.stderr:
+                report['status'] = 'focused-loader-observation-failed'
+                report['failed_profile'] = label
+                write_json(output, report)
                 raise SystemExit(f'{label} failed; preserved {output}')
     report['status'] = 'focused-loader-gates-passed'
     write_json(output, report)

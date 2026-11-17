@@ -1,0 +1,39 @@
+{
+  "status": "observation-failed",
+  "scope": "Same immutable compiled consumer; corrected synthetic reachable graph and final previously unrun nominal fixture only. First14 passed profiles are retained unchanged.",
+  "executable_sha256": "5fec14f7319bbb7ffdff1b4ac692138b45c1f7c129e6249cac6611b878923d81",
+  "llvm_sha256": "dc15dd7dcfc1ca5c095f975ccf48c73c907b680dfc0d1f43fe8dde338cee4b9d",
+  "bundle_sha256": "f2a1d90b074dd355cd2867c88f2cedcd88640300ecbd2b889f12516c27064169",
+  "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "no_reemission_or_relink": true,
+  "profiles": [
+    {
+      "name": "forged-body-dependency-normal",
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "seconds": 0.9629548170050839,
+      "expected_error": "Data.Nat: total body dependency is outside the checked module closure: Outside.evil",
+      "detail": null,
+      "manifest_sha256": "3ece5aa72133925787dc94e3feb13e673fbcca98a7939c12f9be096b8c2d0792"
+    },
+    {
+      "name": "forged-body-dependency-poison",
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "seconds": 1.5719150829972932,
+      "expected_error": "Data.Nat: total body dependency is outside the checked module closure: Outside.evil",
+      "detail": null,
+      "manifest_sha256": "3ece5aa72133925787dc94e3feb13e673fbcca98a7939c12f9be096b8c2d0792"
+    },
+    {
+      "name": "conflicting-retained-nominal-normal",
+      "exit": 1,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "seconds": 0.8575464039895451,
+      "expected_error": "conflicting defining nominal contracts: Data.Core.Option",
+      "detail": "Data.Option: conflicting defining nominal contracts: Data.Core.Option",
+      "manifest_sha256": "92b02fc2997ef1745c1c6d0f2d09ead846769defd7f83f83a70acd359f5626b0"
+    }
+  ]
+}
