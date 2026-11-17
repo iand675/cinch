@@ -1,0 +1,176 @@
+{
+  "status": "isolated review experiment; frozen production API untouched; no source/runtime/effect gates claimed yet",
+  "baseline": "8d0557bddc624a4c700c6849c676e8d5cdef9582",
+  "modules": {
+    "Effect.Buffered.Core": {
+      "old_sha256": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
+      "new_sha256": "33a0b87ff3bd71c2fb1e518a795452938d84a1bd33d37c09b42ee5def05970c9",
+      "frozen_source": "compiler/prelude/Effect/Buffered/Core.cinch",
+      "experiment_source": "sources/Effect.Buffered.Core.cinch"
+    },
+    "Effect.Buffered.Reader": {
+      "old_sha256": "b0eb53793ea2111749580e5726abaec76f84fb3a1df3b9f3706d1240b696b160",
+      "new_sha256": "84d8837583365b19c09bfd23778af840a5fbf7454f129d952d91ac952b5eff20",
+      "frozen_source": "compiler/prelude/Effect/Buffered/Reader.cinch",
+      "experiment_source": "sources/Effect.Buffered.Reader.cinch"
+    },
+    "Effect.Buffered.Writer": {
+      "old_sha256": "bf3bda7ec2866c61b178b17ff37b7a52a202a9e0d86b0a44cea0069cd2e2382a",
+      "new_sha256": "1b52c1a1ae48e5cdef672527823160686c788b1871b8b4ab5d27473bf5f7c324",
+      "frozen_source": "compiler/prelude/Effect/Buffered/Writer.cinch",
+      "experiment_source": "sources/Effect.Buffered.Writer.cinch"
+    },
+    "Effect.Scanner": {
+      "old_sha256": "dd6d190f2b53e1fb80b10e48d64a29363b82041895660675d2b383c637be06aa",
+      "new_sha256": "23b25436e4229522205323e5cdb4241bd43dd76ce4cf76b3e3eebc9a623155a7",
+      "frozen_source": "compiler/prelude/Effect/Scanner.cinch",
+      "experiment_source": "sources/Effect.Scanner.cinch"
+    }
+  },
+  "public_changes": [
+    {
+      "module": "Effect.Buffered.Core",
+      "name": "buffer-sink-transfer",
+      "old": "forall r. using (io :: Io r) => BufferSink r -> BufferSource r ->{IO r} (Option TransferEvent, BufferSource r, BufferSink r)",
+      "new": "forall r. using (io :: Io r) => BufferSink r -> BufferSource r ->{IO r, Mut r} (Option TransferEvent, BufferSource r, BufferSink r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Core",
+      "name": "buffer-sink-with-transfer",
+      "old": "forall r. BufferSink r -> ((Nat ->{IO r} ReadEvent) ->{IO r} (TransferEvent, BufferSink r)) -> BufferSink r",
+      "new": "forall r. BufferSink r -> ((Nat ->{IO r, Mut r} ReadEvent) ->{IO r, Mut r} (TransferEvent, BufferSink r)) -> BufferSink r",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Core",
+      "name": "buffer-source-read",
+      "old": "forall r. using (io :: Io r) => BufferSource r -> Nat ->{IO r} (ReadEvent, BufferSource r)",
+      "new": "forall r. using (io :: Io r) => BufferSource r -> Nat ->{IO r, Mut r} (ReadEvent, BufferSource r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Core",
+      "name": "buffer-source-transfer",
+      "old": "forall r. using (io :: Io r) => BufferSource r -> BufferSink r ->{IO r} (Option TransferEvent, BufferSource r, BufferSink r)",
+      "new": "forall r. using (io :: Io r) => BufferSource r -> BufferSink r ->{IO r, Mut r} (Option TransferEvent, BufferSource r, BufferSink r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Core",
+      "name": "buffer-source-with-transfer",
+      "old": "forall r. BufferSource r -> ((Bytes ->{IO r} WriteEvent) ->{IO r} (TransferEvent, BufferSource r)) -> BufferSource r",
+      "new": "forall r. BufferSource r -> ((Bytes ->{IO r} WriteEvent) ->{IO r, Mut r} (TransferEvent, BufferSource r)) -> BufferSource r",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-discard",
+      "old": "forall r. using (io :: Io r) => BufferedReader r -> Int ->{IO r} (CountEvent, BufferedReader r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r -> Int ->{IO r, Mut r} (CountEvent, BufferedReader r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-peek",
+      "old": "forall r. using (io :: Io r) => BufferedReader r -> Int ->{IO r} (ReadEvent, BufferedReader r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r -> Int ->{IO r, Mut r} (ReadEvent, BufferedReader r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-read",
+      "old": "forall r. using (io :: Io r) => BufferedReader r -> Nat ->{IO r} (ReadEvent, BufferedReader r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r -> Nat ->{IO r, Mut r} (ReadEvent, BufferedReader r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-read-byte",
+      "old": "forall r. using (io :: Io r) => BufferedReader r ->{IO r} (Result BufferError U8, BufferedReader r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r ->{IO r, Mut r} (Result BufferError U8, BufferedReader r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-read-bytes",
+      "old": "forall r. using (io :: Io r) => BufferedReader r -> U8 ->{IO r} (ReadEvent, BufferedReader r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r -> U8 ->{IO r, Mut r} (ReadEvent, BufferedReader r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-read-into",
+      "old": "forall r. using (io :: Io r) => BufferedReader r -> Bytes -> Nat -> Nat ->{IO r} (CountEvent, BufferedReader r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r -> Bytes -> Nat -> Nat ->{IO r, Mut r} (CountEvent, BufferedReader r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-read-line",
+      "old": "forall r. using (io :: Io r) => BufferedReader r ->{IO r} (LineEvent, BufferedReader r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r ->{IO r, Mut r} (LineEvent, BufferedReader r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-read-rune",
+      "old": "forall r. using (io :: Io r) => BufferedReader r ->{IO r} (Result BufferError (Char, Nat), BufferedReader r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r ->{IO r, Mut r} (Result BufferError (Char, Nat), BufferedReader r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-read-slice",
+      "old": "forall r. using (io :: Io r) => BufferedReader r -> U8 ->{IO r} (ReadEvent, BufferedReader r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r -> U8 ->{IO r, Mut r} (ReadEvent, BufferedReader r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-read-string",
+      "old": "forall r. using (io :: Io r) => BufferedReader r -> U8 ->{IO r} (TextEvent, BufferedReader r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r -> U8 ->{IO r, Mut r} (TextEvent, BufferedReader r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "name": "buffered-write-to",
+      "old": "forall r. using (io :: Io r) => BufferedReader r -> BufferSink r ->{IO r} (TransferEvent, BufferedReader r, BufferSink r)",
+      "new": "forall r. using (io :: Io r) => BufferedReader r -> BufferSink r ->{IO r, Mut r} (TransferEvent, BufferedReader r, BufferSink r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Buffered.Writer",
+      "name": "buffered-read-from",
+      "old": "forall r. using (io :: Io r) => BufferedWriter r -> BufferSource r ->{IO r} (TransferEvent, BufferedWriter r, BufferSource r)",
+      "new": "forall r. using (io :: Io r) => BufferedWriter r -> BufferSource r ->{IO r, Mut r} (TransferEvent, BufferedWriter r, BufferSource r)",
+      "already_both_effects": false
+    },
+    {
+      "module": "Effect.Scanner",
+      "name": "scanner-next",
+      "old": "forall r. using (io :: Io r) => Scanner r ->{IO r} (Bool, Scanner r)",
+      "new": "forall r. using (io :: Io r) => Scanner r ->{IO r, Mut r} (Bool, Scanner r)",
+      "already_both_effects": false
+    }
+  ],
+  "new_public_values": [
+    {
+      "module": "Effect.Buffered.Core",
+      "name": "buffer-source-with-mutation",
+      "signature": "forall r. (Nat ->{IO r, Mut r} (ReadEvent, BufferSource r)) -> BufferSource r"
+    }
+  ],
+  "preserved": [
+    "legacy Effect.Stream unchanged",
+    "ordinary sink writes/text/flush remain IO-only",
+    "pure getters/configuration remain pure",
+    "retained callback contracts unchanged",
+    "no runtime/ABI/checker/store changes"
+  ],
+  "conservative_effect_policy": "A general source can become mutable on any continuation. General reads and transfers therefore require IO+Mut even when a particular call is currently satisfied by an IO-only source or buffered bytes.",
+  "higher_order_impact": "Sink.ReaderFrom must accept a read callback with IO+Mut. Merely widening its outer operation would still erase the callback effect.",
+  "promotion": "Review exact signature cost and both frontend checks before considering promotion; original22-cycle hold remains.",
+  "changed_existing_public_signatures": 18
+}

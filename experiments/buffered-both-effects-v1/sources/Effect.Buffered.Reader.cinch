@@ -1,0 +1,520 @@
+-- | Buffered byte reading with explicit advanced handles and independently owned observations.
+-- Private buffers are immutable between states. Refills copy only the retained
+-- unread prefix; peeks and read results never expose or alias buffer storage.
+module Effect.Buffered.Reader where
+  import Effect.Buffered.Core
+  import Effect.Io
+  import Data.Bytes
+  import Data.Bool
+  import Data.Int
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Effect.Stream
+  import Data.Bytes.Utf8 as Utf8
+  import Effect.Buffered.Internal.Scan as Scan
+  import Data.Bytes.Build
+  import Data.Char
+  import Data.List
+  import Data.String
+
+  export BufferedReader, CountEvent, LineEvent, TextEvent
+  export buffered-read-string, buffered-write-to, buffered-reader-as-source
+  export buffered-read-rune, buffered-unread-rune, buffered-read-slice, buffered-read-bytes, buffered-read-line
+  export buffered-read-into, buffered-reader-rebuffer
+  export buffered-reader, buffered-reader-sized, buffered-reader-from-stream, buffered-reader-from-stream-sized
+  export buffered-reader-size, buffered-reader-buffered, buffered-reader-reset, buffered-reader-reset-self
+  export buffered-read, buffered-peek, buffered-discard, buffered-read-byte, buffered-unread-byte
+
+  -- | A count-only result retains partial progress together with a possible failure.
+  data CountEvent where
+    -- | Confirmed nonnegative progress and optional failure.
+    CountEvent :: Nat -> Option BufferError -> CountEvent
+
+  -- | Private immutable storage with absolute half-open read and write positions.
+  data ReadWindow where
+    -- | The unread region lies between start and end inside owner storage.
+    Window :: Bytes -> Nat -> Nat -> ReadWindow
+
+  -- | Independent unread permissions retain the actual last input byte and encoded rune width.
+  data ReadHistory where
+    -- | A byte may remain unreadable as a rune after an unsuccessful byte or rune read.
+    History :: Option U8 -> Option Nat -> ReadHistory
+
+  -- | An advanced buffered input; always continue with the handle returned by an operation.
+  data BufferedReader r where
+    -- | Private buffer window, underlying source, pending error and unread history.
+    BufferedInput :: ReadWindow -> BufferSource r -> Option BufferError -> ReadHistory -> BufferedReader r
+
+  -- | Copy one checked interval into independent mutable observation storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part source start size = if start + size <= bytes-len source then
+    let output = bytes-new size in let copied = bytes-copy-range output source 0 start size in output
+    else bytes-new 0
+
+  -- | Observe the actual last byte after a nonempty read, without admitting an invalid machine scalar.
+  last-byte :: Bytes -> Nat -> Option U8
+  last-byte source count = if count > 0 && count <= bytes-len source then
+    let at = count - 1 in
+    if at < bytes-len source then let value = bytes-get source at in
+      let wide = nat-to-i64 value in let scalar = wrapping-i64-to-u8 wide in Some scalar
+    else None
+    else None
+
+  -- | Create an initialized empty buffer with no pending error or unread permission.
+  make-reader :: forall r. Nat -> BufferSource r -> BufferedReader r
+  make-reader capacity source = BufferedInput (Window (bytes-new capacity) 0 0) source None (History None None)
+
+  -- | Buffer a raw source using the default 4096-byte capacity.
+  buffered-reader :: forall r. BufferSource r -> BufferedReader r
+  buffered-reader source = make-reader 4096 source
+
+  -- | Buffer a raw source with a capacity of at least 16 bytes; negative requests use that minimum.
+  buffered-reader-sized :: forall r. Int -> BufferSource r -> BufferedReader r
+  buffered-reader-sized requested source = if 16 <= requested then make-reader (nat-from-int requested) source
+    else make-reader 16 source
+
+  -- | Buffer an existing stream source under its established empty-success-means-end contract.
+  buffered-reader-from-stream :: forall r. using (io :: Io r) => ByteReader r -> BufferedReader r
+  buffered-reader-from-stream source = buffered-reader (buffer-source-from-stream source)
+
+  -- | Select explicit capacity while adapting an existing stream source without changing its error contract.
+  buffered-reader-from-stream-sized :: forall r. using (io :: Io r) => Int -> ByteReader r -> BufferedReader r
+  buffered-reader-from-stream-sized requested source = buffered-reader-sized requested (buffer-source-from-stream source)
+
+  -- | Observe the fixed buffer capacity without performing I/O.
+  buffered-reader-size :: forall r. BufferedReader r -> Nat
+  buffered-reader-size reader = case reader of BufferedInput window source error history -> case window of Window owner start end -> bytes-len owner
+
+  -- | Observe the currently buffered unread byte count without invoking the underlying source.
+  buffered-reader-buffered :: forall r. BufferedReader r -> Nat
+  buffered-reader-buffered reader = case reader of
+    BufferedInput window source error history -> case window of
+      Window owner start end -> if start <= end && end <= bytes-len owner then end - start else 0
+
+  -- | Discard buffered data, pending errors and unread permissions, retaining capacity with a new source.
+  buffered-reader-reset :: forall r. BufferedReader r -> BufferSource r -> BufferedReader r
+  buffered-reader-reset reader source = case reader of
+    BufferedInput window old error history -> case window of
+      Window owner start end -> BufferedInput (Window owner 0 0) source None (History None None)
+
+  -- | Resetting a wrapper to itself is an explicit no-op, preserving its unread data and history.
+  buffered-reader-reset-self :: forall r. BufferedReader r -> BufferedReader r
+  buffered-reader-reset-self reader = reader
+
+  -- | Preserve the last byte while invalidating only the permission to unread a complete rune.
+  byte-history :: ReadHistory -> ReadHistory
+  byte-history history = case history of History byte rune -> History byte None
+
+  -- | Replace unread permissions without touching buffered bytes or pending transport state.
+  with-history :: forall r. BufferedReader r -> ReadHistory -> BufferedReader r
+  with-history reader history = case reader of BufferedInput window source error old -> BufferedInput window source error history
+
+  -- | Remove and return the pending error without losing its advanced source or buffered bytes.
+  take-error :: forall r. BufferedReader r -> (Option BufferError, BufferedReader r)
+  take-error reader = case reader of BufferedInput window source error history -> (error, BufferedInput window source None history)
+
+  -- | Retry transient empty source events at most 100 times, preserving every authoritative continuation.
+  fill-raw :: forall r. using (io :: Io r) => Bytes -> Nat -> BufferSource r -> ReadHistory -> Nat ->{IO r, Mut r} BufferedReader r
+  fill-raw owner retained source history attempts = if retained < bytes-len owner then
+    let room = bytes-len owner - retained in
+    case buffer-source-read source room of
+      (event, next) -> case event of
+        ReadEvent actual payload status -> case buffer-read-accepted room event of
+          Err failure -> BufferedInput (Window owner 0 retained) next (Some failure) history
+          Ok count -> if count <= bytes-len payload && retained + count <= bytes-len owner then
+            let copied = bytes-copy-range owner payload retained 0 count in
+            if count > 0 then BufferedInput (Window owner 0 (retained + count)) next status history
+            else case status of
+              Some failure -> BufferedInput (Window owner 0 retained) next status history
+              None -> if attempts < 99 then fill-raw owner retained next history (attempts + 1)
+                else BufferedInput (Window owner 0 retained) next (Some BufferNoProgress) history
+            else BufferedInput (Window owner 0 retained) next (Some (BufferInvalidReadCount room actual (bytes-len payload))) history
+    else BufferedInput (Window owner 0 retained) source (Some (BufferFull (bytes-len owner) (nat-to-int retained))) history
+
+  -- | Compact unread bytes into new private storage before one bounded refill sequence.
+  fill :: forall r. using (io :: Io r) => BufferedReader r ->{IO r, Mut r} BufferedReader r
+  fill reader = case reader of
+    BufferedInput window source error history -> case error of
+      Some failure -> reader
+      None -> case window of
+        Window owner start end ->
+          if start <= end && end <= bytes-len owner then
+            let retained = end - start in
+            if retained < bytes-len owner then
+              let output = bytes-new (bytes-len owner) in
+              if retained <= bytes-len output && start + retained <= bytes-len owner then
+                let copied = bytes-copy-range output owner 0 start retained in fill-raw output retained source history 0
+              else reader
+            else reader
+          else reader
+
+  -- | Return a complete fresh buffered prefix and advance by its exact length, preserving a pending error.
+  consume :: forall r. BufferedReader r -> Nat -> (ReadEvent, BufferedReader r)
+  consume reader wanted = case reader of
+    BufferedInput window source error history -> case window of
+      Window owner start end -> if start <= end && end <= bytes-len owner then
+        let available = end - start in let count = if wanted < available then wanted else available in
+        let output = part owner start count in let next-history = if count > 0 then History (last-byte output count) None else history in
+        (ReadEvent (nat-to-int count) output None, BufferedInput (Window owner (start + count) end) source error next-history)
+        else (ReadEvent 0 (bytes-new 0) (Some (BufferCustomError "invalid private read window")), reader)
+
+  -- | Perform one direct large read or one small-buffer read; transient emptiness is observable here.
+  read-empty :: forall r. using (io :: Io r) => BufferedReader r -> Nat ->{IO r, Mut r} (ReadEvent, BufferedReader r)
+  read-empty reader wanted = case reader of
+    BufferedInput window source error history -> case window of
+      Window owner start end -> let capacity = bytes-len owner in let direct = capacity <= wanted in
+        let request = if direct then wanted else capacity in
+        case buffer-source-read source request of
+          (event, next) -> case event of
+            ReadEvent actual payload status -> case buffer-read-accepted request event of
+              Err failure -> (ReadEvent 0 (bytes-new 0) (Some failure), BufferedInput window next None history)
+              Ok count -> if count <= bytes-len payload then
+                if direct then
+                  let output = part payload 0 count in let next-history = if count > 0 then History (last-byte output count) None else history in
+                  (ReadEvent (nat-to-int count) output status, BufferedInput window next None next-history)
+                else if count <= capacity then
+                  let output = bytes-new capacity in
+                  if count <= bytes-len output then
+                    let copied = bytes-copy-range output payload 0 0 count in
+                    let buffered = BufferedInput (Window output 0 count) next status history in
+                    if count > 0 then consume buffered wanted
+                    else case take-error buffered of (failure, advanced) -> (ReadEvent 0 (bytes-new 0) failure, advanced)
+                    else (ReadEvent 0 (bytes-new 0) (Some (BufferInvalidReadCount request actual (bytes-len payload))), BufferedInput window next None history)
+                  else (ReadEvent 0 (bytes-new 0) (Some (BufferInvalidReadCount request actual (bytes-len payload))), BufferedInput window next None history)
+                else (ReadEvent 0 (bytes-new 0) (Some (BufferInvalidReadCount request actual (bytes-len payload))), BufferedInput window next None history)
+
+  -- | Read up to a natural count with at most one underlying read, returning fresh bytes and any direct error.
+  -- A zero request performs no source I/O. Buffered bytes precede a pending error; a
+  -- large empty-buffer read can return a nonempty prefix together with that source's error.
+  buffered-read :: forall r. using (io :: Io r) => BufferedReader r -> Nat ->{IO r, Mut r} (ReadEvent, BufferedReader r)
+  buffered-read reader wanted = let available = buffered-reader-buffered reader in
+    if available > 0 then consume reader wanted
+    else case reader of
+      BufferedInput window source error history -> case error of
+        Some failure -> case take-error reader of (status, next) -> (ReadEvent 0 (bytes-new 0) status, next)
+        None -> if wanted == 0 then (ReadEvent 0 (bytes-new 0) None, reader) else read-empty reader wanted
+
+  -- | Fill until a peek's requested count, capacity or pending error has been reached.
+  peek-fill :: forall r. using (io :: Io r) => BufferedReader r -> Nat ->{IO r, Mut r} BufferedReader r
+  peek-fill reader wanted = if buffered-reader-buffered reader < wanted && buffered-reader-buffered reader < buffered-reader-size reader then
+    case reader of
+      BufferedInput window source error history -> case error of
+        Some failure -> reader
+        None -> let next = fill reader in peek-fill next wanted
+    else reader
+
+  -- | Observe fresh prefix bytes without consuming them; nonnegative peeks invalidate both unread permissions.
+  buffered-peek :: forall r. using (io :: Io r) => BufferedReader r -> Int ->{IO r, Mut r} (ReadEvent, BufferedReader r)
+  buffered-peek reader requested = if 0 <= requested then
+    let wanted = nat-from-int requested in let cleared = with-history reader (History None None) in
+    let filled = peek-fill cleared wanted in
+    case filled of
+      BufferedInput window source error history -> case window of
+        Window owner start end ->
+          let available = buffered-reader-buffered filled in
+          if buffered-reader-size filled < wanted then
+            let output = part owner start available in
+            (ReadEvent (nat-to-int available) output (Some (BufferFull (bytes-len owner) requested)), filled)
+          else if available < wanted then
+            let output = part owner start available in case take-error filled of
+              (status, next) -> let failure = case status of Some found -> Some found; None -> Some (BufferFull (bytes-len owner) requested) in
+                (ReadEvent (nat-to-int available) output failure, next)
+          else (ReadEvent requested (part owner start wanted) None, filled)
+    else (ReadEvent 0 (bytes-new 0) (Some (BufferNegativeCount requested)), reader)
+
+  -- | Consume a discard request from buffered prefixes and bounded refills until progress or a failure ends it.
+  discard-from :: forall r. using (io :: Io r) => BufferedReader r -> Nat -> Nat ->{IO r, Mut r} (CountEvent, BufferedReader r)
+  discard-from reader remaining done = let available = buffered-reader-buffered reader in
+    if available == 0 then
+      let next = fill reader in
+      if buffered-reader-buffered next > 0 then discard-from next remaining done
+      else case take-error next of
+        (status, advanced) -> (CountEvent done status, advanced)
+    else case reader of
+      BufferedInput window source error history -> case window of
+        Window owner start end ->
+          let count = if available < remaining then available else remaining in
+          let next = BufferedInput (Window owner (start + count) end) source error history in
+          if count == remaining then (CountEvent (done + count) None, next)
+          else if count <= remaining then
+            case error of
+              Some failure -> case take-error next of (status, advanced) -> (CountEvent (done + count) status, advanced)
+              None -> discard-from next (remaining - count) (done + count)
+          else (CountEvent done (Some (BufferCustomError "invalid private discard count")), reader)
+
+  -- | Discard a signed count; negative and zero requests preserve prior unread history and perform no I/O.
+  buffered-discard :: forall r. using (io :: Io r) => BufferedReader r -> Int ->{IO r, Mut r} (CountEvent, BufferedReader r)
+  buffered-discard reader requested = if 0 <= requested then
+    if requested == 0 then (CountEvent 0 None, reader)
+    else discard-from (with-history reader (History None None)) (nat-from-int requested) 0
+    else (CountEvent 0 (Some (BufferNegativeCount requested)), reader)
+
+  -- | Refill an empty byte reader until a byte or terminal event becomes available.
+  read-byte-from :: forall r. using (io :: Io r) => BufferedReader r ->{IO r, Mut r} (Result BufferError U8, BufferedReader r)
+  read-byte-from reader = if buffered-reader-buffered reader > 0 then
+    case reader of
+      BufferedInput window source error history -> case window of
+        Window owner start end -> if start < end && end <= bytes-len owner && start < bytes-len owner then
+          let number = bytes-get owner start in let wide = nat-to-i64 number in let value = wrapping-i64-to-u8 wide in
+          let next = BufferedInput (Window owner (start + 1) end) source error (History (Some value) None) in
+          (Ok value, next)
+          else (Err (BufferCustomError "invalid private byte window"), reader)
+    else case reader of
+      BufferedInput window source error history -> case error of
+        Some failure -> case take-error reader of (status, next) -> (Err failure, next)
+        None -> let next = fill reader in read-byte-from next
+
+  -- | Read one byte, invalidating rune unread permission while retaining the last byte across an unsuccessful read.
+  buffered-read-byte :: forall r. using (io :: Io r) => BufferedReader r ->{IO r, Mut r} (Result BufferError U8, BufferedReader r)
+  buffered-read-byte reader = case reader of BufferedInput window source error history -> read-byte-from (with-history reader (byte-history history))
+
+  -- | Restore the saved byte into new private storage, including after a direct read bypassed the buffer.
+  unread-byte-value :: forall r. BufferedReader r -> U8 -> (Result BufferError Unit, BufferedReader r)
+  unread-byte-value reader value = case reader of
+    BufferedInput window source error history -> case window of
+      Window owner start end ->
+        if start == 0 && end > 0 then (Err BufferInvalidUnreadByte, reader)
+        else let at = if start > 0 then start - 1 else 0 in
+          let following = if start > 0 then end else 1 in let output = part owner 0 (bytes-len owner) in
+          if at < bytes-len output && following <= bytes-len output then
+            let written = bytes-set output at (u8-to-nat value) in
+            (Ok (), BufferedInput (Window output at following) source error (History None None))
+          else (Err BufferInvalidUnreadByte, reader)
+
+  -- | Unread at most the most recently read byte; a successful unread clears both unread permissions.
+  buffered-unread-byte :: forall r. BufferedReader r -> (Result BufferError Unit, BufferedReader r)
+  buffered-unread-byte reader = case reader of
+    BufferedInput window source error history -> case history of
+      History byte rune -> case byte of
+        None -> (Err BufferInvalidUnreadByte, reader)
+        Some value -> unread-byte-value reader value
+
+  -- | A fresh line fragment, whether more fragments follow, and an optional terminal error.
+  data LineEvent where
+    -- | A line fragment excludes line-ending bytes; a prefix has no terminal error.
+    LineEvent :: Bytes -> Bool -> Option BufferError -> LineEvent
+
+  -- | Reuse an existing buffered handle when its capacity suffices; otherwise buffer its advanced read operation.
+  buffered-reader-rebuffer :: forall r. using (io :: Io r) => Int -> BufferedReader r -> BufferedReader r
+  buffered-reader-rebuffer requested reader = if requested <= nat-to-int (buffered-reader-size reader) then reader
+    else buffered-reader-sized requested (buffered-reader-as-source reader)
+
+  -- | Adapt successive buffered reads into raw source events without exposing the private window.
+  reader-source :: forall r. using (io :: Io r) => BufferedReader r -> BufferSource r
+  reader-source reader = buffer-source-with-mutation (\wanted -> case buffered-read reader wanted of
+    (event, next) -> (event, reader-source next))
+
+  -- | Read into a checked destination interval; an invalid interval performs no source I/O or destination mutation.
+  buffered-read-into :: forall r. using (io :: Io r) => BufferedReader r -> Bytes -> Nat -> Nat ->{IO r, Mut r} (CountEvent, BufferedReader r)
+  buffered-read-into reader output at wanted = if at + wanted <= bytes-len output then
+    case buffered-read reader wanted of
+      (event, next) -> case event of
+        ReadEvent actual payload status -> case buffer-read-accepted wanted event of
+          Err failure -> (CountEvent 0 (Some failure), next)
+          Ok count -> if at + count <= bytes-len output && count <= bytes-len payload then
+            let copied = bytes-copy-range output payload at 0 count in (CountEvent count status, next)
+            else (CountEvent 0 (Some (BufferInvalidReadCount wanted actual (bytes-len payload))), next)
+    else (CountEvent 0 (Some (BufferCustomError "invalid destination interval")), reader)
+
+  -- | Refill until the unread prefix determines a scalar or a terminal event fixes its malformed status.
+  rune-fill :: forall r. using (io :: Io r) => BufferedReader r ->{IO r, Mut r} BufferedReader r
+  rune-fill reader = case reader of
+    BufferedInput window source error history -> case window of
+      Window owner start end -> if start <= end && end <= bytes-len owner then
+        let available = end - start in
+        if available >= 4 then reader
+        else case error of
+          Some failure -> reader
+          None -> if available == 0 then let next = fill reader in rune-fill next
+            else if start < bytes-len owner && bytes-get owner start < 128 then reader
+            else let prefix = part owner start available in
+              if not (Utf8.utf8-full-rune prefix) && available < bytes-len owner then let next = fill reader in rune-fill next
+              else reader
+        else reader
+
+  -- | Read one Unicode scalar and its encoded width; malformed or truncated input consumes one replacement byte.
+  buffered-read-rune :: forall r. using (io :: Io r) => BufferedReader r ->{IO r, Mut r} (Result BufferError (Char, Nat), BufferedReader r)
+  buffered-read-rune reader = let filled = rune-fill reader in
+    case filled of
+      BufferedInput window source error history -> case window of
+        Window owner start end ->
+          if start < end && end <= bytes-len owner then
+            let step = Utf8.utf8-decode-between owner start end start in let width = Utf8.utf8-step-width step in
+            if width > 0 && start + width <= end then
+              let following = start + width in
+              let next = BufferedInput (Window owner following end) source error (History (last-byte owner following) (Some width)) in
+              (Ok (Utf8.utf8-step-char step, width), next)
+            else (Err (BufferCustomError "invalid private rune width"), filled)
+          else case take-error (with-history filled (byte-history history)) of
+            (Some failure, next) -> (Err failure, next)
+            (None, next) -> (Err BufferNoProgress, next)
+
+  -- | Unread exactly the preceding successful scalar read; successful rewind clears both unread permissions.
+  buffered-unread-rune :: forall r. BufferedReader r -> (Result BufferError Unit, BufferedReader r)
+  buffered-unread-rune reader = case reader of
+    BufferedInput window source error history -> case history of
+      History byte rune -> case rune of
+        None -> (Err BufferInvalidUnreadRune, reader)
+        Some width -> case window of
+          Window owner start end -> if width <= start then
+            (Ok (), BufferedInput (Window owner (start - width) end) source error (History None None))
+            else (Err BufferInvalidUnreadRune, reader)
+
+  -- | Search a bounded owner span with the shared exact SIMD byte-lane kernel and scalar fringes.
+  delimiter-at :: Bytes -> Nat -> Nat -> U8 -> Option Nat
+  delimiter-at owner at end delimiter = Scan.find-byte owner at end delimiter
+
+  -- | Consume a fixed-window delimiter result, preserving history for an empty failure result.
+  slice-result :: forall r. BufferedReader r -> Nat -> Option BufferError -> (ReadEvent, BufferedReader r)
+  slice-result reader count status = case consume reader count of
+    (event, next) -> case event of ReadEvent actual payload ignored -> (ReadEvent actual payload status, next)
+
+  -- | Search only the new suffix after a refill, consuming one complete window at a capacity boundary.
+  slice-from :: forall r. using (io :: Io r) => BufferedReader r -> U8 -> Nat ->{IO r, Mut r} (ReadEvent, BufferedReader r)
+  slice-from reader delimiter searched = case reader of
+    BufferedInput window source error history -> case window of
+      Window owner start end -> if start <= end && end <= bytes-len owner then
+        let available = end - start in
+        let begin = if searched <= available then start + searched else start in
+        case delimiter-at owner begin end delimiter of
+          Some at -> if start <= at then slice-result reader (at - start + 1) None else slice-result reader 0 (Some (BufferCustomError "invalid delimiter index"))
+          None -> case error of
+            Some failure -> case take-error reader of (status, next) -> slice-result next available status
+            None -> if bytes-len owner <= available then slice-result reader available (Some (BufferFull (bytes-len owner) (nat-to-int available)))
+              else let next = fill reader in slice-from next delimiter available
+        else slice-result reader 0 (Some (BufferCustomError "invalid private slice window"))
+
+  -- | Read through a delimiter or one fixed buffer window, returning independently owned bytes including the delimiter.
+  -- A terminal source error accompanies an unterminated fragment; a full window reports BufferFull.
+  buffered-read-slice :: forall r. using (io :: Io r) => BufferedReader r -> U8 ->{IO r, Mut r} (ReadEvent, BufferedReader r)
+  buffered-read-slice reader delimiter = slice-from reader delimiter 0
+
+  -- | Collect full delimiter fragments in reverse order without repeatedly copying the accumulated prefix.
+  collect-bytes :: forall r. using (io :: Io r) => BufferedReader r -> U8 -> List Bytes ->{IO r, Mut r} (ReadEvent, BufferedReader r)
+  collect-bytes reader delimiter pieces = case buffered-read-slice reader delimiter of
+    (event, next) -> case event of
+      ReadEvent actual payload status -> case status of
+        Some (BufferFull capacity requested) -> collect-bytes next delimiter (Cons payload pieces)
+        other -> let output = bytes-concat (reverse (Cons payload pieces)) in (ReadEvent (nat-to-int (bytes-len output)) output other, next)
+
+  -- | Read through the next delimiter across arbitrarily many fixed windows, preserving a final partial result and error.
+  buffered-read-bytes :: forall r. using (io :: Io r) => BufferedReader r -> U8 ->{IO r, Mut r} (ReadEvent, BufferedReader r)
+  buffered-read-bytes reader delimiter = collect-bytes reader delimiter Nil
+
+  -- | Rewind one byte for a split CR/LF ending while preserving the actual most recent read-byte history.
+  rewind-line-cr :: forall r. BufferedReader r -> BufferedReader r
+  rewind-line-cr reader = case reader of
+    BufferedInput window source error history -> case window of
+      Window owner start end -> if start > 0 then BufferedInput (Window owner (start - 1) end) source error history else reader
+
+  -- | Strip a complete LF or CR/LF ending from a fresh fragment without altering saved unread-byte history.
+  trim-line :: Bytes -> Bytes
+  trim-line payload = let size = bytes-len payload in
+    if size > 0 then let last = size - 1 in
+      if last < bytes-len payload && bytes-get payload last == 10 then
+        if size > 1 then let previous = size - 2 in
+          if previous < bytes-len payload && bytes-get payload previous == 13 then part payload 0 previous else part payload 0 last
+        else part payload 0 last
+      else payload
+    else payload
+
+  -- | Read a fresh line fragment excluding LF or CR/LF; a capacity fragment reports prefix=True and no error.
+  -- Nonempty final unterminated lines suppress the terminal error. Byte-unread restores the actual final input byte.
+  buffered-read-line :: forall r. using (io :: Io r) => BufferedReader r ->{IO r, Mut r} (LineEvent, BufferedReader r)
+  buffered-read-line reader = case buffered-read-slice reader 10 of
+    (event, next) -> case event of
+      ReadEvent actual payload status -> case status of
+        Some (BufferFull capacity requested) -> let size = bytes-len payload in
+          if size > 0 then let last = size - 1 in
+            if last < bytes-len payload && bytes-get payload last == 13 then (LineEvent (part payload 0 last) True None, rewind-line-cr next)
+            else (LineEvent payload True None, next)
+          else (LineEvent payload True None, next)
+        other -> if bytes-len payload > 0 then (LineEvent (trim-line payload) False None, next) else (LineEvent payload False other, next)
+
+  -- | A delimiter read retains raw bytes even when they cannot be represented as valid Unicode text.
+  data TextEvent where
+    -- | Fresh raw bytes, checked text if valid, and the independent source termination status.
+    TextEvent :: Bytes -> Option String -> Option BufferError -> TextEvent
+
+  -- | Read through a delimiter and check its complete raw result for valid UTF-8 without dropping malformed bytes.
+  buffered-read-string :: forall r. using (io :: Io r) => BufferedReader r -> U8 ->{IO r, Mut r} (TextEvent, BufferedReader r)
+  buffered-read-string reader delimiter = case buffered-read-bytes reader delimiter of
+    (event, next) -> case event of
+      ReadEvent count payload status -> (TextEvent payload (string-from-bytes payload) status, next)
+
+  -- | Wrap a transfer's supplied write function as an advancing sink without introducing external cursor state.
+  callback-sink :: forall r. using (io :: Io r) => (Bytes ->{IO r} WriteEvent) -> BufferSink r
+  callback-sink write = buffer-sink (\payload -> let event = write payload in (event, callback-sink write))
+
+  -- | Adapt a buffered handle as a raw source with an explicit direct-transfer capability.
+  buffered-reader-as-source :: forall r. using (io :: Io r) => BufferedReader r -> BufferSource r
+  buffered-reader-as-source reader = buffer-source-with-transfer (reader-source reader) (\write -> reader-transfer reader write)
+
+  -- | Forward a buffered transfer while returning its authoritative advanced reader as the next source.
+  reader-transfer :: forall r. using (io :: Io r) => BufferedReader r -> (Bytes ->{IO r} WriteEvent) ->{IO r, Mut r} (TransferEvent, BufferSource r)
+  reader-transfer reader write = case buffered-write-to reader (callback-sink write) of
+    (event, next, sink) -> (event, buffered-reader-as-source next)
+
+  -- | Offer a fresh buffered prefix once, retain confirmed sink progress and reject invalid or unexplained short counts.
+  write-window :: forall r. using (io :: Io r) => BufferedReader r -> BufferSink r ->{IO r} (TransferEvent, BufferedReader r, BufferSink r)
+  write-window reader sink = case reader of
+    BufferedInput window source error history -> case window of
+      Window owner start end -> if start <= end && end <= bytes-len owner then
+        let count = end - start in let payload = part owner start count in
+        case buffer-sink-write sink payload of
+          (event, next-sink) -> case event of
+            WriteEvent actual status -> case buffer-write-accepted count event of
+              Err failure -> (TransferEvent 0 (Some failure), reader, next-sink)
+              Ok accepted ->
+                let next = BufferedInput (Window owner (start + accepted) end) source error history in
+                let failure = case status of
+                      Some found -> Some found
+                      None -> if accepted < count then Some (BufferShortWrite count accepted) else None in
+                if accepted <= 9223372036854775807 then (TransferEvent (nat-to-i64 accepted) failure, next, next-sink)
+                else (TransferEvent 0 (Some (BufferInvalidWriteCount count actual)), reader, next-sink)
+        else (TransferEvent 0 (Some (BufferCustomError "invalid private transfer window")), reader, sink)
+
+  -- | Refill and drain ordinary buffered prefixes until a transport error or end-of-input is reached.
+  write-to-loop :: forall r. using (io :: Io r) => BufferedReader r -> BufferSink r -> I64 ->{IO r, Mut r} (TransferEvent, BufferedReader r, BufferSink r)
+  write-to-loop reader sink total = let filled = fill reader in
+    if buffered-reader-buffered filled > 0 then
+      case write-window filled sink of
+        (event, next, next-sink) -> case event of
+          TransferEvent count status -> let sum = wrapping-add-i64 total count in
+            case status of
+              Some failure -> (TransferEvent sum status, next, next-sink)
+              None -> write-to-loop next next-sink sum
+    else case take-error filled of
+      (Some BufferEnd, next) -> (TransferEvent total None, next, sink)
+      (status, next) -> (TransferEvent total status, next, sink)
+
+  -- | Prefer the underlying source's transfer, then the destination's transfer, before ordinary buffered reads.
+  write-to-dispatch :: forall r. using (io :: Io r) => BufferedReader r -> BufferSink r -> I64 ->{IO r, Mut r} (TransferEvent, BufferedReader r, BufferSink r)
+  write-to-dispatch reader sink total = case reader of
+    BufferedInput window source error history ->
+      if buffer-source-has-transfer source then
+        case buffer-source-transfer source sink of
+          (Some event, next-source, next-sink) -> case event of
+            TransferEvent count status -> (TransferEvent (wrapping-add-i64 total count) status, BufferedInput window next-source error history, next-sink)
+          (None, next-source, next-sink) -> write-to-loop (BufferedInput window next-source error history) next-sink total
+      else if buffer-sink-has-transfer sink then
+        case buffer-sink-transfer sink source of
+          (Some event, next-source, next-sink) -> case event of
+            TransferEvent count status -> (TransferEvent (wrapping-add-i64 total count) status, BufferedInput window next-source error history, next-sink)
+          (None, next-source, next-sink) -> write-to-loop (BufferedInput window next-source error history) next-sink total
+      else write-to-loop reader sink total
+
+  -- | Drain buffered bytes, then dispatch optional direct transfer capabilities in source-first order.
+  -- Every returned handle is authoritative. Ordinary end-of-input is suppressed;
+  -- malformed sink counts and unexplained short writes return named checked failures.
+  buffered-write-to :: forall r. using (io :: Io r) => BufferedReader r -> BufferSink r ->{IO r, Mut r} (TransferEvent, BufferedReader r, BufferSink r)
+  buffered-write-to reader sink = let cleared = with-history reader (History None None) in
+    if buffered-reader-buffered cleared > 0 then
+      case write-window cleared sink of
+        (event, next, next-sink) -> case event of
+          TransferEvent count status -> case status of
+            Some failure -> (event, next, next-sink)
+            None -> write-to-dispatch next next-sink count
+    else write-to-dispatch cleared sink 0
