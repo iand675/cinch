@@ -1,0 +1,25 @@
+{
+  "modes": [
+    "rgba-control",
+    "premultiply",
+    "straight-model",
+    "gray-model",
+    "ycbcr16",
+    "rgb-ycbcr",
+    "ycbcr-rgb",
+    "rgb-cmyk",
+    "cmyk-rgb",
+    "custom-source",
+    "custom-model",
+    "alpha-model",
+    "palette-index-empty",
+    "palette-index-small",
+    "palette-index-256",
+    "palette-index-ties",
+    "palette-convert-empty",
+    "palette-convert-small",
+    "palette-convert-256",
+    "palette-convert-ties",
+    "palette-model-256"
+  ]
+}
