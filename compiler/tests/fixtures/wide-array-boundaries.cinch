@@ -117,12 +117,4 @@ module Main where
 
   -- | Name the first failed boundary through a stable process exit code.
   main :: Unit ->{Mut r} Int
-  main unit = if unsigned-arrays () then
-    (if signed-tensors () then
-      (if column-leaf () then
-        (if tuple-columns () then
-          (if vector-copies () then (if signed-vector () then 0 else 6) else 5)
-        else 4)
-      else 3)
-    else 2)
-  else 1
+  main unit = if unsigned-arrays () then (if signed-tensors () then (if column-leaf () then (if tuple-columns () then (if vector-copies () then (if signed-vector () then 0 else 6) else 5) else 4) else 3) else 2) else 1

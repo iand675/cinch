@@ -1,7 +1,9 @@
 # Generic wide array boundary candidate
 
-This source-only candidate follows Slots commit `f118027f` and has not been
-compiled or run. It makes no Vec interoperability, Native-family, artifact or
+This candidate follows Slots commit `f118027f`; its implementation has not
+been compiled or run. The corrected public API fixture passed the qualified
+330adb/d91 source-only check in 3.013 seconds; the original layout failure and
+new source hash are preserved in `wide-array-source-preflight-results.json`. It makes no Vec interoperability, Native-family, artifact or
 performance claim. The independent Slots fix remains unchanged.
 
 ## Representation
