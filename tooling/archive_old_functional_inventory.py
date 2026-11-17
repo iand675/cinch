@@ -44,7 +44,9 @@ def main() -> None:
     for item in selected:
         original = ROOT/item['path']
         assert original.is_relative_to(ROOT/'build') and str(original) not in protected
-        assert original.name in ['consumer','consumer.ll'] and original.parent.name in ['rows','owners','byte-split-v4-original-native-o2-rows']
+        assert original.name in ['consumer','consumer.ll'] and original.parent.name in [
+            'rows','owners','byte-split-v4-original-native-o2-rows',
+            'byte-split-v4-initial-owners','byte-split-v4-original-native-o2-owners']
         assert not any(word in item['path'] for word in ['bench','frozen','provider','compiler','runtime','progress','regression','failed','interface'])
         report = ROOT/item['receipt']
         assert digest(report)==item['receipt_sha256']

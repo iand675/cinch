@@ -1,5 +1,5 @@
 {
-  "scope": "Source and Rust O0/O2 functional checkpoint; Native/portable/performance remain unqualified",
+  "scope": "Source, Rust O0/O2 and historical Native O0 functional checkpoint; Native O2/portable/performance remain unqualified",
   "source_sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
   "ascii_dependency_commit": "ed70e1bc525ffe3ae8dfdb71233e7d5ed6b7296a",
   "namespace": "Data.Bytes.Fields",
@@ -141,7 +141,7 @@
     "increased_program_limit": false
   },
   "pending": [
-    "Historical Native complete API and capability gates at O0/O2",
+    "Historical Native O2 complete matrix, plus source capability and live mixed-effect gates",
     "Actual full Fields portable adapter objects",
     "Parent checked-RC API/capability tests",
     "Public pipeline benchmarks/codegen review",
@@ -258,5 +258,88 @@
     "source_sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
     "tuple": "same strict historical2f/V4/c4 as historical_native_first_unit",
     "no_family_adoption": true
-  }
+  },
+  "historical_native_o0": {
+    "scope": "Full original1266 output/trace rows,8mutation scripts,2owner/stateful controls andruntime65536deep; distinctIO/Mut live fixture and sourceaccept/refusal contracts still pending",
+    "memory_profiles": 340,
+    "leaked": 0,
+    "compiled_rc_debug": true,
+    "dynamic_poison_checked": true,
+    "normal_heap": "32M",
+    "poison_heap": "256M",
+    "program_stack": "8M",
+    "compiler_main_stack": "64MiB",
+    "tuple_reference": "historical_native_first_unit",
+    "receipts": [
+      {
+        "path": "build/byte-fields-rows-runtime-native-v4-o0.json",
+        "sha256": "1d9c217093f25c1be093493e0ca30dca1e4914143909a5a5807bf57ff52618b1",
+        "group": "rows",
+        "cases": 1266,
+        "memory_profiles": 318,
+        "additional_runtime_control": null,
+        "source_snapshot": "10fb3a78900726574030d0ae7eb8f6b7df44db657e32815c70b74a3ab68263c0",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "llvm_sha256": "2e4b1da6ee59238df2fb356430c2e1f6d3c601382374002d8915ed407d7ed90b",
+        "executable_sha256": "9e81c3b2f8a187bec372d53928ec75a6f7c5be5fab2c72c38c21e3ba51a84832"
+      },
+      {
+        "path": "build/byte-fields-first-native-v4-owners-o0.json",
+        "sha256": "a0df58d76fc35e0b7f6ee98ff36f6dd37044aace9319c4322fcdec004a6351f7",
+        "group": "owners",
+        "cases": 2,
+        "memory_profiles": 4,
+        "additional_runtime_control": null,
+        "source_snapshot": "e0c4c7c04c6a4edf0cf411598cabd2e5f4fa3fb019e648a0a50f285e1dc16871",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "llvm_sha256": "92a316c49359f157175a9a85a882580b1f40f3f01b33ac3528ecc6754fab647c",
+        "executable_sha256": "31b32d47da4b4e4e2a2cc2520b2731553d15088d6399eba7511f5ecf5c1e3554"
+      },
+      {
+        "path": "build/byte-fields-effects-deep-runtime-native-v4-o0.json",
+        "sha256": "858ac499c5d046e085955fa836061e987e2cc68a2e6f3dfcb90ad03999180083",
+        "group": "effects",
+        "cases": 8,
+        "memory_profiles": 18,
+        "additional_runtime_control": {
+          "name": "deep",
+          "input_bytes": 65536,
+          "nonempty_fields": 32768
+        },
+        "source_snapshot": "e0bbe915ec9a47f0f2033aad8298d4d4486c9083aca02589aaddeda8731583df",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "llvm_sha256": "075e4c69ce8aa701085da3ec77a8f51154858f45423fd1b616aab66b9f395c7e",
+        "executable_sha256": "13d0d31e01a06d00ce160e26c1ca2b0d33a91815b6d3a3b287ff270a0b3e9bec"
+      }
+    ],
+    "no_new_family_adoption": true
+  },
+  "total_original_functional_memory_profiles": 1020
 }

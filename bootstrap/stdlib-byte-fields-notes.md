@@ -1,8 +1,8 @@
-# Retained byte fields: Rust O0/O2 checkpoint
+# Retained byte fields: Rust O0/O2 and historical Native O0 checkpoint
 
 `Data.Bytes.Fields` implements the four audited field operations with concrete
 state and callback traversal. This checkpoint claims source/type validation and
-the complete Rust O0/O2 functional scope below. Native, Fields portable objects,
+the complete Rust O0/O2 and historical Native O0 functional scope below. Native O2, Fields portable objects,
 parent checked-RC API tests and performance review remain pending.
 
 | Audited declaration | Primary whole-buffer operation | Bounded-view counterpart |
@@ -82,10 +82,13 @@ the compiler host runtime remains separately identified as `80bd5b54`. This smal
 unit does not qualify the full Native matrix, mixed-capability contract proof or
 any newer compiler family.
 
-The same historical Native tuple additionally passes the complete 1,266 output
-and callback rows at O0: 318 normal/poison processes, each with zero leaks.
-Native mutation scripts, deep traversal and O2 remain pending; the earlier four
-ownership/stateful processes are separate and are not counted twice.
+The same historical Native tuple now passes the complete original O0 scope:
+1,266 output/trace rows (318 processes), eight mutation scripts (16), two
+ownership/stateful controls (four), and the runtime-generated 65,536-byte dense
+input (two). All 340 normal/poison processes report zero leaks with checked-RC
+compilation. The deep control reuses the mutation consumer without repeating the
+earlier ownership gate. Native O2, the additional live distinct-IO/mutation
+fixture and source acceptance/refusal contracts remain pending.
 
 The actual mixed IO/Mut API/factory proof is accepted, and the negative proof
 reaches the specific `effect rows do not match` rejection. Earlier test-only
