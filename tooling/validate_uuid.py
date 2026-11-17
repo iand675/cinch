@@ -37,6 +37,8 @@ def main() -> None:
     parser.add_argument('--runtime',type=Path,required=True)
     parser.add_argument('--clang',type=Path,required=True)
     parser.add_argument('--cpu',type=int,required=True)
+    parser.add_argument('--minimum-free-mib',type=int,choices=(320,350),default=350,
+                        help='Use320 only for the explicitly coordinated single-producer resource exception')
     parser.add_argument('--mode',choices=('source','parse','append','compare','v7','generated','control','io'),required=True)
     parser.add_argument('--start',type=int,default=0)
     parser.add_argument('--count',type=int,default=128)
@@ -47,7 +49,13 @@ def main() -> None:
     os.sched_setaffinity(0,{args.cpu})
     compiler,runtime,clang=args.compiler.resolve(),args.runtime.resolve(),args.clang.resolve()
     free=shutil.disk_usage(ROOT).free
-    assert free>=350*1024*1024,('fresh350MiB guard',free)
+    if free<args.minimum_free_mib*1024*1024:
+        args.output.parent.mkdir(parents=True,exist_ok=True)
+        args.output.write_text(json.dumps({'kind':'bounded-UUID-candidate-qualification','status':'resource-paused-before-compiler',
+            'compiler_invoked':False,'runtime_executed':False,'mode':args.mode,'start':args.start,'count':args.count,
+            'fresh_start_mib':args.minimum_free_mib,'free_before':free,'candidate_selected':False,'package_complete':False},indent=2)+'\n')
+        print(f'Resource pause: {free} bytes free before compiler; requires{args.minimum_free_mib}MiB',flush=True)
+        raise SystemExit(2)
     assert not args.artifacts.exists(),'Use a fresh directory and preserve every previous attempt'
     directory=args.artifacts.resolve();directory.mkdir(parents=True)
     modules={name:(ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch')).read_bytes() for name in MODULES}
@@ -64,7 +72,8 @@ def main() -> None:
             'runner_sha256':digest(Path(__file__)),'sources':{k:hashlib.sha256(v).hexdigest() for k,v in modules.items()},
             'fixture_sha256':digest(ROOT/'compiler/tests/fixtures/uuid-vectors.json'),'consumer_sha256':digest(entry),
             'candidate_selected':False,'package_complete':False,'native_family_relabelled':False,
-            'cpu_affinity':[args.cpu],'free_before':free,'status':'running','runs':[]}
+            'cpu_affinity':[args.cpu],'free_before':free,'fresh_start_mib':args.minimum_free_mib,
+            'minimum_reserve_mib':250,'maximum_new_output_mib':5 if args.mode=='source' else 20,'status':'running','runs':[]}
     environment={**os.environ,'CINCH_CLANG':str(clang),'RUST_MIN_STACK':'67108864','CINCH_TEST_API_EMIT_INTERFACES':'0'}
     command=[str(compiler),'check' if args.mode=='source' else 'build',str(entry)]
     if args.mode!='source':command+=['-o',str(executable),'--runtime-archive',str(runtime),'--opt-level',args.opt_level]

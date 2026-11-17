@@ -25,9 +25,11 @@ def scalar_hex(source: str) -> str:
     else ()
 '''
     source=source[:start]+replacement+source[end:]
+    source=source.replace('-- | Fill complete four-byte SIMD blocks, then the exact scalar tail.', '-- | Scalar-only encoding control with unchanged public buffer ownership.')
     start=source.index('  decode-buffer-from input i out oi =')
     end=source.index('\n  -- | Store a valid pair',start)
-    return source[:start]+'  decode-buffer-from input i out oi = decode-scalar input i out oi\n'+source[end:]
+    result=source[:start]+'  decode-buffer-from input i out oi = decode-scalar input i out oi\n'+source[end:]
+    return result.replace('-- | Decode SIMD blocks directly into the output, then identify a scalar error or exact tail.\n  -- Each decoded block is stored once; no per-byte list nodes are allocated.', '-- | Scalar-only pair decoding with unchanged public error ordering and ownership.')
 
 
 def main() -> None:
