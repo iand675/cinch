@@ -1,0 +1,21 @@
+{
+  "scope": "Only byte-identical immutable frozen C4 runtimes with identical size/full mode/uid/gid/mtime. All paths remain regular plain files; mutable build outputs and metadata-distinct snapshots are excluded.",
+  "canonical": "/workspace/dasl-stdlib-io/build/stdlib-dynamic-json-parent-frozen/libcinchruntime.a",
+  "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "bytes": 24618010,
+  "mode_octal": "0o600",
+  "mtime_ns": 1794770078025339625,
+  "aliases": [
+    "/workspace/dasl-stdlib-io/build/boxed-nat-memory-safe-frozen/libcinchruntime.a",
+    "/workspace/dasl-stdlib-io/build/capability-region-mutation-frozen/libcinchruntime.a",
+    "/workspace/dasl-stdlib-io/build/region-safe-frozen/libcinchruntime.a",
+    "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/libcinchruntime.a",
+    "/workspace/dasl-stdlib-io/build/explicit-region-mutation-frozen/libcinchruntime.a",
+    "/workspace/dasl-stdlib-io/build/stdlib-constructor-string-frozen/libcinchruntime.a",
+    "/workspace/dasl-stdlib-io/build/staged-word-safe-frozen/libcinchruntime.a"
+  ],
+  "metadata_distinct_excluded": [
+    "/workspace/dasl-stdlib-io/build/string-word-safe-frozen/libcinchruntime.a"
+  ],
+  "restore_independent_copy": "Copy canonical bytes into a temporary regular file with recorded mode/mtime, fsync, then atomically replace the selected alias. No content is removed."
+}
