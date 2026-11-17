@@ -24,13 +24,13 @@ module Main where
 
   -- | Preserve the input and failed receiver while checking every successful bit after restoring the source byte.
   check-class :: Bytes -> Nat -> Nat -> ByteClass -> Bool
-  check-class input at target row = case row of
+  check-class input at canonical-at row = case row of
     ByteClass byte valid lower ->
       let expected = string-to-bytes "f81d4fae-7dec-11d0-a765-00a0c91e6bf6" in
-      if byte <= 255 && lower <= 255 && at < bytes-len input && target < bytes-len expected then
+      if byte <= 255 && lower <= 255 && at < bytes-len input && canonical-at < bytes-len expected then
         let original = bytes-get input at in
         let changed = bytes-set input at byte in
-        let prepared = bytes-set expected target lower in
+        let prepared = bytes-set expected canonical-at lower in
         case uuid-unmarshal-text uuid-max input of
           (next, error) ->
             let restored = bytes-set input at original in
@@ -41,17 +41,17 @@ module Main where
 
   -- | Return the first failed recorded byte index without losing the original generated project.
   check-classes :: Bytes -> Nat -> Nat -> List ByteClass -> Nat
-  check-classes input at target rows = case rows of
+  check-classes input at canonical-at rows = case rows of
     Nil -> 0
-    Cons row rest -> if check-class input at target row then check-classes input at target rest else case row of ByteClass byte valid lower -> byte + 1
+    Cons row rest -> if check-class input at canonical-at row then check-classes input at canonical-at rest else case row of ByteClass byte valid lower -> byte + 1
 
   -- | Sweep every encoded lane; a failure identifies its logical position and recorded byte.
   check-positions :: Bytes -> List Position -> Nat -> Nat
   check-positions input positions index = case positions of
     Nil -> 0
     Cons position rest -> case position of
-      Position at target ->
-        let bad = check-classes input at target classifications in
+      Position at canonical-at ->
+        let bad = check-classes input at canonical-at classifications in
         if bad == 0 then check-positions input rest (index + 1) else index * 256 + bad
 
   -- | Check wrapper offsets, every byte classification and the complete restored input buffer.

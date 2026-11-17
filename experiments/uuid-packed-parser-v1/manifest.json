@@ -1,6 +1,6 @@
 {
   "kind": "separate-UUID-packed-parser-candidate",
-  "status": "source-doc-and-first128-reference-runtime-passed-remaining-gates-pending",
+  "status": "full-standalone-SDK-positional-owner-IO-clock-matrix-passed-portable-parent-and-performance-pending",
   "baseline_source": "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
   "baseline_source_sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
   "source": "experiments/uuid-packed-parser-v1/sources/Data.Uuid.cinch",
@@ -31,7 +31,6 @@
     "No selection or performance claim before full qualification and paired timing"
   ],
   "pending": [
-    "full independent parse/append/compare/generated/clock/owner/IO matrix plus exhaustive malformed-byte and canary controls",
     "portable actual adapter objects",
     "matched public pipeline allocation/ASM preflights and separately granted timing",
     "Native pure compatibility where admitted"
@@ -41,13 +40,20 @@
   "completed": [
     "exact330/d91 source check",
     "46Data.Uuid canonical declarations with zero diagnostics/orphans",
-    "first128independent parser/receiver/strict-parser observations normal32M/poison256M,8Mstack,zero leaks"
+    "first128independent parser/receiver/strict-parser observations normal32M/poison256M,8Mstack,zero leaks",
+    "full660parse/204append/370compare/48recorded payload/9clock sequence independent matrix",
+    "32768metamorphic position/form/byte receiver and input-restoration cases",
+    "owner/hash/range controls and actual entropy/wallclock/serialized shared-generator IO",
+    "16bounded units/32normal+poison processes allzero leaks; every closed functional output durably archived",
+    "Actual packed-adapter wasm32/AArch64IR and object compilation with packed decoder call paths; PPC CLI refusal remains separate"
   ],
   "qualification": {
     "source_doc": "source-doc-results.json",
     "initial_runtime": "initial-runtime-results.json",
     "positional_oracle": "positional-reference.json",
-    "positional_source_check": "resource-paused before compiler at333844480bytes free; no semantic result",
-    "selected": false
+    "positional_source_check": "passed after a preserved fixture-only reserved-identifier rename",
+    "selected": false,
+    "runtime_matrix": "runtime-matrix-results.json",
+    "portable": "portable-results.json"
   }
 }

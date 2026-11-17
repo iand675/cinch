@@ -10,7 +10,7 @@
     "urn"
   ],
   "derived_public_observations": 32768,
-  "source_sha256": "246d689231dd7251dcd65017d14dd1c7c216230eb009ea7d6fcc099c29e67b57",
+  "source_sha256": "405769377bbca49cab5df41a68bd825d5bbbee5bbdba451aa0da0906cc582c64",
   "method": "Reuse actual SDK first-hex-digit acceptance and recorded lowercase output byte at each of32uniform hexadecimal positions in four wrapper forms. Expected complete canonical output changes only the corresponding digit. This is metamorphic positional stress, not32768new SDK executions or a reimplementation of the SIMD classifier.",
   "checks": [
     "exact successful canonical bits after restoring the mutable source byte",
@@ -18,5 +18,14 @@
     "complete input restored and unchanged across the sweep",
     "first failure coordinate printed with a fixed nonzero exit to avoid exit-code truncation"
   ],
-  "runtime_passed": false
+  "runtime_passed": true,
+  "preserved_fixture_diagnostic": {
+    "report": "build/uuid-packed-positional-source-a2-results.json",
+    "fixture_source_sha256": "246d689231dd7251dcd65017d14dd1c7c216230eb009ea7d6fcc099c29e67b57",
+    "diagnostic": "27:24 expected =, found Target",
+    "cause": "target is a reserved platform-selection token, so it cannot be a function binder.",
+    "correction": "Rename the local binder to canonical-at; no expected values or library source changes."
+  },
+  "runtime_matrix": "runtime-matrix-results.json",
+  "source_only_report": "build/uuid-packed-positional-source-a3-results.json"
 }

@@ -46,6 +46,9 @@ def main() -> None:
     parser.add_argument('--runtime',type=Path,required=True)
     parser.add_argument('--clang',type=Path,required=True)
     parser.add_argument('--go',type=Path,default=Path('/tmp/cinch-go-current/go/bin/go'))
+    parser.add_argument('--candidate-sources',type=Path,help='Optional isolated UUID source overrides; Hex controls remain separate')
+    parser.add_argument('--variants',nargs='+',choices=('simd','scalar'),default=['simd','scalar'])
+    parser.add_argument('--entry',type=Path,help='Explicit immutable paired harness source; defaults to the current direct-argument driver')
     parser.add_argument('--reference-artifacts',type=Path,help='Reuse an immutable reference executable instead of building another SDK program')
     parser.add_argument('--cpu',type=int,required=True)
     parser.add_argument('--artifacts',type=Path,required=True)
@@ -65,7 +68,7 @@ def main() -> None:
         directory.mkdir(parents=True)
         cache_before=cache_bytes(Path(environment['GOCACHE']))
         report={'status':'building','compiler_sha256':digest(args.compiler),'runtime_sha256':digest(args.runtime),
-                'clang_sha256':digest(args.clang),'variants':{},'cache_bytes_before':cache_before,'scope':'Separate SIMD/scalar Hex copies, identical public UUID pipeline and ownership semantics; packed comparison is unchanged as a control.'}
+                'clang_sha256':digest(args.clang),'variants':{},'candidate_sources':str(args.candidate_sources.resolve()) if args.candidate_sources else None,'cache_bytes_before':cache_before,'scope':'Separate SIMD/scalar Hex copies, identical public UUID pipeline and ownership semantics; packed comparison is unchanged as a control.'}
         identity.write_text(json.dumps(report,indent=2)+'\n')
         source=directory/'reference.go';source.write_bytes((ROOT/'tooling/bench_uuid_reference.go').read_bytes())
         reference=directory/'reference'
@@ -84,14 +87,19 @@ def main() -> None:
             assert plan['exit']==0,plan
             compiles=[line for line in (plan['stdout']+plan['stderr']).splitlines() if re.search(r'/compile(?:\s|$)',line)]
             assert all(' -p main ' in line for line in compiles),'Stop before rebuilding uncached SDK dependencies; retain dry-run plan'
-        for variant in ('simd','scalar'):
+        if args.candidate_sources:
+            report['scope']+=' An override may own its own packed parser kernel; the scalar switch changes Hex only, so it is not a scalar control for that separate parser.'
+        for variant in dict.fromkeys(args.variants):
             project=directory/variant;project.mkdir()
             for module in MODULES:
                 path=ROOT/'experiments/uuid-candidate-v1/sources'/(module+'.cinch') if module in ('Data.Uuid','Effect.Uuid') else ROOT/'compiler/prelude'/(module.replace('.','/')+'.cinch')
+                if args.candidate_sources and module in ('Data.Uuid','Effect.Uuid'):
+                    candidate=args.candidate_sources.resolve()/(module+'.cinch')
+                    if candidate.is_file():path=candidate
                 text=path.read_text()
                 if module=='Text.Hex' and variant=='scalar':text=scalar_hex(text)
                 (project/(module+'.cinch')).write_text(text)
-            entry=project/'Main.cinch';entry.write_bytes((ROOT/'tooling/data/uuid-benchmark.cinch').read_bytes())
+            entry=project/'Main.cinch';entry.write_bytes((args.entry if args.entry else ROOT/'tooling/data/uuid-benchmark.cinch').read_bytes())
             executable=project/'bench';command=[str(args.compiler.resolve()),'build',str(entry),'--opt-level','2','--runtime-archive',str(args.runtime.resolve()),'-o',str(executable)]
             result=execute(command,project,environment,True)
             (project/'build.log').write_text(result['stdout']+result['stderr'])
@@ -124,15 +132,16 @@ def main() -> None:
         assert report.get('preflight_passed'),'Use only exact snapshots that completed both heap profiles and reference fingerprints'
         covered={tuple(row) for row in report.get('preflight_conditions',[])}
         assert all((mode,size,pattern) in covered for mode in args.workloads for size in args.sizes for pattern in args.patterns),'Every measured condition must have exact normal/poison/reference preflights'
+    variant_names=tuple(report['variants'])+('reference',)
     rows=[]
     for mode in args.workloads:
         for size in args.sizes:
             for pattern in args.patterns:
                 counts=[0,1,17] if args.action=='preflight' else [args.iterations]
                 for count in counts:
-                    checksums=set();samples={k:[] for k in ('simd','scalar','reference')};runs=[]
+                    checksums=set();samples={k:[] for k in variant_names};runs=[]
                     for sample in range(1 if args.action=='preflight' else args.samples+1):
-                        variants=('simd','scalar','reference') if sample%2==0 else ('reference','scalar','simd')
+                        variants=variant_names if sample%2==0 else tuple(reversed(variant_names))
                         for variant in variants:
                             executable=directory/'reference' if variant=='reference' else directory/variant/'bench'
                             profiles=(False,True) if args.action=='preflight' and variant!='reference' else (False,)

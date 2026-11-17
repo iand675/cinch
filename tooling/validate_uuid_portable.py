@@ -14,6 +14,7 @@ def main() -> None:
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler',type=Path,required=True)
     parser.add_argument('--clang',type=Path,required=True)
+    parser.add_argument('--candidate-sources',type=Path,help='Optional isolated immutable UUID source override')
     parser.add_argument('--cpu',type=int,required=True)
     parser.add_argument('--artifacts',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
@@ -24,7 +25,12 @@ def main() -> None:
     for triple in ('wasm32-unknown-unknown','aarch64-unknown-linux-gnu','powerpc64-unknown-linux-gnu'):
         directory=args.artifacts/triple;directory.mkdir()
         modules=('Data.Uuid','Text.Hex','Data.Bytes.Word')
-        for module in modules:(directory/(module+'.cinch')).write_bytes((ROOT/'compiler/prelude'/(module.replace('.','/')+'.cinch')).read_bytes())
+        for module in modules:
+            source=ROOT/'compiler/prelude'/(module.replace('.','/')+'.cinch')
+            if args.candidate_sources and module=='Data.Uuid':
+                candidate=args.candidate_sources.resolve()/(module+'.cinch')
+                if candidate.is_file():source=candidate
+            (directory/(module+'.cinch')).write_bytes(source.read_bytes())
         entry=directory/'Main.cinch';entry.write_bytes((ROOT/'compiler/tests/fixtures/uuid-portable.cinch').read_bytes())
         ir=directory/'consumer.ll';command=[str(args.compiler.resolve()),'emit-ir',str(entry.resolve()),'--target',triple,'-o',str(ir.resolve())]
         result=execute(command,directory,environment,True);(directory/'emit.log').write_text(result['stdout']+result['stderr'])
