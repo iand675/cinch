@@ -69,6 +69,7 @@ def main() -> None:
     parser.add_argument('--samples', type=int, default=7)
     parser.add_argument('--context', default='', help='Observed shared-machine background during the exclusive timing slot')
     parser.add_argument('--compare', type=Path, help='Interleave the opposite scalar/SIMD snapshot and the same independent reference')
+    parser.add_argument('--baseline', type=Path, help='Also interleave a separately sealed same-compiler baseline without changing its report or inputs')
     parser.add_argument('--effect-source', type=Path, help='Explicit selected Effect.Multipart candidate, preserved in both scalar and SIMD sets')
     parser.add_argument('--text-source', type=Path, help='Explicit selected Text.Multipart basis before any documented scalar derivation')
     parser.add_argument('--qp-source', type=Path, help='Explicit current shared codec source candidate')
@@ -253,6 +254,23 @@ def main() -> None:
         report['companion'] = {'report_path': str(companion / 'report.json'), 'report_sha256': digest(companion / 'report.json'),
                                'executable_sha256': other['executable_sha256'], 'llvm_sha256': other['llvm_sha256'],
                                'source_sha256': other['source_sha256']}
+    if args.baseline:
+        baseline = args.baseline.resolve()
+        old = json.loads((baseline / 'report.json').read_text())
+        for key in ('compiler_sha256', 'runtime_sha256', 'driver_sha256', 'reference_source_sha256', 'endpoint_source_sha256', 'sdk', 'sdk_executable_sha256'):
+            if report.get(key) != old.get(key):
+                raise RuntimeError('baseline changes a matched compiler/runtime/driver/reference identity: ' + key)
+        for filename, key in [('bench', 'executable_sha256'), ('bench.ll', 'llvm_sha256'), ('bench.s', 'assembly_sha256')]:
+            if digest(baseline / filename) != old[key]:
+                raise RuntimeError('changed sealed baseline code: ' + filename)
+        for name, expected in old['source_sha256'].items():
+            if digest(baseline / (name + '.cinch')) != expected:
+                raise RuntimeError('changed sealed baseline source: ' + name)
+        programs.insert(1, ('baseline-scalar' if old['scalar_snapshot'] else 'baseline-simd', baseline / 'bench'))
+        report['baseline'] = {'report_path': str(baseline / 'report.json'), 'report_sha256': digest(baseline / 'report.json'),
+                              'source_selection': old.get('source_selection', {}), 'source_sha256': old['source_sha256'],
+                              'executable_sha256': old['executable_sha256'], 'llvm_sha256': old['llvm_sha256'],
+                              'scope': 'Separate immutable same-compiler source baseline. Its files/report are never rewritten.'}
     for mode in MODES:
         for size in args.sizes:
             elapsed = {label: [] for label, _ in programs}

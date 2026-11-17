@@ -78,6 +78,8 @@ def main() -> None:
     parser.add_argument("--start-free-mib", type=int, default=0)
     parser.add_argument("--pause-free-mib", type=int, default=0)
     parser.add_argument("--unarchived-cap-mib", type=int, default=0)
+    parser.add_argument("--kernel-object-name", choices=("kernels.o", "classifier.o"), default="kernels.o",
+                        help="Explicit actual foreign classifier object; no filename fallback")
     args = parser.parse_args()
     os.sched_setaffinity(0, {args.cpu})
     resource.setrlimit(resource.RLIMIT_STACK, (67108864, resource.getrlimit(resource.RLIMIT_STACK)[1]))
@@ -93,6 +95,10 @@ def main() -> None:
     result["resource_policy"] = policy
     result["compiler_host_stack_bytes"] = 67108864
     result["cpu_affinity"] = [args.cpu]
+    object_names = {"fixture": "fixture.o", "kernel": args.kernel_object_name}
+    if result.get("foreign_object_names", object_names) != object_names:
+        raise RuntimeError("changed actual foreign object selection")
+    result["foreign_object_names"] = object_names
 
     def guard(phase: str, minimum: int) -> None:
         """Keep the coordinated reserve and plain scratch bound at every process boundary."""
@@ -134,13 +140,13 @@ def main() -> None:
                     raise RuntimeError("changed source in the qualified original closure")
             if digest(folder / (case + ".source")) != original_row["source_sha256"]:
                 raise RuntimeError("changed original case source")
-            for filename, field in (("fixture.o", "fixture_object_sha256"), ("kernels.o", "kernel_object_sha256")):
+            for filename, field in (("fixture.o", "fixture_object_sha256"), (args.kernel_object_name, "kernel_object_sha256")):
                 if digest(folder / filename) != original[field]:
                     raise RuntimeError("changed actual foreign object")
             guard("restore-" + selector, args.pause_free_mib * 1024 * 1024)
             ir, temporary = original_ir(folder / f"{label}-{case}.ll", original_row["ir_sha256"], work / "checked-input.ll")
             executable = work / "consumer"
-            command = [clang, "-O" + str(args.opt), "--target=" + original_row["target"], str(ir), str(folder / "fixture.o"), str(folder / "kernels.o")]
+            command = [clang, "-O" + str(args.opt), "--target=" + original_row["target"], str(ir), str(folder / "fixture.o"), str(folder / args.kernel_object_name)]
             if label == "native":
                 snapshot = Path(identity["compiler"]).parent
                 for filename in ("objects.json", "base-interfaces.json"):

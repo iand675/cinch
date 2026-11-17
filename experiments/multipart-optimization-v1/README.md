@@ -29,3 +29,18 @@ Only exact sources listed in `manifest.json` may be used by the candidate
 tools. Shared preludes and existing baseline benchmark inputs are untouched.
 Passed functional ELF/LLVM outputs have durable recovery records; all failed
 source-check/negative diagnostic artifacts remain plain.
+
+The complete current330/d91 functional qualification is now green:1,128
+multipart observations and1,475 direct shared-codec observations atbothO2 and
+exact-IR O0. All240 normal/poison8MiB-stack process runs report zero leaks.
+Original sources/compiler/runtime/actual foreign objects are verified before
+O0 relinking; no new compiler emission is claimed for that backend epoch.
+Passed closed functional outputs are verified/archived durably. All407
+declarations across the three actual source modules have canonical prose,
+zero documentation diagnostics/orphans and no public-library SDK references.
+
+The initial `direct-qp-o2-progress.json` remains a historical134-case checkpoint;
+`direct-qp-o2-gate.json` and `direct-qp-o0-gate.json` carry the complete results.
+New public pipeline builds/checksum/ownership preflights and allocation-counter
+confirmation precede any separate Root-authorized performance measurement.
+The sealed ae47/7435/cfc4 baseline and all historical families remain intact.

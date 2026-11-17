@@ -1,5 +1,5 @@
 {
-  "status": "Isolated optimization: full1128multipart O2+live ownership+row contracts+actualhexkernel gates pass330/d91. DirectQP134/1475 sofar; O0/fullQP/performance pending. No selection.",
+  "status": "Functional qualification complete exact330/d91:1128multipart+1475directQP inbothO0/O2,240 normal/poison runs zero leaks; live ownership/row/kernel/docs pass. Performance preflights/timing, currentNative/production remain pending.",
   "basis": {
     "Effect.Multipart": "ae47b3e1617f8d948a98633086a8394f84001ab863ef6b2278c2382cb745346b",
     "Text.Multipart": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2",
@@ -28,7 +28,26 @@
     "row-contracts.json": "72020b4975520f9acc46ba4fd50ca2ee371435cb4224ba97247e1a6fcdc1da06",
     "hex-kernel.json": "cd033c0f1012e01997652acf6b01c9354b202b4b1daf57a2ef6bd1ecbbf8427a",
     "multipart-o2-gate.json": "53bdf0f60c9a033f2e3d51f57b2be0ed8c3cdb002f98cb5c20ecdaf7a1008369",
-    "direct-qp-o2-progress.json": "c66c78671ecda2e1ce0ee9e0fc87b524ee479a2ff7dbc74425b88ce787f693fa"
+    "direct-qp-o2-progress.json": "c66c78671ecda2e1ce0ee9e0fc87b524ee479a2ff7dbc74425b88ce787f693fa",
+    "multipart-o0-gate.json": "a57554313e833e0fff7d258894ef9f6fe7b0da810b4473dee393c3f9fed35955",
+    "direct-qp-o2-gate.json": "f4b480ceea45515cb170cdb04d78e8b49f2536b330679b02346f5ff0dcfdf241",
+    "direct-qp-o0-gate.json": "42d5bcbf289e0caa67f066755ef58e6a2252cb01348c05dc7fc41dac279070f5",
+    "canonical-docs.json": "b99ef80c60fea5e45498559daa145efe558d7c2296b1eeb1a1f000a2bab5a5d2"
   },
-  "baseline_unchanged": "Original annotated candidate ae47/7435, baselineQP cfc4, historicalNative65, allsealedbenchmark inputs remain plain and unchanged."
+  "baseline_unchanged": "Original annotated candidate ae47/7435, baselineQP cfc4, historicalNative65, allsealedbenchmark inputs remain plain and unchanged.",
+  "functional_summary": {
+    "multipart_observations_per_optimization": 1128,
+    "direct_qp_observations_per_optimization": 1475,
+    "consumer_executions": 240,
+    "optimizations": [
+      0,
+      2
+    ],
+    "profiles": [
+      "normal32MiB/8MiB",
+      "poison256MiB/8MiB"
+    ],
+    "canonical_declarations": 407,
+    "no_production_selection": true
+  }
 }
