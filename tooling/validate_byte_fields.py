@@ -82,6 +82,7 @@ def main() -> None:
     parser.add_argument('--native-interfaces',type=Path)
     parser.add_argument('--native-objects',type=Path)
     parser.add_argument('--reuse-native-report',type=Path)
+    parser.add_argument('--utf8-source',type=Path)
     parser.add_argument('--opt-level',choices=['0','2'],default='0')
     parser.add_argument('--group',choices=['rows','effects','owners','deep','controls','mixed'],default='rows')
     parser.add_argument('--size',type=int,default=65536)
@@ -110,7 +111,7 @@ def main() -> None:
             if args.group == 'mixed' else consumer(checks,args.batch_size))
     entry = work/'Main.cinch'
     entry.write_text(text)
-    dependencies = source_closure(text)
+    dependencies = source_closure(text, {'Data.Bytes.Utf8':args.utf8_source} if args.utf8_source else None)
     for name,path in dependencies.items():
         shutil.copyfile(path,work/(name+'.cinch'))
     exe = work/'consumer'
