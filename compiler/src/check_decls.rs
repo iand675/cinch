@@ -4149,7 +4149,7 @@ impl Checker {
                             }
                             match k {
                                 ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
-                    ParamKind::Region => {},
+                                ParamKind::Region => {},
                                 ParamKind::Val(t) => {
                                     idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                                 }
@@ -4413,7 +4413,7 @@ impl Checker {
                         }
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
-                    ParamKind::Region => {},
+                            ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
@@ -4622,7 +4622,7 @@ impl Checker {
                         }
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
-                    ParamKind::Region => {},
+                            ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
@@ -4802,7 +4802,7 @@ impl Checker {
                         }
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
-                    ParamKind::Region => {},
+                            ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }

@@ -10065,7 +10065,7 @@ impl Checker {
                 ParamKind::Val(_) => 1,
                 ParamKind::Prop => 2,
                 ParamKind::Con(_) => 3,
-            ParamKind::Region => 4,
+                ParamKind::Region => 4,
             };
             if let Some(k) = uses.iter().find(|k| axis(k) != axis(hint)) {
                 let _ = k;
@@ -10138,6 +10138,25 @@ impl Checker {
     /// their use in the body, exactly as a signature's do, and are renamed
     /// apart so no later substitution can capture them.
     fn conv_nested_forall(&self, binders: &[ast::TypeBinder], body: &ast::Type, vars: &[String], span: ast::Span) -> Result<Ty> {
+        let mut bound: Vec<String> = binders.iter().map(|binder| binder.name.text.clone()).collect();
+        let mut rest = body;
+        while let ast::Type::Forall(more, inner, _) = rest {
+            bound.extend(more.iter().map(|binder| binder.name.text.clone()));
+            rest = inner;
+        }
+        let inherited = std::mem::take(&mut *self.kind_constraints.borrow_mut());
+        let result = self.conv_nested_forall_scoped(binders, body, vars, span);
+        let local = std::mem::replace(&mut *self.kind_constraints.borrow_mut(), inherited);
+        // A nested binder is renamed in the returned scheme. Its spelling
+        // has no authority over sibling scopes; only free-name uses escape.
+        for (name, kind) in local {
+            if !bound.contains(&name) { self.note_kind(&name, kind); }
+        }
+        result
+    }
+
+    /// Classify nested binders using only their scope's own kind-use notes.
+    fn conv_nested_forall_scoped(&self, binders: &[ast::TypeBinder], body: &ast::Type, vars: &[String], span: ast::Span) -> Result<Ty> {
         let mut names: Vec<String> = Vec::new();
         let mut all_binders = binders.to_vec();
         let mut hints = Vec::new();
@@ -10231,6 +10250,9 @@ impl Checker {
 
     /// Convert a signature with its explicit roles scoped over both constraints and body.
     fn conv_scheme(&self, ty: &ast::Type) -> Result<Scheme> {
+        // A source signature starts a new note set, as before explicit nominal
+        // roles were introduced. Earlier declarations cannot classify its binders.
+        self.kind_constraints.borrow_mut().clear();
         let mut binders = Vec::new();
         let mut rest = ty;
         loop {

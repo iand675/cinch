@@ -49,3 +49,18 @@ are recorded in `nominal-region-role-check-results.json`. The final cache used
 the running monitor had counted regular-file blocks only. No further compiler
 command ran after that boundary. The generated check cache is separately eligible
 for verified lossless archival; sources and receipt inputs remain plain.
+
+A later static scope review found that nested quantifier notes could escape by
+spelling into a sibling quantifier, and inherited notes could accumulate across
+top-level signatures. The follow-up isolates the complete nested conversion,
+propagates only free-name notes, and keeps the original top-level signature clear
+boundary. Sibling Region/Type binders in both orders and enclosing-binder shadow
+refusals are now focused regressions. This follow-up is not included in the
+recorded successful type check of `97515d7d`; its semantic gates remain pending.
+
+The unannotated Legacy control is intentionally different: the defining source
+retains a contextual Type slot that adds no kind note, while its function's
+latent Mut row classifies only that function's quantifier as Region. Neither the
+datatype's checked parameter vector nor either exported nominal header changes.
+The source-absent consumer still reads the recorded Type header and refuses the
+inconsistent Region application.

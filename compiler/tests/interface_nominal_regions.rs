@@ -47,11 +47,61 @@ fn explicit_nominal_region_headers_and_resolved_reexports_agree() {
         "a nominal role must not grant open-row transport authority");
     let legacy = owner.exports.types.iter().find(|row| row.name == "Legacy").unwrap();
     assert_eq!(legacy.parameters[0].kind, "Type", "unannotated legacy headers are never restamped");
+    let legacy_use = owner.exports.values.iter().find(|row| row.name == "legacy-use").unwrap().resolved.as_ref().unwrap();
+    assert!(legacy_use.scheme.contains("r :: Region") && legacy_use.scheme.contains("Mut r"), "{}", legacy_use.scheme);
+    assert_eq!(legacy_use.nominals.iter().find(|row| row.identity == "RegionOwner.Legacy").unwrap().parameters,
+        legacy.parameters, "the function's latent identity cannot rewrite its defining nominal header");
     for (name, binder) in [("keep-uppercase", "R :: Region"), ("keep-io", "r :: Region")] {
         let resolved = owner.exports.values.iter().find(|row| row.name == name).unwrap().resolved.as_ref().expect(name);
         assert!(resolved.scheme.contains(binder), "{}", resolved.scheme);
     }
     common::cleanup(&dir);
+}
+
+/// Sibling quantifiers and separate declarations may reuse a spelling without sharing its role.
+#[test]
+fn nominal_region_kind_notes_stay_with_their_lexical_binders() {
+    let source = r#"-- | Exercise distinct kind-note scopes that deliberately reuse one spelling.
+module Main where
+  -- | This carrier supplies checked Region authority to its own argument slot.
+  data Carrier (r :: Region) a where {}
+  -- | A pure selector infers its identity role from the defining carrier alone.
+  region-first :: forall r a. Carrier r a -> Carrier r a
+  region-first value = value
+  -- | A later declaration's same-spelling ordinary type has a separate telescope.
+  type-second :: forall (r :: Type). r -> r
+  type-second value = value
+  -- | Reversing declaration order preserves the same lexical separation.
+  region-third :: forall (r :: Region) a. Carrier r a -> Carrier r a
+  region-third value = value
+  -- | Region then Type siblings keep their locally quantified names separate.
+  region-then-type :: (forall (r :: Region). Carrier r Nat -> Carrier r Nat) -> (forall (r :: Type). r -> r) -> Unit
+  region-then-type first second = ()
+  -- | Type then Region siblings also retain independent quantifier roles.
+  type-then-region :: (forall (r :: Type). r -> r) -> (forall (r :: Region). Carrier r Nat -> Carrier r Nat) -> Unit
+  type-then-region first second = ()
+  -- | Keep the scope check independent from runtime mutation.
+  main :: Int
+  main = 0
+"#;
+    let dir = common::project("nominal_region_lexical_scopes", &[("Main.cinch", source)]);
+    let interfaces = common::check_interfaces(&dir, "Main.cinch").expect("independent binders do not share kind notes");
+    let main = interfaces.iter().find(|row| row.module == "Main").unwrap();
+    for (name, expected) in [("region-first", "r :: Region"), ("type-second", "r :: Type"), ("region-third", "r :: Region")] {
+        let value = main.exports.values.iter().find(|row| row.name == name).unwrap().resolved.as_ref().unwrap();
+        assert!(value.scheme.contains(expected), "{name}: {}", value.scheme);
+    }
+    common::cleanup(&dir);
+    for body in [
+        "bad :: forall (r :: Region). Carrier r Nat -> (forall (r :: Type). r -> r) -> Unit\n  bad carrier callback = ()",
+        "bad :: forall (r :: Type). r -> (forall (r :: Region). Carrier r Nat -> Carrier r Nat) -> Unit\n  bad value callback = ()",
+    ] {
+        let input = format!("-- | An inner binder may not shadow an enclosing telescope.\nmodule Main where\n  -- | Retain a defining Region slot for the refusal.\n  data Carrier (r :: Region) a where {{}}\n  -- | Refuse the existing nested-shadow boundary.\n  {body}\n");
+        let dir = common::project("nominal_region_shadow_refusal", &[("Main.cinch", &input)]);
+        let error = common::check(&dir, "Main.cinch").expect_err("nested forall shadowing remains refused");
+        assert!(error.contains("shadows a type variable already in scope"), "{error}");
+        common::cleanup(&dir);
+    }
 }
 
 /// Reject incompatible explicit source roles before any interface is published.
