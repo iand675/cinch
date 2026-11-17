@@ -1,0 +1,221 @@
+-- | Observe every field byte and ordered scalar/yield callback without reducing outputs to fingerprints.
+module Main where
+  import Data.Bytes.Fields
+  import Data.Bytes.View
+  import Data.Bytes
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Mutable.Var
+  import Data.Nat
+  import Data.Option
+  import Data.Producer
+  import Data.Result
+  import Data.String
+  import Data.Unicode.Kernel
+  import Text.Hex
+  import Effect.Process
+
+  -- | Record the scalar observation or complete raw field at its actual callback boundary.
+  data Observation where
+    -- | Record one scalar passed to a predicate.
+    Predicate :: Nat -> Observation
+    -- | Record all bytes visible when a field is yielded.
+    Output :: String -> Observation
+    -- | Record an effect boundary, its scalar or output and the complete current input bytes.
+    Callback :: Nat -> Nat -> String -> String -> Observation
+
+  -- | Compare exact observations without relying on a hash or custom equality instance.
+  observations-equal :: List Observation -> List Observation -> Bool
+  observations-equal left right = case left of
+    Nil -> case right of Nil -> True; Cons value rest -> False
+    Cons value rest -> case right of
+      Nil -> False
+      Cons expected following -> (case value of
+        Predicate code -> case expected of Predicate other -> code == other; other -> False
+        Output bytes -> case expected of Output other -> bytes == other; other -> False
+        Callback kind code bytes input -> case expected of
+          Callback other-kind other-code other-bytes other-input -> kind == other-kind && code == other-code && bytes == other-bytes && input == other-input
+          other -> False) && observations-equal rest following
+
+  -- | Compare every complete fragment against independent literal hexadecimal bytes.
+  fields-equal :: List ByteView -> List String -> Bool
+  fields-equal values expected = case values of
+    Nil -> case expected of Nil -> True; Cons value rest -> False
+    Cons value rest -> case expected of
+      Nil -> False
+      Cons wanted following -> let size = byte-view-length value in
+        let bounded = (case byte-view-get value size of None -> True; Some byte -> False) in
+        let refused = byte-view-set value size 0 == False in
+        size > 0 && bounded && refused && hex-encode (byte-view-snapshot value) == wanted && fields-equal rest following
+
+  -- | Apply an independent caller predicate to a scalar; default Unicode classification has its own output oracle.
+  selected :: Nat -> Char -> Bool
+  selected mode value = let code = char-code value in
+    if mode == 1 then unicode-is-space value else
+    if mode == 2 then code == 44 else
+    if mode == 3 then code == 65533 else
+    if mode == 4 then code >= 128 else nat-rem code 2 == 0
+
+  -- | Preserve an actual mutation capability while recording each predicate call exactly once.
+  record-predicate :: forall (r :: Region). Var r (List Observation) -> Nat -> Char ->{Mut r} Bool
+  record-predicate events mode value = let old = var-read events in
+    let saved = var-write events (Cons (Predicate (char-code value)) old) in selected mode value
+
+  -- | Record a complete field at yield time and implement an exact optional early-stop bound.
+  record-output :: forall (r :: Region). Var r (List Observation) -> Var r Nat -> Nat -> ByteView ->{Mut r} Bool
+  record-output events count maximum value = let old = var-read events in
+    let bytes = hex-encode (byte-view-snapshot value) in let saved = var-write events (Cons (Output bytes) old) in
+    let previous = var-read count in let next = previous + 1 in let written = var-write count next in
+    maximum == 0 || next < maximum
+
+  -- | Invoke one reusable sequence twice, checking that construction is silent and traversal starts afresh.
+  sequence-is :: forall (r :: Region). Nat -> ByteView -> Nat -> Bool -> List Observation ->{Mut r} Bool
+  sequence-is mode input maximum invoked expected = let events = var-new Nil in let count = var-new 0 in
+    let sequence = (if mode == 0 then byte-view-fields-sequence input else byte-view-fields-func-sequence (record-predicate events mode) input) in
+    let before = var-read events in let silent = observations-equal before Nil in
+    let first = if invoked then sequence (record-output events count maximum) else () in
+    let observed = var-read events in let first-ok = observations-equal (reverse observed) expected in
+    let clear = var-write events Nil in let reset = var-write count 0 in
+    let second = if invoked then sequence (record-output events count maximum) else () in
+    let repeated = var-read events in silent && first-ok && observations-equal (reverse repeated) expected
+
+  -- | Compare eager, persistent, explicit-state and effectful sequence paths with complete independent observations.
+  fields-case :: forall (r :: Region). String -> Nat -> Nat -> Nat -> Nat -> Bool -> List String -> List Observation -> List Observation ->{Mut r} Bool
+  fields-case encoded begin end mode maximum invoked expected eager-events sequence-events = case hex-decode encoded of
+    Err error -> False
+    Ok raw -> case bytes-view-range raw begin end of
+      Err error -> False
+      Ok input -> let events = var-new Nil in
+        let values = (if mode == 0 then byte-view-fields input else byte-view-fields-func (record-predicate events mode) input) in
+        let observed = var-read events in let eager-ok = observations-equal (reverse observed) eager-events in
+        let producer = (if mode == 0 then byte-view-fields-producer input else byte-view-fields-func-producer (selected mode) input) in
+        let produced = reverse (prod-fold Nil (\previous part -> Cons part previous) producer) in
+        let repeated = reverse (prod-fold Nil (\previous part -> Cons part previous) producer) in
+        let sequences = sequence-is mode input maximum invoked sequence-events in
+        eager-ok && fields-equal values expected && fields-equal produced expected && fields-equal repeated expected && sequences
+
+  -- | Append an exact callback-time observation to a genuine mutation-effect log.
+  save-event :: forall (r :: Region). Var r (List Observation) -> Observation ->{Mut r} Unit
+  save-event events event = let previous = var-read events in var-write events (Cons event previous)
+
+  -- | Apply one checked byte mutation to a retained owner without exporting its backing.
+  change :: Bytes -> Nat -> U8 -> Unit
+  change input at value = let written = byte-view-set (bytes-view input) at value in ()
+
+  -- | Apply the independent predicate's one-time mutation after recording the scalar and original bytes.
+  mutate-predicate :: forall (r :: Region). Nat -> Bytes -> Var r Bool -> Var r (List Observation) -> Nat -> Char ->{Mut r} Bool
+  mutate-predicate control input mutated events mode value = let code = char-code value in
+    let saved = save-event events (Callback 0 code "" (hex-encode input)) in let already = var-read mutated in
+    let wanted = control == 0 || control == 2 || (control == 1 && code == 98) in
+    let mutation = (if already || wanted == False then () else
+      let written = (if control == 0 then change input 2 120 else if control == 1 then change input 0 90 else
+        let first = change input 0 97 in change input 1 32) in
+      let flagged = var-write mutated True in save-event events (Callback 2 0 "" (hex-encode input))) in
+    selected mode value
+
+  -- | Save an alias before yielding, mutate only after the callback-time observation and preserve exact early stopping.
+  mutate-output :: forall (r :: Region). Nat -> Bytes -> Var r (List Observation) -> Var r Nat -> Var r (List ByteView) -> Nat -> ByteView ->{Mut r} Bool
+  mutate-output control input events count held maximum value = let previous = var-read count in let next = previous + 1 in
+    let counted = var-write count next in let before = var-read held in let retained = var-write held (Cons value before) in
+    let saved = save-event events (Callback 1 0 (hex-encode (byte-view-snapshot value)) (hex-encode input)) in
+    let mutation = (if next == 1 && control >= 3 then
+      let written = (if control == 3 || control == 4 then
+        let a = change input 17 32 in let b = change input 18 120 in change input 19 121
+        else if control == 5 then let a = change input 2 255 in change input 3 32
+        else if control == 6 then let a = byte-view-set value 0 90 in ()
+        else let size = bytes-len input in if size > 0 then change input (size - 1) 122 else ()) in
+      save-event events (Callback 2 0 "" (hex-encode input)) else ()) in
+    maximum == 0 || next < maximum
+
+  -- | Run and compare two traversals of one callback factory with shared predicate state and fresh traversal positions.
+  effect-case :: forall (r :: Region). String -> Nat -> Nat -> Nat -> List Observation -> List String -> String -> List Observation -> List String -> String ->{Mut r} Bool
+  effect-case encoded control mode maximum first-events first-held first-input second-events second-held second-input = case hex-decode encoded of
+    Err error -> False
+    Ok input -> let events = var-new Nil in let count = var-new 0 in let held = var-new Nil in let mutated = var-new False in
+      let sequence = (if mode == 0 then bytes-fields-sequence input else bytes-fields-func-sequence (mutate-predicate control input mutated events mode) input) in
+      let before = var-read events in let silent = observations-equal before Nil in
+      let first = sequence (mutate-output control input events count held maximum) in
+      let observed-first = var-read events in let held-first = var-read held in
+      let a = observations-equal (reverse observed-first) first-events && fields-equal (reverse held-first) first-held && hex-encode input == first-input in
+      let cleared = var-write events Nil in let reset-count = var-write count 0 in let reset-held = var-write held Nil in
+      let second = sequence (mutate-output control input events count held maximum) in
+      let observed-second = var-read events in let held-second = var-read held in
+      silent && a && observations-equal (reverse observed-second) second-events && fields-equal (reverse held-second) second-held && hex-encode input == second-input
+
+  -- | Retain temporary owners through eager fields, persistent Producers, concrete state and a reusable callback factory.
+  owner-case :: forall (r :: Region). Unit ->{Mut r} Bool
+  owner-case unit = let eager = bytes-fields (bytes-from-u8s [32,97,32,98,32]) in
+    let producer = bytes-fields-producer (bytes-from-u8s [32,97,32,98,32]) in
+    let produced = reverse (prod-fold Nil (\previous part -> Cons part previous) producer) in
+    let state = bytes-fields-start (bytes-from-u8s [32,97,32,98,32]) in
+    let progressed = (case byte-fields-next state of
+      Yield first next -> fields-equal (Cons first Nil) ["61"] && (case byte-fields-next next of
+        Yield last final -> fields-equal (Cons last Nil) ["62"] && (case byte-fields-next final of Done -> True; other -> False)
+        other -> False)
+      other -> False) in
+    let events = var-new Nil in let count = var-new 0 in
+    let sequence = bytes-fields-sequence (bytes-from-u8s [32,97,32,98,32]) in
+    let first = sequence (record-output events count 0) in let before = var-read events in
+    let reset = var-write events Nil in let reset-count = var-write count 0 in
+    let second = sequence (record-output events count 0) in let after = var-read events in
+    let clear = var-write events Nil in let reset-empty-count = var-write count 0 in
+    let empty = bytes-fields-sequence (bytes-new 0) in let blank = bytes-fields-sequence (bytes-from-u8s [9,32,13]) in
+    let zero = empty (record-output events count 0) in let spaces = blank (record-output events count 0) in
+    let empty-events = var-read events in
+    fields-equal eager ["61","62"] && fields-equal produced ["61","62"] && progressed
+      && observations-equal (reverse before) [Output "61",Output "62"]
+      && observations-equal (reverse after) [Output "61",Output "62"]
+      && observations-equal empty-events Nil
+
+  -- | Alternate decisions through an actual mutable counter rather than assuming a stable predicate table.
+  alternating :: forall (r :: Region). Var r Nat -> Char ->{Mut r} Bool
+  alternating count value = let previous = var-read count in let next = previous + 1 in
+    let saved = var-write count next in nat-rem next 2 == 1
+
+  -- | A state-dependent predicate is called once for every scalar and its decisions control the actual field boundaries.
+  stateful-case :: forall (r :: Region). Unit ->{Mut r} Bool
+  stateful-case unit = let count = var-new 0 in
+    let values = bytes-fields-func (alternating count) (bytes-from-u8s [97,98,99,100,101,102]) in
+    let total = var-read count in total == 6 && fields-equal values ["62","64","66"]
+
+  -- | Build large inputs at runtime through checked stores rather than deep literal syntax.
+  fill-deep :: Bytes -> Nat -> Unit
+  fill-deep input at = if at < bytes-len input then
+    let value = ((if nat-rem at 2 == 0 then 97 else 32) :: InRange 0 255 Nat) in
+    let written = bytes-set input at value in let next = at + 1 in fill-deep input next
+    else ()
+
+  -- | Verify one large result's full list shape without allocating snapshots for each one-byte field.
+  count-deep :: List ByteView -> Nat -> Nat
+  count-deep values total = case values of
+    Nil -> total
+    Cons value rest -> if byte-view-length value == 1 then (case byte-view-get value 0 of
+      Some byte -> if eq-u8 byte 97 then let next = total + 1 in count-deep rest next else 0
+      None -> 0) else 0
+
+  -- | Count a callback field only after checking its exact length and complete byte contents.
+  output-deep :: forall (r :: Region). Var r Nat -> ByteView ->{Mut r} Bool
+  output-deep count value = let correct = byte-view-length value == 1 && (case byte-view-get value 0 of Some byte -> eq-u8 byte 97; None -> False) in
+    let previous = var-read count in let next = (if correct then previous + 1 else 18446744073709551616) in
+    let saved = var-write count next in True
+
+  -- | Stress tail collection and callback traversal with a runtime-selected dense field count under fixed memory limits.
+  deep-case :: forall (r :: Region). Nat ->{Mut r} Bool
+  deep-case size = let input = bytes-new size in let filled = fill-deep input 0 in
+    let expected = (size + 1) / 2 in let actual = count-deep (bytes-fields input) 0 in
+    let count = var-new 0 in let visited = bytes-fields-each input (output-deep count) in
+    let observed = var-read count in expected == actual && expected == observed
+
+  -- | Parse independently supplied runtime sizes before entering the large construction test.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Accumulate only decimal digits in ordinary tail position.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from values total = case values of
+    Nil -> total
+    Cons value rest -> case digit-value value of
+      None -> 0
+      Some digit -> let next = total * 10 + digit in decimal-from rest next

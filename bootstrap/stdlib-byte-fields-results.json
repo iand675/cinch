@@ -1,0 +1,154 @@
+{
+  "scope": "Source and Rust O0 functional checkpoint only; O2/Native/portable/performance remain unqualified",
+  "source_sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+  "ascii_dependency_commit": "ed70e1bc525ffe3ae8dfdb71233e7d5ed6b7296a",
+  "namespace": "Data.Bytes.Fields",
+  "canonical_declarations": 31,
+  "capability_mapping": {
+    "Fields": "bytes-fields / byte-view-fields",
+    "FieldsFunc": "effect-polymorphic bytes-fields-func / byte-view-fields-func",
+    "FieldsSeq": "reusable bytes-fields-sequence / bytes-fields-each",
+    "FieldsFuncSeq": "effect-polymorphic reusable bytes-fields-func-sequence / bytes-fields-func-each"
+  },
+  "concrete_additional_apis": [
+    "opaque ByteFieldsState",
+    "start/next/next-with explicit immutable progress",
+    "default and explicitly pure-predicate persistent Producer adapters"
+  ],
+  "semantic_contract": {
+    "invalid_utf8": "one U+FFFD predicate observation per malformed byte; output bytes unchanged",
+    "predicate_order": "exactly once per decoded scalar, left to right",
+    "callbacks": "generic effect rows; shared union retains distinct IO/Mut capabilities",
+    "sequence_replay": "fresh traversal on every invocation; predicate state and mutable input aliases remain shared",
+    "width_observation": "scalar and width observed before predicate; terminator consumed before yield",
+    "early_stop": "no trailing predicate or yield calls",
+    "ownership": "nonempty logical views alias input and retain complete fixed owner"
+  },
+  "rust_o0": {
+    "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "compiled_rc_debug": false,
+    "dynamic_poison_checked": true,
+    "normal_heap": "32M",
+    "poison_heap": "256M",
+    "program_stack": "8M",
+    "compiler_main_stack": "64MiB",
+    "memory_profiles": 340,
+    "leaked": 0,
+    "receipts": [
+      {
+        "path": "build/byte-fields-rows-runtime-rust-o0.json",
+        "sha256": "b503510a386d2b89997d9484eaa007559671fb698175e88fcd354dac638c39f6",
+        "group": "rows",
+        "cases": 1266,
+        "memory_profiles": 318,
+        "source_snapshot": "10fb3a78900726574030d0ae7eb8f6b7df44db657e32815c70b74a3ab68263c0",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "llvm_sha256": "1b8b430f3217e3f11bea6b2c6e1785d93a01da6c8246c26b3cca8446d5f2770f",
+        "executable_sha256": "db584756e67f8b9ec9324601c83286451e58d78938978513efe357bea853ec23"
+      },
+      {
+        "path": "build/byte-fields-effects-runtime-rust-o0.json",
+        "sha256": "43498f9d2b27ba09f0db3006a8dc27e0e78b88e532a85753445e285d2a788fa2",
+        "group": "effects",
+        "cases": 8,
+        "memory_profiles": 16,
+        "source_snapshot": "e0bbe915ec9a47f0f2033aad8298d4d4486c9083aca02589aaddeda8731583df",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "llvm_sha256": "548f4e1849181f56217835f5fe85d46e5b94b83b7828e95001c333bba93a3a11",
+        "executable_sha256": "7090c20f0b3781e647724257379067a20596b06cbbd4d48cb0af08eddecce9e4"
+      },
+      {
+        "path": "build/byte-fields-first-rust-owner-runtime-o0.json",
+        "sha256": "681be59404f8cde608b250fe1955a3f6d048bb7c56720d8fda5a70fc197d744f",
+        "group": "owners",
+        "cases": 2,
+        "memory_profiles": 4,
+        "source_snapshot": "e0c4c7c04c6a4edf0cf411598cabd2e5f4fa3fb019e648a0a50f285e1dc16871",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "llvm_sha256": "a6b3f221c6dcf7caa4b27c9afcb7a1eff8efa728cb63fc2dda2477a1158c1afc",
+        "executable_sha256": "aa70a75257941375985027728a015d21325542d6e5df1ded74d909b1e092a34c"
+      },
+      {
+        "path": "build/byte-fields-deep-runtime-rust-o0.json",
+        "sha256": "e77612346e678a67487ee4a230afd83ae71ac1c2ec48233db42e587e8b4da0c2",
+        "group": "deep",
+        "cases": 1,
+        "memory_profiles": 2,
+        "source_snapshot": "cca4c1cba950d5f7113efa6144e1ee9eae39e2407ce97adf281a72e69decbf1a",
+        "dependencies": {
+          "Data.Bytes.Fields": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
+          "Data.Bytes.View": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+          "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+          "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+          "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+          "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+          "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+        },
+        "llvm_sha256": "f5d4fecbed96f804747002ae407954b7593f6ba6c921b25bf24ba2740835397d",
+        "executable_sha256": "fc59eae567a564b278e51acd6a2f8bfcb4c9d750124b140abc3a697a3e34aada"
+      }
+    ]
+  },
+  "reference_fixture": {
+    "commit": "a09e147fa461bd872b056b8bac85ace6234b593b",
+    "sha256": "492f368b4c109f0d43454254b4ccaf0dfd0f58cc6e6d8d821eba8bd345be6934",
+    "rows": 1266,
+    "mutable_callback_scripts": 8,
+    "independent_models": "pinned actual reference SDK plus strict Python scalar/byte/whitespace/mutation model"
+  },
+  "row_contracts": {
+    "positive": "build/byte-fields-contract-positive/results.json",
+    "negative": "build/byte-fields-contract-negative-second/results.json",
+    "intended_refusal": "effect rows do not match: {} vs {IO r ...}",
+    "no_pure_only_narrowing": true
+  },
+  "deep_control": {
+    "runtime_generated_input_bytes": 65536,
+    "nonempty_fields": 32768,
+    "paths": [
+      "complete eager list",
+      "genuine Mut-effect visitor"
+    ],
+    "increased_program_limit": false
+  },
+  "pending": [
+    "Rust O2 full matrix and controls",
+    "Historical Native complete API and capability gates at O0/O2",
+    "Actual full Fields portable adapter objects",
+    "Parent checked-RC API/capability tests",
+    "Public pipeline benchmarks/codegen review",
+    "Full strings/bytes inventory integration"
+  ],
+  "no_native_or_root66_family_claim": true,
+  "no_production_optimization_selected": true,
+  "protected_split_source_sha256": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d"
+}

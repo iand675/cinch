@@ -1,0 +1,14 @@
+-- | Reject an attempt to erase a field predicate's declared effects.
+module Main where
+  import Data.Bytes.Fields
+  import Data.Bytes.View
+  import Data.List
+  import Data.Bool
+
+  -- | This deliberately invalid declaration must not hide the predicate's IO effects.
+  conceal-effects :: forall (r :: Region). (Char ->{IO r} Bool) -> ByteView -> List ByteView
+  conceal-effects predicate input = byte-view-fields-func predicate input
+
+  -- | Keep this rejection proof independent of runtime execution.
+  main :: Int
+  main = 0
