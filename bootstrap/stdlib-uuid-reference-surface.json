@@ -1,0 +1,39 @@
+{
+  "kind": "actual-pinned-uuid-operation-surface",
+  "status": "static-capability-mapping-only",
+  "sdk_version": "go1.27.4",
+  "sdk_executable": "/tmp/cinch-go-current/go/bin/go",
+  "sdk_executable_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "command": [
+    "python3",
+    "tooling/audit_stdlib_surface.py",
+    "--go",
+    "/tmp/cinch-go-current/go/bin/go",
+    "--package",
+    "uuid"
+  ],
+  "audit_tool_sha256": "83e6bc058323e9b7f1c6ec404394278453b09c94c0125a78169fc544321de555",
+  "package": "uuid",
+  "declarations": [
+    "func Max() UUID",
+    "func MustParse(string) UUID",
+    "func New() UUID",
+    "func NewV4() UUID",
+    "func NewV7() UUID",
+    "func Nil() UUID",
+    "func Parse(string) (UUID, error)",
+    "method (*UUID) UnmarshalText([]uint8) error",
+    "method (UUID) AppendText([]uint8) ([]uint8, error)",
+    "method (UUID) Compare(UUID) int",
+    "method (UUID) MarshalText() ([]uint8, error)",
+    "method (UUID) String() string",
+    "type UUID [16]uint8"
+  ],
+  "source_files": {
+    "/tmp/cinch-go-current/go/src/uuid/uuid.go": "a84d62dd9ebab02c4c23af46888e81c45d4d0be345c08d2f18e471656c650738",
+    "/tmp/cinch-go-current/go/src/uuid/uuid_test.go": "9621cea7a1fc3027a222af923ed3a78aa79d8d035d21a667839c582476cca171"
+  },
+  "reference_build_executed": false,
+  "implementation_selected": false,
+  "package_complete": false
+}

@@ -1,0 +1,1010 @@
+{
+  "kind": "static-declaration-only-mutable-container-Region-migration",
+  "compiler_invoked": false,
+  "source_or_historical_interface_modified": false,
+  "production_promoted": false,
+  "audit": "/workspace/dasl-stdlib-io/bootstrap/stdlib-nominal-region-migration-audit.json",
+  "audit_sha256": "b4909fcb7e2822dbb77ebf246f720577bac25e4c66c13815d2f0906d30a6e62e",
+  "audit_epoch": "Genuine aggregate190-module Role check before the subsequent Slots/Array codegen-only repairs",
+  "modules": 16,
+  "nominal_parameters": 17,
+  "records": [
+    {
+      "module": "Data.Mutable.Array",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/Array.cinch",
+      "source_sha256": "94e1495897c24970b02075aeb56bb1181bf54735059dd1828679581c3772490e",
+      "source_identity": "5122769073585523806",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.Array.cinchif",
+      "interface_sha256": "078b9fed4fc3d9db41f93e228b1dcf5272401fee6339b7ad8d515139f8367c14",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.Array.cinch",
+      "proposal_sha256": "db3c9d9e04a38f5240c759223cde9fee97acf43147c8debfd669010497a543a3",
+      "roles": [
+        {
+          "identity": "Data.Mutable.Array.MutArray",
+          "source_declaration": "data MutArray r",
+          "proposed_declaration": "data MutArray (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.Array.MutArray",
+            "kind": "data",
+            "name": "MutArray",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.Array",
+            "value": "mut-array-fill",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Array.MutArray r) a) -> (a ->{Mut r} Unit))"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "mut-array-fill",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Array.MutArray r) a) -> (a ->{Mut r} Unit))"
+          },
+          "all_recorded_uses": 26
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.BTree",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/BTree.cinch",
+      "source_sha256": "9741c4de3eb73bcf097d0dc27f48d9ace038c8a9ca7e4a8062e6e6f41cc19c54",
+      "source_identity": "16827690580766672347",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.BTree.cinchif",
+      "interface_sha256": "774f6fe66410657f45dc708955e984cf66f3b20af04a6d1eb1bdf9a3817c019a",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.BTree.cinch",
+      "proposal_sha256": "05fd7aa3981b5d89cf0cbbfad4d1f01d372ef1be946166510f1b5c405ea23b0c",
+      "roles": [
+        {
+          "identity": "Data.Mutable.BTree.BTreeMap",
+          "source_declaration": "data BTreeMap r",
+          "proposed_declaration": "data BTreeMap (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.BTree.BTreeMap",
+            "kind": "data",
+            "name": "BTreeMap",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "k"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "v"
+              }
+            ],
+            "params": [
+              "r",
+              "k",
+              "v"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.BTree",
+            "value": "btree-ceiling",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (k :: Type) (v :: Type). using (o :: Relation.Ord.Ord k) => ((((Data.Mutable.BTree.BTreeMap r) k) v) -> (k ->{Mut r} (Data.Core.Option (k, v))))"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "btree-ceiling",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (k :: Type) (v :: Type). using (o :: Relation.Ord.Ord k) => ((((Data.Mutable.BTree.BTreeMap r) k) v) -> (k ->{Mut r} (Data.Core.Option (k, v))))"
+          },
+          "all_recorded_uses": 50
+        }
+      ],
+      "unchanged_private_types": [
+        {
+          "name": "Pool",
+          "declaration": "data Pool k v where",
+          "classification": "private nominal; unchanged ordinary payload/metadata parameters"
+        }
+      ],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.BTreeSet",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/BTreeSet.cinch",
+      "source_sha256": "95b4465c365cead885ece4adbe28d10605df080e6a4903123093775f696b0d04",
+      "source_identity": "8646589847580411238",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.BTreeSet.cinchif",
+      "interface_sha256": "eafb7ebd8f2418c21c45cdbd66c28762c7b858c12f36b6b688e438fa4e1722dd",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.BTreeSet.cinch",
+      "proposal_sha256": "17cb3fc81a755f4e46b8c9be4fde759a3f8817aa87f131f779641ec2bde5dbce",
+      "roles": [
+        {
+          "identity": "Data.Mutable.BTreeSet.BTreeSet",
+          "source_declaration": "data BTreeSet r",
+          "proposed_declaration": "data BTreeSet (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.BTreeSet.BTreeSet",
+            "kind": "data",
+            "name": "BTreeSet",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.BTreeSet",
+            "value": "btree-set-ceiling",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). using (o :: Relation.Ord.Ord a) => (((Data.Mutable.BTreeSet.BTreeSet r) a) -> (a ->{Mut r} (Data.Core.Option a)))"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "btree-set-ceiling",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). using (o :: Relation.Ord.Ord a) => (((Data.Mutable.BTreeSet.BTreeSet r) a) -> (a ->{Mut r} (Data.Core.Option a)))"
+          },
+          "all_recorded_uses": 36
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": [
+        "Data.Mutable.BTree"
+      ]
+    },
+    {
+      "module": "Data.Mutable.BitSet",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/BitSet.cinch",
+      "source_sha256": "1ce604a52fb81e9b084c070dcd4370a4eb9b161b70cb723a38b45be31264b5cc",
+      "source_identity": "14511259717020481212",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.BitSet.cinchif",
+      "interface_sha256": "b11bb7e523051b37d91967c25850a4c1b6f27f7edf5b36693441b45f0399751b",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.BitSet.cinch",
+      "proposal_sha256": "2dc28331beb3a5d4eb82f805b1053329849000e0600f0f2d6913b6d1f004ccfc",
+      "roles": [
+        {
+          "identity": "Data.Mutable.BitSet.BitSet",
+          "source_declaration": "data BitSet r",
+          "proposed_declaration": "data BitSet (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.BitSet.BitSet",
+            "kind": "data",
+            "name": "BitSet",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              }
+            ],
+            "params": [
+              "r"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.BitSet",
+            "value": "bitset-capacity",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region). ((Data.Mutable.BitSet.BitSet r) ->{Mut r} Nat)"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "bitset-capacity",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region). ((Data.Mutable.BitSet.BitSet r) ->{Mut r} Nat)"
+          },
+          "all_recorded_uses": 30
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.Deque",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/Deque.cinch",
+      "source_sha256": "3761e4888415de3d3fa427aefef583cfcb7cfb4f481759ed906b7c3a841eaada",
+      "source_identity": "12797840278493507394",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.Deque.cinchif",
+      "interface_sha256": "90a02efd179712633553ea7357dd7d947928264831991aabac79bb3e733e655f",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.Deque.cinch",
+      "proposal_sha256": "37870de3507ffb2c9cd3c858689fb6aa581e64b3f264f02d405c16d823b55904",
+      "roles": [
+        {
+          "identity": "Data.Mutable.Deque.Deque",
+          "source_declaration": "data Deque r",
+          "proposed_declaration": "data Deque (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.Deque.Deque",
+            "kind": "data",
+            "name": "Deque",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.Deque",
+            "value": "deque-back",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Deque.Deque r) a) ->{Mut r} (Data.Core.Option a))"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "deque-back",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Deque.Deque r) a) ->{Mut r} (Data.Core.Option a))"
+          },
+          "all_recorded_uses": 36
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.HashSet",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/HashSet.cinch",
+      "source_sha256": "dd418d95ba3d0f8453ee803fdd25bbd0ed2fbb4dcdca5669b37fd5acfe477977",
+      "source_identity": "15065021478755938711",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.HashSet.cinchif",
+      "interface_sha256": "754a8950b3b66bd1f2b02960a89c26bad43220f6e5b049ed5994183c0cb5dbb7",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.HashSet.cinch",
+      "proposal_sha256": "30a511d51c15c1dfdb1200260dafc638448220aaa9a0aee0d36c74b0f6c2a76a",
+      "roles": [
+        {
+          "identity": "Data.Mutable.HashSet.HashSet",
+          "source_declaration": "data HashSet r",
+          "proposed_declaration": "data HashSet (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.HashSet.HashSet",
+            "kind": "data",
+            "name": "HashSet",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.HashSet",
+            "value": "hash-set-clear",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.HashSet.HashSet r) a) ->{Mut r} Unit)"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "hash-set-clear",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.HashSet.HashSet r) a) ->{Mut r} Unit)"
+          },
+          "all_recorded_uses": 26
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": [
+        "Data.Mutable.HashTable"
+      ]
+    },
+    {
+      "module": "Data.Mutable.HashTable",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/HashTable.cinch",
+      "source_sha256": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+      "source_identity": "5636729089184935867",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.HashTable.cinchif",
+      "interface_sha256": "6416e589eadf1e09f5d8f327dc50ac71a99b3cc92ac23bf23ea22097c9578cc0",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.HashTable.cinch",
+      "proposal_sha256": "c82a41f07ac8ff0c39af0b184394db0a96a53b8452e0c22fb67c290c5ccdbf4e",
+      "roles": [
+        {
+          "identity": "Data.Mutable.HashTable.HashTable",
+          "source_declaration": "data HashTable r",
+          "proposed_declaration": "data HashTable (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.HashTable.HashTable",
+            "kind": "data",
+            "name": "HashTable",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "k"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "v"
+              }
+            ],
+            "params": [
+              "r",
+              "k",
+              "v"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.HashTable",
+            "value": "hash-table-capacity",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (k :: Type) (v :: Type). ((((Data.Mutable.HashTable.HashTable r) k) v) ->{Mut r} Nat)"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "hash-table-capacity",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (k :: Type) (v :: Type). ((((Data.Mutable.HashTable.HashTable r) k) v) ->{Mut r} Nat)"
+          },
+          "all_recorded_uses": 44
+        }
+      ],
+      "unchanged_private_types": [
+        {
+          "name": "Table",
+          "declaration": "data Table k v where",
+          "classification": "private nominal; unchanged ordinary payload/metadata parameters"
+        }
+      ],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.Heap",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/Heap.cinch",
+      "source_sha256": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
+      "source_identity": "17288957664093681401",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.Heap.cinchif",
+      "interface_sha256": "d23d3cb7ecc65bdff87a473f543fedabe1c50e0b62eda74f29907446017b5fa1",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.Heap.cinch",
+      "proposal_sha256": "2278a2111cde7492b6b16701e8ee76a19cdcbbb9f5afff4eca0acadbd41166d2",
+      "roles": [
+        {
+          "identity": "Data.Mutable.Heap.Heap",
+          "source_declaration": "data Heap r",
+          "proposed_declaration": "data Heap (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.Heap.Heap",
+            "kind": "data",
+            "name": "Heap",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.Heap",
+            "value": "heap-clear",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Heap.Heap r) a) ->{Mut r} Unit)"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "heap-clear",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Heap.Heap r) a) ->{Mut r} Unit)"
+          },
+          "all_recorded_uses": 48
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.HeapView",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/HeapView.cinch",
+      "source_sha256": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c",
+      "source_identity": "7732652812425780123",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.HeapView.cinchif",
+      "interface_sha256": "2d6708c52a25d3b5c5a05c4fe7271e56057493b2b4b3b566033c07e4a308c935",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.HeapView.cinch",
+      "proposal_sha256": "993f198c22b93f74400ee6a3bfdbfe11d3c0f5fb5084f87b3c19400fbfa30d8e",
+      "roles": [
+        {
+          "identity": "Data.Mutable.HeapView.HeapView",
+          "source_declaration": "data HeapView r",
+          "proposed_declaration": "data HeapView (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.HeapView.HeapView",
+            "kind": "data",
+            "name": "HeapView",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.HeapView",
+            "value": "heap-view",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). ((Unit ->{Mut r} Nat) -> ((Nat -> (Nat ->{Mut r} Bool)) -> ((Nat -> (Nat ->{Mut r} Unit)) -> ((a ->{Mut r} Unit) -> ((Unit ->{Mut r} (Data.Core.Option a)) -> ((Data.Mutable.HeapView.HeapView r) a))))))"
+          },
+          "facade_witness": null,
+          "all_recorded_uses": 7
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.IndexMap",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/IndexMap.cinch",
+      "source_sha256": "119e94ae13c00611a834c4947d4db4c9bfed98b86da803c8ce707c16fe0cf501",
+      "source_identity": "14495809901221175273",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.IndexMap.cinchif",
+      "interface_sha256": "e1356f0c4e5ec6f6f161e4ea0c96d1b6680d302a1f1e340e1894cd2b4c24681a",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.IndexMap.cinch",
+      "proposal_sha256": "f4f4526840d349995076227d01beec36b9187fd1800a9fb5e759c92e962a0185",
+      "roles": [
+        {
+          "identity": "Data.Mutable.IndexMap.IndexMap",
+          "source_declaration": "data IndexMap r",
+          "proposed_declaration": "data IndexMap (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.IndexMap.IndexMap",
+            "kind": "data",
+            "name": "IndexMap",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "k"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "v"
+              }
+            ],
+            "params": [
+              "r",
+              "k",
+              "v"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.IndexMap",
+            "value": "index-map-clear",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (k :: Type) (v :: Type). ((((Data.Mutable.IndexMap.IndexMap r) k) v) ->{Mut r} Unit)"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "index-map-clear",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (k :: Type) (v :: Type). ((((Data.Mutable.IndexMap.IndexMap r) k) v) ->{Mut r} Unit)"
+          },
+          "all_recorded_uses": 36
+        }
+      ],
+      "unchanged_private_types": [
+        {
+          "name": "Dense",
+          "declaration": "data Dense k v where",
+          "classification": "private nominal; unchanged ordinary payload/metadata parameters"
+        },
+        {
+          "name": "Index",
+          "declaration": "data Index where",
+          "classification": "private nominal; unchanged ordinary payload/metadata parameters"
+        }
+      ],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.LinkedList",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/LinkedList.cinch",
+      "source_sha256": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
+      "source_identity": "4573815002686942924",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.LinkedList.cinchif",
+      "interface_sha256": "ba391d65cd5cea638283bd0b9189e4bee5d0da67b9850a458fdf91e7f667af97",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.LinkedList.cinch",
+      "proposal_sha256": "f6d615de34a1c2f19f4095443fd237a82320d8b74bc6382b229954dca718440f",
+      "roles": [
+        {
+          "identity": "Data.Mutable.LinkedList.LinkedList",
+          "source_declaration": "data LinkedList r",
+          "proposed_declaration": "data LinkedList (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.LinkedList.LinkedList",
+            "kind": "data",
+            "name": "LinkedList",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.LinkedList",
+            "value": "list-append-list",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (s :: Region) (a :: Type). (((Data.Mutable.LinkedList.LinkedList r) a) -> (((Data.Mutable.LinkedList.LinkedList s) a) ->{Mut r, Mut s} ((Data.Core.Result Data.Mutable.LinkedList.LinkedListError) Unit)))"
+          },
+          "facade_witness": null,
+          "all_recorded_uses": 27
+        },
+        {
+          "identity": "Data.Mutable.LinkedList.ListElement",
+          "source_declaration": "data ListElement r",
+          "proposed_declaration": "data ListElement (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.LinkedList.ListElement",
+            "kind": "data",
+            "name": "ListElement",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.LinkedList",
+            "value": "list-back",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.LinkedList.LinkedList r) a) ->{Mut r} (Data.Core.Option ((Data.Mutable.LinkedList.ListElement r) a)))"
+          },
+          "facade_witness": null,
+          "all_recorded_uses": 16
+        }
+      ],
+      "unchanged_private_types": [
+        {
+          "name": "ListNode",
+          "declaration": "data ListNode a where",
+          "classification": "private nominal; unchanged ordinary payload/metadata parameters"
+        }
+      ],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.LruCache",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/LruCache.cinch",
+      "source_sha256": "4ade3198bc4fd7a8686d5c6ffa38a61a80dfaa62153c15bd9543a4d10e5116de",
+      "source_identity": "7963842185954834752",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.LruCache.cinchif",
+      "interface_sha256": "395093a15df188007a022a0f24b1ef9cd7872fff20c63fc39ed53ebf95124061",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.LruCache.cinch",
+      "proposal_sha256": "1811732100b31f8961e0a76337ea03fe718f19a7fa7d26a912c096c126ebd7ec",
+      "roles": [
+        {
+          "identity": "Data.Mutable.LruCache.LruCache",
+          "source_declaration": "data LruCache r",
+          "proposed_declaration": "data LruCache (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.LruCache.LruCache",
+            "kind": "data",
+            "name": "LruCache",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "k"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "v"
+              }
+            ],
+            "params": [
+              "r",
+              "k",
+              "v"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.LruCache",
+            "value": "lru-capacity",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (k :: Type) (v :: Type). ((((Data.Mutable.LruCache.LruCache r) k) v) ->{Mut r} Nat)"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "lru-capacity",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (k :: Type) (v :: Type). ((((Data.Mutable.LruCache.LruCache r) k) v) ->{Mut r} Nat)"
+          },
+          "all_recorded_uses": 20
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": [
+        "Data.Mutable.HashTable"
+      ]
+    },
+    {
+      "module": "Data.Mutable.Ring",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/Ring.cinch",
+      "source_sha256": "9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25",
+      "source_identity": "3066236992064930812",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.Ring.cinchif",
+      "interface_sha256": "f442d36cebcc54dea32443d05b4a45474e405d02e74a534e27bd472235dcd488",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.Ring.cinch",
+      "proposal_sha256": "e62b39a652441dbc46a03bb171b715fffbe55e75336658c4a2ddb593960839bd",
+      "roles": [
+        {
+          "identity": "Data.Mutable.Ring.Ring",
+          "source_declaration": "data Ring r",
+          "proposed_declaration": "data Ring (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.Ring.Ring",
+            "kind": "data",
+            "name": "Ring",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.Ring",
+            "value": "ring-copy",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Ring.Ring r) a) ->{Mut r} ((Data.Mutable.Ring.Ring r) a))"
+          },
+          "facade_witness": null,
+          "all_recorded_uses": 17
+        }
+      ],
+      "unchanged_private_types": [
+        {
+          "name": "RingNode",
+          "declaration": "data RingNode a where",
+          "classification": "private nominal; unchanged ordinary payload/metadata parameters"
+        },
+        {
+          "name": "RingArena",
+          "declaration": "data RingArena a where",
+          "classification": "private nominal; unchanged ordinary payload/metadata parameters"
+        }
+      ],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.UnionFind",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/UnionFind.cinch",
+      "source_sha256": "727e954bd65cccc23e096583f2e09110a598ca323a6a4170d7d3270a230afe1b",
+      "source_identity": "9875827249565107982",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.UnionFind.cinchif",
+      "interface_sha256": "9242e4ed8b636273d4015cb7e5e2faf436f577aed7029929fcf1c256e34eb352",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.UnionFind.cinch",
+      "proposal_sha256": "5c7f059508780df14c499519e10d7b89fbfa2d9e110cd97c6004740fdefa0cee",
+      "roles": [
+        {
+          "identity": "Data.Mutable.UnionFind.UnionFind",
+          "source_declaration": "data UnionFind r",
+          "proposed_declaration": "data UnionFind (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.UnionFind.UnionFind",
+            "kind": "data",
+            "name": "UnionFind",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              }
+            ],
+            "params": [
+              "r"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.UnionFind",
+            "value": "union-find-add",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region). ((Data.Mutable.UnionFind.UnionFind r) ->{Mut r} Nat)"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "union-find-add",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region). ((Data.Mutable.UnionFind.UnionFind r) ->{Mut r} Nat)"
+          },
+          "all_recorded_uses": 16
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.Var",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/Var.cinch",
+      "source_sha256": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+      "source_identity": "13960014557869089952",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.Var.cinchif",
+      "interface_sha256": "e247243eb5228e09e6e36b447b12ea9a316d62effff6224b917518e6d49d3432",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.Var.cinch",
+      "proposal_sha256": "0fc77c23d78f0fa5eaff95fbe578a88a34b5de0e7a09cb5fbebb97f912bc11ee",
+      "roles": [
+        {
+          "identity": "Data.Mutable.Var.Var",
+          "source_declaration": "data Var r",
+          "proposed_declaration": "data Var (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.Var.Var",
+            "kind": "data",
+            "name": "Var",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.Var",
+            "value": "var-modify",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Var.Var r) a) -> ((a -> a) ->{Mut r} Unit))"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "var-modify",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Var.Var r) a) -> ((a -> a) ->{Mut r} Unit))"
+          },
+          "all_recorded_uses": 10
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": []
+    },
+    {
+      "module": "Data.Mutable.Vec",
+      "source": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Mutable/Vec.cinch",
+      "source_sha256": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7",
+      "source_identity": "13435109983702009940",
+      "interface": "/workspace/dasl-stdlib-io/build/nominal-region-library-imports/build/Data.Mutable.Vec.cinchif",
+      "interface_sha256": "fe2117795d1cadb59479ba9dd5647919dddbdabbaf26ea872da93b24d17e6c93",
+      "proposal": "build/mutable-region-migration-static/Data.Mutable.Vec.cinch",
+      "proposal_sha256": "3d29dc07aff4aa7f96dab58c86041ec86945c3a149286ac9ff1b8a7177c75cf3",
+      "roles": [
+        {
+          "identity": "Data.Mutable.Vec.Vec",
+          "source_declaration": "data Vec r",
+          "proposed_declaration": "data Vec (r :: Region)",
+          "classification": "public nominal type; no constructor exported",
+          "actual_public_header": {
+            "ctors": [],
+            "fields": [],
+            "identity": "Data.Mutable.Vec.Vec",
+            "kind": "data",
+            "name": "Vec",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "r",
+              "a"
+            ],
+            "refinement": null
+          },
+          "witness": {
+            "module": "Data.Mutable.Vec",
+            "value": "vec-capacity",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Vec.Vec r) a) ->{Mut r} Nat)"
+          },
+          "facade_witness": {
+            "module": "Data.Mutable",
+            "value": "vec-capacity",
+            "region_argument": "r",
+            "scheme": "forall (r :: Region) (a :: Type). (((Data.Mutable.Vec.Vec r) a) ->{Mut r} Nat)"
+          },
+          "all_recorded_uses": 58
+        }
+      ],
+      "unchanged_private_types": [],
+      "source_mutable_imports": []
+    }
+  ],
+  "patch": "tooling/mutable-container-nominal-region-proposal.patch",
+  "patch_sha256": "1ac1e3853f5d2cb4059f78c883d6a7ced6b81366c2be907546a923f40ab3609a",
+  "unchanged_facade": "Data.Mutable reexports the defining identities; it declares no replacement nominal.",
+  "scope": "Public and private classification plus exact source/witness linkage only; every migrated closure still needs qualified source/interface/runtime gates."
+}

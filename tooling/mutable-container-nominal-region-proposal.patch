@@ -1,0 +1,83 @@
+--- defining-source/Data.Mutable.Array.cinch
++++ isolated-proposal/Data.Mutable.Array.cinch
+@@ -34 +34 @@
+-  data MutArray r a where
++  data MutArray (r :: Region) a where
+--- defining-source/Data.Mutable.BTree.cinch
++++ isolated-proposal/Data.Mutable.BTree.cinch
+@@ -73 +73 @@
+-  data BTreeMap r k v where
++  data BTreeMap (r :: Region) k v where
+--- defining-source/Data.Mutable.BTreeSet.cinch
++++ isolated-proposal/Data.Mutable.BTreeSet.cinch
+@@ -18 +18 @@
+-  data BTreeSet r a where
++  data BTreeSet (r :: Region) a where
+--- defining-source/Data.Mutable.BitSet.cinch
++++ isolated-proposal/Data.Mutable.BitSet.cinch
+@@ -38 +38 @@
+-  data BitSet r where
++  data BitSet (r :: Region) where
+--- defining-source/Data.Mutable.Deque.cinch
++++ isolated-proposal/Data.Mutable.Deque.cinch
+@@ -46 +46 @@
+-  data Deque r a where
++  data Deque (r :: Region) a where
+--- defining-source/Data.Mutable.HashSet.cinch
++++ isolated-proposal/Data.Mutable.HashSet.cinch
+@@ -18 +18 @@
+-  data HashSet r a where
++  data HashSet (r :: Region) a where
+--- defining-source/Data.Mutable.HashTable.cinch
++++ isolated-proposal/Data.Mutable.HashTable.cinch
+@@ -97 +97 @@
+-  data HashTable r k v where
++  data HashTable (r :: Region) k v where
+--- defining-source/Data.Mutable.Heap.cinch
++++ isolated-proposal/Data.Mutable.Heap.cinch
+@@ -70 +70 @@
+-  data Heap r a where
++  data Heap (r :: Region) a where
+--- defining-source/Data.Mutable.HeapView.cinch
++++ isolated-proposal/Data.Mutable.HeapView.cinch
+@@ -18 +18 @@
+-  data HeapView r a where
++  data HeapView (r :: Region) a where
+--- defining-source/Data.Mutable.IndexMap.cinch
++++ isolated-proposal/Data.Mutable.IndexMap.cinch
+@@ -63 +63 @@
+-  data IndexMap r k v where
++  data IndexMap (r :: Region) k v where
+--- defining-source/Data.Mutable.LinkedList.cinch
++++ isolated-proposal/Data.Mutable.LinkedList.cinch
+@@ -52 +52 @@
+-  data LinkedList r a where
++  data LinkedList (r :: Region) a where
+@@ -57 +57 @@
+-  data ListElement r a where
++  data ListElement (r :: Region) a where
+--- defining-source/Data.Mutable.LruCache.cinch
++++ isolated-proposal/Data.Mutable.LruCache.cinch
+@@ -44 +44 @@
+-  data LruCache r k v where
++  data LruCache (r :: Region) k v where
+--- defining-source/Data.Mutable.Ring.cinch
++++ isolated-proposal/Data.Mutable.Ring.cinch
+@@ -53 +53 @@
+-  data Ring r a where
++  data Ring (r :: Region) a where
+--- defining-source/Data.Mutable.UnionFind.cinch
++++ isolated-proposal/Data.Mutable.UnionFind.cinch
+@@ -33 +33 @@
+-  data UnionFind r where
++  data UnionFind (r :: Region) where
+--- defining-source/Data.Mutable.Var.cinch
++++ isolated-proposal/Data.Mutable.Var.cinch
+@@ -21 +21 @@
+-  data Var r a where
++  data Var (r :: Region) a where
+--- defining-source/Data.Mutable.Vec.cinch
++++ isolated-proposal/Data.Mutable.Vec.cinch
+@@ -64 +64 @@
+-  data Vec r a where
++  data Vec (r :: Region) a where
