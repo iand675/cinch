@@ -24,15 +24,36 @@ def definition(ir: str, symbol: str) -> str:
     return ir[start:ir.index('\n}',start)+2]
 
 
+def call_path(ir: str, start: str, wanted: str) -> list[str] | None:
+    """Follow actual direct view calls, including intermediaries retained by newer compilers."""
+    pending, seen = [[start]], set()
+    while pending:
+        path = pending.pop()
+        symbol = path[-1]
+        if symbol == wanted:
+            return path
+        if symbol in seen:
+            continue
+        seen.add(symbol)
+        for line in definition(ir, symbol).splitlines():
+            if 'call ' in line:
+                for callee in re.findall(r'@"(Data\.Bytes\.View\.[^"]+)"', line):
+                    pending.append([*path, callee])
+    return None
+
+
 def assert_actual_query(ir: str) -> None:
-    """Require the public adapter, bounded block/tail recursion and their exact word/byte workers."""
-    query = definition(ir,'Data.Bytes.View.byte-view-index-byte')
-    blocks = definition(ir,'Data.Bytes.View.index-forward-blocks')
-    tail = definition(ir,'Data.Bytes.View.index-forward-tail')
-    assert 'Data.Bytes.View.index-forward-blocks' in query
-    assert 'Data.Bytes.View.index-forward-tail' in query
-    assert 'Data.Bytes.View.load-word' in blocks and 'Data.Bytes.View.matching-lanes' in blocks
-    assert 'Data.Bytes.View.load-byte' in tail
+    """Require real adapter-to-block/tail and worker paths, allowing intermediary inlining."""
+    for caller, callee in [
+        ('byte-view-index-byte', 'index-forward-blocks'),
+        ('byte-view-index-byte', 'index-forward-tail'),
+        ('index-forward-blocks', 'load-word.llvm'),
+        ('index-forward-blocks', 'matching-lanes.llvm'),
+        ('index-forward-tail', 'load-byte.llvm'),
+    ]:
+        assert call_path(ir, 'Data.Bytes.View.'+caller, 'Data.Bytes.View.'+callee), (caller, callee)
+    if re.search(r'^define .*@"Data\.Bytes\.View\.index-forward"\(', ir, re.M):
+        assert call_path(ir, 'Data.Bytes.View.byte-view-index-byte', 'Data.Bytes.View.index-forward')
     word = definition(ir,'Data.Bytes.View.load-word.llvm')
     byte = definition(ir,'Data.Bytes.View.load-byte.llvm')
     masks = definition(ir,'Data.Bytes.View.matching-lanes.llvm')
