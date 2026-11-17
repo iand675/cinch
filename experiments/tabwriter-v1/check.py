@@ -32,9 +32,13 @@ def main():
     parser.add_argument('--main', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--deadline', type=int, default=15)
+    parser.add_argument('--start-free-mib', type=int, choices=(320, 350), default=350)
+    parser.add_argument('--resource-policy-note', help='Exact Root authorization for a scope-specific source-only start threshold')
     args = parser.parse_args()
     os.sched_setaffinity(0, {2})
-    assert shutil.disk_usage(ROOT).free >= 350 * MIB, '350MiB start guard; no output created'
+    if args.start_free_mib != 350:
+        assert args.resource_policy_note, 'lower source-only start requires the explicit reviewed scope'
+    assert shutil.disk_usage(ROOT).free >= args.start_free_mib * MIB, 'fresh source-only start guard; no output created'
     work = args.work.resolve()
     assert not work.exists(), 'never overwrite a source epoch'
     compiler, runtime = SNAPSHOT / 'cinch', SNAPSHOT / 'libcinchruntime.a'
@@ -50,7 +54,15 @@ def main():
             if name in embedded or name in found:
                 continue
             candidate = HERE / 'sources' / (name + '.cinch')
-            selected = candidate if candidate.exists() else ROOT / 'compiler/prelude' / (name.replace('.', '/') + '.cinch')
+            dependency = HERE / 'dependencies' / (name + '.cinch')
+            selected = candidate if candidate.exists() else dependency if dependency.exists() else ROOT / 'compiler/prelude' / (name.replace('.', '/') + '.cinch')
+            if selected == dependency:
+                binding = json.loads((HERE / 'dependencies/manifest.json').read_text())
+                assert name == binding['module'] and digest(dependency) == binding['sha256']
+                assert binding['compiler_sha256'] == COMPILER and binding['runtime_sha256'] == RUNTIME
+                qualified = Path(binding['qualified_source_report'])
+                assert digest(qualified) == binding['qualified_source_report_sha256']
+                assert json.loads(qualified.read_text())['source_gate_passed']
             assert selected.exists(), name
             found[name] = selected
             visit(selected)
@@ -68,7 +80,8 @@ def main():
               'main_sha256': digest(work / 'Main.cinch'), 'embedded_family_sha256': digest(family),
               'sources': {name: {'path': str(path), 'sha256': digest(path)} for name, path in found.items()},
               'command': command, 'source_only': True, 'production_adopted': False, 'runtime_claim': False,
-              'cpu': 2, 'start_guard_bytes': 350 * MIB, 'reserve_bytes': 250 * MIB, 'cap_bytes': 5 * MIB}
+              'cpu': 2, 'start_guard_bytes': args.start_free_mib * MIB, 'reserve_bytes': 250 * MIB, 'cap_bytes': 5 * MIB,
+              'explicit_resource_policy': args.resource_policy_note}
 
     def limits():
         """Keep compiler-host stack and individual output files bounded independently of future consumer profiles."""
@@ -97,12 +110,15 @@ def main():
                 break
             time.sleep(0.1)
         code = child.wait()
+    unchanged = digest(entry) == report['main_sha256'] and all(digest(path) == report['sources'][name]['sha256'] for name, path in found.items())
     report.update(returncode=code, interrupted_reason=reason, seconds=time.monotonic() - started,
                   source_gate_passed=code == 0 and reason is None,
+                  original_main_and_library_sources_unchanged=unchanged,
                   stdout_sha256=digest(work / 'check.stdout'), stderr=(work / 'check.stderr').read_text(),
                   artifact_bytes=sum(p.stat().st_size for p in work.rglob('*') if p.is_file()),
                   genuine_interfaces={str(p.relative_to(work)): digest(p) for p in work.rglob('*.cinchif')})
     (work / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+    assert unchanged, 'exact original main/library identity changed during the isolated check'
     print(json.dumps({key: report[key] for key in ('source_gate_passed', 'seconds', 'artifact_bytes', 'stderr')}), flush=True)
     raise SystemExit(124 if reason else code)
 
