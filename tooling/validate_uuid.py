@@ -39,7 +39,9 @@ def main() -> None:
     parser.add_argument('--cpu',type=int,required=True)
     parser.add_argument('--minimum-free-mib',type=int,choices=(300,320,330,350),default=350,
                         help='Use a sub350 threshold only for its explicitly coordinated resource exception')
-    parser.add_argument('--mode',choices=('source','parse','append','compare','v7','generated','control','io'),required=True)
+    parser.add_argument('--candidate-sources',type=Path,help='Optional isolated Data.Uuid/Effect.Uuid source overrides; other module homes remain unchanged')
+    parser.add_argument('--consumer',type=Path,help='Explicit immutable fixture for source/custom qualification mode')
+    parser.add_argument('--mode',choices=('source','parse','append','compare','v7','generated','control','io','custom'),required=True)
     parser.add_argument('--start',type=int,default=0)
     parser.add_argument('--count',type=int,default=128)
     parser.add_argument('--opt-level',choices=('0','2'),default='2')
@@ -58,10 +60,19 @@ def main() -> None:
         raise SystemExit(2)
     assert not args.artifacts.exists(),'Use a fresh directory and preserve every previous attempt'
     directory=args.artifacts.resolve();directory.mkdir(parents=True)
-    modules={name:(ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch')).read_bytes() for name in MODULES}
+    modules={}
+    for name in MODULES:
+        path=ROOT/'compiler/prelude'/(name.replace('.','/')+'.cinch')
+        if args.candidate_sources and name in ('Data.Uuid','Effect.Uuid'):
+            candidate=args.candidate_sources.resolve()/(name+'.cinch')
+            if candidate.is_file():path=candidate
+        modules[name]=path.read_bytes()
     for name,data in modules.items():(directory/(name+'.cinch')).write_bytes(data)
     if args.mode=='source':
-        text='-- | Check both identifier surfaces without running effects.\nmodule Main where\n  import Data.Uuid\n  import Effect.Uuid\n  -- | Keep this consumer source-only.\n  main :: Int\n  main = 0\n'
+        text=args.consumer.read_text() if args.consumer else '-- | Check both identifier surfaces without running effects.\nmodule Main where\n  import Data.Uuid\n  import Effect.Uuid\n  -- | Keep this consumer source-only.\n  main :: Int\n  main = 0\n'
+    elif args.mode=='custom':
+        assert args.consumer is not None
+        text=args.consumer.read_text()
     elif args.mode in ('control','io'):
         text=(ROOT/f'compiler/tests/fixtures/uuid-{args.mode}.cinch').read_text()
     else:text=source(args.mode,args.start,args.count)
@@ -72,6 +83,7 @@ def main() -> None:
             'runner_sha256':digest(Path(__file__)),'sources':{k:hashlib.sha256(v).hexdigest() for k,v in modules.items()},
             'fixture_sha256':digest(ROOT/'compiler/tests/fixtures/uuid-vectors.json'),'consumer_sha256':digest(entry),
             'candidate_selected':False,'package_complete':False,'native_family_relabelled':False,
+            'candidate_sources':str(args.candidate_sources.resolve()) if args.candidate_sources else None,
             'cpu_affinity':[args.cpu],'free_before':free,'fresh_start_mib':args.minimum_free_mib,
             'minimum_reserve_mib':250,'maximum_new_output_mib':5 if args.mode=='source' else 20,'status':'running','runs':[]}
     environment={**os.environ,'CINCH_CLANG':str(clang),'RUST_MIN_STACK':'67108864','CINCH_TEST_API_EMIT_INTERFACES':'0'}

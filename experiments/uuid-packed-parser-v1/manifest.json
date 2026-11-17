@@ -1,0 +1,53 @@
+{
+  "kind": "separate-UUID-packed-parser-candidate",
+  "status": "source-doc-and-first128-reference-runtime-passed-remaining-gates-pending",
+  "baseline_source": "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
+  "baseline_source_sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+  "source": "experiments/uuid-packed-parser-v1/sources/Data.Uuid.cinch",
+  "source_sha256": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+  "effect_source_unchanged": "experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch",
+  "effect_source_sha256": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
+  "kernel_derivation": {
+    "path": "compiler/prelude/Text/Hex.cinch",
+    "sha256": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "scope": "Private SIMD decode8 body copied byte-for-byte except declaration name and documentation; existing Hex source remains unchanged."
+  },
+  "preserves": [
+    "all public declarations and error variants",
+    "canonical/compact/brace/lowercase-URN acceptance and mixed-case hexadecimal",
+    "punctuation-first refusal and invalid-length distinction",
+    "immutable words and fresh byte conversions",
+    "existing canonical rendering, append,compare,hash,V4/V7 logic"
+  ],
+  "changes": [
+    "Direct packed classification and network-word construction; no compact32 or decoded16 temporary buffers",
+    "Gather canonical groups using only existing proved four/eight-byte reads",
+    "Check all classification flags before constructing a value"
+  ],
+  "non_goals": [
+    "String backing remains private; uuid-parse still makes the ordinary string-to-bytes copy",
+    "No representation/ABI/compiler/runtime/shared-module change",
+    "No entropy/time substitution",
+    "No selection or performance claim before full qualification and paired timing"
+  ],
+  "pending": [
+    "full independent parse/append/compare/generated/clock/owner/IO matrix plus exhaustive malformed-byte and canary controls",
+    "portable actual adapter objects",
+    "matched public pipeline allocation/ASM preflights and separately granted timing",
+    "Native pure compatibility where admitted"
+  ],
+  "candidate_selected": false,
+  "package_complete": false,
+  "completed": [
+    "exact330/d91 source check",
+    "46Data.Uuid canonical declarations with zero diagnostics/orphans",
+    "first128independent parser/receiver/strict-parser observations normal32M/poison256M,8Mstack,zero leaks"
+  ],
+  "qualification": {
+    "source_doc": "source-doc-results.json",
+    "initial_runtime": "initial-runtime-results.json",
+    "positional_oracle": "positional-reference.json",
+    "positional_source_check": "resource-paused before compiler at333844480bytes free; no semantic result",
+    "selected": false
+  }
+}

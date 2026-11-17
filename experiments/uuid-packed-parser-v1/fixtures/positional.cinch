@@ -1,0 +1,340 @@
+-- | Check positional parsing and immutable receiver ownership using recorded byte classifications.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Machine
+  import Data.Bytes
+  import Data.String
+  import Data.Uuid
+
+  -- | One actual reference classification and its observed canonical first digit.
+  data ByteClass where
+    -- | Retain a byte, success/refusal and a recorded lowercase output byte.
+    ByteClass :: Nat -> Bool -> Nat -> ByteClass
+
+  -- | A source position and its corresponding canonical hexadecimal position.
+  data Position where
+    -- | Keep punctuation offsets separate from the uniform hexadecimal-lane law.
+    Position :: Nat -> Nat -> Position
+
+  -- | One accepted wrapper with all of its32 hexadecimal positions.
+  data Form where
+    -- | Retain complete input text and its exact source/canonical position mapping.
+    Form :: String -> List Position -> Form
+
+  -- | Preserve the input and failed receiver while checking every successful bit after restoring the source byte.
+  check-class :: Bytes -> Nat -> Nat -> ByteClass -> Bool
+  check-class input at target row = case row of
+    ByteClass byte valid lower ->
+      let expected = string-to-bytes "f81d4fae-7dec-11d0-a765-00a0c91e6bf6" in
+      if byte <= 255 && lower <= 255 && at < bytes-len input && target < bytes-len expected then
+        let original = bytes-get input at in
+        let changed = bytes-set input at byte in
+        let prepared = bytes-set expected target lower in
+        case uuid-unmarshal-text uuid-max input of
+          (next, error) ->
+            let restored = bytes-set input at original in
+            case error of
+              Some problem -> not valid && uuid-equal next uuid-max
+              None -> valid && (case string-from-bytes expected of Some text -> uuid-format next == text; None -> False)
+      else False
+
+  -- | Return the first failed recorded byte index without losing the original generated project.
+  check-classes :: Bytes -> Nat -> Nat -> List ByteClass -> Nat
+  check-classes input at target rows = case rows of
+    Nil -> 0
+    Cons row rest -> if check-class input at target row then check-classes input at target rest else case row of ByteClass byte valid lower -> byte + 1
+
+  -- | Sweep every encoded lane; a failure identifies its logical position and recorded byte.
+  check-positions :: Bytes -> List Position -> Nat -> Nat
+  check-positions input positions index = case positions of
+    Nil -> 0
+    Cons position rest -> case position of
+      Position at target ->
+        let bad = check-classes input at target classifications in
+        if bad == 0 then check-positions input rest (index + 1) else index * 256 + bad
+
+  -- | Check wrapper offsets, every byte classification and the complete restored input buffer.
+  check-forms :: List Form -> Nat -> Nat
+  check-forms rows index = case rows of
+    Nil -> 0
+    Cons row rest -> case row of
+      Form text positions ->
+        let input = string-to-bytes text in
+        let bad = check-positions input positions 0 in
+        if bad == 0 then
+          if eq-i64 (bytes-compare input (string-to-bytes text)) 0 then check-forms rest (index + 1) else index * 8192 + 1
+        else index * 8192 + bad
+
+  -- | Actual single-position classifications captured by the pinned reference SDK, reused uniformly by hexadecimal position.
+  classifications :: List ByteClass
+  classifications = [ByteClass 0 False 0,
+    ByteClass 1 False 0,
+    ByteClass 2 False 0,
+    ByteClass 3 False 0,
+    ByteClass 4 False 0,
+    ByteClass 5 False 0,
+    ByteClass 6 False 0,
+    ByteClass 7 False 0,
+    ByteClass 8 False 0,
+    ByteClass 9 False 0,
+    ByteClass 10 False 0,
+    ByteClass 11 False 0,
+    ByteClass 12 False 0,
+    ByteClass 13 False 0,
+    ByteClass 14 False 0,
+    ByteClass 15 False 0,
+    ByteClass 16 False 0,
+    ByteClass 17 False 0,
+    ByteClass 18 False 0,
+    ByteClass 19 False 0,
+    ByteClass 20 False 0,
+    ByteClass 21 False 0,
+    ByteClass 22 False 0,
+    ByteClass 23 False 0,
+    ByteClass 24 False 0,
+    ByteClass 25 False 0,
+    ByteClass 26 False 0,
+    ByteClass 27 False 0,
+    ByteClass 28 False 0,
+    ByteClass 29 False 0,
+    ByteClass 30 False 0,
+    ByteClass 31 False 0,
+    ByteClass 32 False 0,
+    ByteClass 33 False 0,
+    ByteClass 34 False 0,
+    ByteClass 35 False 0,
+    ByteClass 36 False 0,
+    ByteClass 37 False 0,
+    ByteClass 38 False 0,
+    ByteClass 39 False 0,
+    ByteClass 40 False 0,
+    ByteClass 41 False 0,
+    ByteClass 42 False 0,
+    ByteClass 43 False 0,
+    ByteClass 44 False 0,
+    ByteClass 45 False 0,
+    ByteClass 46 False 0,
+    ByteClass 47 False 0,
+    ByteClass 48 True 48,
+    ByteClass 49 True 49,
+    ByteClass 50 True 50,
+    ByteClass 51 True 51,
+    ByteClass 52 True 52,
+    ByteClass 53 True 53,
+    ByteClass 54 True 54,
+    ByteClass 55 True 55,
+    ByteClass 56 True 56,
+    ByteClass 57 True 57,
+    ByteClass 58 False 0,
+    ByteClass 59 False 0,
+    ByteClass 60 False 0,
+    ByteClass 61 False 0,
+    ByteClass 62 False 0,
+    ByteClass 63 False 0,
+    ByteClass 64 False 0,
+    ByteClass 65 True 97,
+    ByteClass 66 True 98,
+    ByteClass 67 True 99,
+    ByteClass 68 True 100,
+    ByteClass 69 True 101,
+    ByteClass 70 True 102,
+    ByteClass 71 False 0,
+    ByteClass 72 False 0,
+    ByteClass 73 False 0,
+    ByteClass 74 False 0,
+    ByteClass 75 False 0,
+    ByteClass 76 False 0,
+    ByteClass 77 False 0,
+    ByteClass 78 False 0,
+    ByteClass 79 False 0,
+    ByteClass 80 False 0,
+    ByteClass 81 False 0,
+    ByteClass 82 False 0,
+    ByteClass 83 False 0,
+    ByteClass 84 False 0,
+    ByteClass 85 False 0,
+    ByteClass 86 False 0,
+    ByteClass 87 False 0,
+    ByteClass 88 False 0,
+    ByteClass 89 False 0,
+    ByteClass 90 False 0,
+    ByteClass 91 False 0,
+    ByteClass 92 False 0,
+    ByteClass 93 False 0,
+    ByteClass 94 False 0,
+    ByteClass 95 False 0,
+    ByteClass 96 False 0,
+    ByteClass 97 True 97,
+    ByteClass 98 True 98,
+    ByteClass 99 True 99,
+    ByteClass 100 True 100,
+    ByteClass 101 True 101,
+    ByteClass 102 True 102,
+    ByteClass 103 False 0,
+    ByteClass 104 False 0,
+    ByteClass 105 False 0,
+    ByteClass 106 False 0,
+    ByteClass 107 False 0,
+    ByteClass 108 False 0,
+    ByteClass 109 False 0,
+    ByteClass 110 False 0,
+    ByteClass 111 False 0,
+    ByteClass 112 False 0,
+    ByteClass 113 False 0,
+    ByteClass 114 False 0,
+    ByteClass 115 False 0,
+    ByteClass 116 False 0,
+    ByteClass 117 False 0,
+    ByteClass 118 False 0,
+    ByteClass 119 False 0,
+    ByteClass 120 False 0,
+    ByteClass 121 False 0,
+    ByteClass 122 False 0,
+    ByteClass 123 False 0,
+    ByteClass 124 False 0,
+    ByteClass 125 False 0,
+    ByteClass 126 False 0,
+    ByteClass 127 False 0,
+    ByteClass 128 False 0,
+    ByteClass 129 False 0,
+    ByteClass 130 False 0,
+    ByteClass 131 False 0,
+    ByteClass 132 False 0,
+    ByteClass 133 False 0,
+    ByteClass 134 False 0,
+    ByteClass 135 False 0,
+    ByteClass 136 False 0,
+    ByteClass 137 False 0,
+    ByteClass 138 False 0,
+    ByteClass 139 False 0,
+    ByteClass 140 False 0,
+    ByteClass 141 False 0,
+    ByteClass 142 False 0,
+    ByteClass 143 False 0,
+    ByteClass 144 False 0,
+    ByteClass 145 False 0,
+    ByteClass 146 False 0,
+    ByteClass 147 False 0,
+    ByteClass 148 False 0,
+    ByteClass 149 False 0,
+    ByteClass 150 False 0,
+    ByteClass 151 False 0,
+    ByteClass 152 False 0,
+    ByteClass 153 False 0,
+    ByteClass 154 False 0,
+    ByteClass 155 False 0,
+    ByteClass 156 False 0,
+    ByteClass 157 False 0,
+    ByteClass 158 False 0,
+    ByteClass 159 False 0,
+    ByteClass 160 False 0,
+    ByteClass 161 False 0,
+    ByteClass 162 False 0,
+    ByteClass 163 False 0,
+    ByteClass 164 False 0,
+    ByteClass 165 False 0,
+    ByteClass 166 False 0,
+    ByteClass 167 False 0,
+    ByteClass 168 False 0,
+    ByteClass 169 False 0,
+    ByteClass 170 False 0,
+    ByteClass 171 False 0,
+    ByteClass 172 False 0,
+    ByteClass 173 False 0,
+    ByteClass 174 False 0,
+    ByteClass 175 False 0,
+    ByteClass 176 False 0,
+    ByteClass 177 False 0,
+    ByteClass 178 False 0,
+    ByteClass 179 False 0,
+    ByteClass 180 False 0,
+    ByteClass 181 False 0,
+    ByteClass 182 False 0,
+    ByteClass 183 False 0,
+    ByteClass 184 False 0,
+    ByteClass 185 False 0,
+    ByteClass 186 False 0,
+    ByteClass 187 False 0,
+    ByteClass 188 False 0,
+    ByteClass 189 False 0,
+    ByteClass 190 False 0,
+    ByteClass 191 False 0,
+    ByteClass 192 False 0,
+    ByteClass 193 False 0,
+    ByteClass 194 False 0,
+    ByteClass 195 False 0,
+    ByteClass 196 False 0,
+    ByteClass 197 False 0,
+    ByteClass 198 False 0,
+    ByteClass 199 False 0,
+    ByteClass 200 False 0,
+    ByteClass 201 False 0,
+    ByteClass 202 False 0,
+    ByteClass 203 False 0,
+    ByteClass 204 False 0,
+    ByteClass 205 False 0,
+    ByteClass 206 False 0,
+    ByteClass 207 False 0,
+    ByteClass 208 False 0,
+    ByteClass 209 False 0,
+    ByteClass 210 False 0,
+    ByteClass 211 False 0,
+    ByteClass 212 False 0,
+    ByteClass 213 False 0,
+    ByteClass 214 False 0,
+    ByteClass 215 False 0,
+    ByteClass 216 False 0,
+    ByteClass 217 False 0,
+    ByteClass 218 False 0,
+    ByteClass 219 False 0,
+    ByteClass 220 False 0,
+    ByteClass 221 False 0,
+    ByteClass 222 False 0,
+    ByteClass 223 False 0,
+    ByteClass 224 False 0,
+    ByteClass 225 False 0,
+    ByteClass 226 False 0,
+    ByteClass 227 False 0,
+    ByteClass 228 False 0,
+    ByteClass 229 False 0,
+    ByteClass 230 False 0,
+    ByteClass 231 False 0,
+    ByteClass 232 False 0,
+    ByteClass 233 False 0,
+    ByteClass 234 False 0,
+    ByteClass 235 False 0,
+    ByteClass 236 False 0,
+    ByteClass 237 False 0,
+    ByteClass 238 False 0,
+    ByteClass 239 False 0,
+    ByteClass 240 False 0,
+    ByteClass 241 False 0,
+    ByteClass 242 False 0,
+    ByteClass 243 False 0,
+    ByteClass 244 False 0,
+    ByteClass 245 False 0,
+    ByteClass 246 False 0,
+    ByteClass 247 False 0,
+    ByteClass 248 False 0,
+    ByteClass 249 False 0,
+    ByteClass 250 False 0,
+    ByteClass 251 False 0,
+    ByteClass 252 False 0,
+    ByteClass 253 False 0,
+    ByteClass 254 False 0,
+    ByteClass 255 False 0]
+
+  -- | Exact wrapper/position mappings derived from their documented punctuation layout.
+  forms :: List Form
+  forms = [Form "f81d4fae7dec11d0a76500a0c91e6bf6" [Position 0 0, Position 1 1, Position 2 2, Position 3 3, Position 4 4, Position 5 5, Position 6 6, Position 7 7, Position 8 9, Position 9 10, Position 10 11, Position 11 12, Position 12 14, Position 13 15, Position 14 16, Position 15 17, Position 16 19, Position 17 20, Position 18 21, Position 19 22, Position 20 24, Position 21 25, Position 22 26, Position 23 27, Position 24 28, Position 25 29, Position 26 30, Position 27 31, Position 28 32, Position 29 33, Position 30 34, Position 31 35],
+    Form "f81d4fae-7dec-11d0-a765-00a0c91e6bf6" [Position 0 0, Position 1 1, Position 2 2, Position 3 3, Position 4 4, Position 5 5, Position 6 6, Position 7 7, Position 9 9, Position 10 10, Position 11 11, Position 12 12, Position 14 14, Position 15 15, Position 16 16, Position 17 17, Position 19 19, Position 20 20, Position 21 21, Position 22 22, Position 24 24, Position 25 25, Position 26 26, Position 27 27, Position 28 28, Position 29 29, Position 30 30, Position 31 31, Position 32 32, Position 33 33, Position 34 34, Position 35 35],
+    Form "{f81d4fae-7dec-11d0-a765-00a0c91e6bf6}" [Position 1 0, Position 2 1, Position 3 2, Position 4 3, Position 5 4, Position 6 5, Position 7 6, Position 8 7, Position 10 9, Position 11 10, Position 12 11, Position 13 12, Position 15 14, Position 16 15, Position 17 16, Position 18 17, Position 20 19, Position 21 20, Position 22 21, Position 23 22, Position 25 24, Position 26 25, Position 27 26, Position 28 27, Position 29 28, Position 30 29, Position 31 30, Position 32 31, Position 33 32, Position 34 33, Position 35 34, Position 36 35],
+    Form "urn:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6" [Position 9 0, Position 10 1, Position 11 2, Position 12 3, Position 13 4, Position 14 5, Position 15 6, Position 16 7, Position 18 9, Position 19 10, Position 20 11, Position 21 12, Position 23 14, Position 24 15, Position 25 16, Position 26 17, Position 28 19, Position 29 20, Position 30 21, Position 31 22, Position 33 24, Position 34 25, Position 35 26, Position 36 27, Position 37 28, Position 38 29, Position 39 30, Position 40 31, Position 41 32, Position 42 33, Position 43 34, Position 44 35]]
+
+  -- | Print a complete failure coordinate and use a nonzero exit independent of index truncation.
+  main :: forall (r :: Region). Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let bad = check-forms forms 0 in
+    if bad == 0 then 0 else
+      let printed = ioWrite (string-to-bytes (string-concat (nat-to-string bad) "\n")) in 1

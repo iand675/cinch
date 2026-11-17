@@ -1,0 +1,22 @@
+{
+  "kind": "metamorphic-UUID-positional-byte-cases",
+  "independent_vector_sha256": "af3900f51bd4ed04fc660d988bfa4a36391cac5c58eb9cc3cde2c638df90a44e",
+  "recorded_byte_classifications": 256,
+  "derived_positions": 32,
+  "forms": [
+    "compact",
+    "canonical",
+    "braces",
+    "urn"
+  ],
+  "derived_public_observations": 32768,
+  "source_sha256": "246d689231dd7251dcd65017d14dd1c7c216230eb009ea7d6fcc099c29e67b57",
+  "method": "Reuse actual SDK first-hex-digit acceptance and recorded lowercase output byte at each of32uniform hexadecimal positions in four wrapper forms. Expected complete canonical output changes only the corresponding digit. This is metamorphic positional stress, not32768new SDK executions or a reimplementation of the SIMD classifier.",
+  "checks": [
+    "exact successful canonical bits after restoring the mutable source byte",
+    "unchanged previous maximum identifier on refusal",
+    "complete input restored and unchanged across the sweep",
+    "first failure coordinate printed with a fixed nonzero exit to avoid exit-code truncation"
+  ],
+  "runtime_passed": false
+}
