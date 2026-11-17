@@ -35,6 +35,14 @@
   "runtime_sources_changed": false,
   "rust_metadata_allowlist_changed": false,
   "schema": 1,
+  "separate_phase_instrumentation": {
+    "base_revision": "c2441661",
+    "candidate_commit": "dc6e2d9f",
+    "flag": "CINCH_TRACE_DRIVER_PHASES",
+    "scope": "29-line driver.rs optional timestamp patch; no Native candidate or frozen compiler modification",
+    "source_checker_phase_attribution": "pending actual traced compiler build/run",
+    "validated": "rustfmt syntax parse and git diff --check only; no build/runtime/adoption"
+  },
   "source51_files": 51,
   "source51_sha256": "131b2fa851431622d0bd2737218c354e967b3568f8267ae19ec641db8553648d",
   "source_check_phase_caveat": "Qualified75b driver performs specialization/optimization before Mode::Check artifact write/return; total check wall times do not isolate elaboration cost. No optimization flags changed.",
@@ -369,7 +377,7 @@
   "source_owned_effect_identity": "plain source effect MVar remains distinct from internal kernel #kernel.MVar; custom effect resolved transport remains ungranted",
   "static_delimiter_scan_is_not_parser_or_typecheck": true,
   "static_delimiter_scan_passed": true,
-  "status": "source-only candidate; smaller changed-module dependency closures pass qualified source checking; full51 has no verdict after bounded resource observations; emitter/runtime/admission gates pending",
+  "status": "source-only candidate; four smaller changed-module dependency closures pass qualified source checking; full51 has no verdict after bounded resource observations; emitter/runtime/admission gates pending",
   "v2_modified_source_claims": {
     "bootstrap/Bootstrap.Builtin.cinch": "61b8a3e2fef66d26d3e23b5fb976fc5747346763457282b364edc8a0a1601a2e",
     "bootstrap/Bootstrap.Export.cinch": "1d53cf52d044ff9d2d69c8dacb183e4ab17a6812afb6b83ba33c7753fea10571",
@@ -407,6 +415,33 @@
       "schema": 1,
       "source51_sha256": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465",
       "start_free_bytes": 460709888,
+      "status": "passed source check"
+    },
+    "export_nominal_dependency_closure": {
+      "candidate_revision": "95792ff39788b14e1d9a4945eca081905da27cc0",
+      "command": [
+        "taskset",
+        "-c",
+        "1",
+        "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-native-mvar/build/native-mvar-source-check-v2/sources/Bootstrap.ExportNominal.cinch"
+      ],
+      "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+      "consumer_ir": false,
+      "consumer_runtime": false,
+      "elapsed_seconds": 48.59632740399684,
+      "end_free_bytes": 432713728,
+      "exit_code": 0,
+      "limit_reason": null,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "native_mvar_adopted": false,
+      "phase": "Bootstrap.ExportNominal",
+      "retained_bytes": 14985544,
+      "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+      "schema": 1,
+      "source51_sha256": "6bca85551971e5d783d709cb2b2cfb0f6dc9cf3ab2580a2da3359bc99932e465",
+      "start_free_bytes": 439070720,
       "status": "passed source check"
     },
     "export_type_dependency_closure": {
@@ -527,7 +562,7 @@
     },
     "scope": "source checker accepts candidate compiler source only; this does not execute its MVar checker or emitter"
   },
-  "v2_status": "full51 default check reached both60-second and180-second deadlines with empty logs and no verdict; Builtin9.484s, ExportType22.656s and Resolve15.378s dependency closures passed",
+  "v2_status": "full51 default check reached separate60-second and180-second deadlines with empty logs/no verdict; Builtin9.484s, ExportType22.656s, Resolve15.378s and ExportNominal48.596s closures passed",
   "wide_payloads": "explicit named MVar I128/U128 boxed-wide-bridge refusal before worker emission; support remains open",
   "word_payloads": "raw, object and tagged/counted classes0/1/2; actual future semantic/ownership gates required"
 }
