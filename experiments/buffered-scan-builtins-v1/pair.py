@@ -21,8 +21,12 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--iterations', type=int, default=8)
     parser.add_argument('--samples', type=int, default=3)
+    parser.add_argument('--workloads', choices=MODES, nargs='+', default=MODES)
+    parser.add_argument('--sizes', type=int, nargs='+', default=[4096, 65536])
+    parser.add_argument('--patterns', type=int, nargs='+', default=[0, 1, 2])
     args = parser.parse_args()
     assert 1 <= args.iterations <= 4294967295 and args.samples > 0
+    assert all(0 <= size <= 65536 for size in args.sizes) and all(pattern in [0,1,2] for pattern in args.patterns)
     os.sched_setaffinity(0, {args.cpu})
     directories = {'baseline': ROOT/'build/buffered-benchmark-rust-v1', 'candidate': ROOT/'build/buffered-benchmark-scan-candidate-7e-v1'}
     identities = {}
@@ -52,14 +56,16 @@ def main():
               'cpu_stat_start': Path('/sys/fs/cgroup/cpu.stat').read_text(), 'results': []}
     started = time.monotonic()
     pair = 0
-    for mode in MODES:
-        for size in [4096, 65536]:
-            for pattern in [0, 1, 2]:
+    for mode in args.workloads:
+        for size in args.sizes:
+            for pattern in args.patterns:
                 metadata = [mode, str(size), str(args.iterations), str(pattern)]
-                oracle = subprocess.run([str(directories['baseline']/'reference'), *metadata], capture_output=True, text=True, env=environment)
+                reference_command = [str(directories['baseline']/'reference'), *metadata]
+                oracle = subprocess.run(reference_command, capture_output=True, text=True, env=environment)
                 assert oracle.returncode == 0
                 expected = int(oracle.stdout.split()[1])
-                row = {'workload': mode, 'size': size, 'pattern': pattern, 'checksum': expected, 'pairs': []}
+                row = {'workload': mode, 'size': size, 'pattern': pattern, 'checksum': expected, 'pairs': [],
+                       'reference': {'command': reference_command, 'returncode': oracle.returncode, 'stdout': oracle.stdout, 'stderr': oracle.stderr}}
                 for sample in range(args.samples+1):
                     order = ['baseline', 'candidate'] if pair % 2 == 0 else ['candidate', 'baseline']
                     observation = {'warmup': sample == 0, 'order': order, 'runs': []}
@@ -83,7 +89,7 @@ def main():
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 args.output.write_text(json.dumps(report, indent=2)+'\n')
                 assert args.output.stat().st_size < 5*1024*1024
-    print('Completed54 same-epoch paired conditions with independent checksums, controls and zero leaks')
+    print('Completed '+str(len(report['results']))+' same-epoch paired conditions with independent checksums, controls and zero leaks')
 
 
 if __name__ == '__main__':
