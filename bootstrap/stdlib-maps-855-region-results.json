@@ -29,7 +29,7 @@
     "status": "failed",
     "report_sha256": "2471e7d97024606d47308fad9ec98941c1584461a3b86e0f0ce0648dca4a804e"
   },
-  "negative_note": "Original implicit forall-r pure-read fixture refuses with r# mismatch before effect diagnostic; exact input/report retained. Explicit forall(r::Region) plus permitted Mut counterpart now verifies both representations reject onlytheescaped pure read with effect-row mismatch. No oracle weakened.",
+  "negative_note": "Original implicit forall-r pure-read fixture refuses with r# mismatch before effect diagnostic; exact input/report retained. Explicit forall(r::Region) plus permitted Mut counterpart now verifies both representations reject only the escaped pure read with effect-row mismatch. No oracle weakened.",
   "explicit_region_negative": {
     "baseline:negative": {
       "report": "build/maps-855-baseline-negative-a2-results.json",
