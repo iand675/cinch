@@ -1,0 +1,78 @@
+-- | Exact physical archive blocks with lossless transport event reporting.
+-- Advanced source and sink continuations are authoritative on every outcome.
+-- These operations borrow the underlying resource and never close it. A final
+-- nonempty read may carry an error; callers must retain that status while
+-- processing its bytes rather than polling the source again.
+module Effect.Tar.Framing where
+  import Data.Core
+  import Data.Bytes
+  import Data.Int
+  import Data.Nat
+  import Effect.Io
+  import Effect.Buffered.Core
+
+  export TarBlockRead, TarBlockWrite, tar-read-physical-block, tar-write-physical-block
+
+  -- | A fresh produced prefix and optional terminal transport status.
+  data TarBlockRead where
+    -- | Keep complete or partial physical bytes together with the exact boundary status.
+    TarBlockRead :: Bytes -> Option BufferError -> TarBlockRead
+
+  -- | Accepted physical bytes and optional terminal transport status.
+  data TarBlockWrite where
+    -- | Retain a valid prefix count even when the same sink call reports failure.
+    TarBlockWrite :: Nat -> Option BufferError -> TarBlockWrite
+
+  -- | Copy a proved prefix into private storage without exposing unfilled bytes.
+  trim-prefix :: using (count <= bytes-len source) => (source :: Bytes) -> (count :: Nat) -> Bytes
+  trim-prefix source count =
+    let out = bytes-new count in
+    let copied = bytes-copy-range out source 0 0 count in
+    out
+
+  -- | Read at most one physical block, retrying at most 100 consecutive empty nonterminal callbacks.
+  -- Partial input and terminal status remain observable together. No callback is
+  -- asked to produce bytes beyond this block's remaining boundary.
+  tar-read-physical-block :: forall (r :: Region). using (io :: Io r) => BufferSource r ->{IO r} (TarBlockRead, BufferSource r)
+  tar-read-physical-block source =
+    let out = bytes-new 512 in
+    read-block-from source out 0 0
+
+  -- | Advance only validated source prefixes, snapshotting each callback buffer before another callback.
+  read-block-from :: forall (r :: Region). using (io :: Io r) => BufferSource r -> Bytes -> Nat -> Nat ->{IO r} (TarBlockRead, BufferSource r)
+  read-block-from source out filled empty-count =
+    if filled < bytes-len out then
+      let wanted = bytes-len out - filled in
+      case buffer-source-read source wanted of
+        (event, next) -> case buffer-read-accepted wanted event of
+          Err error -> (TarBlockRead (trim-prefix out filled) (Some error), next)
+          Ok count -> case event of
+            ReadEvent actual payload status ->
+              if filled + count <= bytes-len out && count <= bytes-len payload then
+                let copied = bytes-copy-range out payload filled 0 count in
+                let produced = filled + count in
+                case status of
+                  Some error -> (TarBlockRead (trim-prefix out produced) (Some error), next)
+                  None ->
+                    if count > 0 then read-block-from next out produced 0
+                    else if empty-count < 99 then read-block-from next out filled (empty-count + 1)
+                    else (TarBlockRead (trim-prefix out filled) (Some BufferNoProgress), next)
+              else (TarBlockRead (trim-prefix out filled) (Some (BufferInvalidReadCount wanted actual (bytes-len payload))), next)
+    else (TarBlockRead out None, source)
+
+  -- | Send one exact block in one sink call, preserving partial progress and failure.
+  -- A successful short acceptance becomes a named protocol failure. Invalid
+  -- input size is refused without invoking the sink.
+  tar-write-physical-block :: forall (r :: Region). using (io :: Io r) => BufferSink r -> Bytes ->{IO r} (TarBlockWrite, BufferSink r)
+  tar-write-physical-block sink block =
+    if bytes-len block == 512 then
+      case buffer-sink-write sink block of
+        (event, next) -> case buffer-write-accepted 512 event of
+          Err error -> (TarBlockWrite 0 (Some error), next)
+          Ok count -> case event of
+            WriteEvent actual status -> case status of
+              Some error -> (TarBlockWrite count (Some error), next)
+              None ->
+                if count == 512 then (TarBlockWrite count None, next)
+                else (TarBlockWrite count (Some (BufferShortWrite 512 count)), next)
+    else (TarBlockWrite 0 (Some (BufferCustomError "archive block must contain exactly 512 bytes")), sink)

@@ -1,0 +1,41 @@
+--- Data.Mutable.Ring.cinch
++++ Data.Mutable.Ring.cinch
+@@ -281,16 +281,19 @@
+       ret i128 %packed
+     }
+ 
+-  -- | Adjust both links of every transferred node to its new absolute arena offset.
+-  offset-links :: forall a. RingArena a -> U64 -> U64 -> U64 -> Unit
+-  offset-links arena offset index count = if eq-u64 index count then () else
+-    let node = node-at arena index in
+-    let shifted = offset-pair (node-link node 0) (node-link node 1) offset in
+-    let previous = wrapping-u128-to-u64 shifted in
+-    let following = wrapping-u128-to-u64 (wrapping-shr-u128 shifted 64) in
+-    let left = set-node-link node 0 previous in
+-    let right = set-node-link node 1 following in
+-    offset-links arena offset (successor index) count
++  -- | Adjust both links in one pinned dense array, destructuring each transferred node once.
++  -- The caller keeps this storage stable until the loop finishes; no callback
++  -- or arena transfer occurs inside this private traversal.
++  offset-links :: forall a. Array (RingNode a) -> U64 -> U64 -> U64 -> Unit
++  offset-links nodes offset index count = if eq-u64 index count then () else
++    case slots-read nodes index of
++      Node value links ->
++        let shifted = offset-pair (slots-read links 0) (slots-read links 1) offset in
++        let previous = wrapping-u128-to-u64 shifted in
++        let following = wrapping-u128-to-u64 (wrapping-shr-u128 shifted 64) in
++        let left = slots-write links 0 previous in
++        let right = slots-write links 1 following in
++        offset-links nodes offset (successor index) count
+ 
+   -- | Move a smaller complete arena and install its single permanent forwarding edge.
+   -- Entire arenas move, including disconnected components, so old aliases to
+@@ -301,7 +304,7 @@
+       let count = used-of smaller in
+       let offset = used-of larger in
+       let destination = reserve-arena larger (wrapping-add-u64 offset count) in
+-      let adjusted = offset-links smaller offset 0 count in
++      let adjusted = offset-links (slots-read storage 0) offset 0 count in
+       let moved = slots-move destination offset (slots-read storage 0) 0 count in
+       let grown = set-used larger (wrapping-add-u64 offset count) in
+       let installed = slots-write parent 0 larger in

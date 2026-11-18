@@ -1,0 +1,1055 @@
+{
+  "status": "partial-component-runtime-passed64-eachopt-resource-paused",
+  "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+  "reports": {
+    "tar-block-reference-a1": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-block-reference-a1",
+      "report_sha256": "642ea3b965d918e3d558da8bff3f19620d96442ac5ce3e29a7e749e2931b368e",
+      "report": {
+        "status": "public-sdk-observations-recorded",
+        "go_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+        "source_sha256": "27acc4b3ba25eaeac2a4b967f8968fd22f6aac661aa150b2b45fda8803bbb769",
+        "cpu": 2,
+        "cache_before": 369225079,
+        "free_before": 465002496,
+        "version": "go version go1.27.4 linux/amd64",
+        "uncached_compiles": [
+          "/tmp/cinch-go-current/go/pkg/tool/linux_amd64/compile -o $WORK/b068/_pkg_.a -trimpath \"$WORK/b068=>\" -p runtime/cgo -lang=go1.27 -std -buildid kqbOT5aKvU63_B1XoR4L/kqbOT5aKvU63_B1XoR4L -goversion go1.27.4 -symabis $WORK/b068/symabis -nolocalimports -importcfg $WORK/b068/importcfg -pack -asmhdr $WORK/b068/go_asm.h /tmp/cinch-go-current/go/src/runtime/cgo/callbacks.go /tmp/cinch-go-current/go/src/runtime/cgo/callbacks_traceback.go /tmp/cinch-go-current/go/src/runtime/cgo/callbacks_unix.go /tmp/cinch-go-current/go/src/runtime/cgo/clearenv.go /tmp/cinch-go-current/go/src/runtime/cgo/handle.go /tmp/cinch-go-current/go/src/runtime/cgo/iscgo.go /tmp/cinch-go-current/go/src/runtime/cgo/linux.go /tmp/cinch-go-current/go/src/runtime/cgo/mmap.go /tmp/cinch-go-current/go/src/runtime/cgo/setenv.go /tmp/cinch-go-current/go/src/runtime/cgo/sigaction.go $WORK/b068/_cgo_gotypes.go $WORK/b068/cgo.cgo1.go $WORK/b068/_cgo_import.go",
+          "/tmp/cinch-go-current/go/pkg/tool/linux_amd64/compile -o $WORK/b066/_pkg_.a -trimpath \"$WORK/b066=>\" -p os/user -lang=go1.27 -std -buildid eIsfGfKPIrlUnTc1CEGR/eIsfGfKPIrlUnTc1CEGR -goversion go1.27.4 -nolocalimports -importcfg $WORK/b066/importcfg -pack /tmp/cinch-go-current/go/src/os/user/cgo_listgroups_unix.go /tmp/cinch-go-current/go/src/os/user/cgo_lookup_unix.go /tmp/cinch-go-current/go/src/os/user/lookup.go /tmp/cinch-go-current/go/src/os/user/user.go $WORK/b066/_cgo_gotypes.go $WORK/b066/cgo_lookup_cgo.cgo1.go $WORK/b066/getgrouplist_unix.cgo1.go $WORK/b066/_cgo_import.go",
+          "/tmp/cinch-go-current/go/pkg/tool/linux_amd64/compile -o $WORK/b002/_pkg_.a -trimpath \"$WORK/b002=>\" -p archive/tar -lang=go1.27 -std -complete -buildid Da-LNCrkz8UCEjcOk51h/Da-LNCrkz8UCEjcOk51h -goversion go1.27.4 -nolocalimports -importcfg $WORK/b002/importcfg -pack /tmp/cinch-go-current/go/src/archive/tar/common.go /tmp/cinch-go-current/go/src/archive/tar/format.go /tmp/cinch-go-current/go/src/archive/tar/reader.go /tmp/cinch-go-current/go/src/archive/tar/stat_actime1.go /tmp/cinch-go-current/go/src/archive/tar/stat_unix.go /tmp/cinch-go-current/go/src/archive/tar/strconv.go /tmp/cinch-go-current/go/src/archive/tar/writer.go",
+          "/tmp/cinch-go-current/go/pkg/tool/linux_amd64/compile -o $WORK/b001/_pkg_.a -trimpath \"$WORK/b001=>\" -p main -lang=go1.27 -complete -buildid 6ukIGq0snQJyOz1Cu1lj/6ukIGq0snQJyOz1Cu1lj -goversion go1.27.4 -nolocalimports -importcfg $WORK/b001/importcfg -pack ./blocks.go"
+        ],
+        "build": {
+          "command": [
+            "/tmp/cinch-go-current/go/bin/go",
+            "build",
+            "-o",
+            "/workspace/dasl-stdlib-collections/build/tar-block-reference-a1/reference",
+            "/workspace/dasl-stdlib-collections/build/tar-block-reference-a1/blocks.go"
+          ],
+          "exit": 0,
+          "seconds": 2.035208232002333
+        },
+        "executable_sha256": "12fb8cf92197bdc65b80f556eb6e6fb204d5d84e5fb505dbf08ef839c2d67005",
+        "observations": {
+          "exit": 0,
+          "stderr": "cases=73 sha256=05cec05ebc948daf526d27fc8ce82efd63b31e6f2bb3fcb2104cf29a7546d99b\n",
+          "sha256": "bff041efffd5328f7c8543cb9b1d5a0ece745488c17dad782ffd54c097be2cd9"
+        },
+        "cases": 73,
+        "new_cache_bytes": 2522644,
+        "output_bytes": 4642469,
+        "free_after": 457662464
+      }
+    },
+    "tar-block-reference-a2": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-block-reference-a2",
+      "report_sha256": "05a016584f114b1d7351b9b5713f7bfd980e528ed140865219705a51c720af48",
+      "report": {
+        "status": "public-sdk-observations-recorded",
+        "go_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+        "source_sha256": "06c389da6484bb3996bfe2e0d381ba5c8a962d31fb560c2c1263018d6513de52",
+        "cpu": 2,
+        "cache_before": 371747723,
+        "free_before": 508694528,
+        "version": "go version go1.27.4 linux/amd64",
+        "uncached_compiles": [
+          "/tmp/cinch-go-current/go/pkg/tool/linux_amd64/compile -o $WORK/b001/_pkg_.a -trimpath \"$WORK/b001=>\" -p main -lang=go1.27 -complete -buildid Oc4Xw38eRGDirl2KuZzG/Oc4Xw38eRGDirl2KuZzG -goversion go1.27.4 -nolocalimports -importcfg $WORK/b001/importcfg -pack ./blocks.go"
+        ],
+        "build": {
+          "command": [
+            "/tmp/cinch-go-current/go/bin/go",
+            "build",
+            "-o",
+            "/workspace/dasl-stdlib-collections/build/tar-block-reference-a2/reference",
+            "/workspace/dasl-stdlib-collections/build/tar-block-reference-a2/blocks.go"
+          ],
+          "exit": 0,
+          "seconds": 0.5450581060140394
+        },
+        "executable_sha256": "1387cb9f36a7221cbc0a88b35d2f4784c527b53ed79d7f62785ab30018af2c3e",
+        "observations": {
+          "exit": 0,
+          "stderr": "cases=73 sha256=34d293bcfdccb587b1641619d36c190f89fd1ab5c6aa7159fa7a2bc59dc37648\n",
+          "sha256": "04099f974584f1ac8940b61afd070da14e6032fc508a5d541e78c38f5740e911"
+        },
+        "cases": 73,
+        "encoding_cases": 22,
+        "new_cache_bytes": 117430,
+        "output_bytes": 4720760,
+        "free_after": 503836672
+      }
+    },
+    "tar-block-reference-a3": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-block-reference-a3",
+      "report_sha256": "8855c8bad386bdce55fc77060030e88e6da0f00616acf35d1517eb8a5e73819b",
+      "report": {
+        "status": "public-sdk-observations-recorded",
+        "go_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+        "source_sha256": "15d08196fd16afaecfb6db3cc949c0a2bcad88f33faf3f2ed0087218f81e04d2",
+        "cpu": 2,
+        "cache_before": 371865153,
+        "free_before": 393699328,
+        "version": "go version go1.27.4 linux/amd64",
+        "uncached_compiles": [
+          "/tmp/cinch-go-current/go/pkg/tool/linux_amd64/compile -o $WORK/b001/_pkg_.a -trimpath \"$WORK/b001=>\" -p main -lang=go1.27 -complete -buildid eIyxuZ2gtz3quaD54AXA/eIyxuZ2gtz3quaD54AXA -goversion go1.27.4 -nolocalimports -importcfg $WORK/b001/importcfg -pack ./blocks.go"
+        ],
+        "build": {
+          "command": [
+            "/tmp/cinch-go-current/go/bin/go",
+            "build",
+            "-o",
+            "/workspace/dasl-stdlib-collections/build/tar-block-reference-a3/reference",
+            "/workspace/dasl-stdlib-collections/build/tar-block-reference-a3/blocks.go"
+          ],
+          "exit": 0,
+          "seconds": 0.8365444329974707
+        },
+        "executable_sha256": "0013b6b31c07e8a7153e8df2b632950cd712d8762e691fd7ea9ce6ad48ab63ff",
+        "observations": {
+          "exit": 0,
+          "stderr": "cases=73 sha256=81237e650998a2c40035facced07b7c28a73c0fcde8292677949d2aee3d2dbc2\n",
+          "sha256": "f949b143eb518ab841328bcc406102e23aa47a22850fae63444949602a9ab4f5"
+        },
+        "cases": 73,
+        "encoding_cases": 22,
+        "new_cache_bytes": 117660,
+        "output_bytes": 4721214,
+        "free_after": 388841472
+      }
+    },
+    "tar-blocks-0000-o0-a1": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o0-a1",
+      "report_sha256": "5fef83e25ebc986e8fb7f3aebbb36eac81a3aaa9fbb25c5ca5136bfd71e33531",
+      "report": {
+        "status": "failed-preserved-plain",
+        "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+        "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+        "consumer_sha256": "b318f024d2c970a79d3b3c9554cb22a5c4e77e0b0d9fe07600bcaa2b9fc6b84a",
+        "opt_level": "0",
+        "sources": {
+          "Data.Tar": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+          "Text.Tar.Block": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "embedded_core_authority": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "free_before": 438423552,
+        "scope": "fixed-block/numeric component only; no full header/stream/archive parity",
+        "runs": [],
+        "build": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "build",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o0-a1/Main.cinch",
+            "--opt-level",
+            "0",
+            "--runtime-archive",
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-runtime-frozen/libcinchruntime.a",
+            "-o",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o0-a1/consumer"
+          ],
+          "exit": 1,
+          "seconds": 0.2076839649816975
+        },
+        "failure": "AssertionError()",
+        "free_after": 438419456
+      }
+    },
+    "tar-blocks-0000-o0-a2": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o0-a2",
+      "report_sha256": "639f622609c132b7b724ed7bba95e239b5176c61ad82e245529b82db5ea6ef42",
+      "report": {
+        "status": "normal-and-poison-component-passed",
+        "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+        "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+        "consumer_sha256": "b9d5145b2373551794baa002c9b0008706bfa5be4b1a9c32e072cfa54df731a9",
+        "opt_level": "0",
+        "sources": {
+          "Data.Tar": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+          "Text.Tar.Block": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "embedded_core_authority": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "free_before": 435277824,
+        "scope": "fixed-block/numeric component only; no full header/stream/archive parity",
+        "runs": [
+          {
+            "poison": false,
+            "heap": "32M",
+            "stack": "8M",
+            "exit": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1767 bytes=92183 peak=2175 header-blocks=1489 header-bytes=33944 immortal=0 freed=1489 live=0\n"
+          },
+          {
+            "poison": true,
+            "heap": "256M",
+            "stack": "8M",
+            "exit": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1767 bytes=92183 peak=35203 header-blocks=1489 header-bytes=33944 immortal=0 freed=1489 live=0\n"
+          }
+        ],
+        "build": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "build",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o0-a2/Main.cinch",
+            "--opt-level",
+            "0",
+            "--runtime-archive",
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-runtime-frozen/libcinchruntime.a",
+            "-o",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o0-a2/consumer"
+          ],
+          "exit": 0,
+          "seconds": 1.3174356470117345
+        },
+        "executable_sha256": "5437ea93868684ba0f7b03cf16f1d043597b460a71e765d4147acf2b254c7d27",
+        "llvm_sha256": "3892a5f33f43c4822a27c05f386cad40f5d5aa5ce8f1f1e9b58025efd7e299b3",
+        "output_bytes": 9431883,
+        "archive": {
+          "archive": "/workspace/dasl-stdlib-collections/build/tar-closed-functional-archives/tar-blocks-0000-o0-a2.tar.gz",
+          "archive_sha256": "17cb9e5b22a45c8c7de81c0861dd42827fb45b983dd7deeb5822ef7baf6c3475",
+          "compressed_size": 1790987,
+          "completed_report": "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o0-a2/completed-report.json",
+          "completed_report_sha256": "5fac4b99e00df4e3a5b4c7c73ce1b48429e7b7c3e6de5d0aa3b7a1f27a7eb8a4",
+          "originals": [
+            {
+              "path": "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o0-a2/consumer",
+              "member": "consumer",
+              "sha256": "5437ea93868684ba0f7b03cf16f1d043597b460a71e765d4147acf2b254c7d27",
+              "size": 6096296,
+              "mode": 448,
+              "uid": 1000,
+              "gid": 1000,
+              "mtime_ns": 1794942167307077959
+            },
+            {
+              "path": "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o0-a2/consumer.ll",
+              "member": "consumer.ll",
+              "sha256": "3892a5f33f43c4822a27c05f386cad40f5d5aa5ce8f1f1e9b58025efd7e299b3",
+              "size": 944036,
+              "mode": 384,
+              "uid": 1000,
+              "gid": 1000,
+              "mtime_ns": 1794942166887065514
+            }
+          ]
+        },
+        "free_after": 430960640
+      }
+    },
+    "tar-blocks-0000-o2-a1": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o2-a1",
+      "report_sha256": "c745235cbdd55d2bc39a50552e5bdd1e02ae74f639806105e954703f9e2b4431",
+      "report": {
+        "status": "normal-and-poison-component-passed",
+        "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+        "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+        "consumer_sha256": "b9d5145b2373551794baa002c9b0008706bfa5be4b1a9c32e072cfa54df731a9",
+        "opt_level": "2",
+        "sources": {
+          "Data.Tar": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+          "Text.Tar.Block": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "embedded_core_authority": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "free_before": 430460928,
+        "scope": "fixed-block/numeric component only; no full header/stream/archive parity",
+        "runs": [
+          {
+            "poison": false,
+            "heap": "32M",
+            "stack": "8M",
+            "exit": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1767 bytes=92183 peak=2175 header-blocks=1489 header-bytes=33944 immortal=0 freed=1489 live=0\n"
+          },
+          {
+            "poison": true,
+            "heap": "256M",
+            "stack": "8M",
+            "exit": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1767 bytes=92183 peak=35203 header-blocks=1489 header-bytes=33944 immortal=0 freed=1489 live=0\n"
+          }
+        ],
+        "build": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "build",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o2-a1/Main.cinch",
+            "--opt-level",
+            "2",
+            "--runtime-archive",
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-runtime-frozen/libcinchruntime.a",
+            "-o",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o2-a1/consumer"
+          ],
+          "exit": 0,
+          "seconds": 2.8395038729941007
+        },
+        "executable_sha256": "fe6c4c19381233b58bda7042bb0d4b5b1e88e0773cd5b0ded6d6dd96a9601c8b",
+        "llvm_sha256": "3892a5f33f43c4822a27c05f386cad40f5d5aa5ce8f1f1e9b58025efd7e299b3",
+        "output_bytes": 9389443,
+        "archive": {
+          "archive": "/workspace/dasl-stdlib-collections/build/tar-closed-functional-archives/tar-blocks-0000-o2-a1.tar.gz",
+          "archive_sha256": "33757be22cad9e37de17b50efced47825926d5ebf831949b253bf8cc63efe3f5",
+          "compressed_size": 1782494,
+          "completed_report": "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o2-a1/completed-report.json",
+          "completed_report_sha256": "3cbc8eaa48fb9ef03ac596c738690f4ede6d40249b0fc3edd0d578a51bd12920",
+          "originals": [
+            {
+              "path": "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o2-a1/consumer",
+              "member": "consumer",
+              "sha256": "fe6c4c19381233b58bda7042bb0d4b5b1e88e0773cd5b0ded6d6dd96a9601c8b",
+              "size": 6053856,
+              "mode": 448,
+              "uid": 1000,
+              "gid": 1000,
+              "mtime_ns": 1794942188267891521
+            },
+            {
+              "path": "/workspace/dasl-stdlib-collections/build/tar-blocks-0000-o2-a1/consumer.ll",
+              "member": "consumer.ll",
+              "sha256": "3892a5f33f43c4822a27c05f386cad40f5d5aa5ce8f1f1e9b58025efd7e299b3",
+              "size": 944036,
+              "mode": 384,
+              "uid": 1000,
+              "gid": 1000,
+              "mtime_ns": 1794942186483812214
+            }
+          ]
+        },
+        "free_after": 426160128
+      }
+    },
+    "tar-blocks-0032-o0-a1": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o0-a1",
+      "report_sha256": "a32fbb966ad831583ee6f27764a62f33d4d8750f65c3aac0dc866fc6d540c7ef",
+      "report": {
+        "status": "failed-preserved-plain",
+        "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+        "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+        "consumer_sha256": "8e2b4bc970da1d7ddba2b082b9e40f67932ac955c9a9a1aa686c70728def5831",
+        "opt_level": "0",
+        "sources": {
+          "Data.Tar": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+          "Text.Tar.Block": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "embedded_core_authority": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "free_before": 423182336,
+        "scope": "fixed-block/numeric component only; no full header/stream/archive parity",
+        "runs": [
+          {
+            "poison": false,
+            "heap": "32M",
+            "stack": "8M",
+            "exit": 18,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=966 bytes=48632 peak=2271 header-blocks=824 header-bytes=18864 immortal=0 freed=824 live=0\n"
+          }
+        ],
+        "build": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "build",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o0-a1/Main.cinch",
+            "--opt-level",
+            "0",
+            "--runtime-archive",
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-runtime-frozen/libcinchruntime.a",
+            "-o",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o0-a1/consumer"
+          ],
+          "exit": 0,
+          "seconds": 1.4199181330041029
+        },
+        "executable_sha256": "a74d92ac14102d814a3d4ad4c2c18d4840b16f3b61cb48f4175ac4f99c07838c",
+        "llvm_sha256": "78ef7cce35620cc09e7334c831f3d112c700b1810dad622d491e198a41b4d326",
+        "failure": "AssertionError({'poison': False, 'heap': '32M', 'stack': '8M', 'exit': 18, 'stdout': '', 'stderr': 'cinch-leak: live=0 immortal=0 leaked=0\\ncinch-alloc: blocks=966 bytes=48632 peak=2271 header-blocks=824 header-bytes=18864 immortal=0 freed=824 live=0\\n'})",
+        "free_after": 413569024
+      }
+    },
+    "tar-blocks-0032-fixture-source-a2": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-fixture-source-a2",
+      "report_sha256": "d6e95a1bd5b8010c94656a2469f5b466b098a0ffd335f98e46031346c8b51df7",
+      "report": {
+        "status": "source-and-doc-parser-passed",
+        "compiler": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+        "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "sources": {
+          "Text.Tar.Block": {
+            "path": "/workspace/dasl-stdlib-collections/experiments/tar-v1/sources/Text/Tar/Block.cinch",
+            "sha256": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e"
+          },
+          "Data.Tar": {
+            "path": "/workspace/dasl-stdlib-collections/experiments/tar-v1/sources/Data/Tar.cinch",
+            "sha256": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8"
+          },
+          "Data.Bytes.Word": {
+            "path": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Bytes/Word.cinch",
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          }
+        },
+        "cpu": 2,
+        "runtime_executed": false,
+        "scope": "metadata and physical block source only; stream framing excluded",
+        "dependency_selection": "frozen-builtins",
+        "embedded_builtin_authority": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "consumer_sha256": "ee3b0d2382543b4717f228ef7b24680e845b19774e2b3613f8dff38aed3f8ffe",
+        "runner_sha256": "ebe26a476a283e05e5bf1be319008ea13c3c2afe9680927499d8d12e70d2c1a0",
+        "free_before": 382468096,
+        "commands": [
+          {
+            "command": [
+              "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+              "check",
+              "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-fixture-source-a2/Main.cinch"
+            ],
+            "exit": 0,
+            "stdout": "",
+            "stderr": "",
+            "seconds": 1.210823846020503
+          },
+          {
+            "command": [
+              "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+              "doc",
+              "extract",
+              "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-fixture-source-a2/Data.Tar.cinch",
+              "--out",
+              "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-fixture-source-a2/Data.Tar.docs.json"
+            ],
+            "exit": 0,
+            "stdout": "",
+            "stderr": "",
+            "seconds": 0.02055166201898828
+          },
+          {
+            "command": [
+              "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+              "doc",
+              "extract",
+              "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-fixture-source-a2/Text.Tar.Block.cinch",
+              "--out",
+              "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-fixture-source-a2/Text.Tar.Block.docs.json"
+            ],
+            "exit": 0,
+            "stdout": "",
+            "stderr": "",
+            "seconds": 0.015186748991254717
+          }
+        ],
+        "output_bytes": 2722173,
+        "free_after": 364019712
+      }
+    },
+    "tar-block-source-a4": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-block-source-a4",
+      "report_sha256": "c747253c41dfe4472ad5b08db09e0f90799f129fa5ca735e653d4c46c0954426",
+      "report": {
+        "status": "source-and-doc-parser-passed",
+        "compiler": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+        "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "sources": {
+          "Text.Tar.Block": {
+            "path": "/workspace/dasl-stdlib-collections/experiments/tar-v1/sources/Text/Tar/Block.cinch",
+            "sha256": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e"
+          },
+          "Data.Tar": {
+            "path": "/workspace/dasl-stdlib-collections/experiments/tar-v1/sources/Data/Tar.cinch",
+            "sha256": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8"
+          },
+          "Data.Bytes.Word": {
+            "path": "/workspace/dasl-stdlib-io/compiler/prelude/Data/Bytes/Word.cinch",
+            "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+          }
+        },
+        "cpu": 2,
+        "runtime_executed": false,
+        "scope": "metadata and physical block source only; stream framing excluded",
+        "dependency_selection": "frozen-builtins",
+        "embedded_builtin_authority": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "free_before": 484802560,
+        "commands": [
+          {
+            "command": [
+              "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+              "check",
+              "/workspace/dasl-stdlib-collections/build/tar-block-source-a4/Text.Tar.Block.cinch"
+            ],
+            "exit": 0,
+            "stdout": "",
+            "stderr": "",
+            "seconds": 0.8093368030095007
+          },
+          {
+            "command": [
+              "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+              "doc",
+              "extract",
+              "/workspace/dasl-stdlib-collections/build/tar-block-source-a4/Data.Tar.cinch",
+              "--out",
+              "/workspace/dasl-stdlib-collections/build/tar-block-source-a4/Data.Tar.docs.json"
+            ],
+            "exit": 0,
+            "stdout": "",
+            "stderr": "",
+            "seconds": 0.02166337799280882
+          },
+          {
+            "command": [
+              "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+              "doc",
+              "extract",
+              "/workspace/dasl-stdlib-collections/build/tar-block-source-a4/Text.Tar.Block.cinch",
+              "--out",
+              "/workspace/dasl-stdlib-collections/build/tar-block-source-a4/Text.Tar.Block.docs.json"
+            ],
+            "exit": 0,
+            "stdout": "",
+            "stderr": "",
+            "seconds": 0.017076496995287016
+          }
+        ],
+        "output_bytes": 2669559,
+        "free_after": 482009088
+      }
+    },
+    "tar-blocks-0032-o0-a2": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o0-a2",
+      "report_sha256": "9814a2bfb357022e68fca4ad5c98edf54456b496b4a99f71603d2d5e04a15752",
+      "report": {
+        "status": "normal-and-poison-component-passed",
+        "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+        "runner_sha256": "57c35958fb2bb9c4acd70db4d283e115ba1e29ff123397c861b8172d691e1de9",
+        "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+        "consumer_sha256": "ee3b0d2382543b4717f228ef7b24680e845b19774e2b3613f8dff38aed3f8ffe",
+        "opt_level": "0",
+        "sources": {
+          "Data.Tar": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+          "Text.Tar.Block": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "embedded_core_authority": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "free_before": 415133696,
+        "scope": "fixed-block/numeric component only; no full header/stream/archive parity",
+        "runs": [
+          {
+            "poison": false,
+            "heap": "32M",
+            "stack": "8M",
+            "exit": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1777 bytes=91667 peak=2271 header-blocks=1522 header-bytes=34976 immortal=0 freed=1522 live=0\n"
+          },
+          {
+            "poison": true,
+            "heap": "256M",
+            "stack": "8M",
+            "exit": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1777 bytes=91667 peak=36213 header-blocks=1522 header-bytes=34976 immortal=0 freed=1522 live=0\n"
+          }
+        ],
+        "minimum_sampled_free_bytes": 400535552,
+        "build": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "build",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o0-a2/Main.cinch",
+            "--opt-level",
+            "0",
+            "--runtime-archive",
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-runtime-frozen/libcinchruntime.a",
+            "-o",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o0-a2/consumer"
+          ],
+          "exit": 0,
+          "seconds": 1.7259415260050446
+        },
+        "executable_sha256": "724c3340e508fa98946e82b0fb4e3fd23840c69eedc94509eabd011bdb32df95",
+        "llvm_sha256": "f661f37725e71fa3716590ce921056a761bf4e002c55d1e002a844879a551fd2",
+        "output_bytes": 9494439,
+        "archive": {
+          "archive": "/workspace/dasl-stdlib-collections/build/tar-closed-functional-archives/tar-blocks-0032-o0-a2.tar.gz",
+          "archive_sha256": "32a3a16406e6c8b70fee62a098d066c67c2337699020ea7c518a91a7af3d9e98",
+          "compressed_size": 1813219,
+          "completed_report": "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o0-a2/completed-report.json",
+          "completed_report_sha256": "fe124ce7320498bfee27376afc27649e1e4791b86cfc4d49f70db6649a32c06a",
+          "originals": [
+            {
+              "path": "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o0-a2/consumer",
+              "member": "consumer",
+              "sha256": "724c3340e508fa98946e82b0fb4e3fd23840c69eedc94509eabd011bdb32df95",
+              "size": 6108728,
+              "mode": 448,
+              "uid": 1000,
+              "gid": 1000,
+              "mtime_ns": 1794943579582089018
+            },
+            {
+              "path": "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o0-a2/consumer.ll",
+              "member": "consumer.ll",
+              "sha256": "f661f37725e71fa3716590ce921056a761bf4e002c55d1e002a844879a551fd2",
+              "size": 993634,
+              "mode": 384,
+              "uid": 1000,
+              "gid": 1000,
+              "mtime_ns": 1794943579057402189
+            }
+          ]
+        },
+        "free_after": 407642112
+      }
+    },
+    "tar-blocks-0032-o2-a1": {
+      "artifacts": "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o2-a1",
+      "report_sha256": "f7888bb72fea557e314ec9dccfacab0f68cfa5c08e89b0d65b99d935f455096b",
+      "report": {
+        "status": "normal-and-poison-component-passed",
+        "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "runtime_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
+        "runner_sha256": "57c35958fb2bb9c4acd70db4d283e115ba1e29ff123397c861b8172d691e1de9",
+        "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+        "consumer_sha256": "ee3b0d2382543b4717f228ef7b24680e845b19774e2b3613f8dff38aed3f8ffe",
+        "opt_level": "2",
+        "sources": {
+          "Data.Tar": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+          "Text.Tar.Block": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+          "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "embedded_core_authority": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+        "free_before": 369336320,
+        "scope": "fixed-block/numeric component only; no full header/stream/archive parity",
+        "runs": [
+          {
+            "poison": false,
+            "heap": "32M",
+            "stack": "8M",
+            "exit": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1777 bytes=91667 peak=2271 header-blocks=1522 header-bytes=34976 immortal=0 freed=1522 live=0\n"
+          },
+          {
+            "poison": true,
+            "heap": "256M",
+            "stack": "8M",
+            "exit": 0,
+            "stdout": "",
+            "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1777 bytes=91667 peak=36213 header-blocks=1522 header-bytes=34976 immortal=0 freed=1522 live=0\n"
+          }
+        ],
+        "minimum_sampled_free_bytes": 366325760,
+        "build": {
+          "command": [
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+            "build",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o2-a1/Main.cinch",
+            "--opt-level",
+            "2",
+            "--runtime-archive",
+            "/workspace/dasl-stdlib-io/build/stdlib-entropy-runtime-frozen/libcinchruntime.a",
+            "-o",
+            "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o2-a1/consumer"
+          ],
+          "exit": 0,
+          "seconds": 2.439466858020751
+        },
+        "executable_sha256": "fd0a8ee34d32f92cbac29fdf10323a4b466e5540452098901056f89662111a3c",
+        "llvm_sha256": "f661f37725e71fa3716590ce921056a761bf4e002c55d1e002a844879a551fd2",
+        "output_bytes": 9451999,
+        "archive": {
+          "archive": "/workspace/dasl-stdlib-collections/build/tar-closed-functional-archives/tar-blocks-0032-o2-a1.tar.gz",
+          "archive_sha256": "9ed9667d16f36d46274e15afcbb0ee99671aae39f9504fe22b34e54300020ce6",
+          "compressed_size": 1803301,
+          "completed_report": "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o2-a1/completed-report.json",
+          "completed_report_sha256": "838fd61f4882deac93844a07a5f138ae3b0e9201cb6f7f11384c428630defe1d",
+          "originals": [
+            {
+              "path": "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o2-a1/consumer",
+              "member": "consumer",
+              "sha256": "fd0a8ee34d32f92cbac29fdf10323a4b466e5540452098901056f89662111a3c",
+              "size": 6066288,
+              "mode": 448,
+              "uid": 1000,
+              "gid": 1000,
+              "mtime_ns": 1794943601890324767
+            },
+            {
+              "path": "/workspace/dasl-stdlib-collections/build/tar-blocks-0032-o2-a1/consumer.ll",
+              "member": "consumer.ll",
+              "sha256": "f661f37725e71fa3716590ce921056a761bf4e002c55d1e002a844879a551fd2",
+              "size": 993634,
+              "mode": 384,
+              "uid": 1000,
+              "gid": 1000,
+              "mtime_ns": 1794943600233856177
+            }
+          ]
+        },
+        "free_after": 378191872
+      }
+    }
+  },
+  "unchanged_first32_consumer_sha256": "b9d5145b2373551794baa002c9b0008706bfa5be4b1a9c32e072cfa54df731a9",
+  "first32_proof": "Original a2 independent subset and corrected a3 subset are equal; original passed consumers are byte-identical to regeneration. Existing O0/O2 proofs remain bound to their original execution inputs.",
+  "counts": {
+    "independent_block_rows": 73,
+    "independent_writer_encodings": 22,
+    "passed_block_rows_O0": 64,
+    "passed_block_rows_O2": 64,
+    "passed_memory_processes": 8,
+    "remaining_block_rows": 9,
+    "remaining_encoding_rows": 22
+  },
+  "pause": {
+    "before_project_creation": true,
+    "free_bytes": 363700224,
+    "fresh_start_bytes": 367001600,
+    "queued_next": "build/tar-blocks-0064-fixture-source-a1",
+    "notes": "Both corrected rows32\u201363 runtime units passed and were durably archived. Final9 source-only unit was refused at fresh guard before copying or invoking the compiler."
+  },
+  "scope_limits": [
+    "No complete header materialization or encoding roundtrip",
+    "No PAX or sparse runtime qualification",
+    "No stream framing source/runtime qualification",
+    "No Native/portable/performance claim",
+    "No prelude installation or package completion"
+  ],
+  "protected_after_archive": {
+    "tar-blocks-0000-o0-a2": {
+      "sources_unchanged": true,
+      "source_hashes": {
+        "Text.Tar.Block.cinch": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+        "Main.cinch": "b9d5145b2373551794baa002c9b0008706bfa5be4b1a9c32e072cfa54df731a9",
+        "Data.Tar.cinch": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      },
+      "interfaces_kept_plain": {
+        "build/Prim.Sys.Linux.cinchif": "79e2aab18a3caa14495920902ba9f3fedeba9638a177f1706ad2a7bc03a1ef55",
+        "build/Prim.Sys.Portable.cinchif": "56f7258f85a79f4afdb7a15e17b5987ec5b10a20003c4633d41b56077aac948e",
+        "build/Category.Foldable.cinchif": "034f6fbfa6f95468b649d936524ebe85b640a3f22933545cafe75716d3f11912",
+        "build/Algebra.Arithmetic.cinchif": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+        "build/Algebra.Semigroup.cinchif": "4c59bfa1465a6215048169120bc61219c7941830f01578c8c1a8e05918ebfddc",
+        "build/Effect.Concurrent.cinchif": "ae3eb93fc2d05b7882b4ff502c358b5490930e81e3d9e82fa671a5f84ac2b697",
+        "build/Data.Machine.cinchif": "7f66420ace033af8bb4d2e2ce38e952f244ee30ea502a2c600ed5758fac2222b",
+        "build/Algebra.Bits.cinchif": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+        "build/Prim.Sys.cinchif": "fc50ab6e121d942f5d8aebc1c3c201633005111aba0d4027a776d3fca09eb098",
+        "build/Data.Compose.cinchif": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+        "build/Data.Wide.cinchif": "66652e404dd7207e1b95373b63e6933cb72909164ca0f735d150300e25189c20",
+        "build/Effect.Stm.TQueue.cinchif": "9fd08d3ecd4e2052a44c20787138bd303ffbaccec8a801df670c9367c2521885",
+        "build/Effect.Clock.cinchif": "4411fbf55c3cde0f4021988adca4439debfa636343c377bc71989dfc27b6f3f2",
+        "build/Algebra.Monoid.cinchif": "a29802f9291998d90aa1efa944a7885f694bd5632f3a4730752ef9c7a6784a39",
+        "build/Data.NonZero.cinchif": "3408b83c58f90fa40d6fcc392c0ef1c4f72111fb61eb74621e0fab18c6fe615c",
+        "build/Data.Sym.cinchif": "252c9f9e955944b4663245e993ad8271ee7ea02263625bd3332147eed8e84f8e",
+        "build/Category.Alternative.cinchif": "5c6fae8e8fa7fc3025a9430de85b1916cc716635b7fe0aeb2fa5103ad62314c5",
+        "build/Effect.Sequencing.cinchif": "5d0bf50a778d638b8aba5b26738e3595b3ef05b66bddef2b338ff4df33c3412b",
+        "build/Data.Enum.cinchif": "72d4dd38948ef9c555c1783eab20322e23f2b0e9f698568f9224f41c86696500",
+        "build/Text.Show.cinchif": "ca19ebe5f83a11535d253239dfe32af8ac36ccb8b42b4c0b89678bd230af8925",
+        "build/Data.Ascii.cinchif": "caee46a0e3765e16136353539a641f266b91b5347a00bfcea501668a2f1fd99b",
+        "build/Category.Traversable.cinchif": "6bc5b69abeead5481148a433b7eb85dd247ae61e79e367c0be056a64615ae6e3",
+        "build/Data.FromList.cinchif": "58a3a797caacd038392623639a4c7df021b9694b3bce7150e6775717646b893b",
+        "build/Effect.Stm.cinchif": "ec6e14dd73512ca1b92dca4eec8876e71d38c8749f39f2dfb1ee3cff981e3b3e",
+        "build/Data.Hash.cinchif": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+        "build/Category.Applicative.cinchif": "a993c1078cc20eb27bc7ce76efc3eaddca0d7394988ebcc51b9c89ecf5616278",
+        "build/Data.Nat.cinchif": "2fa35d5558e80a90d06be2467532b03c9f9ebc81c0387c829601a816c42b2602",
+        "build/Data.Json.cinchif": "424f4b82f9e610d0effb065a59470bde1b780320249f65b977093c71138b524c",
+        "build/Data.NonEmpty.cinchif": "598ffe6070d91b5dc09d262e0c156986c10480937590b745fb15b35c0d052b3d",
+        "build/Data.Ordering.cinchif": "76b6b4b2dd1e53c7f6b045183ca6cdb1ffde278e74b32e051967783654185b26",
+        "build/Data.Bytes.cinchif": "8e6c9fd40c9aa9f58a4e60e27c1777fcf3b2cfea60a4bec77bf7df7b26bbcb56",
+        "build/Text.Tar.Block.cinchif": "f740ec2f83f92052cbf03d94cbdfe711d9c91e45f7498b4845f814a9e4a66734",
+        "build/Data.Path.cinchif": "9b8c443c593a54f58c3d67b6b2969fa22e94736d0f4546407a95cf1d60ade47c",
+        "build/Effect.Process.cinchif": "2b9ad3ca2833e7c787072a3f300f348308ee6463203e6693c6274e5caa3c4fa9",
+        "build/Data.String.cinchif": "208332729c610f97793305d343d5c38eddab7982ee991ae48b4a1279dcb53fda",
+        "build/Data.Bool.cinchif": "a01630b2a8dc7f5ffedf3880b1391d8046c848665d6b4cab59e8aa91cd5baf36",
+        "build/Function.Combinators.cinchif": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+        "build/Effect.Stm.TMVar.cinchif": "164054bef34d5bb4ab778478a3d70d3c8f9ffd77b33cc40a75c3d9a8c2caac6e",
+        "build/Data.List.cinchif": "b53a549f71e1f5200cb5054a774cb3ecddd07767758b984e3f8df9ac3ffbda08",
+        "build/Category.Functor.cinchif": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+        "build/Data.Producer.cinchif": "c9f217c1c4ef94d699d63721e963d8927fc80c08ca7f4d0ae36cdfde005ac4e7",
+        "build/Data.Result.cinchif": "96fc58ed104b93e8973d7735dec1a82585b795bd448ac7001ff9515b7fce5a60",
+        "build/Algebra.Group.cinchif": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+        "build/Data.Sorted.cinchif": "53208e265433e3f46a9e95b29e1d0985d3402ea27bd35298de2ebef549c14128",
+        "build/Data.Const.cinchif": "8ba7d4cb8471ccf8c59103fd43d1a3d77cbd6c855e66829d3bdd5e0c87a36090",
+        "build/Text.Codec.cinchif": "576b6d20a1b98acbad70f587932c64d68fb859e31a55a0155e9d25ead5055ef0",
+        "build/Data.HashMap.cinchif": "ae25a1de6e0994fe43e73d07fcce4acf69d01af852f41beb86e97f5d93e59f04",
+        "build/Data.Int.cinchif": "676aaa79a5d32f6f7a48b065e16c0b061584e1b4c192353ca793602b306db45e",
+        "build/Effect.Io.cinchif": "73225242789515bb9becc319a3801408690e9c418b80881594728daeaa7d8003",
+        "build/Data.Tar.cinchif": "28ba1af66631d9e1c89088411820ad535207298b8a4b74106041dc4ff4d7e101",
+        "build/Data.Map.cinchif": "23be994ad3586a2023575dbb8bea8dbef153257492cc7e1f710edafc012ccc13",
+        "build/Effect.Stm.TSem.cinchif": "68589aced03231b3a7fc25a309fcbdc11fce273250776e5dcc676a1d4839fca6",
+        "build/Prelude.cinchif": "828a181c63d45486d2832452cb4a6a0797f70b4919982d0ce95e47fd3799a3c8",
+        "build/Relation.Ord.cinchif": "b02ef4dcdb861e67be15ca864080fea29737a5295d8d8afcae31219125176cfb",
+        "build/Data.Set.cinchif": "890ade94f388f45477726572bd8fa3a559abebd5bd143f64ebd9047e4fcc44e9",
+        "build/Data.Bytes.Word.cinchif": "2425fd7ba181d45c3f291809b0dcbe8a13708ead3fd21594c9588e9d60ec8383",
+        "build/Category.Monad.cinchif": "8c78b566d9719fbe9c1940e75120256995b8694462a06f479096f7db95a09158",
+        "build/Data.Target.cinchif": "be5fb1e3021691e6b1a5c99657bdeb2c5e220c6e7419b12e8336151069423803",
+        "build/Data.Char.cinchif": "2dc7da4b446ff99145fcf1f7133aecaa03bfdcdb3d63c08909e62bcf263043a9",
+        "build/Effect.Stm.TBQueue.cinchif": "04705b88fcfdb41c47d8df4a5755333396f74c60fbdaef63bd65c9d00e79228f",
+        "build/Data.FromMap.cinchif": "a9326b7980958944085e27ddd54a72020bb8bc52dc84e3509a12a96e6a861956",
+        "build/Relation.Eq.cinchif": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+        "build/Data.Identity.cinchif": "aa8d40c6230e13a448e4c5da979715be06aca3401093d367afdfac657a773f62",
+        "build/Prim.Sys.Darwin.cinchif": "08139605a9e984bdbffbe38a91542bf6a50941ae594d6a0dab40edfba545a0ed",
+        "build/Algebra.Semiring.cinchif": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+        "build/Main.cinchif": "ae80699650e9bbb5476ab01a7915df376dde22d6c7ab48c440eb35a2a51fb120",
+        "build/Data.Core.cinchif": "456e466db445fe324b0fb09ca6deeff59bf2192d54a7777216f6ba402b298d44",
+        "build/Effect.Fs.cinchif": "b6fe9df03696bf98a1860822ebbd621a1cb1aa7b8cbfabcb01b22afbef2eec56",
+        "build/Effect.Concurrent.MVar.cinchif": "1413af09d8e16d79493665ede7b3f2e97d6c85be0ee3df606de1c2072fdff276",
+        "build/Data.Option.cinchif": "f59bcdf5b108f39c0dc588490f1e3ba54fcbf60046740b557415d0564abeea58"
+      }
+    },
+    "tar-blocks-0000-o2-a1": {
+      "sources_unchanged": true,
+      "source_hashes": {
+        "Text.Tar.Block.cinch": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+        "Main.cinch": "b9d5145b2373551794baa002c9b0008706bfa5be4b1a9c32e072cfa54df731a9",
+        "Data.Tar.cinch": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      },
+      "interfaces_kept_plain": {
+        "build/Prim.Sys.Linux.cinchif": "79e2aab18a3caa14495920902ba9f3fedeba9638a177f1706ad2a7bc03a1ef55",
+        "build/Prim.Sys.Portable.cinchif": "56f7258f85a79f4afdb7a15e17b5987ec5b10a20003c4633d41b56077aac948e",
+        "build/Category.Foldable.cinchif": "034f6fbfa6f95468b649d936524ebe85b640a3f22933545cafe75716d3f11912",
+        "build/Algebra.Arithmetic.cinchif": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+        "build/Algebra.Semigroup.cinchif": "4c59bfa1465a6215048169120bc61219c7941830f01578c8c1a8e05918ebfddc",
+        "build/Effect.Concurrent.cinchif": "ae3eb93fc2d05b7882b4ff502c358b5490930e81e3d9e82fa671a5f84ac2b697",
+        "build/Data.Machine.cinchif": "7f66420ace033af8bb4d2e2ce38e952f244ee30ea502a2c600ed5758fac2222b",
+        "build/Algebra.Bits.cinchif": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+        "build/Prim.Sys.cinchif": "fc50ab6e121d942f5d8aebc1c3c201633005111aba0d4027a776d3fca09eb098",
+        "build/Data.Compose.cinchif": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+        "build/Data.Wide.cinchif": "66652e404dd7207e1b95373b63e6933cb72909164ca0f735d150300e25189c20",
+        "build/Effect.Stm.TQueue.cinchif": "9fd08d3ecd4e2052a44c20787138bd303ffbaccec8a801df670c9367c2521885",
+        "build/Effect.Clock.cinchif": "4411fbf55c3cde0f4021988adca4439debfa636343c377bc71989dfc27b6f3f2",
+        "build/Algebra.Monoid.cinchif": "a29802f9291998d90aa1efa944a7885f694bd5632f3a4730752ef9c7a6784a39",
+        "build/Data.NonZero.cinchif": "3408b83c58f90fa40d6fcc392c0ef1c4f72111fb61eb74621e0fab18c6fe615c",
+        "build/Data.Sym.cinchif": "252c9f9e955944b4663245e993ad8271ee7ea02263625bd3332147eed8e84f8e",
+        "build/Category.Alternative.cinchif": "5c6fae8e8fa7fc3025a9430de85b1916cc716635b7fe0aeb2fa5103ad62314c5",
+        "build/Effect.Sequencing.cinchif": "5d0bf50a778d638b8aba5b26738e3595b3ef05b66bddef2b338ff4df33c3412b",
+        "build/Data.Enum.cinchif": "72d4dd38948ef9c555c1783eab20322e23f2b0e9f698568f9224f41c86696500",
+        "build/Text.Show.cinchif": "ca19ebe5f83a11535d253239dfe32af8ac36ccb8b42b4c0b89678bd230af8925",
+        "build/Data.Ascii.cinchif": "caee46a0e3765e16136353539a641f266b91b5347a00bfcea501668a2f1fd99b",
+        "build/Category.Traversable.cinchif": "6bc5b69abeead5481148a433b7eb85dd247ae61e79e367c0be056a64615ae6e3",
+        "build/Data.FromList.cinchif": "58a3a797caacd038392623639a4c7df021b9694b3bce7150e6775717646b893b",
+        "build/Effect.Stm.cinchif": "ec6e14dd73512ca1b92dca4eec8876e71d38c8749f39f2dfb1ee3cff981e3b3e",
+        "build/Data.Hash.cinchif": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+        "build/Category.Applicative.cinchif": "a993c1078cc20eb27bc7ce76efc3eaddca0d7394988ebcc51b9c89ecf5616278",
+        "build/Data.Nat.cinchif": "2fa35d5558e80a90d06be2467532b03c9f9ebc81c0387c829601a816c42b2602",
+        "build/Data.Json.cinchif": "424f4b82f9e610d0effb065a59470bde1b780320249f65b977093c71138b524c",
+        "build/Data.NonEmpty.cinchif": "598ffe6070d91b5dc09d262e0c156986c10480937590b745fb15b35c0d052b3d",
+        "build/Data.Ordering.cinchif": "76b6b4b2dd1e53c7f6b045183ca6cdb1ffde278e74b32e051967783654185b26",
+        "build/Data.Bytes.cinchif": "8e6c9fd40c9aa9f58a4e60e27c1777fcf3b2cfea60a4bec77bf7df7b26bbcb56",
+        "build/Text.Tar.Block.cinchif": "f740ec2f83f92052cbf03d94cbdfe711d9c91e45f7498b4845f814a9e4a66734",
+        "build/Data.Path.cinchif": "9b8c443c593a54f58c3d67b6b2969fa22e94736d0f4546407a95cf1d60ade47c",
+        "build/Effect.Process.cinchif": "2b9ad3ca2833e7c787072a3f300f348308ee6463203e6693c6274e5caa3c4fa9",
+        "build/Data.String.cinchif": "208332729c610f97793305d343d5c38eddab7982ee991ae48b4a1279dcb53fda",
+        "build/Data.Bool.cinchif": "a01630b2a8dc7f5ffedf3880b1391d8046c848665d6b4cab59e8aa91cd5baf36",
+        "build/Function.Combinators.cinchif": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+        "build/Effect.Stm.TMVar.cinchif": "164054bef34d5bb4ab778478a3d70d3c8f9ffd77b33cc40a75c3d9a8c2caac6e",
+        "build/Data.List.cinchif": "b53a549f71e1f5200cb5054a774cb3ecddd07767758b984e3f8df9ac3ffbda08",
+        "build/Category.Functor.cinchif": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+        "build/Data.Producer.cinchif": "c9f217c1c4ef94d699d63721e963d8927fc80c08ca7f4d0ae36cdfde005ac4e7",
+        "build/Data.Result.cinchif": "96fc58ed104b93e8973d7735dec1a82585b795bd448ac7001ff9515b7fce5a60",
+        "build/Algebra.Group.cinchif": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+        "build/Data.Sorted.cinchif": "53208e265433e3f46a9e95b29e1d0985d3402ea27bd35298de2ebef549c14128",
+        "build/Data.Const.cinchif": "8ba7d4cb8471ccf8c59103fd43d1a3d77cbd6c855e66829d3bdd5e0c87a36090",
+        "build/Text.Codec.cinchif": "576b6d20a1b98acbad70f587932c64d68fb859e31a55a0155e9d25ead5055ef0",
+        "build/Data.HashMap.cinchif": "ae25a1de6e0994fe43e73d07fcce4acf69d01af852f41beb86e97f5d93e59f04",
+        "build/Data.Int.cinchif": "676aaa79a5d32f6f7a48b065e16c0b061584e1b4c192353ca793602b306db45e",
+        "build/Effect.Io.cinchif": "73225242789515bb9becc319a3801408690e9c418b80881594728daeaa7d8003",
+        "build/Data.Tar.cinchif": "28ba1af66631d9e1c89088411820ad535207298b8a4b74106041dc4ff4d7e101",
+        "build/Data.Map.cinchif": "23be994ad3586a2023575dbb8bea8dbef153257492cc7e1f710edafc012ccc13",
+        "build/Effect.Stm.TSem.cinchif": "68589aced03231b3a7fc25a309fcbdc11fce273250776e5dcc676a1d4839fca6",
+        "build/Prelude.cinchif": "828a181c63d45486d2832452cb4a6a0797f70b4919982d0ce95e47fd3799a3c8",
+        "build/Relation.Ord.cinchif": "b02ef4dcdb861e67be15ca864080fea29737a5295d8d8afcae31219125176cfb",
+        "build/Data.Set.cinchif": "890ade94f388f45477726572bd8fa3a559abebd5bd143f64ebd9047e4fcc44e9",
+        "build/Data.Bytes.Word.cinchif": "2425fd7ba181d45c3f291809b0dcbe8a13708ead3fd21594c9588e9d60ec8383",
+        "build/Category.Monad.cinchif": "8c78b566d9719fbe9c1940e75120256995b8694462a06f479096f7db95a09158",
+        "build/Data.Target.cinchif": "be5fb1e3021691e6b1a5c99657bdeb2c5e220c6e7419b12e8336151069423803",
+        "build/Data.Char.cinchif": "2dc7da4b446ff99145fcf1f7133aecaa03bfdcdb3d63c08909e62bcf263043a9",
+        "build/Effect.Stm.TBQueue.cinchif": "04705b88fcfdb41c47d8df4a5755333396f74c60fbdaef63bd65c9d00e79228f",
+        "build/Data.FromMap.cinchif": "a9326b7980958944085e27ddd54a72020bb8bc52dc84e3509a12a96e6a861956",
+        "build/Relation.Eq.cinchif": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+        "build/Data.Identity.cinchif": "aa8d40c6230e13a448e4c5da979715be06aca3401093d367afdfac657a773f62",
+        "build/Prim.Sys.Darwin.cinchif": "08139605a9e984bdbffbe38a91542bf6a50941ae594d6a0dab40edfba545a0ed",
+        "build/Algebra.Semiring.cinchif": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+        "build/Main.cinchif": "ae80699650e9bbb5476ab01a7915df376dde22d6c7ab48c440eb35a2a51fb120",
+        "build/Data.Core.cinchif": "456e466db445fe324b0fb09ca6deeff59bf2192d54a7777216f6ba402b298d44",
+        "build/Effect.Fs.cinchif": "b6fe9df03696bf98a1860822ebbd621a1cb1aa7b8cbfabcb01b22afbef2eec56",
+        "build/Effect.Concurrent.MVar.cinchif": "1413af09d8e16d79493665ede7b3f2e97d6c85be0ee3df606de1c2072fdff276",
+        "build/Data.Option.cinchif": "f59bcdf5b108f39c0dc588490f1e3ba54fcbf60046740b557415d0564abeea58"
+      }
+    },
+    "tar-blocks-0032-o0-a2": {
+      "sources_unchanged": true,
+      "source_hashes": {
+        "Text.Tar.Block.cinch": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+        "Main.cinch": "ee3b0d2382543b4717f228ef7b24680e845b19774e2b3613f8dff38aed3f8ffe",
+        "Data.Tar.cinch": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      },
+      "interfaces_kept_plain": {
+        "build/Prim.Sys.Linux.cinchif": "79e2aab18a3caa14495920902ba9f3fedeba9638a177f1706ad2a7bc03a1ef55",
+        "build/Prim.Sys.Portable.cinchif": "56f7258f85a79f4afdb7a15e17b5987ec5b10a20003c4633d41b56077aac948e",
+        "build/Category.Foldable.cinchif": "034f6fbfa6f95468b649d936524ebe85b640a3f22933545cafe75716d3f11912",
+        "build/Algebra.Arithmetic.cinchif": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+        "build/Algebra.Semigroup.cinchif": "4c59bfa1465a6215048169120bc61219c7941830f01578c8c1a8e05918ebfddc",
+        "build/Effect.Concurrent.cinchif": "ae3eb93fc2d05b7882b4ff502c358b5490930e81e3d9e82fa671a5f84ac2b697",
+        "build/Data.Machine.cinchif": "7f66420ace033af8bb4d2e2ce38e952f244ee30ea502a2c600ed5758fac2222b",
+        "build/Algebra.Bits.cinchif": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+        "build/Prim.Sys.cinchif": "fc50ab6e121d942f5d8aebc1c3c201633005111aba0d4027a776d3fca09eb098",
+        "build/Data.Compose.cinchif": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+        "build/Data.Wide.cinchif": "66652e404dd7207e1b95373b63e6933cb72909164ca0f735d150300e25189c20",
+        "build/Effect.Stm.TQueue.cinchif": "9fd08d3ecd4e2052a44c20787138bd303ffbaccec8a801df670c9367c2521885",
+        "build/Effect.Clock.cinchif": "4411fbf55c3cde0f4021988adca4439debfa636343c377bc71989dfc27b6f3f2",
+        "build/Algebra.Monoid.cinchif": "a29802f9291998d90aa1efa944a7885f694bd5632f3a4730752ef9c7a6784a39",
+        "build/Data.NonZero.cinchif": "3408b83c58f90fa40d6fcc392c0ef1c4f72111fb61eb74621e0fab18c6fe615c",
+        "build/Data.Sym.cinchif": "252c9f9e955944b4663245e993ad8271ee7ea02263625bd3332147eed8e84f8e",
+        "build/Category.Alternative.cinchif": "5c6fae8e8fa7fc3025a9430de85b1916cc716635b7fe0aeb2fa5103ad62314c5",
+        "build/Effect.Sequencing.cinchif": "5d0bf50a778d638b8aba5b26738e3595b3ef05b66bddef2b338ff4df33c3412b",
+        "build/Data.Enum.cinchif": "72d4dd38948ef9c555c1783eab20322e23f2b0e9f698568f9224f41c86696500",
+        "build/Text.Show.cinchif": "ca19ebe5f83a11535d253239dfe32af8ac36ccb8b42b4c0b89678bd230af8925",
+        "build/Data.Ascii.cinchif": "caee46a0e3765e16136353539a641f266b91b5347a00bfcea501668a2f1fd99b",
+        "build/Category.Traversable.cinchif": "6bc5b69abeead5481148a433b7eb85dd247ae61e79e367c0be056a64615ae6e3",
+        "build/Data.FromList.cinchif": "58a3a797caacd038392623639a4c7df021b9694b3bce7150e6775717646b893b",
+        "build/Effect.Stm.cinchif": "ec6e14dd73512ca1b92dca4eec8876e71d38c8749f39f2dfb1ee3cff981e3b3e",
+        "build/Data.Hash.cinchif": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+        "build/Category.Applicative.cinchif": "a993c1078cc20eb27bc7ce76efc3eaddca0d7394988ebcc51b9c89ecf5616278",
+        "build/Data.Nat.cinchif": "2fa35d5558e80a90d06be2467532b03c9f9ebc81c0387c829601a816c42b2602",
+        "build/Data.Json.cinchif": "424f4b82f9e610d0effb065a59470bde1b780320249f65b977093c71138b524c",
+        "build/Data.NonEmpty.cinchif": "598ffe6070d91b5dc09d262e0c156986c10480937590b745fb15b35c0d052b3d",
+        "build/Data.Ordering.cinchif": "76b6b4b2dd1e53c7f6b045183ca6cdb1ffde278e74b32e051967783654185b26",
+        "build/Data.Bytes.cinchif": "8e6c9fd40c9aa9f58a4e60e27c1777fcf3b2cfea60a4bec77bf7df7b26bbcb56",
+        "build/Text.Tar.Block.cinchif": "f740ec2f83f92052cbf03d94cbdfe711d9c91e45f7498b4845f814a9e4a66734",
+        "build/Data.Path.cinchif": "9b8c443c593a54f58c3d67b6b2969fa22e94736d0f4546407a95cf1d60ade47c",
+        "build/Effect.Process.cinchif": "2b9ad3ca2833e7c787072a3f300f348308ee6463203e6693c6274e5caa3c4fa9",
+        "build/Data.String.cinchif": "208332729c610f97793305d343d5c38eddab7982ee991ae48b4a1279dcb53fda",
+        "build/Data.Bool.cinchif": "a01630b2a8dc7f5ffedf3880b1391d8046c848665d6b4cab59e8aa91cd5baf36",
+        "build/Function.Combinators.cinchif": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+        "build/Effect.Stm.TMVar.cinchif": "164054bef34d5bb4ab778478a3d70d3c8f9ffd77b33cc40a75c3d9a8c2caac6e",
+        "build/Data.List.cinchif": "b53a549f71e1f5200cb5054a774cb3ecddd07767758b984e3f8df9ac3ffbda08",
+        "build/Category.Functor.cinchif": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+        "build/Data.Producer.cinchif": "c9f217c1c4ef94d699d63721e963d8927fc80c08ca7f4d0ae36cdfde005ac4e7",
+        "build/Data.Result.cinchif": "96fc58ed104b93e8973d7735dec1a82585b795bd448ac7001ff9515b7fce5a60",
+        "build/Algebra.Group.cinchif": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+        "build/Data.Sorted.cinchif": "53208e265433e3f46a9e95b29e1d0985d3402ea27bd35298de2ebef549c14128",
+        "build/Data.Const.cinchif": "8ba7d4cb8471ccf8c59103fd43d1a3d77cbd6c855e66829d3bdd5e0c87a36090",
+        "build/Text.Codec.cinchif": "576b6d20a1b98acbad70f587932c64d68fb859e31a55a0155e9d25ead5055ef0",
+        "build/Data.HashMap.cinchif": "ae25a1de6e0994fe43e73d07fcce4acf69d01af852f41beb86e97f5d93e59f04",
+        "build/Data.Int.cinchif": "676aaa79a5d32f6f7a48b065e16c0b061584e1b4c192353ca793602b306db45e",
+        "build/Effect.Io.cinchif": "73225242789515bb9becc319a3801408690e9c418b80881594728daeaa7d8003",
+        "build/Data.Tar.cinchif": "28ba1af66631d9e1c89088411820ad535207298b8a4b74106041dc4ff4d7e101",
+        "build/Data.Map.cinchif": "23be994ad3586a2023575dbb8bea8dbef153257492cc7e1f710edafc012ccc13",
+        "build/Effect.Stm.TSem.cinchif": "68589aced03231b3a7fc25a309fcbdc11fce273250776e5dcc676a1d4839fca6",
+        "build/Prelude.cinchif": "828a181c63d45486d2832452cb4a6a0797f70b4919982d0ce95e47fd3799a3c8",
+        "build/Relation.Ord.cinchif": "b02ef4dcdb861e67be15ca864080fea29737a5295d8d8afcae31219125176cfb",
+        "build/Data.Set.cinchif": "890ade94f388f45477726572bd8fa3a559abebd5bd143f64ebd9047e4fcc44e9",
+        "build/Data.Bytes.Word.cinchif": "2425fd7ba181d45c3f291809b0dcbe8a13708ead3fd21594c9588e9d60ec8383",
+        "build/Category.Monad.cinchif": "8c78b566d9719fbe9c1940e75120256995b8694462a06f479096f7db95a09158",
+        "build/Data.Target.cinchif": "be5fb1e3021691e6b1a5c99657bdeb2c5e220c6e7419b12e8336151069423803",
+        "build/Data.Char.cinchif": "2dc7da4b446ff99145fcf1f7133aecaa03bfdcdb3d63c08909e62bcf263043a9",
+        "build/Effect.Stm.TBQueue.cinchif": "04705b88fcfdb41c47d8df4a5755333396f74c60fbdaef63bd65c9d00e79228f",
+        "build/Data.FromMap.cinchif": "a9326b7980958944085e27ddd54a72020bb8bc52dc84e3509a12a96e6a861956",
+        "build/Relation.Eq.cinchif": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+        "build/Data.Identity.cinchif": "aa8d40c6230e13a448e4c5da979715be06aca3401093d367afdfac657a773f62",
+        "build/Prim.Sys.Darwin.cinchif": "08139605a9e984bdbffbe38a91542bf6a50941ae594d6a0dab40edfba545a0ed",
+        "build/Algebra.Semiring.cinchif": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+        "build/Main.cinchif": "081c39d74dfe7467c234ef4c538040ebb33b94fef2f62f12973cfc80721a15d2",
+        "build/Data.Core.cinchif": "456e466db445fe324b0fb09ca6deeff59bf2192d54a7777216f6ba402b298d44",
+        "build/Effect.Fs.cinchif": "b6fe9df03696bf98a1860822ebbd621a1cb1aa7b8cbfabcb01b22afbef2eec56",
+        "build/Effect.Concurrent.MVar.cinchif": "1413af09d8e16d79493665ede7b3f2e97d6c85be0ee3df606de1c2072fdff276",
+        "build/Data.Option.cinchif": "f59bcdf5b108f39c0dc588490f1e3ba54fcbf60046740b557415d0564abeea58"
+      }
+    },
+    "tar-blocks-0032-o2-a1": {
+      "sources_unchanged": true,
+      "source_hashes": {
+        "Text.Tar.Block.cinch": "7d85284edf84e743bd7b667883e2258d4d4388b5c3a4fdcc84808d7f35674d6e",
+        "Main.cinch": "ee3b0d2382543b4717f228ef7b24680e845b19774e2b3613f8dff38aed3f8ffe",
+        "Data.Tar.cinch": "ba5e87b202fb7bfc4cafd0040e39ced1166cd99b74a2cc0aca5fcd380a8e60e8",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      },
+      "interfaces_kept_plain": {
+        "build/Prim.Sys.Linux.cinchif": "79e2aab18a3caa14495920902ba9f3fedeba9638a177f1706ad2a7bc03a1ef55",
+        "build/Prim.Sys.Portable.cinchif": "56f7258f85a79f4afdb7a15e17b5987ec5b10a20003c4633d41b56077aac948e",
+        "build/Category.Foldable.cinchif": "034f6fbfa6f95468b649d936524ebe85b640a3f22933545cafe75716d3f11912",
+        "build/Algebra.Arithmetic.cinchif": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+        "build/Algebra.Semigroup.cinchif": "4c59bfa1465a6215048169120bc61219c7941830f01578c8c1a8e05918ebfddc",
+        "build/Effect.Concurrent.cinchif": "ae3eb93fc2d05b7882b4ff502c358b5490930e81e3d9e82fa671a5f84ac2b697",
+        "build/Data.Machine.cinchif": "7f66420ace033af8bb4d2e2ce38e952f244ee30ea502a2c600ed5758fac2222b",
+        "build/Algebra.Bits.cinchif": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+        "build/Prim.Sys.cinchif": "fc50ab6e121d942f5d8aebc1c3c201633005111aba0d4027a776d3fca09eb098",
+        "build/Data.Compose.cinchif": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+        "build/Data.Wide.cinchif": "66652e404dd7207e1b95373b63e6933cb72909164ca0f735d150300e25189c20",
+        "build/Effect.Stm.TQueue.cinchif": "9fd08d3ecd4e2052a44c20787138bd303ffbaccec8a801df670c9367c2521885",
+        "build/Effect.Clock.cinchif": "4411fbf55c3cde0f4021988adca4439debfa636343c377bc71989dfc27b6f3f2",
+        "build/Algebra.Monoid.cinchif": "a29802f9291998d90aa1efa944a7885f694bd5632f3a4730752ef9c7a6784a39",
+        "build/Data.NonZero.cinchif": "3408b83c58f90fa40d6fcc392c0ef1c4f72111fb61eb74621e0fab18c6fe615c",
+        "build/Data.Sym.cinchif": "252c9f9e955944b4663245e993ad8271ee7ea02263625bd3332147eed8e84f8e",
+        "build/Category.Alternative.cinchif": "5c6fae8e8fa7fc3025a9430de85b1916cc716635b7fe0aeb2fa5103ad62314c5",
+        "build/Effect.Sequencing.cinchif": "5d0bf50a778d638b8aba5b26738e3595b3ef05b66bddef2b338ff4df33c3412b",
+        "build/Data.Enum.cinchif": "72d4dd38948ef9c555c1783eab20322e23f2b0e9f698568f9224f41c86696500",
+        "build/Text.Show.cinchif": "ca19ebe5f83a11535d253239dfe32af8ac36ccb8b42b4c0b89678bd230af8925",
+        "build/Data.Ascii.cinchif": "caee46a0e3765e16136353539a641f266b91b5347a00bfcea501668a2f1fd99b",
+        "build/Category.Traversable.cinchif": "6bc5b69abeead5481148a433b7eb85dd247ae61e79e367c0be056a64615ae6e3",
+        "build/Data.FromList.cinchif": "58a3a797caacd038392623639a4c7df021b9694b3bce7150e6775717646b893b",
+        "build/Effect.Stm.cinchif": "ec6e14dd73512ca1b92dca4eec8876e71d38c8749f39f2dfb1ee3cff981e3b3e",
+        "build/Data.Hash.cinchif": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+        "build/Category.Applicative.cinchif": "a993c1078cc20eb27bc7ce76efc3eaddca0d7394988ebcc51b9c89ecf5616278",
+        "build/Data.Nat.cinchif": "2fa35d5558e80a90d06be2467532b03c9f9ebc81c0387c829601a816c42b2602",
+        "build/Data.Json.cinchif": "424f4b82f9e610d0effb065a59470bde1b780320249f65b977093c71138b524c",
+        "build/Data.NonEmpty.cinchif": "598ffe6070d91b5dc09d262e0c156986c10480937590b745fb15b35c0d052b3d",
+        "build/Data.Ordering.cinchif": "76b6b4b2dd1e53c7f6b045183ca6cdb1ffde278e74b32e051967783654185b26",
+        "build/Data.Bytes.cinchif": "8e6c9fd40c9aa9f58a4e60e27c1777fcf3b2cfea60a4bec77bf7df7b26bbcb56",
+        "build/Text.Tar.Block.cinchif": "f740ec2f83f92052cbf03d94cbdfe711d9c91e45f7498b4845f814a9e4a66734",
+        "build/Data.Path.cinchif": "9b8c443c593a54f58c3d67b6b2969fa22e94736d0f4546407a95cf1d60ade47c",
+        "build/Effect.Process.cinchif": "2b9ad3ca2833e7c787072a3f300f348308ee6463203e6693c6274e5caa3c4fa9",
+        "build/Data.String.cinchif": "208332729c610f97793305d343d5c38eddab7982ee991ae48b4a1279dcb53fda",
+        "build/Data.Bool.cinchif": "a01630b2a8dc7f5ffedf3880b1391d8046c848665d6b4cab59e8aa91cd5baf36",
+        "build/Function.Combinators.cinchif": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+        "build/Effect.Stm.TMVar.cinchif": "164054bef34d5bb4ab778478a3d70d3c8f9ffd77b33cc40a75c3d9a8c2caac6e",
+        "build/Data.List.cinchif": "b53a549f71e1f5200cb5054a774cb3ecddd07767758b984e3f8df9ac3ffbda08",
+        "build/Category.Functor.cinchif": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+        "build/Data.Producer.cinchif": "c9f217c1c4ef94d699d63721e963d8927fc80c08ca7f4d0ae36cdfde005ac4e7",
+        "build/Data.Result.cinchif": "96fc58ed104b93e8973d7735dec1a82585b795bd448ac7001ff9515b7fce5a60",
+        "build/Algebra.Group.cinchif": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+        "build/Data.Sorted.cinchif": "53208e265433e3f46a9e95b29e1d0985d3402ea27bd35298de2ebef549c14128",
+        "build/Data.Const.cinchif": "8ba7d4cb8471ccf8c59103fd43d1a3d77cbd6c855e66829d3bdd5e0c87a36090",
+        "build/Text.Codec.cinchif": "576b6d20a1b98acbad70f587932c64d68fb859e31a55a0155e9d25ead5055ef0",
+        "build/Data.HashMap.cinchif": "ae25a1de6e0994fe43e73d07fcce4acf69d01af852f41beb86e97f5d93e59f04",
+        "build/Data.Int.cinchif": "676aaa79a5d32f6f7a48b065e16c0b061584e1b4c192353ca793602b306db45e",
+        "build/Effect.Io.cinchif": "73225242789515bb9becc319a3801408690e9c418b80881594728daeaa7d8003",
+        "build/Data.Tar.cinchif": "28ba1af66631d9e1c89088411820ad535207298b8a4b74106041dc4ff4d7e101",
+        "build/Data.Map.cinchif": "23be994ad3586a2023575dbb8bea8dbef153257492cc7e1f710edafc012ccc13",
+        "build/Effect.Stm.TSem.cinchif": "68589aced03231b3a7fc25a309fcbdc11fce273250776e5dcc676a1d4839fca6",
+        "build/Prelude.cinchif": "828a181c63d45486d2832452cb4a6a0797f70b4919982d0ce95e47fd3799a3c8",
+        "build/Relation.Ord.cinchif": "b02ef4dcdb861e67be15ca864080fea29737a5295d8d8afcae31219125176cfb",
+        "build/Data.Set.cinchif": "890ade94f388f45477726572bd8fa3a559abebd5bd143f64ebd9047e4fcc44e9",
+        "build/Data.Bytes.Word.cinchif": "2425fd7ba181d45c3f291809b0dcbe8a13708ead3fd21594c9588e9d60ec8383",
+        "build/Category.Monad.cinchif": "8c78b566d9719fbe9c1940e75120256995b8694462a06f479096f7db95a09158",
+        "build/Data.Target.cinchif": "be5fb1e3021691e6b1a5c99657bdeb2c5e220c6e7419b12e8336151069423803",
+        "build/Data.Char.cinchif": "2dc7da4b446ff99145fcf1f7133aecaa03bfdcdb3d63c08909e62bcf263043a9",
+        "build/Effect.Stm.TBQueue.cinchif": "04705b88fcfdb41c47d8df4a5755333396f74c60fbdaef63bd65c9d00e79228f",
+        "build/Data.FromMap.cinchif": "a9326b7980958944085e27ddd54a72020bb8bc52dc84e3509a12a96e6a861956",
+        "build/Relation.Eq.cinchif": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+        "build/Data.Identity.cinchif": "aa8d40c6230e13a448e4c5da979715be06aca3401093d367afdfac657a773f62",
+        "build/Prim.Sys.Darwin.cinchif": "08139605a9e984bdbffbe38a91542bf6a50941ae594d6a0dab40edfba545a0ed",
+        "build/Algebra.Semiring.cinchif": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+        "build/Main.cinchif": "081c39d74dfe7467c234ef4c538040ebb33b94fef2f62f12973cfc80721a15d2",
+        "build/Data.Core.cinchif": "456e466db445fe324b0fb09ca6deeff59bf2192d54a7777216f6ba402b298d44",
+        "build/Effect.Fs.cinchif": "b6fe9df03696bf98a1860822ebbd621a1cb1aa7b8cbfabcb01b22afbef2eec56",
+        "build/Effect.Concurrent.MVar.cinchif": "1413af09d8e16d79493665ede7b3f2e97d6c85be0ee3df606de1c2072fdff276",
+        "build/Data.Option.cinchif": "f59bcdf5b108f39c0dc588490f1e3ba54fcbf60046740b557415d0564abeea58"
+      }
+    }
+  }
+}

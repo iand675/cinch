@@ -39,12 +39,15 @@ def main() -> None:
     parser.add_argument('--runtime', type=Path, help='Exact matching Rust runtime archive, selected explicitly at link time')
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--source-override', action='append', default=[], metavar='MODULE=PATH', help='Freeze a separate candidate without modifying the selected library source')
     parser.add_argument('--extra-control', type=Path, help='Add a compiler-owned recursive-array runtime control by exact source path')
     parser.add_argument('--cpu', type=int, default=4)
     parser.add_argument('--cases', type=int, nargs='+', default=list(range(8)))
-    parser.add_argument('--modes', choices=['trace', 'control', 'kernel', 'window'], nargs='+', default=['trace', 'control', 'kernel'])
+    parser.add_argument('--modes', choices=['trace', 'control', 'kernel', 'window', 'extra'], nargs='+', default=['trace', 'control', 'kernel'])
     parser.add_argument('--window-ranges', nargs='+', metavar='START:END', help='Select bounded poisoned observation windows; defaults to four actions each')
     args = parser.parse_args()
+    if 'extra' in args.modes and not args.extra_control:
+        parser.error('extra mode requires --extra-control')
     os.sched_setaffinity(0, {args.cpu})
     args.compiler = args.compiler.resolve()
     if args.frontend == 'native' and not args.interfaces:
@@ -53,7 +56,15 @@ def main() -> None:
         parser.error('Rust consumers require an explicit matched --runtime archive')
     if args.frontend == 'native' and args.runtime:
         parser.error('Native runtime selection belongs to the exact selected frontend wrapper')
-    frozen = {name: path.read_bytes() for name, path in MODULES.items()}
+    modules = dict(MODULES)
+    overrides = {}
+    for entry in args.source_override:
+        name, separator, value = entry.partition('=')
+        if not separator or name not in modules or name in overrides:
+            parser.error('source overrides require unique known MODULE=PATH pairs')
+        overrides[name] = Path(value).resolve()
+        modules[name] = overrides[name]
+    frozen = {name: path.read_bytes() for name, path in modules.items()}
     windows = [tuple(map(int, item.split(':'))) for item in args.window_ranges] if args.window_ranges else [(start, start + 4) for start in range(0, 96, 4)]
     if any(len(window) != 2 or not 0 <= window[0] < window[1] <= 96 for window in windows):
         parser.error('observation windows must satisfy 0 <= START < END <= 96')
@@ -72,7 +83,7 @@ def main() -> None:
     report = {'description': __doc__, 'frontend': args.frontend, 'compiler_sha256': digest(args.compiler),
               'runner_sha256': digest(Path(__file__)), 'fixture_sha256': digest(ROOT / 'compiler/tests/fixtures/ring-vectors.json'),
               'sources': {name: hashlib.sha256(contents).hexdigest() for name, contents in frozen.items()},
-              'compiler_host_stack': '64M', 'cpu_affinity': [args.cpu], 'suites': []}
+              'compiler_host_stack': '64M', 'cpu_affinity': [args.cpu], 'source_overrides': {name: str(path) for name, path in overrides.items()}, 'suites': []}
     if args.frontend == 'native':
         report.update(native_compiler_sha256=digest(args.compiler.parent / 'cinch'),
                       interfaces_sha256=digest(args.interfaces.resolve()))
