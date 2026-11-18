@@ -120,10 +120,8 @@ def main():
     a.cargo_target = a.cargo_target or a.tree / 'compiler' / 'target'
     env = setup(a.stage, a.out.resolve(), a.tree)
     global TREE; TREE = a.tree
-    # Build every test binary once so parallel runs do not race the cargo lock.
-    subprocess.run(['nice', 'cargo', 'test', '--target-dir', str(a.cargo_target), '--no-run',
-                    *sum([['--test', t] for t in a.targets], [])], cwd=TREE / 'compiler', env=env, check=True,
-                   stdout=subprocess.DEVNULL)
+    # Cargo releases its build lock before running a test executable. Each
+    # worker can start its suite as soon as that executable is ready.
     rows = []
     with cf.ThreadPoolExecutor(a.jobs) as pool:
         futures = [pool.submit(run, t, env, a.out.resolve(), a.cargo_target) for t in a.targets]
