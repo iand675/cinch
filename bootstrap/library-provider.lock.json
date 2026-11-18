@@ -1,7 +1,7 @@
 {
   "description": "ABI 10 integrated compiler, runtime and standard library snapshot.",
-  "revision": "1f4cc50aee56c4b9f1f65e191f87e8bbcd9387ef",
+  "revision": "2d027b2ea5a058c52fc0f095b5eeb3f41b56a796",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "9eb8b9c1d8849bf4cf26374064c2f0dca0450ab39842f993c6c3d9b8835681be"
+  "source_sha256": "2f1ee44c6466dfbae3a591716f68bf36773f43974ee2624e5ff3fbd0c84b3735"
 }
