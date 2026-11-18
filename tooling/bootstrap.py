@@ -73,6 +73,15 @@ def source_hash(files: dict[str, bytes]) -> str:
 NATIVE_BUILD_SCRIPT = "compiler/build.rs"
 NATIVE_GRAMMAR = "tooling/tree-sitter-cinch"
 NATIVE_GRAMMAR_INPUTS = ("grammar.js", "tree-sitter.json", "src/scanner.c")
+NATIVE_GRAMMAR_BINDINGS = ("Cargo.toml", "bindings/rust/build.rs", "bindings/rust/lib.rs")
+
+
+def native_grammar_inputs(repository: Path, revision: str) -> list[str]:
+    manifest = f"{NATIVE_GRAMMAR}/Cargo.toml"
+    has_binding = subprocess.check_output(["git", "ls-tree", "--name-only", revision, "--", manifest],
+                                          cwd=repository)
+    parts = NATIVE_GRAMMAR_INPUTS + (NATIVE_GRAMMAR_BINDINGS if has_binding else ())
+    return [f"{NATIVE_GRAMMAR}/{part}" for part in parts]
 
 
 def seed_sources(directory: Path) -> dict[str, bytes]:
@@ -86,7 +95,8 @@ def seed_sources(directory: Path) -> dict[str, bytes]:
         files[part] = (directory / part).read_bytes()
     if (directory / NATIVE_BUILD_SCRIPT).is_file():
         files[NATIVE_BUILD_SCRIPT] = (directory / NATIVE_BUILD_SCRIPT).read_bytes()
-        for part in NATIVE_GRAMMAR_INPUTS:
+        has_binding = (directory / NATIVE_GRAMMAR / "Cargo.toml").is_file()
+        for part in NATIVE_GRAMMAR_INPUTS + (NATIVE_GRAMMAR_BINDINGS if has_binding else ()):
             path = f"{NATIVE_GRAMMAR}/{part}"
             files[path] = (directory / path).read_bytes()
     return files
@@ -114,7 +124,7 @@ def native_source_archive(revision: str) -> bytes:
     build_script = subprocess.run(["git", "ls-tree", "--name-only", revision, "--", NATIVE_BUILD_SCRIPT],
                                   cwd=where, check=True, stdout=subprocess.PIPE).stdout
     if build_script:
-        paths.extend(f"{NATIVE_GRAMMAR}/{part}" for part in NATIVE_GRAMMAR_INPUTS)
+        paths.extend(native_grammar_inputs(where, revision))
     return subprocess.run(["git", "archive", revision, *paths], cwd=where, check=True,
                           stdout=subprocess.PIPE).stdout
 
