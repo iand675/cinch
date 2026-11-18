@@ -1,0 +1,14 @@
+-- | Observe exact staged machine scalar boundaries.
+module Main where
+  import Data.Machine
+  import Data.Char
+
+  generate do
+    emit (quoteDecls where
+      -- | Return zero only when the staged boundary calculation agrees.
+      answer :: Int
+      answer = $(quoteInt (if gt-char '\u{100}' '\u{ff}' then 0 else 1)))
+
+  -- | Observe the generated boundary result.
+  main :: Int
+  main = answer

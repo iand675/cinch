@@ -1,0 +1,54 @@
+-- | Check actual independently generated values without predicting or replacing their random payloads.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Machine
+  import Data.Bytes
+  import Data.Uuid
+
+  -- | One actual public generation result and its independently observed reserved fields.
+  data GeneratedCase where
+    -- | Retain algorithm choice separately from the complete canonical random value.
+    GeneratedCase :: String -> String -> Nat -> Nat -> GeneratedCase
+
+  -- | Read the network-order millisecond prefix without signed truncation.
+  millis-from :: Bytes -> Nat -> Nat -> Nat
+  millis-from bytes index total =
+    if index < 6 && index < bytes-len bytes then millis-from bytes (index + 1) (total * 256 + bytes-get bytes index) else total
+
+  -- | Repack one observed version7 logical timestamp and its unchanged random payload.
+  repack-v7 :: Uuid -> Bytes -> Bool
+  repack-v7 value bytes =
+    if bytes-len bytes == 16 then
+      let tick = millis-from bytes 0 0 * 4096 + nat-rem (bytes-get bytes 6) 16 * 256 + bytes-get bytes 7 in
+      if tick <= 1152921504606846975 then
+        let entropy = bytes-new 8 in
+        let copied = bytes-copy-range entropy bytes 0 8 8 in
+        case uuid-v7-from-tick (wrapping-i64-to-u64 (nat-to-i64 tick)) entropy of Ok rebuilt -> uuid-equal value rebuilt; Err error -> False
+      else False
+    else False
+
+  -- | Preserve every actual random bit while checking the named algorithm's RFC field masks.
+  check-case :: GeneratedCase -> Bool
+  check-case row = case row of
+    GeneratedCase algorithm canonical version variant -> case uuid-parse canonical of
+      Err error -> False
+      Ok value ->
+        let bytes = uuid-to-bytes value in
+        if bytes-len bytes == 16 then
+          let reserved = nat-div (bytes-get bytes 6) 16 == version && nat-div (bytes-get bytes 8) 64 == variant in
+          let rebuilt = if algorithm == "v7" then version == 7 && repack-v7 value bytes else version == 4 && (case uuid-v4-from-random bytes of Ok copy -> uuid-equal value copy; Err error -> False) in
+          reserved && variant == 2 && rebuilt && uuid-format value == canonical
+        else False
+
+  -- | Identify the first actual-generation observation whose complete payload or metadata changed.
+  run :: List GeneratedCase -> Int -> Int
+  run rows index = case rows of Nil -> 0; Cons row rest -> if check-case row then run rest (index + 1) else index
+
+  -- | Actual secure-provider observations recorded independently by the public reference operations.
+  rows :: List GeneratedCase
+  rows = @CASES@
+
+  -- | Execute this bounded group without asserting that any future random call repeats these bytes.
+  main :: Int
+  main = run rows 1

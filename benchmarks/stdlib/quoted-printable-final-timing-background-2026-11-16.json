@@ -1,0 +1,31 @@
+{
+  "exclusive_cpu0_parent_granted": true,
+  "strings_explicitly_released": true,
+  "qp_cpu4_paused": true,
+  "other_background": [
+    {
+      "pid": 420943,
+      "command": "clang",
+      "affinity": "1",
+      "state": "State:\tS (sleeping)"
+    },
+    {
+      "pid": 420944,
+      "command": "clang",
+      "affinity": "1",
+      "state": "State:\tR (running)"
+    },
+    {
+      "pid": 428846,
+      "command": "cargo",
+      "affinity": "3",
+      "state": "State:\tS (sleeping)"
+    },
+    {
+      "pid": 428918,
+      "command": "rustc",
+      "affinity": "3",
+      "state": "State:\tS (sleeping)"
+    }
+  ]
+}

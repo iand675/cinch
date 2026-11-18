@@ -1,0 +1,61 @@
+--- Text.Html.cinch
++++ Text.Html.cinch
+@@ -178,15 +178,18 @@
+-  -- | Pack the offset and byte count of one escape spelling in the private complete table.
+-  prim escape-span :: U8 -> U64 where
+-    llvm {
+-      %amp = icmp eq i8 %0, 38
+-      %single = icmp eq i8 %0, 39
+-      %double = icmp eq i8 %0, 34
+-      %less = icmp eq i8 %0, 60
+-      %greater = icmp eq i8 %0, 62
+-      %a = select i1 %greater, i64 1043, i64 0
+-      %b = select i1 %less, i64 1039, i64 %a
+-      %c = select i1 %double, i64 1290, i64 %b
+-      %d = select i1 %single, i64 1285, i64 %c
+-      %value = select i1 %amp, i64 1280, i64 %d
+-      ret i64 %value
+-    }
++  -- | Store a four- or five-byte escape spelling with fixed checked word stores and one optional byte.
++  store-escape :: Bytes -> Nat -> U64 -> Unit
++  store-escape out at word = if at + 4 <= bytes-len out then
++    let first = bytes-write-le32 out at (wrapping-u64-to-u32 word) in
++    if eq-u64 (wrapping-shr-u64 word 56) 5 && at + 5 <= bytes-len out then
++      bytes-set out (at + 4) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 32)))
++    else ()
++    else ()
++
++  -- | Packed exact HTML spellings for the five escaped ASCII bytes.
++  escape-replacement :: Nat -> U64
++  escape-replacement byte =
++    if byte == 38 then 360288225478926630
++    else if byte == 39 then 360288224552362790
++    else if byte == 34 then 360288224468476710
++    else if byte == 60 then 288230377149197350
++    else if byte == 62 then 288230377149196070
++    else 0
+@@ -195,2 +198,2 @@
+-  escape-from :: Bytes -> Nat -> Bytes -> Nat -> Bytes -> Unit
+-  escape-from input start out oi table =
++  escape-from :: Bytes -> Nat -> Bytes -> Nat -> Unit
++  escape-from input start out oi =
+@@ -202,8 +205,2 @@
+-        let byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get input stop)) in
+-        let span = escape-span byte in
+-        let offset = u8-to-nat (wrapping-u64-to-u8 span) in
+-        let n = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 span 8)) in
+-        if offset + n <= bytes-len table && next + n <= bytes-len out then
+-          let written = bytes-copy-range out table next offset n in
+-          escape-from input (stop + 1) out (next + n) table
+-        else ()
++        let word = escape-replacement (bytes-get input stop) in let n = packed-length word in
++        let written = store-escape out next word in escape-from input (stop + 1) out (next + n)
+@@ -216,3 +213 @@
+-    if size == bytes-len input then let copied = bytes-copy-range out input 0 0 size in out
+-    else let table = string-to-bytes "&amp;&#39;&#34;&lt;&gt;" in
+-      let written = escape-from input 0 out 0 table in out
++    let written = escape-from input 0 out 0 in out
+@@ -222 +217,2 @@
+-  html-escape-bytes input = escape-sized input (html-escaped-length input)
++  html-escape-bytes input = let out = bytes-new (html-escaped-length input) in
++    let written = escape-from input 0 out 0 in out

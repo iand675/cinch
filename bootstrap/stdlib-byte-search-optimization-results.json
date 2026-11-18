@@ -1,0 +1,6391 @@
+{
+  "scope": "Preserve four byte-query APIs while reducing packed-loop arithmetic, generic population-count and imported Native call overhead.",
+  "source_sha256": "65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256",
+  "base_checkpoint": "c41c674d",
+  "changed_embedded_constructor_validation_claimed": false,
+  "fresh_native_base_validation_claimed": false,
+  "runs": {
+    "rust": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "frontend_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "source_sha256": "65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256",
+      "fixture_sha256": "0c8f0633bd0cf7de860dc8197f4ecdd6740ca1644a63d6a8f98b991e071fadb3",
+      "source_distributed_kernel": true,
+      "changed_embedded_constructor_validation_claimed": false,
+      "native_base_interfaces_sha256": null,
+      "results": [
+        {
+          "group": "rows",
+          "cases": 3681,
+          "entry_sha256": "68d21e88ae8468a2fdac457bc38885145b2058de7a5a8a591b7e94be63b663f1",
+          "executable_sha256": "f6c9cc1f8de431939169852e8b31477ec5f9a2c0dcf3179e4bd315f5d7813f98",
+          "llvm_sha256": "1e826b4e5c3b6915c134576cc397ea3ed8803e059ec47030924d39e9311eba49",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 11,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 12,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 13,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 14,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 15,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 16,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 17,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 18,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 19,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 20,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 21,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 22,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 23,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 24,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 25,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 26,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 27,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 28,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 29,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 30,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 31,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 32,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 33,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 34,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 35,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 36,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 37,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 38,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 39,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 40,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 41,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 42,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 43,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 44,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 45,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 46,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 47,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 48,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 49,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 50,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 51,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 52,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 53,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 54,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 55,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 56,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 57,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 11,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 12,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 13,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 14,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 15,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 16,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 17,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 18,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 19,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 20,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 21,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 22,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 23,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 24,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 25,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 26,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 27,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 28,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 29,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 30,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 31,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 32,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 33,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 34,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 35,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 36,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 37,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 38,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 39,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 40,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 41,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 42,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 43,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 44,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 45,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 46,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 47,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 48,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 49,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 50,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 51,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 52,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 53,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 54,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 55,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 56,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 57,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "owners",
+          "cases": 1,
+          "entry_sha256": "f8f9090831e25d8dcc334f23afc85cd3ca3c534899e2d21f335ed9a61fb33dbe",
+          "executable_sha256": "c140877897008f177799a46df6a85c971445564baec4b6823762d7b8f0506daa",
+          "llvm_sha256": "6459c4a722c50862ce672800ec1361a83ba89fa17806171b721a3bcc0b73a17b",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 9,
+              "zero_leaks": true
+            }
+          ]
+        }
+      ],
+      "compiler_process_settings": {
+        "shell_stack_soft_bytes": 67108864,
+        "RUST_MIN_STACK": "67108864",
+        "CINCH_STACK_SIZE": "unset for compilation; Native default is separate from program8MiB",
+        "cpu": 0
+      },
+      "compiled_program_settings": {
+        "normal": {
+          "CINCH_HEAP_LIMIT": "32M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "0"
+        },
+        "poison": {
+          "CINCH_HEAP_LIMIT": "256M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "1"
+        },
+        "CINCH_LEAK_CHECK": "1",
+        "rows_per_process": 64,
+        "owner_pipelines_per_process": 10,
+        "owner_processes_per_profile": 10
+      }
+    },
+    "native": {
+      "compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+      "frontend_sha256": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+      "source_sha256": "65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256",
+      "fixture_sha256": "0c8f0633bd0cf7de860dc8197f4ecdd6740ca1644a63d6a8f98b991e071fadb3",
+      "source_distributed_kernel": true,
+      "changed_embedded_constructor_validation_claimed": false,
+      "native_base_interfaces_sha256": "1efa9dc943e2ad79f1e1fd350618000da7e7f6e0795b83789054dbdb11a975d3",
+      "results": [
+        {
+          "group": "rows",
+          "cases": 3681,
+          "entry_sha256": "68d21e88ae8468a2fdac457bc38885145b2058de7a5a8a591b7e94be63b663f1",
+          "executable_sha256": "122ce8eddb5bb6385996bcbe01cefde183d07aa67c84b99c4643eaebf05fc914",
+          "llvm_sha256": "a3cf9891fc02d70ef3f950ee046155a0a4fceae4d135ef0c6c7606ef504e799f",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 11,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 12,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 13,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 14,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 15,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 16,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 17,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 18,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 19,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 20,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 21,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 22,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 23,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 24,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 25,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 26,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 27,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 28,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 29,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 30,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 31,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 32,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 33,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 34,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 35,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 36,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 37,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 38,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 39,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 40,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 41,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 42,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 43,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 44,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 45,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 46,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 47,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 48,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 49,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 50,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 51,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 52,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 53,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 54,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 55,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 56,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 57,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 10,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 11,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 12,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 13,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 14,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 15,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 16,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 17,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 18,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 19,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 20,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 21,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 22,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 23,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 24,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 25,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 26,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 27,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 28,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 29,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 30,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 31,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 32,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 33,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 34,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 35,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 36,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 37,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 38,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 39,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 40,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 41,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 42,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 43,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 44,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 45,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 46,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 47,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 48,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 49,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 50,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 51,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 52,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 53,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 54,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 55,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 56,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 57,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "owners",
+          "cases": 1,
+          "entry_sha256": "f8f9090831e25d8dcc334f23afc85cd3ca3c534899e2d21f335ed9a61fb33dbe",
+          "executable_sha256": "d3ddb9c84544c8163c84a8e3ec23bc2e54e2c486e1a63a64ea1a4124373148f0",
+          "llvm_sha256": "f932f43f1cae9bd3a0f08d02c4bda8c53ca9dc9c3efbb65a3ece320b884d0940",
+          "ownership": [
+            {
+              "debug": false,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": false,
+              "batch": 9,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 0,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 1,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 2,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 3,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 4,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 5,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 6,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 7,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 8,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "batch": 9,
+              "zero_leaks": true
+            }
+          ]
+        }
+      ],
+      "compiler_process_settings": {
+        "shell_stack_soft_bytes": 67108864,
+        "RUST_MIN_STACK": "67108864",
+        "CINCH_STACK_SIZE": "unset for compilation; Native default is separate from program8MiB",
+        "cpu": 0
+      },
+      "compiled_program_settings": {
+        "normal": {
+          "CINCH_HEAP_LIMIT": "32M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "0"
+        },
+        "poison": {
+          "CINCH_HEAP_LIMIT": "256M",
+          "CINCH_STACK_SIZE": "8M",
+          "CINCH_RC_DEBUG": "1"
+        },
+        "CINCH_LEAK_CHECK": "1",
+        "rows_per_process": 64,
+        "owner_pipelines_per_process": 10,
+        "owner_processes_per_profile": 10
+      }
+    }
+  },
+  "portable_kernels": {
+    "results": [
+      {
+        "target": "wasm32-unknown-unknown",
+        "entry_sha256": "fdadba5e3d7cbfbadfc26650737a3635dcad240f82238c870794460d6f476d48",
+        "ir_sha256": "50ba7a8af1f05fcf02335011f0fe122368f53724b294d31472532d3069e0d7a4",
+        "object_sha256": "0777a057842e8fcb7d61488b7bd25b26e5f89ca550ae57a8366862a55660aa37",
+        "actual_private_kernels": true
+      },
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "entry_sha256": "fdadba5e3d7cbfbadfc26650737a3635dcad240f82238c870794460d6f476d48",
+        "ir_sha256": "df9c82311fbe5b241c466dd2ea7260177bd32741ed09001a21c2f1bd40d8c1a9",
+        "object_sha256": "dac3ae4401f720fbef986a265b32b16e44f0ece93f470f047ccddac965f195a5",
+        "actual_private_kernels": true
+      }
+    ],
+    "big_endian": "updated Rust target supplied; parent Cargo gate pending"
+  },
+  "canonical_documentation_declarations": 29,
+  "horizontal_sum_model_masks": 256,
+  "benchmark_functional_smokes": {
+    "performance_comparison_claimed": false,
+    "elapsed_observations_discarded": true,
+    "driver_sha256": "c375a660a5e0b0e8092346cf2bcd0ace12adc3c02f8cde99f0dd344a07f18746",
+    "results": [
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "rust",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "scalar",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "initial",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "index",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "last",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "count",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "sparse",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 17,
+        "iterations": 40,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 4097,
+        "iterations": 10,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": false,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      },
+      {
+        "frontend": "native",
+        "version": "packed",
+        "kind": "pipeline",
+        "pattern": "dense",
+        "size": 65537,
+        "iterations": 4,
+        "debug": true,
+        "independent_observations_match": true,
+        "zero_leaks": true
+      }
+    ],
+    "ir_boundaries": {
+      "rust/scalar": {
+        "ir_sha256": "84cdcb83c19b5c3361f90d8550c6b7180dcec815a34ac08600ab64eedba072c1",
+        "start_clock": 490,
+        "work": 544,
+        "end_clock": 554,
+        "postclock_retained_input_uses": [
+          604,
+          638
+        ],
+        "order_verified": true,
+        "helper_may_be_inlined": true
+      },
+      "rust/initial": {
+        "ir_sha256": "5901c60c911acf623f4fade4706d4b7ad5605a1df870415024951df22a4dd9cb",
+        "start_clock": 60,
+        "work": 66,
+        "end_clock": 73,
+        "postclock_retained_input_uses": [
+          76
+        ],
+        "order_verified": true,
+        "helper_may_be_inlined": true
+      },
+      "rust/packed": {
+        "ir_sha256": "eb48549a4c68be5e1ccfd25e838ca6be9d193a4a845118de888703d03c57f153",
+        "start_clock": 60,
+        "work": 66,
+        "end_clock": 73,
+        "postclock_retained_input_uses": [
+          76
+        ],
+        "order_verified": true,
+        "helper_may_be_inlined": true
+      },
+      "native/scalar": {
+        "ir_sha256": "91ba7d8a664998d991fc2c07a69561dd2fcdb96adbac59fe3a1e91003849fa54",
+        "start_clock": 8,
+        "work": 12,
+        "end_clock": 13,
+        "postclock_retained_input_uses": [
+          15
+        ],
+        "order_verified": true,
+        "helper_may_be_inlined": true
+      },
+      "native/initial": {
+        "ir_sha256": "e2e0b8230f49b07061fc646af74fbe501b8bff38ba5e7e826f3c4779bf6142a2",
+        "start_clock": 8,
+        "work": 12,
+        "end_clock": 13,
+        "postclock_retained_input_uses": [
+          15
+        ],
+        "order_verified": true,
+        "helper_may_be_inlined": true
+      },
+      "native/packed": {
+        "ir_sha256": "bcbac76ed748bbc1fc8efb4d36bd58f744f55d627158089f7138e6a0dfdbd298",
+        "start_clock": 8,
+        "work": 12,
+        "end_clock": 13,
+        "postclock_retained_input_uses": [
+          15
+        ],
+        "order_verified": true,
+        "helper_may_be_inlined": true
+      }
+    }
+  },
+  "benchmarks": {
+    "rust": {
+      "report": "benchmarks/stdlib/byte-search-rust-O2-2026-11-16.json",
+      "report_sha256": "cbe0c4111867e2b5ec6bf3fbb121c5e82f86dd0e7f456f489451eb47dfb4bc3a",
+      "large_input_results": [
+        {
+          "kind": "index",
+          "pattern": "sparse",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 262148,
+          "input_sha256": "3266304f31be278d06c3bd3eb9aa3e00c59bedec0a890de466568b0b90b0e01f",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              72639,
+              72408,
+              72249,
+              73340,
+              72318
+            ],
+            "initial": [
+              24437,
+              23996,
+              24116,
+              24917,
+              24998
+            ],
+            "packed": [
+              44036,
+              24467,
+              24657,
+              24217,
+              25008
+            ]
+          },
+          "median_ns": {
+            "scalar": 72408,
+            "initial": 24437,
+            "packed": 24657
+          },
+          "speedup": 2.93661029322302,
+          "speedup_initial": 0.9910775844587744,
+          "paired_speedup_initial": [
+            0.5549323280951949,
+            0.9807495810683778,
+            0.9780589690554407,
+            1.0289053144485278,
+            0.9996001279590531
+          ],
+          "median_paired_speedup_initial": 0.9807495810683778,
+          "paired_speedup_scalar": [
+            1.6495367426650922,
+            2.9594147218702744,
+            2.9301618201727706,
+            3.0284510880786226,
+            2.8917946257197698
+          ],
+          "median_paired_speedup_scalar": 2.9301618201727706
+        },
+        {
+          "kind": "index",
+          "pattern": "dense",
+          "bytes": 65537,
+          "iterations": 2000,
+          "checksum": 1000,
+          "input_sha256": "f8d2825c6edd5bdb3aeb9943bbb85e9cea3ed49a24c77c09c9883b224c3241d3",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              143666,
+              135935,
+              154322,
+              178239,
+              152030
+            ],
+            "initial": [
+              185310,
+              152790,
+              145149,
+              139490,
+              177097
+            ],
+            "packed": [
+              155494,
+              150427,
+              135675,
+              154853,
+              156416
+            ]
+          },
+          "median_ns": {
+            "scalar": 152030,
+            "initial": 152790,
+            "packed": 154853
+          },
+          "speedup": 0.98176980749485,
+          "speedup_initial": 0.9866776878717235,
+          "paired_speedup_initial": [
+            1.191750163993466,
+            1.0157086161393898,
+            1.069828634604754,
+            0.9007897812764364,
+            1.1322179316693943
+          ],
+          "median_paired_speedup_initial": 1.069828634604754,
+          "paired_speedup_scalar": [
+            0.9239327562478294,
+            0.9036609119373517,
+            1.137438732264603,
+            1.1510206453862695,
+            0.9719593903436988
+          ],
+          "median_paired_speedup_scalar": 0.9719593903436988
+        },
+        {
+          "kind": "last",
+          "pattern": "sparse",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 262148,
+          "input_sha256": "3266304f31be278d06c3bd3eb9aa3e00c59bedec0a890de466568b0b90b0e01f",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              72819,
+              73050,
+              72499,
+              176905,
+              72599
+            ],
+            "initial": [
+              18107,
+              17806,
+              19860,
+              17426,
+              17467
+            ],
+            "packed": [
+              112008,
+              17226,
+              17886,
+              17206,
+              17206
+            ]
+          },
+          "median_ns": {
+            "scalar": 72819,
+            "initial": 17806,
+            "packed": 17226
+          },
+          "speedup": 4.2272727272727275,
+          "speedup_initial": 1.0336700336700337,
+          "paired_speedup_initial": [
+            0.16165809585029642,
+            1.0336700336700337,
+            1.1103656491110365,
+            1.0127862373590608,
+            1.015169127048704
+          ],
+          "median_paired_speedup_initial": 1.015169127048704,
+          "paired_speedup_scalar": [
+            0.6501232054853224,
+            4.240682688958551,
+            4.053393715755339,
+            10.281587818202953,
+            4.219400209229339
+          ],
+          "median_paired_speedup_scalar": 4.219400209229339
+        },
+        {
+          "kind": "last",
+          "pattern": "dense",
+          "bytes": 65537,
+          "iterations": 2000,
+          "checksum": 131071000,
+          "input_sha256": "f8d2825c6edd5bdb3aeb9943bbb85e9cea3ed49a24c77c09c9883b224c3241d3",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              93201,
+              93801,
+              92259,
+              92720,
+              92299
+            ],
+            "initial": [
+              115264,
+              94433,
+              113311,
+              93781,
+              93431
+            ],
+            "packed": [
+              94613,
+              112490,
+              94172,
+              93291,
+              94122
+            ]
+          },
+          "median_ns": {
+            "scalar": 92720,
+            "initial": 94433,
+            "packed": 94172
+          },
+          "speedup": 0.9845814042390519,
+          "speedup_initial": 1.0027715244446331,
+          "paired_speedup_initial": [
+            1.218268102692019,
+            0.8394790648057605,
+            1.2032345070721657,
+            1.005252382330557,
+            0.9926584645460147
+          ],
+          "median_paired_speedup_initial": 1.005252382330557,
+          "paired_speedup_scalar": [
+            0.9850760466320696,
+            0.8338607876255667,
+            0.979686106273627,
+            0.993879366712759,
+            0.9806315207921633
+          ],
+          "median_paired_speedup_scalar": 0.9806315207921633
+        },
+        {
+          "kind": "count",
+          "pattern": "sparse",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 8,
+          "input_sha256": "3266304f31be278d06c3bd3eb9aa3e00c59bedec0a890de466568b0b90b0e01f",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              180862,
+              221953,
+              177626,
+              180912,
+              202114
+            ],
+            "initial": [
+              122364,
+              122604,
+              123075,
+              123065,
+              142684
+            ],
+            "packed": [
+              97336,
+              76565,
+              77466,
+              77086,
+              77586
+            ]
+          },
+          "median_ns": {
+            "scalar": 180912,
+            "initial": 123065,
+            "packed": 77466
+          },
+          "speedup": 2.3353729378049723,
+          "speedup_initial": 1.5886324322928769,
+          "paired_speedup_initial": [
+            1.2571299416454345,
+            1.6013060798014758,
+            1.588761521183487,
+            1.5964636899047817,
+            1.8390431263372258
+          ],
+          "median_paired_speedup_initial": 1.5964636899047817,
+          "paired_speedup_scalar": [
+            1.858120325470535,
+            2.898883301769738,
+            2.2929543283505023,
+            2.3468852969410787,
+            2.6050318356404505
+          ],
+          "median_paired_speedup_scalar": 2.3468852969410787
+        },
+        {
+          "kind": "count",
+          "pattern": "dense",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 262152,
+          "input_sha256": "f8d2825c6edd5bdb3aeb9943bbb85e9cea3ed49a24c77c09c9883b224c3241d3",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              217786,
+              337647,
+              467793,
+              285058,
+              306380
+            ],
+            "initial": [
+              144617,
+              192599,
+              186811,
+              178978,
+              214843
+            ],
+            "packed": [
+              77386,
+              108353,
+              99669,
+              119910,
+              111998
+            ]
+          },
+          "median_ns": {
+            "scalar": 306380,
+            "initial": 186811,
+            "packed": 108353
+          },
+          "speedup": 2.8276097569979606,
+          "speedup_initial": 1.7240962409900973,
+          "paired_speedup_initial": [
+            1.868774713772517,
+            1.7775142358771792,
+            1.8743139792713883,
+            1.4926027854224002,
+            1.9182753263451133
+          ],
+          "median_paired_speedup_initial": 1.868774713772517,
+          "paired_speedup_scalar": [
+            2.8142816530121726,
+            3.1161758326949878,
+            4.693465370375945,
+            2.3772662830456177,
+            2.7355845640100718
+          ],
+          "median_paired_speedup_scalar": 2.8142816530121726
+        },
+        {
+          "kind": "pipeline",
+          "pattern": "sparse",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 202376216,
+          "input_sha256": "3266304f31be278d06c3bd3eb9aa3e00c59bedec0a890de466568b0b90b0e01f",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              653411,
+              648743,
+              626871,
+              678959,
+              629374
+            ],
+            "initial": [
+              317847,
+              316115,
+              315583,
+              289965,
+              292069
+            ],
+            "packed": [
+              210376,
+              210136,
+              210856,
+              231608,
+              211247
+            ]
+          },
+          "median_ns": {
+            "scalar": 648743,
+            "initial": 315583,
+            "packed": 210856
+          },
+          "speedup": 3.0767111203854762,
+          "speedup_initial": 1.496675456235535,
+          "paired_speedup_initial": [
+            1.5108519983268054,
+            1.5043352876232534,
+            1.496675456235535,
+            1.2519645262685226,
+            1.3825947824111111
+          ],
+          "median_paired_speedup_initial": 1.496675456235535,
+          "paired_speedup_scalar": [
+            3.1059198767920293,
+            3.087253017093692,
+            2.972981560875669,
+            2.9315006390107423,
+            2.9793275170771656
+          ],
+          "median_paired_speedup_scalar": 2.9793275170771656
+        },
+        {
+          "kind": "pipeline",
+          "pattern": "dense",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 449614233,
+          "input_sha256": "f8d2825c6edd5bdb3aeb9943bbb85e9cea3ed49a24c77c09c9883b224c3241d3",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              178898,
+              198257,
+              178468,
+              181883,
+              179249
+            ],
+            "initial": [
+              142905,
+              124366,
+              123405,
+              125158,
+              125479
+            ],
+            "packed": [
+              82984,
+              77507,
+              93290,
+              77467,
+              78838
+            ]
+          },
+          "median_ns": {
+            "scalar": 179249,
+            "initial": 125158,
+            "packed": 78838
+          },
+          "speedup": 2.2736370785661735,
+          "speedup_initial": 1.5875339303381617,
+          "paired_speedup_initial": [
+            1.7220789549792732,
+            1.604577651050873,
+            1.3228105906313645,
+            1.6156298811106664,
+            1.5916055709175778
+          ],
+          "median_paired_speedup_initial": 1.604577651050873,
+          "paired_speedup_scalar": [
+            2.1558131688036246,
+            2.557923800430929,
+            1.9130453424804374,
+            2.347877160597416,
+            2.2736370785661735
+          ],
+          "median_paired_speedup_scalar": 2.2736370785661735
+        }
+      ]
+    },
+    "native": {
+      "report": "benchmarks/stdlib/byte-search-native-O2-2026-11-16.json",
+      "report_sha256": "79de94fbed0ee586d1bc6df1141d0f7d75d51a1311b3230e5c7aea243b51d9db",
+      "large_input_results": [
+        {
+          "kind": "index",
+          "pattern": "sparse",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 262148,
+          "input_sha256": "3266304f31be278d06c3bd3eb9aa3e00c59bedec0a890de466568b0b90b0e01f",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              139068,
+              142443,
+              471828,
+              140441,
+              78618
+            ],
+            "initial": [
+              240741,
+              239880,
+              217817,
+              218598,
+              197796
+            ],
+            "packed": [
+              78769,
+              55633,
+              202254,
+              52449,
+              34632
+            ]
+          },
+          "median_ns": {
+            "scalar": 140441,
+            "initial": 218598,
+            "packed": 55633
+          },
+          "speedup": 2.524418959969802,
+          "speedup_initial": 3.929286574515126,
+          "paired_speedup_initial": [
+            3.056291180540568,
+            4.311829309941941,
+            1.0769477983130125,
+            4.167820168163359,
+            5.711365211365211
+          ],
+          "median_paired_speedup_initial": 4.167820168163359,
+          "paired_speedup_scalar": [
+            1.765516891162767,
+            2.5604047957147738,
+            2.332848794090599,
+            2.6776678297012335,
+            2.2700970200970203
+          ],
+          "median_paired_speedup_scalar": 2.332848794090599
+        },
+        {
+          "kind": "index",
+          "pattern": "dense",
+          "bytes": 65537,
+          "iterations": 2000,
+          "checksum": 1000,
+          "input_sha256": "f8d2825c6edd5bdb3aeb9943bbb85e9cea3ed49a24c77c09c9883b224c3241d3",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              1413973,
+              833547,
+              821329,
+              805715,
+              754038
+            ],
+            "initial": [
+              1366421,
+              886177,
+              1634816,
+              795179,
+              807008
+            ],
+            "packed": [
+              1551480,
+              817684,
+              810112,
+              898325,
+              819977
+            ]
+          },
+          "median_ns": {
+            "scalar": 821329,
+            "initial": 886177,
+            "packed": 819977
+          },
+          "speedup": 1.001648826735384,
+          "speedup_initial": 1.0807339718065263,
+          "paired_speedup_initial": [
+            0.8807209889911568,
+            1.08376463279213,
+            2.018012324221836,
+            0.8851796398853422,
+            0.9841837027136127
+          ],
+          "median_paired_speedup_initial": 0.9841837027136127,
+          "paired_speedup_scalar": [
+            0.9113704333926316,
+            1.0193999148815436,
+            1.013846233607205,
+            0.8969081345838088,
+            0.9195843298043725
+          ],
+          "median_paired_speedup_scalar": 0.9195843298043725
+        },
+        {
+          "kind": "last",
+          "pattern": "sparse",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 262148,
+          "input_sha256": "3266304f31be278d06c3bd3eb9aa3e00c59bedec0a890de466568b0b90b0e01f",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              178387,
+              154242,
+              229094,
+              151658,
+              149775
+            ],
+            "initial": [
+              180912,
+              179219,
+              179138,
+              267691,
+              176525
+            ],
+            "packed": [
+              30646,
+              34181,
+              28724,
+              27010,
+              26270
+            ]
+          },
+          "median_ns": {
+            "scalar": 154242,
+            "initial": 179219,
+            "packed": 28724
+          },
+          "speedup": 5.369795293134661,
+          "speedup_initial": 6.239346887620108,
+          "paired_speedup_initial": [
+            5.90328264700124,
+            5.243234545507738,
+            6.236526946107785,
+            9.91081081081081,
+            6.719642177388656
+          ],
+          "median_paired_speedup_initial": 6.236526946107785,
+          "paired_speedup_scalar": [
+            5.820890165111271,
+            4.512506948304614,
+            7.97569976326417,
+            5.614883376527212,
+            5.701370384468976
+          ],
+          "median_paired_speedup_scalar": 5.701370384468976
+        },
+        {
+          "kind": "last",
+          "pattern": "dense",
+          "bytes": 65537,
+          "iterations": 2000,
+          "checksum": 131071000,
+          "input_sha256": "f8d2825c6edd5bdb3aeb9943bbb85e9cea3ed49a24c77c09c9883b224c3241d3",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              884615,
+              921250,
+              816181,
+              808650,
+              884143
+            ],
+            "initial": [
+              1019618,
+              895321,
+              910513,
+              884925,
+              1094732
+            ],
+            "packed": [
+              2125196,
+              898816,
+              835080,
+              858004,
+              823032
+            ]
+          },
+          "median_ns": {
+            "scalar": 884143,
+            "initial": 910513,
+            "packed": 858004
+          },
+          "speedup": 1.0304648929375622,
+          "speedup_initial": 1.0611990153892057,
+          "paired_speedup_initial": [
+            0.4797759830152137,
+            0.9961115511962404,
+            1.0903302677587776,
+            1.0313763105999505,
+            1.3301208215476434
+          ],
+          "median_paired_speedup_initial": 1.0313763105999505,
+          "paired_speedup_scalar": [
+            0.4162510187295666,
+            1.0249595022785531,
+            0.9773686353403267,
+            0.9424781236451112,
+            1.0742510619271182
+          ],
+          "median_paired_speedup_scalar": 0.9773686353403267
+        },
+        {
+          "kind": "count",
+          "pattern": "sparse",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 8,
+          "input_sha256": "3266304f31be278d06c3bd3eb9aa3e00c59bedec0a890de466568b0b90b0e01f",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              186590,
+              188032,
+              187511,
+              274852,
+              187952
+            ],
+            "initial": [
+              864738,
+              858749,
+              909575,
+              973291,
+              840662
+            ],
+            "packed": [
+              53310,
+              54722,
+              53760,
+              52669,
+              53450
+            ]
+          },
+          "median_ns": {
+            "scalar": 187952,
+            "initial": 864738,
+            "packed": 53450
+          },
+          "speedup": 3.5164078578110383,
+          "speedup_initial": 16.17844714686623,
+          "paired_speedup_initial": [
+            16.22093415869443,
+            15.69293885457403,
+            16.919177827380953,
+            18.47939015360079,
+            15.728007483629561
+          ],
+          "median_paired_speedup_initial": 16.22093415869443,
+          "paired_speedup_scalar": [
+            3.500093791033577,
+            3.436131720331859,
+            3.487927827380952,
+            5.218477662382046,
+            3.5164078578110383
+          ],
+          "median_paired_speedup_scalar": 3.500093791033577
+        },
+        {
+          "kind": "count",
+          "pattern": "dense",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 262152,
+          "input_sha256": "f8d2825c6edd5bdb3aeb9943bbb85e9cea3ed49a24c77c09c9883b224c3241d3",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              186150,
+              217216,
+              186019,
+              282003,
+              254652
+            ],
+            "initial": [
+              923256,
+              863115,
+              855013,
+              1180562,
+              1174492
+            ],
+            "packed": [
+              51157,
+              64526,
+              51858,
+              65458,
+              68483
+            ]
+          },
+          "median_ns": {
+            "scalar": 217216,
+            "initial": 923256,
+            "packed": 64526
+          },
+          "speedup": 3.366332951058488,
+          "speedup_initial": 14.3082788333385,
+          "paired_speedup_initial": [
+            18.047500830775846,
+            13.376235935901807,
+            16.48758147248255,
+            18.03541201992117,
+            17.150124848502546
+          ],
+          "median_paired_speedup_initial": 17.150124848502546,
+          "paired_speedup_scalar": [
+            3.638798209433704,
+            3.366332951058488,
+            3.5870839600447377,
+            4.308151791988756,
+            3.7184702772950953
+          ],
+          "median_paired_speedup_scalar": 3.638798209433704
+        },
+        {
+          "kind": "pipeline",
+          "pattern": "sparse",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 202376216,
+          "input_sha256": "3266304f31be278d06c3bd3eb9aa3e00c59bedec0a890de466568b0b90b0e01f",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              828533,
+              815584,
+              821783,
+              803606,
+              648764
+            ],
+            "initial": [
+              1830116,
+              1811187,
+              1828584,
+              1858029,
+              1573241
+            ],
+            "packed": [
+              368473,
+              188322,
+              189024,
+              210947,
+              127422
+            ]
+          },
+          "median_ns": {
+            "scalar": 815584,
+            "initial": 1828584,
+            "packed": 189024
+          },
+          "speedup": 4.314711359404097,
+          "speedup_initial": 9.673819197562214,
+          "paired_speedup_initial": [
+            4.966757401492104,
+            9.61750087615892,
+            9.673819197562214,
+            8.808037089885136,
+            12.346698372337586
+          ],
+          "median_paired_speedup_initial": 9.61750087615892,
+          "paired_speedup_scalar": [
+            2.2485582390025862,
+            4.330795127494398,
+            4.347506136786863,
+            3.809516134384466,
+            5.0914598734912335
+          ],
+          "median_paired_speedup_scalar": 4.330795127494398
+        },
+        {
+          "kind": "pipeline",
+          "pattern": "dense",
+          "bytes": 65537,
+          "iterations": 8,
+          "checksum": 449614233,
+          "input_sha256": "f8d2825c6edd5bdb3aeb9943bbb85e9cea3ed49a24c77c09c9883b224c3241d3",
+          "retained": 65537,
+          "samples": {
+            "scalar": [
+              218678,
+              255163,
+              300942,
+              240945,
+              257049
+            ],
+            "initial": [
+              1260832,
+              1182003,
+              1222534,
+              927534,
+              1183973
+            ],
+            "packed": [
+              73551,
+              73069,
+              96086,
+              72330,
+              73472
+            ]
+          },
+          "median_ns": {
+            "scalar": 255163,
+            "initial": 1183973,
+            "packed": 73472
+          },
+          "speedup": 3.472928462543554,
+          "speedup_initial": 16.114615091463413,
+          "paired_speedup_initial": [
+            17.142282225938466,
+            16.17653177133942,
+            12.72333118248236,
+            12.823641642472003,
+            16.114615091463413
+          ],
+          "median_paired_speedup_initial": 16.114615091463413,
+          "paired_speedup_scalar": [
+            2.973147883781322,
+            3.492082825822168,
+            3.132006743958537,
+            3.3311903774367484,
+            3.498598105400697
+          ],
+          "median_paired_speedup_scalar": 3.3311903774367484
+        }
+      ]
+    }
+  },
+  "assembly_receipts": {
+    "rust/initial": {
+      "path": "benchmarks/stdlib/byte-search-rust-initial-count.asm",
+      "sha256": "1f55ebebc61d688a4c7a76198462533bc92594c2dd7d7602d30e2ce4fb790030"
+    },
+    "rust/packed": {
+      "path": "benchmarks/stdlib/byte-search-rust-packed-count.asm",
+      "sha256": "fb26ccd213c3680aa58bd822ba79197f15721ae7b06c8e9472ad8ef6babd1458"
+    },
+    "native/initial": {
+      "path": "benchmarks/stdlib/byte-search-native-initial-count.asm",
+      "sha256": "7a26ec985f0df9aabe0bd8d5a1fe9a13d7827b40450e6658d9bfbc45baadfff0"
+    },
+    "native/packed": {
+      "path": "benchmarks/stdlib/byte-search-native-packed-count.asm",
+      "sha256": "db911a49df5917c6994bf730ddf2b5d8b240fb65101d4500b33e1e2f4ee92ba1"
+    }
+  },
+  "observed_codegen_changes": [
+    "One-high-bit-per-byte masks use shift/multiply horizontal sum instead of generic population count, which expanded to software on generic x86.",
+    "Local LLVM counters/classifiers remove imported Native per-block calls; O2 Native count auto-vectorizes to32-byte groups.",
+    "Scalar first/final byte checks precede packed blocks and exact fringes."
+  ],
+  "measurement_limits": [
+    "Shared-host frequency/contention outliers in both directions; all raw samples retained.",
+    "Dense first/last corrected to2000iterations at every size; original short measurements retained separately.",
+    "Timing includes three checked input mutations, dispatch and public queries; setup/digest before clock, retained input use/cleanup afterward.",
+    "No claim that every short or immediate match becomes faster.",
+    "Corrected constant-work shared-host outliers include Rust dense-index4097=1.58x and Native dense-last4097=0.665x versus scalar; individual distributions are retained and are not treated as universal improvements or regressions."
+  ],
+  "rust_test_target": "lib_byte_search; updated actual horizontal-sum object assertions; parent Cargo pending",
+  "next": "Import-free String scalar observations and sealed-valid count under finalcad70; separate fresh provider gate.",
+  "native_full_o2_corpus": {
+    "opt_level": 2,
+    "object_manifest_sha256": "100023001018d140f06602b87eec20b09bf0bb062c677b8c0c449d6643c62aeb",
+    "base_object_sha256": "6d9c2d00ae3d7d2a4e1119938770fe9ac2c936d8988c2762b7358073a7a713a7",
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "results": [
+      {
+        "group": "rows",
+        "link_command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O2",
+          "/workspace/dasl-stdlib-strings/build/byte-search-candidate1/native/rows/consumer.ll",
+          "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+          "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+          "-o",
+          "/workspace/dasl-stdlib-strings/build/byte-search-candidate1/native/rows/consumer-o2",
+          "-ldl",
+          "-lpthread",
+          "-lm"
+        ],
+        "executable_sha256": "bf8194be6da32c9a27beddf558e926d530c2a70e2e45740b94824009cceff89c",
+        "ir_sha256": "a3cf9891fc02d70ef3f950ee046155a0a4fceae4d135ef0c6c7606ef504e799f",
+        "ownership": [
+          {
+            "debug": false,
+            "batch": 0,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 1,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 2,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 3,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 4,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 5,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 6,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 7,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 8,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 9,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 10,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 11,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 12,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 13,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 14,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 15,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 16,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 17,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 18,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 19,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 20,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 21,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 22,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 23,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 24,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 25,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 26,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 27,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 28,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 29,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 30,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 31,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 32,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 33,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 34,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 35,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 36,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 37,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 38,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 39,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 40,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 41,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 42,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 43,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 44,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 45,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 46,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 47,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 48,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 49,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 50,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 51,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 52,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 53,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 54,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 55,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 56,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 57,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 0,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 1,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 2,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 3,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 4,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 5,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 6,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 7,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 8,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 9,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 10,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 11,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 12,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 13,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 14,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 15,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 16,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 17,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 18,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 19,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 20,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 21,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 22,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 23,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 24,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 25,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 26,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 27,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 28,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 29,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 30,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 31,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 32,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 33,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 34,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 35,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 36,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 37,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 38,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 39,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 40,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 41,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 42,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 43,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 44,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 45,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 46,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 47,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 48,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 49,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 50,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 51,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 52,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 53,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 54,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 55,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 56,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 57,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "owners",
+        "link_command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O2",
+          "/workspace/dasl-stdlib-strings/build/byte-search-candidate1/native/owners/consumer.ll",
+          "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/library.o",
+          "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+          "-o",
+          "/workspace/dasl-stdlib-strings/build/byte-search-candidate1/native/owners/consumer-o2",
+          "-ldl",
+          "-lpthread",
+          "-lm"
+        ],
+        "executable_sha256": "15ff5b94f4fe99a65153660b01d897c2b4801e54a5b7f36fa59f6cf66d1ef92e",
+        "ir_sha256": "f932f43f1cae9bd3a0f08d02c4bda8c53ca9dc9c3efbb65a3ece320b884d0940",
+        "ownership": [
+          {
+            "debug": false,
+            "batch": 0,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 1,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 2,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 3,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 4,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 5,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 6,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 7,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 8,
+            "zero_leaks": true
+          },
+          {
+            "debug": false,
+            "batch": 9,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 0,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 1,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 2,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 3,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 4,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 5,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 6,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 7,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 8,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "batch": 9,
+            "zero_leaks": true
+          }
+        ]
+      }
+    ]
+  },
+  "profile_processes_final_corpus": 408,
+  "benchmark_memory_smoke_processes": 288,
+  "measured_processes_including_retained_corrected_runs": 900
+}

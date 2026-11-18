@@ -1,0 +1,19 @@
+{
+  "scope": "Lossless duplicate build-cache consolidation into an independent plain compiler snapshot; no frozen input is removed or linked to mutable output.",
+  "sha256": "75c24ebe648007082891a43f54ad9ccb0de407710dc1134e861915e3fde6cfa9",
+  "original_metadata": {
+    "st_size": 59217432,
+    "st_mode": 33216,
+    "st_uid": 1000,
+    "st_gid": 1000,
+    "st_mtime_ns": 1794910236979915176
+  },
+  "plain_recovery_copy": "/workspace/dasl-stdlib-io/build/stdlib-driver-phase-frozen/cinch",
+  "original_paths": [
+    "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/2f9f19d157e67fad/out/cinch",
+    "/workspace/dasl-stdlib-io/compiler/target/debug/cinch"
+  ],
+  "restore": "Copy the plain recovery file independently to the first original path, restore the recorded mode, then hardlink the second original path to the restored first path.",
+  "verified_bytes_size_mode_owner_mtime": true,
+  "frozen_copy_fsynced_before_unlink": true
+}

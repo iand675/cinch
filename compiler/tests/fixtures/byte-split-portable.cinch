@@ -1,0 +1,53 @@
+-- | Root complete retained split pipelines and their packed/fringe searches in portable objects.
+module Main where
+  import Data.Bytes
+  import Data.Bytes.View
+  import Data.Bytes.Word
+  import Data.Bytes.Split
+  import Data.Bool
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Producer
+
+  -- | Observe all three output boundaries without depending on view equality instances.
+  three :: List ByteView -> Nat -> Nat -> Nat -> Bool
+  three values a b c = case values of
+    Cons first (Cons second (Cons last Nil)) -> byte-view-length first == a && byte-view-length second == b && byte-view-length last == c
+    other -> False
+
+  -- | Observe an explicit maximum with the final unsplit remainder.
+  two :: List ByteView -> Nat -> Nat -> Bool
+  two values a b = case values of
+    Cons first (Cons last Nil) -> byte-view-length first == a && byte-view-length last == b
+    other -> False
+
+  -- | Count complete logical payload bytes through a concrete persistent producer.
+  add-width :: Nat -> ByteView -> Nat
+  add-width total part = total + byte-view-length part
+
+  -- | Require one retained pull result of the expected width.
+  pulled :: Option ByteView -> Nat -> Bool
+  pulled result expected = case result of None -> False; Some part -> byte-view-length part == expected
+
+  -- | Require stable exhaustion after the last fragment.
+  ended :: Option ByteView -> Bool
+  ended result = case result of None -> True; Some part -> False
+
+  -- | Exercise complete words, scalar fringes, limits, replay and explicit shared cursor storage.
+  main :: Int
+  main = let raw = bytes-new 65 in
+    let a = if 31 < bytes-len raw then bytes-set raw 31 44 else () in
+    let b = if 63 < bytes-len raw then bytes-set raw 63 44 else () in
+    let delimiter = bytes-from-u8s [44] in let source = bytes-view raw in let separator = bytes-view delimiter in
+    let before = three (bytes-split raw delimiter) 31 31 1 in
+    let after = three (bytes-split-after raw delimiter) 32 32 1 in
+    let limited = two (bytes-split-limit (Some 2) raw delimiter) 31 33 in
+    let producer = bytes-split-seq raw delimiter in
+    let total = prod-fold (0 :: Nat) add-width producer in let replay = prod-fold (0 :: Nat) add-width producer in
+    let lines = prod-fold (0 :: Nat) add-width (bytes-lines raw) in
+    let factory = byte-view-split-factory SplitBefore None source separator in
+    let cursor = byte-split-cursor factory in let first = byte-split-next cursor in
+    let second = byte-split-next cursor in let third = byte-split-next cursor in let final = byte-split-next cursor in
+    if before && after && limited && total == 63 && replay == 63 && lines == 65
+      && pulled first 31 && pulled second 31 && pulled third 1 && ended final then 0 else 1

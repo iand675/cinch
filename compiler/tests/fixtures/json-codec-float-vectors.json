@@ -1,0 +1,1437 @@
+{
+  "float_encoding": [
+    {
+      "bits": "0000000000000000",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30"
+    },
+    {
+      "bits": "8000000000000000",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d30"
+    },
+    {
+      "bits": "0000000000000001",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "35652d333234"
+    },
+    {
+      "bits": "000fffffffffffff",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e323235303733383538353037323031652d333038"
+    },
+    {
+      "bits": "0010000000000000",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e32323530373338353835303732303134652d333038"
+    },
+    {
+      "bits": "3ff0000000000000",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31"
+    },
+    {
+      "bits": "3eb0c6f7a0b5ed8d",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "302e303030303031"
+    },
+    {
+      "bits": "3e7ad7f29abcaf48",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31652d37"
+    },
+    {
+      "bits": "4415af1d78b58c40",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313030303030303030303030303030303030303030"
+    },
+    {
+      "bits": "444b1ae4d6e2ef50",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31652b3231"
+    },
+    {
+      "bits": "7fefffffffffffff",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e37393736393331333438363233313537652b333038"
+    },
+    {
+      "bits": "ffefffffffffffff",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e37393736393331333438363233313537652b333038"
+    },
+    {
+      "bits": "7ff0000000000000",
+      "error": {
+        "kind": "value",
+        "offset": 0,
+        "value": "+Inf",
+        "type": "float64",
+        "text": "json: unsupported value: +Inf"
+      },
+      "output_hex": ""
+    },
+    {
+      "bits": "fff0000000000000",
+      "error": {
+        "kind": "value",
+        "offset": 0,
+        "value": "-Inf",
+        "type": "float64",
+        "text": "json: unsupported value: -Inf"
+      },
+      "output_hex": ""
+    },
+    {
+      "bits": "7ff8000000000000",
+      "error": {
+        "kind": "value",
+        "offset": 0,
+        "value": "NaN",
+        "type": "float64",
+        "text": "json: unsupported value: NaN"
+      },
+      "output_hex": ""
+    },
+    {
+      "bits": "99ba681b68949f34",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d392e373130333831323132383339373233652d313835"
+    },
+    {
+      "bits": "3b17a60a1e90fb0a",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "342e383930343134313835343838333139652d3234"
+    },
+    {
+      "bits": "5e6e2bf7010a587c",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "372e353335303836323832323538353535652b313436"
+    },
+    {
+      "bits": "4ea527624109d3cc",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "372e3239393932323932383132323236652b3730"
+    },
+    {
+      "bits": "10a606909b50b36b",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e38313539343137353837303937333035652d323238"
+    },
+    {
+      "bits": "2a760d9e29bda8cd",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "332e38343632313032333439343238373435652d313034"
+    },
+    {
+      "bits": "6c63dc024e2540dc",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e33333731323839313435323530363838652b323134"
+    },
+    {
+      "bits": "b21685081148bd5d",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d322e303838323531303130373038323833652d3637"
+    },
+    {
+      "bits": "b22c61f2f220db67",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d352e323633383438313932393032373838652d3637"
+    },
+    {
+      "bits": "09fd12f4c2bca311",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e34373733303138393732393831393937652d323630"
+    },
+    {
+      "bits": "3198ed506c5d3e17",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "392e303239323339353433303230383237652d3730"
+    },
+    {
+      "bits": "265e7d0bbf5ee1ab",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "372e32303633383231383032343431363136652d313234"
+    },
+    {
+      "bits": "01c7b3af0efd56a8",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "342e343234303232333132353734303437652d333030"
+    },
+    {
+      "bits": "9bf5bc14496a0605",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d352e343932333230323938363135313435652d313734"
+    },
+    {
+      "bits": "9a892c209d2bf349",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d372e353832393235313132343438383737652d313831"
+    },
+    {
+      "bits": "f586f4f2455a56ef",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e33373837383938303536333530343833652b323538"
+    },
+    {
+      "bits": "310df610ce9cb982",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e31313936373933353337353831393834652d3732"
+    },
+    {
+      "bits": "6ee9ce239ffda071",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e393130333536393130313837353937652b323236"
+    },
+    {
+      "bits": "9accc1ef5d466771",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e33383630363832333737343230333733652d313739"
+    },
+    {
+      "bits": "92d2f505317517ff",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d352e333730323539373133373332343134652d323138"
+    },
+    {
+      "bits": "a2f13ed6008de210",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d322e32363237353033313433343431383734652d313430"
+    },
+    {
+      "bits": "d655ce56c81e7dd4",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d382e303031393239323138373631353539652b313037"
+    },
+    {
+      "bits": "3db7722cc5f5b42f",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e31333234303038383534323435333632652d3131"
+    },
+    {
+      "bits": "ccdba06a3e98b487",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e37373537373037343332323538333731652b3632"
+    },
+    {
+      "bits": "2d4bfec6d204442e",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e373137383839343731373237363131652d3930"
+    },
+    {
+      "bits": "57a8aea658788726",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e383939343731313135373039323731652b313134"
+    },
+    {
+      "bits": "783ca978e55d7fa8",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e35313431393738333636393833393033652b323731"
+    },
+    {
+      "bits": "c9b84ac2b2932f57",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e333836383239393431393338333738652b3437"
+    },
+    {
+      "bits": "783231078f453cc9",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "392e363130343831333734393031383033652b323730"
+    },
+    {
+      "bits": "f4b30875bf6da4f0",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e333935343139313234313830373434652b323534"
+    },
+    {
+      "bits": "1d58b32fbc9643b9",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e363137393332343933353832303832652d313637"
+    },
+    {
+      "bits": "774322254cf4a17e",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "332e303834373335333830333136373539652b323636"
+    },
+    {
+      "bits": "1a78da790012d7bc",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "332e373433343230323236363035383131652d313831"
+    },
+    {
+      "bits": "2a2acd2e96769d13",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e34363037333138363730313237333832652d313035"
+    },
+    {
+      "bits": "70d70b612c8d54e9",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "332e36363335353734313632383335303835652b323335"
+    },
+    {
+      "bits": "21c29695cf1c5400",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "342e363531383935393830393131333534652d313436"
+    },
+    {
+      "bits": "6da75d0670476ca8",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e36343934363237343534313738393134652b323230"
+    },
+    {
+      "bits": "bf5a9dfb100bc871",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d302e30303136323435373935393937363032383038"
+    },
+    {
+      "bits": "85370faa5a95e3a1",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e35353038333539373331343733373537652d323833"
+    },
+    {
+      "bits": "e4e9ee2917600026",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e33313334353531323337363335363732652b313738"
+    },
+    {
+      "bits": "f227afc88e0609a6",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d372e383937313437353237393535363931652b323431"
+    },
+    {
+      "bits": "0139bc2d07c6ac35",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "392e333831383733393030383738313238652d333033"
+    },
+    {
+      "bits": "ff09972561be8c2d",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d382e373734353131363837383334383837652b333033"
+    },
+    {
+      "bits": "0ebfcbd221b15a75",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e32323037323633333539333530303031652d323337"
+    },
+    {
+      "bits": "ffdd812fc9e80581",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d382e323837353433383432333138373532652b333037"
+    },
+    {
+      "bits": "5ea25177c75e95ca",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "372e333139363639373837323630313539652b313437"
+    },
+    {
+      "bits": "753beb57190e1a61",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "352e323430313134393434313733393031652b323536"
+    },
+    {
+      "bits": "5c8dc58b4bdcbe15",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "362e393234353431373632343138313633652b313337"
+    },
+    {
+      "bits": "4ea6aee579f42229",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "372e383237363830383531363534343434652b3730"
+    },
+    {
+      "bits": "71fc614c8a10602d",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e3138323734323135303132343235652b323431"
+    },
+    {
+      "bits": "4bf36ddd4c43ebad",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "372e363232343235303832373832333234652b3537"
+    },
+    {
+      "bits": "8dbf6375d520273a",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e38333837393931363135333435333436652d323432"
+    },
+    {
+      "bits": "95d69eaba18ce9f4",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e383033363438313539373330373032652d323033"
+    },
+    {
+      "bits": "9c11fcd912850d27",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e383138313834303131353434323334652d313733"
+    },
+    {
+      "bits": "34a48bbbfdbdaefd",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "342e313839363230313136333031363837652d3535"
+    },
+    {
+      "bits": "0350f201c532cae0",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e30363132393130343036353639383732652d323932"
+    },
+    {
+      "bits": "cb4f4d9efdbc1775",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d352e39393635303331393330363133343634652b3534"
+    },
+    {
+      "bits": "f4a33055099a121b",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d372e303334313930343632373238353538652b323533"
+    },
+    {
+      "bits": "1705ccd906b0c0ff",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "392e313133363635313432373433323936652d313938"
+    },
+    {
+      "bits": "0c6dd0f3fdee7ebe",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "382e333238383732363730383539393537652d323439"
+    },
+    {
+      "bits": "273e14ab35dbcdc3",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e31363439303432303639323531303936652d313139"
+    },
+    {
+      "bits": "ad88fd02b9cb6a98",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d322e34353334303032343734323835303533652d3839"
+    },
+    {
+      "bits": "4593bd0d17ab5a4d",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e35323731393039393834373438343436652b3237"
+    },
+    {
+      "bits": "c5d963f1f3693fb9",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d332e313433313830353932383536323536652b3238"
+    },
+    {
+      "bits": "ce3bc949aa3b2386",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d372e343931313636333436343733303539652b3638"
+    },
+    {
+      "bits": "05917e583b557441",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "372e353239303734383731303232303937652d323832"
+    },
+    {
+      "bits": "b18f2c2d2d24eee9",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d352e363435373734373733383735313333652d3730"
+    },
+    {
+      "bits": "6d97dbaad9703d74",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "382e343231393432333532313731363331652b323139"
+    },
+    {
+      "bits": "1cc4eb43d77f000e",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "342e33333034353433303332383238383934652d313730"
+    },
+    {
+      "bits": "11b116af140c3d8e",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e38343636373237343036383839353738652d323233"
+    },
+    {
+      "bits": "488fa0f3c2708675",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "332e34343430363235363832323834353834652b3431"
+    },
+    {
+      "bits": "4bf1a93a1d695a39",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "362e393238373630323334303335373138652b3537"
+    },
+    {
+      "bits": "f0af77c655d826cd",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d362e323533333638303231343033383631652b323334"
+    },
+    {
+      "bits": "3a644540a02385c0",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e303436373939313930303039313639652d3237"
+    },
+    {
+      "bits": "20657b933cacb2cb",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e32383138303332393037383238313036652d313532"
+    },
+    {
+      "bits": "ea747d7ed57c396e",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d362e343234323637353232393432323537652b323034"
+    },
+    {
+      "bits": "442df17445cd5a9c",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323736313737303933303733313533343330303030"
+    },
+    {
+      "bits": "058b95b9bb11e729",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "352e393336313530393836363234393132652d323832"
+    },
+    {
+      "bits": "c0eeba686db52ea7",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d36323933312e323633333932303538343835"
+    },
+    {
+      "bits": "f6ee1b536f850d3a",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d372e35383432303332383331373333383835652b323634"
+    },
+    {
+      "bits": "c9726d329afe09a0",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d362e353734383133393636303537373436652b3435"
+    },
+    {
+      "bits": "a9fe94eaba1b9db3",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d322e30383334353038363030343230343336652d313036"
+    },
+    {
+      "bits": "73c83053d6aea648",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "352e3431323033323233313037353537652b323439"
+    },
+    {
+      "bits": "e90fd2d5dc6b6904",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e31383934323234383636393838383432652b313938"
+    },
+    {
+      "bits": "9467c3d8fd857ed6",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d322e32353839373438383234323634323035652d323130"
+    },
+    {
+      "bits": "a765e02681ad01ab",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d362e373737323137383832343036313936652d313139"
+    },
+    {
+      "bits": "ffb1fdc5a50b5168",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e32363333393138343438343131393238652b333037"
+    },
+    {
+      "bits": "766556863d2c1dca",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e30393937313136373434393131343734652b323632"
+    },
+    {
+      "bits": "290f09d1170a7771",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "362e34353331323636353030323537323936652d313131"
+    },
+    {
+      "bits": "4b6933c906e99fdf",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e39333131313935353934313833393337652b3535"
+    },
+    {
+      "bits": "0bae09c2ab385b20",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e30343835343936333337373731393731652d323532"
+    },
+    {
+      "bits": "2b3aa6252c30e396",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e393033373137323733333031313031652d313030"
+    },
+    {
+      "bits": "804913e13980a7d1",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d322e37383939383137373337313132373837652d333037"
+    },
+    {
+      "bits": "1e0040f86a9c72de",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "332e353238313439393134323737373234652d313634"
+    },
+    {
+      "bits": "f052152cc8783dbb",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e31323239343936363230383438353936652b323333"
+    },
+    {
+      "bits": "75e5739a0e50c300",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "382e323435363538353537343935343038652b323539"
+    },
+    {
+      "bits": "e648720df310a286",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d352e31393335373839303735333737333134652b313834"
+    },
+    {
+      "bits": "5637aeeafc08e243",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e31373237303231363131353933353335652b313037"
+    },
+    {
+      "bits": "ebbf4b89310e0347",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e30323838353137343930303339373731652b323131"
+    },
+    {
+      "bits": "e02cb07bfd862e81",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e39323333303932383339343430383938652b313535"
+    },
+    {
+      "bits": "6666d419eb1ea29c",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e393430303135313237383131353431652b313835"
+    },
+    {
+      "bits": "f8cdb4cfba81b8d9",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d382e303335313630353837373335303035652b323733"
+    },
+    {
+      "bits": "98f98e1be951ade8",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d322e32393432343839313730383937373135652d313838"
+    },
+    {
+      "bits": "a5c7f87d563374b3",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e31303636303330373039363532373135652d313236"
+    },
+    {
+      "bits": "de415fb6f3e05e9a",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e30383437333830333033323831383334652b313436"
+    },
+    {
+      "bits": "29ce354f9c8d78a7",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e35373235303939363832383137353935652d313037"
+    },
+    {
+      "bits": "fc1e16aed8d2ab96",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d372e333330353732373037363033313537652b323839"
+    },
+    {
+      "bits": "8ae99359b2392b41",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d342e32353833333030313538333039343734652d323536"
+    },
+    {
+      "bits": "f95af4abf8d1a957",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d332e37333330383132343635353331393933652b323736"
+    },
+    {
+      "bits": "8fcd4867d1eabfc5",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d312e34373335353534303035323336353331652d323332"
+    },
+    {
+      "bits": "44f0570244ea3bfa",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e32333436303633303335373337303938652b3234"
+    },
+    {
+      "bits": "31cc44849f88510d",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "382e3139313434383134393131333238652d3639"
+    },
+    {
+      "bits": "659893de3b5ca2ef",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e35343936323933353634383935343232652b313831"
+    },
+    {
+      "bits": "53351aa2448b406a",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "362e383738333439373130333234333138652b3932"
+    },
+    {
+      "bits": "d0af0529520b0c6a",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d342e353937363138333532303930313635652b3830"
+    },
+    {
+      "bits": "4607fcf4620540f2",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e333735363636373531333634383432652b3239"
+    },
+    {
+      "bits": "3c41054bce6936f3",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e38343533383636383635383531363536652d3138"
+    },
+    {
+      "bits": "442e66b395da385e",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "323830343031333732373934323333373530303030"
+    },
+    {
+      "bits": "41a862c874285bae",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "3230343536333531342e3037383832343436"
+    },
+    {
+      "bits": "504145d3a4912099",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "342e3030303039383038383233323633652b3738"
+    },
+    {
+      "bits": "f64cc0250ab30498",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d372e303732383230353030303236363038652b323631"
+    },
+    {
+      "bits": "8df7e85905d64491",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d322e32343038383532353732323233333134652d323431"
+    },
+    {
+      "bits": "12f924cfd26eec58",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e38343931343132383338333537363533652d323137"
+    },
+    {
+      "bits": "087208cb44fa2780",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "352e343631393038323539393330393839652d323638"
+    },
+    {
+      "bits": "24d0e680cf9433cf",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "322e333830393937363132313433333434652d313331"
+    },
+    {
+      "bits": "c569a470bdae0868",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d322e34373939373534363337343131303135652b3236"
+    },
+    {
+      "bits": "094190166aaa4e78",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "342e333537343131383137393337353834652d323634"
+    },
+    {
+      "bits": "8cc691beaceb84e4",
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d342e303334383932343236333938303134652d323437"
+    }
+  ],
+  "typed": [
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "6e756c6c",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d30",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "312e30",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31652d36",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "302e303030303031",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31652d37",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31652d37",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31653230",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "313030303030303030303030303030303030303030",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31653231",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "31652b3231",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "39303037313939323534373430393933",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "39303037313939323534373430393932",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "312e3739373639333133343836323331353765333038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "312e37393736393331333438363233313537652b333038",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 22,
+        "value": "number 1.7976931348623159e308",
+        "type": "float64",
+        "text": "json: cannot unmarshal number 1.7976931348623159e308 into Go value of type float64"
+      },
+      "input_hex": "312e3739373639333133343836323331353965333038",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "35652d333234",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "35652d333234",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "31652d39393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "30",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "input_hex": "2d31652d39393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "2d30",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 6,
+        "value": "number 1e9999",
+        "type": "float64",
+        "text": "json: cannot unmarshal number 1e9999 into Go value of type float64"
+      },
+      "input_hex": "316539393939",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 3,
+        "value": "string",
+        "type": "float64",
+        "text": "json: cannot unmarshal string into Go value of type float64"
+      },
+      "input_hex": "223122",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 4,
+        "value": "bool",
+        "type": "float64",
+        "text": "json: cannot unmarshal bool into Go value of type float64"
+      },
+      "input_hex": "74727565",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "array",
+        "type": "float64",
+        "text": "json: cannot unmarshal array into Go value of type float64"
+      },
+      "input_hex": "5b5d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "F64"
+    },
+    {
+      "error": {
+        "kind": "type",
+        "offset": 1,
+        "value": "object",
+        "type": "float64",
+        "text": "json: cannot unmarshal object into Go value of type float64"
+      },
+      "input_hex": "7b7d",
+      "output_error": {
+        "kind": "",
+        "offset": 0
+      },
+      "output_hex": "37",
+      "type": "F64"
+    }
+  ]
+}

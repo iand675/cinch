@@ -1,0 +1,62 @@
+-- | Prepared-buffer equality pipeline with runtime-selected owners and complete result consumption.
+module Main where
+  import Crypto.ConstantTime
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Effect.Process
+  -- | Read a runtime barrier token so prepared-owner selection cannot be hoisted.
+  foreign import ccall "constant_time_tick" tick :: forall r. U32 ->{IO r} U32
+  -- | Read the monotonic clock outside the timed loop.
+  foreign import ccall "constant_time_now" now :: forall r. Unit ->{IO r} I64
+  -- | Report the measured interval and consumed outcome count.
+  foreign import ccall "constant_time_report" report :: forall r. I64 -> U64 ->{IO r} Unit
+  -- | Fill inputs before measurement without using an operation under test.
+  fill :: Bytes -> Nat -> Unit
+  fill buffer index = if index < bytes-len buffer then
+    let byte = (index * 73 + index / 7) % 256 in
+    let written = if byte <= 255 then bytes-set buffer index byte else () in fill buffer (index + 1)
+    else ()
+  -- | Allocate an independently owned prepared buffer.
+  prepared :: Nat -> Bytes
+  prepared size = let buffer = bytes-new size in let filled = fill buffer 0 in buffer
+  -- | Parse public unsigned benchmark dimensions from runtime arguments.
+  decimal-from :: Bytes -> Nat -> Nat -> Nat
+  decimal-from input index value = if index < bytes-len input then
+    let byte = bytes-get input index in
+    if 48 <= byte && byte <= 57 then decimal-from input (index + 1) (value * 10 + byte - 48) else value
+    else value
+  -- | Read dimensions without compiling a separate constant-size benchmark.
+  decimal :: String -> Nat
+  decimal value = decimal-from (string-to-bytes value) 0 0
+  -- | Alternate fully prepared owners and consume every comparison result.
+  repeat :: forall r. U32 -> Bytes -> Bytes -> Bytes -> Bool -> U64 ->{IO r} U64
+  repeat remaining left alternate right control consumed = if remaining > 0 then
+    let token = tick remaining in
+    let input = if bit-and-u32 token 1 == 0 then left else alternate in
+    let same = if control then True else constant-bytes-equal input right in
+    let next = wrapping-add-u64 consumed (if same then 1 else 0) in
+    repeat (wrapping-sub-u32 remaining 1) left alternate right control next
+    else consumed
+  -- | Prepare inputs, place one public mismatch, then time only the repeated public pipeline.
+  run :: forall r. Nat -> U32 -> String -> Bool ->{IO r} Int
+  run size iterations mode control =
+    let left = prepared size in let alternate = prepared size in let right = prepared size in
+    let mismatch = ((if mode == "first" then 0 else if mode == "middle" then size / 2 else if mode == "last" then (if size > 0 then size - 1 else 0) else size) :: Nat) in
+    let changed = (if mismatch < bytes-len right then
+      let value = wrapping-i64-to-u8 (nat-to-i64 (bytes-get right mismatch)) in
+      bytes-set right mismatch (u8-to-nat (bit-xor-u8 value 128))
+      else ()) in
+    let start = now () in
+    let observed = repeat iterations left alternate right control 0 in
+    let finish = now () in
+    let elapsed = wrapping-sub-i64 finish start in
+    let printed = report elapsed observed in
+    if observed == (if control || mode == "equal" || size == 0 then u32-to-u64 iterations else 0) then 0 else 1
+  -- | Select runtime dimensions and an independently checkable scenario.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons size (Cons count (Cons mode (Cons control Nil)))) ->
+      let requested = decimal count in
+      if requested <= 4294967295 then run (decimal size) (wrapping-i64-to-u32 (nat-to-i64 requested)) mode (control == "control") else 2
+    other -> 2

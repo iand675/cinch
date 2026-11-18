@@ -1,0 +1,158 @@
+
+  -- | Increment a real caller mutation cell before each actual storage operation.
+  live-tick :: forall (r :: Region). Var r I64 ->{Mut r} Unit
+  live-tick counter = let old = var-read counter in var-write counter (wrapping-add-i64 old 1)
+
+  -- | Preserve a real read prefix and attach an explicit typed caller error after it.
+  live-backend-read :: forall (r :: Region). Var r I64 -> ManagedToken -> ManagedToken -> Nat ->{IO r, Mut r} ((Bytes, MultipartReadStatus FixtureError), ManagedToken)
+  live-backend-read counter state file wanted =
+    let ticked = live-tick counter in
+    case managed-read state file wanted of
+      (result, advanced) -> case result of
+        (output, status) -> ((output, if bytes-len output > 0 then (case status of MultipartReadFailure error -> status; _ -> MultipartReadFailure (fixture-error 6)) else status), advanced)
+
+  -- | Exercise all eight richer callbacks with actual IO and a captured mutation cell.
+  live-storage :: forall (r :: Region). Var r I64 -> Unit ->{Mut r} MultipartStorage r FixtureError ManagedToken ManagedToken ManagedToken
+  live-storage counter unit = multipart-storage-with-mutation (managed-token 0)
+    (\state -> let ticked = live-tick counter in managed-create state)
+    (\state file input -> let ticked = live-tick counter in managed-write state file input)
+    (\state file wanted -> live-backend-read counter state file wanted)
+    (\state file wanted offset -> let ticked = live-tick counter in managed-read-at state file wanted offset)
+    (\state file offset whence -> let ticked = live-tick counter in managed-seek state file offset whence)
+    (\state file -> let ticked = live-tick counter in managed-close state file)
+    (\state key -> let ticked = live-tick counter in managed-open state key)
+    (\state key -> let ticked = live-tick counter in managed-remove state key)
+
+  -- | Borrow a live input part, retaining its shared progress and exact status.
+  live-part-source :: forall (r :: Region). MultipartPart r FixtureError -> MultipartSource r (MultipartError FixtureError)
+  live-part-source part = multipart-source-with-mutation (\wanted ->
+    let result = multipart-part-read part wanted in (result, live-part-source part))
+
+  -- | Borrow a real file with managed key/handle/state and an independent error status.
+  live-file-source :: forall (r :: Region). MultipartFile r FixtureError ManagedToken ManagedToken ManagedToken -> MultipartSource r (MultipartError FixtureError)
+  live-file-source file = multipart-source-with-mutation (\wanted ->
+    let result = multipart-file-read file wanted in (result, live-file-source file))
+
+  -- | Forward exactly one real output-part write without closing its borrowed owner.
+  live-part-sink :: forall (r :: Region). MultipartOutputPart r FixtureError -> MultipartSink r (MultipartError FixtureError)
+  live-part-sink part = multipart-sink-with-mutation (\input ->
+    let result = multipart-output-write part input in (result, live-part-sink part))
+
+  -- | Observe precise callback prefixes independently of fresh output ownership.
+  live-read-is :: (Bytes, MultipartReadStatus (MultipartError FixtureError)) -> Bytes -> String -> Bool
+  live-read-is result expected message = case result of
+    (output, status) -> same output expected && status-message status == message
+
+  -- | Stale and advanced source aliases see one live part cursor, never replayed bytes.
+  live-part-aliases :: forall (r :: Region). MultipartPart r FixtureError ->{IO r, Mut r} Bool
+  live-part-aliases part =
+    let source = live-part-source part in
+    case multipart-source-read source 2 of
+      (first, next) -> case multipart-source-read source 2 of
+        (second, newer) -> case multipart-source-read next 99 of
+          (third, finalSource) -> case multipart-source-read newer 1 of
+            (ended, advanced) ->
+              let original = live-read-is first (string-to-bytes "ab") "" in
+              let changed = case first of (output, status) -> if bytes-len output > 0 then bytes-set output 0 88 else () in
+              let direct = multipart-part-read part 1 in
+              original && live-read-is second (string-to-bytes "cd") "" && live-read-is third (string-to-bytes "ef") "EOF" &&
+                live-read-is ended (bytes-new 0) "EOF" && live-read-is direct (bytes-new 0) "EOF"
+
+  -- | Parse a real part and retain the original source owner across the foreign copy.
+  live-part-control :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Bool
+  live-part-control unit =
+    let wire = string-to-bytes "--b\r\n\r\nabcdef\r\n--b--\r\n" in
+    let original = fixture-part wire (bytes-len wire) in
+    let initialized = raw-source-init (bytes-data wire) (nat-to-i64 (bytes-len wire)) 4096 1 in
+    let reader = multipart-reader (fixture-source ()) (string-to-bytes "b") in
+    let matched = case multipart-next-part reader of Ok (Some part) -> live-part-aliases part; _ -> False in
+    let ended = multipart-next-part reader in
+    let finished = raw-source-finish 0 in
+    matched && (case ended of Ok None -> True; _ -> False) && eq-i64 initialized 0 && eq-i64 finished 0 && same wire original
+
+  -- | Check confirmed short writes, advanced aliases and replacement of the sticky body error.
+  live-sink-aliases :: forall (r :: Region). MultipartWriter r FixtureError -> MultipartOutputPart r FixtureError ->{IO r, Mut r} Bool
+  live-sink-aliases writer part =
+    let sink = live-part-sink part in
+    case multipart-sink-write sink (string-to-bytes "abcd") of
+      (first, next) -> case multipart-sink-write sink (string-to-bytes "xyz") of
+        (second, newer) -> case multipart-sink-write next (bytes-new 0) of
+          (third, finalSink) ->
+            let closed = multipart-writer-finish writer in
+            let repeated = multipart-writer-finish writer in
+            case multipart-sink-write newer (string-to-bytes "late") of
+              (stale, after) -> case first of
+                (a, errorA) -> case second of
+                  (b, errorB) -> case third of
+                    (c, errorC) -> case stale of
+                      (d, errorD) -> a == 2 && optional-message errorA == "header failure" && b == 1 && optional-message errorB == "" &&
+                        c == 0 && optional-message errorC == "last error" && d == 0 && optional-message errorD == "multipart: can't write to finished part" &&
+                        result-message closed == "last error" && result-message repeated == "last error"
+
+  -- | Real C accepts only the scripted prefixes, with independently computed offer/output hashes.
+  live-sink-control :: forall (r :: Region). using (io :: Io r) => U64 -> U64 -> I64 ->{IO r, Mut r} Bool
+  live-sink-control trace output size =
+    let reset = raw-reset 0 in
+    let one = raw-script 1 2 1 in
+    let two = raw-script 2 1 0 in
+    let three = raw-script 3 0 4 in
+    let matched = case multipart-writer-boundary (string-to-bytes "outer") (fixture-sink ()) of
+          Err error -> False
+          Ok writer -> case multipart-create-field writer (string-to-bytes "f") of Err error -> False; Ok part -> live-sink-aliases writer part in
+    let calls = raw-calls 0 in
+    let actualTrace = raw-trace 0 in
+    let actualOutput = raw-output 0 in
+    let actualSize = raw-size 0 in
+    matched && eq-i64 reset 0 && eq-i64 one 0 && eq-i64 two 0 && eq-i64 three 0 && eq-i64 calls 4 &&
+      eq-u64 actualTrace trace && eq-u64 actualOutput output && eq-i64 actualSize size
+
+  -- | A file source forwards simultaneous positive prefixes/errors and keeps all aliases advanced.
+  live-file-aliases :: forall (r :: Region). MultipartFile r FixtureError ManagedToken ManagedToken ManagedToken ->{IO r, Mut r} Bool
+  live-file-aliases file =
+    let source = live-file-source file in
+    case multipart-source-read source 2 of
+      (first, next) -> case multipart-source-read source 2 of
+        (second, newer) -> case multipart-source-read next 2 of
+          (third, finalSource) -> case multipart-source-read newer 1 of
+            (ended, advanced) ->
+              let sought = multipart-file-seek file 0 0 in
+              let positioned = multipart-file-read-at file 3 1 in
+              let direct = multipart-file-read file 99 in
+              let closed = multipart-file-close file in
+              let again = multipart-file-close file in
+              live-read-is first (string-to-bytes "ab") "fixture source failure" && live-read-is second (string-to-bytes "cd") "fixture source failure" &&
+                live-read-is third (string-to-bytes "ef") "fixture source failure" && live-read-is ended (bytes-new 0) "EOF" &&
+                (case sought of Ok zero -> eq-i64 zero 0; _ -> False) && live-read-is positioned (string-to-bytes "bcd") "" &&
+                live-read-is direct (string-to-bytes "abcdef") "fixture source failure" && result-message closed == "" &&
+                result-message again == "close <scratch>: file already closed"
+
+  -- | Open a genuine spilled file and keep the original error/key/handle/state payloads managed.
+  live-form-file :: forall (r :: Region). MultipartForm r FixtureError ManagedToken ManagedToken ManagedToken ->{IO r, Mut r} Bool
+  live-form-file form =
+    let files = multipart-form-files-at form (string-to-bytes "file") in
+    let matched = case files of
+          Cons header Nil -> case multipart-file-open header of Err error -> False; Ok file -> live-file-aliases file
+          _ -> False in
+    let removed = multipart-form-remove-all form in matched && result-message removed == ""
+
+  -- | Use a live both-effect backend for every real temporary-file capability, then verify OS cleanup.
+  live-file-control :: forall (r :: Region). using (io :: Io r) => Unit ->{IO r, Mut r} Bool
+  live-file-control unit =
+    let wire = string-to-bytes "--form-boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"one\"\r\n\r\nabcdef\r\n--form-boundary--\r\n" in
+    let original = fixture-part wire (bytes-len wire) in
+    let begun = raw-fs-begin 0 in
+    let initialized = raw-source-init (bytes-data wire) (nat-to-i64 (bytes-len wire)) 4096 1 in
+    let counter = var-new (0 :: I64) in
+    let storage = live-storage counter () in
+    let policy = multipart-policy 10485760 10000 1000 False multipart-posix-filename in
+    let reader = multipart-reader-with-policy (fixture-source ()) (string-to-bytes "form-boundary") policy in
+    let outcome = multipart-read-form reader 0 storage in
+    let matched = case multipart-form-read-form outcome of None -> False; Some form -> live-form-file form in
+    let primary = case multipart-form-read-error outcome of None -> True; Some error -> False in
+    let advanced = multipart-storage-state storage in
+    let ticks = var-read counter in
+    let calls = raw-fs-calls 0 in
+    let sourceFinished = raw-source-finish 0 in
+    let finished = raw-fs-finish 0 in
+    matched && primary && eq-i64 (managed-identity advanced) calls && eq-i64 ticks calls && calls > 0 &&
+      eq-i64 begun 0 && eq-i64 initialized 0 && eq-i64 sourceFinished 0 && eq-i64 finished 0 && same wire original

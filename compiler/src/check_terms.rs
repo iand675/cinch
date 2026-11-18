@@ -430,6 +430,15 @@ impl Checker {
         };
         use crate::core::ParOp;
         match op {
+            ParOp::Workers => {
+                if args.len() != 1 {
+                    return Err(Error::at(span, "parWorkers takes exactly one participant count"));
+                }
+                let count = self.check(env, &args[0], &Ty::Nat)?;
+                Ok((app_spine(ECore::Prim(PrimOp::Par {
+                    op: ParOp::Workers, classes: [crate::repr::Class::Raw; 2],
+                }), vec![count]), Ty::Unit))
+            }
             ParOp::Both => {
                 if args.len() != 2 {
                     return Err(Error::at(span, "parBoth takes exactly two callbacks"));
@@ -982,6 +991,9 @@ impl Checker {
             return Err(Error::at(p.span(), "spawn must be applied directly to check the task callback"));
         }
         if let ValueKind::Prim(PrimOp::Par { op, .. }) = v.kind {
+            if op == crate::core::ParOp::Workers {
+                return Err(Error::at(p.span(), "parWorkers must be applied directly to its participant count"));
+            }
             return Err(Error::at(
                 p.span(),
                 format!(
@@ -990,6 +1002,7 @@ impl Checker {
                         crate::core::ParOp::Both => "parBoth",
                         crate::core::ParOp::Tabulate => "parTabulate",
                         crate::core::ParOp::MapArray => "parMap",
+                        crate::core::ParOp::Workers => unreachable!("participant configuration was refused above"),
                     }
                 ),
             ));
@@ -1299,6 +1312,22 @@ impl Checker {
                         core = app_spine(core, vec![c]);
                     }
                     ty = cod;
+                    // An effectful arrow completes before the next argument is evaluated.
+                    // Retain that application as a strict binding: flattening it into an
+                    // over-application would evaluate all excess arguments before this call.
+                    let effectful_stage = match self.uni.zonk(&prefix_ty) {
+                        Ty::Fun(_, _, eff, _) | Ty::Pi { eff, .. } => !self.uni.resolve_row(&eff).is_pure(),
+                        _ => false,
+                    };
+                    if effectful_stage && position + 1 < args.len() {
+                        if retained_method.is_none() {
+                            retained_method = callee_want(&core).map(|want|
+                                (want, head_method(&core).filter(|(w, _)| *w == want).map(|(_, i)| i)));
+                        }
+                        let function = self.fresh_local();
+                        self.note_local_ty(function, &ty);
+                        call_binds.push((function, std::mem::replace(&mut core, ECore::Var(function))));
+                    }
                 }
                 // A result refinement naming an argument states its fact
                 // over the argument's reading here, when that reading is

@@ -38,7 +38,7 @@ module Data.String where
   import Algebra.Semigroup
   import Algebra.Monoid
 
-  export String, compare-bytes-from, copy-bytes-into, empty-string, pack, string-byte-index-from, string-byte-length, string-char-at, string-char-at-from, string-compare, string-concat, string-concat-all, string-from-bytes, string-length, string-length-from, string-repeat, string-slice, string-to-bytes, unpack, utf8-at, utf8-char, utf8-cont, utf8-encode-into, utf8-encode-width, utf8-lead-payload, utf8-min, utf8-valid-from, utf8-width
+  export String, compare-bytes-from, copy-bytes-into, empty-string, pack, string-byte-index-from, string-byte-length, string-char-at, string-char-at-from, string-clone, string-compare, string-concat, string-concat-all, string-from-bytes, string-join, string-length, string-length-from, string-repeat, string-slice, string-to-bytes, string-utf8-first, string-utf8-last, unpack, utf8-at, utf8-char, utf8-cont, utf8-encode-into, utf8-encode-width, utf8-lead-payload, utf8-min, utf8-valid-from, utf8-width
 
 
   -- ---------------------------------------------------------------------------
@@ -83,6 +83,11 @@ module Data.String where
     let out = bytes-new (bytes-len b) in
     let u = copy-bytes-into out b 0 0 (bytes-len b) in
     out
+
+  -- | Copy a string into independent immutable UTF-8 storage, including empty input.
+  -- The mutable backing remains private and cannot alias any caller-owned byte buffer.
+  string-clone :: String -> String
+  string-clone text = StrBuf (bytes-copy (string-bytes-raw text))
 
   -- A copy of the backing (the conversion out copies: the caller may
   -- mutate its copy freely and the `String` never changes).
@@ -149,9 +154,12 @@ module Data.String where
       None -> None
       Some c -> Some (c, w)
 
+  -- | Validate UTF-8 from a byte boundary. Complete ASCII words are checked
+  -- with SWAR; non-ASCII sequences and tails retain scalar validation.
   utf8-valid-from :: Bytes -> Nat -> Bool
   utf8-valid-from b i =
     if i >= bytes-len b then True
+    else if i + 8 <= bytes-len b && ascii-block b i then utf8-valid-from b (i + 8)
     else case utf8-at b i of
       None -> False
       Some p -> case p of
@@ -169,6 +177,28 @@ module Data.String where
   string-byte-length :: String -> Nat
   string-byte-length s = bytes-len (string-bytes-raw s)
 
+  -- | Observe the first scalar and its encoded byte width without copying private backing.
+  -- Empty text has no scalar; every present width is between one and four bytes.
+  string-utf8-first :: String -> Option (Char, Nat)
+  string-utf8-first text = utf8-at (string-bytes-raw text) 0
+
+  -- | Find the final scalar by checking at most four preceding bytes of valid UTF-8.
+  string-last-scalar-from :: Bytes -> Nat -> Nat -> Option (Char, Nat)
+  string-last-scalar-from raw pos left = if pos > 0 && left > 0 then
+    let previous = pos - 1 in
+    if previous < bytes-len raw then
+      let byte = bytes-get raw previous in
+      if byte < 128 || byte >= 192 then utf8-at raw previous else
+        let remaining = left - 1 in string-last-scalar-from raw previous remaining
+    else None
+    else None
+
+  -- | Observe the final scalar and its encoded byte width without scanning or copying the prefix.
+  -- Empty text has no scalar; reverse lookup reads at most four bytes before decoding it.
+  string-utf8-last :: String -> Option (Char, Nat)
+  string-utf8-last text = let raw = string-bytes-raw text in
+    string-last-scalar-from raw (bytes-len raw) 4
+
   -- Length in Unicode scalar values (O(n) scan).
   string-length-from :: Bytes -> Nat -> Nat -> Nat
   string-length-from b i n =
@@ -178,8 +208,13 @@ module Data.String where
       Some p -> case p of
         (c, w) -> string-length-from b (i + w) (n + 1)
 
+  -- | Count Unicode scalars in sealed-valid UTF-8 using packed leading-byte classification.
+  -- Private SIMD/SWAR blocks count non-continuation bytes; exact scalar fringes never overread.
   string-length :: String -> Nat
-  string-length s = string-length-from (string-bytes-raw s) 0 0
+  string-length text =
+    let raw = string-bytes-raw text in let end = nat-to-i64 (bytes-len raw) in
+    let count = string-held raw (string-count-from (bytes-data raw) 0 end 0) in
+    if 0 <= count then nat-from-i64 count else 0
 
   -- The scalar value at code point index `n`, by scan (O(n)).
   string-char-at-from :: Bytes -> Nat -> Nat -> Option Char
@@ -242,41 +277,102 @@ module Data.String where
     let v = copy-bytes-into out y (bytes-len x) 0 (bytes-len y) in
     StrBuf out
 
-  -- Every string in the list, in order, in one pass: the buffer is made
-  -- once, at the end of the list, sized to the pieces' total, and each
-  -- piece is copied once on the way back. A right fold of
-  -- `string-concat` would re-copy the whole built suffix at every step,
-  -- quadratic in the result's length. The concatenation of valid UTF-8
-  -- is valid UTF-8, so the buffer wraps without a decode. This is the
-  -- `Monoid String` instance's `mconcat`.
+  -- | Concatenate every string in list order into one fresh immutable backing.
+  -- A tail-recursive size pass and a checked bulk-copy pass use bounded traversal
+  -- stack, including lists of empty strings. Concatenation preserves valid UTF-8.
   string-concat-all :: List String -> String
-  string-concat-all xs = StrBuf (concat-from 0 xs)
+  string-concat-all xs =
+    let size = concat-size xs 0 in
+    let out = bytes-new size in
+    let copied = concat-copy out 0 xs in
+    StrBuf out
 
-  -- The pieces of `xs` copied from offset `pos`: the result's refinement
-  -- (`pos <= bytes-len out`) is what each copy's range proves.
-  concat-from :: (pos :: Nat) -> List String -> refined (pos <= bytes-len out) Bytes
-  concat-from pos xs = case xs of
-    Nil -> bytes-new pos
+  -- | Count exact UTF-8 backing bytes without retaining recursive return frames.
+  concat-size :: List String -> Nat -> Nat
+  concat-size xs total = case xs of
+    Nil -> total
     Cons s rest ->
-      let b = string-bytes-raw s in
-      let out = concat-from (pos + bytes-len b) rest in
-      let u = copy-bytes-into out b pos 0 (bytes-len b) in
-      out
+      let size = bytes-len (string-bytes-raw s) in
+      let next = total + size in
+      concat-size rest next
 
-  -- `s` repeated `n` times (the run-building helper the padding and
-  -- numeric-format sites spelled out as fixed byte runs): one buffer of
-  -- `n` copies, made once and filled in place.
+  -- | Copy each immutable piece once into the pre-sized private result buffer.
+  -- Every write stays inside an explicit complete-interval check; no backing escapes.
+  concat-copy :: Bytes -> Nat -> List String -> Unit
+  concat-copy out pos xs = case xs of
+    Nil -> ()
+    Cons s rest ->
+      let source = string-bytes-raw s in
+      let size = bytes-len source in
+      if pos + size <= bytes-len out then
+        let copied = copy-bytes-into out source pos 0 size in
+        let next = pos + size in
+        concat-copy out next rest
+      else ()
+
+  -- | Count exact UTF-8 bytes and separators before allocating a joined result.
+  join-size :: List String -> Nat -> Nat -> Bool -> Nat
+  join-size pieces gap total first = case pieces of
+    Nil -> total
+    Cons text rest ->
+      let width = bytes-len (string-bytes-raw text) in
+      let next = total + width + (if first then 0 else gap) in
+      join-size rest gap next False
+
+  -- | Copy each immutable piece and its adjacent separator into checked output intervals.
+  join-copy :: Bytes -> Bytes -> Nat -> List String -> Unit
+  join-copy out separator pos pieces = case pieces of
+    Nil -> ()
+    Cons text rest ->
+      let source = string-bytes-raw text in let width = bytes-len source in
+      if pos + width <= bytes-len out then
+        let copied = copy-bytes-into out source pos 0 width in let following = pos + width in
+        case rest of
+          Nil -> ()
+          Cons _ _ -> let gap = bytes-len separator in
+            if following + gap <= bytes-len out then
+              let separated = copy-bytes-into out separator following 0 gap in
+              let next = following + gap in join-copy out separator next rest
+            else ()
+      else ()
+
+  -- | Join valid UTF-8 pieces with separators into one fresh immutable backing.
+  -- Empty pieces contribute adjacent separators; an empty list produces empty text.
+  string-join :: List String -> String -> String
+  string-join pieces separator =
+    let gap = string-bytes-raw separator in
+    if bytes-len gap == 0 then string-concat-all pieces else
+      let size = join-size pieces (bytes-len gap) 0 True in let out = bytes-new size in
+      let copied = join-copy out gap 0 pieces in StrBuf out
+
+  -- | Repeat a string the requested natural count into one fresh immutable backing.
+  -- A complete first copy seeds checked prefix doubling, giving logarithmically
+  -- many bulk-copy steps and linear copied bytes. Empty results need no fill loop.
   string-repeat :: Nat -> String -> String
-  string-repeat n s = StrBuf (repeat-from 0 n (string-bytes-raw s))
+  string-repeat n s =
+    let source = string-bytes-raw s in
+    let size = bytes-len source in
+    let out = bytes-new (n * size) in
+    if size > 0 && size <= bytes-len out then
+      let seeded = copy-bytes-into out source 0 0 size in
+      let copied = repeat-double out size in
+      StrBuf out
+    else StrBuf out
 
-  -- `n` copies of `b` from offset `pos`, in the shape of `concat-from`.
-  repeat-from :: (pos :: Nat) -> Nat -> (b :: Bytes) -> refined (pos <= bytes-len out) Bytes
-  repeat-from pos n b =
-    if n == 0 then bytes-new pos
-    else
-      let out = repeat-from (pos + bytes-len b) (n - 1) b in
-      let u = copy-bytes-into out b pos 0 (bytes-len b) in
-      out
+  -- | Double the initialized repetition prefix, copying only the final remaining fringe.
+  -- The private result is both source and destination of the checked bulk copy;
+  -- its initialized prefix remains immutable until each non-overlapping copy ends.
+  repeat-double :: Bytes -> Nat -> Unit
+  repeat-double out filled =
+    if filled > 0 && filled < bytes-len out then
+      let remaining = bytes-len out - filled in
+      let count = if filled < remaining then filled else remaining in
+      if filled + count <= bytes-len out && count <= bytes-len out then
+        let copied = copy-bytes-into out out filled 0 count in
+        let next = filled + count in
+        repeat-double out next
+      else ()
+    else ()
 
   -- Byte offset of code point `n` from offset `i`; the byte length when
   -- `n` reaches past the end. The offset never moves backwards and never
@@ -305,23 +401,36 @@ module Data.String where
     let u = copy-bytes-into out b 0 i0 (i1 - i0) in
     StrBuf out
 
-  -- Haskell's `Data.String` pair: `pack` is the `List Char` view of a
-  -- string, `unpack` its inverse (new conversions: no `String`/`List
-  -- Char` pair existed before). `pack` constructs a fresh string (the
-  -- wrap/copy discipline: the buffer is fresh and never aliased).
+  -- | Encode a list of Unicode scalar values into one fresh immutable UTF-8 backing.
+  -- A tail size pass and a checked tail encoding pass keep traversal stack bounded.
   pack :: List Char -> String
-  pack cs = StrBuf (pack-from 0 cs)
+  pack cs =
+    let size = pack-size cs 0 in
+    let out = bytes-new size in
+    let encoded = pack-copy out 0 cs in
+    StrBuf out
 
-  -- The characters' encodings from offset `pos`, in the shape of
-  -- `concat-from`.
-  pack-from :: (pos :: Nat) -> List Char -> refined (pos <= bytes-len out) Bytes
-  pack-from pos cs = case cs of
-    Nil -> bytes-new pos
+  -- | Count exact scalar encoding widths before allocating the complete result.
+  pack-size :: List Char -> Nat -> Nat
+  pack-size cs total = case cs of
+    Nil -> total
+    Cons c rest ->
+      let width = utf8-encode-width (char-code c) in
+      let next = total + width in
+      pack-size rest next
+
+  -- | Encode each scalar directly into its checked interval in the private output.
+  pack-copy :: Bytes -> Nat -> List Char -> Unit
+  pack-copy out pos cs = case cs of
+    Nil -> ()
     Cons c rest ->
       let cp = char-code c in
-      let out = pack-from (pos + utf8-encode-width cp) rest in
-      let u = utf8-encode-into out pos cp in
-      out
+      let width = utf8-encode-width cp in
+      if pos + utf8-encode-width cp <= bytes-len out then
+        let encoded = utf8-encode-into out pos cp in
+        let next = pos + width in
+        pack-copy out next rest
+      else ()
 
   unpack :: String -> List Char
   unpack s = unpack-from (string-bytes-raw s) 0 Nil
@@ -382,3 +491,115 @@ module Data.String where
   -- nothing.
   implicit instance Hash_String :: Hash String where
     hash s = hash (string-bytes-raw s)
+
+  -- | Validate exactly eight available ASCII bytes using one unaligned word load.
+  -- The owner is retained through the load, and no byte beyond the proved range
+  -- is touched. The high-bit mask works in either host byte order.
+  ascii-block :: using (i + 8 <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Bool
+  ascii-block b i = eq-u64 (string-held b (ascii-mask (bytes-data b) (nat-to-i64 i))) 0
+
+  -- | Keep an owning byte buffer live until a private raw read has completed.
+  string-held :: forall a. Bytes -> a -> a
+  string-held b value = case bytes-len b of
+    _ -> value
+
+  -- | Read eight bounded bytes and retain only their high bits. This private
+  -- kernel relies on the caller's range proof and backing-buffer lifetime.
+  prim ascii-mask :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      %mask = and i64 %word, 9259542123273814144
+      ret i64 %mask
+    }
+
+  -- | Add bounded private machine counters without imported object calls inside scans.
+  prim string-count-add :: I64 -> I64 -> I64 where
+    llvm {
+      %value = add i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Check a remaining complete-block width using private signed machine offsets.
+  prim string-count-wide :: I64 -> I64 -> I64 -> Bool where
+    llvm {
+      %remaining = sub i64 %1, %0
+      %enough = icmp sge i64 %remaining, %2
+      %value = zext i1 %enough to i8
+      ret i8 %value
+    }
+
+  -- | Check whether an exact scalar fringe still has an available byte.
+  prim string-count-more :: I64 -> I64 -> Bool where
+    llvm {
+      %more = icmp slt i64 %0, %1
+      %value = zext i1 %more to i8
+      ret i8 %value
+    }
+
+  -- | Count exact leading bytes in sixteen proved available sealed-valid UTF-8 bytes.
+  -- Byte flags are zero or one; paired lane sums stay below three and the total below seventeen.
+  -- The reduction counts bytes in either host order and never returns a backing address.
+  prim string-count-sixteen :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %bytes = load <16 x i8>, ptr %at, align 1
+      %top = and <16 x i8> %bytes, <i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64>
+      %heads = icmp ne <16 x i8> %top, <i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128>
+      %flags = zext <16 x i1> %heads to <16 x i8>
+      %words = bitcast <16 x i8> %flags to <2 x i64>
+      %low = extractelement <2 x i64> %words, i32 0
+      %high = extractelement <2 x i64> %words, i32 1
+      %paired = add i64 %low, %high
+      %sums = mul i64 %paired, 72340172838076673
+      %value = lshr i64 %sums, 56
+      ret i64 %value
+    }
+
+  -- | Count exact leading bytes in eight proved available bytes with order-independent SWAR.
+  prim string-count-eight :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      %shifted = shl i64 %word, 1
+      %inverse = xor i64 %word, -1
+      %noncontinuation = or i64 %inverse, %shifted
+      %heads = and i64 %noncontinuation, 9259542123273814144
+      %flags = lshr i64 %heads, 7
+      %sums = mul i64 %flags, 72340172838076673
+      %value = lshr i64 %sums, 56
+      ret i64 %value
+    }
+
+  -- | Classify exactly one proved available fringe byte without a wide speculative load.
+  prim string-count-one :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %byte = load i8, ptr %at, align 1
+      %top = and i8 %byte, -64
+      %head = icmp ne i8 %top, -128
+      %value = zext i1 %head to i64
+      ret i64 %value
+    }
+
+  -- | Traverse complete SIMD/SWAR blocks with unboxed counters and one outer owner hold.
+  string-count-from :: I64 -> I64 -> I64 -> I64 -> I64
+  string-count-from base at end total =
+    if string-count-wide at end 16 then
+      let count = string-count-sixteen base at in let next-total = string-count-add total count in
+      let next = string-count-add at 16 in string-count-from base next end next-total
+    else if string-count-wide at end 8 then
+      let count = string-count-eight base at in let next-total = string-count-add total count in
+      let next = string-count-add at 8 in string-count-tail base next end next-total
+    else string-count-tail base at end total
+
+  -- | Count only the final available bytes after all complete packed blocks.
+  string-count-tail :: I64 -> I64 -> I64 -> I64 -> I64
+  string-count-tail base at end total = if string-count-more at end then
+    let count = string-count-one base at in let next-total = string-count-add total count in
+    let next = string-count-add at 1 in string-count-tail base next end next-total
+    else total

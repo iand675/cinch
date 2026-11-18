@@ -1,0 +1,526 @@
+-- | Incremental CSV record readers and inspectable synchronous writers.
+-- Readers retain one unfinished record plus a bounded source chunk. Immutable
+-- continuations preserve advanced sources/sinks on success and failure. Source
+-- failures are sticky; CSV parse errors carry partial records and permit the
+-- next record to be read. No operation closes or flushes a borrowed descriptor.
+module Effect.Csv where
+
+  import Effect.Stream
+  import Text.Csv.Record
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export CsvStreamReader, csv-stream-reader, csv-stream-read, csv-stream-read-all
+  export csv-stream-reader-source, csv-stream-reader-error, csv-stream-input-offset
+  export CsvByteStreamReader, csv-byte-stream-reader, csv-byte-stream-read, csv-byte-stream-read-all
+  export csv-byte-stream-reader-source, csv-byte-stream-reader-error, csv-byte-stream-input-offset
+  export csv-stream-reader-configure, csv-byte-stream-reader-configure, csv-stream-writer-configure
+  export CsvStreamFailure, CsvParseFailure, CsvSourceFailure
+  export CsvStreamWriter, csv-stream-writer, csv-stream-write, csv-stream-write-all, csv-stream-flush
+  export csv-stream-writer-sink, csv-stream-writer-error
+  export csv-byte-stream-write, csv-byte-stream-write-all
+
+  -- | A materializing read-all failure distinguishes CSV syntax from source protocol failures.
+  data CsvStreamFailure where
+    -- | A CSV parse or field-count failure after any completed record prefix.
+    CsvParseFailure :: CsvRecordError -> CsvStreamFailure
+    -- | An underlying read failure, invalid source count or invalid UTF-8 input.
+    CsvSourceFailure :: StreamError -> CsvStreamFailure
+
+  -- | Private quote framing state used to decide when a whole CSV record is available.
+  data Frame where
+    -- | A new field may begin with an opening quote after optional whitespace.
+    FieldStart :: Frame
+    -- | An unquoted field continues until a delimiter or physical newline.
+    PlainField :: Frame
+    -- | A quoted field continues through physical newlines until a closing quote.
+    QuotedField :: Frame
+    -- | A quote has just appeared inside a quoted field and needs its following scalar.
+    AfterQuote :: Frame
+
+  -- | A physical line either finishes a record or advances its private quote framing state.
+  data FrameResult where
+    -- | The complete current physical line can now be passed to the record parser.
+    FrameComplete :: FrameResult
+    -- | More physical lines are needed before parsing the assembled record once.
+    FrameMore :: Frame -> FrameResult
+
+  -- | Private owned byte fragments avoid recopying an unfinished line or record on every source chunk.
+  data Buffers where
+    -- | Lookahead, reversed record pieces/size, reversed line pieces/size, frame, origin/line and EOF.
+    Buffered :: Bytes -> List Bytes -> Nat -> List Bytes -> Nat -> Frame -> Nat -> Nat -> Bool -> Buffers
+
+  -- | Immutable CSV source continuation retaining at most one record and bounded source lookahead.
+  data CsvStreamReader r where
+    -- | Private dialect, advanced source and independently owned unfinished byte fragments.
+    Input :: CsvOptions -> ByteReader r -> Buffers -> Bool -> CsvStreamReader r
+    -- | Private sticky source failure preserving the complete advanced continuation.
+    InputFailed :: StreamError -> CsvStreamReader r -> CsvStreamReader r
+
+  -- | A lossless byte-stream reader kept distinct from a validating UTF-8 text-stream reader.
+  data CsvByteStreamReader r where
+    -- | Private common parser state with byte-preserving field output.
+    RawStream :: CsvStreamReader r -> CsvByteStreamReader r
+
+  -- | Begin incrementally reading UTF-8 CSV using bounded 4096-byte source reads.
+  -- Memory scales with the largest record, not the total source. Fields remain immutable text.
+  csv-stream-reader :: forall r. CsvOptions -> ByteReader r -> CsvStreamReader r
+  csv-stream-reader options source = Input options source (Buffered (bytes-new 0) Nil 0 Nil 0 FieldStart 0 1 False) True
+
+  -- | Begin lossless arbitrary-byte CSV reading with bounded 4096-byte source lookahead.
+  -- Delimiters/comments remain Unicode scalars; invalid UTF-8 field bytes are preserved rather than rejected.
+  csv-byte-stream-reader :: forall r. CsvOptions -> ByteReader r -> CsvByteStreamReader r
+  csv-byte-stream-reader options source = RawStream (Input options source (Buffered (bytes-new 0) Nil 0 Nil 0 FieldStart 0 1 False) False)
+
+  -- | Observe the advanced underlying source, including after a sticky read failure.
+  csv-stream-reader-source :: forall r. CsvStreamReader r -> ByteReader r
+  csv-stream-reader-source reader = case reader of
+    Input options source buffers text-mode -> source
+    InputFailed error previous -> csv-stream-reader-source previous
+
+  -- | Observe a sticky source or UTF-8 error; ordinary CSV parse errors accompany their partial record.
+  csv-stream-reader-error :: forall r. CsvStreamReader r -> Option StreamError
+  csv-stream-reader-error reader = case reader of
+    Input options source buffers text-mode -> None
+    InputFailed error previous -> Some error
+
+  -- | Original byte position after the last consumed CSV record or skipped blank/comment prefix.
+  -- Lookahead and an unfinished record do not advance this logical input offset.
+  csv-stream-input-offset :: forall r. CsvStreamReader r -> Nat
+  csv-stream-input-offset reader = case reader of
+    Input options source buffers text-mode -> case buffers of Buffered pending rows row-size lines line-size frame origin line ended -> origin
+    InputFailed error previous -> csv-stream-input-offset previous
+
+  -- | Observe the advanced underlying byte source, including after a sticky source failure.
+  csv-byte-stream-reader-source :: forall r. CsvByteStreamReader r -> ByteReader r
+  csv-byte-stream-reader-source reader = case reader of RawStream state -> csv-stream-reader-source state
+
+  -- | Observe a sticky underlying failure without discarding byte-record progress.
+  csv-byte-stream-reader-error :: forall r. CsvByteStreamReader r -> Option StreamError
+  csv-byte-stream-reader-error reader = case reader of RawStream state -> csv-stream-reader-error state
+
+  -- | Logical original byte position after the last complete byte record or skipped comment/blank prefix.
+  csv-byte-stream-input-offset :: forall r. CsvByteStreamReader r -> Nat
+  csv-byte-stream-input-offset reader = case reader of RawStream state -> csv-stream-input-offset state
+
+  -- | Select validated policies for the next record, preserving owned lookahead and any sticky source failure.
+  csv-stream-reader-configure :: forall r. CsvStreamReader r -> CsvOptions -> CsvStreamReader r
+  csv-stream-reader-configure reader selected = case reader of
+    Input options source buffers text-mode -> Input selected source buffers text-mode
+    InputFailed error previous -> InputFailed error (csv-stream-reader-configure previous selected)
+
+  -- | Reconfigure the next lossless byte record while preserving its advanced source and unread lookahead.
+  csv-byte-stream-reader-configure :: forall r. CsvByteStreamReader r -> CsvOptions -> CsvByteStreamReader r
+  csv-byte-stream-reader-configure reader selected = case reader of RawStream state -> RawStream (csv-stream-reader-configure state selected)
+
+  -- | Snapshot an exact interval, protecting retained chunks from later caller mutation.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start n = if start + n <= bytes-len input then
+    let out = bytes-new n in let copied = bytes-copy-range out input 0 start n in out
+    else bytes-new 0
+
+  -- | Copy ordered byte fragments once into an exactly sized destination.
+  copy-pieces :: List Bytes -> Bytes -> Nat -> Unit
+  copy-pieces pieces out at = case pieces of
+    Nil -> ()
+    Cons first rest -> if at + bytes-len first <= bytes-len out then
+      let copied = bytes-copy-range out first at 0 (bytes-len first) in copy-pieces rest out (at + bytes-len first)
+      else ()
+
+  -- | Materialize reversed physical-line or record fragments only when their interval is complete.
+  assemble :: List Bytes -> Nat -> Bytes
+  assemble reversed n = let out = bytes-new n in let copied = copy-pieces (reverse reversed) out 0 in out
+
+  -- | Detect quote, LF or the delimiter's first UTF-8 byte in eight portable byte lanes.
+  prim special8 :: U64 -> U8 -> U8 where
+    llvm {
+      %word = bitcast i64 %0 to <8 x i8>
+      %one = insertelement <8 x i8> zeroinitializer, i8 %1, i32 0
+      %wanted = shufflevector <8 x i8> %one, <8 x i8> zeroinitializer, <8 x i32> zeroinitializer
+      %a = icmp eq <8 x i8> %word, %wanted
+      %b = icmp eq <8 x i8> %word, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %c = icmp eq <8 x i8> %word, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
+      %ab = or <8 x i1> %a, %b
+      %all = or <8 x i1> %ab, %c
+      %mask = bitcast <8 x i1> %all to i8
+      ret i8 %mask
+    }
+
+  -- | Detect one requested byte in eight lanes without an unproved memory access.
+  prim contains8 :: U64 -> U8 -> U8 where
+    llvm {
+      %word = bitcast i64 %0 to <8 x i8>
+      %one = insertelement <8 x i8> zeroinitializer, i8 %1, i32 0
+      %wanted = shufflevector <8 x i8> %one, <8 x i8> zeroinitializer, <8 x i32> zeroinitializer
+      %same = icmp eq <8 x i8> %word, %wanted
+      %mask = bitcast <8 x i1> %same to i8
+      ret i8 %mask
+    }
+
+  -- | Test exactly sixteen caller-proved bytes for a requested byte without exposing a raw pointer publicly.
+  prim scan-match16 :: I64 -> U8 -> U8 where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %word = load <16 x i8>, ptr %pointer, align 1
+      %one = insertelement <16 x i8> zeroinitializer, i8 %1, i32 0
+      %wanted = shufflevector <16 x i8> %one, <16 x i8> zeroinitializer, <16 x i32> zeroinitializer
+      %same = icmp eq <16 x i8> %word, %wanted
+      %bits = bitcast <16 x i1> %same to i16
+      %any = icmp ne i16 %bits, 0
+      %out = zext i1 %any to i8
+      ret i8 %out
+    }
+
+  -- | Test sixteen proved bytes for delimiter lead, quote, LF and a selected extra byte.
+  prim scan-special16 :: I64 -> U8 -> U8 -> U8 where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %word = load <16 x i8>, ptr %pointer, align 1
+      %one = insertelement <16 x i8> zeroinitializer, i8 %1, i32 0
+      %first = shufflevector <16 x i8> %one, <16 x i8> zeroinitializer, <16 x i32> zeroinitializer
+      %two = insertelement <16 x i8> zeroinitializer, i8 %2, i32 0
+      %extra = shufflevector <16 x i8> %two, <16 x i8> zeroinitializer, <16 x i32> zeroinitializer
+      %a = icmp eq <16 x i8> %word, %first
+      %b = icmp eq <16 x i8> %word, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %c = icmp eq <16 x i8> %word, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
+      %d = icmp eq <16 x i8> %word, %extra
+      %ab = or <16 x i1> %a, %b
+      %cd = or <16 x i1> %c, %d
+      %all = or <16 x i1> %ab, %cd
+      %bits = bitcast <16 x i1> %all to i16
+      %any = icmp ne i16 %bits, 0
+      %out = zext i1 %any to i8
+      ret i8 %out
+    }
+
+  -- | Retain an input owner until a complete private machine-counter traversal returns.
+  hold-scan :: Bytes -> U64 -> U64
+  hold-scan input value = case bytes-len input of _ -> value
+
+  -- | Skip complete sixteen-byte match-free intervals using only machine counters inside the hot loop.
+  skip-match-blocks :: I64 -> U64 -> U8 -> U64 -> U64
+  skip-match-blocks address remaining wanted skipped =
+    if ge-u64 remaining 16 && eq-u8 (scan-match16 address wanted) 0 then
+      skip-match-blocks (wrapping-add-i64 address 16) (wrapping-sub-u64 remaining 16) wanted (wrapping-add-u64 skipped 16)
+    else skipped
+
+  -- | Skip complete special-byte-free intervals without natural-number or ownership work in each iteration.
+  skip-special-blocks :: I64 -> U64 -> U8 -> U8 -> U64 -> U64
+  skip-special-blocks address remaining first extra skipped =
+    if ge-u64 remaining 16 && eq-u8 (scan-special16 address first extra) 0 then
+      skip-special-blocks (wrapping-add-i64 address 16) (wrapping-sub-u64 remaining 16) first extra (wrapping-add-u64 skipped 16)
+    else skipped
+
+  -- | Convert a machine distance exactly through unsigned halves without a signed refinement contract.
+  scan-distance :: U64 -> Nat
+  scan-distance value =
+    let low = u32-to-nat (wrapping-u64-to-u32 value) in
+    let high = wrapping-u64-to-u32 (wrapping-shr-u64 value 32) in
+    if eq-u32 high 0 then low else u32-to-nat high * 4294967296 + low
+
+  -- | Establish a private match traversal's exact interval and retain its backing owner once around the loop.
+  bulk-match :: Bytes -> Nat -> U8 -> Nat
+  bulk-match input at wanted = if at <= bytes-len input then
+    let remaining = bytes-len input - at in
+    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
+    let skipped = hold-scan input (skip-match-blocks address (wrapping-i64-to-u64 (nat-to-i64 remaining)) wanted 0) in
+    let n = scan-distance skipped in if n <= remaining then n else 0
+    else 0
+
+  -- | Establish a private delimiter/quote traversal's interval and return its checked byte distance.
+  bulk-special :: Bytes -> Nat -> U8 -> U8 -> Nat
+  bulk-special input at first extra = if at <= bytes-len input then
+    let remaining = bytes-len input - at in
+    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
+    let skipped = hold-scan input (skip-special-blocks address (wrapping-i64-to-u64 (nat-to-i64 remaining)) first extra 0) in
+    let n = scan-distance skipped in if n <= remaining then n else 0
+    else 0
+
+  -- | Find the first physical LF without reading beyond the owned chunk.
+  newline-at :: Bytes -> Nat -> Nat
+  newline-at input at =
+    if at + 8 <= bytes-len input && eq-u8 (contains8 (bytes-read-le64 input at) 10) 0 then
+      let next = at + 8 in newline-fringe input (next + bulk-match input next 10)
+    else newline-fringe input at
+
+  -- | Inspect only a potentially matching newline block or the final short physical-line tail.
+  newline-fringe :: Bytes -> Nat -> Nat
+  newline-fringe input at = if at < bytes-len input then
+    if bytes-get input at == 10 then at else newline-fringe input (at + 1)
+    else at
+
+  -- | Compute the first UTF-8 byte of a valid scalar without temporary text allocation.
+  prim scalar-first :: U32 -> U8 where
+    llvm {
+      %small = icmp ult i32 %0, 128
+      %medium = icmp ult i32 %0, 2048
+      %large = icmp ult i32 %0, 65536
+      %s6 = lshr i32 %0, 6
+      %a = or i32 %s6, 192
+      %s12 = lshr i32 %0, 12
+      %b = or i32 %s12, 224
+      %s18 = lshr i32 %0, 18
+      %c = or i32 %s18, 240
+      %bc = select i1 %large, i32 %b, i32 %c
+      %abc = select i1 %medium, i32 %a, i32 %bc
+      %value = select i1 %small, i32 %0, i32 %abc
+      %out = trunc i32 %value to i8
+      ret i8 %out
+    }
+
+  -- | Recognize Unicode White_Space for leading-field framing decisions.
+  space-scalar :: Nat -> Bool
+  space-scalar n = (n >= 9 && n <= 13) || n == 32 || n == 133 || n == 160 || n == 5760 || (n >= 8192 && n <= 8202) || n == 8232 || n == 8233 || n == 8239 || n == 8287 || n == 12288
+
+  -- | Frame one normalized scalar while leaving syntax validation to the shared record parser.
+  frame-scalar :: Nat -> Nat -> Bool -> Bool -> Frame -> FrameResult
+  frame-scalar code delimiter lazy trim frame = case frame of
+    FieldStart -> if code == 10 then FrameComplete
+      else if trim && space-scalar code then FrameMore FieldStart
+      else if code == 34 then FrameMore QuotedField
+      else if code == delimiter then FrameMore FieldStart else FrameMore PlainField
+    PlainField -> if code == 10 || (code == 34 && not lazy) then FrameComplete
+      else if code == delimiter then FrameMore FieldStart else FrameMore PlainField
+    QuotedField -> FrameMore (if code == 34 then AfterQuote else QuotedField)
+    AfterQuote -> if code == 34 then FrameMore QuotedField
+      else if code == delimiter then FrameMore FieldStart
+      else if code == 10 || not lazy then FrameComplete else FrameMore QuotedField
+
+  -- | Frame a physical line with SIMD skips, normalizing CRLF for quote decisions.
+  frame-line :: Bytes -> Nat -> Nat -> U8 -> Bool -> Bool -> Frame -> FrameResult
+  frame-line input at delimiter first lazy trim frame =
+    if at >= bytes-len input then FrameMore frame
+    else case frame of
+      PlainField -> if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) first) 0 then
+        let next = at + 8 in frame-line input (next + bulk-special input next first 34) delimiter first lazy trim frame
+        else frame-next input at delimiter first lazy trim frame
+      QuotedField -> if at + 8 <= bytes-len input && eq-u8 (contains8 (bytes-read-le64 input at) 34) 0 then
+        let next = at + 8 in frame-line input (next + bulk-match input next 34) delimiter first lazy trim frame
+        else frame-next input at delimiter first lazy trim frame
+      other -> frame-next input at delimiter first lazy trim frame
+
+  -- | Advance quoted bytes directly and inspect UTF-8 only at a possible delimiter or field boundary.
+  -- SIMD skips may end inside a multibyte scalar; continuation bytes cannot be delimiter leads or quotes.
+  frame-next :: Bytes -> Nat -> Nat -> U8 -> Bool -> Bool -> Frame -> FrameResult
+  frame-next input at delimiter first lazy trim frame = case frame of
+    QuotedField -> if at < bytes-len input then
+      frame-line input (at + 1) delimiter first lazy trim (if bytes-get input at == 34 then AfterQuote else QuotedField)
+      else FrameMore frame
+    PlainField -> if at < bytes-len input && bytes-get input at >= 128 && bytes-get input at /= u8-to-nat first then
+      frame-line input (at + 1) delimiter first lazy trim frame
+      else frame-unicode input at delimiter first lazy trim frame
+    other -> frame-unicode input at delimiter first lazy trim frame
+
+  -- | Inspect a complete delimiter/leading scalar or synthesize normalized LF for a trailing CRLF pair.
+  frame-unicode :: Bytes -> Nat -> Nat -> U8 -> Bool -> Bool -> Frame -> FrameResult
+  frame-unicode input at delimiter first lazy trim frame =
+    if at + 2 == bytes-len input && at < bytes-len input && bytes-get input at == 13 && bytes-get input (at + 1) == 10 then
+      frame-scalar 10 delimiter lazy trim frame
+    else case utf8-at input at of
+      None ->
+        if at < bytes-len input then case frame-scalar 65533 delimiter lazy trim frame of
+          FrameComplete -> FrameComplete
+          FrameMore next -> frame-line input (at + 1) delimiter first lazy trim next
+        else FrameMore frame
+      Some pair -> case pair of
+        (scalar, width) -> case frame-scalar (char-code scalar) delimiter lazy trim frame of
+          FrameComplete -> FrameComplete
+          FrameMore next -> frame-line input (at + width) delimiter first lazy trim next
+
+  -- | Skip blank physical lines or a configured comment at column one before framing a new record.
+  skipped-line :: CsvOptions -> Bytes -> Bool -> Bool
+  skipped-line options input final =
+    let n = bytes-len input in
+    if n == 0 || (n == 1 && bytes-get input 0 == 10) || (n == 2 && bytes-get input 0 == 13 && bytes-get input 1 == 10) || (final && n == 1 && bytes-get input 0 == 13) then True
+    else case csv-options-comment options of
+      None -> False
+      Some marker -> case utf8-at input 0 of None -> False; Some pair -> case pair of (scalar, width) -> char-code scalar == char-code marker
+
+  -- | Find the first invalid UTF-8 byte only after validation has rejected a physical line.
+  invalid-utf8-at :: Bytes -> Nat -> Nat
+  invalid-utf8-at input at =
+    if at < bytes-len input then case utf8-at input at of
+      None -> at
+      Some pair -> case pair of (scalar, width) -> invalid-utf8-at input (at + width)
+    else at
+
+  -- | Advance one record, preserving partial fields and parse errors in CsvReadRecord.
+  -- Source failures are sticky and retain their advanced source and unfinished bytes.
+  read-core :: forall r. using (io :: Io r) => CsvStreamReader r ->{IO r} (Result StreamError CsvByteRead, CsvStreamReader r)
+  read-core reader = case reader of
+    InputFailed error previous -> (Err error, reader)
+    Input options source buffers text-mode -> consume-input text-mode options source buffers
+
+  -- | Accumulate owned line fragments, fetching no more than 4096 source bytes at a time.
+  consume-input :: forall r. using (io :: Io r) => Bool -> CsvOptions -> ByteReader r -> Buffers ->{IO r} (Result StreamError CsvByteRead, CsvStreamReader r)
+  consume-input text-mode options source buffers = case buffers of
+    Buffered pending rows row-size lines line-size frame origin line ended ->
+      let found = newline-at pending 0 in
+      if found < bytes-len pending then
+        let taken = found + 1 in
+        let physical = assemble (Cons (part pending 0 taken) lines) (line-size + taken) in
+        let rest = part pending taken (bytes-len pending - taken) in
+        consume-line text-mode options source (Buffered rest rows row-size Nil 0 frame origin line ended) physical False
+      else if ended then
+        if bytes-len pending > 0 || line-size > 0 then
+          let physical = assemble (Cons pending lines) (line-size + bytes-len pending) in
+          consume-line text-mode options source (Buffered (bytes-new 0) rows row-size Nil 0 frame origin line True) physical True
+        else if row-size > 0 then parse-input text-mode options source buffers
+        else (Ok CsvByteEnd, Input options source buffers text-mode)
+      else
+        let retained = if bytes-len pending == 0 then lines else Cons pending lines in
+        let next-buffers = Buffered (bytes-new 0) rows row-size retained (line-size + bytes-len pending) frame origin line False in
+        case stream-read source 4096 of
+          (Err error, advanced) -> (Err error, InputFailed error (Input options advanced next-buffers text-mode))
+          (Ok chunk, advanced) ->
+            let copied = part chunk 0 (bytes-len chunk) in
+            consume-input text-mode options advanced (Buffered copied rows row-size retained (line-size + bytes-len pending) frame origin line (bytes-len chunk == 0))
+
+  -- | Validate and frame each physical line once before appending it to an unfinished record.
+  consume-line :: forall r. using (io :: Io r) => Bool -> CsvOptions -> ByteReader r -> Buffers -> Bytes -> Bool ->{IO r} (Result StreamError CsvByteRead, CsvStreamReader r)
+  consume-line text-mode options source buffers physical final = case buffers of
+    Buffered pending rows row-size lines line-size frame origin line ended ->
+      if text-mode && not (utf8-valid-from physical 0) then
+        let error = StreamEncodingError "csv" (origin + row-size + invalid-utf8-at physical 0) "CSV input is not valid UTF-8" in
+        (Err error, InputFailed error (Input options source buffers text-mode))
+      else if row-size == 0 && skipped-line options physical final then
+        consume-input text-mode options source (Buffered pending Nil 0 Nil 0 FieldStart (origin + bytes-len physical) (line + 1) ended)
+      else
+        let delimiter = csv-options-delimiter options in
+        let delimiter-code = char-code delimiter in
+        let next-rows = Cons physical rows in let total = row-size + bytes-len physical in
+        let next-buffers = Buffered pending next-rows total Nil 0 frame origin line ended in
+        if final then parse-input text-mode options source next-buffers
+        else case frame-line physical 0 delimiter-code (scalar-first (wrapping-i64-to-u32 (nat-to-i64 delimiter-code))) (csv-options-lazy-quotes options) (csv-options-trim-leading-space options) frame of
+          FrameComplete -> parse-input text-mode options source next-buffers
+          FrameMore next -> consume-input text-mode options source (Buffered pending next-rows total Nil 0 next origin line ended)
+
+  -- | Materialize and parse a framed record once, preserving its original byte and physical-line origin.
+  parse-input :: forall r. using (io :: Io r) => Bool -> CsvOptions -> ByteReader r -> Buffers ->{IO r} (Result StreamError CsvByteRead, CsvStreamReader r)
+  parse-input text-mode options source buffers = case buffers of
+    Buffered pending rows row-size lines line-size frame origin line ended ->
+      let assembled = assemble rows row-size in
+      case csv-byte-reader-read (csv-byte-reader-at options assembled origin line True) of
+        (result, next) ->
+          (Ok result, Input (csv-byte-reader-options next) source (Buffered pending Nil 0 Nil 0 FieldStart (csv-byte-reader-input-offset next) (csv-byte-reader-next-line next) ended) text-mode)
+
+  -- | Read one validated UTF-8 record with parse progress and an advanced source continuation.
+  csv-stream-read :: forall r. using (io :: Io r) => CsvStreamReader r ->{IO r} (Result StreamError CsvRead, CsvStreamReader r)
+  csv-stream-read reader = case read-core reader of
+    (Err error, next) -> (Err error, next)
+    (Ok CsvByteEnd, next) -> (Ok CsvEnd, next)
+    (Ok CsvByteNeedInput, next) -> (Ok CsvNeedInput, next)
+    (Ok (CsvReadByteRecord raw parse-error), next) -> case csv-byte-record-text raw of
+      (row, None) -> (Ok (CsvReadRecord row parse-error), next)
+      (row, Some encoding-error) -> (Ok (CsvReadRecord row (Some encoding-error)), next)
+
+  -- | Read one lossless arbitrary-byte record while preserving quote/count errors and completed fields.
+  csv-byte-stream-read :: forall r. using (io :: Io r) => CsvByteStreamReader r ->{IO r} (Result StreamError CsvByteRead, CsvByteStreamReader r)
+  csv-byte-stream-read reader = case reader of
+    RawStream state -> case read-core state of
+      (result, next) -> (result, RawStream next)
+
+  -- | Materialize remaining lossless byte records, returning the first parse/source failure and advanced reader.
+  csv-byte-stream-read-all :: forall r. using (io :: Io r) => CsvByteStreamReader r ->{IO r} (Result CsvStreamFailure (List CsvByteRecord), CsvByteStreamReader r)
+  csv-byte-stream-read-all reader = collect-byte-records reader Nil
+
+  -- | Tail-recursively collect raw records without attempting to interpret field bytes as UTF-8.
+  collect-byte-records :: forall r. using (io :: Io r) => CsvByteStreamReader r -> List CsvByteRecord ->{IO r} (Result CsvStreamFailure (List CsvByteRecord), CsvByteStreamReader r)
+  collect-byte-records reader rows = case csv-byte-stream-read reader of
+    (Err error, next) -> (Err (CsvSourceFailure error), next)
+    (Ok CsvByteEnd, next) -> (Ok (reverse rows), next)
+    (Ok CsvByteNeedInput, next) -> collect-byte-records next rows
+    (Ok (CsvReadByteRecord row (Some error)), next) -> (Err (CsvParseFailure error), next)
+    (Ok (CsvReadByteRecord row None), next) -> collect-byte-records next (Cons row rows)
+
+  -- | Materialize remaining records, returning the first parse/source failure and the advanced reader.
+  -- Use csv-stream-read to bound application memory to one record or retain partial records.
+  csv-stream-read-all :: forall r. using (io :: Io r) => CsvStreamReader r ->{IO r} (Result CsvStreamFailure (List CsvRecord), CsvStreamReader r)
+  csv-stream-read-all reader = collect-records reader Nil
+
+  -- | Tail-recursively collect records while preserving the source continuation on either failure kind.
+  collect-records :: forall r. using (io :: Io r) => CsvStreamReader r -> List CsvRecord ->{IO r} (Result CsvStreamFailure (List CsvRecord), CsvStreamReader r)
+  collect-records reader rows = case csv-stream-read reader of
+    (Err error, next) -> (Err (CsvSourceFailure error), next)
+    (Ok CsvEnd, next) -> (Ok (reverse rows), next)
+    (Ok CsvNeedInput, next) -> collect-records next rows
+    (Ok (CsvReadRecord row (Some error)), next) -> (Err (CsvParseFailure error), next)
+    (Ok (CsvReadRecord row None), next) -> collect-records next (Cons row rows)
+
+  -- | Immutable synchronous record writer with sticky output failure and an inspectable sink.
+  data CsvStreamWriter r where
+    -- | Private validated options, newline policy and advanced sink.
+    Output :: CsvOptions -> Bool -> ByteWriter r -> CsvStreamWriter r
+    -- | Private terminal error and the sink after accepting any encoded output prefix.
+    OutputFailed :: StreamError -> ByteWriter r -> CsvStreamWriter r
+
+  -- | Begin writing minimally quoted records without buffering or taking ownership of the sink.
+  csv-stream-writer :: forall r. CsvOptions -> Bool -> ByteWriter r -> CsvStreamWriter r
+  csv-stream-writer options crlf sink = Output options crlf sink
+
+  -- | Select delimiter and newline policies for subsequent records without discarding a sticky output failure.
+  csv-stream-writer-configure :: forall r. CsvStreamWriter r -> CsvOptions -> Bool -> CsvStreamWriter r
+  csv-stream-writer-configure writer selected crlf = case writer of
+    Output options previous-crlf sink -> Output selected crlf sink
+    OutputFailed error sink -> writer
+
+  -- | Observe the advanced sink, including its accepted prefix after a failed write.
+  csv-stream-writer-sink :: forall r. CsvStreamWriter r -> ByteWriter r
+  csv-stream-writer-sink writer = case writer of
+    Output options crlf sink -> sink
+    OutputFailed error sink -> sink
+
+  -- | Observe a sticky write failure without performing more output.
+  csv-stream-writer-error :: forall r. CsvStreamWriter r -> Option StreamError
+  csv-stream-writer-error writer = case writer of
+    Output options crlf sink -> None
+    OutputFailed error sink -> Some error
+
+  -- | Render and write one complete record, retrying valid short writes and preserving failures.
+  csv-stream-write :: forall r. using (io :: Io r) => CsvStreamWriter r -> List String ->{IO r} (Result StreamError Unit, CsvStreamWriter r)
+  csv-stream-write writer fields = csv-byte-stream-write writer (writer-field-bytes fields Nil)
+
+  -- | Convert immutable text fields to private byte intervals for common raw-byte rendering.
+  writer-field-bytes :: List String -> List Bytes -> List Bytes
+  writer-field-bytes fields converted = case fields of
+    Nil -> reverse converted
+    Cons first rest -> writer-field-bytes rest (Cons (string-to-bytes first) converted)
+
+  -- | Render and synchronously write arbitrary byte fields, preserving invalid UTF-8 and embedded NUL bytes.
+  csv-byte-stream-write :: forall r. using (io :: Io r) => CsvStreamWriter r -> List Bytes ->{IO r} (Result StreamError Unit, CsvStreamWriter r)
+  csv-byte-stream-write writer fields = case writer of
+    OutputFailed error sink -> (Err error, writer)
+    Output options crlf sink -> case stream-write-all sink (csv-render-byte-record options crlf fields) of
+      (Err error, next) -> (Err error, OutputFailed error next)
+      (Ok count, next) -> (Ok (), Output options crlf next)
+
+  -- | Observe synchronous completion or a sticky failure; preceding writes already reached the sink.
+  -- This does not flush or close the borrowed sink, whose protocol has no flush operation.
+  csv-stream-flush :: forall r. using (io :: Io r) => CsvStreamWriter r ->{IO r} (Result StreamError Unit, CsvStreamWriter r)
+  csv-stream-flush writer = case writer of
+    OutputFailed error sink -> (Err error, writer)
+    Output options crlf sink -> (Ok (), writer)
+
+  -- | Write records in order, stopping at the first output failure with its advanced sink.
+  csv-stream-write-all :: forall r. using (io :: Io r) => CsvStreamWriter r -> List (List String) ->{IO r} (Result StreamError Unit, CsvStreamWriter r)
+  csv-stream-write-all writer rows = case rows of
+    Nil -> csv-stream-flush writer
+    Cons first rest -> case csv-stream-write writer first of
+      (Err error, next) -> (Err error, next)
+      (Ok unit, next) -> csv-stream-write-all next rest
+
+  -- | Write arbitrary-byte records in order, preserving the first sticky output failure and advanced sink.
+  csv-byte-stream-write-all :: forall r. using (io :: Io r) => CsvStreamWriter r -> List (List Bytes) ->{IO r} (Result StreamError Unit, CsvStreamWriter r)
+  csv-byte-stream-write-all writer rows = case rows of
+    Nil -> csv-stream-flush writer
+    Cons first rest -> case csv-byte-stream-write writer first of
+      (Err error, next) -> (Err error, next)
+      (Ok unit, next) -> csv-byte-stream-write-all next rest

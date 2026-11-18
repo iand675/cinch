@@ -1,0 +1,208 @@
+-- | Configurable CSV fixture consumer with runtime input and precise expected metadata.
+module Main where
+  import Text.Csv.Record
+  import Data.Char
+  import Data.Machine
+  -- | Keep immutable fixture input in runtime execution rather than constant evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Rebuild fixture text through a runtime-sized copied byte interval.
+  runtime-text :: String -> String
+  runtime-text text =
+    let input = string-to-bytes text in
+    let n = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let out = bytes-new n in
+    if bytes-len input <= bytes-len out then
+      let copied = bytes-copy-range out input 0 0 (bytes-len input) in
+      case string-from-bytes out of Some result -> result; None -> ""
+    else ""
+  -- | Obtain a validated scalar from compact fixture data.
+  scalar :: Nat -> Char
+  scalar code = case char-from-code code of Some value -> value; None -> ','
+  -- | Build a checked fixture dialect without embedding representation constructors.
+  config :: Nat -> Nat -> CsvFieldPolicy -> Bool -> Bool -> CsvOptions
+  config delimiter comment policy lazy trim =
+    case csv-options (scalar delimiter) (if comment == 0 then None else Some (scalar comment)) policy lazy trim of
+      Ok selected -> selected
+      Err error -> csv-default-options
+  -- | Compare immutable field lists without requiring an orphan list equality instance.
+  fields-equal :: List String -> List String -> Bool
+  fields-equal left right = case left of
+    Nil -> case right of Nil -> True; Cons first rest -> False
+    Cons a more -> case right of Nil -> False; Cons b rest -> a == b && fields-equal more rest
+  -- | Compare every expected field position through the safe public indexing API.
+  positions-equal :: CsvRecord -> List (Nat, Nat) -> Nat -> Bool
+  positions-equal row positions index = case positions of
+    Nil -> case csv-record-field-position row index of None -> True; Some value -> False
+    Cons first rest -> case first of
+      (line, column) -> case csv-record-field-position row index of
+        None -> False
+        Some actual -> case actual of (actual-line, actual-column) -> actual-line == line && actual-column == column && positions-equal row rest (index + 1)
+  -- | Complete expected read progress and structured error details.
+  data Expected where
+    -- | Fields, positions, input offset, error kind/location and expected/actual counts.
+    Expect :: List String -> List (Nat, Nat) -> Nat -> String -> Nat -> Nat -> Nat -> Nat -> Nat -> Expected
+  -- | Compare precise error locations while treating both quote failures as one external category.
+  error-equal :: Option CsvRecordError -> String -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool
+  error-equal actual kind start line column expected count = case actual of
+    None -> kind == ""
+    Some failure -> csv-record-error-start-line failure == start && csv-record-error-line failure == line && csv-record-error-column failure == column
+      && (case failure of
+        CsvBareQuote a b c -> kind == "bare"
+        CsvQuote a b c -> kind == "quote"
+        CsvUnclosedQuote a b c -> kind == "quote"
+        CsvFieldCount a b c required received -> kind == "fields" && required == expected && received == count
+        CsvFieldEncoding a b c index -> False)
+  -- | Compare every advanced read, including continuing after malformed physical records.
+  read-equal :: CsvReader -> List Expected -> Bool
+  read-equal reader expected = case expected of
+    Nil -> case csv-reader-read reader of (CsvEnd, next) -> True; other -> False
+    Cons first rest -> case first of
+      Expect fields positions offset kind start line column required count -> case csv-reader-read reader of
+        (CsvReadRecord row error, next) -> fields-equal (csv-record-fields row) fields
+          && positions-equal row positions 0 && csv-reader-input-offset next == offset
+          && error-equal error kind start line column required count && read-equal next rest
+        other -> False
+  -- | Give all writer fixtures runtime text as well as their static expected output.
+  runtime-fields :: List String -> List String
+  runtime-fields fields = case fields of Nil -> Nil; Cons first rest -> Cons (runtime-text first) (runtime-fields rest)
+  -- | Identify the first failed fixture without obscuring later source positions.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks index = case checks of
+    Nil -> 0
+    Cons first rest -> if first then first-failure rest (index + 1) else index
+  -- | Preserve a bounded group's original failing index without expanding all fixtures in one body.
+  first-result :: List Nat -> Nat
+  first-result groups = case groups of Nil -> 0; Cons first rest -> if first > 0 then first else first-result rest
+
+  -- | Evaluate a bounded group of independent write fixtures with original failing indices.
+  check-batch0 :: Unit -> Nat
+  check-batch0 unit = first-failure [
+      (csv-render-record (config 44 0 CsvAnyFields False False) False (runtime-fields []) == "\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) False (runtime-fields [""]) == "\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) False (runtime-fields ["a","b"]) == "a,b\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) False (runtime-fields ["a,b"," x","\"q\""]) == "\"a,b\",\" x\",\"\"\"q\"\"\"\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) False (runtime-fields ["a\rb","a\nb","a\r\nb"]) == "\"a\rb\",\"a\nb\",\"a\r\nb\"\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) False (runtime-fields ["\\."]) == "\"\\.\"\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) False (runtime-fields [" lead"," lead","tail "]) == "\" lead\",\" lead\",tail \n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) False (runtime-fields ["aλb","c;d","emoji 😀"]) == "aλb,c;d,emoji 😀\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) False (runtime-fields ["\u{0000}","﻿"]) == "\u{0000},﻿\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) True (runtime-fields []) == "\r\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) True (runtime-fields [""]) == "\r\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) True (runtime-fields ["a","b"]) == "a,b\r\n")] 1
+
+  -- | Evaluate a bounded group of independent write fixtures with original failing indices.
+  check-batch1 :: Unit -> Nat
+  check-batch1 unit = first-failure [
+      (csv-render-record (config 44 0 CsvAnyFields False False) True (runtime-fields ["a,b"," x","\"q\""]) == "\"a,b\",\" x\",\"\"\"q\"\"\"\r\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) True (runtime-fields ["a\rb","a\nb","a\r\nb"]) == "\"ab\",\"a\r\nb\",\"a\r\nb\"\r\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) True (runtime-fields ["\\."]) == "\"\\.\"\r\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) True (runtime-fields [" lead"," lead","tail "]) == "\" lead\",\" lead\",tail \r\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) True (runtime-fields ["aλb","c;d","emoji 😀"]) == "aλb,c;d,emoji 😀\r\n"),
+      (csv-render-record (config 44 0 CsvAnyFields False False) True (runtime-fields ["\u{0000}","﻿"]) == "\u{0000},﻿\r\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) False (runtime-fields []) == "\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) False (runtime-fields [""]) == "\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) False (runtime-fields ["a","b"]) == "a;b\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) False (runtime-fields ["a,b"," x","\"q\""]) == "a,b;\" x\";\"\"\"q\"\"\"\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) False (runtime-fields ["a\rb","a\nb","a\r\nb"]) == "\"a\rb\";\"a\nb\";\"a\r\nb\"\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) False (runtime-fields ["\\."]) == "\"\\.\"\n")] 13
+
+  -- | Evaluate a bounded group of independent write fixtures with original failing indices.
+  check-batch2 :: Unit -> Nat
+  check-batch2 unit = first-failure [
+      (csv-render-record (config 59 0 CsvAnyFields False False) False (runtime-fields [" lead"," lead","tail "]) == "\" lead\";\" lead\";tail \n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) False (runtime-fields ["aλb","c;d","emoji 😀"]) == "aλb;\"c;d\";emoji 😀\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) False (runtime-fields ["\u{0000}","﻿"]) == "\u{0000};﻿\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) True (runtime-fields []) == "\r\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) True (runtime-fields [""]) == "\r\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) True (runtime-fields ["a","b"]) == "a;b\r\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) True (runtime-fields ["a,b"," x","\"q\""]) == "a,b;\" x\";\"\"\"q\"\"\"\r\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) True (runtime-fields ["a\rb","a\nb","a\r\nb"]) == "\"ab\";\"a\r\nb\";\"a\r\nb\"\r\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) True (runtime-fields ["\\."]) == "\"\\.\"\r\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) True (runtime-fields [" lead"," lead","tail "]) == "\" lead\";\" lead\";tail \r\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) True (runtime-fields ["aλb","c;d","emoji 😀"]) == "aλb;\"c;d\";emoji 😀\r\n"),
+      (csv-render-record (config 59 0 CsvAnyFields False False) True (runtime-fields ["\u{0000}","﻿"]) == "\u{0000};﻿\r\n")] 25
+
+  -- | Evaluate a bounded group of independent write fixtures with original failing indices.
+  check-batch3 :: Unit -> Nat
+  check-batch3 unit = first-failure [
+      (csv-render-record (config 955 0 CsvAnyFields False False) False (runtime-fields []) == "\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) False (runtime-fields [""]) == "\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) False (runtime-fields ["a","b"]) == "aλb\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) False (runtime-fields ["a,b"," x","\"q\""]) == "a,bλ\" x\"λ\"\"\"q\"\"\"\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) False (runtime-fields ["a\rb","a\nb","a\r\nb"]) == "\"a\rb\"λ\"a\nb\"λ\"a\r\nb\"\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) False (runtime-fields ["\\."]) == "\"\\.\"\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) False (runtime-fields [" lead"," lead","tail "]) == "\" lead\"λ\" lead\"λtail \n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) False (runtime-fields ["aλb","c;d","emoji 😀"]) == "\"aλb\"λc;dλemoji 😀\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) False (runtime-fields ["\u{0000}","﻿"]) == "\u{0000}λ﻿\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) True (runtime-fields []) == "\r\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) True (runtime-fields [""]) == "\r\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) True (runtime-fields ["a","b"]) == "aλb\r\n")] 37
+
+  -- | Evaluate a bounded group of independent write fixtures with original failing indices.
+  check-batch4 :: Unit -> Nat
+  check-batch4 unit = first-failure [
+      (csv-render-record (config 955 0 CsvAnyFields False False) True (runtime-fields ["a,b"," x","\"q\""]) == "a,bλ\" x\"λ\"\"\"q\"\"\"\r\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) True (runtime-fields ["a\rb","a\nb","a\r\nb"]) == "\"ab\"λ\"a\r\nb\"λ\"a\r\nb\"\r\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) True (runtime-fields ["\\."]) == "\"\\.\"\r\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) True (runtime-fields [" lead"," lead","tail "]) == "\" lead\"λ\" lead\"λtail \r\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) True (runtime-fields ["aλb","c;d","emoji 😀"]) == "\"aλb\"λc;dλemoji 😀\r\n"),
+      (csv-render-record (config 955 0 CsvAnyFields False False) True (runtime-fields ["\u{0000}","﻿"]) == "\u{0000}λ﻿\r\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) False (runtime-fields []) == "\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) False (runtime-fields [""]) == "\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) False (runtime-fields ["a","b"]) == "a漢b\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) False (runtime-fields ["a,b"," x","\"q\""]) == "a,b漢\" x\"漢\"\"\"q\"\"\"\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) False (runtime-fields ["a\rb","a\nb","a\r\nb"]) == "\"a\rb\"漢\"a\nb\"漢\"a\r\nb\"\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) False (runtime-fields ["\\."]) == "\"\\.\"\n")] 49
+
+  -- | Evaluate a bounded group of independent write fixtures with original failing indices.
+  check-batch5 :: Unit -> Nat
+  check-batch5 unit = first-failure [
+      (csv-render-record (config 28450 0 CsvAnyFields False False) False (runtime-fields [" lead"," lead","tail "]) == "\" lead\"漢\" lead\"漢tail \n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) False (runtime-fields ["aλb","c;d","emoji 😀"]) == "aλb漢c;d漢emoji 😀\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) False (runtime-fields ["\u{0000}","﻿"]) == "\u{0000}漢﻿\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) True (runtime-fields []) == "\r\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) True (runtime-fields [""]) == "\r\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) True (runtime-fields ["a","b"]) == "a漢b\r\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) True (runtime-fields ["a,b"," x","\"q\""]) == "a,b漢\" x\"漢\"\"\"q\"\"\"\r\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) True (runtime-fields ["a\rb","a\nb","a\r\nb"]) == "\"ab\"漢\"a\r\nb\"漢\"a\r\nb\"\r\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) True (runtime-fields ["\\."]) == "\"\\.\"\r\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) True (runtime-fields [" lead"," lead","tail "]) == "\" lead\"漢\" lead\"漢tail \r\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) True (runtime-fields ["aλb","c;d","emoji 😀"]) == "aλb漢c;d漢emoji 😀\r\n"),
+      (csv-render-record (config 28450 0 CsvAnyFields False False) True (runtime-fields ["\u{0000}","﻿"]) == "\u{0000}漢﻿\r\n")] 61
+
+  -- | Evaluate a bounded group of independent write fixtures with original failing indices.
+  check-batch6 :: Unit -> Nat
+  check-batch6 unit = first-failure [
+      (csv-render-record (config 128512 0 CsvAnyFields False False) False (runtime-fields []) == "\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) False (runtime-fields [""]) == "\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) False (runtime-fields ["a","b"]) == "a😀b\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) False (runtime-fields ["a,b"," x","\"q\""]) == "a,b😀\" x\"😀\"\"\"q\"\"\"\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) False (runtime-fields ["a\rb","a\nb","a\r\nb"]) == "\"a\rb\"😀\"a\nb\"😀\"a\r\nb\"\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) False (runtime-fields ["\\."]) == "\"\\.\"\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) False (runtime-fields [" lead"," lead","tail "]) == "\" lead\"😀\" lead\"😀tail \n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) False (runtime-fields ["aλb","c;d","emoji 😀"]) == "aλb😀c;d😀\"emoji 😀\"\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) False (runtime-fields ["\u{0000}","﻿"]) == "\u{0000}😀﻿\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) True (runtime-fields []) == "\r\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) True (runtime-fields [""]) == "\r\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) True (runtime-fields ["a","b"]) == "a😀b\r\n")] 73
+
+  -- | Evaluate a bounded group of independent write fixtures with original failing indices.
+  check-batch7 :: Unit -> Nat
+  check-batch7 unit = first-failure [
+      (csv-render-record (config 128512 0 CsvAnyFields False False) True (runtime-fields ["a,b"," x","\"q\""]) == "a,b😀\" x\"😀\"\"\"q\"\"\"\r\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) True (runtime-fields ["a\rb","a\nb","a\r\nb"]) == "\"ab\"😀\"a\r\nb\"😀\"a\r\nb\"\r\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) True (runtime-fields ["\\."]) == "\"\\.\"\r\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) True (runtime-fields [" lead"," lead","tail "]) == "\" lead\"😀\" lead\"😀tail \r\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) True (runtime-fields ["aλb","c;d","emoji 😀"]) == "aλb😀c;d😀\"emoji 😀\"\r\n"),
+      (csv-render-record (config 128512 0 CsvAnyFields False False) True (runtime-fields ["\u{0000}","﻿"]) == "\u{0000}😀﻿\r\n")] 85
+
+  -- | Print a failing fixture index and return a nonzero exit status for failed observations.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let result = first-result [check-batch0 (),check-batch1 (),check-batch2 (),check-batch3 (),check-batch4 (),check-batch5 (),check-batch6 (),check-batch7 ()] in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string result) "\n")) in
+    if result == 0 then 0 else 1

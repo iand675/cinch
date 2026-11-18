@@ -1,0 +1,194 @@
+{
+  "description": "Independent sink schedules, retained prior offers, exact prefix/error/continuation checks and real runtime bulk-copy counting",
+  "frontend": "rust",
+  "opt_level": 2,
+  "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+  "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "sources": {
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+    "Main.cinch": "da18bbf03dd34225e0552b22033d6496f116889c334e6b7dbbcf390de6e21370",
+    "counter.c": "a31690f036690d3864264cbd9bffd96c8cdfa1326da980133c1c2d6df5d2c2cf",
+    "validator.py": "4a4309d8592aa25a779c73caba8c182ac1c232ba4cc3e9bbd7b8fb80c19e40e6"
+  },
+  "compiler_host_stack_bytes": 67108864,
+  "cpu_affinity": [
+    2
+  ],
+  "expected_regression": false,
+  "runs": [
+    {
+      "poisoned": false,
+      "heap_limit": "32M",
+      "stack_limit": "8M",
+      "exit_code": 0,
+      "controls_passed": true,
+      "traces": [
+        {
+          "mode": 0,
+          "size": 65536,
+          "sent": 65536,
+          "offers": 163838,
+          "first": 1,
+          "max": 2,
+          "calls": 65536
+        },
+        {
+          "mode": 1,
+          "size": 65536,
+          "sent": 65536,
+          "offers": 174250,
+          "first": 2,
+          "max": 512,
+          "calls": 935
+        },
+        {
+          "mode": 5,
+          "size": 64,
+          "sent": 64,
+          "offers": 64,
+          "first": 64,
+          "max": 0,
+          "calls": 1
+        },
+        {
+          "mode": 2,
+          "size": 64,
+          "sent": 17,
+          "offers": 82,
+          "first": 17,
+          "max": 17,
+          "calls": 3
+        },
+        {
+          "mode": 3,
+          "size": 64,
+          "sent": 17,
+          "offers": 82,
+          "first": 17,
+          "max": 17,
+          "calls": 3
+        },
+        {
+          "mode": 4,
+          "size": 64,
+          "sent": 17,
+          "offers": 82,
+          "first": 17,
+          "max": 17,
+          "calls": 3
+        },
+        {
+          "mode": 6,
+          "size": 0,
+          "sent": 1,
+          "offers": 1,
+          "first": 1,
+          "max": 0,
+          "calls": 1
+        }
+      ],
+      "actual_bulk_copy_bytes": 602032,
+      "actual_bulk_copy_calls": 133130,
+      "copy_bound_including_fixture": 673024,
+      "copy_bound_passed": true,
+      "stdout": "stream-trace: mode=0 size=65536 sent=65536 offers=163838 first=1 max=2 calls=65536\nstream-trace: mode=1 size=65536 sent=65536 offers=174250 first=2 max=512 calls=935\nstream-trace: mode=5 size=64 sent=64 offers=64 first=64 max=0 calls=1\nstream-trace: mode=2 size=64 sent=17 offers=82 first=17 max=17 calls=3\nstream-trace: mode=3 size=64 sent=17 offers=82 first=17 max=17 calls=3\nstream-trace: mode=4 size=64 sent=17 offers=82 first=17 max=17 calls=3\nstream-trace: mode=6 size=0 sent=1 offers=1 first=1 max=0 calls=1\n0\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=466119 bytes=13512545 peak=264495 header-blocks=399483 header-bytes=12777432 immortal=0 freed=399483 live=0\nstream-copy: bytes=602032 calls=133130\n"
+    },
+    {
+      "poisoned": true,
+      "heap_limit": "256M",
+      "stack_limit": "8M",
+      "exit_code": 0,
+      "controls_passed": true,
+      "traces": [
+        {
+          "mode": 0,
+          "size": 65536,
+          "sent": 65536,
+          "offers": 163838,
+          "first": 1,
+          "max": 2,
+          "calls": 65536
+        },
+        {
+          "mode": 1,
+          "size": 65536,
+          "sent": 65536,
+          "offers": 174250,
+          "first": 2,
+          "max": 512,
+          "calls": 935
+        },
+        {
+          "mode": 5,
+          "size": 64,
+          "sent": 64,
+          "offers": 64,
+          "first": 64,
+          "max": 0,
+          "calls": 1
+        },
+        {
+          "mode": 2,
+          "size": 64,
+          "sent": 17,
+          "offers": 82,
+          "first": 17,
+          "max": 17,
+          "calls": 3
+        },
+        {
+          "mode": 3,
+          "size": 64,
+          "sent": 17,
+          "offers": 82,
+          "first": 17,
+          "max": 17,
+          "calls": 3
+        },
+        {
+          "mode": 4,
+          "size": 64,
+          "sent": 17,
+          "offers": 82,
+          "first": 17,
+          "max": 17,
+          "calls": 3
+        },
+        {
+          "mode": 6,
+          "size": 0,
+          "sent": 1,
+          "offers": 1,
+          "first": 1,
+          "max": 0,
+          "calls": 1
+        }
+      ],
+      "actual_bulk_copy_bytes": 602032,
+      "actual_bulk_copy_calls": 133130,
+      "copy_bound_including_fixture": 673024,
+      "copy_bound_passed": true,
+      "stdout": "stream-trace: mode=0 size=65536 sent=65536 offers=163838 first=1 max=2 calls=65536\nstream-trace: mode=1 size=65536 sent=65536 offers=174250 first=2 max=512 calls=935\nstream-trace: mode=5 size=64 sent=64 offers=64 first=64 max=0 calls=1\nstream-trace: mode=2 size=64 sent=17 offers=82 first=17 max=17 calls=3\nstream-trace: mode=3 size=64 sent=17 offers=82 first=17 max=17 calls=3\nstream-trace: mode=4 size=64 sent=17 offers=82 first=17 max=17 calls=3\nstream-trace: mode=6 size=0 sent=1 offers=1 first=1 max=0 calls=1\n0\n",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=466119 bytes=13512545 peak=13028583 header-blocks=399483 header-bytes=12777432 immortal=0 freed=399483 live=0\nstream-copy: bytes=602032 calls=133130\n"
+    }
+  ],
+  "build_seconds": 5.941060036988347,
+  "llvm_sha256": "254c0175f40f0953842cd5a5d5555d8188b0ff805500c330d8fd564dcde991d3",
+  "counter_object_sha256": "7113b192c882f415f3632aaebac5524e4a4dadd125071920d25409c8556ff5b4",
+  "executable_sha256": "b355ef062d8a1a6f6265c378f8e5582c7dd0875c304d3f40b84322b703e75388",
+  "link_command": [
+    "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+    "-O2",
+    "/workspace/dasl-stdlib-json/build/stream-write-all-rust-o2-final/consumer.ll",
+    "/workspace/dasl-stdlib-json/build/stream-write-all-rust-o2-final/counter.o",
+    "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+    "-Wl,--wrap=cinch_bytes_copy",
+    "-ldl",
+    "-lpthread",
+    "-lm",
+    "-o",
+    "/workspace/dasl-stdlib-json/build/stream-write-all-rust-o2-final/consumer-counted"
+  ]
+}

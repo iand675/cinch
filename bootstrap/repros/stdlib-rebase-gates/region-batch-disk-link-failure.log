@@ -1,0 +1,1007 @@
+warning: cinch@0.1.0: In file included from /workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/71e0a608685e37ff/out/tree-sitter-cinch/parser.c:3:
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/71e0a608685e37ff/out/tree-sitter-cinch/parser.c: In function 'ts_lex':
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/71e0a608685e37ff/out/tree-sitter-cinch/tree_sitter/parser.h:187:11: warning: variable 'lookahead' set but not used [-Wunused-but-set-variable]
+warning: cinch@0.1.0:   187 |   int32_t lookahead;            \
+warning: cinch@0.1.0:       |           ^~~~~~~~~
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/71e0a608685e37ff/out/tree-sitter-cinch/parser.c:38367:3: note: in expansion of macro 'START_LEXER'
+warning: cinch@0.1.0: 38367 |   START_LEXER();
+warning: cinch@0.1.0:       |   ^~~~~~~~~~~
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/../tooling/tree-sitter-cinch/src/scanner.c:284:20: warning: 'SYM_NAMES' defined but not used [-Wunused-variable]
+warning: cinch@0.1.0:   284 | static const char *SYM_NAMES[] = {
+warning: cinch@0.1.0:       |                    ^~~~~~~~~
+warning: unused imports: `ArithMode` and `ArithOp`
+  --> src/check.rs:12:19
+   |
+12 | use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, I...
+   |                   ^^^^^^^^^  ^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `CBranch`
+  --> src/codegen.rs:85:78
+   |
+85 |     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
+   |                                                                              ^^^^^^^
+
+warning: unused import: `Sha256`
+ --> src/provenance.rs:9:25
+  |
+9 | use sha2::{Digest as _, Sha256};
+  |                         ^^^^^^
+
+warning: unused import: `Path`
+  --> src/repl_tui.rs:24:17
+   |
+24 | use std::path::{Path, PathBuf};
+   |                 ^^^^
+
+warning: unused import: `unicode_width::UnicodeWidthStr`
+  --> src/repl_tui.rs:26:5
+   |
+26 | use unicode_width::UnicodeWidthStr;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `span`
+    --> src/check.rs:9832:47
+     |
+9832 |             ast::Type::Sigma(name, ann, body, span) => {
+     |                                               ^^^^ help: if this is intentional, prefix it with an underscore: `_span`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+     --> src/check.rs:10114:13
+      |
+10114 |         let mut fresh = |name: &String| {
+      |             ----^^^^^
+      |             |
+      |             help: remove this `mut`
+      |
+      = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tag`
+    --> src/check_terms.rs:4425:14
+     |
+4425 |         let (tag, arity, field_erased, runtime_arity, ctor_refine) = match &v.kind {
+     |              ^^^ help: if this is intentional, prefix it with an underscore: `_tag`
+
+warning: variable does not need to be mutable
+   --> src/check_decls.rs:947:13
+    |
+947 |         let mut reg = |this: &mut Self, name: &str, scheme: Scheme, op: ConcOp| {
+    |             ----^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/check_decls.rs:1194:13
+     |
+1194 |         let mut reg = |this: &mut Self, name: &str, scheme: Scheme, op: ParOp| {
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: value assigned to `res_args` is never read
+    --> src/check_decls.rs:4086:53
+     |
+4086 |                         let mut res_args: Vec<Ty> = Vec::new();
+     |                                                     ^^^^^^^^^^ this value is reassigned later and never used
+...
+4091 |                                 res_args = args.clone();
+     |                                 -------- `res_args` is overwritten here before the previous value is read
+     |
+     = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> src/check_decls.rs:7626:25
+     |
+7626 |                     let mut later = eqs[1..].iter().filter_map(|e| match &e.pats[i] {
+     |                         ----^^^^^
+     |                         |
+     |                         help: remove this `mut`
+
+warning: unused variable: `c`
+    --> src/check_decls.rs:8686:34
+     |
+8686 |                 Ty::Fun(_, _, _, c) => {
+     |                                  ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/check_decls.rs:8767:13
+     |
+8767 |         let mut row = |status: String| crate::core::LawRow {
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: unused variable: `c`
+    --> src/check_decls.rs:8798:34
+     |
+8798 |                 Ty::Fun(_, _, _, c) => {
+     |                                  ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/check_decls.rs:8949:13
+     |
+8949 |         let mut row = |status: String| crate::core::LawRow {
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/check_decls.rs:9154:13
+     |
+9154 |         let mut bail = |rows: &mut Vec<crate::core::LawRow>, reason: String| {
+     |             ----^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: unused variable: `p`
+     --> src/check_decls.rs:10979:9
+      |
+10979 |         p: &ast::PrimDecl,
+      |         ^ help: if this is intentional, prefix it with an underscore: `_p`
+
+warning: unused variable: `p`
+     --> src/check_decls.rs:11254:9
+      |
+11254 |         p: &ast::PrimDecl,
+      |         ^ help: if this is intentional, prefix it with an underscore: `_p`
+
+warning: variable does not need to be mutable
+     --> src/check_decls.rs:12399:13
+      |
+12399 |         let mut once = |set: bool| -> Result<()> {
+      |             ----^^^^
+      |             |
+      |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+     --> src/check_decls.rs:18324:13
+      |
+18324 |         let mut checker = self.checker;
+      |             ----^^^^^^^
+      |             |
+      |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+     --> src/check_decls.rs:19125:13
+      |
+19125 |         let mut add_unit = |key: UnitKey, desc: &mut HashMap<UnitKey, String>,
+      |             ----^^^^^^^^
+      |             |
+      |             help: remove this `mut`
+
+warning: unused variable: `m`
+     --> src/check_decls.rs:19870:54
+      |
+19870 |     fn collect_data_imports(&mut self, module: &str, m: &ast::Module) -> Result<()> {
+      |                                                      ^ help: if this is intentional, prefix it with an underscore: `_m`
+
+warning: variable does not need to be mutable
+     --> src/check_decls.rs:21068:9
+      |
+21068 |     let mut push_pat = |p: &ast::Pat, out: &mut Vec<String>| {
+      |         ----^^^^^^^^
+      |         |
+      |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+     --> src/check_decls.rs:23311:13
+      |
+23311 |         let mut child = cmd
+      |             ----^^^^^
+      |             |
+      |             help: remove this `mut`
+
+warning: unused variable: `stdin`
+    --> src/cinchdoc.rs:1633:33
+     |
+1633 |                     if let Some(stdin) = &test.stdin {
+     |                                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_stdin`
+
+warning: unused variable: `other`
+     --> src/codegen.rs:11770:13
+      |
+11770 |             other if matches!(dest, Dest::Ret) && self.cpr.is_some() => err(format!(
+      |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_other`
+
+warning: value assigned to `vi` is never read
+     --> src/codegen.rs:15193:17
+      |
+15193 |                 vi += 1;
+      |                 ^^^^^^^ this value is reassigned later and never used
+...
+15218 |                 vi += 2;
+      |                 ------- `vi` is overwritten here before the previous value is read
+
+warning: value assigned to `vi` is never read
+     --> src/codegen.rs:15218:17
+      |
+15218 |                 vi += 2;
+      |                 ^^^^^^^ this value is reassigned later and never used
+...
+15236 |                 vi += 1;
+      |                 ------- `vi` is overwritten here before the previous value is read
+
+warning: value assigned to `vi` is never read
+     --> src/codegen.rs:15236:17
+      |
+15236 |                 vi += 1;
+      |                 ^^^^^^^
+      |
+      = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+    --> src/core.rs:5351:13
+     |
+5351 |         let mut note = |l: LocalId, map: &mut HashMap<LocalId, LocalId>, next: &mut usize| {
+     |             ----^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: unreachable pattern
+    --> src/core.rs:6441:13
+     |
+6411 | /             Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
+6412 | |             | Core::RefSet(_, _, _)
+6413 | |             | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) | Core::Quote { .. }
+6414 | |             | Core::DeclsQuote { .. } => *found = true,
+     | |_____________________________________- matches all the relevant values
+...
+6441 |               Core::LazyInit(_, t) => go(t, found),
+     |               ^^^^^^^^^^^^^^^^^^^^ no value can reach this
+     |
+     = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+    --> src/core.rs:6442:13
+     |
+6411 | /             Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
+6412 | |             | Core::RefSet(_, _, _)
+6413 | |             | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) | Core::Quote { .. }
+6414 | |             | Core::DeclsQuote { .. } => *found = true,
+     | |_____________________________________- matches all the relevant values
+...
+6442 |               Core::BoxInit(_, v, _) => go(v, found),
+     |               ^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+
+warning: unreachable pattern
+    --> src/core.rs:6584:9
+     |
+6552 | /         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
+6553 | |         | Core::RefSet(_, _, _)
+6554 | |         | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) => *n += 1,
+     | |__________________________________________________________________- matches all the relevant values
+...
+6584 |           Core::LazyInit(_, t) => scan_memo(t, n),
+     |           ^^^^^^^^^^^^^^^^^^^^ no value can reach this
+
+warning: unused variable: `i`
+    --> src/core.rs:7357:60
+     |
+7357 |                 match self.caller.meta.dicts.iter().find(|(i, c)| c == class) {
+     |                                                            ^ help: if this is intentional, prefix it with an underscore: `_i`
+
+warning: variable does not need to be mutable
+    --> src/core.rs:7817:9
+     |
+7817 |     let mut all = |cs: &[Class], f: &mut dyn FnMut(Class)| cs.iter().for_each(|c| f(*c));
+     |         ----^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unreachable pattern
+   --> src/incremental.rs:655:11
+    |
+604 |         Decl::Signature(s) => {
+    |         ------------------ matches all the relevant values
+...
+655 |         | Decl::Signature(_)
+    |           ^^^^^^^^^^^^^^^^^^ no value can reach this
+
+warning: variable does not need to be mutable
+   --> src/driver.rs:635:13
+    |
+635 |         let mut strings = |key: &str| -> Result<Vec<String>> {
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/driver.rs:783:17
+    |
+783 |             let mut list = |value: &crate::interface::JsonValue| -> Result<Vec<String>> {
+    |                 ----^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/driver.rs:1426:9
+     |
+1426 |     let mut path_at = |i: &mut usize| -> Option<String> {
+     |         ----^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `signatures`
+    --> src/driver.rs:4679:13
+     |
+4679 |         let signatures = crate::coretext::Signatures::from_ifaces(ifaces);
+     |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_signatures`
+
+warning: unused variable: `digest`
+    --> src/driver.rs:4692:13
+     |
+4692 |         let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
+     |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_digest`
+
+warning: variable does not need to be mutable
+    --> src/driver.rs:5738:9
+     |
+5738 |     let mut program = program;
+     |         ----^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/interface.rs:3853:9
+     |
+3853 |     let mut check_ty = |t: &crate::ast::WitType| -> crate::Result<()> {
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `span`
+    --> src/parser.rs:1639:13
+     |
+1639 |         let span = self.expect(&Tok::Import, "`import`")?.span;
+     |             ^^^^ help: if this is intentional, prefix it with an underscore: `_span`
+
+warning: unreachable pattern
+    --> src/parser.rs:5669:48
+     |
+5662 |             b'0'..=b'9' => {
+     |             ----------- matches all the relevant values
+...
+5669 |             b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'0'..=b'9' => {
+     |                                                ^^^^^^^^^^^ no value can reach this
+
+warning: variable does not need to be mutable
+    --> src/rc.rs:1456:13
+     |
+1456 |         let mut add = |s: &mut Set, x: &LocalId, this: &Pass| {
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/simplify.rs:1258:9
+     |
+1258 |     let mut fresh_for = |x: &mut LocalId, fresh: &mut Fresh, renames: &mut Vec<(LocalId, LocalId)>| {
+     |         ----^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/simplify.rs:4736:9
+     |
+4736 |     let mut root = |name: &str, live: &mut HashSet<String>, work: &mut Vec<String>| {
+     |         ----^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `c`
+    --> src/stack.rs:1519:26
+     |
+1519 |             Core::Let(x, c, v, body) => {
+     |                          ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/types.rs:2370:13
+     |
+2370 |         let mut side = |le: LinLe, rows: &mut Vec<LinStep>| {
+     |             ----^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: unused variable: `values`
+   --> src/cxx/exports.rs:345:20
+    |
+345 |         let (args, values) = cpp_arguments(&f.params)?;
+    |                    ^^^^^^ help: if this is intentional, prefix it with an underscore: `_values`
+
+warning: unused variable: `values`
+   --> src/cxx/exports.rs:498:24
+    |
+498 |             let (args, values) = cpp_arguments(&m.params)?;
+    |                        ^^^^^^ help: if this is intentional, prefix it with an underscore: `_values`
+
+warning: type `check::Checker` is more private than the item `check::LowerCx::<'a>::new`
+    --> src/check.rs:1274:5
+     |
+1274 |     pub(crate) fn new(ck: &'a Checker, tparams: &'a [String], own: &'a HashSet<GlobalId>) -> Self {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function `check::LowerCx::<'a>::new` is reachable at visibility `pub(crate)`
+     |
+note: but type `check::Checker` is only usable at visibility `pub(self)`
+    --> src/check.rs:3061:1
+     |
+3061 | struct Checker {
+     | ^^^^^^^^^^^^^^
+     = note: `#[warn(private_interfaces)]` on by default
+
+warning: type `check::Checker` is more private than the item `check::LowerCx::<'a>::compile_time`
+    --> src/check.rs:1289:5
+     |
+1289 |     pub(crate) fn compile_time(ck: &'a Checker, tparams: &'a [String], own: &'a HashSet<GlobalId>) -> Self {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function `check::LowerCx::<'a>::compile_time` is reachable at visibility `pub(crate)`
+     |
+note: but type `check::Checker` is only usable at visibility `pub(self)`
+    --> src/check.rs:3061:1
+     |
+3061 | struct Checker {
+     | ^^^^^^^^^^^^^^
+
+warning: type `Parameter` is more private than the item `cinchdoc::Decl::parameters`
+   --> src/cinchdoc.rs:197:5
+    |
+197 |     pub fn parameters(&self) -> Vec<Parameter> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method `cinchdoc::Decl::parameters` is reachable at visibility `pub`
+    |
+note: but type `Parameter` is only usable at visibility `pub(self)`
+   --> src/cinchdoc.rs:178:1
+    |
+178 | struct Parameter {
+    | ^^^^^^^^^^^^^^^^
+
+warning: type `JsonValue` is more private than the item `LinkSpec::parse`
+    --> src/driver.rs:631:5
+     |
+ 631 |     pub fn parse(v: &crate::interface::JsonValue) -> Result<LinkSpec> {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function `LinkSpec::parse` is reachable at visibility `pub`
+     |
+note: but type `JsonValue` is only usable at visibility `pub(crate)`
+    --> src/interface.rs:1583:1
+     |
+1583 | pub(crate) enum JsonValue {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `JsonValue` is more private than the item `When::parse`
+    --> src/driver.rs:778:5
+     |
+ 778 |     pub fn parse(v: &crate::interface::JsonValue) -> Result<When> {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function `When::parse` is reachable at visibility `pub`
+     |
+note: but type `JsonValue` is only usable at visibility `pub(crate)`
+    --> src/interface.rs:1583:1
+     |
+1583 | pub(crate) enum JsonValue {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `JsonValue` is more private than the item `encode_core`
+    --> src/ifaceopt.rs:386:1
+     |
+ 386 | pub fn encode_core(e: &Core) -> Option<JsonValue> {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ function `encode_core` is reachable at visibility `pub`
+     |
+note: but type `JsonValue` is only usable at visibility `pub(crate)`
+    --> src/interface.rs:1583:1
+     |
+1583 | pub(crate) enum JsonValue {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `JsonValue` is more private than the item `decode_core`
+    --> src/ifaceopt.rs:559:1
+     |
+ 559 | pub fn decode_core(value: &JsonValue) -> Result<Core, ParseError> {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ function `decode_core` is reachable at visibility `pub`
+     |
+note: but type `JsonValue` is only usable at visibility `pub(crate)`
+    --> src/interface.rs:1583:1
+     |
+1583 | pub(crate) enum JsonValue {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `capture_term` is never used
+    --> src/ast.rs:2567:15
+     |
+2567 | pub(crate) fn capture_term(t: &Term, values: &[Name], globals: Option<Arc<GlobalScope>>) -> Result<Term> {
+     |               ^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `capture_type` is never used
+    --> src/ast.rs:2585:15
+     |
+2585 | pub(crate) fn capture_type(t: &Type, values: &[Name], globals: Option<Arc<GlobalScope>>) -> Result<Type> {
+     |               ^^^^^^^^^^^^
+
+warning: function `capture_type_in_declaration` is never used
+    --> src/ast.rs:2589:15
+     |
+2589 | pub(crate) fn capture_type_in_declaration(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `unit`, `arity`, and `immarg` are never read
+    --> src/check.rs:1700:16
+     |
+1700 |     PrimDecl { unit: String, arity: usize, immarg: Vec<usize> },
+     |     --------   ^^^^          ^^^^^         ^^^^^^
+     |     |
+     |     fields in this variant
+     |
+     = note: `ValueKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: field `arity` is never read
+    --> src/check.rs:1704:29
+     |
+1704 |     Foreign { unit: String, arity: usize },
+     |     -------                 ^^^^^
+     |     |
+     |     field in this variant
+     |
+     = note: `ValueKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: function `conc_io_ty` is never used
+    --> src/check.rs:2931:15
+     |
+2931 | pub(crate) fn conc_io_ty(r: &str) -> Ty {
+     |               ^^^^^^^^^^
+
+warning: field `module` is never read
+    --> src/check.rs:2988:9
+     |
+2987 | pub(crate) struct LayoutRecipe {
+     |                   ------------ field in this struct
+2988 |     pub module: String,
+     |         ^^^^^^
+     |
+     = note: `LayoutRecipe` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: field `method_gid` is never read
+    --> src/check.rs:3043:5
+     |
+3034 | struct PresObligation {
+     |        -------------- field in this struct
+...
+3043 |     method_gid: crate::core::GlobalId,
+     |     ^^^^^^^^^^
+
+warning: fields `staging_fns` and `stage_inputs` are never read
+    --> src/check.rs:3471:5
+     |
+3061 | struct Checker {
+     |        ------- fields in this struct
+...
+3471 |     staging_fns: std::collections::HashMap<String, Vec<crate::core::FnDef>>,
+     |     ^^^^^^^^^^^
+...
+3479 |     stage_inputs: Vec<StageInput>,
+     |     ^^^^^^^^^^^^
+
+warning: fields `owned_attrs` and `span` are never read
+    --> src/check.rs:3661:5
+     |
+3656 | struct MacroInfo {
+     |        --------- fields in this struct
+...
+3661 |     owned_attrs: Vec<String>,
+     |     ^^^^^^^^^^^
+3662 |     /// The macro's definition-site span, for expansion provenance.
+3663 |     span: ast::Span,
+     |     ^^^^
+     |
+     = note: `MacroInfo` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: associated items `note_ev_write`, `note_ev_write_opaque`, `instance_search_rows`, `subst_index_full`, and `subst_it` are never used
+     --> src/check.rs:4310:8
+      |
+ 3898 | impl Checker {
+      | ------------ associated items in this implementation
+...
+ 4310 |     fn note_ev_write(&mut self, loc: Option<String>, span: ast::Span) {
+      |        ^^^^^^^^^^^^^
+...
+ 4335 |     fn note_ev_write_opaque(&mut self, span: ast::Span) {
+      |        ^^^^^^^^^^^^^^^^^^^^
+...
+ 6632 |     pub(crate) fn instance_search_rows(&self) -> Vec<(String, String, String)> {
+      |                   ^^^^^^^^^^^^^^^^^^^^
+...
+10736 |     fn subst_index_full(term: &ITerm, types: &HashMap<String, Ty>, rows: &HashMap<String, RowTail>, regions: &HashMap<String, Str...
+      |        ^^^^^^^^^^^^^^^^
+...
+10906 |     fn subst_it(t: &ITerm, map: &HashMap<String, Ty>) -> ITerm {
+      |        ^^^^^^^^
+
+warning: enum `MeasureShape` is never used
+  --> src/check_terms.rs:31:6
+   |
+31 | enum MeasureShape {
+   |      ^^^^^^^^^^^^
+
+warning: method `measure_shape` is never used
+    --> src/check_terms.rs:6883:8
+     |
+ 110 | impl Checker {
+     | ------------ method in this implementation
+...
+6883 |     fn measure_shape(&mut self, env: &Env, arg: &ast::Term) -> Option<MeasureShape> {
+     |        ^^^^^^^^^^^^^
+
+warning: field `closure` is never read
+     --> src/check_decls.rs:12952:9
+      |
+12945 | pub(crate) struct CallRec {
+      |                   ------- field in this struct
+...
+12952 |     pub closure: bool,
+      |         ^^^^^^^
+      |
+      = note: `CallRec` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `tail` is never read
+     --> src/check_decls.rs:12976:9
+      |
+12974 | pub(crate) struct SelfCallRec {
+      |                   ----------- field in this struct
+12975 |     pub span: ast::Span,
+12976 |     pub tail: bool,
+      |         ^^^^
+      |
+      = note: `SelfCallRec` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `logical` is never read
+     --> src/check_decls.rs:13804:9
+      |
+13793 | pub(crate) struct SafetyRecord {
+      |                   ------------ field in this struct
+...
+13804 |     pub logical: bool,
+      |         ^^^^^^^
+      |
+      = note: `SafetyRecord` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: function `check_program_multi_full_probe_indexed` is never used
+     --> src/check_decls.rs:18370:15
+      |
+18370 | pub(crate) fn check_program_multi_full_probe_indexed(
+      |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `check_program_multi_full_prepared_with_preludes` is never used
+     --> src/check_decls.rs:18821:15
+      |
+18821 | pub(crate) fn check_program_multi_full_prepared_with_preludes(
+      |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `depth` is never read
+     --> src/check_decls.rs:18983:5
+      |
+18955 | struct StageCx {
+      |        ------- field in this struct
+...
+18983 |     depth: usize,
+      |     ^^^^^
+
+warning: function `decl_name` is never used
+     --> src/check_decls.rs:21146:4
+      |
+21146 | fn decl_name(d: &ast::Decl) -> Option<&ast::Name> {
+      |    ^^^^^^^^^
+
+warning: field `marker` is never read
+   --> src/cinchdoc.rs:119:5
+    |
+114 | struct CommentBlock {
+    |        ------------ field in this struct
+...
+119 |     marker: &'static str,
+    |     ^^^^^^
+    |
+    = note: `CommentBlock` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: fields `measure` and `fuel` are never read
+    --> src/core.rs:6475:5
+     |
+6464 | struct OptCx {
+     |        ----- fields in this struct
+...
+6475 |     measure: u32,
+     |     ^^^^^^^
+6476 |     fuel: u32,
+     |     ^^^^
+
+warning: fields `owner` and `exposed` are never read
+    --> src/driver.rs:1524:5
+     |
+1515 | struct Project {
+     |        ------- fields in this struct
+...
+1524 |     owner: HashMap<String, String>,
+     |     ^^^^^
+1525 |     /// Modules another package may import (section 4.2).
+1526 |     exposed: HashMap<String, bool>,
+     |     ^^^^^^^
+
+warning: function `link` is never used
+    --> src/driver.rs:3774:4
+     |
+3774 | fn link(ir_path: &Path, out: &Path) -> Result<()> {
+     |    ^^^^
+
+warning: field `abi` is never read
+    --> src/interface.rs:2864:5
+     |
+2862 | struct CanonCx<'a> {
+     |        ------- field in this struct
+2863 |     pkg: &'a crate::ast::WitPackage,
+2864 |     abi: CanonicalAbi,
+     |     ^^^
+     |
+     = note: `CanonCx` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: method `classify` is never used
+    --> src/interface.rs:2906:8
+     |
+2890 | impl<'a> CanonCx<'a> {
+     | -------------------- method in this implementation
+...
+2906 |     fn classify(&self, t: &crate::ast::WitType) -> crate::Result<Shape> {
+     |        ^^^^^^^^
+
+warning: enum `Shape` is never used
+    --> src/interface.rs:3198:6
+     |
+3198 | enum Shape {
+     |      ^^^^^
+
+warning: field `nodes` is never read
+    --> src/simplify.rs:2698:5
+     |
+2694 | struct SpecTarget {
+     |        ---------- field in this struct
+...
+2698 |     nodes: usize,
+     |     ^^^^^
+
+warning: constant `BENEFIT_ALLOCATION` is never used
+    --> src/simplify.rs:3141:7
+     |
+3141 | const BENEFIT_ALLOCATION: usize = 7;
+     |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `BENEFIT_INDIRECT` is never used
+    --> src/simplify.rs:3144:7
+     |
+3144 | const BENEFIT_INDIRECT: usize = 4;
+     |       ^^^^^^^^^^^^^^^^
+
+warning: enum `Refusal` is never used
+    --> src/simplify.rs:3200:6
+     |
+3200 | enum Refusal {
+     |      ^^^^^^^
+
+warning: methods `name` and `count` are never used
+    --> src/simplify.rs:3212:8
+     |
+3211 | impl Refusal {
+     | ------------ methods in this implementation
+3212 |     fn name(self) -> &'static str {
+     |        ^^^^
+...
+3225 |     fn count(self, tally: &mut BenefitTally) {
+     |        ^^^^^
+
+warning: field `valued` is never read
+    --> src/simplify.rs:3479:5
+     |
+3442 | struct InlineBody {
+     |        ---------- field in this struct
+...
+3479 |     valued: bool,
+     |     ^^^^^^
+
+warning: variants `Recursive` and `Costly` are never constructed
+    --> src/simplify.rs:3632:5
+     |
+3625 | enum Refused {
+     |      ------- variants in this enum
+...
+3632 |     Recursive,
+     |     ^^^^^^^^^
+...
+3643 |     Costly,
+     |     ^^^^^^
+     |
+     = note: `Refused` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: `cinch` (lib) generated 94 warnings (run `cargo fix --lib -p cinch` to apply 43 suggestions)
+   Compiling cinch v0.1.0 (/workspace/dasl-stdlib-io/compiler)
+warning: function `drive_with` is never used
+   --> tests/common/mod.rs:225:8
+    |
+225 | pub fn drive_with(mode: Mode, stage: StageMode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
+    |        ^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `drive_with_profile` is never used
+   --> tests/common/mod.rs:232:8
+    |
+232 | pub fn drive_with_profile(mode: Mode, stage: StageMode, dir: &Path, entry: &str, out: Option<PathBuf>, profile: &TargetProfile) -> ...
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `drive_opts` is never used
+   --> tests/common/mod.rs:244:8
+    |
+244 | pub fn drive_opts(mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, opts: &DriverOptions) -> Result<i32, String> {
+    |        ^^^^^^^^^^
+
+warning: function `run` is never used
+   --> tests/common/mod.rs:254:8
+    |
+254 | pub fn run(dir: &Path, entry: &str) -> i32 {
+    |        ^^^
+
+warning: function `check_interfaces_profile` is never used
+   --> tests/common/mod.rs:273:8
+    |
+273 | pub fn check_interfaces_profile(dir: &Path, entry: &str, profile: &TargetProfile) -> Result<Vec<cinch::interface::Iface>, String> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `check_library_fixture_native` is never used
+   --> tests/common/mod.rs:297:8
+    |
+297 | pub fn check_library_fixture_native(dir: &Path, entry: &str) -> Result<(), String> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `build` is never used
+   --> tests/common/mod.rs:316:8
+    |
+316 | pub fn build(dir: &Path, entry: &str, out: &str) -> Result<PathBuf, String> {
+    |        ^^^^^
+
+warning: function `build_refinement_checker` is never used
+   --> tests/common/mod.rs:325:8
+    |
+325 | pub fn build_refinement_checker(dir: &Path, out: &str) -> Result<PathBuf, String> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `read_output` is never used
+   --> tests/common/mod.rs:351:8
+    |
+351 | pub fn read_output(dir: &Path, name: &str) -> String {
+    |        ^^^^^^^^^^^
+
+warning: function `options_request` is never used
+   --> tests/common/external_frontend.rs:126:8
+    |
+126 | pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, String> {
+    |        ^^^^^^^^^^^^^^^
+
+warning: function `run_cli` is never used
+   --> tests/common/external_frontend.rs:279:8
+    |
+279 | pub fn run_cli(frontend: &Frontend, entry: &Path, words: &[&str]) -> Result<i32, String> {
+    |        ^^^^^^^
+
+warning: function `drive_with_objects` is never used
+   --> tests/common/external_frontend.rs:317:8
+    |
+317 | pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, objects: Option<PathBuf>)...
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `source_project` is never used
+  --> tests/common/source_frontend.rs:11:4
+   |
+11 | fn source_project<T>(
+   |    ^^^^^^^^^^^^^^
+
+warning: function `check_sources` is never used
+  --> tests/common/source_frontend.rs:30:8
+   |
+30 | pub fn check_sources(source: &str, name: &str) -> Result<(), String> {
+   |        ^^^^^^^^^^^^^
+
+warning: function `check_source_interfaces` is never used
+  --> tests/common/source_frontend.rs:39:8
+   |
+39 | pub fn check_source_interfaces(source: &str, name: &str) -> Result<Vec<Iface>, String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `run_source` is never used
+  --> tests/common/source_frontend.rs:49:8
+   |
+49 | pub fn run_source(source: &str) -> Result<i32, String> {
+   |        ^^^^^^^^^^
+
+warning: function `check_sources_profile` is never used
+  --> tests/common/source_frontend.rs:59:8
+   |
+59 | pub fn check_sources_profile(source: &str, name: &str, profile: &TargetProfile) -> Result<(), String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `check_source_interfaces_profile` is never used
+  --> tests/common/source_frontend.rs:72:8
+   |
+72 | pub fn check_source_interfaces_profile(source: &str, name: &str, profile: &TargetProfile) -> Result<Vec<Iface>, String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `run_source_profile` is never used
+  --> tests/common/source_frontend.rs:83:8
+   |
+83 | pub fn run_source_profile(source: &str, profile: &TargetProfile) -> Result<i32, String> {
+   |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `run_source_io` is never used
+  --> tests/common/source_frontend.rs:95:8
+   |
+95 | pub fn run_source_io(source: &str, input: &[u8]) -> Result<(i32, String), String> {
+   |        ^^^^^^^^^^^^^
+
+warning: function `run_source_objects` is never used
+   --> tests/common/source_frontend.rs:102:8
+    |
+102 | pub fn run_source_objects(source: &str, objects: &[&str]) -> Result<i32, String> {
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `required_path` is never used
+   --> tests/common/source_frontend.rs:109:4
+    |
+109 | fn required_path(name: &str) -> Result<PathBuf, String> {
+    |    ^^^^^^^^^^^^^
+
+warning: function `run_linked_source` is never used
+   --> tests/common/source_frontend.rs:114:4
+    |
+114 | fn run_linked_source(
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: `cinch` (test "interface_region_effects") generated 23 warnings
+warning: function `check_interfaces` is never used
+   --> tests/common/mod.rs:267:8
+    |
+267 | pub fn check_interfaces(dir: &Path, entry: &str) -> Result<Vec<cinch::interface::Iface>, String> {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: function `build_interfaces` is never used
+   --> tests/common/mod.rs:279:4
+    |
+279 | fn build_interfaces(dir: &Path) -> Result<Vec<cinch::interface::Iface>, String> {
+    |    ^^^^^^^^^^^^^^^^
+
+warning: `cinch` (test "explicit_region_quantifiers") generated 24 warnings (22 duplicates)
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/db410986405c1d1c/out/rustcxoWyBa/symbols.o" "<2 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/85c87f926c739e09/out/libcinch-85c87f926c739e09.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/tempfile/f6974f6551c3e339/out/libtempfile-f6974f6551c3e339.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/getrandom/13f1d86925049a1c/out/libgetrandom-13f1d86925049a1c.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/fastrand/bfa39d48d78230cd/out/libfastrand-bfa39d48d78230cd.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/once_cell/903b80408fa01e89/out/libonce_cell-903b80408fa01e89.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/rustix/67f45f1da8fbbf2b/out/librustix-67f45f1da8fbbf2b.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/linux-raw-sys/bffe73aff8d12fc5/out/liblinux_raw_sys-bffe73aff8d12fc5.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/shlex/ef6f375b3f060267/out/libshlex-ef6f375b3f060267.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/ratatui/e8b085afde091e99/out/libratatui-e8b085afde091e99.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/unicode-truncate/91d17aeb87986418/out/libunicode_truncate-91d17aeb87986418.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/unicode-width/22fd9805ea1e5df2/out/libunicode_width-22fd9805ea1e5df2.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/lru/73fdc75494d7f53a/out/liblru-73fdc75494d7f53a.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/hashbrown/e96085b8bdf5f6c0/out/libhashbrown-e96085b8bdf5f6c0.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/foldhash/19dd231a6783b65b/out/libfoldhash-19dd231a6783b65b.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/equivalent/448cac736da17193/out/libequivalent-448cac736da17193.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/allocator-api2/c96e0336f5ed9b62/out/liballocator_api2-c96e0336f5ed9b62.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/itertools/d65ea9b905364343/out/libitertools-d65ea9b905364343.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/either/41362c3568567440/out/libeither-41362c3568567440.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/cassowary/68a1cf4c7251cbee/out/libcassowary-68a1cf4c7251cbee.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/compact_str/4ad14cf5095c21f1/out/libcompact_str-4ad14cf5095c21f1.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/ryu/2a0c420f3252b1dd/out/libryu-2a0c420f3252b1dd.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/static_assertions/baf875bc5ed80fab/out/libstatic_assertions-baf875bc5ed80fab.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/castaway/a022a675f014e319/out/libcastaway-a022a675f014e319.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/unicode-segmentation/66282b8a7bed7ce5/out/libunicode_segmentation-66282b8a7bed7ce5.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/unicode-width/67430906eadd58fd/out/libunicode_width-67430906eadd58fd.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/strum/7eb961bcafeb1225/out/libstrum-7eb961bcafeb1225.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/crossterm/75f69f575e5903c4/out/libcrossterm-75f69f575e5903c4.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/rustix/746522f814cdcc45/out/librustix-746522f814cdcc45.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/linux-raw-sys/43f7b507d4369520/out/liblinux_raw_sys-43f7b507d4369520.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/bitflags/6d6f20c220904cb8/out/libbitflags-6d6f20c220904cb8.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/parking_lot/2070617426d88544/out/libparking_lot-2070617426d88544.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/parking_lot_core/bdf97301003e2f1d/out/libparking_lot_core-bdf97301003e2f1d.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/smallvec/b6224bff8adfa643/out/libsmallvec-b6224bff8adfa643.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/lock_api/2e2259df48bd3d0f/out/liblock_api-2e2259df48bd3d0f.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/scopeguard/105cf5118f382b32/out/libscopeguard-105cf5118f382b32.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/signal-hook-mio/845f7bc53710deb8/out/libsignal_hook_mio-845f7bc53710deb8.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/signal-hook/0d1b5f5f23023cdf/out/libsignal_hook-0d1b5f5f23023cdf.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/signal-hook-registry/aad5e1f581ae2953/out/libsignal_hook_registry-aad5e1f581ae2953.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/errno/43a3f7c2df133fe6/out/liberrno-43a3f7c2df133fe6.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/mio/bf242e15a8d3c143/out/libmio-bf242e15a8d3c143.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/libc/1c869feb7b63ac6b/out/liblibc-1c869feb7b63ac6b.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/log/7d21755504fba960/out/liblog-7d21755504fba960.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/tree-sitter/0df03aff8c0fb9a4/out/libtree_sitter-0df03aff8c0fb9a4.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/tree-sitter-language/a8a6c80427470770/out/libtree_sitter_language-a8a6c80427470770.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/streaming-iterator/06eb4856fbbca1cf/out/libstreaming_iterator-06eb4856fbbca1cf.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/sha2/ee6988e87132c688/out/libsha2-ee6988e87132c688.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/cpufeatures/a11952a4e36e9a3a/out/libcpufeatures-a11952a4e36e9a3a.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/cfg-if/9e5c78cef634d825/out/libcfg_if-9e5c78cef634d825.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/digest/28939bc321b4b591/out/libdigest-28939bc321b4b591.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/block-buffer/23bededf68ceb946/out/libblock_buffer-23bededf68ceb946.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/crypto-common/73611ec1d0353773/out/libcrypto_common-73611ec1d0353773.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/generic-array/5d76ca948222c40d/out/libgeneric_array-5d76ca948222c40d.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/typenum/c341bc2902494d38/out/libtypenum-c341bc2902494d38.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/serde_json/7c13372f085ec3d1/out/libserde_json-7c13372f085ec3d1.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/itoa/71abefb3535c674e/out/libitoa-71abefb3535c674e.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/zmij/81cfcb8bb3844449/out/libzmij-81cfcb8bb3844449.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/serde/54d626904f2f4a16/out/libserde-54d626904f2f4a16.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/serde_core/e05c499f6e83ec22/out/libserde_core-e05c499f6e83ec22.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/regex/c4215d544054c691/out/libregex-c4215d544054c691.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/regex-automata/ae18944c3a38514e/out/libregex_automata-ae18944c3a38514e.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/aho-corasick/a5b57aada20f26e6/out/libaho_corasick-a5b57aada20f26e6.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/memchr/4f154a6f65743426/out/libmemchr-4f154a6f65743426.rlib" "/workspace/dasl-stdlib-io/compiler/target/debug/build/regex-syntax/ee19ba08b2035921/out/libregex_syntax-ee19ba08b2035921.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/db410986405c1d1c/out/rustcxoWyBa/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/71e0a608685e37ff/out" "-L" "/workspace/dasl-stdlib-io/compiler/target/debug/build/tree-sitter/e74dd9f9e2202f74/out" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/db410986405c1d1c/out/cross_region_effect_union-db410986405c1d1c" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-Wl,--strip-debug" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace and instructions to reproduce the bug.
+           #0 0x00007f8c7df73cfa llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) (/workspace/.tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.100.0-stable+0x6373cfa)
+           #1 0x00007f8c7df7467d SignalHandler(int, siginfo_t*, void*) (/workspace/.tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.100.0-stable+0x637467d)
+           #2 0x00007f8c7795bd70 (/lib/x86_64-linux-gnu/libc.so.6+0x3fd70)
+           #3 0x00007f8c77a9795f (/lib/x86_64-linux-gnu/libc.so.6+0x17b95f)
+           #4 0x000056415a920c14 lld::elf::StringTableSection::writeTo(unsigned char*) (/workspace/.tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld+0x51bc14)
+           #5 0x000056415a8d265a void lld::elf::OutputSection::writeTo<llvm::object::ELFType<(llvm::endianness)1, true>>(lld::elf::Ctx&, unsigned char*, llvm::parallel::TaskGroup&)::'lambda'(unsigned long, unsigned long)::operator()(unsigned long, unsigned long) const OutputSections.cpp:0:0
+           #6 0x00007f8c7df1a413 (anonymous namespace)::ThreadPoolExecutor::popAndRun(std::unique_lock<std::mutex>&) (/workspace/.tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.100.0-stable+0x631a413)
+           #7 0x00007f8c7df1a293 (anonymous namespace)::ThreadPoolExecutor::work(llvm::ThreadPoolStrategy, unsigned int) (/workspace/.tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.100.0-stable+0x631a293)
+           #8 0x00007f8c7de8ae30 execute_native_thread_routine (/workspace/.tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.100.0-stable+0x628ae30)
+           #9 0x00007f8c779ae8bb (/lib/x86_64-linux-gnu/libc.so.6+0x928bb)
+          #10 0x00007f8c77a2c370 clone (/lib/x86_64-linux-gnu/libc.so.6+0x110370)
+          collect2: fatal error: ld terminated with signal 7 [Bus error]
+          compilation terminated.
+          
+
+warning: `cinch` (test "cross_region_effect_union") generated 24 warnings (24 duplicates)
+warning: cinch@0.1.0: In file included from /workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/71e0a608685e37ff/out/tree-sitter-cinch/parser.c:3:
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/71e0a608685e37ff/out/tree-sitter-cinch/parser.c: In function 'ts_lex':
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/71e0a608685e37ff/out/tree-sitter-cinch/tree_sitter/parser.h:187:11: warning: variable 'lookahead' set but not used [-Wunused-but-set-variable]
+warning: cinch@0.1.0:   187 |   int32_t lookahead;            \
+warning: cinch@0.1.0:       |           ^~~~~~~~~
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/71e0a608685e37ff/out/tree-sitter-cinch/parser.c:38367:3: note: in expansion of macro 'START_LEXER'
+warning: cinch@0.1.0: 38367 |   START_LEXER();
+warning: cinch@0.1.0:       |   ^~~~~~~~~~~
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/../tooling/tree-sitter-cinch/src/scanner.c:284:20: warning: 'SYM_NAMES' defined but not used [-Wunused-variable]
+warning: cinch@0.1.0:   284 | static const char *SYM_NAMES[] = {
+warning: cinch@0.1.0:       |                    ^~~~~~~~~
+error: could not compile `cinch` (test "cross_region_effect_union") due to 1 previous error; 24 warnings emitted

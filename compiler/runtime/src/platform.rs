@@ -50,8 +50,7 @@
 //!   `Bytes` path): the mutating filesystem operations the standard
 //!   library's `Dir`/`FileUtils` round needs.
 //! * `cinch_random_bytes(n) -> i64`: `n` bytes from the OS entropy
-//!   source as a fresh `Bytes` (`/dev/urandom`; the runtime carries no
-//!   external crate).
+//!   source as a fresh `Bytes` (the runtime carries no external crate).
 //! * `cinch_signal_send(pid, sig) -> i64`: POSIX `kill` (the raw
 //!   result: 0, or -1 on failure, which the Cinch side maps to a named
 //!   error).
@@ -429,17 +428,18 @@ pub extern "C" fn cinch_fs_temp_dir() -> i64 {
 
 /// `n` bytes from the OS entropy source as a fresh `Bytes` buffer, or
 /// the negated error code for a negative `n` or a failed read. The
-/// source is `/dev/urandom` (a character device that never blocks once
-/// seeded; the runtime carries no external crate).
+/// source is the operating system's cryptographic generator. On Linux,
+/// nonempty draws wait for kernel initialization through `getrandom`;
+/// kernels without that interface use `/dev/urandom`. Empty draws retain
+/// the device-open check. Other platforms retain the device provider.
 #[cfg(not(target_os = "unknown"))]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_random_bytes(n: i64) -> i64 {
-    use std::io::Read;
     let Ok(len) = usize::try_from(n) else {
         return -INVALID_ARGUMENT;
     };
     let mut buf = vec![0u8; len];
-    match std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut buf)) {
+    match crate::entropy::fill(&mut buf) {
         Ok(()) => crate::abi::box_bytes(crate::bytes::Bytes::from(buf)),
         Err(e) => -io_code(&e),
     }

@@ -1,0 +1,428 @@
+-- | Mutable circular sequences with stable cursor aliases through joins and splits.
+-- Links are arena indices, so the structure creates no automatic ownership
+-- cycles. Joining distinct backing arenas moves the smaller arena and forwards
+-- its old cursors to the larger one; aliases keep denoting their original nodes.
+-- A surviving cursor retains its entire joined arena, including disconnected
+-- subrings. Use ring-copy and release old aliases when only one cycle is needed.
+module Data.Mutable.Ring where
+  import Data.Bytes (bytes-new, bytes-len, bytes-data)
+  import Data.Machine
+  import Data.Wide (wrapping-u128-to-u64, wrapping-shr-u128)
+  import Data.Nat
+  import Data.Int (int-mod-nat)
+  import Data.Option
+  import Data.Result
+
+  export Ring, RingError, RingCapacityExceeded
+  export ring-new, ring-new-sized, ring-singleton, ring-from-list, ring-copy
+  export ring-next, ring-prev, ring-move, ring-link, ring-unlink
+  export ring-length, ring-retained-length, ring-same, ring-value, ring-set-value
+  export ring-for-each, ring-to-list
+
+  -- | Allocate private zeroed ownership slots, reading only initialized positions.
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+  -- | Observe an arena allocation's machine-word capacity.
+  foreign import ccall "cinch.runtime.slotsLen" slots-len :: forall a. Array a -> U64
+  -- | Retain one initialized private slot.
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+  -- | Replace one private slot and release its former owner.
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+  -- | Move initialized node owners in bulk without per-node reference-count changes.
+  foreign import ccall "cinch.runtime.slotsMove" slots-move :: forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit
+  -- | Convert a natural only after checking its addressable slot bound.
+  foreign import ccall "cinch.runtime.slotsFoldNat" fold-nat :: Nat -> U64
+
+  -- | A checked allocation-size refusal that leaves all existing cycles unchanged.
+  data RingError where
+    -- | The requested or combined arena exceeds the addressable slot count.
+    RingCapacityExceeded :: RingError
+
+  -- | One independently mutable value cell and previous/next index pair.
+  data RingNode a where
+    -- | Links contain indices rather than owning references to neighboring nodes.
+    Node :: Array a -> Array U64 -> RingNode a
+
+  -- | A private node pool with at most one permanent forwarding edge to a larger pool.
+  data RingArena a where
+    -- | Identity, parent cell, used/forwarded/offset metadata and replaceable dense storage.
+    -- The parent cell is a hole until the forwarded flag is set, and is never
+    -- read before that flag. A permanent parent is installed before publication.
+    Pool :: Bytes -> Array (RingArena a) -> Array U64 -> Array (Array (RingNode a)) -> RingArena a
+
+  -- | A nonempty circular-sequence cursor whose node identity survives arena forwarding.
+  data Ring r a where
+    -- | The original arena and its original local position; canonicalization follows forwarding edges.
+    Cursor :: RingArena a -> U64 -> Ring r a
+
+  -- | Bound dense word storage by the target's signed allocation range, including array metadata and extended headers.
+  maximum-slots :: U64
+  maximum-slots = wrapping-shr-u64 (wrapping-sub-u64 (wrapping-shr-u64 (wrapping-usize-to-u64 max-bound-usize) 1) 32) 3
+
+  -- | Convert a bounded count into its exact natural representation.
+  natural :: U64 -> Nat
+  natural value = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 value) 9223372036854775807)
+
+  -- | Advance a bounded index or count by one.
+  successor :: U64 -> U64
+  successor value = wrapping-add-u64 value 1
+
+  -- | Retreat a known positive index or count by one.
+  predecessor :: U64 -> U64
+  predecessor value = wrapping-sub-u64 value 1
+
+  -- | Observe a canonical arena's current dense storage.
+  storage-of :: forall a. RingArena a -> Array (RingNode a)
+  storage-of arena = case arena of Pool token parent metadata storage -> slots-read storage 0
+
+  -- | Observe the total retained nodes, including disconnected cycles in the same arena.
+  used-of :: forall a. RingArena a -> U64
+  used-of arena = case arena of Pool token parent metadata storage -> slots-read metadata 0
+
+  -- | Replace a canonical arena's used count after a successful ownership transfer.
+  set-used :: forall a. RingArena a -> U64 -> Unit
+  set-used arena count = case arena of Pool token parent metadata storage -> slots-write metadata 0 count
+
+  -- | Read an initialized node by its canonical index.
+  node-at :: forall a. RingArena a -> U64 -> RingNode a
+  node-at arena index = slots-read (storage-of arena) index
+
+  -- | Read one previous/next index without allocating a numeric box.
+  node-link :: forall a. RingNode a -> U64 -> U64
+  node-link node direction = case node of Node value links -> slots-read links direction
+
+  -- | Replace one previous/next index in its private scalar slot array.
+  set-node-link :: forall a. RingNode a -> U64 -> U64 -> Unit
+  set-node-link node direction index = case node of Node value links -> slots-write links direction index
+
+  -- | Retain a node's current typed value.
+  node-value :: forall a. RingNode a -> a
+  node-value node = case node of Node value links -> slots-read value 0
+
+  -- | Replace a node's value while preserving every cursor identity and link.
+  set-node-value :: forall a. RingNode a -> a -> Unit
+  set-node-value node replacement = case node of Node value links -> slots-write value 0 replacement
+
+  -- | Compare canonical arena identities while observing both nonempty token owners through the comparison.
+  same-arena :: forall a. RingArena a -> RingArena a -> Bool
+  same-arena first second = case (first, second) of
+    (Pool token parent metadata storage, Pool other other-parent other-metadata other-storage) ->
+      let equal = eq-i64 (bytes-data token) (bytes-data other) in
+      let first-length = bytes-len token in
+      let second-length = bytes-len other in
+      first-length == 1 && second-length == 1 && equal
+
+  -- | Follow a one-way forwarding chain, accumulating offsets that stay below the canonical arena's used count.
+  resolve :: forall a. RingArena a -> U64 -> (RingArena a, U64)
+  resolve arena index = case arena of
+    Pool token parent metadata storage ->
+      if eq-u64 (slots-read metadata 1) 0 then (arena, index)
+      else resolve (slots-read parent 0) (wrapping-add-u64 index (slots-read metadata 2))
+
+  -- | Resolve a stable cursor to the current arena and node index.
+  canonical :: forall r a. Ring r a -> (RingArena a, U64)
+  canonical ring = case ring of Cursor arena index -> resolve arena index
+
+  -- | Allocate an unexposed dense arena whose node positions are filled before returning a cursor.
+  fresh-arena :: forall a. U64 -> RingArena a
+  fresh-arena count =
+    let token = bytes-new 1 in
+    let parent = slots-new 1 in
+    let metadata = (slots-new 3 :: Array U64) in
+    let used = slots-write metadata 0 count in
+    let unforwarded = slots-write metadata 1 0 in
+    let offset = slots-write metadata 2 0 in
+    let storage = slots-new 1 in
+    let installed = slots-write storage 0 (slots-new count) in
+    Pool token parent metadata storage
+
+  -- | Fill one node with circular initial links and an independently mutable value cell.
+  install-node :: forall a. RingArena a -> U64 -> U64 -> a -> Unit
+  install-node arena count index value =
+    let cell = slots-new 1 in
+    let initialized = slots-write cell 0 value in
+    let links = (slots-new 2 :: Array U64) in
+    let previous = slots-write links 0 (if eq-u64 index 0 then predecessor count else predecessor index) in
+    let next = slots-write links 1 (if eq-u64 (successor index) count then (0 :: U64) else successor index) in
+    slots-write (storage-of arena) index (Node cell links)
+
+  -- | Initialize every node with the same ordinary value owner, keeping its later value cell independent.
+  fill-repeated :: forall a. RingArena a -> U64 -> U64 -> a -> Unit
+  fill-repeated arena count index value = if eq-u64 index count then () else
+    let installed = install-node arena count index value in fill-repeated arena count (successor index) value
+
+  -- | Create a checked circular sequence; zero returns None and no arena.
+  -- The initializer is shared as an ordinary value, while assigning one node's
+  -- value later does not replace another node's value cell.
+  ring-new :: forall r a. Nat -> a ->{Mut r} Result RingError (Option (Ring r a))
+  ring-new count initial = if count == 0 then Ok None else
+    if count > natural maximum-slots then Err RingCapacityExceeded else
+      let size = fold-nat count in
+      let arena = fresh-arena size in
+      let initialized = fill-repeated arena size 0 initial in Ok (Some (Cursor arena 0))
+
+  -- | Accept a signed external size, treating nonpositive sizes as an empty sequence before conversion.
+  ring-new-sized :: forall r a. Int -> a ->{Mut r} Result RingError (Option (Ring r a))
+  ring-new-sized count initial = if count <= 0 then Ok None else ring-new (nat-from-int count) initial
+
+  -- | Construct one nonempty, self-linked node without a fallible size conversion.
+  ring-singleton :: forall r a. a ->{Mut r} Ring r a
+  ring-singleton value = let arena = fresh-arena 1 in
+    let initialized = install-node arena 1 0 value in Cursor arena 0
+
+  -- | Follow one checked invariant link from a canonicalized cursor.
+  step :: forall r a. Ring r a -> U64 -> Ring r a
+  step ring direction = case canonical ring of
+    (arena, index) -> Cursor arena (node-link (node-at arena index) direction)
+
+  -- | Return the following cursor without changing either node.
+  ring-next :: forall r a. Ring r a ->{Mut r} Ring r a
+  ring-next ring = step ring 1
+
+  -- | Return the preceding cursor without changing either node.
+  ring-prev :: forall r a. Ring r a ->{Mut r} Ring r a
+  ring-prev ring = step ring 0
+
+  -- | Compare stable node identity after resolving any permanent arena forwarding.
+  ring-same :: forall r a. Ring r a -> Ring r a ->{Mut r} Bool
+  ring-same first second = case (canonical first, canonical second) of
+    ((arena, index), (other, other-index)) -> same-arena arena other && eq-u64 index other-index
+
+  -- | Read a cursor's current value through its canonical node owner.
+  ring-value :: forall r a. Ring r a ->{Mut r} a
+  ring-value ring = case canonical ring of (arena, index) -> node-value (node-at arena index)
+
+  -- | Replace a cursor's value without changing its node identity, neighbors or aliases.
+  ring-set-value :: forall r a. Ring r a -> a ->{Mut r} Unit
+  ring-set-value ring value = case canonical ring of (arena, index) -> set-node-value (node-at arena index) value
+
+  -- | Count exactly one cycle with machine words; each component is bounded by its retained arena.
+  count-cycle :: forall a. RingArena a -> U64 -> U64 -> U64 -> U64
+  count-cycle arena start index count = if eq-u64 start index then count else
+    count-cycle arena start (node-link (node-at arena index) 1) (successor count)
+
+  -- | Observe the positive count of a nonempty cursor's current cycle.
+  cursor-count :: forall r a. Ring r a -> U64
+  cursor-count ring = case canonical ring of
+    (arena, index) -> count-cycle arena index (node-link (node-at arena index) 1) 1
+
+  -- | Count one circular component in linear traversal time, or return zero for None.
+  ring-length :: forall r a. Option (Ring r a) ->{Mut r} Nat
+  ring-length ring = case ring of None -> 0; Some cursor -> natural (cursor-count cursor)
+
+  -- | Observe backing-arena retention, which may exceed the current component after a split.
+  ring-retained-length :: forall r a. Ring r a ->{Mut r} Nat
+  ring-retained-length ring = case canonical ring of (arena, index) -> natural (used-of arena)
+
+  -- | Advance a bounded distance within one canonical arena.
+  walk :: forall a. RingArena a -> U64 -> U64 -> U64 -> U64
+  walk arena index direction count = if eq-u64 count 0 then index else
+    walk arena (node-link (node-at arena index) direction) direction (predecessor count)
+
+  -- | Normalize an arbitrary signed distance without narrowing it before modular reduction.
+  residue :: Int -> Nat -> Nat
+  residue distance count = case decide (NonZero count) of
+    Yes witness -> int-mod-nat distance (NonZero count witness)
+    No witness -> 0
+
+  -- | Move by an arbitrary signed distance, preserving exact cyclic semantics for very large integers.
+  -- Distances from -64 through 64 walk directly, so short moves do not scan
+  -- a large cycle. Larger distances scan once, reduce before conversion and
+  -- walk the shorter equivalent direction.
+  ring-move :: forall r a. Ring r a -> Int ->{Mut r} Ring r a
+  ring-move ring distance = if distance == 0 then ring else
+    if distance == 1 then step ring 1 else if distance == -1 then step ring 0 else
+      case canonical ring of
+        (arena, index) ->
+          if -64 <= distance && distance <= 64 then
+            if distance > 0 then Cursor arena (walk arena index 1 (fold-nat (nat-from-int distance)))
+            else Cursor arena (walk arena index 0 (fold-nat (nat-from-int (0 - distance))))
+          else
+            let count = count-cycle arena index (node-link (node-at arena index) 1) 1 in
+            let forward = fold-nat (residue distance (natural count)) in
+            let backward = wrapping-sub-u64 count forward in
+            if le-u64 forward backward then Cursor arena (walk arena index 1 forward)
+            else Cursor arena (walk arena index 0 backward)
+
+  -- | Grow geometrically within the nonnegative machine-address range.
+  grown-capacity :: U64 -> U64 -> U64
+  grown-capacity capacity needed =
+    let doubled = if gt-u64 capacity (wrapping-shr-u64 maximum-slots 1) then maximum-slots else wrapping-add-u64 capacity capacity in
+    if lt-u64 doubled needed then needed else doubled
+
+  -- | Grow dense arena storage using one bulk ownership move rather than per-node copies.
+  reserve-arena :: forall a. RingArena a -> U64 -> Array (RingNode a)
+  reserve-arena arena needed = case arena of
+    Pool token parent metadata storage ->
+      let old = slots-read storage 0 in
+      let capacity = slots-len old in
+      if lt-u64 capacity needed then
+        let replacement = slots-new (grown-capacity capacity needed) in
+        let moved = slots-move replacement 0 old 0 (slots-read metadata 0) in
+        let installed = slots-write storage 0 replacement in replacement
+      else old
+
+  -- | Offset independent previous/next links in two LLVM vector lanes, packing the first result low.
+  -- Packing uses explicit integer shifts rather than a host-endian vector
+  -- bitcast. Each lane wraps independently; checked arena bounds make the
+  -- actual link additions exact. No pointer or ownership word enters SIMD.
+  prim offset-pair :: U64 -> U64 -> U64 -> U128 where
+    llvm {
+      %left = insertelement <2 x i64> zeroinitializer, i64 %0, i32 0
+      %links = insertelement <2 x i64> %left, i64 %1, i32 1
+      %once = insertelement <2 x i64> zeroinitializer, i64 %2, i32 0
+      %offset = shufflevector <2 x i64> %once, <2 x i64> zeroinitializer, <2 x i32> zeroinitializer
+      %shifted = add <2 x i64> %links, %offset
+      %previous = extractelement <2 x i64> %shifted, i32 0
+      %following = extractelement <2 x i64> %shifted, i32 1
+      %low = zext i64 %previous to i128
+      %upper = zext i64 %following to i128
+      %high = shl i128 %upper, 64
+      %packed = or i128 %low, %high
+      ret i128 %packed
+    }
+
+  -- | Adjust both links of every transferred node to its new absolute arena offset.
+  offset-links :: forall a. RingArena a -> U64 -> U64 -> U64 -> Unit
+  offset-links arena offset index count = if eq-u64 index count then () else
+    let node = node-at arena index in
+    let shifted = offset-pair (node-link node 0) (node-link node 1) offset in
+    let previous = wrapping-u128-to-u64 shifted in
+    let following = wrapping-u128-to-u64 (wrapping-shr-u128 shifted 64) in
+    let left = set-node-link node 0 previous in
+    let right = set-node-link node 1 following in
+    offset-links arena offset (successor index) count
+
+  -- | Move a smaller complete arena and install its single permanent forwarding edge.
+  -- Entire arenas move, including disconnected components, so old aliases to
+  -- unrelated subrings remain valid. No node holds an owning neighbor pointer.
+  transfer-arena :: forall a. RingArena a -> RingArena a -> Unit
+  transfer-arena smaller larger = case smaller of
+    Pool token parent metadata storage ->
+      let count = used-of smaller in
+      let offset = used-of larger in
+      let destination = reserve-arena larger (wrapping-add-u64 offset count) in
+      let adjusted = offset-links smaller offset 0 count in
+      let moved = slots-move destination offset (slots-read storage 0) 0 count in
+      let grown = set-used larger (wrapping-add-u64 offset count) in
+      let installed = slots-write parent 0 larger in
+      let shifted = slots-write metadata 2 offset in
+      let forwarded = slots-write metadata 1 1 in
+      slots-write storage 0 (slots-new 0)
+
+  -- | Join distinct canonical arenas by size, refusing capacity overflow before changing either arena.
+  merge-arenas :: forall a. RingArena a -> RingArena a -> Result RingError Unit
+  merge-arenas first second =
+    let first-count = used-of first in
+    let second-count = used-of second in
+    if gt-u64 first-count (wrapping-sub-u64 maximum-slots second-count) then Err RingCapacityExceeded else
+      let moved = if le-u64 first-count second-count then transfer-arena first second else transfer-arena second first in Ok ()
+
+  -- | Splice two resolved positions using saved links before any possibly overlapping write.
+  splice :: forall a. RingArena a -> U64 -> U64 -> Unit
+  splice arena first second =
+    let first-node = node-at arena first in
+    let second-node = node-at arena second in
+    let following = node-link first-node 1 in
+    let previous = node-link second-node 0 in
+    let right = set-node-link first-node 1 second in
+    let left = set-node-link second-node 0 first in
+    let detached-left = set-node-link (node-at arena following) 0 previous in
+    set-node-link (node-at arena previous) 1 following
+
+  -- | Connect two cursors after any necessary arena transfer, preserving the original following cursor.
+  link-present :: forall r a. Ring r a -> Ring r a -> Ring r a -> Result RingError (Ring r a)
+  link-present first second original = case (canonical first, canonical second) of
+    ((arena, index), (other, other-index)) ->
+      if same-arena arena other then let linked = splice arena index other-index in Ok original else
+        case merge-arenas arena other of
+          Err error -> Err error
+          Ok unit -> case (canonical first, canonical second) of
+            ((current, at), (same, next)) -> let linked = splice current at next in Ok original
+
+  -- | Link the second cycle after the first cursor, or split when both cursors already share a cycle.
+  -- None leaves links unchanged. The result always denotes the first cursor's
+  -- original successor. Linking a cursor to itself isolates that node and
+  -- returns the remaining cycle's first cursor; linking its current successor
+  -- leaves the cycle unchanged. After resolving forwarding chains, same-arena
+  -- link updates take constant time. Distinct-arena links move the smaller
+  -- complete backing arena; forwarding depth grows at most logarithmically.
+  ring-link :: forall r a. Ring r a -> Option (Ring r a) ->{Mut r} Result RingError (Ring r a)
+  ring-link first second = let original = step first 1 in
+    case second of None -> Ok original; Some cursor -> link-present first cursor original
+
+  -- | Remove the positive count modulo the current cycle length, returning its original following cursor.
+  -- Nonpositive counts return None unchanged. A positive multiple of the cycle
+  -- length leaves links unchanged and still returns Some original-successor.
+  ring-unlink :: forall r a. Ring r a -> Int ->{Mut r} Option (Ring r a)
+  ring-unlink ring count = if count <= 0 then None else
+    let following = step ring 1 in
+    let moved = ring-move ring (count + 1) in
+    case (canonical ring, canonical moved) of
+      ((arena, index), (same, other-index)) -> let linked = splice arena index other-index in Some following
+
+  -- | Count immutable constructor input without overflowing its addressable arena size.
+  count-values :: forall a. List a -> U64 -> Result RingError U64
+  count-values values count = case values of
+    Nil -> Ok count
+    Cons first rest -> if eq-u64 count maximum-slots then Err RingCapacityExceeded else count-values rest (successor count)
+
+  -- | Fill a checked dense arena from immutable source values.
+  fill-values :: forall a. RingArena a -> U64 -> U64 -> List a -> Unit
+  fill-values arena count index values = case values of
+    Nil -> ()
+    Cons first rest -> let installed = install-node arena count index first in fill-values arena count (successor index) rest
+
+  -- | Construct a circular sequence in source order, returning None for empty input.
+  ring-from-list :: forall r a. List a ->{Mut r} Result RingError (Option (Ring r a))
+  ring-from-list values = case count-values values 0 of
+    Err error -> Err error
+    Ok count -> if eq-u64 count 0 then Ok None else
+      let arena = fresh-arena count in
+      let initialized = fill-values arena count 0 values in Ok (Some (Cursor arena 0))
+
+  -- | Copy a bounded source cycle into independent node/value cells in a fresh arena.
+  copy-nodes :: forall a. RingArena a -> RingArena a -> U64 -> U64 -> U64 -> Unit
+  copy-nodes destination source count source-index index = if eq-u64 index count then () else
+    let node = node-at source source-index in
+    let installed = install-node destination count index (node-value node) in
+    copy-nodes destination source count (node-link node 1) (successor index)
+
+  -- | Copy only the current cycle into a fresh arena, preserving ordinary value sharing without cursor aliasing.
+  -- Releasing old cursors after this operation can release unrelated subrings
+  -- retained by the old joined arena.
+  ring-copy :: forall r a. Ring r a ->{Mut r} Ring r a
+  ring-copy ring = case canonical ring of
+    (arena, index) ->
+      let count = count-cycle arena index (node-link (node-at arena index) 1) 1 in
+      let replacement = fresh-arena count in
+      let copied = copy-nodes replacement arena count index 0 in Cursor replacement 0
+
+  -- | Reverse accumulated immutable output without a provider-specific element variant.
+  reverse-values :: forall a. List a -> List a -> List a
+  reverse-values values reversed = case values of Nil -> reversed; Cons first rest -> reverse-values rest (Cons first reversed)
+
+  -- | Read exactly one canonical cycle while keeping its arena owner alive.
+  collect-values :: forall a. RingArena a -> U64 -> U64 -> List a -> List a
+  collect-values arena index remaining reversed = if eq-u64 remaining 0 then reverse-values reversed Nil else
+    let node = node-at arena index in
+    collect-values arena (node-link node 1) (predecessor remaining) (Cons (node-value node) reversed)
+
+  -- | Copy one cycle's current values into an immutable list, or return Nil for None.
+  ring-to-list :: forall r a. Option (Ring r a) ->{Mut r} List a
+  ring-to-list ring = case ring of
+    None -> Nil
+    Some cursor -> case canonical cursor of
+      (arena, index) -> collect-values arena index (count-cycle arena index (node-link (node-at arena index) 1) 1) Nil
+
+  -- | Visit a bounded number of nodes, resolving again after callbacks can forward or split their arena.
+  visit-values :: forall r a. Ring r a -> U64 -> (a ->{Mut r} Unit) ->{Mut r} Unit
+  visit-values cursor remaining action = if eq-u64 remaining 0 then () else
+    let value = ring-value cursor in
+    let visited = action value in
+    if eq-u64 remaining 1 then () else let following = ring-next cursor in visit-values following (predecessor remaining) action
+
+  -- | Visit at most the original cycle length through current links, with None performing no callbacks.
+  -- Value mutations are observed at each visit. Structural callback mutations
+  -- may change the visit set, but cannot create an unbounded traversal here.
+  ring-for-each :: forall r a. Option (Ring r a) -> (a ->{Mut r} Unit) ->{Mut r} Unit
+  ring-for-each ring action = case ring of None -> (); Some cursor -> visit-values cursor (cursor-count cursor) action

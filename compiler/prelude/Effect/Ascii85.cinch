@@ -1,0 +1,98 @@
+-- | Incremental ASCII85 writers and decoding byte readers.
+-- Writers buffer at most three input bytes between writes; finish explicitly
+-- flushes that tail and returns the advanced underlying sink. Neither adapter
+-- closes descriptors. Decoder failures report the encoding name, original byte
+-- offset and diagnostic through StreamEncodingError. Read/write failures are
+-- sticky and never replay already consumed input or accepted output.
+module Effect.Ascii85 where
+
+  import Effect.Stream
+  import Text.Ascii85
+  import Data.Bytes
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export Ascii85Writer, ascii85-writer, ascii85-write, ascii85-finish, ascii85-writer-sink
+  export ascii85-reader
+
+  -- | An explicitly advanced encoding continuation and its underlying sink.
+  data Ascii85Writer r where
+    -- | Private active state; construction snapshots pending input into a machine word.
+    ActiveWriter :: Ascii85Encoder -> ByteWriter r -> Ascii85Writer r
+    -- | Private terminal failure; subsequent operations return it without touching the sink.
+    FailedWriter :: StreamError -> ByteWriter r -> Ascii85Writer r
+
+  -- | Begin encoding to a sink. Finish before inspecting the complete encoded output.
+  ascii85-writer :: forall r. ByteWriter r -> Ascii85Writer r
+  ascii85-writer sink = ActiveWriter ascii85-encoder sink
+
+  -- | Observe the advanced underlying sink, including after a failed write.
+  ascii85-writer-sink :: forall r. Ascii85Writer r -> ByteWriter r
+  ascii85-writer-sink writer = case writer of
+    ActiveWriter state sink -> sink
+    FailedWriter error sink -> sink
+
+  -- | Accept all input, writing complete quanta and retaining at most three bytes.
+  -- Short underlying writes are retried; any failure is retained in the next handle.
+  ascii85-write :: forall r. using (io :: Io r) => Ascii85Writer r -> Bytes ->{IO r} (Result StreamError Nat, Ascii85Writer r)
+  ascii85-write writer input = case writer of
+    FailedWriter error sink -> (Err error, writer)
+    ActiveWriter state sink -> case ascii85-encoder-feed state input of
+      (out, next) -> case stream-write-all sink out of
+        (Err error, advanced) -> (Err error, FailedWriter error advanced)
+        (Ok count, advanced) -> (Ok (bytes-len input), ActiveWriter next advanced)
+
+  -- | Flush a final short quantum and return the underlying sink on either outcome.
+  -- The returned sink can be inspected, flushed, closed or used for later unencoded data.
+  ascii85-finish :: forall r. using (io :: Io r) => Ascii85Writer r ->{IO r} (Result StreamError Unit, ByteWriter r)
+  ascii85-finish writer = case writer of
+    FailedWriter error sink -> (Err error, sink)
+    ActiveWriter state sink -> case stream-write-all sink (ascii85-encoder-finish state) of
+      (Err error, advanced) -> (Err error, advanced)
+      (Ok count, advanced) -> (Ok (), advanced)
+
+  -- | Snapshot a private buffer interval so returned chunks cannot mutate pending output.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part b start end =
+    if start <= end && end <= bytes-len b then
+      let out = bytes-new (end - start) in
+      let copied = bytes-copy-range out b 0 start (end - start) in out
+    else bytes-new 0
+
+  -- | Preserve a terminal source or decoding failure across later read requests.
+  failed-reader :: forall r. using (io :: Io r) => StreamError -> ByteReader r
+  failed-reader error = stream-reader (\n -> (Err error, failed-reader error))
+
+  -- | Convert precise codec errors to the stream protocol's encoding failure vocabulary.
+  stream-error :: Ascii85Error -> StreamError
+  stream-error error = StreamEncodingError "ascii85" (ascii85-error-offset error) (ascii85-error-message error)
+
+  -- | Wrap a reader as a decoding source. Zero reads do not advance either source.
+  -- The adapter reads bounded 4096-byte input chunks and retains decoded surplus.
+  ascii85-reader :: forall r. using (io :: Io r) => ByteReader r -> ByteReader r
+  ascii85-reader source = decoding-reader source ascii85-decoder (bytes-new 0)
+
+  -- | Retain the advanced source, incomplete quantum and decoded surplus in one continuation.
+  decoding-reader :: forall r. using (io :: Io r) => ByteReader r -> Ascii85Decoder -> Bytes -> ByteReader r
+  decoding-reader source state pending = stream-reader (\n -> read-decoded source state pending n)
+
+  -- | Return only the requested prefix, or fetch until output, an error or genuine EOF exists.
+  read-decoded :: forall r. using (io :: Io r) => ByteReader r -> Ascii85Decoder -> Bytes -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  read-decoded source state pending n =
+    if n == 0 then (Ok (bytes-new 0), decoding-reader source state pending)
+    else if bytes-len pending > 0 then
+      let take = if n < bytes-len pending then n else bytes-len pending in
+      let out = part pending 0 take in
+      let rest = part pending take (bytes-len pending) in
+      (Ok out, decoding-reader source state rest)
+    else case stream-read source 4096 of
+      (Err error, advanced) -> (Err error, failed-reader error)
+      (Ok input, advanced) ->
+        if bytes-len input == 0 then case ascii85-decoder-finish state of
+          Err error -> let failure = stream-error error in (Err failure, failed-reader failure)
+          Ok tail -> stream-read (reader-from-bytes tail) n
+        else case ascii85-decoder-feed state input of
+          Err error -> let failure = stream-error error in (Err failure, failed-reader failure)
+          Ok pair -> case pair of
+            (out, next) -> read-decoded advanced next out n

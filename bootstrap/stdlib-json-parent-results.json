@@ -1,0 +1,39 @@
+{
+  "scope": "Current Root JSON parent qualification after two preserved compatibility failures; no package completion or Native representation claim.",
+  "tests": 33,
+  "passed": 33,
+  "failed": 0,
+  "runtime_seconds": 134.95,
+  "command": "/tmp/cinch-stdlib-root-cargo-gate.sh test --locked --offline --release --test lib_json_codec",
+  "sources": {
+    "compiler/prelude/Text/Json/Value.cinch": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+    "compiler/prelude/Text/Json/Codec.cinch": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3",
+    "compiler/prelude/Text/Json/Dynamic.cinch": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93"
+  },
+  "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "log": "bootstrap/repros/json-parent-qualified/parent-v4.log",
+  "log_sha256": "e51fc460f256a4dd4c275f57dfb9a6f71314c4d3b3d3ebe07e06841b7b06292f",
+  "prior_failures": "bootstrap/repros/json-parent-v2-failures/receipt.json",
+  "pending": [
+    "Remaining syntax-partial/streaming/full92 surface",
+    "Public pipeline performance and current Native qualification"
+  ],
+  "additional_regression": {
+    "test": "json_read_field_context_preserves_conventional_paths_and_precise_pointers",
+    "passed": 1,
+    "failed": 0,
+    "runtime_seconds": 4.81,
+    "fixture_checks": 6,
+    "log": "bootstrap/repros/json-parent-qualified/field-context-parent.log",
+    "log_sha256": "a9442435e0cafd946f4139dba5caa1e19e2207afba1808c4278640ce5a3cc3f7",
+    "source_epoch_unchanged": true
+  },
+  "independent_selected_source_refresh": {
+    "receipt": "bootstrap/stdlib-json-final-compat-parent-import.json",
+    "source_commit": "f7c027d3",
+    "reference_rows": 1494,
+    "memory_processes": 14,
+    "scope": "Separate855/c4 exact selected Value/Codec source epoch; retained previous oracle and all failed epochs."
+  }
+}

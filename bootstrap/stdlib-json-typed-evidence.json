@@ -1,0 +1,155 @@
+{
+  "status": "partial typed-codec checkpoint; full JSON package remains open",
+  "source_sha256": "ae4470f5497bb4558ed11df1bb534d7777b041e02ab0898015172971813eb138",
+  "core_dependency_sha256": "f52e7fe9d0ea33f455b7876484a8fa028f6fb32695c2a1d232b65a0625dc5793",
+  "canonical_declarations": 203,
+  "documentation_diagnostics": 0,
+  "documentation_orphans": 0,
+  "independent_observations_per_frontend": {
+    "typed_updates": 56,
+    "float64": 163,
+    "field_matching": 104
+  },
+  "additional_controls": 14,
+  "same_source_memory_runs": 18,
+  "matrices": [
+    {
+      "family": "typed",
+      "frontend": "rust",
+      "receipt": "bootstrap/stdlib-json-typed-rust-validation-results.json",
+      "receipt_sha256": "5debf399a2f2d4298e1a1349885525666e518ddff371accb66fefc3fe6933848",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "opt_level": 2,
+      "consumer_sha256": "e59be075db08a754c916e20f7844ae54cd2f4e7218c02e68bee98a3661db942b",
+      "llvm_sha256": "480b7c9a4095ae771f153d48dfafe5b6906f2116d250c5dc95b29e01423cf0f7",
+      "normal_peak_bytes": 5293,
+      "poison_peak_bytes": 214438
+    },
+    {
+      "family": "typed",
+      "frontend": "native",
+      "receipt": "bootstrap/stdlib-json-typed-native-validation-results.json",
+      "receipt_sha256": "c3cb11f36fff5b8b2a782c8ff67f46d310c20de01cfc7e0e61dad953bfa42d9e",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_archive_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "opt_level": 0,
+      "consumer_sha256": "e59be075db08a754c916e20f7844ae54cd2f4e7218c02e68bee98a3661db942b",
+      "llvm_sha256": "2b9ed46447bab29df161f5dfaebd8d2f6e7500df7fd262e38a9158c1f8cc18fe",
+      "normal_peak_bytes": 5062,
+      "poison_peak_bytes": 219269
+    },
+    {
+      "family": "float",
+      "frontend": "rust",
+      "receipt": "bootstrap/stdlib-json-float-rust-validation-results.json",
+      "receipt_sha256": "5fe0b1043965eaab8e3e0ef92febe7d9a2b2ed08caf91cd6d7df1a46ccd71c54",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "opt_level": 2,
+      "consumer_sha256": "20a59759092c187ed78f6f878373fd5849804bf3874dc436116e8496bdb1a87f",
+      "llvm_sha256": "1f7391a5e6a62d3435132fec3c0ce33feccf6c658532b23695fefcf4406324aa",
+      "normal_peak_bytes": 1275,
+      "poison_peak_bytes": 416715
+    },
+    {
+      "family": "float",
+      "frontend": "native",
+      "receipt": "bootstrap/stdlib-json-float-native-validation-results.json",
+      "receipt_sha256": "74b948d412519edfc979a8f7463a82bdbc7fcbe745a0ae62a745abc048406a1b",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_archive_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "opt_level": 0,
+      "consumer_sha256": "20a59759092c187ed78f6f878373fd5849804bf3874dc436116e8496bdb1a87f",
+      "llvm_sha256": "eefecc8f65f174199c8a47ec226c23217d1d211c8582ad519729bf960b2c7338",
+      "normal_peak_bytes": 1391,
+      "poison_peak_bytes": 343237
+    },
+    {
+      "family": "field",
+      "frontend": "rust",
+      "receipt": "bootstrap/stdlib-json-field-rust-validation-results.json",
+      "receipt_sha256": "bf2db58cebc19c2eccbbe5ab37f32fb5a51013804e87e30e9b1317b9cf3b53c7",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "opt_level": 2,
+      "consumer_sha256": "e95d31a24d3c0602ac5b13b9927023742e5c7a1b65d826213a1bbefa0d8b9b5f",
+      "llvm_sha256": "496e71ea56689c2ac6a7adb202b3f601db113dcef59051dfb252c00c68f01d4e",
+      "normal_peak_bytes": 2260,
+      "poison_peak_bytes": 443403
+    },
+    {
+      "family": "field",
+      "frontend": "native",
+      "receipt": "bootstrap/stdlib-json-field-native-validation-results.json",
+      "receipt_sha256": "2d52d92b3127e7367ff86859425de4fdc48562f0c97e7a54c940dd039590e7af",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_archive_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "opt_level": 0,
+      "consumer_sha256": "e95d31a24d3c0602ac5b13b9927023742e5c7a1b65d826213a1bbefa0d8b9b5f",
+      "llvm_sha256": "be8246f203e66a5005e050371a29105b77afedc80efc073b1482fb6a097a3e0a",
+      "normal_peak_bytes": 2249,
+      "poison_peak_bytes": 542133
+    },
+    {
+      "family": "codec-control",
+      "frontend": "rust",
+      "receipt": "bootstrap/stdlib-json-codec-control-rust-validation-results.json",
+      "receipt_sha256": "d15e452fa888c379d96302786cdda907586150395eb41956354621e1b9031b23",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "opt_level": 2,
+      "consumer_sha256": "5f7d06aaa96ae365975895d6a8f7bc6568b6c42afcf28fa91b06addf09b4d159",
+      "llvm_sha256": "f5f2975698945542beab6b7d8e128ef6d203ce48642933897df20ea0b64b5d97",
+      "normal_peak_bytes": 1029866,
+      "poison_peak_bytes": 5740782
+    },
+    {
+      "family": "codec-control",
+      "frontend": "native",
+      "receipt": "bootstrap/stdlib-json-codec-control-native-validation-results.json",
+      "receipt_sha256": "ca3d29e48e10fe369c870cf3238e04bb4b7eff86182ed170ead8c06ea8d381ec",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_archive_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "opt_level": 0,
+      "consumer_sha256": "5f7d06aaa96ae365975895d6a8f7bc6568b6c42afcf28fa91b06addf09b4d159",
+      "llvm_sha256": "d5cb2b55dc5c50e799016eeac239841158a4d4be3646e3411ee55c2ce3d8008f",
+      "normal_peak_bytes": 1006312,
+      "poison_peak_bytes": 8693952
+    },
+    {
+      "family": "codec-control-extra-o0",
+      "frontend": "rust",
+      "receipt": "bootstrap/stdlib-json-codec-control-rust-o0-validation-results.json",
+      "receipt_sha256": "f385b7bcc3d25d4f150b9d3aa60f7767f1172cbd86585143d55e320ffac3aace",
+      "compiler_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "opt_level": 0,
+      "consumer_sha256": "5f7d06aaa96ae365975895d6a8f7bc6568b6c42afcf28fa91b06addf09b4d159",
+      "llvm_sha256": "f5f2975698945542beab6b7d8e128ef6d203ce48642933897df20ea0b64b5d97",
+      "normal_peak_bytes": 1029869,
+      "poison_peak_bytes": 5740785
+    }
+  ],
+  "reference_generator_sha256": "2a8f142c5de0942eac90cb9ea2304f20e63706133ff92f6fa7e60a7db318e491",
+  "reference_fixtures": {
+    "": "0e1cf2647c83c0f9602e5430ed18025a7f1536ff2c2adaf9139363b0533de6b8",
+    "float-": "f777aa5736fb9ad332d2928b6d0c3ff707a5075f2ffb523689502a30dc1d9b21",
+    "field-": "c6c3907f847df25bd76eac54a8b7b2b94dfe0b15ad32a096b243026c9a0f7c96"
+  },
+  "foreign_kernel_receipt_sha256": "134332d9f0d2f2a641d5194992baeed58a0c3438559086e09ca6085ae6c527ae",
+  "parent_owned_checks_pending": [
+    "Cargo lib_json_codec target (default Rust O0)",
+    "Full integration and provider gates"
+  ],
+  "performance_status": "No JSON speedup claim. Public-pipeline comparisons and classifier lowering review remain a separate checkpoint.",
+  "remaining_scope": [
+    "Unsigned/narrow integers and binary32 descriptors",
+    "Map/key descriptors and binary byte values",
+    "Dynamic value codecs and explicit legacy codec adapters",
+    "General numeric string-cast outcomes including hexadecimal floats and saturated errors",
+    "Full error field/record metadata and reviewed language adaptations",
+    "Incremental effectful Decoder/Encoder and mixed Token/More/Decode semantics",
+    "Full 92-record capability review and public pipeline benchmarks"
+  ]
+}

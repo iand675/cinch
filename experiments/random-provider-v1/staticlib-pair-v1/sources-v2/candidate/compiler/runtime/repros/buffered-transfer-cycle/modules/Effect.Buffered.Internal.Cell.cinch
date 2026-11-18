@@ -1,0 +1,32 @@
+-- | Internal managed continuation cells whose allocation, reads and writes require I/O.
+-- The sole slot is initialized before a cell can be observed. Neither its array
+-- nor a raw address is exported; the runtime retains and releases stored values.
+module Effect.Buffered.Internal.Cell where
+  export IoCell, cell-new, cell-read, cell-write
+
+  -- | Private checked intrinsic; only the effectful cell constructor invokes this allocation.
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+
+  -- | Private checked intrinsic; only the effectful cell reader selects the initialized zero slot.
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+
+  -- | Private checked intrinsic; effectful wrappers retain replacements and release old stored values.
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+
+  -- | An initialized managed slot, scoped by its I/O region and value type.
+  data IoCell r a where
+    -- | Private array storage, never exposed to a callback or consumer.
+    StoredCell :: Array a -> IoCell r a
+
+  -- | Allocate exactly one slot and initialize it before returning the opaque cell.
+  cell-new :: forall r a. a ->{IO r} IoCell r a
+  cell-new value = let storage = slots-new 1 in
+    let initialized = slots-write storage 0 value in StoredCell storage
+
+  -- | Retain and observe the cell's current value through the managed slot operation.
+  cell-read :: forall r a. IoCell r a ->{IO r} a
+  cell-read cell = case cell of StoredCell storage -> slots-read storage 0
+
+  -- | Replace the initialized value, retaining the replacement and releasing the previous value.
+  cell-write :: forall r a. IoCell r a -> a ->{IO r} Unit
+  cell-write cell value = case cell of StoredCell storage -> slots-write storage 0 value

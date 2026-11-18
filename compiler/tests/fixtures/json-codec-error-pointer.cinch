@@ -1,0 +1,536 @@
+-- | Independent quoted-field output, error metadata and callback observations include every policy and formatting combination.
+module Main where
+  import Text.Json.Codec
+  import Text.Json.Value
+  import Data.Machine
+
+  -- | Keep application booleans opaque to frontend evaluation.
+  prim runtime-bool :: Bool -> Bool where
+    llvm {
+      %result = or i8 %0, 0
+      ret i8 %result
+    }
+
+  -- | Keep application integer values opaque to frontend evaluation.
+  prim runtime-int :: I64 -> I64 where
+    llvm {
+      %result = or i64 %0, 0
+      ret i64 %result
+    }
+
+  -- | Keep source byte lengths opaque to frontend evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %result = or i32 %0, 0
+      ret i32 %result
+    }
+
+  -- | Produce independently owned runtime-sized source bytes.
+  input :: String -> Bytes
+  input text = let original = string-to-bytes text in
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len original)))) in
+    let output = bytes-new size in
+    if bytes-len original <= bytes-len output then let copied = bytes-copy-range output original 0 0 (bytes-len original) in output else bytes-new 0
+
+  -- | Observe an entire encoded prefix rather than a rendered diagnostic string.
+  same :: Bytes -> String -> Bool
+  same actual expected = eq-i64 (bytes-compare actual (string-to-bytes expected)) 0
+
+  -- | Increment a private fixture counter without introducing library continuation storage.
+  called :: Bytes -> Unit
+  called counter =
+    if bytes-len counter > 0 then
+      let count = bytes-get counter 0 in
+      if count < 255 then bytes-set counter 0 (count + 1) else ()
+    else ()
+
+  -- | Attach the application's explicit type label without changing ordinary conversion behavior.
+  named :: forall a. String -> JsonType a -> JsonType a
+  named label descriptor = json-structural-type label (json-type-kind descriptor) (\unit -> json-type-default descriptor) (json-type-is-zero descriptor) (json-type-is-empty descriptor) (json-marshal-value descriptor) (json-update-value descriptor)
+
+  -- | Seal a quoted value and optional surrounding fields in an immutable record descriptor.
+  field-record :: forall a. Bool -> JsonType a -> JsonType a
+  field-record before descriptor =
+    let member = json-field-with "value" (json-field-options False False True 0 False JsonFieldDefaultMatch) descriptor (\value -> value) (\next prior -> next) in
+    let fields = if before then [json-field "before" json-string-type (\value -> "α<&") (\next prior -> prior), member, json-field "after" json-int64-type (\value -> 9) (\next prior -> prior)] else [member] in
+    json-record-type "ExplicitRecord" (\unit -> json-type-default descriptor) (json-type-is-zero descriptor) fields
+
+  -- | Seal one containing object without changing the child's application value.
+  nested :: forall a. JsonType a -> JsonType a
+  nested descriptor = json-record-type "OuterRecord" (\unit -> json-type-default descriptor) (json-type-is-zero descriptor) [json-field "outer" descriptor (\value -> value) (\next prior -> next)]
+
+  -- | A complete independent row stores context, three policies, format, escaping, output, error metadata and callback count.
+  data Observation where
+    -- | Private original row fields; error text randomization is not treated as error identity.
+    Observe :: String -> Bool -> Bool -> Bool -> String -> Bool -> String -> Bool -> Nat -> String -> Nat -> Observation
+
+  -- | Render one observed context through real public descriptors and the partial-output outcome.
+  encode :: forall a. JsonType a -> a -> String -> JsonWriteOptions -> JsonEncoded
+  encode descriptor value context options =
+    let field = field-record (context == "prefixed" || context == "prefixed_pointer") descriptor in
+    if context == "quoted_pointer" || context == "prefixed_pointer" then json-marshal-attempt (json-nullable-type field) options (Some value)
+    else if context == "nested" then json-marshal-attempt (nested field) options value
+    else if context == "slice" then json-marshal-attempt (json-list-type field) options [value]
+    else json-marshal-attempt field options value
+
+  -- | Validate structured error identity, exact byte offsets and pointer spelling independently of diagnostic prose.
+  error-matches :: Option JsonError -> Bool -> Nat -> String -> String -> Bool
+  error-matches result expected offset pointer label = case result of
+    None -> not expected
+    Some error -> expected && (case error of
+      JsonSemanticError info cause -> json-semantic-action info == "marshal" && json-semantic-offset info == offset
+        && json-semantic-pointer info == pointer && json-semantic-type info == label && eq-u8 (json-semantic-kind-byte info) 0
+        && bytes-len (json-semantic-bytes info) == 0 && bytes-len (json-semantic-reported-bytes info) == 0
+        && json-error-message cause == "invalid use of `string` tag option"
+      other -> False)
+
+  -- | Compare the encoding and callback count for one complete independent observation.
+  check :: JsonType Bool -> Bool -> String -> Bytes -> Observation -> Bool
+  check descriptor value label counter row = case row of
+    Observe context methods reporting stringify style html expected refused offset pointer count ->
+      let options = json-write-options html (not (style == "compact")) (if style == "pretty" then "\t " else "") (if style == "pretty" then "  " else "") (json-policies [json-addressable-methods-only methods, json-continue-after-type-errors reporting, json-quote-scalar-fields stringify]) in
+      let output = encode descriptor value context options in
+      same (json-encoded-bytes output) expected && error-matches (json-encoded-error output) refused offset pointer label
+        && (if bytes-len counter > 0 then bytes-get counter 0 == count else False)
+
+  -- | Construct the concrete application descriptor with an independent method-call observer.
+  descriptor :: Bytes -> JsonType Bool
+  descriptor counter = json-type-with-methods (named "main.pointerMethod" json-bool-type) (json-methods (Some (True, (\options value -> let count = called counter in Ok (string-to-bytes "\"method\"")))) None None None)
+
+  -- | Check one row with fresh mutable callback-count storage and an opaque application value.
+  observe :: Observation -> Bool
+  observe row = let counter = bytes-new 1 in check (descriptor counter) (runtime-bool True) "main.pointerMethod" counter row
+
+  -- | Traverse one bounded row group with an observable nonzero original index on failure.
+  group :: List Observation -> Nat -> Nat
+  group rows at = case rows of Nil -> 0; Cons first rest -> if observe first then group rest (at + 1) else at + 1
+
+  -- | Preserve independent observations 1 through 16 in a bounded literal group.
+  rows0 :: List Observation
+  rows0 = [
+    Observe "quoted" True True True "compact" True "{\"value\":\"true\"}" False 0 "" 0,
+    Observe "quoted" True True True "compact" False "{\"value\":\"true\"}" False 0 "" 0,
+    Observe "quoted" True True True "pretty" True "{\n\t   \"value\": \"true\"\n\t }" False 0 "" 0,
+    Observe "quoted" True True True "pretty" False "{\n\t   \"value\": \"true\"\n\t }" False 0 "" 0,
+    Observe "quoted" True True True "empty-indent" True "{\n\"value\": \"true\"\n}" False 0 "" 0,
+    Observe "quoted" True True True "empty-indent" False "{\n\"value\": \"true\"\n}" False 0 "" 0,
+    Observe "quoted" True True False "compact" True "{\"value\":true}" False 0 "" 0,
+    Observe "quoted" True True False "compact" False "{\"value\":true}" False 0 "" 0,
+    Observe "quoted" True True False "pretty" True "{\n\t   \"value\": true\n\t }" False 0 "" 0,
+    Observe "quoted" True True False "pretty" False "{\n\t   \"value\": true\n\t }" False 0 "" 0,
+    Observe "quoted" True True False "empty-indent" True "{\n\"value\": true\n}" False 0 "" 0,
+    Observe "quoted" True True False "empty-indent" False "{\n\"value\": true\n}" False 0 "" 0,
+    Observe "quoted" True False True "compact" True "{\"value\":\"true\"}" False 0 "" 0,
+    Observe "quoted" True False True "compact" False "{\"value\":\"true\"}" False 0 "" 0,
+    Observe "quoted" True False True "pretty" True "{\n\t   \"value\": \"true\"\n\t }" False 0 "" 0,
+    Observe "quoted" True False True "pretty" False "{\n\t   \"value\": \"true\"\n\t }" False 0 "" 0
+  ]
+
+  -- | Preserve independent observations 17 through 32 in a bounded literal group.
+  rows1 :: List Observation
+  rows1 = [
+    Observe "quoted" True False True "empty-indent" True "{\n\"value\": \"true\"\n}" False 0 "" 0,
+    Observe "quoted" True False True "empty-indent" False "{\n\"value\": \"true\"\n}" False 0 "" 0,
+    Observe "quoted" True False False "compact" True "{\"value\"" True 9 "/value" 0,
+    Observe "quoted" True False False "compact" False "{\"value\"" True 9 "/value" 0,
+    Observe "quoted" True False False "pretty" True "{\n\t   \"value\"" True 15 "/value" 0,
+    Observe "quoted" True False False "pretty" False "{\n\t   \"value\"" True 15 "/value" 0,
+    Observe "quoted" True False False "empty-indent" True "{\n\"value\"" True 11 "/value" 0,
+    Observe "quoted" True False False "empty-indent" False "{\n\"value\"" True 11 "/value" 0,
+    Observe "quoted" False True True "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted" False True True "compact" False "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted" False True True "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted" False True True "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted" False True True "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted" False True True "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted" False True False "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted" False True False "compact" False "{\"value\":\"method\"}" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 33 through 48 in a bounded literal group.
+  rows2 :: List Observation
+  rows2 = [
+    Observe "quoted" False True False "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted" False True False "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted" False True False "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted" False True False "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted" False False True "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted" False False True "compact" False "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted" False False True "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted" False False True "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted" False False True "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted" False False True "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted" False False False "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted" False False False "compact" False "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted" False False False "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted" False False False "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted" False False False "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted" False False False "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 49 through 64 in a bounded literal group.
+  rows3 :: List Observation
+  rows3 = [
+    Observe "quoted_pointer" True True True "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" True True True "compact" False "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" True True True "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" True True True "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" True True True "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" True True True "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" True True False "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" True True False "compact" False "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" True True False "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" True True False "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" True True False "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" True True False "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" True False True "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" True False True "compact" False "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" True False True "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" True False True "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 65 through 80 in a bounded literal group.
+  rows4 :: List Observation
+  rows4 = [
+    Observe "quoted_pointer" True False True "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" True False True "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" True False False "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" True False False "compact" False "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" True False False "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" True False False "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" True False False "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" True False False "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" False True True "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" False True True "compact" False "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" False True True "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" False True True "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" False True True "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" False True True "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" False True False "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" False True False "compact" False "{\"value\":\"method\"}" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 81 through 96 in a bounded literal group.
+  rows5 :: List Observation
+  rows5 = [
+    Observe "quoted_pointer" False True False "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" False True False "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" False True False "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" False True False "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" False False True "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" False False True "compact" False "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" False False True "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" False False True "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" False False True "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" False False True "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" False False False "compact" True "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" False False False "compact" False "{\"value\":\"method\"}" False 0 "" 1,
+    Observe "quoted_pointer" False False False "pretty" True "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" False False False "pretty" False "{\n\t   \"value\": \"method\"\n\t }" False 0 "" 1,
+    Observe "quoted_pointer" False False False "empty-indent" True "{\n\"value\": \"method\"\n}" False 0 "" 1,
+    Observe "quoted_pointer" False False False "empty-indent" False "{\n\"value\": \"method\"\n}" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 97 through 112 in a bounded literal group.
+  rows6 :: List Observation
+  rows6 = [
+    Observe "prefixed" True True True "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"true\",\"after\":9}" False 0 "" 0,
+    Observe "prefixed" True True True "compact" False "{\"before\":\"α<&\",\"value\":\"true\",\"after\":9}" False 0 "" 0,
+    Observe "prefixed" True True True "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"true\",\n\t   \"after\": 9\n\t }" False 0 "" 0,
+    Observe "prefixed" True True True "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"true\",\n\t   \"after\": 9\n\t }" False 0 "" 0,
+    Observe "prefixed" True True True "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"true\",\n\"after\": 9\n}" False 0 "" 0,
+    Observe "prefixed" True True True "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"true\",\n\"after\": 9\n}" False 0 "" 0,
+    Observe "prefixed" True True False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":true,\"after\":9}" False 0 "" 0,
+    Observe "prefixed" True True False "compact" False "{\"before\":\"α<&\",\"value\":true,\"after\":9}" False 0 "" 0,
+    Observe "prefixed" True True False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": true,\n\t   \"after\": 9\n\t }" False 0 "" 0,
+    Observe "prefixed" True True False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": true,\n\t   \"after\": 9\n\t }" False 0 "" 0,
+    Observe "prefixed" True True False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": true,\n\"after\": 9\n}" False 0 "" 0,
+    Observe "prefixed" True True False "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": true,\n\"after\": 9\n}" False 0 "" 0,
+    Observe "prefixed" True False True "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"true\",\"after\":9}" False 0 "" 0,
+    Observe "prefixed" True False True "compact" False "{\"before\":\"α<&\",\"value\":\"true\",\"after\":9}" False 0 "" 0,
+    Observe "prefixed" True False True "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"true\",\n\t   \"after\": 9\n\t }" False 0 "" 0,
+    Observe "prefixed" True False True "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"true\",\n\t   \"after\": 9\n\t }" False 0 "" 0
+  ]
+
+  -- | Preserve independent observations 113 through 128 in a bounded literal group.
+  rows7 :: List Observation
+  rows7 = [
+    Observe "prefixed" True False True "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"true\",\n\"after\": 9\n}" False 0 "" 0,
+    Observe "prefixed" True False True "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"true\",\n\"after\": 9\n}" False 0 "" 0,
+    Observe "prefixed" True False False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\"" True 35 "/value" 0,
+    Observe "prefixed" True False False "compact" False "{\"before\":\"α<&\",\"value\"" True 25 "/value" 0,
+    Observe "prefixed" True False False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\"" True 47 "/value" 0,
+    Observe "prefixed" True False False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\"" True 37 "/value" 0,
+    Observe "prefixed" True False False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\"" True 39 "/value" 0,
+    Observe "prefixed" True False False "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\"" True 29 "/value" 0,
+    Observe "prefixed" False True True "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed" False True True "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed" False True True "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed" False True True "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed" False True True "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed" False True True "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed" False True False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed" False True False "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 129 through 144 in a bounded literal group.
+  rows8 :: List Observation
+  rows8 = [
+    Observe "prefixed" False True False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed" False True False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed" False True False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed" False True False "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed" False False True "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed" False False True "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed" False False True "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed" False False True "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed" False False True "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed" False False True "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed" False False False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed" False False False "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed" False False False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed" False False False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed" False False False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed" False False False "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 145 through 160 in a bounded literal group.
+  rows9 :: List Observation
+  rows9 = [
+    Observe "prefixed_pointer" True True True "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" True True True "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" True True True "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" True True True "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" True True True "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" True True True "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" True True False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" True True False "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" True True False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" True True False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" True True False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" True True False "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" True False True "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" True False True "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" True False True "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" True False True "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 161 through 176 in a bounded literal group.
+  rows10 :: List Observation
+  rows10 = [
+    Observe "prefixed_pointer" True False True "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" True False True "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" True False False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" True False False "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" True False False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" True False False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" True False False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" True False False "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" False True True "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" False True True "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" False True True "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" False True True "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" False True True "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" False True True "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" False True False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" False True False "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 177 through 192 in a bounded literal group.
+  rows11 :: List Observation
+  rows11 = [
+    Observe "prefixed_pointer" False True False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" False True False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" False True False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" False True False "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" False False True "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" False False True "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" False False True "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" False False True "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" False False True "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" False False True "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" False False False "compact" True "{\"before\":\"α\\u003c\\u0026\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" False False False "compact" False "{\"before\":\"α<&\",\"value\":\"method\",\"after\":9}" False 0 "" 1,
+    Observe "prefixed_pointer" False False False "pretty" True "{\n\t   \"before\": \"α\\u003c\\u0026\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" False False False "pretty" False "{\n\t   \"before\": \"α<&\",\n\t   \"value\": \"method\",\n\t   \"after\": 9\n\t }" False 0 "" 1,
+    Observe "prefixed_pointer" False False False "empty-indent" True "{\n\"before\": \"α\\u003c\\u0026\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1,
+    Observe "prefixed_pointer" False False False "empty-indent" False "{\n\"before\": \"α<&\",\n\"value\": \"method\",\n\"after\": 9\n}" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 193 through 208 in a bounded literal group.
+  rows12 :: List Observation
+  rows12 = [
+    Observe "nested" True True True "compact" True "{\"outer\":{\"value\":\"true\"}}" False 0 "" 0,
+    Observe "nested" True True True "compact" False "{\"outer\":{\"value\":\"true\"}}" False 0 "" 0,
+    Observe "nested" True True True "pretty" True "{\n\t   \"outer\": {\n\t     \"value\": \"true\"\n\t   }\n\t }" False 0 "" 0,
+    Observe "nested" True True True "pretty" False "{\n\t   \"outer\": {\n\t     \"value\": \"true\"\n\t   }\n\t }" False 0 "" 0,
+    Observe "nested" True True True "empty-indent" True "{\n\"outer\": {\n\"value\": \"true\"\n}\n}" False 0 "" 0,
+    Observe "nested" True True True "empty-indent" False "{\n\"outer\": {\n\"value\": \"true\"\n}\n}" False 0 "" 0,
+    Observe "nested" True True False "compact" True "{\"outer\":{\"value\":true}}" False 0 "" 0,
+    Observe "nested" True True False "compact" False "{\"outer\":{\"value\":true}}" False 0 "" 0,
+    Observe "nested" True True False "pretty" True "{\n\t   \"outer\": {\n\t     \"value\": true\n\t   }\n\t }" False 0 "" 0,
+    Observe "nested" True True False "pretty" False "{\n\t   \"outer\": {\n\t     \"value\": true\n\t   }\n\t }" False 0 "" 0,
+    Observe "nested" True True False "empty-indent" True "{\n\"outer\": {\n\"value\": true\n}\n}" False 0 "" 0,
+    Observe "nested" True True False "empty-indent" False "{\n\"outer\": {\n\"value\": true\n}\n}" False 0 "" 0,
+    Observe "nested" True False True "compact" True "{\"outer\":{\"value\":\"true\"}}" False 0 "" 0,
+    Observe "nested" True False True "compact" False "{\"outer\":{\"value\":\"true\"}}" False 0 "" 0,
+    Observe "nested" True False True "pretty" True "{\n\t   \"outer\": {\n\t     \"value\": \"true\"\n\t   }\n\t }" False 0 "" 0,
+    Observe "nested" True False True "pretty" False "{\n\t   \"outer\": {\n\t     \"value\": \"true\"\n\t   }\n\t }" False 0 "" 0
+  ]
+
+  -- | Preserve independent observations 209 through 224 in a bounded literal group.
+  rows13 :: List Observation
+  rows13 = [
+    Observe "nested" True False True "empty-indent" True "{\n\"outer\": {\n\"value\": \"true\"\n}\n}" False 0 "" 0,
+    Observe "nested" True False True "empty-indent" False "{\n\"outer\": {\n\"value\": \"true\"\n}\n}" False 0 "" 0,
+    Observe "nested" True False False "compact" True "{\"outer\":{\"value\"" True 18 "/outer/value" 0,
+    Observe "nested" True False False "compact" False "{\"outer\":{\"value\"" True 18 "/outer/value" 0,
+    Observe "nested" True False False "pretty" True "{\n\t   \"outer\": {\n\t     \"value\"" True 32 "/outer/value" 0,
+    Observe "nested" True False False "pretty" False "{\n\t   \"outer\": {\n\t     \"value\"" True 32 "/outer/value" 0,
+    Observe "nested" True False False "empty-indent" True "{\n\"outer\": {\n\"value\"" True 22 "/outer/value" 0,
+    Observe "nested" True False False "empty-indent" False "{\n\"outer\": {\n\"value\"" True 22 "/outer/value" 0,
+    Observe "nested" False True True "compact" True "{\"outer\":{\"value\":\"method\"}}" False 0 "" 1,
+    Observe "nested" False True True "compact" False "{\"outer\":{\"value\":\"method\"}}" False 0 "" 1,
+    Observe "nested" False True True "pretty" True "{\n\t   \"outer\": {\n\t     \"value\": \"method\"\n\t   }\n\t }" False 0 "" 1,
+    Observe "nested" False True True "pretty" False "{\n\t   \"outer\": {\n\t     \"value\": \"method\"\n\t   }\n\t }" False 0 "" 1,
+    Observe "nested" False True True "empty-indent" True "{\n\"outer\": {\n\"value\": \"method\"\n}\n}" False 0 "" 1,
+    Observe "nested" False True True "empty-indent" False "{\n\"outer\": {\n\"value\": \"method\"\n}\n}" False 0 "" 1,
+    Observe "nested" False True False "compact" True "{\"outer\":{\"value\":\"method\"}}" False 0 "" 1,
+    Observe "nested" False True False "compact" False "{\"outer\":{\"value\":\"method\"}}" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 225 through 240 in a bounded literal group.
+  rows14 :: List Observation
+  rows14 = [
+    Observe "nested" False True False "pretty" True "{\n\t   \"outer\": {\n\t     \"value\": \"method\"\n\t   }\n\t }" False 0 "" 1,
+    Observe "nested" False True False "pretty" False "{\n\t   \"outer\": {\n\t     \"value\": \"method\"\n\t   }\n\t }" False 0 "" 1,
+    Observe "nested" False True False "empty-indent" True "{\n\"outer\": {\n\"value\": \"method\"\n}\n}" False 0 "" 1,
+    Observe "nested" False True False "empty-indent" False "{\n\"outer\": {\n\"value\": \"method\"\n}\n}" False 0 "" 1,
+    Observe "nested" False False True "compact" True "{\"outer\":{\"value\":\"method\"}}" False 0 "" 1,
+    Observe "nested" False False True "compact" False "{\"outer\":{\"value\":\"method\"}}" False 0 "" 1,
+    Observe "nested" False False True "pretty" True "{\n\t   \"outer\": {\n\t     \"value\": \"method\"\n\t   }\n\t }" False 0 "" 1,
+    Observe "nested" False False True "pretty" False "{\n\t   \"outer\": {\n\t     \"value\": \"method\"\n\t   }\n\t }" False 0 "" 1,
+    Observe "nested" False False True "empty-indent" True "{\n\"outer\": {\n\"value\": \"method\"\n}\n}" False 0 "" 1,
+    Observe "nested" False False True "empty-indent" False "{\n\"outer\": {\n\"value\": \"method\"\n}\n}" False 0 "" 1,
+    Observe "nested" False False False "compact" True "{\"outer\":{\"value\":\"method\"}}" False 0 "" 1,
+    Observe "nested" False False False "compact" False "{\"outer\":{\"value\":\"method\"}}" False 0 "" 1,
+    Observe "nested" False False False "pretty" True "{\n\t   \"outer\": {\n\t     \"value\": \"method\"\n\t   }\n\t }" False 0 "" 1,
+    Observe "nested" False False False "pretty" False "{\n\t   \"outer\": {\n\t     \"value\": \"method\"\n\t   }\n\t }" False 0 "" 1,
+    Observe "nested" False False False "empty-indent" True "{\n\"outer\": {\n\"value\": \"method\"\n}\n}" False 0 "" 1,
+    Observe "nested" False False False "empty-indent" False "{\n\"outer\": {\n\"value\": \"method\"\n}\n}" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 241 through 256 in a bounded literal group.
+  rows15 :: List Observation
+  rows15 = [
+    Observe "slice" True True True "compact" True "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" True True True "compact" False "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" True True True "pretty" True "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" True True True "pretty" False "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" True True True "empty-indent" True "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" True True True "empty-indent" False "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" True True False "compact" True "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" True True False "compact" False "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" True True False "pretty" True "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" True True False "pretty" False "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" True True False "empty-indent" True "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" True True False "empty-indent" False "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" True False True "compact" True "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" True False True "compact" False "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" True False True "pretty" True "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" True False True "pretty" False "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 257 through 272 in a bounded literal group.
+  rows16 :: List Observation
+  rows16 = [
+    Observe "slice" True False True "empty-indent" True "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" True False True "empty-indent" False "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" True False False "compact" True "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" True False False "compact" False "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" True False False "pretty" True "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" True False False "pretty" False "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" True False False "empty-indent" True "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" True False False "empty-indent" False "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" False True True "compact" True "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" False True True "compact" False "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" False True True "pretty" True "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" False True True "pretty" False "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" False True True "empty-indent" True "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" False True True "empty-indent" False "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" False True False "compact" True "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" False True False "compact" False "[{\"value\":\"method\"}]" False 0 "" 1
+  ]
+
+  -- | Preserve independent observations 273 through 288 in a bounded literal group.
+  rows17 :: List Observation
+  rows17 = [
+    Observe "slice" False True False "pretty" True "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" False True False "pretty" False "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" False True False "empty-indent" True "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" False True False "empty-indent" False "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" False False True "compact" True "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" False False True "compact" False "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" False False True "pretty" True "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" False False True "pretty" False "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" False False True "empty-indent" True "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" False False True "empty-indent" False "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" False False False "compact" True "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" False False False "compact" False "[{\"value\":\"method\"}]" False 0 "" 1,
+    Observe "slice" False False False "pretty" True "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" False False False "pretty" False "[\n\t   {\n\t     \"value\": \"method\"\n\t   }\n\t ]" False 0 "" 1,
+    Observe "slice" False False False "empty-indent" True "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1,
+    Observe "slice" False False False "empty-indent" False "[\n{\n\"value\": \"method\"\n}\n]" False 0 "" 1
+  ]
+
+  -- | Preserve the first independent row index as a nonzero process result.
+  status :: Nat
+  status =
+    let result0 = group rows0 0 in
+    if result0 > 0 then result0 else
+    let result1 = group rows1 16 in
+    if result1 > 0 then result1 else
+    let result2 = group rows2 32 in
+    if result2 > 0 then result2 else
+    let result3 = group rows3 48 in
+    if result3 > 0 then result3 else
+    let result4 = group rows4 64 in
+    if result4 > 0 then result4 else
+    let result5 = group rows5 80 in
+    if result5 > 0 then result5 else
+    let result6 = group rows6 96 in
+    if result6 > 0 then result6 else
+    let result7 = group rows7 112 in
+    if result7 > 0 then result7 else
+    let result8 = group rows8 128 in
+    if result8 > 0 then result8 else
+    let result9 = group rows9 144 in
+    if result9 > 0 then result9 else
+    let result10 = group rows10 160 in
+    if result10 > 0 then result10 else
+    let result11 = group rows11 176 in
+    if result11 > 0 then result11 else
+    let result12 = group rows12 192 in
+    if result12 > 0 then result12 else
+    let result13 = group rows13 208 in
+    if result13 > 0 then result13 else
+    let result14 = group rows14 224 in
+    if result14 > 0 then result14 else
+    let result15 = group rows15 240 in
+    if result15 > 0 then result15 else
+    let result16 = group rows16 256 in
+    if result16 > 0 then result16 else
+    let result17 = group rows17 272 in
+    if result17 > 0 then result17 else
+    0
+
+  -- | Preserve the original reporting-disabled descriptor refusal with its exact published application type label.
+  retained :: Unit -> Bool
+  retained unit =
+    let counter = bytes-new 1 in
+    let selected = json-type-with-methods (named "main.pointerMethods" json-bool-type) (json-methods (Some (True, (\options value -> let count = called counter in Ok (string-to-bytes "\"method\"")))) None None None) in
+    check selected (runtime-bool True) "main.pointerMethods" counter (Observe "quoted" True False False "compact" True "{\"value\"" True 9 "/value" 0)
+
+  -- | Check the retained descriptor refusal before every new policy/format observation.
+  main :: Int
+  main = if retained () then nat-to-int status else 10001

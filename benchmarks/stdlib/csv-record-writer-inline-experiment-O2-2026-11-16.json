@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "description": "Public CSV parse/render/owned-stream pipelines with prepared mutable input, normal reclamation and observable byte samples",
+  "opt_level": 2,
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "driver_sha256": "fc68b50edf3b23a0ac708433770bb5277640588f821b779f6c57b76f3a90ac32",
+  "runner_sha256": "b58fe024d445da3cde63d9b57982813fdaf7f38fea9431638557ccac1eba2063",
+  "sources": {
+    "Text.Csv.Record": "22aba1d08bae3317aa3116ae0597884c735b585f4b724afca5738728ef837afc",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Effect.Csv": "115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605",
+    "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+  },
+  "source_overrides": {
+    "Text.Csv.Record": "/workspace/dasl-stdlib-csv/build/csv-writer-inline/Text.Csv.Record.cinch"
+  },
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpu_affinity": [
+    3
+  ],
+  "iterations": 128,
+  "warmup_processes": 1,
+  "executable_sha256": "39740fe0b1971d5a876e0f1696ba5dc2263e48e41ab1ab4a9b9e326508c765fb",
+  "llvm_sha256": "c1dec7eb5b196504f348a786734dc7d4610ed9f2faf98e10c9be2c7cf35557c7",
+  "assembly_sha256": "c21c826932df51b50a0ab4863680840aa3999c71547b04b341f05edbff2d879c",
+  "artifacts": "/workspace/dasl-stdlib-csv/build/csv-record-bench-writer-inline",
+  "results": [],
+  "reference": {
+    "sdk": "go version go1.27.4 linux/amd64",
+    "source_sha256": "9df1cf99f7971e8e98d412489176c850a3942070388dce44823a1b619db51e92",
+    "executable_sha256": "87b37aba26e1a8bd0d3760caf072ac3cef8063c39e275f8ff99983095c3c0f6d",
+    "GOMAXPROCS": "1"
+  },
+  "scope": "Pipeline timing includes copied input/field snapshots, returned output and owned stream chunks; it does not assert equal allocation complexity",
+  "size_argument": "field byte length; prepared read input adds six unquoted or eight quoted delimiter/tail bytes"
+}

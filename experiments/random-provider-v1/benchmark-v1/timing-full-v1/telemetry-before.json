@@ -1,0 +1,32 @@
+{
+  "utc": "2026-11-17T17:48:55Z",
+  "monotonic_ns": 176460607764291,
+  "affinity": [
+    0
+  ],
+  "loadavg": "0.08 0.18 0.14 1/773 905186",
+  "free_bytes": 328138752,
+  "cpu.stat": "usage_usec 164167927337\nuser_usec 153762106098\nsystem_usec 10405821239\nnice_usec 481860771\nnr_periods 1290206\nnr_throttled 42007\nthrottled_usec 1757109715\nnr_bursts 0\nburst_usec 0",
+  "cpu.max": "400000 100000",
+  "cpuset.cpus.effective": "0-4",
+  "cpu_stat_values": {
+    "usage_usec": "164167927337",
+    "user_usec": "153762106098",
+    "system_usec": "10405821239",
+    "nice_usec": "481860771",
+    "nr_periods": "1290206",
+    "nr_throttled": "42007",
+    "throttled_usec": "1757109715",
+    "nr_bursts": "0",
+    "burst_usec": "0"
+  },
+  "runnable_cgroup_processes": [
+    {
+      "pid": 905184,
+      "ppid": 905183,
+      "state": "R",
+      "processor": 0,
+      "comm": "python3"
+    }
+  ]
+}

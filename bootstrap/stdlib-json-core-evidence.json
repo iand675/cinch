@@ -1,0 +1,114 @@
+{
+  "status": "partial JSON core; typed codecs, general numeric text and effects remain open",
+  "module": "Text.Json.Value",
+  "source_sha256": "f52e7fe9d0ea33f455b7876484a8fa028f6fb32695c2a1d232b65a0625dc5793",
+  "canonical_declarations": 260,
+  "independent_observations": {
+    "syntax": 594,
+    "quote": 104,
+    "number": 25,
+    "indent_bytes": 9
+  },
+  "control_groups": [
+    "source/export/raw alias snapshots and original spans",
+    "64KiB string parse/decode/quote/compact",
+    "depth10000 accepted,10001 refused",
+    "every lexer chunk width including UTF8/escape/number checkpoints",
+    "empty number default differs from explicit zero"
+  ],
+  "consumer_memory_runs": 22,
+  "matrix": [
+    {
+      "report": "bootstrap/stdlib-json-core-expanded-rust-validation-results.json",
+      "frontend": "rust",
+      "opt_level": 2,
+      "suite": "syntax",
+      "runs": 2
+    },
+    {
+      "report": "bootstrap/stdlib-json-core-expanded-rust-validation-results.json",
+      "frontend": "rust",
+      "opt_level": 2,
+      "suite": "indent",
+      "runs": 2
+    },
+    {
+      "report": "bootstrap/stdlib-json-core-expanded-rust-validation-results.json",
+      "frontend": "rust",
+      "opt_level": 2,
+      "suite": "control",
+      "runs": 2
+    },
+    {
+      "report": "bootstrap/stdlib-json-core-expanded-rust-quote-number-validation-results.json",
+      "frontend": "rust",
+      "opt_level": 2,
+      "suite": "quote",
+      "runs": 2
+    },
+    {
+      "report": "bootstrap/stdlib-json-core-expanded-rust-quote-number-validation-results.json",
+      "frontend": "rust",
+      "opt_level": 2,
+      "suite": "number",
+      "runs": 2
+    },
+    {
+      "report": "bootstrap/stdlib-json-core-native-expanded-validation-results.json",
+      "frontend": "native",
+      "opt_level": 0,
+      "suite": "syntax",
+      "runs": 2
+    },
+    {
+      "report": "bootstrap/stdlib-json-core-native-expanded-tail-validation-results.json",
+      "frontend": "native",
+      "opt_level": 0,
+      "suite": "quote",
+      "runs": 2
+    },
+    {
+      "report": "bootstrap/stdlib-json-core-native-expanded-tail-validation-results.json",
+      "frontend": "native",
+      "opt_level": 0,
+      "suite": "number",
+      "runs": 2
+    },
+    {
+      "report": "bootstrap/stdlib-json-core-native-expanded-tail-validation-results.json",
+      "frontend": "native",
+      "opt_level": 0,
+      "suite": "indent",
+      "runs": 2
+    },
+    {
+      "report": "bootstrap/stdlib-json-core-native-expanded-tail-validation-results.json",
+      "frontend": "native",
+      "opt_level": 0,
+      "suite": "control",
+      "runs": 2
+    },
+    {
+      "report": "bootstrap/stdlib-json-value-control-rust-o0-validation-results.json",
+      "frontend": "rust",
+      "opt_level": 0,
+      "suite": "control",
+      "runs": 2
+    }
+  ],
+  "independent_generator_sha256": "990ae55ea3593a998ddc2d51cf8219899d7db734679003b3123120d265509b0f",
+  "consumer_generator_sha256": "5de5b0cecd4ea3e87a1aa313c69e00c9b09c2963dd771dd373342c26e4271ab3",
+  "reference_fixture_sha256": "0e1cf2647c83c0f9602e5430ed18025a7f1536ff2c2adaf9139363b0533de6b8",
+  "reference_metadata": "bootstrap/stdlib-json-active-reference.json",
+  "default_surface_records": 92,
+  "dependency_commit": "fee3e98e",
+  "lane_dependency_cherry_pick": "ba68b029",
+  "rust_target": "lib_json_value",
+  "rust_target_status": "prepared; parent-owned serial Cargo gate pending",
+  "performance_status": "generic scan assembly inspected; paired public benchmark and static-mode/fused controls remain a separate checkpoint",
+  "legacy_modules_preserved": [
+    "Text.Json",
+    "Data.Json",
+    "Text.Codec"
+  ]
+}

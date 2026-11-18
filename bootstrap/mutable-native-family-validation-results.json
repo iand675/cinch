@@ -1,0 +1,248 @@
+{
+  "bridge": {
+    "compiler_source_module_count": 51,
+    "compiler_source_sha256": "4de3bd70fdfeb3dd1faeb6498f7f6cc54be1980749b85f770a7fa722daaa8cb8",
+    "copied_cache_scope": "Certified seed runtime release cache only; no compiler Cargo cache and no Stage1 copied.",
+    "description": "Certified unchanged Stage0 seed/runtime bridge only. Stage1 is not copied and must compile the new current source.",
+    "new_compiler_commits": [
+      "8aff20d0",
+      "6759fb9d"
+    ],
+    "preflight_status": "passed",
+    "provider_producer_source_sha256": "92f5cd23a9e9e40f921c163a7304af9e9cf1351084a6223db66b718b90d00155",
+    "provider_receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+    "required_seed_runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+    "seed_lock": {
+      "description": "ABI 10 Native seed: self-describing block headers, merged with main (through the no-reclaim switch), narrow C arguments extended; empty patch.",
+      "patch": "bootstrap/seed/stage0.patch",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "revision": "ab294c68b24fa093a84813e09e0b9f5f33667e7f",
+      "runtime_abi": 10,
+      "schema": 1,
+      "source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd"
+    },
+    "seed_runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+    "seed_snapshot": "fc9fa8f2bb83081f1e4be5e4d6873a7dba6f855c12b9905e3244d1c8e0e7b01a",
+    "source": "/workspace/dasl-stdlib-base-construction/build/bootstrap",
+    "stage0_sha256": "ce4a68ee6a283199ce8ff6b1f53bb21f34e8c0ea6816d7de9fff295c98127a3a",
+    "string_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e"
+  },
+  "compiler_source_sha256": "4de3bd70fdfeb3dd1faeb6498f7f6cc54be1980749b85f770a7fa722daaa8cb8",
+  "description": "Full self-built Native family for contextual mutation kinds, source-owned phantom regions and strict local value restrictions",
+  "diagnostic_projection": {
+    "baseline": {
+      "path": "build/mutable-cli-all-negative-baseline/results.json",
+      "sha256": "3f6400930dc7b620d8796e9f4342c6745060847e1eb4e4edc2652d5ee16a7938"
+    },
+    "description": "Original in-process programs/oracles remain unchanged. Three precise CLI categories differ because the complete CLI resolves dictionaries/refinements before the in-process checker. All30 prior0b negative programs were independently rejected and the exact three differences reviewed.",
+    "earlier_eq_both_epochs": {
+      "path": "build/mutable-cli-diagnostic-baseline/results.json",
+      "sha256": "a3d521fa24b3bc6b9669afa911dfaeba43ec4e0176571294dc8e42242c79f475"
+    },
+    "initial_stage1_failure_retained": {
+      "path": "build/mutable-stage1-semantic.json",
+      "sha256": "fa916bc1ebfdcfbc543f7e37f8350957c016ee231c8d33fd7b36e1ab668bc82d"
+    },
+    "second_stage1_failure_retained": {
+      "path": "build/mutable-stage1-semantic-r2.json",
+      "sha256": "bfaad55ce2b09770999eedb3394086738b5e2539f4642987646ad1bd58773012"
+    }
+  },
+  "direct_semantics": {
+    "accepted": 44,
+    "actual_exported_parameter_kinds_checked": true,
+    "focused": 32,
+    "preserved_negatives": 30,
+    "preserved_positives": 26,
+    "record": {
+      "path": "build/mutable-stage3-semantic.json",
+      "sha256": "10df2e077af22b57bdec792f2a5568c12f076fcd7e957876fc0c3a50f7c0dfc8"
+    },
+    "rejected": 44,
+    "validator": {
+      "path": "tooling/validate_native_mutable_family.py",
+      "sha256": "278659a7529cf47a5e231f06976dfac00a9630a23fcbec1ef3a16b8dd950e9b1"
+    }
+  },
+  "forged_core_kind_authority": {
+    "consumer_opt_level": 0,
+    "executable": {
+      "path": "build/mutable-stage3-authority/consumer",
+      "sha256": "0b978e141db132c8a3a3b08abc0b3522d23ee8f7e9d770ed2765c202746f0f16"
+    },
+    "link_object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+    "llvm": {
+      "path": "build/mutable-stage3-authority/consumer.ll",
+      "sha256": "bea7d5dcd9fa1f44f8420e83da230db403305ae745360fcdd3e6c1345b603ab5"
+    },
+    "normal_heap": "32M",
+    "normal_log": {
+      "path": "build/mutable-stage3-authority/normal.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    "observations": 15,
+    "poison_heap": "256M",
+    "poison_log": {
+      "path": "build/mutable-stage3-authority/poison.log",
+      "sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "source": {
+      "path": "build/mutable-stage3-authority/Bundle.cinch",
+      "sha256": "fbfcafb4aaab7c90e29ca8b85a0cd1c04743330ad87aaec0b4cfe10ad32e9618"
+    },
+    "source_snapshot": {
+      "path": "build/mutable-stage3-authority/source-snapshot.json",
+      "sha256": "b6f2f18a2d70d638884166d3e9ab48c3451e98cf0d4faf2f3c35a4de82e24140"
+    },
+    "stack": "8M"
+  },
+  "frozen_snapshot": {
+    "adapter_probe": {
+      "executable_sha256": "187ce0c396a3360df5663c887a9bb2d2973aee82d6ad25bc02b46bb0212480cd",
+      "normal_heap": "32M",
+      "normal_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "poison_heap": "256M",
+      "poison_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "21e27f4b89cbe7083e40508dcb483f9b9446809bfc43886fead45268722443d3",
+      "stack": "8M",
+      "status": "passed"
+    },
+    "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+    "full_gate_original_receipt_sha256": "5a92f826e0931a33dbc2b7a73bfd1706874dc1edeccfa36ca04025cad452b7d1",
+    "local_provider_receipt_sha256": "7652f72e6bd9966dabda8a8c823ab5f908b188f7203c8ab65876a2a0bb04b279",
+    "original_provider_receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+    "path": "build/mutable-stage3-frozen",
+    "snapshot_sha256": "1df0c222c6bc3f822443c4923eb6c2fbe51f7704a5c0183b885a0cc74f3c4cb4"
+  },
+  "full_native_gate": {
+    "changed_source": {
+      "compiler_sha256": "eee7bb4b34c22d780f5f169dd7f2f4abae0d56ca88657e87350ad924d2a47745",
+      "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+      "source_sha256": "99d47e740b2e4d70fce8c8f8a83826cf5c0a211686219dd223a22a00a35fd215"
+    },
+    "command": "taskset -c 1 python3 tooling/bootstrap.py check --no-pgo -j1 --library-artifact /workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/provider.json",
+    "equal_canonical_interfaces": 51,
+    "fixed_point_checked": true,
+    "llvm_sha256": "93f3299363b8fdfde473102da84f183fde3eaa78b76b31e01b46e72f355076f0",
+    "log": {
+      "path": "build/mutable-full-check.log",
+      "sha256": "9db24bcbd26eb339840fdffd82e3c1146a46350becbadbc2f53672afdb666d76"
+    },
+    "source_absent_entry_consumer": {
+      "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+      "manifest_sha256": "75004341911cbece5b907aa8a92a42e2ae2c52168031eb896c121473a8755384",
+      "source_sha256": "af5113475ded965ccd87d34f50c24125e6d2f902ca907734b78dc59a873055cc",
+      "status": "passed"
+    }
+  },
+  "full_stdlib_goal_complete": false,
+  "implementation_commits": [
+    "8aff20d0",
+    "6759fb9d"
+  ],
+  "limits": [
+    "Only the two named compiler changes are added to the completed phase-1/Char baseline.",
+    "The old certified Stage0/runtime is a trusted bridge; Stage1 was rebuilt from the new current source.",
+    "The fresh provider is reused with its original producer/source/runtime identities.",
+    "Imported primitive lowering remains unchanged and is a separate forthcoming compiler epoch."
+  ],
+  "local_commits": [
+    "637acee0",
+    "2b3620ab"
+  ],
+  "provider": {
+    "object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+    "path": "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/provider.json",
+    "producer_compiler_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+    "producer_source_sha256": "92f5cd23a9e9e40f921c163a7304af9e9cf1351084a6223db66b718b90d00155",
+    "receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+    "reuse_scope": "Same verified phase-1 base module bytes and requested ABI variants; no new Rust producer or embedded-family build claimed for this compiler-source epoch.",
+    "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+    "string_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e"
+  },
+  "schema": 1,
+  "source_absent_mutable_interfaces": {
+    "clients": [
+      {
+        "accepted": true,
+        "diagnostic": "",
+        "exit": 0,
+        "leaked": 0,
+        "name": "region-roundtrip",
+        "source_sha256": "be568a9c837866ba5b7094683636c100da5980b4c309213e9cd0e85b50942a09"
+      },
+      {
+        "accepted": false,
+        "diagnostic": "bootstrap.check:5:10: kind mismatch in type inference\n",
+        "exit": 4,
+        "leaked": 0,
+        "name": "region-cannot-be-type",
+        "source_sha256": "8955667f060511f312c202912096e0b40a92af85c728dbbe3865d737d2f562db"
+      },
+      {
+        "accepted": false,
+        "diagnostic": "bootstrap.check:5:20: kind mismatch in type inference\n",
+        "exit": 4,
+        "leaked": 0,
+        "name": "ordinary-cannot-be-region",
+        "source_sha256": "38722ba95e8a96929cce99f41210b03b75936835f63f546a73d30a85910b9205"
+      },
+      {
+        "accepted": false,
+        "diagnostic": "bootstrap.check:6:106: type mismatch: expected Int, found Bool\n",
+        "exit": 4,
+        "leaked": 0,
+        "name": "imported-allocation-monomorphic",
+        "source_sha256": "71dfe6190af113a9e9a59d98a48b14fa6074d7635ca2f35ea24c6408b82ee18f"
+      }
+    ],
+    "producer": {
+      "contract_sha256": "61ae51f8d19b1f0906d3c6ef931b117e20bd0e3cf11716eb28a237de78e4bfbc",
+      "interface_hash": "4672352012603841923",
+      "parameter_kinds": {
+        "Ordinary": [
+          "Type"
+        ],
+        "Vector": [
+          "Region",
+          "Type"
+        ]
+      },
+      "source_sha256": "38be394fade56bd8e853f75f2db8b3751c8945826ead7222b9d12f8197e2ff07"
+    },
+    "record": {
+      "path": "build/mutable-stage3-interfaces.json",
+      "sha256": "8b6052abe8c1d835942cc68e39f43c3249576c9bfdaa79e6323d2ccd43af1fcf"
+    },
+    "source_removed_before_clients": true
+  },
+  "source_module_count": 51,
+  "stages": {
+    "stage1": {
+      "compiler_source_sha256": "4de3bd70fdfeb3dd1faeb6498f7f6cc54be1980749b85f770a7fa722daaa8cb8",
+      "executable_sha256": "82ff10023ffddb3ab8987bde9141e7401ee4fa9cd977e04b8cfff6996c873559",
+      "record": {
+        "path": "build/bootstrap/stage1/stage.json",
+        "sha256": "f9badce4934ba090eaeb7661017fb32925519f623ea971f96b2416a11288ddae"
+      }
+    },
+    "stage2": {
+      "compiler_source_sha256": "4de3bd70fdfeb3dd1faeb6498f7f6cc54be1980749b85f770a7fa722daaa8cb8",
+      "executable_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+      "record": {
+        "path": "build/bootstrap/stage2/stage.json",
+        "sha256": "203bb35d670a8f33a37082e8dc2b27e9d892f998be24aa09ef3be15d1899a223"
+      }
+    },
+    "stage3": {
+      "compiler_source_sha256": "4de3bd70fdfeb3dd1faeb6498f7f6cc54be1980749b85f770a7fa722daaa8cb8",
+      "executable_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+      "record": {
+        "path": "build/bootstrap/stage3/stage.json",
+        "sha256": "9925794d7b661442efa62efa6aeb48c01ed288d99761120c41a52b902d9a0b80"
+      }
+    }
+  },
+  "status": "passed"
+}

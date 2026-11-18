@@ -1,0 +1,1157 @@
+-- | Media type values, raw encoded words and explicit immutable extension contexts.
+-- Wire values and parameter values preserve arbitrary bytes. String conveniences
+-- validate UTF-8 explicitly. Returned buffers and context observations are fresh;
+-- input mutation cannot change retained parameters or registered associations.
+module Text.Mime where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Bytes.Utf8
+  import Data.Char
+  import Data.Hash
+  import Data.HashMap
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Data.String (String, empty-string, string-concat, string-from-bytes, string-to-bytes)
+  import Text.Show (nat-to-string)
+  import Data.Unicode.Kernel
+  import Relation.Eq
+  import Text.Base64.Encoding
+
+  export MimeError, MimeNoMediaType, MimeExpectedSlash, MimeExpectedSubtype, MimeUnexpectedContent
+  export MimeInvalidMediaParameter, MimeDuplicateParameter, MimeInvalidExtension
+  export MimeInvalidWord, MimeInvalidHexByte, MimeBase64Corruption, MimeUnhandledCharset, MimeInvalidUtf8
+  export mime-error-message
+  export MimeParameters, mime-parameters-empty, mime-parameters, mime-parameter-set, mime-parameter-find, mime-parameter-pairs
+  export MimeMediaResult, mime-parse-media-type, mime-media-base, mime-media-parameters, mime-media-error
+  export mime-format-media-type
+  export MimeWordEncoder, mime-b-encoding, mime-q-encoding, mime-word-encoder-byte
+  export mime-word-encode-bytes, mime-word-encode-text
+  export MimeWordToken, mime-word-token, mime-word-token-charset, mime-word-token-content
+  export mime-convert-known-charset, mime-charset-name, mime-quote-bytes
+  export MimeHeaderPart, MimeHeaderEnd, MimeHeaderWord, mime-header-step
+  export MimeRegistry, mime-registry-empty, mime-registry-default, mime-registry-add
+  export mime-registry-type, mime-registry-extensions, mime-registry-associations
+
+  -- | A precise syntax, registration or encoded-word failure without mutable payloads.
+  data MimeError where
+    -- | No initial media type token was found.
+    MimeNoMediaType :: MimeError
+    -- | Content after the first token did not begin with a slash.
+    MimeExpectedSlash :: MimeError
+    -- | A slash was not followed by a subtype token.
+    MimeExpectedSubtype :: MimeError
+    -- | Extra bytes followed a complete media subtype.
+    MimeUnexpectedContent :: MimeError
+    -- | Parameter syntax failed after a valid normalized base was found.
+    MimeInvalidMediaParameter :: MimeError
+    -- | Equal normalized parameter names had unequal raw values.
+    MimeDuplicateParameter :: MimeError
+    -- | A registration key lacked a leading dot; its quoted spelling is immutable.
+    MimeInvalidExtension :: String -> MimeError
+    -- | An encoded word or Q body has invalid structure.
+    MimeInvalidWord :: MimeError
+    -- | The exact invalid hexadecimal byte in a Q body.
+    MimeInvalidHexByte :: InRange 0 255 Nat -> MimeError
+    -- | Original Base64 body offset of corruption, including ignored line endings.
+    MimeBase64Corruption :: Nat -> MimeError
+    -- | Original unsupported charset label, retained as an immutable quoted spelling.
+    MimeUnhandledCharset :: String -> MimeError
+    -- | A checked String convenience found a non-UTF-8 output byte.
+    MimeInvalidUtf8 :: Nat -> MimeError
+
+  -- | Render one nibble as lowercase diagnostic hexadecimal.
+  lower-digit :: Nat -> InRange 0 255 Nat
+  lower-digit n = if n < 10 then n + 48 else if n < 16 then n + 87 else 48
+
+  -- | Render one nibble as uppercase wire hexadecimal.
+  upper-digit :: Nat -> InRange 0 255 Nat
+  upper-digit n = if n < 10 then n + 48 else if n < 16 then n + 55 else 48
+
+  -- | Render one byte as two lowercase diagnostic digits.
+  byte-hex :: InRange 0 255 Nat -> String
+  byte-hex value = let out = bytes-new 2 in
+    let high = bytes-set out 0 (lower-digit (nat-div value 16)) in
+    let low = bytes-set out 1 (lower-digit (nat-rem value 16)) in
+    case string-from-bytes out of Some text -> text; None -> empty-string
+
+  -- | Render exact familiar wire diagnostics without discarding their error kind.
+  mime-error-message :: MimeError -> String
+  mime-error-message error = case error of
+    MimeNoMediaType -> "mime: no media type"
+    MimeExpectedSlash -> "mime: expected slash after first token"
+    MimeExpectedSubtype -> "mime: expected token after slash"
+    MimeUnexpectedContent -> "mime: unexpected content after media subtype"
+    MimeInvalidMediaParameter -> "mime: invalid media parameter"
+    MimeDuplicateParameter -> "mime: duplicate parameter name"
+    MimeInvalidExtension quoted -> string-concat "mime: extension " (string-concat quoted " missing leading dot")
+    MimeInvalidWord -> "mime: invalid RFC 2047 encoded-word"
+    MimeInvalidHexByte byte -> string-concat "mime: invalid hex byte 0x" (byte-hex byte)
+    MimeBase64Corruption at -> string-concat "illegal base64 data at input byte " (nat-to-string at)
+    MimeUnhandledCharset quoted -> string-concat "mime: unhandled charset " quoted
+    MimeInvalidUtf8 at -> string-concat "mime: output is not valid UTF-8 at byte " (nat-to-string at)
+
+  -- | Copy only a proved byte interval into fresh mutable storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 at count in out
+    else bytes-new 0
+
+  -- | Snapshot a complete caller-owned buffer before retaining it.
+  snapshot :: Bytes -> Bytes
+  snapshot input = part input 0 (bytes-len input)
+
+  -- | Total the sizes of already independent output pieces.
+  total-size :: List Bytes -> Nat -> Nat
+  total-size pieces count = case pieces of
+    Nil -> count
+    Cons bytes rest -> total-size rest (count + bytes-len bytes)
+
+  -- | Copy complete output pieces once into an exactly sized aggregate.
+  fill-pieces :: Bytes -> Nat -> List Bytes -> Unit
+  fill-pieces out at pieces = case pieces of
+    Nil -> ()
+    Cons bytes rest -> if at + bytes-len bytes <= bytes-len out then
+      let copied = bytes-copy-range out bytes at 0 (bytes-len bytes) in
+      fill-pieces out (at + bytes-len bytes) rest
+      else ()
+
+  -- | Flatten independent pieces without exposing any retained context buffer.
+  join-pieces :: List Bytes -> Bytes
+  join-pieces pieces = let out = bytes-new (total-size pieces 0) in
+    let copied = fill-pieces out 0 pieces in out
+
+  -- | Join two independent spans into fresh storage.
+  join :: Bytes -> Bytes -> Bytes
+  join first last = join-pieces (Cons first (Cons last Nil))
+
+  -- | An internally owned immutable key; the constructor never escapes the module.
+  data MimeKey where
+    -- | Private copied key bytes, never returned by a public observation.
+    Key :: Bytes -> MimeKey
+
+  -- | Compare only private immutable key contents, without changing buffer equality policies.
+  implicit instance Eq_MimeKey :: Eq MimeKey where
+    -- Equal private byte sequences identify the same exact parameter key.
+    (==) x y = case x of Key a -> case y of Key b -> eq-i64 (bytes-compare a b) 0
+    -- Distinct private byte sequences identify distinct exact parameter keys.
+    (/=) x y = case x of Key a -> case y of Key b -> not (eq-i64 (bytes-compare a b) 0)
+
+  -- | Reuse stable byte hashing only over immutable privately owned snapshots.
+  implicit instance Hash_MimeKey :: Hash MimeKey where
+    -- Equal private byte keys always share the same digest.
+    hash key = case key of Key bytes -> hash bytes
+
+  -- | Persistent exact-key parameter map with privately copied values.
+  data MimeParameters where
+    -- | Private hash-indexed storage; original spelling is retained until formatting.
+    Parameters :: HashMap MimeKey Bytes -> MimeParameters
+
+  -- | Begin with an empty, non-null parameter context.
+  mime-parameters-empty :: MimeParameters
+  mime-parameters-empty = Parameters hash-map-empty
+
+  -- | Insert one exact key/value snapshot; later equal exact keys replace earlier values.
+  mime-parameter-set :: Bytes -> Bytes -> MimeParameters -> MimeParameters
+  mime-parameter-set key value params = case params of
+    Parameters entries -> Parameters (hash-map-insert (Key (snapshot key)) (snapshot value) entries)
+
+  -- | Construct a context in source order, so the last equal exact key wins.
+  mime-parameters :: List (Bytes, Bytes) -> MimeParameters
+  mime-parameters pairs = parameters-from pairs mime-parameters-empty
+
+  -- | Insert an ordered sequence without exposing the private map representation.
+  parameters-from :: List (Bytes, Bytes) -> MimeParameters -> MimeParameters
+  parameters-from pairs params = case pairs of
+    Nil -> params
+    Cons pair rest -> case pair of
+      (key, value) -> parameters-from rest (mime-parameter-set key value params)
+
+  -- | Observe one value through a fresh copy; absence remains distinct from an empty value.
+  mime-parameter-find :: Bytes -> MimeParameters -> Option Bytes
+  mime-parameter-find key params = case params of
+    Parameters entries -> case hash-map-lookup (Key (snapshot key)) entries of
+      None -> None
+      Some value -> Some (snapshot value)
+
+  -- | Compare original raw keys in lexicographic wire order.
+  compare-entry :: (MimeKey, Bytes) -> (MimeKey, Bytes) -> Ordering
+  compare-entry x y = case x of
+    (Key a, valueA) -> case y of
+      (Key b, valueB) -> let order = bytes-compare a b in
+        if lt-i64 order 0 then LT else if gt-i64 order 0 then GT else EQ
+
+  -- | Copy sorted key/value observations so caller mutation cannot alter a context.
+  copy-pairs :: List (MimeKey, Bytes) -> List (Bytes, Bytes)
+  copy-pairs entries = case entries of
+    Nil -> Nil
+    Cons entry rest -> case entry of
+      (Key key, value) -> Cons (snapshot key, snapshot value) (copy-pairs rest)
+
+  -- | Return fresh key/value buffers in original raw-key order, before case folding.
+  mime-parameter-pairs :: MimeParameters -> List (Bytes, Bytes)
+  mime-parameter-pairs params = case params of
+    Parameters entries -> copy-pairs (sort-by compare-entry (hash-map-to-list entries))
+
+  -- | Media parsing observations preserve a valid base but no parameter map on parameter errors.
+  data MimeMediaResult where
+    -- | Private normalized base, nullable parameter context and precise first failure.
+    MediaResult :: String -> Option MimeParameters -> Option MimeError -> MimeMediaResult
+
+  -- | Observe the normalized base, or empty when the base/duplicate policy failed.
+  mime-media-base :: MimeMediaResult -> String
+  mime-media-base result = case result of MediaResult base params error -> base
+
+  -- | Observe a non-null successful parameter context, including an empty context.
+  mime-media-parameters :: MimeMediaResult -> Option MimeParameters
+  mime-media-parameters result = case result of MediaResult base params error -> params
+
+  -- | Observe the exact parse failure without flattening it to text.
+  mime-media-error :: MimeMediaResult -> Option MimeError
+  mime-media-error result = case result of MediaResult base params error -> error
+
+  -- | Recognize the transport punctuation excluded from media tokens.
+  special-byte :: Nat -> Bool
+  special-byte byte = byte == 40 || byte == 41 || byte == 60 || byte == 62 || byte == 64 || byte == 44 || byte == 59 || byte == 58 || byte == 92 || byte == 34 || byte == 47 || byte == 91 || byte == 93 || byte == 63 || byte == 61
+
+  -- | Recognize a non-space ASCII token byte.
+  token-byte :: Nat -> Bool
+  token-byte byte = byte > 32 && byte < 127 && not (special-byte byte)
+
+  -- | Recognize one byte that needs no content transfer encoding.
+  plain-byte :: Nat -> Bool
+  plain-byte byte = byte == 9 || (byte >= 32 && byte <= 126)
+
+  -- | Select one scalar class for exact fringes and first exceptional bytes.
+  class-byte :: U8 -> Nat -> Bool
+  class-byte kind byte =
+    if eq-u8 kind 1 then plain-byte byte
+    else if eq-u8 kind 2 then byte >= 33 && byte <= 126 && byte /= 61 && byte /= 63 && byte /= 95
+    else if eq-u8 kind 3 then token-byte byte && byte /= 42 && byte /= 39 && byte /= 37
+    else if eq-u8 kind 4 then byte /= 34 && byte /= 92 && byte /= 13 && byte /= 10
+    else if eq-u8 kind 5 then byte < 128
+    else token-byte byte
+
+  -- | Scan proved complete windows with SIMD and retain exact scalar fringe behavior.
+  scan-end :: using (at <= limit, limit <= bytes-len input) => U8 -> (input :: Bytes) -> (at :: Nat) -> (limit :: Nat) -> refined (at <= r && r <= limit) Nat
+  scan-end kind input at limit =
+    if at + 16 <= limit then
+      let mask = classify-sixteen (bytes-read-le64 input at) (bytes-read-le64 input (at + 8)) kind in
+      let count = if eq-u32 mask 0 then (16 :: Nat) else u32-to-nat (trailing-zeros-u32 mask) in
+      if count < 16 then at + count else scan-end kind input (at + 16) limit
+    else if at < limit then
+      if class-byte kind (bytes-get input at) then scan-end kind input (at + 1) limit else at
+    else at
+
+  -- | Lower one byte while preserving its explicit unsigned-byte bound.
+  lower-ascii-byte :: (byte :: InRange 0 255 Nat) -> InRange 0 255 Nat
+  lower-ascii-byte byte = if byte >= 65 && byte <= 90 then ((byte + 32) :: Nat) else byte
+
+  -- | Lowercase proved sixteen-byte windows with pure packed-word transforms,
+  -- existing checked word stores and exact scalar tails.
+  lower-ascii-copy :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Unit
+  lower-ascii-copy input start count out at =
+    if at + 16 <= count && start + at + 16 <= bytes-len input && at + 16 <= bytes-len out then
+      let first = bytes-write-le64 out at (lower-eight (bytes-read-le64 input (start + at))) in
+      let last = bytes-write-le64 out (at + 8) (lower-eight (bytes-read-le64 input (start + at + 8))) in
+      lower-ascii-copy input start count out (at + 16)
+    else if at < count && start + at < bytes-len input && at < bytes-len out then
+      let byte = bytes-get input (start + at) in
+      let value = lower-ascii-byte byte in
+      let stored = bytes-set out at value in
+      lower-ascii-copy input start count out (at + 1)
+    else ()
+
+  -- | Return an independent lowercase ASCII span without scalar-sized temporary buffers.
+  lower-ascii :: Bytes -> Nat -> Nat -> Bytes
+  lower-ascii input start count = let out = bytes-new count in
+    let copied = lower-ascii-copy input start count out 0 in out
+
+  -- | Scan a complete token without inspecting bytes beyond the supplied buffer.
+  token-end :: Bytes -> Nat -> Nat
+  token-end input at = if at <= bytes-len input then scan-end 0 input at (bytes-len input) else at
+
+  -- | Test the complete nonempty ASCII token grammar.
+  is-token :: Bytes -> Bool
+  is-token input = bytes-len input > 0 && token-end input 0 == bytes-len input
+
+  -- | Find the next exact delimiter, or the length when it is absent.
+  find-byte :: Nat -> Bytes -> Nat -> Nat
+  find-byte byte input at = if at < bytes-len input then
+    if bytes-get input at == byte then at else find-byte byte input (at + 1)
+    else at
+
+  -- | Copy one scalar's shortest UTF-8 encoding into independent storage.
+  scalar-bytes :: Char -> Bytes
+  scalar-bytes scalar = utf8-encode-rune (wrapping-u32-to-i32 (char-to-u32 scalar))
+
+  -- | Lowercase every decoded scalar; each malformed byte becomes U+FFFD separately.
+  lower-pieces :: Bytes -> Nat -> List Bytes -> Bytes
+  lower-pieces input at reversed = if at < bytes-len input then
+    let end = scan-end 5 input at (bytes-len input) in
+    if end > at then lower-pieces input end (Cons (lower-ascii input at (end - at)) reversed)
+    else
+      let step = utf8-decode-at input at in
+      let width = utf8-step-width step in
+      let piece = scalar-bytes (unicode-to-lower (utf8-step-char step)) in
+      if width > 0 && at + width <= bytes-len input then lower-pieces input (at + width) (Cons piece reversed)
+      else lower-pieces input (at + 1) (Cons (scalar-bytes utf8-rune-error) reversed)
+    else join-pieces (reverse reversed)
+
+  -- | Apply simple Unicode lowercase with explicit malformed-byte replacement.
+  lower-bytes :: Bytes -> Bytes
+  lower-bytes input = lower-pieces input 0 Nil
+
+  -- | Skip leading Unicode whitespace while retaining original byte offsets.
+  skip-space :: Bytes -> Nat -> Nat
+  skip-space input at = if at < bytes-len input then
+    let step = utf8-decode-at input at in
+    let width = utf8-step-width step in
+    if width > 0 && at + width <= bytes-len input && unicode-is-space (utf8-step-char step) then skip-space input (at + width)
+    else at
+    else at
+
+  -- | Drop trailing Unicode whitespace, decoding malformed suffixes one byte at a time.
+  trim-end :: Bytes -> Nat -> Nat
+  trim-end input end = if end > 0 && end <= bytes-len input then
+    let step = utf8-last-before input end in
+    let width = utf8-step-width step in
+    if width > 0 && width <= end && unicode-is-space (utf8-step-char step) then trim-end input (end - width)
+    else end
+    else end
+
+  -- | Copy the Unicode-trimmed interval without normalizing internal bytes.
+  trim-bytes :: Bytes -> Bytes
+  trim-bytes input = let start = skip-space input 0 in let end = trim-end input (bytes-len input) in
+    if start <= end then part input start (end - start) else bytes-new 0
+
+  -- | Recognize a complete exact byte spelling without adding global buffer equality.
+  same-bytes :: Bytes -> Bytes -> Bool
+  same-bytes first last = eq-i64 (bytes-compare first last) 0
+
+  -- | Allocate one explicitly bounded byte for a generated delimiter or decoded escape.
+  one-byte :: InRange 0 255 Nat -> Bytes
+  one-byte byte = let out = bytes-new 1 in let stored = bytes-set out 0 byte in out
+
+  -- | Test whether the remaining input consists only of one trailing semicolon and whitespace.
+  trailing-semicolon :: Bytes -> Nat -> Bool
+  trailing-semicolon input at = if at < bytes-len input && bytes-get input at == 59 then skip-space input (at + 1) == bytes-len input else False
+
+  -- | A quoted or token parameter value and the original next byte offset.
+  data ParsedValue where
+    -- | Successfully decoded independent value bytes and the unconsumed suffix offset.
+    ValueParsed :: Bytes -> Nat -> ParsedValue
+    -- | Missing token or unterminated/line-broken quoted value.
+    ValueMissing :: ParsedValue
+
+  -- | Decode quoted transport punctuation escapes while retaining other backslashes literally.
+  quoted-value :: Bytes -> Nat -> List Bytes -> ParsedValue
+  quoted-value input at pieces = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte == 34 then ValueParsed (join-pieces (reverse pieces)) (at + 1)
+    else if byte == 92 && at + 1 < bytes-len input && special-byte (bytes-get input (at + 1)) then
+      quoted-value input (at + 2) (Cons (one-byte (bytes-get input (at + 1))) pieces)
+    else if byte == 13 || byte == 10 then ValueMissing
+    else let end = scan-end 4 input at (bytes-len input) in
+      if end > at then quoted-value input end (Cons (part input at (end - at)) pieces)
+      else quoted-value input (at + 1) (Cons (one-byte byte) pieces)
+    else ValueMissing
+
+  -- | Parse a token or a quoted value; an explicitly empty quoted value is successful.
+  consume-value :: Bytes -> Nat -> ParsedValue
+  consume-value input at = if at < bytes-len input then
+    if bytes-get input at == 34 then quoted-value input (at + 1) Nil
+    else let end = token-end input at in
+      if end > at then ValueParsed (part input at (end - at)) end else ValueMissing
+    else ValueMissing
+
+  -- | A complete parameter with its lowercase exact key and next original byte offset.
+  data ParsedParameter where
+    -- | Private fresh key/value bytes and advanced position.
+    ParameterParsed :: Bytes -> Bytes -> Nat -> ParsedParameter
+    -- | A parameter prefix did not satisfy the wire grammar.
+    ParameterMissing :: ParsedParameter
+
+  -- | Consume one semicolon-delimited parameter with Unicode whitespace around separators.
+  consume-parameter :: Bytes -> Nat -> ParsedParameter
+  consume-parameter input at = if at < bytes-len input && bytes-get input at == 59 then
+    let start = skip-space input (at + 1) in
+    let end = token-end input start in
+    if start < end then
+      let equal = skip-space input end in
+      if equal < bytes-len input && bytes-get input equal == 61 then
+        case consume-value input (skip-space input (equal + 1)) of
+          ValueMissing -> ParameterMissing
+          ValueParsed value next -> ParameterParsed (lower-bytes (part input start (end - start))) value next
+      else ParameterMissing
+    else ParameterMissing
+    else ParameterMissing
+
+  -- | Read a private stored value during a pure operation without exposing it to a caller.
+  find-owned :: Bytes -> MimeParameters -> Option Bytes
+  find-owned key params = case params of Parameters entries -> hash-map-lookup (Key key) entries
+
+  -- | Insert already private parser-owned bytes without introducing external aliases.
+  insert-owned :: Bytes -> Bytes -> MimeParameters -> MimeParameters
+  insert-owned key value params = case params of Parameters entries -> Parameters (hash-map-insert (Key key) value entries)
+
+  -- | Decode one hexadecimal digit without consuming malformed input.
+  hex-value :: Nat -> Option (InRange 0 15 Nat)
+  hex-value byte = if byte >= 48 && byte <= 57 then Some ((byte - 48) :: Nat)
+    else if byte >= 65 && byte <= 70 then Some ((byte - 55) :: Nat)
+    else if byte >= 97 && byte <= 102 then Some ((byte - 87) :: Nat)
+    else None
+
+  -- | Decode a percent-escaped segment, rejecting the whole segment on its first malformed escape.
+  percent-pieces :: Bytes -> Nat -> List Bytes -> Option Bytes
+  percent-pieces input at pieces = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte == 37 then
+      if at + 2 < bytes-len input then case hex-value (bytes-get input (at + 1)) of
+        None -> None
+        Some high -> case hex-value (bytes-get input (at + 2)) of
+          None -> None
+          Some low -> percent-pieces input (at + 3) (Cons (one-byte (((high :: Nat) * 16 + (low :: Nat)) :: Nat)) pieces)
+      else None
+    else let end = find-byte 37 input at in
+      if end > at then percent-pieces input end (Cons (part input at (end - at)) pieces)
+      else percent-pieces input (at + 1) (Cons (one-byte byte) pieces)
+    else Some (join-pieces (reverse pieces))
+
+  -- | Decode an RFC 2231 extended segment; language tags are deliberately not interpreted.
+  decode-extended :: Bytes -> Option Bytes
+  decode-extended input = let first = find-byte 39 input 0 in
+    if first < bytes-len input then
+      let second = find-byte 39 input (first + 1) in
+      if second < bytes-len input then
+        let charset = lower-bytes (part input 0 first) in
+        if same-bytes charset (string-to-bytes "utf-8") || same-bytes charset (string-to-bytes "us-ascii") then
+          percent-pieces (part input (second + 1) (bytes-len input - (second + 1))) 0 Nil
+        else None
+      else None
+    else None
+
+  -- | Retain parsed primary values and a private map of extended-value buckets.
+  data ParameterStore where
+    -- | Updated primary and continuation maps after a non-conflicting insertion.
+    ParameterStored :: MimeParameters -> HashMap MimeKey MimeParameters -> ParameterStore
+    -- | A repeated normalized exact key carried a different raw value.
+    ParameterDuplicate :: ParameterStore
+
+  -- | Check duplicates before storing, preserving distinct simple and encoded continuation keys.
+  store-parameter :: Bytes -> Bytes -> MimeParameters -> HashMap MimeKey MimeParameters -> ParameterStore
+  store-parameter key value primary continuations =
+    let star = find-byte 42 key 0 in
+    if star < bytes-len key then
+      let base = part key 0 star in
+      let bucket = case hash-map-lookup (Key base) continuations of None -> mime-parameters-empty; Some params -> params in
+      case find-owned key bucket of
+        Some old -> if same-bytes old value then ParameterStored primary continuations else ParameterDuplicate
+        None -> ParameterStored primary (hash-map-insert (Key base) (insert-owned key value bucket) continuations)
+    else case find-owned key primary of
+      Some old -> if same-bytes old value then ParameterStored primary continuations else ParameterDuplicate
+      None -> ParameterStored (insert-owned key value primary) continuations
+
+  -- | Form one numbered continuation key without narrowing the segment number.
+  numbered-key :: Bytes -> Nat -> Bytes
+  numbered-key base number = join-pieces (Cons base (Cons (string-to-bytes "*") (Cons (string-to-bytes (nat-to-string number)) Nil)))
+
+  -- | Stitch contiguous segments, preferring a simple segment over its encoded spelling.
+  -- Malformed encoded pieces contribute empty bytes; a missing first segment changes no primary value.
+  stitch-pieces :: Bytes -> MimeParameters -> Nat -> Bool -> List Bytes -> Option Bytes
+  stitch-pieces base bucket number valid pieces =
+    let simple = numbered-key base number in
+    case find-owned simple bucket of
+      Some value -> stitch-pieces base bucket (number + 1) True (Cons value pieces)
+      None -> case find-owned (join simple (string-to-bytes "*")) bucket of
+        None -> if valid then Some (join-pieces (reverse pieces)) else None
+        Some value ->
+          let decoded = if number == 0 then decode-extended value else percent-pieces value 0 Nil in
+          case decoded of
+            None -> stitch-pieces base bucket (number + 1) True pieces
+            Some bytes -> stitch-pieces base bucket (number + 1) True (Cons bytes pieces)
+
+  -- | Resolve single extended parameters before numbered segments, independent of bucket iteration order.
+  finish-continuations :: List (MimeKey, MimeParameters) -> MimeParameters -> MimeParameters
+  finish-continuations entries primary = case entries of
+    Nil -> primary
+    Cons entry rest -> case entry of
+      (Key base, bucket) -> case find-owned (join base (string-to-bytes "*")) bucket of
+        Some value -> case decode-extended value of
+          None -> finish-continuations rest primary
+          Some bytes -> finish-continuations rest (insert-owned base bytes primary)
+        None -> case stitch-pieces base bucket 0 False Nil of
+          None -> finish-continuations rest primary
+          Some bytes -> finish-continuations rest (insert-owned base bytes primary)
+
+  -- | Parse all parameters, retaining only a normalized base on ordinary parameter syntax failure.
+  parse-parameters :: Bytes -> Nat -> String -> MimeParameters -> HashMap MimeKey MimeParameters -> MimeMediaResult
+  parse-parameters input at base primary continuations =
+    let start = skip-space input at in
+    if start == bytes-len input then MediaResult base (Some (finish-continuations (hash-map-to-list continuations) primary)) None
+    else case consume-parameter input start of
+      ParameterMissing -> if trailing-semicolon input start then MediaResult base (Some (finish-continuations (hash-map-to-list continuations) primary)) None
+        else MediaResult base None (Some MimeInvalidMediaParameter)
+      ParameterParsed key value next -> case store-parameter key value primary continuations of
+        ParameterDuplicate -> MediaResult empty-string None (Some MimeDuplicateParameter)
+        ParameterStored updated buckets -> parse-parameters input next base updated buckets
+
+  -- | Validate a normalized base token or one major/subtype pair before parsing parameters.
+  base-error :: Bytes -> Option MimeError
+  base-error base = let end = token-end base 0 in
+    if end == 0 then Some MimeNoMediaType
+    else if end == bytes-len base then None
+    else if end < bytes-len base && bytes-get base end == 47 then
+      let sub = token-end base (end + 1) in
+      if sub == end + 1 then Some MimeExpectedSubtype
+      else if sub /= bytes-len base then Some MimeUnexpectedContent else None
+    else Some MimeExpectedSlash
+
+  -- | Parse media syntax and RFC 2231 continuations. Successful parameters are non-null;
+  -- parameter errors retain the valid base, while conflicting duplicates clear it.
+  mime-parse-media-type :: Bytes -> MimeMediaResult
+  mime-parse-media-type input =
+    let semicolon = find-byte 59 input 0 in
+    let base = trim-bytes (lower-bytes (part input 0 semicolon)) in
+    case base-error base of
+      Some error -> MediaResult empty-string None (Some error)
+      None -> case string-from-bytes base of
+        None -> MediaResult empty-string None (Some MimeNoMediaType)
+        Some text -> parse-parameters input semicolon text mime-parameters-empty hash-map-empty
+
+  -- | Decide whether any byte requires transfer encoding; horizontal tab remains plain.
+  needs-encoding-from :: Bytes -> Nat -> Bool
+  needs-encoding-from input at = if at <= bytes-len input then scan-end 1 input at (bytes-len input) < bytes-len input else False
+
+  -- | Recognize one unescaped extended-parameter attribute byte.
+  attribute-byte :: Nat -> Bool
+  attribute-byte byte = token-byte byte && byte /= 42 && byte /= 39 && byte /= 37
+
+  -- | Produce one uppercase hexadecimal escape with its explicit marker.
+  escaped-byte :: InRange 0 255 Nat -> InRange 0 255 Nat -> Bytes
+  escaped-byte marker byte = let out = bytes-new 3 in
+    let mark = bytes-set out 0 marker in
+    let high = bytes-set out 1 (upper-digit (nat-div byte 16)) in
+    let low = bytes-set out 2 (upper-digit (nat-rem byte 16)) in out
+
+  -- | Encode extended parameter bytes without UTF-8 repair or implicit transcoding.
+  percent-encode :: Bytes -> Nat -> List Bytes -> Bytes
+  percent-encode input at pieces = if at < bytes-len input then
+    let end = scan-end 3 input at (bytes-len input) in
+    if end > at then percent-encode input end (Cons (part input at (end - at)) pieces)
+    else percent-encode input (at + 1) (Cons (escaped-byte 37 (bytes-get input at)) pieces)
+    else join-pieces (reverse pieces)
+
+  -- | Quote one ordinary parameter value, escaping only quote and backslash.
+  quote-value-pieces :: Bytes -> Nat -> List Bytes -> Bytes
+  quote-value-pieces input at pieces = if at < bytes-len input then
+    let byte = bytes-get input at in
+    let next = if byte == 34 || byte == 92 then Cons (one-byte byte) (Cons (one-byte 92) pieces) else Cons (one-byte byte) pieces in
+    quote-value-pieces input (at + 1) next
+    else join-pieces (Cons (one-byte 34) (reverse (Cons (one-byte 34) pieces)))
+
+  -- | Serialize sorted exact keys, folding names only after their original ordering is fixed.
+  format-entries :: List (MimeKey, Bytes) -> List Bytes -> Option (List Bytes)
+  format-entries entries pieces = case entries of
+    Nil -> Some (reverse pieces)
+    Cons entry rest -> case entry of
+      (Key key, value) -> if is-token key then
+        let name = lower-bytes key in
+        let encoded = needs-encoding-from value 0 in
+        let separator = string-to-bytes (if encoded then "*=utf-8''" else "=") in
+        let body = if encoded then percent-encode value 0 Nil else if is-token value then value else quote-value-pieces value 0 Nil in
+        format-entries rest (Cons body (Cons separator (Cons name (Cons (string-to-bytes "; ") pieces))))
+        else None
+
+  -- | Serialize a valid token or major/subtype pair with sorted parameter names.
+  -- Invalid type/name arguments return empty; arbitrary value bytes are preserved
+  -- through quoted or extended encoding, and all successful output is UTF-8 ASCII.
+  mime-format-media-type :: Bytes -> MimeParameters -> String
+  mime-format-media-type base params =
+    let slash = find-byte 47 base 0 in
+    let valid = if slash < bytes-len base then is-token (part base 0 slash) && is-token (part base (slash + 1) (bytes-len base - (slash + 1))) else is-token base in
+    if valid then case params of
+      Parameters entries -> case format-entries (sort-by compare-entry (hash-map-to-list entries)) (Cons (lower-bytes base) Nil) of
+        None -> empty-string
+        Some pieces -> case string-from-bytes (join-pieces pieces) of Some text -> text; None -> empty-string
+    else empty-string
+
+  -- | Produce a proved sixteen-byte invalid-lane mask for tokens, plain values,
+  -- Q literals, extended attributes, quoted spans or ASCII casing runs.
+  -- The first physical input byte always occupies mask bit zero.
+  prim classify-sixteen :: U64 -> U64 -> U8 -> U32 where
+    llvm {
+      %lo = bitcast i64 %0 to <8 x i8>
+      %hi = bitcast i64 %1 to <8 x i8>
+      %b = shufflevector <8 x i8> %lo, <8 x i8> %hi, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+      %gt-space = icmp ugt <16 x i8> %b, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %lt-del = icmp ult <16 x i8> %b, <i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127>
+      %printable = and <16 x i1> %gt-space, %lt-del
+      %special-0 = icmp eq <16 x i8> %b, <i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40>
+      %special-1 = icmp eq <16 x i8> %b, <i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41>
+      %special-or-1 = or <16 x i1> %special-0, %special-1
+      %special-2 = icmp eq <16 x i8> %b, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
+      %special-or-2 = or <16 x i1> %special-or-1, %special-2
+      %special-3 = icmp eq <16 x i8> %b, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %special-or-3 = or <16 x i1> %special-or-2, %special-3
+      %special-4 = icmp eq <16 x i8> %b, <i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64>
+      %special-or-4 = or <16 x i1> %special-or-3, %special-4
+      %special-5 = icmp eq <16 x i8> %b, <i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44>
+      %special-or-5 = or <16 x i1> %special-or-4, %special-5
+      %special-6 = icmp eq <16 x i8> %b, <i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59>
+      %special-or-6 = or <16 x i1> %special-or-5, %special-6
+      %special-7 = icmp eq <16 x i8> %b, <i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58>
+      %special-or-7 = or <16 x i1> %special-or-6, %special-7
+      %special-8 = icmp eq <16 x i8> %b, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %special-or-8 = or <16 x i1> %special-or-7, %special-8
+      %special-9 = icmp eq <16 x i8> %b, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %special-or-9 = or <16 x i1> %special-or-8, %special-9
+      %special-10 = icmp eq <16 x i8> %b, <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
+      %special-or-10 = or <16 x i1> %special-or-9, %special-10
+      %special-11 = icmp eq <16 x i8> %b, <i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91>
+      %special-or-11 = or <16 x i1> %special-or-10, %special-11
+      %special-12 = icmp eq <16 x i8> %b, <i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93>
+      %special-or-12 = or <16 x i1> %special-or-11, %special-12
+      %special-13 = icmp eq <16 x i8> %b, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
+      %special-or-13 = or <16 x i1> %special-or-12, %special-13
+      %special-14 = icmp eq <16 x i8> %b, <i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61>
+      %special-or-14 = or <16 x i1> %special-or-13, %special-14
+      %not-special = xor <16 x i1> %special-or-14, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
+      %token = and <16 x i1> %printable, %not-special
+      %space = icmp eq <16 x i8> %b, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %tab = icmp eq <16 x i8> %b, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %print-or-space = or <16 x i1> %printable, %space
+      %plain = or <16 x i1> %print-or-space, %tab
+      %qbad-0 = icmp eq <16 x i8> %b, <i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61>
+      %qbad-1 = icmp eq <16 x i8> %b, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
+      %qbad-or-1 = or <16 x i1> %qbad-0, %qbad-1
+      %qbad-2 = icmp eq <16 x i8> %b, <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>
+      %qbad-or-2 = or <16 x i1> %qbad-or-1, %qbad-2
+      %not-qbad = xor <16 x i1> %qbad-or-2, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
+      %q = and <16 x i1> %printable, %not-qbad
+      %abad-0 = icmp eq <16 x i8> %b, <i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42>
+      %abad-1 = icmp eq <16 x i8> %b, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
+      %abad-or-1 = or <16 x i1> %abad-0, %abad-1
+      %abad-2 = icmp eq <16 x i8> %b, <i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37>
+      %abad-or-2 = or <16 x i1> %abad-or-1, %abad-2
+      %not-abad = xor <16 x i1> %abad-or-2, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
+      %attr = and <16 x i1> %token, %not-abad
+      %quotedbad-0 = icmp eq <16 x i8> %b, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %quotedbad-1 = icmp eq <16 x i8> %b, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %quotedbad-or-1 = or <16 x i1> %quotedbad-0, %quotedbad-1
+      %quotedbad-2 = icmp eq <16 x i8> %b, <i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13>
+      %quotedbad-or-2 = or <16 x i1> %quotedbad-or-1, %quotedbad-2
+      %quotedbad-3 = icmp eq <16 x i8> %b, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
+      %quotedbad-or-3 = or <16 x i1> %quotedbad-or-2, %quotedbad-3
+      %quoted = xor <16 x i1> %quotedbad-or-3, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
+      %ascii = icmp ult <16 x i8> %b, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
+      %mode-1 = icmp eq i8 %2, 1
+      %selected-1 = select i1 %mode-1, <16 x i1> %plain, <16 x i1> %token
+      %mode-2 = icmp eq i8 %2, 2
+      %selected-2 = select i1 %mode-2, <16 x i1> %q, <16 x i1> %selected-1
+      %mode-3 = icmp eq i8 %2, 3
+      %selected-3 = select i1 %mode-3, <16 x i1> %attr, <16 x i1> %selected-2
+      %mode-4 = icmp eq i8 %2, 4
+      %selected-4 = select i1 %mode-4, <16 x i1> %quoted, <16 x i1> %selected-3
+      %mode-5 = icmp eq i8 %2, 5
+      %selected-5 = select i1 %mode-5, <16 x i1> %ascii, <16 x i1> %selected-4
+      %good = bitcast <16 x i1> %selected-5 to i16
+      %bad = xor i16 %good, 65535
+      %mask = zext i16 %bad to i32
+      ret i32 %mask
+    } when endian little
+    llvm {
+      %s0 = call i64 @llvm.bswap.i64(i64 %0)
+      %s1 = call i64 @llvm.bswap.i64(i64 %1)
+      %lo = bitcast i64 %s0 to <8 x i8>
+      %hi = bitcast i64 %s1 to <8 x i8>
+      %b = shufflevector <8 x i8> %lo, <8 x i8> %hi, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+      %gt-space = icmp ugt <16 x i8> %b, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %lt-del = icmp ult <16 x i8> %b, <i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127>
+      %printable = and <16 x i1> %gt-space, %lt-del
+      %special-0 = icmp eq <16 x i8> %b, <i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40>
+      %special-1 = icmp eq <16 x i8> %b, <i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41>
+      %special-or-1 = or <16 x i1> %special-0, %special-1
+      %special-2 = icmp eq <16 x i8> %b, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
+      %special-or-2 = or <16 x i1> %special-or-1, %special-2
+      %special-3 = icmp eq <16 x i8> %b, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %special-or-3 = or <16 x i1> %special-or-2, %special-3
+      %special-4 = icmp eq <16 x i8> %b, <i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64>
+      %special-or-4 = or <16 x i1> %special-or-3, %special-4
+      %special-5 = icmp eq <16 x i8> %b, <i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44>
+      %special-or-5 = or <16 x i1> %special-or-4, %special-5
+      %special-6 = icmp eq <16 x i8> %b, <i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59>
+      %special-or-6 = or <16 x i1> %special-or-5, %special-6
+      %special-7 = icmp eq <16 x i8> %b, <i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58>
+      %special-or-7 = or <16 x i1> %special-or-6, %special-7
+      %special-8 = icmp eq <16 x i8> %b, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %special-or-8 = or <16 x i1> %special-or-7, %special-8
+      %special-9 = icmp eq <16 x i8> %b, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %special-or-9 = or <16 x i1> %special-or-8, %special-9
+      %special-10 = icmp eq <16 x i8> %b, <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
+      %special-or-10 = or <16 x i1> %special-or-9, %special-10
+      %special-11 = icmp eq <16 x i8> %b, <i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91>
+      %special-or-11 = or <16 x i1> %special-or-10, %special-11
+      %special-12 = icmp eq <16 x i8> %b, <i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93>
+      %special-or-12 = or <16 x i1> %special-or-11, %special-12
+      %special-13 = icmp eq <16 x i8> %b, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
+      %special-or-13 = or <16 x i1> %special-or-12, %special-13
+      %special-14 = icmp eq <16 x i8> %b, <i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61>
+      %special-or-14 = or <16 x i1> %special-or-13, %special-14
+      %not-special = xor <16 x i1> %special-or-14, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
+      %token = and <16 x i1> %printable, %not-special
+      %space = icmp eq <16 x i8> %b, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %tab = icmp eq <16 x i8> %b, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %print-or-space = or <16 x i1> %printable, %space
+      %plain = or <16 x i1> %print-or-space, %tab
+      %qbad-0 = icmp eq <16 x i8> %b, <i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61>
+      %qbad-1 = icmp eq <16 x i8> %b, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
+      %qbad-or-1 = or <16 x i1> %qbad-0, %qbad-1
+      %qbad-2 = icmp eq <16 x i8> %b, <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>
+      %qbad-or-2 = or <16 x i1> %qbad-or-1, %qbad-2
+      %not-qbad = xor <16 x i1> %qbad-or-2, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
+      %q = and <16 x i1> %printable, %not-qbad
+      %abad-0 = icmp eq <16 x i8> %b, <i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42>
+      %abad-1 = icmp eq <16 x i8> %b, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
+      %abad-or-1 = or <16 x i1> %abad-0, %abad-1
+      %abad-2 = icmp eq <16 x i8> %b, <i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37>
+      %abad-or-2 = or <16 x i1> %abad-or-1, %abad-2
+      %not-abad = xor <16 x i1> %abad-or-2, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
+      %attr = and <16 x i1> %token, %not-abad
+      %quotedbad-0 = icmp eq <16 x i8> %b, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %quotedbad-1 = icmp eq <16 x i8> %b, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %quotedbad-or-1 = or <16 x i1> %quotedbad-0, %quotedbad-1
+      %quotedbad-2 = icmp eq <16 x i8> %b, <i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13>
+      %quotedbad-or-2 = or <16 x i1> %quotedbad-or-1, %quotedbad-2
+      %quotedbad-3 = icmp eq <16 x i8> %b, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
+      %quotedbad-or-3 = or <16 x i1> %quotedbad-or-2, %quotedbad-3
+      %quoted = xor <16 x i1> %quotedbad-or-3, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
+      %ascii = icmp ult <16 x i8> %b, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
+      %mode-1 = icmp eq i8 %2, 1
+      %selected-1 = select i1 %mode-1, <16 x i1> %plain, <16 x i1> %token
+      %mode-2 = icmp eq i8 %2, 2
+      %selected-2 = select i1 %mode-2, <16 x i1> %q, <16 x i1> %selected-1
+      %mode-3 = icmp eq i8 %2, 3
+      %selected-3 = select i1 %mode-3, <16 x i1> %attr, <16 x i1> %selected-2
+      %mode-4 = icmp eq i8 %2, 4
+      %selected-4 = select i1 %mode-4, <16 x i1> %quoted, <16 x i1> %selected-3
+      %mode-5 = icmp eq i8 %2, 5
+      %selected-5 = select i1 %mode-5, <16 x i1> %ascii, <16 x i1> %selected-4
+      %reversed = shufflevector <16 x i1> %selected-5, <16 x i1> %selected-5, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %good = bitcast <16 x i1> %reversed to i16
+      %bad = xor i16 %good, 65535
+      %mask = zext i16 %bad to i32
+      ret i32 %mask
+    } when endian big
+
+  -- | Lowercase eight packed bytes with a pure vector transform. Little-endian
+  -- word readers and checked word writers establish owner retention and bounds.
+  prim lower-eight :: U64 -> U64 where
+    llvm {
+      %bytes = bitcast i64 %0 to <8 x i8>
+      %low = icmp uge <8 x i8> %bytes, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
+      %high = icmp ule <8 x i8> %bytes, <i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90>
+      %upper = and <8 x i1> %low, %high
+      %lower = add <8 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %out = select <8 x i1> %upper, <8 x i8> %lower, <8 x i8> %bytes
+      %word = bitcast <8 x i8> %out to i64
+      ret i64 %word
+    }
+
+  -- | Complete byte-valued encoded-word selector. Byte 98 selects Base64;
+  -- other values select a Q body while retaining the exact supplied header byte.
+  data MimeWordEncoder where
+    -- | Preserve any U8 selector, including nonstandard values, without silently restricting it.
+    MimeWordEncoder :: U8 -> MimeWordEncoder
+
+  -- | Standard Base64 encoded-word selector, with canonical byte value 98.
+  mime-b-encoding :: MimeWordEncoder
+  mime-b-encoding = MimeWordEncoder 98
+
+  -- | Standard Q encoded-word selector, with canonical byte value 113.
+  mime-q-encoding :: MimeWordEncoder
+  mime-q-encoding = MimeWordEncoder 113
+
+  -- | Observe the exact byte-valued selector used in an encoded-word header.
+  mime-word-encoder-byte :: MimeWordEncoder -> U8
+  mime-word-encoder-byte encoder = case encoder of MimeWordEncoder byte -> byte
+
+  -- | Compare complete charset labels through Unicode simple-fold equivalence.
+  equal-fold-from :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  equal-fold-from first a last b =
+    if a == bytes-len first then b == bytes-len last
+    else if a < bytes-len first && b < bytes-len last then
+      let one = utf8-decode-at first a in
+      let two = utf8-decode-at last b in
+      let wa = utf8-step-width one in
+      let wb = utf8-step-width two in
+      if wa > 0 && wb > 0 && a + wa <= bytes-len first && b + wb <= bytes-len last && unicode-equal-fold (utf8-step-char one) (utf8-step-char two) then
+        equal-fold-from first (a + wa) last (b + wb)
+      else False
+    else False
+
+  -- | Test one complete case-insensitive charset label without locale dependence.
+  charset-is :: Bytes -> String -> Bool
+  charset-is label canonical = equal-fold-from label 0 (string-to-bytes canonical) 0
+
+  -- | Construct a fresh encoded-word header using its exact unvalidated charset and selector byte.
+  open-word :: MimeWordEncoder -> Bytes -> Bytes
+  open-word encoder charset = join-pieces (Cons (string-to-bytes "=?") (Cons charset (Cons (string-to-bytes "?") (Cons (one-byte (u8-to-nat (mime-word-encoder-byte encoder))) (Cons (string-to-bytes "?") Nil)))))
+
+  -- | Encode one complete Q body with underscores for spaces and uppercase hexadecimal escapes.
+  q-body :: Bytes -> Nat -> List Bytes -> Bytes
+  q-body input at pieces = if at < bytes-len input then
+    let end = scan-end 2 input at (bytes-len input) in
+    if end > at then q-body input end (Cons (part input at (end - at)) pieces)
+    else let byte = bytes-get input at in
+      q-body input (at + 1) (Cons (if byte == 32 then one-byte 95 else escaped-byte 61 byte) pieces)
+    else join-pieces (reverse pieces)
+
+  -- | Encode a complete independent body with the selector's exact byte semantics.
+  encoded-body :: MimeWordEncoder -> Bytes -> Bytes
+  encoded-body encoder input = if eq-u8 (mime-word-encoder-byte encoder) 98 then base64-encode-bytes base64-standard-encoding input else q-body input 0 Nil
+
+  -- | Return one full independent encoded word, including the exact charset spelling.
+  complete-word :: MimeWordEncoder -> Bytes -> Bytes -> Bytes
+  complete-word encoder charset input = join-pieces (Cons (open-word encoder charset) (Cons (encoded-body encoder input) (Cons (string-to-bytes "?=") Nil)))
+
+  -- | Obtain one scalar boundary while preserving each invalid source byte separately.
+  scalar-width :: Bytes -> Nat -> Nat
+  scalar-width input at = if at < bytes-len input then
+    let width = utf8-step-width (utf8-decode-at input at) in
+    if width > 0 && at + width <= bytes-len input then width else 1
+    else 0
+
+  -- | Measure a scalar's exact Q body width without treating byte sequences as transcoded text.
+  q-scalar-size :: Bytes -> Nat -> Nat -> Nat
+  q-scalar-size input at width = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte >= 32 && byte <= 126 && byte /= 61 && byte /= 63 && byte /= 95 then 1 else 3 * width
+    else 0
+
+  -- | Split UTF-8-labelled words only at decoded scalar boundaries; malformed bytes remain one-byte units.
+  -- Base64 pieces use at most 45 source bytes; Q pieces use at most 63 encoded bytes.
+  split-words :: MimeWordEncoder -> Bytes -> Bytes -> Nat -> Nat -> Nat -> List Bytes -> Bytes
+  split-words encoder charset input start at used reversed =
+    if at < bytes-len input then
+      let width = scalar-width input at in
+      let base64 = eq-u8 (mime-word-encoder-byte encoder) 98 in
+      let size = if base64 then width else q-scalar-size input at width in
+      let limit = if base64 then (45 :: Nat) else 63 in
+      if used + size > limit && start <= at then
+        let finished = complete-word encoder charset (part input start (at - start)) in
+        split-words encoder charset input at at 0 (Cons (string-to-bytes " ") (Cons finished reversed))
+      else split-words encoder charset input start (at + width) (used + size) reversed
+    else if start <= bytes-len input then
+      join-pieces (reverse (Cons (complete-word encoder charset (part input start (bytes-len input - start))) reversed))
+    else bytes-new 0
+
+  -- | Encode arbitrary source bytes. Plain ASCII including tab is returned freshly
+  -- unchanged. Only UTF-8-labelled encoded words split at scalar boundaries;
+  -- other labels remain unvalidated and unsplit, with no implicit transcoding.
+  mime-word-encode-bytes :: MimeWordEncoder -> Bytes -> Bytes -> Bytes
+  mime-word-encode-bytes encoder charset input =
+    if not (needs-encoding-from input 0) then snapshot input
+    else if charset-is charset "UTF-8" then split-words encoder charset input 0 0 0 Nil
+    else complete-word encoder charset input
+
+  -- | Checked String convenience retaining exact byte-valued selector behavior.
+  -- Use the byte API when a nonstandard selector creates non-UTF-8 header bytes.
+  mime-word-encode-text :: MimeWordEncoder -> String -> String -> Result MimeError String
+  mime-word-encode-text encoder charset input =
+    let out = mime-word-encode-bytes encoder (string-to-bytes charset) (string-to-bytes input) in
+    case string-from-bytes out of
+      Some text -> Ok text
+      None -> case utf8-first-invalid out of Some at -> Err (MimeInvalidUtf8 at); None -> Err (MimeInvalidUtf8 0)
+
+
+  -- | A parsed encoded-word charset label and decoded transfer body.
+  data MimeWordToken where
+    -- | Private independent byte snapshots; getters always return new buffers.
+    WordToken :: Bytes -> Bytes -> MimeWordToken
+
+  -- | Observe an independent copy of the exact unnormalized charset label.
+  mime-word-token-charset :: MimeWordToken -> Bytes
+  mime-word-token-charset token = case token of WordToken charset content -> snapshot charset
+
+  -- | Observe independent decoded transfer bytes before any charset conversion.
+  mime-word-token-content :: MimeWordToken -> Bytes
+  mime-word-token-content token = case token of WordToken charset content -> snapshot content
+
+  -- | Test a standard Base64 alphabet digit, excluding padding and ignored line endings.
+  base64-digit :: Nat -> Bool
+  base64-digit byte = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 43 || byte == 47
+
+  -- | Skip only the line endings ignored by Base64 body decoding.
+  skip-base64-lines :: Bytes -> Nat -> Nat
+  skip-base64-lines input at = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte == 13 || byte == 10 then skip-base64-lines input (at + 1) else at
+    else at
+
+  -- | Validate the terminal padding pair and retain its original diagnostic offset.
+  base64-padding-error :: Bytes -> Nat -> Nat -> Option Nat
+  base64-padding-error input at digits =
+    if digits == 2 then
+      let second = skip-base64-lines input (at + 1) in
+      if second == bytes-len input then Some second
+      else if second < bytes-len input && bytes-get input second == 61 then
+        let rest = skip-base64-lines input (second + 1) in
+        if rest < bytes-len input then Some rest else None
+      else if second > 0 then Some (second - 1) else Some 0
+    else if digits == 3 then
+      let rest = skip-base64-lines input (at + 1) in
+      if rest < bytes-len input then Some rest else None
+    else Some at
+
+  -- | Preserve wire error positions even when ignored line endings interrupt a final quantum.
+  base64-body-error :: Bytes -> Nat -> Nat -> Option Nat
+  base64-body-error input at digits = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if base64-digit byte then base64-body-error input (at + 1) (if digits == 3 then 0 else digits + 1)
+    else if byte == 13 || byte == 10 then base64-body-error input (at + 1) digits
+    else if byte == 61 then base64-padding-error input at digits
+    else Some at
+    else if digits == 0 then None else if digits <= at then Some (at - digits) else Some 0
+
+  -- | Decode complete Q content. Underscores become spaces, literal CR/LF/tab are
+  -- accepted, and malformed escapes reject the complete body rather than a prefix.
+  decode-q-pieces :: Bytes -> Nat -> List Bytes -> Result MimeError Bytes
+  decode-q-pieces input at pieces = if at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte == 95 then decode-q-pieces input (at + 1) (Cons (one-byte 32) pieces)
+    else if byte == 61 then
+      if at + 2 < bytes-len input then case hex-value (bytes-get input (at + 1)) of
+        None -> Err (MimeInvalidHexByte (bytes-get input (at + 1)))
+        Some high -> case hex-value (bytes-get input (at + 2)) of
+          None -> Err (MimeInvalidHexByte (bytes-get input (at + 2)))
+          Some low -> decode-q-pieces input (at + 3) (Cons (one-byte (((high :: Nat) * 16 + (low :: Nat)) :: Nat)) pieces)
+      else Err MimeInvalidWord
+    else if (byte >= 32 && byte <= 126) || byte == 13 || byte == 10 || byte == 9 then
+      decode-q-pieces input (at + 1) (Cons (one-byte byte) pieces)
+    else Err MimeInvalidWord
+    else Ok (join-pieces (reverse pieces))
+
+  -- | Decode one exact transfer body; header callers can retain malformed bodies literally.
+  decode-word-body :: Nat -> Bytes -> Result MimeError Bytes
+  decode-word-body encoding body =
+    if encoding == 66 || encoding == 98 then case base64-body-error body 0 0 of
+      Some at -> Err (MimeBase64Corruption at)
+      None -> case base64-decode-bytes base64-standard-encoding body of
+        Ok bytes -> Ok bytes
+        Err failure -> Err (MimeBase64Corruption (base64-input-error-offset failure))
+    else if encoding == 81 || encoding == 113 then decode-q-pieces body 0 Nil
+    else Err MimeInvalidWord
+
+  -- | Count exact syntax delimiters without Unicode normalization.
+  count-byte :: Nat -> Bytes -> Nat -> Nat -> Nat
+  count-byte byte input at count = if at < bytes-len input then
+    count-byte byte input (at + 1) (if bytes-get input at == byte then count + 1 else count)
+    else count
+
+  -- | Parse a complete single encoded word with exactly four question delimiters.
+  -- Empty transfer bodies are accepted; charset labels remain unvalidated bytes.
+  mime-word-token :: Bytes -> Result MimeError MimeWordToken
+  mime-word-token input = if bytes-len input >= 8 then
+    let end = bytes-len input - 2 in
+    if bytes-get input 0 == 61 && bytes-get input 1 == 63 && bytes-get input end == 63 && bytes-get input (end + 1) == 61 && count-byte 63 input 0 0 == 4 then
+      let first = find-byte 63 input 2 in
+      if first > 2 && first + 3 <= end && first + 2 < bytes-len input && bytes-get input (first + 2) == 63 then
+        case decode-word-body (bytes-get input (first + 1)) (part input (first + 3) (end - (first + 3))) of
+          Err error -> Err error
+          Ok content -> Ok (WordToken (part input 2 (first - 2)) content)
+      else Err MimeInvalidWord
+    else Err MimeInvalidWord
+    else Err MimeInvalidWord
+
+  -- | Convert each single-byte Latin-1 scalar without treating input as UTF-8 first.
+  latin1-pieces :: Bytes -> Nat -> List Bytes -> Bytes
+  latin1-pieces input at pieces = if at < bytes-len input then
+    let byte = bytes-get input at in
+    latin1-pieces input (at + 1) (Cons (utf8-encode-rune (wrapping-u32-to-i32 (wrapping-i64-to-u32 (nat-to-i64 byte)))) pieces)
+    else join-pieces (reverse pieces)
+
+  -- | Replace each high ASCII byte separately while preserving lower bytes exactly.
+  ascii-pieces :: Bytes -> Nat -> List Bytes -> Bytes
+  ascii-pieces input at pieces = if at < bytes-len input then
+    let byte = bytes-get input at in
+    ascii-pieces input (at + 1) (Cons (if byte < 128 then one-byte byte else scalar-bytes utf8-rune-error) pieces)
+    else join-pieces (reverse pieces)
+
+  -- | Convert the built-in UTF-8, Latin-1 and US-ASCII charsets. UTF-8-labelled
+  -- payload bytes pass through without validation; an unknown label returns None.
+  mime-convert-known-charset :: Bytes -> Bytes -> Option Bytes
+  mime-convert-known-charset charset content =
+    if charset-is charset "utf-8" then Some (snapshot content)
+    else if charset-is charset "iso-8859-1" then Some (latin1-pieces content 0 Nil)
+    else if charset-is charset "us-ascii" then Some (ascii-pieces content 0 Nil)
+    else None
+
+  -- | Produce the lowercase callback label, repairing each malformed source byte separately.
+  mime-charset-name :: Bytes -> String
+  mime-charset-name label = case string-from-bytes (lower-bytes label) of Some text -> text; None -> empty-string
+
+  -- | Emit a fixed-width lowercase Unicode escape without truncating scalar values.
+  unicode-escape :: Nat -> Nat -> String
+  unicode-escape number digits =
+    if digits == 0 then empty-string
+    else string-concat (unicode-escape (nat-div number 16) (digits - 1)) (case string-from-bytes (one-byte (lower-digit (nat-rem number 16))) of Some digit -> digit; None -> empty-string)
+
+  -- | Render one valid scalar with the familiar quoted diagnostic escapes.
+  quote-scalar :: Char -> String
+  quote-scalar scalar = let code = char-code scalar in
+    if code == 34 then "\\\"" else if code == 92 then "\\\\"
+    else if code == 7 then "\\a" else if code == 8 then "\\b" else if code == 9 then "\\t"
+    else if code == 10 then "\\n" else if code == 11 then "\\v" else if code == 12 then "\\f" else if code == 13 then "\\r"
+    else if code < 32 || code == 127 then string-concat "\\x" (unicode-escape code 2)
+    else if unicode-is-print scalar then case string-from-bytes (scalar-bytes scalar) of Some text -> text; None -> empty-string
+    else if code < 65536 then string-concat "\\u" (unicode-escape code 4)
+    else string-concat "\\U" (unicode-escape code 8)
+
+  -- | Quote arbitrary bytes without collapsing distinct malformed byte sequences.
+  quote-pieces :: Bytes -> Nat -> List Bytes -> Bytes
+  quote-pieces input at pieces = if at < bytes-len input then
+    let step = utf8-decode-at input at in
+    let width = utf8-step-width step in
+    let piece = case utf8-step-status step of Utf8Invalid -> string-concat "\\x" (byte-hex (bytes-get input at)); _ -> quote-scalar (utf8-step-char step) in
+    if width > 0 && at + width <= bytes-len input then quote-pieces input (at + width) (Cons (string-to-bytes piece) pieces)
+    else quote-pieces input (at + 1) (Cons (string-to-bytes (string-concat "\\x" (byte-hex (bytes-get input at)))) pieces)
+    else join-pieces (Cons (one-byte 34) (reverse (Cons (one-byte 34) pieces)))
+
+  -- | Return an immutable quoted diagnostic spelling of arbitrary bytes.
+  mime-quote-bytes :: Bytes -> String
+  mime-quote-bytes input = case string-from-bytes (quote-pieces input 0 Nil) of Some text -> text; None -> empty-string
+
+  -- | A single header scan observation, preserving literal prefixes and candidate spelling.
+  data MimeHeaderPart where
+    -- | A fresh literal suffix; no further candidate is parsed after structural failure.
+    MimeHeaderEnd :: Bytes -> MimeHeaderPart
+    -- | Fresh prefix, exact candidate bytes, next original offset and parsed transfer result.
+    MimeHeaderWord :: Bytes -> Bytes -> Nat -> Result MimeError MimeWordToken -> MimeHeaderPart
+
+  -- | Find one two-byte marker without reading beyond the complete input.
+  find-pair :: Nat -> Nat -> Bytes -> Nat -> Nat
+  find-pair first last input at = if at + 1 < bytes-len input then
+    if bytes-get input at == first && bytes-get input (at + 1) == last then at else find-pair first last input (at + 1)
+    else bytes-len input
+
+  -- | Parse one header candidate using permissive header rules, which differ from
+  -- full-word rules: empty charsets and literal question marks in Q bodies remain observable.
+  mime-header-step :: Bytes -> Nat -> MimeHeaderPart
+  mime-header-step input at = if at <= bytes-len input then
+    let start = find-pair 61 63 input at in
+    if start + 2 <= bytes-len input then
+      let question = find-byte 63 input (start + 2) in
+      let encoding = question + 1 in
+      if start + 2 <= question && encoding + 4 <= bytes-len input && bytes-get input (encoding + 1) == 63 then
+        let body = encoding + 2 in
+        let end = find-pair 63 61 input body in
+        if body <= end && end + 2 <= bytes-len input && at <= start then
+          let next = end + 2 in
+          let result = case decode-word-body (bytes-get input encoding) (part input body (end - body)) of Err error -> Err error; Ok content -> Ok (WordToken (part input (start + 2) (question - (start + 2))) content) in
+          MimeHeaderWord (part input at (start - at)) (part input start (next - start)) next result
+        else MimeHeaderEnd (part input at (bytes-len input - at))
+      else MimeHeaderEnd (part input at (bytes-len input - at))
+    else MimeHeaderEnd (part input at (bytes-len input - at))
+    else MimeHeaderEnd (bytes-new 0)
+
+
+  -- | Explicit persistent association context. Exact spellings and lowercase
+  -- fallbacks are distinct; inverse lists preserve historical registered types.
+  data MimeRegistry where
+    -- | Private exact lookup, lowercase fallback and normalized-type inverse index.
+    Registry :: HashMap MimeKey Bytes -> HashMap MimeKey Bytes -> HashMap MimeKey (List Bytes) -> MimeRegistry
+
+  -- | Begin with no hidden host or process-wide registry state.
+  mime-registry-empty :: MimeRegistry
+  mime-registry-empty = Registry hash-map-empty hash-map-empty hash-map-empty
+
+  -- | Test an exact leading byte sequence without coercing arbitrary bytes to String.
+  starts-with :: Bytes -> Bytes -> Bool
+  starts-with prefix input = bytes-len prefix <= bytes-len input && same-bytes prefix (part input 0 (bytes-len prefix))
+
+  -- | Keep inverse lists append-only while omitting repeated lowercase extension values.
+  contains-bytes :: Bytes -> List Bytes -> Bool
+  contains-bytes wanted values = case values of
+    Nil -> False
+    Cons value rest -> same-bytes wanted value || contains-bytes wanted rest
+
+  -- | Register one exact association atomically. Text defaults apply only to a
+  -- literal lowercase text/ prefix, and missing or empty charsets become utf-8.
+  mime-registry-add :: Bytes -> Bytes -> MimeRegistry -> Result MimeError MimeRegistry
+  mime-registry-add extension supplied registry =
+    if bytes-len extension > 0 && bytes-get extension 0 == 46 then
+      let parsed = mime-parse-media-type supplied in
+      case mime-media-error parsed of
+        Some error -> Err error
+        None -> case mime-media-parameters parsed of
+          None -> Err MimeInvalidMediaParameter
+          Some params ->
+            let inject = starts-with (string-to-bytes "text/") supplied && (case find-owned (string-to-bytes "charset") params of None -> True; Some value -> bytes-len value == 0) in
+            let media = if inject then string-to-bytes (mime-format-media-type (string-to-bytes (mime-media-base parsed)) (mime-parameter-set (string-to-bytes "charset") (string-to-bytes "utf-8") params)) else snapshot supplied in
+            let exact = snapshot extension in
+            let lower = lower-bytes extension in
+            let kind = string-to-bytes (mime-media-base parsed) in
+            case registry of
+              Registry names fallback inverse ->
+                let old = case hash-map-lookup (Key kind) inverse of None -> Nil; Some values -> values in
+                let updated = if contains-bytes lower old then old else Cons lower old in
+                Ok (Registry (hash-map-insert (Key exact) media names) (hash-map-insert (Key lower) media fallback) (hash-map-insert (Key kind) updated inverse))
+    else Err (MimeInvalidExtension (mime-quote-bytes extension))
+
+  -- | Resolve the exact spelling first, then its Unicode lowercase fallback.
+  -- Unknown extensions return a fresh empty buffer. Observations never alias a context.
+  mime-registry-type :: Bytes -> MimeRegistry -> Bytes
+  mime-registry-type extension registry = case registry of
+    Registry exact lower inverse -> case hash-map-lookup (Key extension) exact of
+      Some value -> snapshot value
+      None -> case hash-map-lookup (Key (lower-bytes extension)) lower of
+        Some value -> snapshot value
+        None -> bytes-new 0
+
+  -- | Compare extension snapshots in exact byte order, independent of hash iteration.
+  compare-bytes :: Bytes -> Bytes -> Ordering
+  compare-bytes first last = let order = bytes-compare first last in
+    if lt-i64 order 0 then LT else if gt-i64 order 0 then GT else EQ
+
+  -- | Copy every element before exposing a stored extension list.
+  snapshot-list :: List Bytes -> List Bytes
+  snapshot-list values = case values of Nil -> Nil; Cons value rest -> Cons (snapshot value) (snapshot-list rest)
+
+  -- | Return sorted historical lowercase extensions after full media-type validation.
+  -- Parameters do not affect the inverse lookup, but parameter errors remain visible.
+  mime-registry-extensions :: Bytes -> MimeRegistry -> Result MimeError (List Bytes)
+  mime-registry-extensions supplied registry =
+    let parsed = mime-parse-media-type supplied in
+    case mime-media-error parsed of
+      Some error -> Err error
+      None -> case registry of
+        Registry exact lower inverse -> case hash-map-lookup (Key (string-to-bytes (mime-media-base parsed))) inverse of
+          None -> Ok Nil
+          Some values -> Ok (snapshot-list (sort-by compare-bytes values))
+
+  -- | Import associations explicitly in order, returning the first registration
+  -- error without modifying the supplied context. Host-specific data is supplied
+  -- as ordinary associations rather than read through ambient initialization.
+  mime-registry-associations :: List (Bytes, Bytes) -> MimeRegistry -> Result MimeError MimeRegistry
+  mime-registry-associations associations registry = case associations of
+    Nil -> Ok registry
+    Cons pair rest -> case pair of
+      (extension, media) -> case mime-registry-add extension media registry of
+        Err error -> Err error
+        Ok next -> mime-registry-associations rest next
+
+  -- | Stable built-in associations. Additional host-specific records are imported
+  -- through mime-registry-associations, keeping configuration explicit and reproducible.
+  mime-registry-default :: MimeRegistry
+  mime-registry-default = case mime-registry-associations builtin-associations mime-registry-empty of
+    Ok registry -> registry
+    Err error -> mime-registry-empty
+
+  -- | Canonical built-in extension facts, each represented by fresh byte literals.
+  builtin-associations :: List (Bytes, Bytes)
+  builtin-associations = (Cons ((string-to-bytes ".ai"), (string-to-bytes "application/postscript")) (Cons ((string-to-bytes ".apk"), (string-to-bytes "application/vnd.android.package-archive")) (Cons ((string-to-bytes ".apng"), (string-to-bytes "image/apng")) (Cons ((string-to-bytes ".avif"), (string-to-bytes "image/avif")) (Cons ((string-to-bytes ".bin"), (string-to-bytes "application/octet-stream")) (Cons ((string-to-bytes ".bmp"), (string-to-bytes "image/bmp")) (Cons ((string-to-bytes ".com"), (string-to-bytes "application/octet-stream")) (Cons ((string-to-bytes ".css"), (string-to-bytes "text/css; charset=utf-8")) (Cons ((string-to-bytes ".csv"), (string-to-bytes "text/csv; charset=utf-8")) (Cons ((string-to-bytes ".doc"), (string-to-bytes "application/msword")) (Cons ((string-to-bytes ".docx"), (string-to-bytes "application/vnd.openxmlformats-officedocument.wordprocessingml.document")) (Cons ((string-to-bytes ".ehtml"), (string-to-bytes "text/html; charset=utf-8")) (Cons ((string-to-bytes ".eml"), (string-to-bytes "message/rfc822")) (Cons ((string-to-bytes ".eps"), (string-to-bytes "application/postscript")) (Cons ((string-to-bytes ".exe"), (string-to-bytes "application/octet-stream")) (Cons ((string-to-bytes ".flac"), (string-to-bytes "audio/flac")) (Cons ((string-to-bytes ".gif"), (string-to-bytes "image/gif")) (Cons ((string-to-bytes ".gz"), (string-to-bytes "application/gzip")) (Cons ((string-to-bytes ".htm"), (string-to-bytes "text/html; charset=utf-8")) (Cons ((string-to-bytes ".html"), (string-to-bytes "text/html; charset=utf-8")) (Cons ((string-to-bytes ".ico"), (string-to-bytes "image/vnd.microsoft.icon")) (Cons ((string-to-bytes ".ics"), (string-to-bytes "text/calendar; charset=utf-8")) (Cons ((string-to-bytes ".jfif"), (string-to-bytes "image/jpeg")) (Cons ((string-to-bytes ".jpeg"), (string-to-bytes "image/jpeg")) (Cons ((string-to-bytes ".jpg"), (string-to-bytes "image/jpeg")) (Cons ((string-to-bytes ".js"), (string-to-bytes "text/javascript; charset=utf-8")) (Cons ((string-to-bytes ".json"), (string-to-bytes "application/json")) (Cons ((string-to-bytes ".m4a"), (string-to-bytes "audio/mp4")) (Cons ((string-to-bytes ".mjs"), (string-to-bytes "text/javascript; charset=utf-8")) (Cons ((string-to-bytes ".mp3"), (string-to-bytes "audio/mpeg")) (Cons ((string-to-bytes ".mp4"), (string-to-bytes "video/mp4")) (Cons ((string-to-bytes ".oga"), (string-to-bytes "audio/ogg")) (Cons ((string-to-bytes ".ogg"), (string-to-bytes "audio/ogg")) (Cons ((string-to-bytes ".ogv"), (string-to-bytes "video/ogg")) (Cons ((string-to-bytes ".opus"), (string-to-bytes "audio/ogg")) (Cons ((string-to-bytes ".pdf"), (string-to-bytes "application/pdf")) (Cons ((string-to-bytes ".pjp"), (string-to-bytes "image/jpeg")) (Cons ((string-to-bytes ".pjpeg"), (string-to-bytes "image/jpeg")) (Cons ((string-to-bytes ".png"), (string-to-bytes "image/png")) (Cons ((string-to-bytes ".ppt"), (string-to-bytes "application/vnd.ms-powerpoint")) (Cons ((string-to-bytes ".pptx"), (string-to-bytes "application/vnd.openxmlformats-officedocument.presentationml.presentation")) (Cons ((string-to-bytes ".ps"), (string-to-bytes "application/postscript")) (Cons ((string-to-bytes ".rdf"), (string-to-bytes "application/rdf+xml")) (Cons ((string-to-bytes ".rtf"), (string-to-bytes "application/rtf")) (Cons ((string-to-bytes ".shtml"), (string-to-bytes "text/html; charset=utf-8")) (Cons ((string-to-bytes ".svg"), (string-to-bytes "image/svg+xml")) (Cons ((string-to-bytes ".text"), (string-to-bytes "text/plain; charset=utf-8")) (Cons ((string-to-bytes ".tif"), (string-to-bytes "image/tiff")) (Cons ((string-to-bytes ".tiff"), (string-to-bytes "image/tiff")) (Cons ((string-to-bytes ".txt"), (string-to-bytes "text/plain; charset=utf-8")) (Cons ((string-to-bytes ".vtt"), (string-to-bytes "text/vtt; charset=utf-8")) (Cons ((string-to-bytes ".wasm"), (string-to-bytes "application/wasm")) (Cons ((string-to-bytes ".wav"), (string-to-bytes "audio/wav")) (Cons ((string-to-bytes ".weba"), (string-to-bytes "audio/webm")) (Cons ((string-to-bytes ".webm"), (string-to-bytes "video/webm")) (Cons ((string-to-bytes ".webp"), (string-to-bytes "image/webp")) (Cons ((string-to-bytes ".xbl"), (string-to-bytes "text/xml; charset=utf-8")) (Cons ((string-to-bytes ".xbm"), (string-to-bytes "image/x-xbitmap")) (Cons ((string-to-bytes ".xht"), (string-to-bytes "application/xhtml+xml")) (Cons ((string-to-bytes ".xhtml"), (string-to-bytes "application/xhtml+xml")) (Cons ((string-to-bytes ".xls"), (string-to-bytes "application/vnd.ms-excel")) (Cons ((string-to-bytes ".xlsx"), (string-to-bytes "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) (Cons ((string-to-bytes ".xml"), (string-to-bytes "text/xml; charset=utf-8")) (Cons ((string-to-bytes ".xsl"), (string-to-bytes "text/xml; charset=utf-8")) (Cons ((string-to-bytes ".zip"), (string-to-bytes "application/zip")) Nil)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))

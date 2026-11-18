@@ -1,0 +1,76 @@
+{
+  "description": "Contextual mutation-row kind authority; ordinary Mut ownership constructor remains unchanged.",
+  "status": "Focused checker validation passed; full rebuilt Native compiler/bootstrap and parent Cargo targets pending.",
+  "source_sha256": {
+    "bootstrap/Bootstrap.Kinds.cinch": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e",
+    "bootstrap/programs/Run.MutationKinds.cinch": "b52e13a383b92d9bbb25bad6788e32a0b171788b9d4a34eb1956539ad3ce0365",
+    "bootstrap/programs/Run.MutationRegion.cinch": "21e27f4b89cbe7083e40508dcb483f9b9446809bfc43886fead45268722443d3",
+    "compiler/tests/bootstrap_mutation_kinds.rs": "d8fb273e3b70d5fab56fa05d8d68186113cd595ef1a2fcacd693fa9037fd4535"
+  },
+  "root_cause": "The closed Core kind table registers Mut as Region -> Type -> Type for exclusive ownership. Row lowering constructs Mut as Region -> Effect. Ordinary UCon kind lookup incorrectly rejects the effect spelling during global scheme closure.",
+  "authority": "Only a URow label exactly applying Mut at Region -> Effect is specialized. It requires an actual scoped Region argument and the existing canonical Mut ownership declaration. Every non-row occurrence and all other labels retain ordinary nominal kind validation. No duplicate nominal declaration or global exception is added.",
+  "focused_cases": 15,
+  "positive_cases": [
+    "canonical nominal table remains closed",
+    "quantified mutation effect row",
+    "exclusive ownership value type",
+    "ownership value plus mutation effect in one arrow",
+    "mutation plus another registered effect"
+  ],
+  "negative_cases": [
+    "effect head outside row",
+    "bare effect constructor outside row",
+    "Type-kind region",
+    "unbound quantified region",
+    "unbound rigid region",
+    "forged head kind",
+    "unapplied effect head",
+    "partially applied ownership head in a row",
+    "unknown effect head",
+    "missing canonical ownership declaration"
+  ],
+  "baseline": {
+    "same_harness_original_kinds_rust_exit": 2,
+    "first_failure": "first valid quantified mutation row",
+    "leaked": 0,
+    "source_mutation_region_repro_old_native": "global scheme is ill-formed: m.Main.marker",
+    "source_repro_frozen_rust_exit": 0,
+    "source_repro_has_nominal_region_annotations": false
+  },
+  "after": {
+    "rust_exit": 0,
+    "native_exit": 0,
+    "ordinary_heap": "32M",
+    "stack": "8M",
+    "separate_poisoned_heap": "256M",
+    "all_zero_leaks": true,
+    "ordinary_rust_stats": "452 blocks,11027 cumulative bytes,979 peak bytes",
+    "ordinary_native_stats": "440 blocks,10737 cumulative bytes,1137 peak bytes"
+  },
+  "compiler_identity": {
+    "rust_binary": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "rust_snapshot": "/workspace/dasl-stdlib-io/build/prim-wide-frozen/snapshot.json",
+    "rust_host_runtime": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "native_binary": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "native_wrapper": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+    "native_runtime": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+  },
+  "artifacts": {
+    "before": "build/mutation-kinds-before",
+    "after": "build/mutation-kinds-after",
+    "module_closure": 14
+  },
+  "pending": [
+    "Parent bootstrap_mutation_kinds, bootstrap_mutable_inference and lib_heap_view Cargo targets.",
+    "Preserved typing, borrows/effects, quotation and local-binding regression targets.",
+    "Final complete Native bootstrap fixed point with region inference and strict value restriction."
+  ],
+  "candidate_frontend": {
+    "provenance": "Cinch implementation compiled by frozen Rust f2d5, not a completed self-built fixed point.",
+    "binary_sha256": "138b7efeaa8a0628e8335bd0e752cf61242a9edb7336da0cd8702be5487ec6cc",
+    "minimal_source_repro_exit": 0,
+    "minimal_source_diagnostics": "",
+    "heap_consumers": 33,
+    "heap_report": "stdlib-heap-native-validation-results.json"
+  }
+}

@@ -35,24 +35,7 @@ fn ctor_unit(name: &str, tag: usize, fields: usize) -> FnDef {
 }
 
 fn program(fns: Vec<FnDef>) -> Program {
-    Program {
-        total_bodies: cinch::total::CheckedGraph::empty(),
-        fns,
-        instances: vec![],
-        main: None,
-        rewrites: vec![],
-        plans: Default::default(),
-        foreigns: Default::default(),
-        prims: vec![],
-        laws: vec![],
-        lent: Default::default(),
-            frame: Default::default(),
-            stack: Default::default(),
-            borrowed: Default::default(),
-            lent_entries: Default::default(),
-            private_modules: Vec::new(),
-            inline: Default::default(),
-    }
+    Program::from_functions(fns)
 }
 
 fn con(pattern_tag: usize, fields: &[usize]) -> CPat {
@@ -674,6 +657,93 @@ fn saturate_partial_merges_a_one_shot_partial_application() {
     assert_eq!(args.len(), 3, "the call is saturated");
 }
 
+/// Saved computations of different classes remain bound, left to right,
+/// before an intervening call; the eventual application is still direct.
+#[test]
+fn saturate_partial_retains_computed_prefixes_in_original_order() {
+    let computed = |name: &str| Core::App(Box::new(Core::Global(gid(name), vec![])), vec![Core::Var(LocalId(0))]);
+    let body = Core::Let(LocalId(3), Class::Obj,
+        Box::new(Core::App(Box::new(Core::Global(gid("Main.g"), vec![])),
+            vec![computed("Main.readNat"), computed("Main.readWord")])),
+        Box::new(Core::Let(LocalId(4), Class::Raw, Box::new(computed("Main.write")),
+            Box::new(Core::App(Box::new(Core::Var(LocalId(3))), vec![Core::Var(LocalId(2))])))));
+    let mut p = program(vec![
+        unit("Main.g", vec![Class::TObj, Class::Raw, Class::Obj], Core::Var(LocalId(2))),
+        unit("Main.f", vec![Class::Obj, Class::Obj, Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 1, "fusion must still eliminate the partial closure");
+    let Core::Let(first, Class::TObj, read_nat, rest) = &p.fns[1].body else { panic!("{:?}", p.fns[1].body) };
+    assert!(matches!(&**read_nat, Core::App(head, _) if matches!(&**head, Core::Global(id, _) if id.0 == "Main.readNat")));
+    let Core::Let(second, Class::Raw, read_word, rest) = &**rest else { panic!("{rest:?}") };
+    assert!(matches!(&**read_word, Core::App(head, _) if matches!(&**head, Core::Global(id, _) if id.0 == "Main.readWord")));
+    let Core::Let(_, _, write, call) = &**rest else { panic!("{rest:?}") };
+    assert!(matches!(&**write, Core::App(head, _) if matches!(&**head, Core::Global(id, _) if id.0 == "Main.write")));
+    let Core::App(head, args) = &**call else { panic!("{call:?}") };
+    assert!(matches!(&**head, Core::Global(id, _) if id.0 == "Main.g"));
+    assert!(matches!(args.as_slice(), [Core::Var(a), Core::Var(b), Core::Var(LocalId(2))] if a == first && b == second));
+}
+
+/// Primitive heads retain their identity while computed saved arguments
+/// use the primitive signature's parameter class.
+#[test]
+fn saturate_partial_preserves_primitive_head_and_saved_class() {
+    let body = Core::Let(LocalId(1), Class::Obj,
+        Box::new(Core::App(Box::new(Core::Prim(cinch::core::PrimOp::EqBool)),
+            vec![Core::App(Box::new(Core::Global(gid("Main.read"), vec![])), vec![Core::Var(LocalId(0))])])),
+        Box::new(Core::App(Box::new(Core::Var(LocalId(1))), vec![Core::Bool(true)])));
+    let mut p = program(vec![unit("Main.f", vec![Class::Obj], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 1);
+    let Core::Let(saved, Class::Raw, _, call) = &p.fns[0].body else { panic!("{:?}", p.fns[0].body) };
+    let Core::App(head, args) = &**call else { panic!("{call:?}") };
+    assert!(matches!(&**head, Core::Prim(cinch::core::PrimOp::EqBool)));
+    assert!(matches!(args.as_slice(), [Core::Var(value), Core::Bool(true)] if value == saved));
+}
+
+/// A polymorphic callee's class vector types saved temporaries and remains
+/// attached to the fused direct call.
+#[test]
+fn saturate_partial_retains_instantiation_and_substitutes_saved_class() {
+    let mut callee = unit("Main.g", vec![Class::Param(0), Class::Obj], Core::Var(LocalId(0)));
+    callee.repr.tparams = 1;
+    let body = Core::Let(LocalId(1), Class::Obj,
+        Box::new(Core::App(Box::new(Core::Global(gid("Main.g"), vec![Class::Raw])),
+            vec![Core::App(Box::new(Core::Global(gid("Main.read"), vec![])), vec![Core::Var(LocalId(0))])])),
+        Box::new(Core::App(Box::new(Core::Var(LocalId(1))), vec![Core::Var(LocalId(0))])));
+    let mut p = program(vec![callee, unit("Main.f", vec![Class::Obj], body)]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 1);
+    let Core::Let(_, Class::Raw, _, call) = &p.fns[1].body else { panic!("{:?}", p.fns[1].body) };
+    let Core::App(head, _) = &**call else { panic!("{call:?}") };
+    assert!(matches!(&**head, Core::Global(id, classes) if id.0 == "Main.g" && classes == &[Class::Raw]));
+}
+
+/// A nullary unit reference executes work; it cannot move into a later
+/// application merely because its Core form is a global reference.
+#[test]
+fn saturate_partial_keeps_nullary_saved_argument_before_intervening_call() {
+    let body = Core::Let(LocalId(1), Class::Obj,
+        Box::new(Core::App(Box::new(Core::Global(gid("Main.g"), vec![])), vec![Core::Global(gid("Main.read"), vec![])])),
+        Box::new(Core::Let(LocalId(2), Class::Raw,
+            Box::new(Core::App(Box::new(Core::Global(gid("Main.write"), vec![])), vec![Core::Unit])),
+            Box::new(Core::App(Box::new(Core::Var(LocalId(1))), vec![Core::Var(LocalId(0))])))));
+    let mut p = program(vec![
+        unit("Main.g", vec![Class::TObj, Class::Obj], Core::Var(LocalId(1))),
+        unit("Main.read", vec![], Core::Unit),
+        unit("Main.f", vec![Class::Obj], body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &options(), &mut report);
+    assert_eq!(report.saturate, 1);
+    let Core::Let(_, Class::TObj, value, rest) = &p.fns[2].body else { panic!("{:?}", p.fns[2].body) };
+    assert!(matches!(&**value, Core::Global(id, _) if id.0 == "Main.read"));
+    assert!(matches!(&**rest, Core::Let(_, _, _, _)));
+}
+
 /// A binder read twice keeps its binding: two applications of one closure
 /// are two applications, and merging them would duplicate the value.
 #[test]
@@ -900,6 +970,76 @@ fn benefit_inlines_a_small_body_at_every_site() {
     assert_eq!(report.benefit.inlined, 2, "both sites take the primop body");
     let text = format!("{:?}", p.fns[1].body);
     assert!(!text.contains("Data.Machine.Eq_I64.=="), "a call survived: {text}");
+}
+
+/// A getter with real alternatives still needs a known constructor at
+/// duplicated sites, even when its body meets the small-function floor.
+#[test]
+fn benefit_field_projector_exception_keeps_multi_alternative_fold_gate() {
+    let getter = unit("Main.pick", vec![Class::Obj], Core::Case {
+        scrut: Box::new(Core::Var(LocalId(0))),
+        alts: vec![
+            CAlt::new(con(0, &[1]), Core::Var(LocalId(1))),
+            CAlt::new(con(1, &[2]), Core::Var(LocalId(2))),
+        ],
+    });
+    let body = Core::Let(LocalId(2), Class::Obj,
+        Box::new(call("Main.pick", vec![Core::Var(LocalId(0))])),
+        Box::new(call("Main.pick", vec![Core::Var(LocalId(1))])));
+    let mut p = program(vec![ctor_unit("A", 0, 1), ctor_unit("B", 1, 1), getter,
+        unit("Main.f", vec![Class::Obj, Class::Obj], body)]);
+    let opts = SimplifyOptions { max_iterations: 1, ..benefit_options() };
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &opts, &mut report);
+    assert_eq!(report.benefit.refused_fold, 2);
+    assert_eq!(report.inlined, 0);
+}
+
+/// A one-arm case that computes with its field is not the pure field-read
+/// exception; it retains the existing unknown-constructor refusal.
+#[test]
+fn benefit_field_projector_exception_refuses_computed_body() {
+    let mut constructor = ctor_unit("Flag", 0, 1);
+    constructor.repr.params = vec![Class::Raw];
+    let getter = unit("Main.invert", vec![Class::Obj], Core::Case {
+        scrut: Box::new(Core::Var(LocalId(0))),
+        alts: vec![CAlt::new(
+            CPat::Con { tag: 0, fields: vec![LocalId(1)], classes: vec![Class::Raw] },
+            prim(cinch::core::PrimOp::NotBool, vec![Core::Var(LocalId(1))]),
+        )],
+    });
+    let body = prim(cinch::core::PrimOp::AndBool, vec![
+        call("Main.invert", vec![Core::Var(LocalId(0))]),
+        call("Main.invert", vec![Core::Var(LocalId(1))]),
+    ]);
+    let mut p = program(vec![constructor, getter, unit("Main.f", vec![Class::Obj, Class::Obj], body)]);
+    let opts = SimplifyOptions { max_iterations: 1, ..benefit_options() };
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &opts, &mut report);
+    assert_eq!(report.benefit.refused_fold, 2);
+    assert_eq!(report.inlined, 0);
+}
+
+/// Projector admission bypasses only the fold precondition: a configured
+/// size allowance can still refuse the same otherwise eligible getter.
+#[test]
+fn benefit_field_projector_exception_keeps_size_gate() {
+    let getter = unit("Main.pick", vec![Class::Obj], Core::Case {
+        scrut: Box::new(Core::Var(LocalId(0))),
+        alts: vec![CAlt::new(con(0, &[1]), Core::Var(LocalId(1)))],
+    });
+    let body = Core::Let(LocalId(2), Class::Obj,
+        Box::new(call("Main.pick", vec![Core::Var(LocalId(0))])),
+        Box::new(call("Main.pick", vec![Core::Var(LocalId(1))])));
+    let mut p = program(vec![ctor_unit("Box", 0, 1), getter,
+        unit("Main.f", vec![Class::Obj, Class::Obj], body)]);
+    let opts = SimplifyOptions { max_iterations: 1, inline_small_size: 0, inline_size_threshold: 0,
+        ..benefit_options() };
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &opts, &mut report);
+    assert_eq!(report.benefit.refused_fold, 0);
+    assert_eq!(report.benefit.refused_size, 2);
+    assert_eq!(report.inlined, 0);
 }
 
 /// A body whose duplication removes only the call and adds more instructions

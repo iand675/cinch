@@ -1,0 +1,43 @@
+{
+  "description": "Paired frozen-compiler declaration/IR feasibility probes only; no linking or execution",
+  "probes": [
+    {
+      "frontend": "rust",
+      "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+      "probe": "load",
+      "source_sha256": "835141f7f51be0548dbf94871f94ff0b50f04f789642468e88e781609b2f9963",
+      "accepted": true,
+      "diagnostic": "",
+      "executed": false
+    },
+    {
+      "frontend": "rust",
+      "compiler_sha256": "7e0d98d14cb0213d4deeb277e1ad65fce07784309716085e70e4b9db2c259102",
+      "probe": "store",
+      "source_sha256": "83c778bdc7816616d5b386d8f06a6947c4a73fb268a77e96ecde2a2539f5d80c",
+      "accepted": false,
+      "diagnostic": "cinch: 6:17: containment (determinism of effects): `store` is an effect the declared pure effect row does not account for (specification section 4)\n",
+      "executed": false
+    },
+    {
+      "frontend": "native-raw",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "probe": "load",
+      "source_sha256": "835141f7f51be0548dbf94871f94ff0b50f04f789642468e88e781609b2f9963",
+      "accepted": true,
+      "diagnostic": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "executed": false
+    },
+    {
+      "frontend": "native-raw",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "probe": "store",
+      "source_sha256": "83c778bdc7816616d5b386d8f06a6947c4a73fb268a77e96ecde2a2539f5d80c",
+      "accepted": false,
+      "diagnostic": "cinch-leak: live=0 immortal=0 leaked=0\nbootstrap.check:5:3: containment (determinism of effects): this LLVM memory operation has no checked buffer contract\n",
+      "executed": false
+    }
+  ],
+  "observed": "Pure loads accepted by both epochs. Bare pure unsafe LLVM store rejected by Rust pure-row rule and Native checked-buffer-contract rule. No store candidate is admitted by this probe.",
+  "harness_note": "The initial driver expected identical rejection wording; the Native diagnostic differed. Actual frozen probe sources/logs retained; no implementation or checker change."
+}

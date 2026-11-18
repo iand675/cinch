@@ -1,0 +1,35 @@
+-- | Check complete identifier order and equality against independent public observations.
+module Main where
+  import Data.Core
+  import Data.Uuid
+  import Data.Ordering
+
+  -- | One pair of canonical identifiers and the independent three-way comparison.
+  data CompareCase where
+    -- | Retain both full values, including any reserved version bits.
+    CompareCase :: String -> String -> Int -> CompareCase
+
+  -- | Convert the public ordering to the independently recorded numeric convention.
+  order-code :: Ordering -> Int
+  order-code order = case order of LT -> -1; EQ -> 0; GT -> 1
+
+  -- | Require complete value equality and unsigned network order to agree.
+  check-case :: CompareCase -> Bool
+  check-case row = case row of
+    CompareCase first second expected -> case uuid-parse first of
+      Err error -> False
+      Ok one -> case uuid-parse second of
+        Err error -> False
+        Ok two -> order-code (uuid-compare one two) == expected && uuid-equal one two == (expected == 0)
+
+  -- | Return the first failed full-value comparison.
+  run :: List CompareCase -> Int -> Int
+  run rows index = case rows of Nil -> 0; Cons row rest -> if check-case row then run rest (index + 1) else index
+
+  -- | Independent ordered pairs, with no expected comparison computed by this consumer.
+  rows :: List CompareCase
+  rows = @CASES@
+
+  -- | Execute the bounded complete-bit comparison group.
+  main :: Int
+  main = run rows 1

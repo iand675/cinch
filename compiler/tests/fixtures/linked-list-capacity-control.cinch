@@ -1,0 +1,54 @@
+-- | Refuse impossible physical capacities before allocation or list mutation.
+module Main where
+  import Data.Mutable.LinkedList as LL
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  -- | Select independently calculated physical slot limits for the supported pointer widths.
+  physical-limit :: Nat
+  physical-limit = if eq-u64 (wrapping-usize-to-u64 max-bound-usize) 4294967295 then 268435451 else 1152921504606846971
+
+  -- | Recognize the named constructor refusal without accessing an allocated root.
+  constructor-refused :: forall r. Result LL.LinkedListError (LL.LinkedList r Nat) -> Bool
+  constructor-refused result = case result of Err LL.ListCapacityExceeded -> True; other -> False
+
+  -- | Recognize a named reserve refusal while preserving the existing list.
+  reserve-refused :: Result LL.LinkedListError Unit -> Bool
+  reserve-refused result = case result of Err LL.ListCapacityExceeded -> True; other -> False
+
+  -- | Check the exact first illegal count and larger representable mathematical counts.
+  constructors :: forall r. Unit ->{Mut r} Bool
+  constructors unit =
+    let first = constructor-refused (LL.list-with-capacity (physical-limit + 1)) in
+    let next = constructor-refused (LL.list-with-capacity (physical-limit + 2)) in
+    let old-bound = constructor-refused (LL.list-with-capacity 9223372036854775807) in
+    let whole-word = constructor-refused (LL.list-with-capacity 18446744073709551615) in
+    let unbounded = constructor-refused (LL.list-with-capacity 340282366920938463463374607431768211455) in
+    first && next && old-bound && whole-word && unbounded
+
+  -- | Refuse one additional slot beyond the physical limit without changing capacity, values or handles.
+  reserved-state :: forall r. Unit ->{Mut r} Bool
+  reserved-state unit = case LL.list-with-capacity 3 of
+    Err error -> False
+    Ok list -> case LL.list-push-back list (17 :: Nat) of
+      Err error -> False
+      Ok element ->
+        let capacity = LL.list-capacity list in
+        let failed = reserve-refused (LL.list-reserve list physical-limit) in
+        let still-member = LL.list-is-member list element in
+        let unchanged = LL.list-length list == 1 && LL.list-capacity list == capacity && LL.list-element-value element == 17 in
+        case LL.list-front list of
+          None -> False
+          Some front -> failed && still-member && unchanged && LL.list-same-element front element
+
+  -- | An empty list also refuses an overflowing reserve before its first arena allocation.
+  empty-state :: forall r. Unit ->{Mut r} Bool
+  empty-state unit = let list = LL.list-new () in
+    let failed = reserve-refused (LL.list-reserve list (physical-limit + 1)) in
+    failed && LL.list-is-empty list && LL.list-capacity list == 0
+
+  -- | Report an exact failed boundary group without attempting a huge legal allocation.
+  main :: Unit ->{Mut r} Int
+  main unit = if constructors () then (if reserved-state () then (if empty-state () then 0 else 3) else 2) else 1

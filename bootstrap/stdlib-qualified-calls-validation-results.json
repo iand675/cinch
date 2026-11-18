@@ -1,0 +1,67 @@
+{
+  "description": "Hexadecimal stdlib and qualified-call codegen validation; broader preserved target comparison recorded separately. Full stdlib goal remains open.",
+  "bootstrap_source_sha256": "e103ee4f098c89ee395ed51bb847089d28e009cc757b9bd90530673b6780c86c",
+  "native_runtime_ir_sha256": "ee05da69bc5c101243a1861fe0241e13c744a9ffdb1d6ae4e91fe110dc3781d8",
+  "rust_application_checker_sha256": "93c0e708b8dc6e4da1e5c12d0690c4b7fbcdcbaa05c71a5b61fa9944bb134785",
+  "bootstrap_fixed_point": {
+    "stage2_compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "stage3_compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "stage2_llvm_sha256": "659de07f7e61a40d90a69fdf09b690857d75f50971a437b3444a83123a51640b",
+    "stage3_llvm_sha256": "659de07f7e61a40d90a69fdf09b690857d75f50971a437b3444a83123a51640b",
+    "changed_source_probe": {
+      "compiler_sha256": "edecd15869cd70b2f1357cf6d1953d10f00d2996840f27b1986575b37d34cffa",
+      "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+      "source_sha256": "9f523887465bdd9f929c98a71fb9ff5a3730285a2d08e185fdbdfb09b9f86028"
+    }
+  },
+  "rust_tests": {
+    "unit": 297,
+    "hex_buffer": 10,
+    "hex_stream": 8,
+    "qualified_calls": 8,
+    "effects": 21,
+    "refinements": {
+      "passed_unchanged_assertions": 27,
+      "qualified_identity_expectations_updated_and_passed": 3,
+      "baseline_evidence": "stdlib-qualified-law-identity-baseline-results.json",
+      "test_source_sha256": "26e0e1502ec618f798de652e035b215db2bcdb6192292f8c4a8dba4b23329a04"
+    }
+  },
+  "native_stage3_tests": {
+    "hex_buffer": 10,
+    "hex_stream": 8,
+    "qualified_calls": 8
+  },
+  "native_stage1_baseline_tests": {
+    "tail_calls": 7,
+    "stream": 10,
+    "ascii85": 9,
+    "utf16": 7,
+    "fnv128": 8,
+    "constructor_region_fields": 6
+  },
+  "documentation": {
+    "modules": 133,
+    "diagnostics": 0,
+    "orphan_comments": 0
+  },
+  "benchmarks": [
+    "../benchmarks/stdlib/hex-complete-O2-2026-11-16.json",
+    "../benchmarks/stdlib/interleaved-hex-swar-scatter-O2-2026-11-16.json",
+    "../benchmarks/stdlib/qualified-calls-space-2026-11-16.json"
+  ],
+  "preserved_frontend_comparison": {
+    "status": "completed with unchanged baseline failures",
+    "scope": "106 preserved portable/interface targets",
+    "candidate_compiler_stage": 1,
+    "candidate_compiler": "build/stdlib-qualified-tail-frozen/cinch",
+    "results_artifact": "build/qualified-tail-preserved-targets/results.json",
+    "before_compiler_reruns": "build/qualified-tail-preserved-targets-baseline/results.json",
+    "all_targets_passed": false,
+    "note": "Every failing target was rerun through the immutable previous compiler. Failed test identities and exit codes match; this does not claim those historical failures are repaired.",
+    "report": "stdlib-qualified-call-preserved-target-results.json",
+    "passed_targets": 94,
+    "failed_targets": 12,
+    "new_failed_tests": 0
+  }
+}

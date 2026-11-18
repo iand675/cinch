@@ -1,0 +1,69 @@
+{
+  "scope": "deterministic loop only; syscall stub always panics",
+  "compiler_path": "/workspace/.tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+  "compiler_sha256": "5073422953727c9427a76b7fce03aa9404da46315e5a1e4965389512a41e8db0",
+  "source_sha256": {
+    "deterministic-v1/wrapper.rs": "c25e5832151b34f26ed754da310b1f574fc3cc8cc11ab7bcf8fc2a11731de42d",
+    "proposed/compiler/runtime/src/entropy.rs": "a9a70f3b731a01bf59f54115572214638d918789566655ed34f005e5cafbf893"
+  },
+  "start_free_bytes": 405123072,
+  "commands": [
+    {
+      "label": "compiler-version",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/.tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "--version",
+        "--verbose"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.06277687000692822,
+      "guard_violation": null
+    },
+    {
+      "label": "compile",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/.tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "--edition=2021",
+        "--test",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "strip=symbols",
+        "-C",
+        "codegen-units=1",
+        "-C",
+        "opt-level=0",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/deterministic-v1/wrapper.rs",
+        "-o",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/deterministic-v1/run-1/entropy-loop-tests"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.2676840380008798,
+      "guard_violation": null
+    },
+    {
+      "label": "tests",
+      "command": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-entropy/experiments/random-provider-v1/deterministic-v1/run-1/entropy-loop-tests",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.022690043988404796,
+      "guard_violation": null
+    }
+  ],
+  "end_free_bytes": 404217856,
+  "output_bytes": 890059,
+  "executable_sha256": "1b7a27224c0ea90aa07a552757d84239a6ba3beb684700197931eb70d8678e45",
+  "all_six_tests_passed": true
+}

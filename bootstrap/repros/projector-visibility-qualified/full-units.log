@@ -1,0 +1,1170 @@
+warning: cinch@0.1.0: In file included from /workspace/dasl-stdlib-io/compiler/target/release/build/cinch/aad53c3b08dc66e5/out/tree-sitter-cinch/parser.c:3:
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/target/release/build/cinch/aad53c3b08dc66e5/out/tree-sitter-cinch/parser.c: In function 'ts_lex':
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/target/release/build/cinch/aad53c3b08dc66e5/out/tree-sitter-cinch/tree_sitter/parser.h:187:11: warning: variable 'lookahead' set but not used [-Wunused-but-set-variable]
+warning: cinch@0.1.0:   187 |   int32_t lookahead;            \
+warning: cinch@0.1.0:       |           ^~~~~~~~~
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/target/release/build/cinch/aad53c3b08dc66e5/out/tree-sitter-cinch/parser.c:38367:3: note: in expansion of macro 'START_LEXER'
+warning: cinch@0.1.0: 38367 |   START_LEXER();
+warning: cinch@0.1.0:       |   ^~~~~~~~~~~
+warning: cinch@0.1.0: /workspace/dasl-stdlib-io/compiler/../tooling/tree-sitter-cinch/src/scanner.c:284:20: warning: 'SYM_NAMES' defined but not used [-Wunused-variable]
+warning: cinch@0.1.0:   284 | static const char *SYM_NAMES[] = {
+warning: cinch@0.1.0:       |                    ^~~~~~~~~
+   Compiling cinch v0.1.0 (/workspace/dasl-stdlib-io/compiler)
+warning: unused imports: `ArithMode` and `ArithOp`
+  --> src/check.rs:12:19
+   |
+12 | use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, I...
+   |                   ^^^^^^^^^  ^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `JsonValue as J`
+     --> src/codegen.rs:12440:48
+      |
+12440 |             use crate::interface::{parse_json, JsonValue as J};
+      |                                                ^^^^^^^^^^^^^^
+
+warning: unused import: `Sha256`
+ --> src/provenance.rs:9:25
+  |
+9 | use sha2::{Digest as _, Sha256};
+  |                         ^^^^^^
+
+warning: unused import: `Path`
+  --> src/repl_tui.rs:24:17
+   |
+24 | use std::path::{Path, PathBuf};
+   |                 ^^^^
+
+warning: unused import: `unicode_width::UnicodeWidthStr`
+  --> src/repl_tui.rs:26:5
+   |
+26 | use unicode_width::UnicodeWidthStr;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `span`
+    --> src/check.rs:9926:47
+     |
+9926 |             ast::Type::Sigma(name, ann, body, span) => {
+     |                                               ^^^^ help: if this is intentional, prefix it with an underscore: `_span`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+     --> src/check.rs:10233:13
+      |
+10233 |         let mut fresh = |name: &String| {
+      |             ----^^^^^
+      |             |
+      |             help: remove this `mut`
+      |
+      = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tag`
+    --> src/check_terms.rs:4425:14
+     |
+4425 |         let (tag, arity, field_erased, runtime_arity, ctor_refine) = match &v.kind {
+     |              ^^^ help: if this is intentional, prefix it with an underscore: `_tag`
+
+warning: variable does not need to be mutable
+   --> src/check_decls.rs:962:13
+    |
+962 |         let mut reg = |this: &mut Self, name: &str, scheme: Scheme, op: ConcOp| {
+    |             ----^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/check_decls.rs:1209:13
+     |
+1209 |         let mut reg = |this: &mut Self, name: &str, scheme: Scheme, op: ParOp| {
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: value assigned to `res_args` is never read
+    --> src/check_decls.rs:4096:53
+     |
+4096 |                         let mut res_args: Vec<Ty> = Vec::new();
+     |                                                     ^^^^^^^^^^ this value is reassigned later and never used
+...
+4101 |                                 res_args = args.clone();
+     |                                 -------- `res_args` is overwritten here before the previous value is read
+     |
+     = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> src/check_decls.rs:7634:25
+     |
+7634 |                     let mut later = eqs[1..].iter().filter_map(|e| match &e.pats[i] {
+     |                         ----^^^^^
+     |                         |
+     |                         help: remove this `mut`
+
+warning: unused variable: `c`
+    --> src/check_decls.rs:8694:34
+     |
+8694 |                 Ty::Fun(_, _, _, c) => {
+     |                                  ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/check_decls.rs:8775:13
+     |
+8775 |         let mut row = |status: String| crate::core::LawRow {
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: unused variable: `c`
+    --> src/check_decls.rs:8806:34
+     |
+8806 |                 Ty::Fun(_, _, _, c) => {
+     |                                  ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/check_decls.rs:8957:13
+     |
+8957 |         let mut row = |status: String| crate::core::LawRow {
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/check_decls.rs:9162:13
+     |
+9162 |         let mut bail = |rows: &mut Vec<crate::core::LawRow>, reason: String| {
+     |             ----^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: unused variable: `p`
+     --> src/check_decls.rs:10989:9
+      |
+10989 |         p: &ast::PrimDecl,
+      |         ^ help: if this is intentional, prefix it with an underscore: `_p`
+
+warning: unused variable: `p`
+     --> src/check_decls.rs:11264:9
+      |
+11264 |         p: &ast::PrimDecl,
+      |         ^ help: if this is intentional, prefix it with an underscore: `_p`
+
+warning: variable does not need to be mutable
+     --> src/check_decls.rs:12409:13
+      |
+12409 |         let mut once = |set: bool| -> Result<()> {
+      |             ----^^^^
+      |             |
+      |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+     --> src/check_decls.rs:18335:13
+      |
+18335 |         let mut checker = self.checker;
+      |             ----^^^^^^^
+      |             |
+      |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+     --> src/check_decls.rs:19195:13
+      |
+19195 |         let mut add_unit = |key: UnitKey, desc: &mut HashMap<UnitKey, String>,
+      |             ----^^^^^^^^
+      |             |
+      |             help: remove this `mut`
+
+warning: unused variable: `m`
+     --> src/check_decls.rs:19940:54
+      |
+19940 |     fn collect_data_imports(&mut self, module: &str, m: &ast::Module) -> Result<()> {
+      |                                                      ^ help: if this is intentional, prefix it with an underscore: `_m`
+
+warning: variable does not need to be mutable
+     --> src/check_decls.rs:21138:9
+      |
+21138 |     let mut push_pat = |p: &ast::Pat, out: &mut Vec<String>| {
+      |         ----^^^^^^^^
+      |         |
+      |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+     --> src/check_decls.rs:23381:13
+      |
+23381 |         let mut child = cmd
+      |             ----^^^^^
+      |             |
+      |             help: remove this `mut`
+
+warning: unused variable: `stdin`
+    --> src/cinchdoc.rs:1633:33
+     |
+1633 |                     if let Some(stdin) = &test.stdin {
+     |                                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_stdin`
+
+warning: unused variable: `other`
+     --> src/codegen.rs:11783:13
+      |
+11783 |             other if matches!(dest, Dest::Ret) && self.cpr.is_some() => err(format!(
+      |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_other`
+
+warning: value assigned to `vi` is never read
+     --> src/codegen.rs:15206:17
+      |
+15206 |                 vi += 1;
+      |                 ^^^^^^^ this value is reassigned later and never used
+...
+15231 |                 vi += 2;
+      |                 ------- `vi` is overwritten here before the previous value is read
+
+warning: value assigned to `vi` is never read
+     --> src/codegen.rs:15231:17
+      |
+15231 |                 vi += 2;
+      |                 ^^^^^^^ this value is reassigned later and never used
+...
+15249 |                 vi += 1;
+      |                 ------- `vi` is overwritten here before the previous value is read
+
+warning: value assigned to `vi` is never read
+     --> src/codegen.rs:15249:17
+      |
+15249 |                 vi += 1;
+      |                 ^^^^^^^
+      |
+      = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+    --> src/core.rs:5351:13
+     |
+5351 |         let mut note = |l: LocalId, map: &mut HashMap<LocalId, LocalId>, next: &mut usize| {
+     |             ----^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: unreachable pattern
+    --> src/core.rs:6442:13
+     |
+6412 | /             Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
+6413 | |             | Core::RefSet(_, _, _)
+6414 | |             | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) | Core::Quote { .. }
+6415 | |             | Core::DeclsQuote { .. } => *found = true,
+     | |_____________________________________- matches all the relevant values
+...
+6442 |               Core::LazyInit(_, t) => go(t, found),
+     |               ^^^^^^^^^^^^^^^^^^^^ no value can reach this
+     |
+     = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+    --> src/core.rs:6443:13
+     |
+6412 | /             Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
+6413 | |             | Core::RefSet(_, _, _)
+6414 | |             | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) | Core::Quote { .. }
+6415 | |             | Core::DeclsQuote { .. } => *found = true,
+     | |_____________________________________- matches all the relevant values
+...
+6443 |               Core::BoxInit(_, v, _) => go(v, found),
+     |               ^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+
+warning: unreachable pattern
+    --> src/core.rs:6585:9
+     |
+6553 | /         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
+6554 | |         | Core::RefSet(_, _, _)
+6555 | |         | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) => *n += 1,
+     | |__________________________________________________________________- matches all the relevant values
+...
+6585 |           Core::LazyInit(_, t) => scan_memo(t, n),
+     |           ^^^^^^^^^^^^^^^^^^^^ no value can reach this
+
+warning: unused variable: `i`
+    --> src/core.rs:7358:60
+     |
+7358 |                 match self.caller.meta.dicts.iter().find(|(i, c)| c == class) {
+     |                                                            ^ help: if this is intentional, prefix it with an underscore: `_i`
+
+warning: variable does not need to be mutable
+    --> src/core.rs:7818:9
+     |
+7818 |     let mut all = |cs: &[Class], f: &mut dyn FnMut(Class)| cs.iter().for_each(|c| f(*c));
+     |         ----^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unreachable pattern
+   --> src/incremental.rs:655:11
+    |
+604 |         Decl::Signature(s) => {
+    |         ------------------ matches all the relevant values
+...
+655 |         | Decl::Signature(_)
+    |           ^^^^^^^^^^^^^^^^^^ no value can reach this
+
+warning: variable does not need to be mutable
+   --> src/driver.rs:635:13
+    |
+635 |         let mut strings = |key: &str| -> Result<Vec<String>> {
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/driver.rs:783:17
+    |
+783 |             let mut list = |value: &crate::interface::JsonValue| -> Result<Vec<String>> {
+    |                 ----^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/driver.rs:1426:9
+     |
+1426 |     let mut path_at = |i: &mut usize| -> Option<String> {
+     |         ----^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `signatures`
+    --> src/driver.rs:4679:13
+     |
+4679 |         let signatures = crate::coretext::Signatures::from_ifaces(ifaces);
+     |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_signatures`
+
+warning: unused variable: `digest`
+    --> src/driver.rs:4692:13
+     |
+4692 |         let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
+     |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_digest`
+
+warning: variable does not need to be mutable
+    --> src/driver.rs:5761:9
+     |
+5761 |     let mut program = program;
+     |         ----^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/interface.rs:3853:9
+     |
+3853 |     let mut check_ty = |t: &crate::ast::WitType| -> crate::Result<()> {
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `span`
+    --> src/parser.rs:1639:13
+     |
+1639 |         let span = self.expect(&Tok::Import, "`import`")?.span;
+     |             ^^^^ help: if this is intentional, prefix it with an underscore: `_span`
+
+warning: unreachable pattern
+    --> src/parser.rs:5669:48
+     |
+5662 |             b'0'..=b'9' => {
+     |             ----------- matches all the relevant values
+...
+5669 |             b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'0'..=b'9' => {
+     |                                                ^^^^^^^^^^^ no value can reach this
+
+warning: variable does not need to be mutable
+    --> src/rc.rs:1456:13
+     |
+1456 |         let mut add = |s: &mut Set, x: &LocalId, this: &Pass| {
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/simplify.rs:1258:9
+     |
+1258 |     let mut fresh_for = |x: &mut LocalId, fresh: &mut Fresh, renames: &mut Vec<(LocalId, LocalId)>| {
+     |         ----^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/simplify.rs:4757:9
+     |
+4757 |     let mut root = |name: &str, live: &mut HashSet<String>, work: &mut Vec<String>| {
+     |         ----^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `c`
+    --> src/stack.rs:1519:26
+     |
+1519 |             Core::Let(x, c, v, body) => {
+     |                          ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/types.rs:2370:13
+     |
+2370 |         let mut side = |le: LinLe, rows: &mut Vec<LinStep>| {
+     |             ----^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: unused variable: `values`
+   --> src/cxx/exports.rs:345:20
+    |
+345 |         let (args, values) = cpp_arguments(&f.params)?;
+    |                    ^^^^^^ help: if this is intentional, prefix it with an underscore: `_values`
+
+warning: unused variable: `values`
+   --> src/cxx/exports.rs:498:24
+    |
+498 |             let (args, values) = cpp_arguments(&m.params)?;
+    |                        ^^^^^^ help: if this is intentional, prefix it with an underscore: `_values`
+
+warning: type `check::Checker` is more private than the item `check::LowerCx::<'a>::new`
+    --> src/check.rs:1274:5
+     |
+1274 |     pub(crate) fn new(ck: &'a Checker, tparams: &'a [String], own: &'a HashSet<GlobalId>) -> Self {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function `check::LowerCx::<'a>::new` is reachable at visibility `pub(crate)`
+     |
+note: but type `check::Checker` is only usable at visibility `pub(self)`
+    --> src/check.rs:3063:1
+     |
+3063 | struct Checker {
+     | ^^^^^^^^^^^^^^
+     = note: `#[warn(private_interfaces)]` on by default
+
+warning: type `check::Checker` is more private than the item `check::LowerCx::<'a>::compile_time`
+    --> src/check.rs:1289:5
+     |
+1289 |     pub(crate) fn compile_time(ck: &'a Checker, tparams: &'a [String], own: &'a HashSet<GlobalId>) -> Self {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function `check::LowerCx::<'a>::compile_time` is reachable at visibility `pub(crate)`
+     |
+note: but type `check::Checker` is only usable at visibility `pub(self)`
+    --> src/check.rs:3063:1
+     |
+3063 | struct Checker {
+     | ^^^^^^^^^^^^^^
+
+warning: type `Parameter` is more private than the item `cinchdoc::Decl::parameters`
+   --> src/cinchdoc.rs:197:5
+    |
+197 |     pub fn parameters(&self) -> Vec<Parameter> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method `cinchdoc::Decl::parameters` is reachable at visibility `pub`
+    |
+note: but type `Parameter` is only usable at visibility `pub(self)`
+   --> src/cinchdoc.rs:178:1
+    |
+178 | struct Parameter {
+    | ^^^^^^^^^^^^^^^^
+
+warning: type `interface::JsonValue` is more private than the item `LinkSpec::parse`
+    --> src/driver.rs:631:5
+     |
+ 631 |     pub fn parse(v: &crate::interface::JsonValue) -> Result<LinkSpec> {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function `LinkSpec::parse` is reachable at visibility `pub`
+     |
+note: but type `interface::JsonValue` is only usable at visibility `pub(crate)`
+    --> src/interface.rs:1583:1
+     |
+1583 | pub(crate) enum JsonValue {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `interface::JsonValue` is more private than the item `When::parse`
+    --> src/driver.rs:778:5
+     |
+ 778 |     pub fn parse(v: &crate::interface::JsonValue) -> Result<When> {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function `When::parse` is reachable at visibility `pub`
+     |
+note: but type `interface::JsonValue` is only usable at visibility `pub(crate)`
+    --> src/interface.rs:1583:1
+     |
+1583 | pub(crate) enum JsonValue {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `interface::JsonValue` is more private than the item `encode_core`
+    --> src/ifaceopt.rs:386:1
+     |
+ 386 | pub fn encode_core(e: &Core) -> Option<JsonValue> {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ function `encode_core` is reachable at visibility `pub`
+     |
+note: but type `interface::JsonValue` is only usable at visibility `pub(crate)`
+    --> src/interface.rs:1583:1
+     |
+1583 | pub(crate) enum JsonValue {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `interface::JsonValue` is more private than the item `decode_core`
+    --> src/ifaceopt.rs:559:1
+     |
+ 559 | pub fn decode_core(value: &JsonValue) -> Result<Core, ParseError> {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ function `decode_core` is reachable at visibility `pub`
+     |
+note: but type `interface::JsonValue` is only usable at visibility `pub(crate)`
+    --> src/interface.rs:1583:1
+     |
+1583 | pub(crate) enum JsonValue {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `capture_term` is never used
+    --> src/ast.rs:2567:15
+     |
+2567 | pub(crate) fn capture_term(t: &Term, values: &[Name], globals: Option<Arc<GlobalScope>>) -> Result<Term> {
+     |               ^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `capture_type` is never used
+    --> src/ast.rs:2585:15
+     |
+2585 | pub(crate) fn capture_type(t: &Type, values: &[Name], globals: Option<Arc<GlobalScope>>) -> Result<Type> {
+     |               ^^^^^^^^^^^^
+
+warning: function `capture_type_in_declaration` is never used
+    --> src/ast.rs:2589:15
+     |
+2589 | pub(crate) fn capture_type_in_declaration(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `unit`, `arity`, and `immarg` are never read
+    --> src/check.rs:1702:16
+     |
+1702 |     PrimDecl { unit: String, arity: usize, immarg: Vec<usize> },
+     |     --------   ^^^^          ^^^^^         ^^^^^^
+     |     |
+     |     fields in this variant
+     |
+     = note: `ValueKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: field `arity` is never read
+    --> src/check.rs:1706:29
+     |
+1706 |     Foreign { unit: String, arity: usize },
+     |     -------                 ^^^^^
+     |     |
+     |     field in this variant
+     |
+     = note: `ValueKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: function `conc_io_ty` is never used
+    --> src/check.rs:2933:15
+     |
+2933 | pub(crate) fn conc_io_ty(r: &str) -> Ty {
+     |               ^^^^^^^^^^
+
+warning: field `module` is never read
+    --> src/check.rs:2990:9
+     |
+2989 | pub(crate) struct LayoutRecipe {
+     |                   ------------ field in this struct
+2990 |     pub module: String,
+     |         ^^^^^^
+     |
+     = note: `LayoutRecipe` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: field `method_gid` is never read
+    --> src/check.rs:3045:5
+     |
+3036 | struct PresObligation {
+     |        -------------- field in this struct
+...
+3045 |     method_gid: crate::core::GlobalId,
+     |     ^^^^^^^^^^
+
+warning: fields `staging_fns` and `stage_inputs` are never read
+    --> src/check.rs:3475:5
+     |
+3063 | struct Checker {
+     |        ------- fields in this struct
+...
+3475 |     staging_fns: std::collections::HashMap<String, Vec<crate::core::FnDef>>,
+     |     ^^^^^^^^^^^
+...
+3483 |     stage_inputs: Vec<StageInput>,
+     |     ^^^^^^^^^^^^
+
+warning: fields `owned_attrs` and `span` are never read
+    --> src/check.rs:3665:5
+     |
+3660 | struct MacroInfo {
+     |        --------- fields in this struct
+...
+3665 |     owned_attrs: Vec<String>,
+     |     ^^^^^^^^^^^
+3666 |     /// The macro's definition-site span, for expansion provenance.
+3667 |     span: ast::Span,
+     |     ^^^^
+     |
+     = note: `MacroInfo` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: associated items `note_ev_write`, `note_ev_write_opaque`, `instance_search_rows`, `subst_index_full`, and `subst_it` are never used
+     --> src/check.rs:4315:8
+      |
+ 3902 | impl Checker {
+      | ------------ associated items in this implementation
+...
+ 4315 |     fn note_ev_write(&mut self, loc: Option<String>, span: ast::Span) {
+      |        ^^^^^^^^^^^^^
+...
+ 4340 |     fn note_ev_write_opaque(&mut self, span: ast::Span) {
+      |        ^^^^^^^^^^^^^^^^^^^^
+...
+ 6640 |     pub(crate) fn instance_search_rows(&self) -> Vec<(String, String, String)> {
+      |                   ^^^^^^^^^^^^^^^^^^^^
+...
+10874 |     fn subst_index_full(term: &ITerm, types: &HashMap<String, Ty>, rows: &HashMap<String, RowTail>, regions: &HashMap<String, Str...
+      |        ^^^^^^^^^^^^^^^^
+...
+11044 |     fn subst_it(t: &ITerm, map: &HashMap<String, Ty>) -> ITerm {
+      |        ^^^^^^^^
+
+warning: enum `MeasureShape` is never used
+  --> src/check_terms.rs:31:6
+   |
+31 | enum MeasureShape {
+   |      ^^^^^^^^^^^^
+
+warning: method `measure_shape` is never used
+    --> src/check_terms.rs:6883:8
+     |
+ 110 | impl Checker {
+     | ------------ method in this implementation
+...
+6883 |     fn measure_shape(&mut self, env: &Env, arg: &ast::Term) -> Option<MeasureShape> {
+     |        ^^^^^^^^^^^^^
+
+warning: field `closure` is never read
+     --> src/check_decls.rs:12962:9
+      |
+12955 | pub(crate) struct CallRec {
+      |                   ------- field in this struct
+...
+12962 |     pub closure: bool,
+      |         ^^^^^^^
+      |
+      = note: `CallRec` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `tail` is never read
+     --> src/check_decls.rs:12986:9
+      |
+12984 | pub(crate) struct SelfCallRec {
+      |                   ----------- field in this struct
+12985 |     pub span: ast::Span,
+12986 |     pub tail: bool,
+      |         ^^^^
+      |
+      = note: `SelfCallRec` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `logical` is never read
+     --> src/check_decls.rs:13814:9
+      |
+13803 | pub(crate) struct SafetyRecord {
+      |                   ------------ field in this struct
+...
+13814 |     pub logical: bool,
+      |         ^^^^^^^
+      |
+      = note: `SafetyRecord` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: function `check_program_multi_full_probe_indexed` is never used
+     --> src/check_decls.rs:18381:15
+      |
+18381 | pub(crate) fn check_program_multi_full_probe_indexed(
+      |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `check_program_multi_full_prepared_with_preludes` is never used
+     --> src/check_decls.rs:18884:15
+      |
+18884 | pub(crate) fn check_program_multi_full_prepared_with_preludes(
+      |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `depth` is never read
+     --> src/check_decls.rs:19053:5
+      |
+19025 | struct StageCx {
+      |        ------- field in this struct
+...
+19053 |     depth: usize,
+      |     ^^^^^
+
+warning: function `decl_name` is never used
+     --> src/check_decls.rs:21216:4
+      |
+21216 | fn decl_name(d: &ast::Decl) -> Option<&ast::Name> {
+      |    ^^^^^^^^^
+
+warning: field `marker` is never read
+   --> src/cinchdoc.rs:119:5
+    |
+114 | struct CommentBlock {
+    |        ------------ field in this struct
+...
+119 |     marker: &'static str,
+    |     ^^^^^^
+    |
+    = note: `CommentBlock` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: fields `measure` and `fuel` are never read
+    --> src/core.rs:6476:5
+     |
+6465 | struct OptCx {
+     |        ----- fields in this struct
+...
+6476 |     measure: u32,
+     |     ^^^^^^^
+6477 |     fuel: u32,
+     |     ^^^^
+
+warning: fields `owner` and `exposed` are never read
+    --> src/driver.rs:1524:5
+     |
+1515 | struct Project {
+     |        ------- fields in this struct
+...
+1524 |     owner: HashMap<String, String>,
+     |     ^^^^^
+1525 |     /// Modules another package may import (section 4.2).
+1526 |     exposed: HashMap<String, bool>,
+     |     ^^^^^^^
+
+warning: function `link` is never used
+    --> src/driver.rs:3774:4
+     |
+3774 | fn link(ir_path: &Path, out: &Path) -> Result<()> {
+     |    ^^^^
+
+warning: field `abi` is never read
+    --> src/interface.rs:2864:5
+     |
+2862 | struct CanonCx<'a> {
+     |        ------- field in this struct
+2863 |     pkg: &'a crate::ast::WitPackage,
+2864 |     abi: CanonicalAbi,
+     |     ^^^
+     |
+     = note: `CanonCx` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: method `classify` is never used
+    --> src/interface.rs:2906:8
+     |
+2890 | impl<'a> CanonCx<'a> {
+     | -------------------- method in this implementation
+...
+2906 |     fn classify(&self, t: &crate::ast::WitType) -> crate::Result<Shape> {
+     |        ^^^^^^^^
+
+warning: enum `Shape` is never used
+    --> src/interface.rs:3198:6
+     |
+3198 | enum Shape {
+     |      ^^^^^
+
+warning: field `nodes` is never read
+    --> src/simplify.rs:2698:5
+     |
+2694 | struct SpecTarget {
+     |        ---------- field in this struct
+...
+2698 |     nodes: usize,
+     |     ^^^^^
+
+warning: constant `BENEFIT_ALLOCATION` is never used
+    --> src/simplify.rs:3141:7
+     |
+3141 | const BENEFIT_ALLOCATION: usize = 7;
+     |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `BENEFIT_INDIRECT` is never used
+    --> src/simplify.rs:3144:7
+     |
+3144 | const BENEFIT_INDIRECT: usize = 4;
+     |       ^^^^^^^^^^^^^^^^
+
+warning: enum `Refusal` is never used
+    --> src/simplify.rs:3200:6
+     |
+3200 | enum Refusal {
+     |      ^^^^^^^
+
+warning: methods `name` and `count` are never used
+    --> src/simplify.rs:3212:8
+     |
+3211 | impl Refusal {
+     | ------------ methods in this implementation
+3212 |     fn name(self) -> &'static str {
+     |        ^^^^
+...
+3225 |     fn count(self, tally: &mut BenefitTally) {
+     |        ^^^^^
+
+warning: field `valued` is never read
+    --> src/simplify.rs:3479:5
+     |
+3442 | struct InlineBody {
+     |        ---------- field in this struct
+...
+3479 |     valued: bool,
+     |     ^^^^^^
+
+warning: variants `Recursive` and `Costly` are never constructed
+    --> src/simplify.rs:3632:5
+     |
+3625 | enum Refused {
+     |      ------- variants in this enum
+...
+3632 |     Recursive,
+     |     ^^^^^^^^^
+...
+3643 |     Costly,
+     |     ^^^^^^
+     |
+     = note: `Refused` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: `cinch` (lib test) generated 94 warnings (run `cargo fix --lib -p cinch --tests` to apply 43 suggestions)
+    Finished `release` profile [optimized] target(s) in 3m 14s
+     Running unittests src/lib.rs (target/release/build/cinch/a59e3c4a403d1e2f/out/cinch-a59e3c4a403d1e2f)
+
+running 343 tests
+test applications::tests::captured_lambda_subtracts_environment_from_arity ... ok
+test applications::tests::constructor_and_primitive_arities_keep_saturated_spines ... ok
+test applications::tests::dictionary_and_nullary_results_keep_dynamic_boundaries ... ok
+test applications::tests::known_calls_only_split_after_saturation ... ok
+test applications::tests::unknown_calls_preserve_each_application_boundary ... ok
+test cabi::tests::aapcs64_by_reference_beyond_sixteen_bytes_except_hfas ... ok
+test cabi::tests::no_convention_refuses_only_by_value_crossings ... ok
+test cabi::tests::sysv_eightbytes_follow_their_leaves ... ok
+test cabi::tests::sysv_memory_beyond_sixteen_bytes ... ok
+test cabi::tests::sysv_out_of_registers_is_memory_whole ... ok
+test cabi::tests::sysv_packed_misalignment_is_memory ... ok
+test cabi::tests::wasm32_single_scalars_are_direct ... ok
+test cabi::tests::wide_leaves_are_refused_in_registers ... ok
+test cabi::tests::win64_powers_of_two_up_to_eight_are_integers ... ok
+test check::float_integer_exactness_tests::decimal_exactness_matches_independent_binary_significands ... ok
+test check::index_carrier_compatibility_tests::carrier_usage_holes_do_not_authorize_type_index_or_effect_specialization ... ok
+test check::index_lambda_identity_tests::index_lambda_handles_survive_renaming_and_cannot_be_guessed ... ok
+test check::index_lambda_identity_tests::nested_index_lambda_scopes_restore_after_failure ... ok
+test check::index_substitution_tests::a_shadowed_index_parameter_does_not_block_other_substitutions ... ok
+test check::index_substitution_tests::checked_body_copy_instantiates_stage_call_rows_and_regions ... ok
+test check::index_substitution_tests::index_dictionary_reification_requires_checked_runtime_scope ... ok
+test check::index_substitution_tests::index_generic_copy_owns_its_deferred_evidence_and_preserves_outer_captures ... ok
+test check::index_substitution_tests::index_headers_wait_for_complete_instances_even_when_one_matches ... ok
+test check::index_substitution_tests::index_quote_copy_remaps_native_metadata_without_rebinding_source_names ... ok
+test check::index_substitution_tests::index_substitution_does_not_capture_callers_same_named_evidence ... ok
+test check::index_substitution_tests::native_substitution_preserves_instantiated_types_rows_regions_and_evidence ... ok
+test check::index_substitution_tests::separate_dictionary_calls_keep_separate_dependent_result_indices ... ok
+test check::interface_scheme_tests::explicit_value_and_proposition_parameter_kinds_are_published ... ok
+test check::interface_scheme_tests::exported_preconditions_round_trip_with_their_argument_positions ... ok
+test check::interface_scheme_tests::higher_kinded_parameter_annotations_survive_interface_rendering ... ok
+test check::interface_scheme_tests::precondition_argument_names_do_not_capture_type_parameters ... ok
+test check::interface_scheme_tests::repeated_member_binders_retain_their_own_inferred_kinds ... ok
+test check::local_value_capability_tests::hidden_value_reads_keep_the_original_mutable_region_and_numeric_sort ... ok
+test check::local_value_capability_tests::local_value_reification_and_export_require_structural_authority ... ok
+test check::mvar_effect_contract_tests::checked_mvar_rows_do_not_widen_open_or_role_contracts ... ok
+test check::mvar_effect_contract_tests::checked_mvar_rows_preserve_divergence_and_region_identity ... ok
+test check::mvar_effect_contract_tests::latent_mvar_effects_require_paired_printing ... ok
+test check::mvar_effect_contract_tests::refined_mvar_results_keep_full_checked_effect_parity ... ok
+test check::owned_effect_qualified_scope_tests::an_unbound_qualified_label_cannot_spell_a_private_owned_head ... ok
+test check::owned_effect_scope_tests::frozen_symbolic_labels_and_type_names_cannot_acquire_an_owned_effect ... ok
+test check::proof_value_scope_tests::logical_provenance_does_not_grant_source_names ... ok
+test check::sealed_array_positivity_tests::actual_sealed_array_payloads_preserve_strict_positivity ... ok
+test check::sealed_array_positivity_tests::certified_payloads_refuse_every_negative_function_domain ... ok
+test check::sealed_array_positivity_tests::serialized_source_absent_contract_headers_do_not_mint_primitive_certificates ... ok
+test check::sealed_array_positivity_tests::source_and_imported_impostor_headers_cannot_grant_payload_evidence ... ok
+test check::sealed_array_positivity_tests::unknown_payloads_and_recursive_arguments_remain_refused ... ok
+test check::signature_scope_tests::signature_scope_keeps_synthetic_builtin_classes_available_to_captures ... ok
+test check::signature_scope_tests::signature_scope_owned_handles_select_their_actual_member_without_spelling_fallback ... ok
+test check::signature_scope_tests::signature_scope_uses_frozen_owners_and_never_repairs_absent_or_wrong_kind_names ... ok
+test check::staged_word_boundary_tests::character_order_uses_complete_unicode_scalars ... ok
+test check::staged_word_boundary_tests::pointer_words_use_target_width_in_staging ... ok
+test check::staged_word_boundary_tests::saturating_arithmetic_matches_independent_scalar_boundaries ... ok
+test check::staged_word_boundary_tests::signed_bound_constants_match_each_scalar_width ... ok
+test check::staged_word_boundary_tests::unsigned_shifts_and_rotations_match_host_bit_operations ... ok
+test cinchdoc::tests::cli_extract_writes_canonical_json ... ok
+test cinchdoc::tests::nested_fence_is_literal ... ok
+test cinchdoc::tests::parses_canonical_docs ... ok
+test cinchdoc::tests::parses_test_sections_and_protects_tags ... ok
+test cinchdoc::tests::render_uses_tree_sitter_highlighting ... ok
+test cinchdoc::tests::renders_named_parameter_sections ... ok
+test cinchdoc::tests::reports_orphans_and_duplicate_docs ... ok
+test cinchdoc::tests::runs_a_documentation_test_with_a_compiler ... ok
+test cinchdoc::tests::uses_checked_interface_identity ... ok
+test coalesce::tests::a_drop_does_not_cross_a_step_that_reads_the_value ... ok
+test coalesce::tests::a_dup_does_not_move_below_the_step_that_frees_its_cell ... ok
+test coalesce::tests::a_dup_moves_up_to_the_first_dup_and_keeps_its_multiplicity ... ok
+test coalesce::tests::a_value_with_no_use_in_the_run_keeps_its_counts ... ok
+test codegen::tests::a_product_result_tail_call_passes_the_aggregate_on ... ok
+test codegen::tests::a_tail_group_narrows_only_when_its_prototypes_agree ... ok
+test codegen::tests::a_wide_constructor_escapes_to_a_descriptor_with_its_whole_mask ... ok
+test codegen::tests::adt_case_bound_field_and_wildcard ... ok
+test codegen::tests::an_unknown_tail_call_passes_its_words_in_registers ... ok
+test codegen::tests::bool_ne_and_int_comparisons ... ok
+test codegen::tests::bool_prims ... ok
+test codegen::tests::builtin_inventory_checks_live_constructor_consistency ... ok
+test codegen::tests::builtin_inventory_distinguishes_pruning_from_incomplete_untrusted_core ... ok
+test codegen::tests::builtin_inventory_rejects_fake_option_result_and_ordering_shapes ... ok
+test codegen::tests::builtin_inventory_rejects_malformed_some_before_pruning ... ok
+test codegen::tests::bytes_copy_is_a_memmove_and_compare_orders_contents ... ok
+test codegen::tests::bytes_direct_access_preserves_readonly_and_empty_contracts ... ok
+test codegen::tests::bytes_direct_access_retains_kind_and_null_faults ... ok
+test codegen::tests::bytes_out_of_bounds_faults ... ok
+test codegen::tests::bytes_round_trip ... ok
+test codegen::tests::case_var_pattern_binds_scrutinee ... ok
+test codegen::tests::const_big_beyond_i64_range ... ok
+test codegen::tests::const_big_bignum_arithmetic ... ok
+test codegen::tests::core_prim_arithmetic_chain ... ok
+test codegen::tests::ctor_as_value_through_apply ... ok
+test codegen::tests::div_rem_truncating ... ok
+test codegen::tests::fault_falls_through_to_the_runtime_fault_path ... ok
+test codegen::tests::instance_dictionary_and_method_call ... ok
+test codegen::tests::int_cmp_immediate_drives_equality ... ok
+test codegen::tests::int_div_and_rem_by_zero_trap_as_a_compiler_bug ... ok
+test codegen::tests::lambda_captures_env ... ok
+test codegen::tests::mixed_arity_mutual_tail_calls_run_in_constant_stack ... ok
+test codegen::tests::mutual_tail_ping_pong_is_a_musttail_call ... ok
+test codegen::tests::nat_arith_and_cmp_round_trip ... ok
+test codegen::tests::nat_conversion_ir_respects_pointer_width ... ok
+test codegen::tests::nat_divrem_ir_respects_pointer_width ... ok
+test codegen::tests::nat_divrem_preserves_immediates_and_heap_results ... ok
+test codegen::tests::nat_divrem_zero_divisor_retains_runtime_faults ... ok
+test codegen::tests::nat_machine_conversions_preserve_boundaries ... ok
+test codegen::tests::nat_machine_conversions_retain_faults ... ok
+test codegen::tests::nat_sub_below_zero_is_a_compiler_bug_trap ... ok
+test codegen::tests::neg_int_comparison_and_if ... ok
+test codegen::tests::net_and_process_prims_answer_the_named_error_as_result ... ok
+test codegen::tests::object_driver_records_checked_interface_closure ... ok
+test codegen::tests::object_explicit_roots_and_method_families_link ... ok
+test codegen::tests::object_links_with_one_consumer_layout_table ... ok
+test codegen::tests::object_rejects_process_entries_and_unchecked_representations ... ok
+test codegen::tests::one_apply_stub_per_unit ... ok
+test codegen::tests::over_application ... ok
+test codegen::tests::partial_application_then_rest ... ok
+test codegen::tests::prim_fn_direct_call ... ok
+test codegen::tests::self_tail_call_under_let_and_case ... ok
+test codegen::tests::self_tail_recursion_runs_in_constant_stack ... ok
+test codegen::tests::tail_call_fallback_on_unsaturated_call_is_reported ... ok
+test codegen::tests::tail_report_marks_recursive_groups ... ok
+test codegen::tests::tuple_block_projection ... ok
+test codegen::tests::zero_arity_thunk_as_main ... ok
+test codegen::tests::zero_field_ctor_pointer_identity ... ok
+test core::tests::bignum_and_bytes_signatures ... ok
+test core::tests::conversion_family_validation ... ok
+test core::tests::optimizer_measure_bounds_transitive_unfolding ... ok
+test core::tests::primitive_signatures ... ok
+test core::tests::repeated_subterms_move_into_one_shared_unit ... ok
+test core::tests::retired_int_family_does_not_resolve ... ok
+test core::tests::symbol_round_trips ... ok
+test core::word_folding_tests::bit_and_byte_reversal_preserve_full_width_results ... ok
+test core::word_folding_tests::conversions_keep_unsigned_magnitude_before_applying_policy ... ok
+test core::word_folding_tests::division_and_remainders_use_scalar_signedness ... ok
+test core::word_folding_tests::pointer_width_folding_follows_the_compilation_target ... ok
+test core::word_folding_tests::signed_arithmetic_preserves_overflow_boundaries ... ok
+test core::word_folding_tests::signed_shifts_match_fixed_width_scalar_operations ... ok
+test core::word_folding_tests::unsigned_arithmetic_matches_checked_saturating_and_wrapping_results ... ok
+test core::word_folding_tests::unsigned_comparisons_keep_the_top_bit ... ok
+test core::word_folding_tests::unsigned_shifts_preserve_high_bits_at_every_width ... ok
+test coretext::tests::a_checked_dump_prints_the_header_units_and_sorted_records ... ok
+test coretext::tests::arrow_chains_decompose_through_a_using_context ... ok
+test coretext::tests::definition_jumps_only_to_a_unit_of_the_same_file ... ok
+test coretext::tests::diff_walks_units_in_canonical_order ... ok
+test coretext::tests::hover_describes_a_unit_a_reference_a_local_and_a_class ... ok
+test coretext::tests::identifiers_quote_when_they_leave_the_plain_set ... ok
+test coretext::tests::long_nodes_break_one_child_per_line_under_the_width ... ok
+test coretext::tests::nodes_print_marks_after_their_first_child ... ok
+test coretext::tests::ownership_classes_print_their_reclaim_kind ... ok
+test coretext::tests::parameter_names_keep_meaningful_names_and_number_the_rest ... ok
+test coretext::tests::print_without_signatures_leaves_the_type_slot_empty ... ok
+test coretext::tests::shadowed_binders_print_as_distinct_dense_names ... ok
+test coretext::tests::stages_parse_and_alias ... ok
+test coretext::tests::syntax_locates_units_annotations_refs_and_literals ... ok
+test coretext::tests::text_and_bytes_escape_the_documented_set ... ok
+test coretext::tests::the_reader_checks_scope_cones_and_slot_tables ... ok
+test coretext::tests::the_sample_verifies ... ok
+test coretext::tests::the_syntax_view_reads_every_golden_file ... ok
+test coretext::tests::types_print_canonically ... ok
+test coretext::tests::verifier_findings_are_located_at_their_form ... ok
+test driver::query::tests::a_changed_fingerprint_reaches_the_dependent ... ok
+test driver::query::tests::a_cutoff_reuses_the_dependent ... ok
+test driver::query::tests::a_cycle_is_an_error_naming_the_chain ... ok
+test driver::query::tests::a_negative_lookup_is_a_dependency ... ok
+test driver::query::tests::a_restored_entry_is_verified_not_trusted ... ok
+test driver::query::tests::an_instance_elsewhere_keeps_the_miss_valid ... ok
+test driver::query::tests::an_unchanged_input_reuses_everything ... ok
+test driver::query::tests::head_symbols_normalize_to_their_last_segment ... ok
+test driver::query::tests::staleness_walks_the_reads_and_not_the_names ... ok
+test highlight::tests::highlights_comments_skipped_by_the_grammar ... ok
+test highlight::tests::highlights_keywords_and_constructors ... ok
+test highlight::tests::replaces_only_plain_cinch_fences ... ok
+test interface::tests::accepts_surrogate_pairs ... ok
+test interface::tests::canonical_and_stable ... ok
+test interface::tests::canonical_string_escape_table ... ok
+test interface::tests::chain_detects_stale_metadata ... ok
+test interface::tests::coherence_dedupes_diamonds ... ok
+test interface::tests::coherence_rejects_duplicate_instances ... ok
+test interface::tests::hash_is_content_identity ... ok
+test interface::tests::identity_ignores_source_and_compiler ... ok
+test interface::tests::parser_is_strict ... ok
+test interface::tests::parses_json_with_insignificant_whitespace ... ok
+test interface::tests::record_field_labels_match_constructor_contract ... ok
+test interface::tests::refinement_definitions_round_trip_and_cannot_be_omitted ... ok
+test interface::tests::rejects_incomplete_current_schema_contracts ... ok
+test interface::tests::rejects_wrong_schema ... ok
+test interface::tests::round_trips ... ok
+test interface::tests::strings_escape_round_trip ... ok
+test interface::tests::to_json_is_the_canonical_form ... ok
+test interface::tests::topo_order_respects_imports_and_detects_cycles ... ok
+test intern::tests::a_handle_reads_as_its_spelling ... ok
+test intern::tests::distinct_spellings_differ_and_keep_string_order ... ok
+test intern::tests::equal_spellings_share_one_handle ... ok
+test known::tests::a_known_identity_splits_at_its_declaring_module ... ok
+test known::tests::every_known_name_is_declared_by_the_embedded_family ... ok
+test layout::tests::closing_delimiter_closes_inner_implicit_blocks ... ok
+test layout::tests::do_block_with_let_statement_closes_by_indentation ... ok
+test layout::tests::empty_block_after_where_at_eof ... ok
+test layout::tests::eof_closes_all_implicit_blocks ... ok
+test layout::tests::equal_indent_separates_lower_indent_closes ... ok
+test layout::tests::explicit_braces_supply_the_block_verbatim ... ok
+test layout::tests::explicit_delimiters_shield_enclosing_layout ... ok
+test layout::tests::explicit_let_in_preserves_the_enclosing_implicit_let ... ok
+test layout::tests::greater_indent_continues_the_item ... ok
+test layout::tests::handler_with_operand_does_not_take_the_lets_in ... ok
+test layout::tests::implicit_block_must_indent_farther ... ok
+test layout::tests::in_closes_let_block_across_lines ... ok
+test layout::tests::in_closes_let_block_on_one_line ... ok
+test layout::tests::in_closes_nested_blocks_above_let ... ok
+test layout::tests::in_must_not_cross_an_explicit_delimiter ... ok
+test layout::tests::in_without_let_block_is_an_error ... ok
+test layout::tests::inserted_tokens_are_marked_virtual ... ok
+test layout::tests::mismatched_delimiter_is_an_error ... ok
+test layout::tests::nested_blocks_close_on_outdent ... ok
+test layout::tests::nested_supply_clauses_match_in_order ... ok
+test layout::tests::tabs_rejected_by_the_lexer_before_layout ... ok
+test layout::tests::with_clause_and_let_interleave_by_nesting ... ok
+test layout::tests::with_clause_in_passes_through ... ok
+test lexer::tests::a_position_interns_resolves_and_renders_as_before ... ok
+test lexer::tests::bang_before_a_token_tree_is_a_macro_invocation ... ok
+test lexer::tests::bare_tilde_is_reserved_but_runs_are_operators ... ok
+test lexer::tests::comments_win_over_symbol_identifiers ... ok
+test lexer::tests::dashes_glue_identifiers_on_both_sides ... ok
+test lexer::tests::identifiers_and_keywords ... ok
+test lexer::tests::minus_signs_versus_operators ... ok
+test lexer::tests::multiplicities_are_reserved ... ok
+test lexer::tests::numbers ... ok
+test lexer::tests::operators_versus_reserved ... ok
+test lexer::tests::reserved_punctuation_longest_first ... ok
+test lexer::tests::sigil_identifiers_are_not_keywords ... ok
+test lexer::tests::sigil_identifiers_keep_the_operator_contract ... ok
+test lexer::tests::sigil_words_glue_dashes_and_end_the_minus_context ... ok
+test lexer::tests::sigils_continue_identifiers_but_never_start_one ... ok
+test lexer::tests::splice_and_quote ... ok
+test lexer::tests::strings_and_chars ... ok
+test lexer::tests::tabs_in_indentation_rejected ... ok
+test loopmeta::tests::a_count_is_a_property_node_behind_a_self_referential_loop_node ... ok
+test loopmeta::tests::a_hintless_loop_allocates_nothing ... ok
+test loopmeta::tests::disable_is_the_property_node_with_no_count ... ok
+test loopmeta::tests::no_hint_writes_nothing ... ok
+test loopmeta::tests::the_loop_node_is_allocated_once_however_many_back_edges_ask ... ok
+test parser::tests::application_spine_and_operator_values ... ok
+test parser::tests::codata_declarations_parse_observations ... ok
+test parser::tests::dollar_is_looser_than_infix_operators ... ok
+test parser::tests::dollar_is_right_associative_application ... ok
+test parser::tests::dollar_takes_a_full_term_on_the_right ... ok
+test parser::tests::effect_rows_and_thunk_lazy_types_parse ... ok
+test parser::tests::effects_handlers_do_and_capabilities_parse ... ok
+test parser::tests::fixity_table_conflicts_and_distinct_local_bindings ... ok
+test parser::tests::forall_arrow_using_and_dependent_types ... ok
+test parser::tests::implicit_prelude_operator_reexport_carries_its_fixity ... ok
+test parser::tests::import_renaming_and_exports_parse ... ok
+test parser::tests::imported_fixities_cannot_be_redeclared ... ok
+test parser::tests::lambda_let_if_case_and_ascription_terms ... ok
+test parser::tests::left_associativity ... ok
+test parser::tests::local_blocks_hold_sigs_equations_and_pattern_bindings ... ok
+test parser::tests::memo_bindings_parse_and_tilde_stays_reserved_elsewhere ... ok
+test parser::tests::mixed_associativity_at_equal_precedence_is_rejected ... ok
+test parser::tests::module_parameters_and_instantiations_parse ... ok
+test parser::tests::new_operator_without_fixity_is_prefix_only_despite_inherited_spelling ... ok
+test parser::tests::non_associative_chain_is_rejected ... ok
+test parser::tests::not_supported_declarations_are_named ... ok
+test parser::tests::not_supported_patterns_and_module_forms ... ok
+test parser::tests::not_supported_terms_are_named ... ok
+test parser::tests::operator_fixities_follow_selected_renamed_reexports ... ok
+test parser::tests::parses_every_declaration_form ... ok
+test parser::tests::parses_the_prelude ... ok
+test parser::tests::precedence_and_order_independence ... ok
+test parser::tests::private_fixity_context_is_not_implicitly_reexported ... ok
+test parser::tests::record_declarations_parse_and_erased_fields_parse ... ok
+test parser::tests::right_associativity ... ok
+test parser::tests::staging_forms_parse ... ok
+test parser::tests::tuple_list_and_record_patterns_parse ... ok
+test parser::tests::tuple_types_parse ... ok
+test parser::tests::tuples_lists_projection_and_record_construction_parse ... ok
+test parser::tests::undeclared_operator_is_rejected ... ok
+test parser::tests::upgrade_declarations_parse_their_components ... ok
+test pkg::tests::borrow_modes_cross_package_objects ... ok
+test pkg::tests::bundle_materializes_sources_and_an_object ... ok
+test pkg::tests::git_dependency_installs_from_a_local_repository ... ok
+test pkg::tests::missing_and_dirty_path_dependencies_are_named ... ok
+test pkg::tests::native_build_consumes_package_objects_and_dependencies ... ok
+test pkg::tests::one_package_name_cannot_resolve_to_two_contents ... ok
+test pkg::tests::path_dependencies_install_sources_and_lock_entries ... ok
+test pkg::tests::path_dependency_cycles_are_named ... ok
+test pkg::tests::prelude_code_links_across_package_objects ... ok
+test pkg::tests::registry_and_path_dependencies_share_one_closure ... ok
+test pkg::tests::registry_releases_cannot_disclose_path_dependencies ... ok
+test pkg::tests::semver_ranges_intersect_and_reject_incompatible_versions ... ok
+test provenance::tests::unsigned_provenance_binds_the_release_and_reports_l1 ... ok
+test rc::owned_use_tests::ownership_witnesses_distinguish_escapes_and_consuming_calls ... ok
+test repl_tui::tests::draws_header_transcript_and_editor ... ok
+test repl_tui::tests::submit_updates_transcript_and_bindings ... ok
+test repl_tui::tests::tab_completes_a_command ... ok
+test repr::tests::base_unit_strips_one_vector_segment ... ok
+test spelling::tests::a_builtin_identity_is_its_own_bare_name ... ok
+test spelling::tests::a_clash_inside_one_type_qualifies_both_occurrences ... ok
+test spelling::tests::a_class_and_its_arguments_follow_the_same_rule ... ok
+test spelling::tests::a_listed_argument_shares_the_message_names ... ok
+test spelling::tests::an_unambiguous_name_prints_bare ... ok
+test spelling::tests::display_keeps_the_identity ... ok
+test spelling::tests::two_identities_with_one_bare_name_both_print_qualified ... ok
+test stack::frame_capture_tests::borrowed_apply_and_forwarding_require_a_heap_closure_owner ... ok
+test stack::frame_capture_tests::direct_primitive_symbols_do_not_authenticate_opaque_global_names ... ok
+test stack::frame_capture_tests::frame_capture_propagates_through_ordinary_helpers_without_changing_arc_abi ... ok
+test stack::frame_capture_tests::global_primitive_wrappers_cannot_hide_retained_arguments ... ok
+test stack::frame_capture_tests::opaque_cleanup_stubs_supply_neither_borrowed_nor_consumed_frame_authority ... ok
+test stack::frame_capture_tests::opaque_lent_metadata_is_refused_and_actual_readers_remain_frame_safe ... ok
+test stack::frame_capture_tests::retaining_primitive_operands_are_not_frame_noncapture_evidence ... ok
+test syntax::declarations::owned_effect_tests::effect_and_type_names_with_the_same_spelling_have_distinct_handles ... ok
+test types::guarded_equality_tests::multi_term_equality_keeps_its_negated_goal_and_supporting_facts ... ok
+test types::index_instantiation_tests::alpha_conversion_preserves_free_dictionary_names_and_dependent_type_scope ... ok
+test types::index_instantiation_tests::declaration_placeholders_are_confined_to_provisional_unification ... ok
+test types::index_instantiation_tests::dictionary_identity_is_not_a_value_name ... ok
+test types::index_instantiation_tests::evidence_renaming_is_simultaneous_and_preserves_value_binders ... ok
+test types::index_instantiation_tests::evidence_substitution_cannot_capture_a_free_value ... ok
+test types::index_instantiation_tests::freshened_index_witnesses_do_not_cascade_or_capture_values ... ok
+test types::index_instantiation_tests::hidden_types_participate_in_occurs_checks_and_generalization ... ok
+test types::index_instantiation_tests::proposition_occurs_checks_follow_hidden_types_without_confusing_index_ids ... ok
+test types::index_instantiation_tests::provider_and_type_instantiations_are_part_of_index_identity ... ok
+test types::index_instantiation_tests::quantified_index_metadata_checks_every_namespace_and_argument_kind ... ok
+test types::index_instantiation_tests::reflexive_index_and_proposition_metas_are_not_infinite_types ... ok
+test types::index_instantiation_tests::source_arity_excludes_dictionaries_and_implicit_values ... ok
+test types::index_instantiation_tests::substitution_reaches_types_evidence_and_implicit_values_without_capture ... ok
+test types::index_instantiation_tests::unification_checks_evidence_and_rolls_back_failed_type_inference ... ok
+test types::local_value_identity_tests::local_value_substitution_crosses_instantiation_types_without_capturing_names ... ok
+test types::local_value_identity_tests::local_values_cannot_be_selected_by_a_spelling_or_dictionary_identity ... ok
+test types::local_value_identity_tests::logical_literals_keep_identity_under_unification_and_substitution ... ok
+test types::scalar_tests::scalar_bounds_and_widths ... ok
+test types::scalar_tests::scalar_value_preservation ... ok
+test types::tests::lacks_constraints_catch_forbidden_labels ... ok
+test types::tests::occurs_check ... ok
+test types::tests::rigid_params_only_unify_with_themselves ... ok
+test types::tests::rigid_row_unification_preserves_labels_without_inventing_effects ... ok
+test types::tests::row_unification_coalesces_flexible_duplicates ... ok
+test types::tests::row_unification_extends_through_tails ... ok
+test types::tests::row_unification_prefers_exact_region_partners ... ok
+test types::tests::row_unification_preserves_distinct_rigid_regions ... ok
+test types::tests::row_union_coalesces_regions_only_after_they_are_solved_equal ... ok
+test types::tests::row_union_does_not_identify_flexible_regions ... ok
+test types::tests::row_union_keeps_two_flexible_region_choices_independent ... ok
+test types::tests::snapshots_roll_back_every_store_and_nest ... ok
+test types::tests::thunk_and_lazy_unify ... ok
+test types::tests::tuples_unify_componentwise ... ok
+test types::tests::unify_basics ... ok
+test types::tests::unify_functions_and_adts ... ok
+
+test result: ok. 343 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 109.05s
+

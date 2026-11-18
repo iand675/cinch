@@ -1,0 +1,8 @@
+-- | Check identical source with optional driver diagnostics disabled and enabled.
+module Main where
+  import Carrier
+  import Effect.Concurrent.MVar
+
+  -- | Keep interface checking independent of executable admission.
+  main :: Int
+  main = 0

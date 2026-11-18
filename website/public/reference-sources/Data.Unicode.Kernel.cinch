@@ -1,0 +1,614 @@
+-- | Unicode 17.0.0 scalar classification, simple casing and simple-fold cycles.
+-- This numeric core has no direct String dependency. Character APIs operate on
+-- scalars; signed code-point APIs retain invalid numeric casing/folding inputs.
+-- Classification rejects out-of-domain numbers while permitting surrogate
+-- code points in numeric table observations. Case conversion returns one scalar;
+-- simple folding walks canonical numeric-order equivalence cycles.
+module Data.Unicode.Kernel where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Nat
+  import Data.Result
+  import Data.Unicode.Tables
+  import Data.Char
+  import Data.Machine
+  import Data.Option
+
+  export unicode-version-major, unicode-version-minor, unicode-version-patch, unicode-max-codepoint, unicode-max-ascii, unicode-max-latin1
+  export unicode-replacement, unicode-upper-lower, UnicodeCase, UnicodeUpper, UnicodeLower, UnicodeTitle
+  export unicode-case-count, unicode-case-index, unicode-to, unicode-to-code, unicode-to-lower, unicode-to-upper
+  export unicode-to-title, unicode-to-lower-code, unicode-to-upper-code, unicode-to-title-code, unicode-simple-fold, unicode-simple-fold-code
+  export unicode-equal-fold, unicode-equal-fold-code, unicode-is-scalar-code, unicode-is-control, unicode-is-control-code, unicode-is-digit
+  export unicode-is-digit-code, unicode-is-letter, unicode-is-letter-code, unicode-is-lower, unicode-is-lower-code, unicode-is-upper
+  export unicode-is-upper-code, unicode-is-title, unicode-is-title-code, unicode-is-mark, unicode-is-mark-code, unicode-is-number
+  export unicode-is-number-code, unicode-is-punct, unicode-is-punct-code, unicode-is-symbol, unicode-is-symbol-code, unicode-is-graphic
+  export unicode-is-graphic-code, unicode-is-print, unicode-is-print-code, unicode-is-space, unicode-is-space-code
+
+  export unicode-special-affects-ascii
+  export UnicodeCaseRange, MkUnicodeCaseRange, unicode-case-range-low, unicode-case-range-high, unicode-case-range-upper, unicode-case-range-lower
+  export unicode-case-range-title, UnicodeCaseError, UnicodeCaseInvalidBounds, UnicodeCaseInvalidOrder, UnicodeCaseInvalidMapping, UnicodeCaseInvalidAlternating
+  export UnicodeCaseTooManyRules, unicode-case-error-index, UnicodeSpecialCase, unicode-turkish-case, unicode-azeri-case, unicode-special-case
+  export unicode-special-to, unicode-special-case-count, unicode-special-case-range-at, unicode-case-range-at, unicode-case-range-count, unicode-special-to-upper
+  export unicode-special-to-upper-code, unicode-special-to-lower, unicode-special-to-lower-code, unicode-special-to-title, unicode-special-to-title-code
+
+  -- | Major edition of the immutable classification and mapping data.
+  unicode-version-major :: U32
+  unicode-version-major = 17
+
+  -- | Minor edition of the immutable classification and mapping data.
+  unicode-version-minor :: U32
+  unicode-version-minor = 0
+
+  -- | Patch edition of the immutable classification and mapping data.
+  unicode-version-patch :: U32
+  unicode-version-patch = 0
+
+  -- | Highest Unicode code point; this bound alone does not exclude surrogates.
+  unicode-max-codepoint :: U32
+  unicode-max-codepoint = 1114111
+
+  -- | Highest ASCII code point.
+  unicode-max-ascii :: U32
+  unicode-max-ascii = 127
+
+  -- | Highest Latin-1 code point.
+  unicode-max-latin1 :: U32
+  unicode-max-latin1 = 255
+
+  -- | The Unicode replacement scalar U+FFFD.
+  unicode-replacement :: Char
+  unicode-replacement = '\u{FFFD}'
+
+  -- | Sentinel delta used by alternating uppercase/lowercase range observations.
+  unicode-upper-lower :: I32
+  unicode-upper-lower = 1114112
+
+  -- | One of the three simple, single-scalar case mappings.
+  data UnicodeCase where
+    -- | Uppercase mapping, with canonical numeric selector zero.
+    UnicodeUpper :: UnicodeCase
+    -- | Lowercase mapping, with canonical numeric selector one.
+    UnicodeLower :: UnicodeCase
+    -- | Titlecase mapping, with canonical numeric selector two.
+    UnicodeTitle :: UnicodeCase
+
+  -- | Number of independent simple-case mapping selectors.
+  unicode-case-count :: U32
+  unicode-case-count = 3
+
+  -- | Observe the stable numeric selector associated with one case.
+  unicode-case-index :: UnicodeCase -> U32
+  unicode-case-index which = case which of UnicodeUpper -> 0; UnicodeLower -> 1; UnicodeTitle -> 2
+
+  -- | Test a signed numeric value for Unicode scalar validity, excluding surrogates.
+  unicode-is-scalar-code :: I32 -> Bool
+  unicode-is-scalar-code cp = ge-i32 cp 0 && le-i32 cp 1114111 && not-surrogate cp
+
+  -- | Exclude the reserved surrogate interval using fixed-width comparisons.
+  not-surrogate :: I32 -> Bool
+  not-surrogate cp = lt-i32 cp 55296 || gt-i32 cp 57343
+
+  -- | Test the bounded numeric Unicode code-point domain, including surrogates.
+  in-domain :: I32 -> Bool
+  in-domain cp = ge-i32 cp 0 && le-i32 cp 1114111
+
+  -- | Test a primary general category against a fixed aggregate membership mask.
+  category-member :: U64 -> U32 -> Bool
+  category-member word mask =
+    let category = wrapping-u64-to-u32 (bit-and-u64 word 31) in
+    let bit = bit-and-u32 (wrapping-shr-u32 mask category) 1 in ne-u32 bit 0
+
+  -- | Test an admitted ASCII code point against two immediate category bitmaps without table traversal.
+  ascii-category-code :: U64 -> U64 -> I32 -> Bool
+  ascii-category-code low high cp = if ge-i32 cp 0 && lt-i32 cp 128 then
+    let raw = wrapping-i32-to-u32 cp in
+    let selected = if lt-u32 raw 64 then wrapping-shr-u64 low raw else wrapping-shr-u64 high (wrapping-sub-u32 raw 64) in
+    ne-u64 (bit-and-u64 selected 1) 0
+    else False
+
+  -- | Check a general-category mask without boxing counters or constructing table views.
+  category-code :: U32 -> I32 -> Bool
+  category-code mask cp = if in-domain cp then
+    let raw = wrapping-i32-to-u32 cp in let word = unicode-data-class raw in category-member word mask
+    else False
+
+  -- | Reconstruct an already validated scalar result without exposing a numeric cast.
+  mapped-char :: Char -> I32 -> Char
+  mapped-char original cp = if eq-i32 cp (wrapping-u32-to-i32 (char-to-u32 original)) then original else
+    let raw = wrapping-i32-to-u32 cp in case u32-to-char raw of Some value -> value; None -> original
+
+  -- | Find a simple-case range, packing its index and lower bound into one machine word.
+  find-case :: U32 -> U32 -> U32 -> U64
+  find-case low high cp = if lt-u32 low high then
+    let middle = wrapping-shr-u32 (wrapping-add-u32 low high) 1 in
+    let word = unicode-data-case-bounds middle in
+    let start = wrapping-u64-to-u32 (bit-and-u64 word 2097151) in
+    let end = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 word 21) 2097151) in
+    if lt-u32 cp start then find-case low middle cp
+    else if gt-u32 cp end then find-case (wrapping-add-u32 middle 1) high cp
+    else bit-or-u64 (u32-to-u64 middle) (wrapping-shl-u64 (u32-to-u64 start) 32)
+    else u32-to-u64 unicode-data-case-count
+
+  -- | Decode one selected signed case delta from the complete immutable range record.
+  case-delta :: U32 -> U32 -> I32
+  case-delta which index =
+    let packed = (if eq-u32 which 2 then wrapping-shr-u64 (unicode-data-case-bounds index) 42
+      else let both = unicode-data-case-deltas index in if eq-u32 which 1 then wrapping-shr-u64 both 22 else both) in
+    let positive = wrapping-u64-to-u32 (bit-and-u64 packed 4194303) in
+    wrapping-sub-i32 (wrapping-u32-to-i32 positive) 1114112
+
+  -- | Apply an alternating pair or fixed signed delta to one admitted case range.
+  apply-case :: U32 -> U32 -> U32 -> I32 -> I32
+  apply-case which cp start delta = if eq-i32 delta 1114112 then
+    let relative = wrapping-sub-u32 cp start in
+    let paired = bit-or-u32 (bit-and-u32 relative 4294967294) (bit-and-u32 which 1) in
+    wrapping-u32-to-i32 (wrapping-add-u32 start paired)
+    else wrapping-add-i32 (wrapping-u32-to-i32 cp) delta
+
+  -- | Map a valid numeric selector while preserving out-of-domain signed inputs.
+  case-code :: U32 -> I32 -> I32
+  case-code which cp = if in-domain cp then
+    if lt-i32 cp 128 then
+      if eq-u32 which 1 then (if ge-i32 cp 65 && le-i32 cp 90 then wrapping-add-i32 cp 32 else cp)
+      else if ge-i32 cp 97 && le-i32 cp 122 then wrapping-sub-i32 cp 32 else cp
+    else let raw = wrapping-i32-to-u32 cp in let found = find-case 0 unicode-data-case-count raw in
+      let index = wrapping-u64-to-u32 found in
+      if lt-u32 index unicode-data-case-count then
+        let start = wrapping-u64-to-u32 (wrapping-shr-u64 found 32) in
+        let delta = case-delta which index in apply-case which raw start delta
+      else cp
+    else cp
+
+  -- | Map a signed selector and numeric code point; an invalid selector returns U+FFFD.
+  unicode-to-code :: I32 -> I32 -> I32
+  unicode-to-code which cp = if ge-i32 which 0 && lt-i32 which 3 then case-code (wrapping-i32-to-u32 which) cp else 65533
+
+  -- | Apply one simple case mapping to a valid scalar.
+  unicode-to :: UnicodeCase -> Char -> Char
+  unicode-to which cp = mapped-char cp (case-code (unicode-case-index which) (wrapping-u32-to-i32 (char-to-u32 cp)))
+
+  -- | Return the next exceptional fold edge, or the supplied scalar when absent.
+  find-fold :: U32 -> U32 -> U32 -> U32
+  find-fold low high cp = if lt-u32 low high then
+    let middle = wrapping-shr-u32 (wrapping-add-u32 low high) 1 in
+    let word = unicode-data-fold-orbit middle in
+    let from = wrapping-u64-to-u32 (bit-and-u64 word 2097151) in
+    if lt-u32 cp from then find-fold low middle cp
+    else if gt-u32 cp from then find-fold (wrapping-add-u32 middle 1) high cp
+    else wrapping-u64-to-u32 (wrapping-shr-u64 word 21)
+    else 4294967295
+
+  -- | Return the numeric-order successor in a simple-fold cycle; invalid numbers remain unchanged.
+  unicode-simple-fold-code :: I32 -> I32
+  unicode-simple-fold-code cp = if in-domain cp then
+    let raw = wrapping-i32-to-u32 cp in
+    if lt-u32 raw 128 then wrapping-u32-to-i32 (unicode-data-ascii-fold raw)
+    else let next = find-fold 0 unicode-data-fold-count raw in
+      if ne-u32 next 4294967295 then wrapping-u32-to-i32 next
+      else let lower = case-code 1 cp in if ne-i32 lower cp then lower else case-code 0 cp
+    else cp
+
+  -- | Return the next scalar in its simple-fold cycle without normalization or expansion.
+  unicode-simple-fold :: Char -> Char
+  unicode-simple-fold cp = mapped-char cp (unicode-simple-fold-code (wrapping-u32-to-i32 (char-to-u32 cp)))
+
+  -- | Walk only the increasing part of a canonical fold cycle before it wraps.
+  fold-equal-from :: I32 -> I32 -> I32 -> Bool
+  fold-equal-from first wanted current = if eq-i32 current wanted then True
+    else if le-i32 current first || gt-i32 current wanted then False
+    else fold-equal-from first wanted (unicode-simple-fold-code current)
+
+  -- | Test numeric simple-fold equivalence; identical invalid inputs compare equal.
+  unicode-equal-fold-code :: I32 -> I32 -> Bool
+  unicode-equal-fold-code first last = if eq-i32 first last then True
+    else let low = if lt-i32 first last then first else last in let high = if lt-i32 first last then last else first in
+      fold-equal-from low high (unicode-simple-fold-code low)
+
+  -- | Test whether two scalars belong to the same simple-fold cycle.
+  unicode-equal-fold :: Char -> Char -> Bool
+  unicode-equal-fold first last = unicode-equal-fold-code (wrapping-u32-to-i32 (char-to-u32 first)) (wrapping-u32-to-i32 (char-to-u32 last))
+
+  -- | Test the Unicode control class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-control-code :: I32 -> Bool
+  unicode-is-control-code cp = if lt-i32 cp 128 then ascii-category-code 4294967295 9223372036854775808 cp else category-code 1 cp
+
+  -- | Test the Unicode control class of one valid scalar.
+  unicode-is-control :: Char -> Bool
+  unicode-is-control cp = unicode-is-control-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode digit class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-digit-code :: I32 -> Bool
+  unicode-is-digit-code cp = if lt-i32 cp 128 then ascii-category-code 287948901175001088 0 cp else category-code 8192 cp
+
+  -- | Test the Unicode digit class of one valid scalar.
+  unicode-is-digit :: Char -> Bool
+  unicode-is-digit cp = unicode-is-digit-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode letter class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-letter-code :: I32 -> Bool
+  unicode-is-letter-code cp = if lt-i32 cp 128 then ascii-category-code 0 576460743847706622 cp else category-code 992 cp
+
+  -- | Test the Unicode letter class of one valid scalar.
+  unicode-is-letter :: Char -> Bool
+  unicode-is-letter cp = unicode-is-letter-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode lower class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-lower-code :: I32 -> Bool
+  unicode-is-lower-code cp = if lt-i32 cp 128 then ascii-category-code 0 576460743713488896 cp else category-code 32 cp
+
+  -- | Test the Unicode lower class of one valid scalar.
+  unicode-is-lower :: Char -> Bool
+  unicode-is-lower cp = unicode-is-lower-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode upper class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-upper-code :: I32 -> Bool
+  unicode-is-upper-code cp = if lt-i32 cp 128 then ascii-category-code 0 134217726 cp else category-code 512 cp
+
+  -- | Test the Unicode upper class of one valid scalar.
+  unicode-is-upper :: Char -> Bool
+  unicode-is-upper cp = unicode-is-upper-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode title class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-title-code :: I32 -> Bool
+  unicode-is-title-code cp = if lt-i32 cp 128 then ascii-category-code 0 0 cp else category-code 256 cp
+
+  -- | Test the Unicode title class of one valid scalar.
+  unicode-is-title :: Char -> Bool
+  unicode-is-title cp = unicode-is-title-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode mark class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-mark-code :: I32 -> Bool
+  unicode-is-mark-code cp = if lt-i32 cp 128 then ascii-category-code 0 0 cp else category-code 7168 cp
+
+  -- | Test the Unicode mark class of one valid scalar.
+  unicode-is-mark :: Char -> Bool
+  unicode-is-mark cp = unicode-is-mark-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode number class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-number-code :: I32 -> Bool
+  unicode-is-number-code cp = if lt-i32 cp 128 then ascii-category-code 287948901175001088 0 cp else category-code 57344 cp
+
+  -- | Test the Unicode number class of one valid scalar.
+  unicode-is-number :: Char -> Bool
+  unicode-is-number cp = unicode-is-number-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode punct class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-punct-code :: I32 -> Bool
+  unicode-is-punct-code cp = if lt-i32 cp 128 then ascii-category-code 10088335766884188160 2882303764604125185 cp else category-code 8323072 cp
+
+  -- | Test the Unicode punct class of one valid scalar.
+  unicode-is-punct :: Char -> Bool
+  unicode-is-punct cp = unicode-is-punct-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode symbol class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-symbol-code :: I32 -> Bool
+  unicode-is-symbol-code cp = if lt-i32 cp 128 then ascii-category-code 8070459397060427776 5764607528402944000 cp else category-code 125829120 cp
+
+  -- | Test the Unicode symbol class of one valid scalar.
+  unicode-is-symbol :: Char -> Bool
+  unicode-is-symbol cp = unicode-is-symbol-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode graphic class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-graphic-code :: I32 -> Bool
+  unicode-is-graphic-code cp = if lt-i32 cp 128 then ascii-category-code 18446744069414584320 9223372036854775807 cp else category-code 671088608 cp
+
+  -- | Test the Unicode graphic class of one valid scalar.
+  unicode-is-graphic :: Char -> Bool
+  unicode-is-graphic cp = unicode-is-graphic-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test the Unicode print class for a signed code point, rejecting numbers outside the Unicode domain.
+  unicode-is-print-code :: I32 -> Bool
+  unicode-is-print-code cp = if lt-i32 cp 128 then ascii-category-code 18446744069414584320 9223372036854775807 cp else eq-i32 cp 32 || category-code 134217696 cp
+
+  -- | Test the Unicode print class of one valid scalar.
+  unicode-is-print :: Char -> Bool
+  unicode-is-print cp = unicode-is-print-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test Unicode whitespace, including Latin-1 separators and the full White_Space property.
+  unicode-is-space-code :: I32 -> Bool
+  unicode-is-space-code cp = if in-domain cp then
+    if le-i32 cp 255 then eq-i32 cp 32 || (ge-i32 cp 9 && le-i32 cp 13) || eq-i32 cp 133 || eq-i32 cp 160
+    else let word = unicode-data-class (wrapping-i32-to-u32 cp) in ne-u64 (bit-and-u64 word 2251799813685248) 0
+    else False
+
+  -- | Test whether one scalar is Unicode whitespace.
+  unicode-is-space :: Char -> Bool
+  unicode-is-space cp = unicode-is-space-code (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Return the simple uppercase mapping of a numeric code point; invalid inputs remain unchanged.
+  unicode-to-upper-code :: I32 -> I32
+  unicode-to-upper-code cp = case-code 0 cp
+
+  -- | Return the simple single-scalar uppercase mapping.
+  unicode-to-upper :: Char -> Char
+  unicode-to-upper cp = mapped-char cp (case-code 0 (wrapping-u32-to-i32 (char-to-u32 cp)))
+
+  -- | Return the simple lowercase mapping of a numeric code point; invalid inputs remain unchanged.
+  unicode-to-lower-code :: I32 -> I32
+  unicode-to-lower-code cp = case-code 1 cp
+
+  -- | Return the simple single-scalar lowercase mapping.
+  unicode-to-lower :: Char -> Char
+  unicode-to-lower cp = mapped-char cp (case-code 1 (wrapping-u32-to-i32 (char-to-u32 cp)))
+
+  -- | Return the simple titlecase mapping of a numeric code point; invalid inputs remain unchanged.
+  unicode-to-title-code :: I32 -> I32
+  unicode-to-title-code cp = case-code 2 cp
+
+  -- | Return the simple single-scalar titlecase mapping.
+  unicode-to-title :: Char -> Char
+  unicode-to-title cp = mapped-char cp (case-code 2 (wrapping-u32-to-i32 (char-to-u32 cp)))
+
+  -- | A complete inclusive simple-case rule with signed upper, lower and title deltas.
+  data UnicodeCaseRange where
+    -- | Raw observable rule fields; special-case construction validates scalar preservation and ordering.
+    MkUnicodeCaseRange :: U32 -> U32 -> I32 -> I32 -> I32 -> UnicodeCaseRange
+
+  -- | The lower inclusive source code point of a case rule.
+  unicode-case-range-low :: UnicodeCaseRange -> U32
+  unicode-case-range-low rule = case rule of MkUnicodeCaseRange low high upper lower title -> low
+
+  -- | The upper inclusive source code point of a case rule.
+  unicode-case-range-high :: UnicodeCaseRange -> U32
+  unicode-case-range-high rule = case rule of MkUnicodeCaseRange low high upper lower title -> high
+
+  -- | The signed uppercase delta, or the alternating-case sentinel.
+  unicode-case-range-upper :: UnicodeCaseRange -> I32
+  unicode-case-range-upper rule = case rule of MkUnicodeCaseRange low high upper lower title -> upper
+
+  -- | The signed lowercase delta, or the alternating-case sentinel.
+  unicode-case-range-lower :: UnicodeCaseRange -> I32
+  unicode-case-range-lower rule = case rule of MkUnicodeCaseRange low high upper lower title -> lower
+
+  -- | The signed titlecase delta, or the alternating-case sentinel.
+  unicode-case-range-title :: UnicodeCaseRange -> I32
+  unicode-case-range-title rule = case rule of MkUnicodeCaseRange low high upper lower title -> title
+
+  -- | A precise invalid custom-case rule, carrying its zero-based rule index.
+  data UnicodeCaseError where
+    -- | Source bounds are reversed, beyond Unicode or intersect the surrogate interval.
+    UnicodeCaseInvalidBounds :: Nat -> UnicodeCaseError
+    -- | A rule overlaps or precedes its previous rule.
+    UnicodeCaseInvalidOrder :: Nat -> UnicodeCaseError
+    -- | A fixed delta maps at least one admitted scalar outside the scalar domain.
+    UnicodeCaseInvalidMapping :: Nat -> UnicodeCaseError
+    -- | Alternating sentinels are inconsistent or produce an invalid scalar.
+    UnicodeCaseInvalidAlternating :: Nat -> UnicodeCaseError
+    -- | The rule count exceeds the complete Unicode code-point domain.
+    UnicodeCaseTooManyRules :: Nat -> UnicodeCaseError
+
+  -- | Observe the zero-based index of an invalid custom-case rule.
+  unicode-case-error-index :: UnicodeCaseError -> Nat
+  unicode-case-error-index error = case error of
+    UnicodeCaseInvalidBounds index -> index
+    UnicodeCaseInvalidOrder index -> index
+    UnicodeCaseInvalidMapping index -> index
+    UnicodeCaseInvalidAlternating index -> index
+    UnicodeCaseTooManyRules index -> index
+
+  -- | An immutable locale override set; explicit identity deltas suppress default mappings.
+  data UnicodeSpecialCase where
+    -- | The shared four-rule Turkic mapping, with no mutable backing or construction allocation.
+    TurkicCase :: UnicodeSpecialCase
+    -- | Private validated little-endian rule bytes and complete record count.
+    OwnedCaseRules :: Bytes -> Nat -> UnicodeSpecialCase
+
+  -- | Turkish simple-case overrides, taking precedence over default mappings.
+  unicode-turkish-case :: UnicodeSpecialCase
+  unicode-turkish-case = TurkicCase
+
+  -- | Azerbaijani simple-case overrides, sharing the immutable Turkic rules.
+  unicode-azeri-case :: UnicodeSpecialCase
+  unicode-azeri-case = TurkicCase
+
+  -- | Check that a complete inclusive source interval consists of Unicode scalars.
+  valid-case-source :: U32 -> U32 -> Bool
+  valid-case-source low high = le-u32 low high && le-u32 high 1114111 && (gt-u32 low 57343 || lt-u32 high 55296)
+
+  -- | Check a fixed delta with wide signed endpoint arithmetic before admitting a rule.
+  valid-case-delta :: U32 -> U32 -> I32 -> Bool
+  valid-case-delta low high delta =
+    let wide = i32-to-i64 delta in let first = wrapping-add-i64 (u32-to-i64 low) wide in
+    let last = wrapping-add-i64 (u32-to-i64 high) wide in
+    ge-i64 first 0 && le-i64 last 1114111 && (gt-i64 first 57343 || lt-i64 last 55296)
+
+  -- | Validate every rule before allocating the private searchable override table.
+  validate-case-rules :: List UnicodeCaseRange -> Bool -> U32 -> Nat -> Result UnicodeCaseError Nat
+  validate-case-rules rules previous present index = case rules of
+    Nil -> Ok index
+    Cons rule rest -> case rule of
+      MkUnicodeCaseRange low high upper lower title ->
+        if not (valid-case-source low high) then Err (UnicodeCaseInvalidBounds index)
+        else if previous && le-u32 low present then Err (UnicodeCaseInvalidOrder index)
+        else if index >= 1114112 then Err (UnicodeCaseTooManyRules index)
+        else let alternating = eq-i32 upper 1114112 || eq-i32 lower 1114112 || eq-i32 title 1114112 in
+          if alternating then
+            let consistent = eq-i32 upper 1114112 && eq-i32 lower 1114112 && eq-i32 title 1114112 in
+            let width = wrapping-sub-u32 high low in
+            let last = if eq-u32 (bit-and-u32 width 1) 0 then wrapping-add-u32 high 1 else high in
+            if consistent && valid-case-source low last then validate-case-rules rest True high (index + 1)
+            else Err (UnicodeCaseInvalidAlternating index)
+          else if valid-case-delta low high upper && valid-case-delta low high lower && valid-case-delta low high title then
+            validate-case-rules rest True high (index + 1)
+          else Err (UnicodeCaseInvalidMapping index)
+
+  -- | Serialize validated immutable rule fields once into private checked storage.
+  write-case-rules :: List UnicodeCaseRange -> Bytes -> Nat -> Unit
+  write-case-rules rules out at = case rules of
+    Nil -> ()
+    Cons rule rest -> case rule of
+      MkUnicodeCaseRange low high upper lower title -> if at + 20 <= bytes-len out then
+        let a = bytes-write-le32 out at low in let b = bytes-write-le32 out (at + 4) high in
+        let c = bytes-write-le32 out (at + 8) (wrapping-i32-to-u32 upper) in
+        let d = bytes-write-le32 out (at + 12) (wrapping-i32-to-u32 lower) in
+        let e = bytes-write-le32 out (at + 16) (wrapping-i32-to-u32 title) in
+        write-case-rules rest out (at + 20)
+        else ()
+
+  -- | Construct scalar-preserving ordered custom rules, with identity rules overriding default casing.
+  unicode-special-case :: List UnicodeCaseRange -> Result UnicodeCaseError UnicodeSpecialCase
+  unicode-special-case rules = case validate-case-rules rules False 0 0 of
+    Err error -> Err error
+    Ok count -> let out = bytes-new (count * 20) in let written = write-case-rules rules out 0 in Ok (OwnedCaseRules out count)
+
+  -- | Keep private rule storage alive throughout its exact raw binary search.
+  hold-case-rules :: forall a. Bytes -> a -> a
+  hold-case-rules rules value = case bytes-len rules of _ -> value
+
+  -- | Read one complete little-endian pair of source bounds from a proved private record.
+  prim load-case-bounds :: I64 -> U64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %word = load i64, ptr %p, align 1
+      ret i64 %word
+    } when endian little
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %word = load i64, ptr %p, align 1
+      %result = call i64 @llvm.bswap.i64(i64 %word)
+      ret i64 %result
+    } when endian big
+
+  -- | Read one complete signed delta's raw bits from a proved private record.
+  prim load-case-delta :: I64 -> U32 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %word = load i32, ptr %p, align 1
+      ret i32 %word
+    } when endian little
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %word = load i32, ptr %p, align 1
+      %result = call i32 @llvm.bswap.i32(i32 %word)
+      ret i32 %result
+    } when endian big
+
+  -- | Find a custom record with machine-only state, returning the supplied count when absent.
+  custom-case-find :: I64 -> U64 -> U64 -> U64 -> U32 -> U64
+  custom-case-find base count low high cp = if lt-u64 low high then
+    let middle = wrapping-shr-u64 (wrapping-add-u64 low high) 1 in
+    let offset = wrapping-mul-u64 middle 20 in let address = wrapping-add-i64 base (wrapping-u64-to-i64 offset) in
+    let word = load-case-bounds address in let start = wrapping-u64-to-u32 word in
+    let end = wrapping-u64-to-u32 (wrapping-shr-u64 word 32) in
+    if lt-u32 cp start then custom-case-find base count low middle cp
+    else if gt-u32 cp end then custom-case-find base count (wrapping-add-u64 middle 1) high cp
+    else middle
+    else count
+
+  -- | Apply a found private rule while its owner and complete-record bounds remain held.
+  custom-case-code :: I64 -> U64 -> U32 -> I32 -> I32
+  custom-case-code base count which cp =
+    let raw = wrapping-i32-to-u32 cp in let index = custom-case-find base count 0 count raw in
+    if lt-u64 index count then
+      let offset = wrapping-mul-u64 index 20 in let address = wrapping-add-i64 base (wrapping-u64-to-i64 offset) in
+      let bounds = load-case-bounds address in let start = wrapping-u64-to-u32 bounds in
+      let delta-offset = wrapping-add-i64 8 (u32-to-i64 (wrapping-mul-u32 which 4)) in
+      let delta-address = wrapping-add-i64 address delta-offset in let bits = load-case-delta delta-address in
+      let delta = wrapping-u32-to-i32 bits in apply-case which raw start delta
+    else case-code which cp
+
+  -- | Read one immutable built-in Turkic rule by fixed index.
+  turkic-rule :: U32 -> UnicodeCaseRange
+  turkic-rule index =
+    let bounds = unicode-data-turkic-bounds index in let deltas = unicode-data-turkic-deltas index in
+    let low = wrapping-u64-to-u32 (bit-and-u64 bounds 2097151) in
+    let high = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 bounds 21) 2097151) in
+    let upper = wrapping-sub-i32 (wrapping-u64-to-i32 (bit-and-u64 deltas 4194303)) 1114112 in
+    let lower = wrapping-sub-i32 (wrapping-u64-to-i32 (bit-and-u64 (wrapping-shr-u64 deltas 22) 4194303)) 1114112 in
+    let title = wrapping-sub-i32 (wrapping-u64-to-i32 (wrapping-shr-u64 bounds 42)) 1114112 in
+    MkUnicodeCaseRange low high upper lower title
+
+  -- | Apply a matching built-in override, preserving explicit zero-delta priority.
+  turkic-code :: U32 -> I32 -> U32 -> I32
+  turkic-code which cp index = if lt-u32 index 4 then
+    let bounds = unicode-data-turkic-bounds index in
+    let low = wrapping-u64-to-u32 (bit-and-u64 bounds 2097151) in
+    let high = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 bounds 21) 2097151) in
+    let raw = wrapping-i32-to-u32 cp in
+    if ge-u32 raw low && le-u32 raw high then
+      let packed = (if eq-u32 which 2 then wrapping-shr-u64 bounds 42
+        else let both = unicode-data-turkic-deltas index in if eq-u32 which 1 then wrapping-shr-u64 both 22 else both) in
+      let positive = wrapping-u64-to-i32 (bit-and-u64 packed 4194303) in
+      let delta = wrapping-sub-i32 positive 1114112 in apply-case which raw low delta
+    else turkic-code which cp (wrapping-add-u32 index 1)
+    else case-code which cp
+
+  -- | Apply validated overrides first, retaining invalid numeric input and immutable private ownership.
+  special-case-code :: UnicodeSpecialCase -> U32 -> I32 -> I32
+  special-case-code special which cp = if in-domain cp && lt-u32 which 3 then (case special of
+    TurkicCase -> turkic-code which cp 0
+    OwnedCaseRules rules count -> if count <= 1114112 && count * 20 <= bytes-len rules then
+      let n = wrapping-i64-to-u64 (nat-to-i64 count) in
+      hold-case-rules rules (custom-case-code (bytes-data rules) n which cp)
+      else case-code which cp)
+    else cp
+
+  -- | Apply one scalar-preserving locale override mapping to a valid character.
+  unicode-special-to :: UnicodeSpecialCase -> UnicodeCase -> Char -> Char
+  unicode-special-to special which cp = mapped-char cp (special-case-code special (unicode-case-index which) (wrapping-u32-to-i32 (char-to-u32 cp)))
+
+  -- | Count immutable override records without materializing their observations.
+  unicode-special-case-count :: UnicodeSpecialCase -> Nat
+  unicode-special-case-count special = case special of TurkicCase -> 4; OwnedCaseRules rules count -> count
+
+  -- | Return an independent immutable observation of one private checked rule record.
+  custom-case-rule-at :: Bytes -> Nat -> Option UnicodeCaseRange
+  custom-case-rule-at rules index = let at = index * 20 in if at + 20 <= bytes-len rules then
+    let low = bytes-read-le32 rules at in let high = bytes-read-le32 rules (at + 4) in
+    let upper = bytes-read-le32 rules (at + 8) in let lower = bytes-read-le32 rules (at + 12) in
+    let title = bytes-read-le32 rules (at + 16) in
+    Some (MkUnicodeCaseRange low high (wrapping-u32-to-i32 upper) (wrapping-u32-to-i32 lower) (wrapping-u32-to-i32 title))
+    else None
+
+  -- | Observe one override record; out-of-range indices return None.
+  unicode-special-case-range-at :: UnicodeSpecialCase -> Nat -> Option UnicodeCaseRange
+  unicode-special-case-range-at special index = case special of
+    TurkicCase -> if index < 4 then Some (turkic-rule (wrapping-i64-to-u32 (nat-to-i64 index))) else None
+    OwnedCaseRules rules count -> if index < count then custom-case-rule-at rules index else None
+
+  -- | Observe one standard case rule; out-of-range indices return None.
+  unicode-case-range-at :: Nat -> Option UnicodeCaseRange
+  unicode-case-range-at index = if index < u32-to-nat unicode-data-case-count && index <= 4294967295 then
+    let raw = wrapping-i64-to-u32 (nat-to-i64 index) in let bounds = unicode-data-case-bounds raw in
+    let low = wrapping-u64-to-u32 (bit-and-u64 bounds 2097151) in
+    let high = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 bounds 21) 2097151) in
+    Some (MkUnicodeCaseRange low high (case-delta 0 raw) (case-delta 1 raw) (case-delta 2 raw))
+    else None
+
+  -- | Count complete standard case range records without allocating their observations.
+  unicode-case-range-count :: Nat
+  unicode-case-range-count = u32-to-nat unicode-data-case-count
+
+  -- | Apply locale uppercase overrides to a numeric code point, preserving invalid inputs.
+  unicode-special-to-upper-code :: UnicodeSpecialCase -> I32 -> I32
+  unicode-special-to-upper-code special cp = special-case-code special 0 cp
+
+  -- | Apply scalar-preserving locale uppercase overrides before default casing.
+  unicode-special-to-upper :: UnicodeSpecialCase -> Char -> Char
+  unicode-special-to-upper special cp = mapped-char cp (special-case-code special 0 (wrapping-u32-to-i32 (char-to-u32 cp)))
+
+  -- | Apply locale lowercase overrides to a numeric code point, preserving invalid inputs.
+  unicode-special-to-lower-code :: UnicodeSpecialCase -> I32 -> I32
+  unicode-special-to-lower-code special cp = special-case-code special 1 cp
+
+  -- | Apply scalar-preserving locale lowercase overrides before default casing.
+  unicode-special-to-lower :: UnicodeSpecialCase -> Char -> Char
+  unicode-special-to-lower special cp = mapped-char cp (special-case-code special 1 (wrapping-u32-to-i32 (char-to-u32 cp)))
+
+  -- | Apply locale titlecase overrides to a numeric code point, preserving invalid inputs.
+  unicode-special-to-title-code :: UnicodeSpecialCase -> I32 -> I32
+  unicode-special-to-title-code special cp = special-case-code special 2 cp
+
+  -- | Apply scalar-preserving locale titlecase overrides before default casing.
+  unicode-special-to-title :: UnicodeSpecialCase -> Char -> Char
+  unicode-special-to-title special cp = mapped-char cp (special-case-code special 2 (wrapping-u32-to-i32 (char-to-u32 cp)))
+
+  -- | Whether any override can affect ASCII, allowing bulk default ASCII mapping when false.
+  unicode-special-affects-ascii :: UnicodeSpecialCase -> Bool
+  unicode-special-affects-ascii special = case special of
+    TurkicCase -> True
+    OwnedCaseRules rules count -> if count > 0 && bytes-len rules >= 4 then
+      let first = bytes-read-le32 rules 0 in lt-u32 first 128
+      else False

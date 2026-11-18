@@ -1,0 +1,14 @@
+
+module Main where
+  import Data.Nat
+  import Data.List
+
+  sumTree :: List Nat -> Nat
+  sumTree xs = case xs of
+    Nil -> 0
+    Cons a Nil -> a
+    Cons a rest -> case parBoth (\() -> a) (\() -> sumTree rest) of
+      (x, y) -> x + y
+
+  main :: Int
+  main = if nat-to-int (sumTree (Cons 1 (Cons 2 (Cons 3 Nil)))) == 6 then 0 else 1

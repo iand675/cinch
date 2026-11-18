@@ -1,4 +1,6 @@
--- Data.Mutable: the mutable containers, behind one import.
+-- | A curated mutable-container facade with region-indexed operations.
+-- Import Data.Mutable.HeapView for callback-backed heaps and
+-- Data.Mutable.LinkedList for stable, independently retained list elements.
 --
 -- Every container is indexed by a region `r`, and every operation on it
 -- carries the `Mut r` label in its row:

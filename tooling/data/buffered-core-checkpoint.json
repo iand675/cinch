@@ -1,0 +1,614 @@
+{
+  "status": "Tested raw event/transfer foundation only; full80 Reader/Writer/Scanner package remains in progress. No module-only completion claim.",
+  "core_sha256": "39a906a4139c7603caf63d75a09cba0443f01c01825b39e145501160975557e2",
+  "cell_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+  "memory_process_count": 8,
+  "memory_reports": {
+    "buffered-core-rust-v1": {
+      "frontend": "rust",
+      "compiler": "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+      "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+      "runtime": "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/libcinchruntime.a",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "snapshot_sha256": "8b6cec8554a0e7382c3d83048476b6a7a2c2b07f02caab6be24e579df444fbff",
+      "snapshot": {
+        "description": "Rust sealed finite-Array admission and transitive frame-noncapture repair snapshot",
+        "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "production_revision": "0a1f6283",
+        "new_native_scalar_intrinsics_included": false,
+        "string_epoch": "phase1 repeat/concatenation, not combined e5 provider",
+        "gates": [
+          {
+            "log": "/tmp/cinch-frame-capture-six-final-parent-gate.log",
+            "sha256": "7fd3c1c6512d32b3db7a97ab09ba662738cdcdb63677d0b09a4f3f0a9e252ff6",
+            "passed": 6,
+            "seconds": 0.0
+          },
+          {
+            "log": "/tmp/cinch-frame-array-capture-runtime-parent-gate.log",
+            "sha256": "7a8ae1d680fbc2076d19a6ab526ad0f6a2faff5f6dd9c7151dc4125ca06c7682",
+            "passed": 1,
+            "seconds": 14.09
+          },
+          {
+            "log": "/tmp/cinch-frame-recursive-array-runtime-parent-gate.log",
+            "sha256": "36d92d799e38acbc520e596fc057b3a48e227e0787b85ac3309cc14c239eb129",
+            "passed": 1,
+            "seconds": 3.83
+          },
+          {
+            "log": "/tmp/cinch-frame-capture-preserved-stack-parent-gate.log",
+            "sha256": "8eb811fd0c66746a2467a68b95b1866269ce6aef3ad1da796ffa5f4336beda75",
+            "passed": 22,
+            "seconds": 116.27
+          }
+        ],
+        "total_passed": 30,
+        "caveats": [
+          "Native positivity and full merged self-built family remain separately gated.",
+          "Rust CLI links its compile-time runtime directory by default; standalone validators must verify or explicitly select this retained matching archive.",
+          "Broader complete Rust library and Source Native authority gate are pending after this focused snapshot."
+        ]
+      },
+      "string_epoch": "phase1 repeat/concatenation, not combined e5 provider",
+      "sources": {
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Buffered.Core.cinch": "39a906a4139c7603caf63d75a09cba0443f01c01825b39e145501160975557e2",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Main.cinch": "ed08418a2998f80797fffa13c0b6d4179ebee85ebfd52377c26149888bc396c1"
+      },
+      "source_sha256": "ed08418a2998f80797fffa13c0b6d4179ebee85ebfd52377c26149888bc396c1",
+      "source_shadow_used": false,
+      "source_closure_module_names_from": {
+        "interfaces": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+        "policy": "same base module names; Rust uses its own embedded phase1 definitions and matched runtime, not the Native provider object"
+      },
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-rust-v1/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-rust-v1/consumer.ll",
+        "--rc-debug"
+      ],
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-rust-v1/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-rust-v1/consumer"
+      ],
+      "llvm_sha256": "bd6fa3b28f712d515208b678d4bb6264524bd61e948fa7ba152fdd407f305e53",
+      "executable_sha256": "e0ec67ffaaf01833c4ebd4cc1275fe21b55f217c5ccadd0e61140c8e005f48c5",
+      "opt_level": "2",
+      "compiler_host_stack_mib": 64,
+      "compile_seconds": 4.617922053002985,
+      "cpu": 2,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true
+    },
+    "buffered-core-native-v1": {
+      "frontend": "native",
+      "compiler": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/libcinchruntime.a",
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "snapshot_sha256": "879f629db2de1b84919dfe0bf571c705ebcef2abb857fda836ec4bd5d27e2502",
+      "snapshot": {
+        "array_positive_certificate_included": false,
+        "base_interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+        "base_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+        "base_source_modules": 65,
+        "compiler_llvm_sha256": "93f3299363b8fdfde473102da84f183fde3eaa78b76b31e01b46e72f355076f0",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "compiler_source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+        "description": "Self-contained full combined String/Bytes Native snapshot after fresh Stage1, equal Stage2/3 executable/LLVM/interfaces, all stage smokes, source-absent entry and changed-source probe",
+        "full_chain_log_sha256": "0ffd086108e77d110f0163f7c9fe9f57ec256a9f4afa908274ceae3d21f44692",
+        "new_scalar_import_lowering_included": false,
+        "object_configuration_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+        "original_provider_sha256": "0f34c2be54689879c73f5da9556e15932a0daf71018cef41e433ae2142456dae",
+        "relocated_provider_sha256": "0e3c00e99c0596fccc11231bffdc0468d87e848f72246114dbe4004f4b67e408",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "string_source_hash": "416560347689830784",
+        "string_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+        "relocated_probe": {
+          "normal_and_poison": "passed zero leaks",
+          "source_sha256": "d380d9c1e1fa4217e1d87aa28ae549045602d2c268b829cdf4c6d00f7217d27b",
+          "llvm_sha256": "f03eab13e2917e6f663ef5f3b10fd2bf45a016d02bd1cf54b2b9c733936b935a",
+          "executable_sha256": "7690ef0b55a5cc5c22c9343a975c226aebf701816618495e5f9ed9a208bb4a70",
+          "initial_fixture_failures": [
+            "Invalid source Unicode escape rejected before IR",
+            "Separator-first call rejected: embedded String join accepts the list first; legacy Text.Scan uses separator first"
+          ],
+          "retained_failures": "Exact initial source/diagnostic files beside corrected consumer"
+        }
+      },
+      "string_epoch": "combined e5; explicit admitted interfaces/object; no source shadow",
+      "sources": {
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Buffered.Core.cinch": "39a906a4139c7603caf63d75a09cba0443f01c01825b39e145501160975557e2",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Main.cinch": "ed08418a2998f80797fffa13c0b6d4179ebee85ebfd52377c26149888bc396c1"
+      },
+      "source_sha256": "ed08418a2998f80797fffa13c0b6d4179ebee85ebfd52377c26149888bc396c1",
+      "source_shadow_used": false,
+      "source_closure_module_names_from": {
+        "interfaces": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+        "policy": "same base module names; Rust uses its own embedded phase1 definitions and matched runtime, not the Native provider object"
+      },
+      "compile_command": [
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-native-v1/bundle.cinch",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-native-v1/consumer.ll"
+      ],
+      "link_command": [
+        "clang",
+        "-O2",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-native-v1/consumer.ll",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-native-v1/consumer"
+      ],
+      "llvm_sha256": "906162d056bc98d8bbdbf8144d1ffeca6c15bfe7a42d54bd4229cdebd9a295ee",
+      "executable_sha256": "2ad52311c2fb104cf25ad1d6babac94b253c47b5576651f6a923012b2164e8e0",
+      "opt_level": "2",
+      "compiler_host_stack_mib": 64,
+      "compile_seconds": 7.545100470990292,
+      "cpu": 2,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "provider": {
+        "manifest_sha256": "0e3c00e99c0596fccc11231bffdc0468d87e848f72246114dbe4004f4b67e408",
+        "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+        "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+        "object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+        "metadata_sha256": "b3c2b20b6e46a9c0b321d19410764e22248df32311bd90a59b9f4e7cc1020d0d"
+      },
+      "all_passed": true
+    },
+    "buffered-core-rust-o0": {
+      "frontend": "rust",
+      "compiler": "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+      "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+      "runtime": "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/libcinchruntime.a",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "snapshot_sha256": "8b6cec8554a0e7382c3d83048476b6a7a2c2b07f02caab6be24e579df444fbff",
+      "snapshot": {
+        "description": "Rust sealed finite-Array admission and transitive frame-noncapture repair snapshot",
+        "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "production_revision": "0a1f6283",
+        "new_native_scalar_intrinsics_included": false,
+        "string_epoch": "phase1 repeat/concatenation, not combined e5 provider",
+        "gates": [
+          {
+            "log": "/tmp/cinch-frame-capture-six-final-parent-gate.log",
+            "sha256": "7fd3c1c6512d32b3db7a97ab09ba662738cdcdb63677d0b09a4f3f0a9e252ff6",
+            "passed": 6,
+            "seconds": 0.0
+          },
+          {
+            "log": "/tmp/cinch-frame-array-capture-runtime-parent-gate.log",
+            "sha256": "7a8ae1d680fbc2076d19a6ab526ad0f6a2faff5f6dd9c7151dc4125ca06c7682",
+            "passed": 1,
+            "seconds": 14.09
+          },
+          {
+            "log": "/tmp/cinch-frame-recursive-array-runtime-parent-gate.log",
+            "sha256": "36d92d799e38acbc520e596fc057b3a48e227e0787b85ac3309cc14c239eb129",
+            "passed": 1,
+            "seconds": 3.83
+          },
+          {
+            "log": "/tmp/cinch-frame-capture-preserved-stack-parent-gate.log",
+            "sha256": "8eb811fd0c66746a2467a68b95b1866269ce6aef3ad1da796ffa5f4336beda75",
+            "passed": 22,
+            "seconds": 116.27
+          }
+        ],
+        "total_passed": 30,
+        "caveats": [
+          "Native positivity and full merged self-built family remain separately gated.",
+          "Rust CLI links its compile-time runtime directory by default; standalone validators must verify or explicitly select this retained matching archive.",
+          "Broader complete Rust library and Source Native authority gate are pending after this focused snapshot."
+        ]
+      },
+      "string_epoch": "phase1 repeat/concatenation, not combined e5 provider",
+      "sources": {
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Buffered.Core.cinch": "39a906a4139c7603caf63d75a09cba0443f01c01825b39e145501160975557e2",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Main.cinch": "ed08418a2998f80797fffa13c0b6d4179ebee85ebfd52377c26149888bc396c1"
+      },
+      "source_sha256": "ed08418a2998f80797fffa13c0b6d4179ebee85ebfd52377c26149888bc396c1",
+      "source_shadow_used": false,
+      "source_closure_module_names_from": {
+        "interfaces": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+        "policy": "same base module names; Rust uses its own embedded phase1 definitions and matched runtime, not the Native provider object"
+      },
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-rust-o0/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-rust-o0/consumer.ll",
+        "--rc-debug"
+      ],
+      "link_command": [
+        "clang",
+        "-O0",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-rust-o0/consumer.ll",
+        "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-rust-o0/consumer"
+      ],
+      "llvm_sha256": "bd6fa3b28f712d515208b678d4bb6264524bd61e948fa7ba152fdd407f305e53",
+      "executable_sha256": "da67850ce5ed0b869826dca84515f140b5406ccd35eadde0c6defd9f8ca72b43",
+      "opt_level": "0",
+      "compiler_host_stack_mib": 64,
+      "compile_seconds": 3.7193635950097814,
+      "cpu": 2,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true
+    },
+    "buffered-core-native-o0": {
+      "frontend": "native",
+      "compiler": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "runtime": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/libcinchruntime.a",
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "snapshot_sha256": "879f629db2de1b84919dfe0bf571c705ebcef2abb857fda836ec4bd5d27e2502",
+      "snapshot": {
+        "array_positive_certificate_included": false,
+        "base_interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+        "base_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+        "base_source_modules": 65,
+        "compiler_llvm_sha256": "93f3299363b8fdfde473102da84f183fde3eaa78b76b31e01b46e72f355076f0",
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "compiler_source_sha256": "e494aac81b1dd7b6169e5c7db09591ead572ee8c1421f87e38b9aa5a985bc778",
+        "description": "Self-contained full combined String/Bytes Native snapshot after fresh Stage1, equal Stage2/3 executable/LLVM/interfaces, all stage smokes, source-absent entry and changed-source probe",
+        "full_chain_log_sha256": "0ffd086108e77d110f0163f7c9fe9f57ec256a9f4afa908274ceae3d21f44692",
+        "new_scalar_import_lowering_included": false,
+        "object_configuration_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+        "original_provider_sha256": "0f34c2be54689879c73f5da9556e15932a0daf71018cef41e433ae2142456dae",
+        "relocated_provider_sha256": "0e3c00e99c0596fccc11231bffdc0468d87e848f72246114dbe4004f4b67e408",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "string_source_hash": "416560347689830784",
+        "string_source_sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+        "relocated_probe": {
+          "normal_and_poison": "passed zero leaks",
+          "source_sha256": "d380d9c1e1fa4217e1d87aa28ae549045602d2c268b829cdf4c6d00f7217d27b",
+          "llvm_sha256": "f03eab13e2917e6f663ef5f3b10fd2bf45a016d02bd1cf54b2b9c733936b935a",
+          "executable_sha256": "7690ef0b55a5cc5c22c9343a975c226aebf701816618495e5f9ed9a208bb4a70",
+          "initial_fixture_failures": [
+            "Invalid source Unicode escape rejected before IR",
+            "Separator-first call rejected: embedded String join accepts the list first; legacy Text.Scan uses separator first"
+          ],
+          "retained_failures": "Exact initial source/diagnostic files beside corrected consumer"
+        }
+      },
+      "string_epoch": "combined e5; explicit admitted interfaces/object; no source shadow",
+      "sources": {
+        "Effect.Stream.cinch": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+        "Effect.Buffered.Core.cinch": "39a906a4139c7603caf63d75a09cba0443f01c01825b39e145501160975557e2",
+        "Effect.Buffered.Internal.Cell.cinch": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "Main.cinch": "ed08418a2998f80797fffa13c0b6d4179ebee85ebfd52377c26149888bc396c1"
+      },
+      "source_sha256": "ed08418a2998f80797fffa13c0b6d4179ebee85ebfd52377c26149888bc396c1",
+      "source_shadow_used": false,
+      "source_closure_module_names_from": {
+        "interfaces": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+        "policy": "same base module names; Rust uses its own embedded phase1 definitions and matched runtime, not the Native provider object"
+      },
+      "compile_command": [
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+        "--emit-ir",
+        "--rc-debug",
+        "--interfaces",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+        "--objects",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-native-o0/bundle.cinch",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-native-o0/consumer.ll"
+      ],
+      "link_command": [
+        "clang",
+        "-O0",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-native-o0/consumer.ll",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/provider/library.o",
+        "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-buffered-io/build/buffered-core-native-o0/consumer"
+      ],
+      "llvm_sha256": "906162d056bc98d8bbdbf8144d1ffeca6c15bfe7a42d54bd4229cdebd9a295ee",
+      "executable_sha256": "dcf794f2a9cc3b579dad1cccec6f780554a0d8edde1ed2f75795a9cca15b9d8f",
+      "opt_level": "0",
+      "compiler_host_stack_mib": 64,
+      "compile_seconds": 7.084069368997007,
+      "cpu": 2,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "provider": {
+        "manifest_sha256": "0e3c00e99c0596fccc11231bffdc0468d87e848f72246114dbe4004f4b67e408",
+        "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+        "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+        "object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+        "metadata_sha256": "b3c2b20b6e46a9c0b321d19410764e22248df32311bd90a59b9f4e7cc1020d0d"
+      },
+      "all_passed": true
+    }
+  },
+  "effect_privacy_reports": {
+    "buffered-cell-effects-v2": {
+      "frontend": "rust",
+      "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+      "positive_io_clients": {
+        "source_sha256": "29f22289d5bbabfbfe26944fb0e2a4cc046e80f42c0cbedb855007d2b80b3ef4",
+        "dependency_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "command": [
+          "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+          "check",
+          "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-v2/io-clients/Main.cinch"
+        ],
+        "accepted": true
+      },
+      "cases": [
+        {
+          "name": "pure-new",
+          "source_sha256": "e799e911af605d2fb1dcf9a9a0bd5c38aafc844de13c9a2f4069fab7ff4c048f",
+          "dependency_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+          "command": [
+            "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+            "check",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-v2/pure-new/Main.cinch"
+          ],
+          "returncode": 1,
+          "diagnostic": "\ncinch: 7:15: type mismatch: expected r#1025, got r#1024 (in /workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-v2/pure-new/Main.cinch)\n"
+        },
+        {
+          "name": "pure-read",
+          "source_sha256": "017caa59f40113dc8de86fd4e1c7cffe543a3920a2c0bab89c6ebd4d6b3474ae",
+          "dependency_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+          "command": [
+            "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+            "check",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-v2/pure-read/Main.cinch"
+          ],
+          "returncode": 1,
+          "diagnostic": "\ncinch: 7:24: type mismatch: expected r#1024, got r#1025 (in /workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-v2/pure-read/Main.cinch)\n"
+        },
+        {
+          "name": "pure-write",
+          "source_sha256": "f4b2ff88df740ced4a0a67332a8db55bc9455a9e4800c3456018d2dd2edf9ff8",
+          "dependency_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+          "command": [
+            "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+            "check",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-v2/pure-write/Main.cinch"
+          ],
+          "returncode": 1,
+          "diagnostic": "\ncinch: 7:25: type mismatch: expected r#1024, got r#1025 (in /workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-v2/pure-write/Main.cinch)\n"
+        },
+        {
+          "name": "private-storage",
+          "source_sha256": "8caca97c5855bd6b3d6be3303e2728aaa1e656843ae8d01fcbf4ef349b0bca4a",
+          "dependency_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+          "command": [
+            "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+            "check",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-v2/private-storage/Main.cinch"
+          ],
+          "returncode": 1,
+          "diagnostic": "\ncinch: 7:27: constructor StoredCell is not exported by Effect.Buffered.Internal.Cell (in /workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-v2/private-storage/Main.cinch)\n"
+        }
+      ],
+      "all_rejected_as_expected": true,
+      "note": "Pure-operation clients differ from accepted clients by the required IO row; the frontend may report the resulting region-unification mismatch before its effect-row diagnostic."
+    },
+    "buffered-cell-effects-native": {
+      "frontend": "native",
+      "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "positive_io_clients": {
+        "source_sha256": "29f22289d5bbabfbfe26944fb0e2a4cc046e80f42c0cbedb855007d2b80b3ef4",
+        "dependency_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+        "command": [
+          "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+          "--emit-ir",
+          "--interfaces",
+          "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+          "--objects",
+          "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+          "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-native/io-clients/bundle.cinch",
+          "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-native/io-clients/check.ll"
+        ],
+        "accepted": true
+      },
+      "cases": [
+        {
+          "name": "pure-new",
+          "source_sha256": "e799e911af605d2fb1dcf9a9a0bd5c38aafc844de13c9a2f4069fab7ff4c048f",
+          "dependency_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+          "command": [
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+            "--emit-ir",
+            "--interfaces",
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-native/pure-new/bundle.cinch",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-native/pure-new/check.ll"
+          ],
+          "returncode": 4,
+          "diagnostic": "\n\nbootstrap.check:41:15: effect rows do not match: performed effects exceed the declared row (performed {(IO r)}, declared {})\n"
+        },
+        {
+          "name": "pure-read",
+          "source_sha256": "017caa59f40113dc8de86fd4e1c7cffe543a3920a2c0bab89c6ebd4d6b3474ae",
+          "dependency_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+          "command": [
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+            "--emit-ir",
+            "--interfaces",
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-native/pure-read/bundle.cinch",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-native/pure-read/check.ll"
+          ],
+          "returncode": 4,
+          "diagnostic": "\n\nbootstrap.check:41:14: effect rows do not match: performed effects exceed the declared row (performed {(IO r)}, declared {})\n"
+        },
+        {
+          "name": "pure-write",
+          "source_sha256": "f4b2ff88df740ced4a0a67332a8db55bc9455a9e4800c3456018d2dd2edf9ff8",
+          "dependency_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+          "command": [
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+            "--emit-ir",
+            "--interfaces",
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-native/pure-write/bundle.cinch",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-native/pure-write/check.ll"
+          ],
+          "returncode": 4,
+          "diagnostic": "\n\nbootstrap.check:41:14: effect rows do not match: performed effects exceed the declared row (performed {(IO r)}, declared {})\n"
+        },
+        {
+          "name": "private-storage",
+          "source_sha256": "8caca97c5855bd6b3d6be3303e2728aaa1e656843ae8d01fcbf4ef349b0bca4a",
+          "dependency_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+          "command": [
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+            "--emit-ir",
+            "--interfaces",
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/objects.json",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-native/private-storage/bundle.cinch",
+            "/workspace/dasl-stdlib-buffered-io/build/buffered-cell-effects-native/private-storage/check.ll"
+          ],
+          "returncode": 4,
+          "diagnostic": "\n\nbootstrap.resolve:41:27: unknown name (name is not in scope: StoredCell)\n"
+        }
+      ],
+      "all_rejected_as_expected": true,
+      "note": "Pure-operation clients differ from accepted clients by the required IO row; the frontend may report the resulting region-unification mismatch before its effect-row diagnostic."
+    }
+  },
+  "documentation": [
+    {
+      "module": "Effect.Buffered.Core",
+      "source_sha256": "39a906a4139c7603caf63d75a09cba0443f01c01825b39e145501160975557e2",
+      "canonical_declarations": 56
+    },
+    {
+      "module": "Effect.Buffered.Internal.Cell",
+      "source_sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+      "canonical_declarations": 8
+    }
+  ],
+  "controls": [
+    "signed and huge malformed counts before indexing",
+    "simultaneous data and error representation",
+    "retained write/read callbacks interleaved with returned advanced handles",
+    "current optional transfer capability changes",
+    "absent dispatch leaves transports untouched",
+    "original default stream failures and advanced continuations",
+    "64 repeated proxy/cell reclamation pipelines per program"
+  ],
+  "integration": [
+    "SDK-free lib_buffered_io three tests supplied, parent Cargo pending",
+    "No new runtime ABI, pointer/array exposure, checker exception, or shared Stream source change",
+    "Private intrinsic signatures retain exact checked ABI; all exposed cell operations require IO r",
+    "Rust b004/c4 phase1String is explicit; Native2f/80bd uses admittede5 provider, no source shadow"
+  ],
+  "additive_text_write": {
+    "source_commit": "105b6109",
+    "parent_commit": "ce82be05",
+    "parent_tests_passed": 6,
+    "core_sha256": "10f5c2ae23a9171d1cf967de98f6b9e6300c93b7fbb5a8fb45b389d6f411c4b1",
+    "scope": "Optional raw-text sink writes preserve advanced transfer proxies. Earlier foundation tuples remain unchanged."
+  },
+  "known_ownership_cycle": {
+    "status": "open; full80 package promotion held",
+    "evidence": "compiler/runtime/repros/buffered-transfer-cycle/receipt.json",
+    "observation": "Reciprocal transfer callback retention creates a22-block strong ownership cycle, including the valid EOF scenario. Test-only quiescent reclamation experiments are separate from the production runtime."
+  }
+}

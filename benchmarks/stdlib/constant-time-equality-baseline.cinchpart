@@ -1,0 +1,177 @@
+-- | Branch-free scalar selection and byte operations with public-length traversal.
+-- Byte equality returns early only for unequal lengths. Conditional copies visit
+-- every destination byte for either selection value. Buffers must not be mutated
+-- concurrently. Whole Bytes handles may alias exactly; partial raw-pointer aliases
+-- are outside this interface. Data-independent instruction timing is a separate
+-- processor/runtime capability and is not enabled by these operations.
+module Crypto.ConstantTime where
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+
+  export ConstantTimeError, ConstantTimeLengthMismatch, ConstantTimeShortDestination
+  export constant-byte-equal, constant-i32-equal, constant-less-or-equal, constant-select
+  export constant-bytes-equal, constant-copy, xor-bytes
+
+  -- | Public buffer dimensions cannot satisfy a complete operation.
+  data ConstantTimeError where
+    -- | Conditional copying requires equal destination and source lengths.
+    ConstantTimeLengthMismatch :: Nat -> Nat -> ConstantTimeError
+    -- | XOR must fit the complete shorter input before writing anything.
+    ConstantTimeShortDestination :: Nat -> Nat -> ConstantTimeError
+
+  -- | Compare two bytes without branching on their contents.
+  prim constant-byte-equal :: U8 -> U8 -> Bool where
+    llvm {
+      %same = icmp eq i8 %0, %1
+      %result = zext i1 %same to i8
+      ret i8 %result
+    }
+
+  -- | Compare signed 32-bit words without a content-dependent branch.
+  prim constant-i32-equal :: I32 -> I32 -> Bool where
+    llvm {
+      %same = icmp eq i32 %0, %1
+      %result = zext i1 %same to i8
+      ret i8 %result
+    }
+
+  -- | Compare nonnegative 31-bit values; invalid mathematical inputs are excluded by their types.
+  constant-less-or-equal :: InRange 0 2147483647 I64 -> InRange 0 2147483647 I64 -> Bool
+  constant-less-or-equal left right = less-or-equal-word left right
+
+  -- | Select the first word for True and the second for False without branching on the flag.
+  prim constant-select :: Bool -> I64 -> I64 -> I64 where
+    llvm {
+      %bit = zext i8 %0 to i64
+      %mask = sub i64 0, %bit
+      %inverse = xor i64 %mask, -1
+      %left = and i64 %1, %mask
+      %right = and i64 %2, %inverse
+      %result = or i64 %left, %right
+      ret i64 %result
+    }
+
+  -- | Compare equal-length buffers using complete SIMD blocks and an exact scalar tail.
+  -- Every byte is read even when an earlier byte differs; lengths are public.
+  constant-bytes-equal :: Bytes -> Bytes -> Bool
+  constant-bytes-equal left right =
+    if bytes-len left /= bytes-len right then False
+    else equal-from left right 0 0
+
+  -- | Conditionally copy a complete source, preserving the destination for False.
+  -- A length mismatch is returned before any byte is written.
+  constant-copy :: Bool -> Bytes -> Bytes -> Result ConstantTimeError Unit
+  constant-copy selected destination source =
+    if bytes-len destination /= bytes-len source then
+      Err (ConstantTimeLengthMismatch (bytes-len destination) (bytes-len source))
+    else let copied = copy-from selected destination source 0 in Ok copied
+
+  -- | XOR the shorter input into the destination, returning the complete written length.
+  -- A short destination is returned before any write; untouched trailing bytes remain unchanged.
+  xor-bytes :: Bytes -> Bytes -> Bytes -> Result ConstantTimeError Nat
+  xor-bytes destination left right =
+    let count = if bytes-len left <= bytes-len right then bytes-len left else bytes-len right in
+    if bytes-len destination < count then Err (ConstantTimeShortDestination count (bytes-len destination))
+    else let written = xor-from destination left right count 0 in Ok count
+
+  -- | Accumulate every complete block and tail byte without inspecting accumulated differences.
+  equal-from :: Bytes -> Bytes -> Nat -> U64 -> Bool
+  equal-from left right position difference =
+    if position + 16 <= bytes-len left && position + 16 <= bytes-len right then
+      let block = difference-sixteen (bytes-data left) (bytes-data right) (nat-to-i64 position) in
+      equal-from left right (position + 16) (bit-or-u64 difference block)
+    else if position < bytes-len left && position < bytes-len right then
+      let a = wrapping-i64-to-u64 (nat-to-i64 (bytes-get left position)) in
+      let b = wrapping-i64-to-u64 (nat-to-i64 (bytes-get right position)) in
+      equal-from left right (position + 1) (bit-or-u64 difference (bit-xor-u64 a b))
+    else zero-word difference
+
+  -- | Visit each public-size word and byte for both conditional-copy flags.
+  copy-from :: Bool -> Bytes -> Bytes -> Nat -> Unit
+  copy-from selected destination source position =
+    if position + 8 <= bytes-len destination && position + 8 <= bytes-len source then
+      let old = bytes-read-le64 destination position in
+      let incoming = bytes-read-le64 source position in
+      let written = bytes-write-le64 destination position (select-word selected incoming old) in
+      copy-from selected destination source (position + 8)
+    else if position < bytes-len destination && position < bytes-len source then
+      let old = wrapping-i64-to-u8 (nat-to-i64 (bytes-get destination position)) in
+      let incoming = wrapping-i64-to-u8 (nat-to-i64 (bytes-get source position)) in
+      let written = bytes-set destination position (u8-to-nat (select-byte selected incoming old)) in
+      copy-from selected destination source (position + 1)
+    else ()
+
+  -- | Read both source words before writing, preserving exact in-place aliases.
+  xor-from :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Unit
+  xor-from destination left right count position =
+    if position + 8 <= count && position + 8 <= bytes-len destination
+      && position + 8 <= bytes-len left && position + 8 <= bytes-len right then
+      let a = bytes-read-le64 left position in
+      let b = bytes-read-le64 right position in
+      let written = bytes-write-le64 destination position (bit-xor-u64 a b) in
+      xor-from destination left right count (position + 8)
+    else if position < count && position < bytes-len destination
+      && position < bytes-len left && position < bytes-len right then
+      let a = wrapping-i64-to-u8 (nat-to-i64 (bytes-get left position)) in
+      let b = wrapping-i64-to-u8 (nat-to-i64 (bytes-get right position)) in
+      let written = bytes-set destination position (u8-to-nat (bit-xor-u8 a b)) in
+      xor-from destination left right count (position + 1)
+    else ()
+
+  -- | Compare validated machine readings without introducing a Boolean control edge.
+  prim less-or-equal-word :: I64 -> I64 -> Bool where
+    llvm {
+      %ordered = icmp sle i64 %0, %1
+      %result = zext i1 %ordered to i8
+      ret i8 %result
+    }
+
+  -- | Collapse the complete accumulated difference into the single public result.
+  prim zero-word :: U64 -> Bool where
+    llvm {
+      %same = icmp eq i64 %0, 0
+      %result = zext i1 %same to i8
+      ret i8 %result
+    }
+
+  -- | Select a full packed word with a mask, independent of the selected contents.
+  prim select-word :: Bool -> U64 -> U64 -> U64 where
+    llvm {
+      %bit = zext i8 %0 to i64
+      %mask = sub i64 0, %bit
+      %inverse = xor i64 %mask, -1
+      %left = and i64 %1, %mask
+      %right = and i64 %2, %inverse
+      %result = or i64 %left, %right
+      ret i64 %result
+    }
+
+  -- | Select one final byte with a mask, without a flag-dependent branch.
+  prim select-byte :: Bool -> U8 -> U8 -> U8 where
+    llvm {
+      %mask = sub i8 0, %0
+      %inverse = xor i8 %mask, -1
+      %left = and i8 %1, %mask
+      %right = and i8 %2, %inverse
+      %result = or i8 %left, %right
+      ret i8 %result
+    }
+
+  -- | Reduce exactly sixteen proved bytes from each live owner into a packed difference.
+  prim difference-sixteen :: I64 -> I64 -> I64 -> U64 where
+    unsafe llvm {
+      %left = inttoptr i64 %0 to ptr
+      %right = inttoptr i64 %1 to ptr
+      %at-left = getelementptr i8, ptr %left, i64 %2
+      %at-right = getelementptr i8, ptr %right, i64 %2
+      %a = load <16 x i8>, ptr %at-left, align 1
+      %b = load <16 x i8>, ptr %at-right, align 1
+      %different = xor <16 x i8> %a, %b
+      %words = bitcast <16 x i8> %different to <2 x i64>
+      %low = extractelement <2 x i64> %words, i32 0
+      %high = extractelement <2 x i64> %words, i32 1
+      %result = or i64 %low, %high
+      ret i64 %result
+    }

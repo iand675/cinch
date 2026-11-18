@@ -1,0 +1,618 @@
+//! Runtime support library for generated Cinch code.
+//!
+//! `cinchruntime` is linked into every compiled Cinch artifact (the driver
+//! links `libcinchruntime.a` against the generated LLVM IR objects). It is
+//! written in Rust with no third-party dependencies and builds both as a
+//! `staticlib` (for linking) and as an `rlib` (so compiler-side tooling can
+//! use the same value semantics, for example to evaluate literals at
+//! compile time).
+//!
+//! This module comment is the runtime ABI reference: the code generator and
+//! the compiled interface metadata cite it.
+//!
+//! # Word representation
+//!
+//! Every Cinch value is one 64-bit machine word (`i64` at the ABI),
+//! matching `compiler/src/core.rs`:
+//!
+//! * `Int` (the 64-bit machine integer of the surface prelude): the `i64`
+//!   itself.
+//! * `Bool`: 0 or 1. `Unit`: 0.
+//! * ADT values: `ptrtoint` of a heap or static constructor block
+//!   `{ i64 field0; ... }` whose header carries the constructor's layout
+//!   id, and with it the tag (the constructor index in declaration order),
+//!   instead of a tag word (see Block header). Generated code allocates
+//!   them through [`cinch_alloc_ctor`]; this runtime reads a tag only
+//!   through `block::ctor_tag_of`.
+//! * Function values and dictionaries: `ptrtoint` of their closure or
+//!   record blocks (see `compiler/src/core.rs`).
+//! * `Nat` and `Int` (the unbounded numbers): a small immediate or
+//!   `ptrtoint` of a bignum heap block owned by this runtime (below).
+//!
+//! The unbounded `Nat` and `Int` of the core spec are distinct from the
+//! 64-bit machine `Int` above; only the context says which is meant, and
+//! their words are never confused because each is produced and consumed by
+//! the correspondingly named entry points.
+//!
+//! # Small `Nat`/`Int` immediates
+//!
+//! Heap blocks are 8-aligned, so a `Nat`/`Int` word whose low bit is 1 is
+//! never a pointer: it is the immediate `v << 1 | 1`, decoded by one
+//! shift right (logical for `Nat`, arithmetic for `Int`).
+//!
+//! The payload is sized to the target's `csize` (its pointer width), so
+//! that a proved `Nat` or `Int` can cross a call at that width and extend
+//! back exactly (zero-extended for `Nat`, sign-extended for `Int`).
+//!
+//! * A `Nat` immediate covers `0 ..= 2^(csize-1) - 1`, every payload bit:
+//!   `2^63 - 1` on a 64-bit target, exactly the non-negative `i64` range,
+//!   so there `cinch_nat_from_i64` never allocates; `2^31 - 1` on a 32-bit
+//!   one.
+//! * An `Int` immediate covers `-2^(csize-2) ..= 2^(csize-2) - 1`, the
+//!   two's complement payload (`-2^62 ..= 2^62 - 1` on a 64-bit target,
+//!   `-2^30 ..= 2^30 - 1` on a 32-bit one). Two's complement keeps
+//!   decoding to a single arithmetic shift and lets the fast paths add,
+//!   subtract and compare decoded values in machine arithmetic.
+//!
+//! Every entry point returns the immediate whenever its result is in
+//! range (the canonical form). A bignum block therefore only ever holds a
+//! value outside the immediate range. Two words of the same in-range
+//! value are the same word, and overflow of an immediate operation
+//! promotes to a block, while a block result that falls back in range
+//! (a difference, a quotient, a negation) demotes to the immediate. The
+//! code generator folds a literal in range to its immediate constant
+//! (`immediate_word` in `compiler/src/codegen.rs`), and the quote
+//! evaluator decodes to the same words. A word that may be an immediate
+//! MUST NOT be dereferenced without testing the low bit first.
+//!
+//! # Heap layouts
+//!
+//! Bignum blocks are allocated by this runtime and are opaque to generated
+//! code. A `Nat`/`Int` word with low bit 0 points at a header block of kind
+//! `KIND_NAT`/`KIND_INT` whose payload, at offset 0, is a Rust `Nat` or
+//! `Int` value. A box carries no in-block kind word: the header's kind is
+//! checked instead, so a corrupt or mismatched word still faults (see
+//! Faults) rather than being reinterpreted. The payload is a
+//! sign-magnitude bignum: a normalized base 2^32 `Vec<u32>` magnitude
+//! (little-endian limbs, no leading zero limbs) plus, for `Int`, a negative
+//! flag. Zero is non-negative and has the empty magnitude. The `Vec`
+//! header inside the payload is a standard library implementation detail;
+//! generated code MUST treat the block as opaque and only pass the word
+//! back to this runtime. Words are immutable and may be shared. Generated
+//! code never frees them yet; [`cinch_free`] can. A `Bytes` box
+//! (`KIND_BYTES`, or `KIND_BYTES_STATIC` for a string literal's
+//! data-section buffer) is the `repr(C)` pair `{ len; data }` at offset 0.
+//!
+//! Blocks allocated through [`cinch_alloc`] are zero-filled byte blocks of a
+//! whole number of 64-bit words.
+//!
+//! # Block header
+//!
+//! Every block a word points at, heap or static, has one 64-bit header word
+//! at offset -8 from the address the word holds. Every offset above and in
+//! the code generator is relative to that address, so the header is
+//! invisible to field access. The encoding (`compiler/runtime/src/block_kinds.rs`,
+//! which the code generator includes verbatim) is, from the low bit. Each
+//! width is a named `*_BITS` constant there and every shift and mask is
+//! derived from the widths:
+//!
+//! | bits | field | meaning |
+//! |------|-------|---------|
+//! | 0..40 | `rc`, signed | 0 immortal (static blocks, interned `Sym` cells, `KIND_BYTES_STATIC` buffers); 1 when allocated; > 0 a single-threaded count up to `RC_MAX` (2^39 - 1); `-n` an atomic count of `n`, for a block marked when a task body reached it (changed only by atomic read-modify-writes, never unmarked). A count cannot overflow: the heap is capped below 8 * 2^40 bytes, so no increment needs a check, and there is no sticky state |
+//! | 40..48 | `kind: u8` | [`block`]`::KIND_*`: ctor 1, closure 2, dictionary 3, memo 4, knot 5, nat 6, int 7, bytes 8, bytes-static 9, sym 10, code 11, boxed scalar 12, raw 13, array 14, multidimensional array 15, columnar 16, freed 255 (0 is never a live block) |
+//! | 48..64 | `layout: u16` | a constructor block's layout id; a closure's or dictionary's shape index; for every other kind, the payload size in 64-bit words. `0xFFFF` (`LAYOUT_BIG`) is the escape: the word at offset -16 holds an escaped descriptor (the three shaped kinds), or another kind's payload byte size (a payload of at least 0xFFFF words) |
+//!
+//! Block memory is only obtained and returned by `block::allocate`,
+//! `block::allocate_shaped` and `block::free`, the one place a different
+//! backing allocator plugs in.
+//!
+//! Constructor layout ids. The code generator gives each data type, at
+//! each class vector its constructor units are copied for, one group of
+//! `2^CTOR_TAG_BITS` (64) consecutive ids, `id = group << 6 | tag`, so
+//! `tag = id - base` with the group's `base = group << 6`, read as `id &
+//! CTOR_TAG_MASK` without knowing the type. A type of more than 64
+//! constructors, or past the last of the 1023 groups, is escaped: its
+//! header says `LAYOUT_BIG` and the word at -16 is the descriptor `index
+//! << 40 | tag << 16 | 0xFFFF` (a 24-bit tag and a 24-bit table index). A
+//! descriptor, regular id or escaped, is what generated code hands
+//! [`cinch_alloc_ctor`]. Blocks the code generator builds without a
+//! constructor unit in hand (the `Option`, `Result` and `Ordering` values
+//! of primitives, tuples of joined tasks, canonical ABI lifts, boxed-out
+//! boundary aggregates) take an anonymous group per pointer map, with the
+//! prelude's tags; the task runtime reads only the `Result` tag, which
+//! needs no group.
+//!
+//! Closure and dictionary shapes. A closure's layout is the table index
+//! of its shape, the classes of its unit's parameters (its saved words
+//! are the unit's leading arguments), and a dictionary's is its
+//! instance's method-slot map; both escape like a constructor, with tag
+//! 0. A closure's size is `3 + filled` words (its words 0..3 are code,
+//! arity, filled); a dictionary's is its entry's.
+//!
+//! The layout table `@__cinch_layouts`, which generated code registers
+//! with [`cinch_layouts_register`] from a global constructor, has one
+//! `i64` entry per id and shape index, then the map extensions. An entry
+//! is the payload size in words in its low 32 bits and the pointer map in
+//! its high 32: two bits per payload word, word `i` at bit `32 + 2i`, `0`
+//! never touched (`Raw`), `1` a counted pointer (`Obj`; 0 and immortal
+//! blocks skipped), `2` an immediate when its low bit is 1 and a counted
+//! pointer otherwise (`TObj`), `3` invalid. A block of more than 16 words
+//! keeps the table index of its extension in those 32 bits instead:
+//! `ceil(words / 32)` table words of 32 codes each. Every other kind's
+//! map is fixed by the kind (`block::fixed_scan_code`): a memo cell's
+//! thunk (word 1), a quote block's holes (words 4..), an Tensor's two
+//! buffers, and a Columnar node's children (words 3..5) are counted.
+//! Array is the exception: its payload format selects Raw, Obj or TObj
+//! scanning of word elements, or Raw scanning of packed scalar bytes. [`cinch_free`] sizes shaped blocks from the table and
+//! the drop machinery of [`rc`] scans by it.
+//!
+//! Static blocks are emitted as `{ header; block }` with the symbol
+//! (`@"U.clo#h"`, `@"U.blk#h"`) at the header and every reference to the
+//! block a constant offset into that one object, one word in (two for an
+//! escaped constructor, whose descriptor word comes first); the
+//! string-literal constant carries a header before each of its two
+//! blocks. A word with low bit 1 is an immediate, never a block, and no
+//! header code dereferences it: a `case` reads its scrutinee's header
+//! only when some alternative is a constructor pattern. Pointers from the
+//! OS resource handles (buffer, directory, process, scope and task
+//! handles) are not blocks and have no header: they are freed only by
+//! their own close entry points.
+//!
+//! # Exits
+//!
+//! A compiled program ends in one of three ways besides returning from
+//! `main` (whose `Int` result is the exit status): a fault, a
+//! compiler-bug trap, or the `Exhausted` outcome. Each writes a message
+//! to stderr (when one exists) and terminates the process:
+//!
+//! | exit code | outcome | entry point |
+//! |-----------|---------|-------------|
+//! | 70 | `BlackHole` fault (e.g. demanding a memo cell mid-evaluation) | [`cinch_blackhole`] |
+//! | 71 | generic fault: `cinch_panic` and every runtime error except the `BlackHole` fault and the evaluator's nesting bound; also every compiler-bug trap, whose message starts `compiler bug:` | [`cinch_panic`] |
+//! | 73 | `Exhausted`: the program ran out of a resource, with one line `cinch: exhausted: heap (<n> bytes)`, `cinch: exhausted: stack` or `cinch: exhausted: threads` | [`abi::exhausted`] |
+//!
+//! `Exhausted` is part of every program's declared outcome at `main`
+//! (`design/no-faults.md` sections 4 and 7), never a crash: the live heap
+//! passing `CINCH_HEAP_LIMIT` or the system allocator refusing
+//! ([`heap`]; `<n>` is the live bytes the program asked to hold), a
+//! thread's or a task's stack overflowing its guard, a task's stack that
+//! cannot be reserved, or the evaluator's nesting bound ([`stack`],
+//! [`sched`], [`eval`]), and the OS refusing a thread for the program or
+//! for a scheduler or parallel worker ([`stack::spawn_refused`]). A
+//! compiler-bug trap fires only when the compiler or runtime broke an
+//! invariant (a corrupt header, a null or wrong-kind word, a negative
+//! generated size, a zero divisor reaching `cinch_nat_div`/`cinch_int_div`
+//! or their remainders, whose divisor is a `NonZero` by its type): no
+//! well-typed program reaches one when the
+//! compiler is correct. The faults 70 and 71 are the ones a well-typed
+//! program can still reach today (`design/no-faults-inventory.md`); exit
+//! 72, the old division fault, is retired. A program's own result can
+//! also be 70-74; the stderr line is what tells an outcome from a result.
+//!
+//! Exit code 70 is coupled to the code generator: `compiler/src/codegen.rs`
+//! emits `__cinch_blackhole` calling `exit(i32 70)` directly. Both call
+//! sites are the same defined fault and MUST use the same code; the
+//! constant lives in [`abi::EXIT_BLACKHOLE`].
+//!
+//! Exit code 74 is not a fault: it is the opt-in leak check's
+//! (`CINCH_LEAK_CHECK=1`, [`rc::cinch_exit_check`]), a diagnostic of the
+//! compiler's reclamation that tests ask for. A program run without the
+//! variable never produces it.
+//!
+//! In the safe Rust API ([`Nat`], [`Int`]) the same conditions surface as
+//! [`Error`] values, so tooling and tests observe them without dying. The
+//! extern "C" layer maps [`Error::BlackHole`] onto exit 70,
+//! [`Error::NestingTooDeep`] onto the stack `Exhausted` exit 73, and
+//! every other error, [`Error::DivByZero`]'s compiler-bug trap included,
+//! onto exit 71.
+//!
+//! # Extern symbols
+//!
+//! Every entry point takes and returns `i64` words or raw pointers. Word
+//! arguments must be words produced by this runtime: null or wrong-kind
+//! blocks are the compiler-bug trap [`Error::CorruptValue`] (exit 71). Any
+//! other bogus word used as a pointer is a caller bug and faults like any
+//! invalid pointer dereference, not as a typed runtime fault.
+//!
+//! Exits:
+//!
+//! * `cinch_blackhole() -> !`: the `BlackHole` fault, exit 70.
+//! * `cinch_panic(msg: *const u8, len: usize) -> !`: write the message to
+//!   stderr and exit 71. A null pointer or zero length writes nothing.
+//! * The `Exhausted` exit, 73, has no extern entry point: the runtime
+//!   takes it itself, from the allocator, the stack guard's signal
+//!   handler, the evaluator and the thread spawns ([`abi::exhausted`]).
+//!
+//! Allocation (sizes are byte counts):
+//!
+//! * `cinch_alloc(size: i64, kind: i64) -> i64`: allocate `size`
+//!   zero-filled bytes (rounded up to a whole number of 64-bit words,
+//!   minimum one word) as a block with header kind `kind` and `rc = 1`,
+//!   and return the block as a word. Negative sizes and a kind outside
+//!   4..=13 (the shaped kinds go through `cinch_alloc_ctor` and
+//!   `cinch_alloc_shaped`) are compiler-bug traps; size overflow and
+//!   allocation failure are the heap `Exhausted` exit.
+//! * `cinch_free(word: i64)`: deallocate the block behind `word` with the
+//!   size its header records (a shaped block's from the layout table),
+//!   after releasing what a runtime box owns outside its block (a
+//!   bignum's limbs, a heap buffer's data). It never visits the block's
+//!   children. Immediates (low bit 1), 0, and immortal blocks (`rc == 0`)
+//!   are ignored. Generated code does not call it yet.
+//! * `cinch_alloc_raw(size: i64, kind: i64) -> ptr`: allocate `size`
+//!   uninitialised bytes (rounded up to whole words, minimum one) as a
+//!   block with header kind `kind` and `rc = 1`, and return the payload
+//!   pointer; the allocator generated code calls for every memo, knot,
+//!   quote and raw block, passing the block's kind. The same kinds as
+//!   `cinch_alloc`.
+//! * `cinch_alloc_ctor(size: i64, desc: i64) -> ptr`: allocate a
+//!   constructor block of `size` uninitialised payload bytes whose header
+//!   carries the constructor descriptor `desc` (above), with `rc = 1`, and
+//!   return the payload pointer: every constructor, tuple and boundary
+//!   block, with no tag word.
+//! * `cinch_alloc_shaped(size: i64, kind: i64, desc: i64) -> ptr`: the
+//!   same for a closure (kind 2) or dictionary (kind 3) block of shape
+//!   descriptor `desc`; any other kind is a compiler-bug trap.
+//! * `cinch_layouts_register(table: *const u64, len: i64)`: install the
+//!   program's layout table of `len` words.
+//!
+//! Reference counts ([`rc`]):
+//!
+//! * `cinch_dup(word: i64)`, `cinch_drop(word: i64)`: add or drop one
+//!   reference, plainly or atomically by the count's sign. Immediates, 0
+//!   and immortal blocks are ignored. The drop of a block's last
+//!   reference releases it.
+//! * `cinch_drop_slow(word: i64)`: release a block whose count is 1, and
+//!   every block only it kept alive: iteratively (a pointer-reversal walk
+//!   through the dead blocks, no native recursion), children in reverse
+//!   slot order and before their parent, by the pointer maps above, with
+//!   a box's out-of-block payload (limbs, buffer data) released with it.
+//!   An atomic child is decremented atomically and released by whichever
+//!   thread drops its last reference.
+//! * `cinch_dup_mt(word: i64)`, `cinch_drop_mt(word: i64)`: the shared
+//!   paths of the inline fast paths, for a block word whose count is
+//!   negative: a relaxed `fetch_sub` of the header word adds a reference;
+//!   a release `fetch_add` drops one, and the drop that takes the last
+//!   one fences acquire, restores the header's kind (its add carried into
+//!   it) and releases the block.
+//! * `cinch_mark_mt(word: i64)`: negate the count of every mortal,
+//!   unmarked block reachable from `word`, stopping at immortal and
+//!   marked blocks, by a pointer-reversal walk over the live blocks with
+//!   no native recursion and no memory beyond them. The task runtime calls
+//!   it on each body closure before its thread starts; generated code
+//!   does not.
+//! * `cinch_reclaim_enable()`: the program counts references. The code
+//!   generator's global constructor calls it when the program was built
+//!   with reclamation; without it the runtime neither marks task bodies
+//!   nor drops task results.
+//! * `cinch_exit_check(code: i64) -> i64`: called by the entry glue when
+//!   `main` returns; `code` unless `CINCH_LEAK_CHECK=1` finds live mortal
+//!   blocks, then 74 (below).
+//! * `cinch_arena_new(bytes: i64) -> i64` and
+//!   `cinch_arena_leave(handle: i64) -> i64`: enter and leave a bump
+//!   arena on this thread ([`arena`]). While an arena is entered,
+//!   constructor cells and closure and dictionary blocks come from its
+//!   chunks with `RC_IMMORTAL` headers, so their `dup` and `drop` do
+//!   nothing, and leave returns the chunks wholesale. The handle is a
+//!   machine word (never a block), 0 unless `CINCH_ARENA=1` enables the
+//!   mechanism (off by default). Only a scope whose result is a machine scalar or a value
+//!   of a kind the arena does not serve may hold one: a word pointing
+//!   into an arena's chunks must not be reachable after leave.
+//!
+//! A corrupt header, a count of the wrong sign for its entry point or an
+//! invalid map code reached by these entry points is a compiler-bug trap
+//! (exit 71 with a message naming the compiler bug), not a program fault:
+//! no well-typed program reaches one when the compiler is correct
+//! (`design/no-faults.md`).
+//!
+//! Every heap allocation (the allocators above and every runtime
+//! `Box`/`Vec`) is counted by the counting global allocator in [`heap`].
+//! Environment: `CINCH_ALLOC_STATS=1` prints
+//! `cinch-alloc: blocks=<n> bytes=<n> peak=<n> header-blocks=<n>
+//! header-bytes=<n> immortal=<n> freed=<n> live=<n>` to stderr at exit
+//! (the last five count header blocks only, see [`heap`]);
+//! `CINCH_HEAP_LIMIT=<n>[K|M|G]` caps the live heap (bytes allocated and
+//! not yet freed; default 8 GiB, `0` disables) and takes the `Exhausted`
+//! exit 73 with `cinch: exhausted: heap (<n> bytes)` past it;
+//! `CINCH_STACK_SIZE=<n>[K|M|G]` sizes the program thread's reserved
+//! stack and each parallel worker's (default 1 GiB, at least 256 KiB,
+//! [`platform::cinch_run_main`]; overflowing it is the `Exhausted` exit
+//! with `cinch: exhausted: stack`, [`stack`]);
+//! `CINCH_THREADS=<n>` is the thread budget (a positive decimal count,
+//! at most [`par::MAX_PARTICIPANTS`]; default the available
+//! parallelism): the threads that run tasks, the program's thread
+//! included, so `1` runs every task on the program's thread
+//! ([`sched`]), and the parallel pool's participant budget when the
+//! program did not call `cinch_par_set_workers`, where `1` runs every
+//! parallel entry sequentially, with no thread ([`par`]);
+//! `CINCH_LEAK_CHECK=1` makes `cinch_exit_check` print `cinch-leak:
+//! live=<n> immortal=<n> leaked=<n>` and exit 74 when `leaked` (live
+//! header blocks that are not immortal) is not 0, an opt-in diagnostic of
+//! the compiler's reclamation for tests; `CINCH_RC_DEBUG=1` poisons and
+//! quarantines freed blocks and validates every header the count entry
+//! points touch; `CINCH_ALLOC_KINDS=1` prints the allocation census of
+//! [`alloc_kinds`] beside the stats line: one `cinch-alloc-kind:
+//! kind=<name> blocks=<n> bytes=<n>` line per block kind and one
+//! `cinch-alloc-size: upto=<n>|above blocks=<n> bytes=<n>` line per
+//! size class, all counting header blocks and their whole allocation.
+//!
+//! `Nat` (unbounded natural numbers; negative input or results fault).
+//! Every result word is canonical (see "Small `Nat`/`Int` immediates"),
+//! and an operation whose operands are both immediates allocates only
+//! when its result leaves the immediate range:
+//!
+//! * `cinch_nat_from_i64(v: i64) -> i64`: a machine integer as a word (an
+//!   immediate). Every caller proves `0 <= v` (`nat-from-i64`'s
+//!   obligation), so a negative `v` is a compiler-bug trap.
+//! * `cinch_nat_to_i64(word: i64) -> i64`: value as a machine integer.
+//!   Every caller proves it fits, so one that does not is a compiler-bug
+//!   trap.
+//! * `cinch_nat_fits_i64(word: i64) -> i64`: 1 or 0.
+//! * `cinch_nat_add(a: i64, b: i64) -> i64`, `cinch_nat_mul(a, b) -> i64`:
+//!   exact arithmetic.
+//! * `cinch_nat_sub(a: i64, b: i64) -> i64`: exact difference. Every
+//!   caller proves `b <= a` (the surface `-` at `Nat` and `nat-sub` carry
+//!   the obligation), so a negative result is a compiler-bug trap (exit 71,
+//!   `compiler bug:`), never a program fault.
+//! * `cinch_nat_div(a: i64, b: i64) -> i64`: the quotient of `a / b`;
+//!   the remainder is `cinch_nat_rem(a, b) -> i64`. Both fault on division by
+//!   zero.
+//! * `cinch_nat_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1.
+//! * `cinch_nat_from_decimal(ptr: *const u8, len: usize) -> i64`: parse ASCII
+//!   digits (`[0-9]+`, leading zeros allowed) into a word, faulting on
+//!   malformed input.
+//! * `cinch_nat_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize`:
+//!   write the ASCII digits into `buf`, returning the length written, and
+//!   fault when `cap` is too small (leaving the buffer untouched). Use
+//!   `cinch_nat_decimal_len(word: i64) -> usize` to size the buffer.
+//!
+//! `Int` (unbounded integers; canonical results as for `Nat`):
+//!
+//! * `cinch_int_from_i64(v: i64) -> i64`: a machine integer as a word (a
+//!   block only outside the immediate range).
+//! * `cinch_int_to_i64(word: i64) -> i64`: value as a machine integer.
+//!   Every caller proves it fits, so one that does not is a compiler-bug
+//!   trap.
+//! * `cinch_int_fits_i64(word: i64) -> i64`: 1 or 0.
+//! * `cinch_int_from_nat(word: i64) -> i64`: a `Nat` word as the `Int` of
+//!   the same value (total).
+//! * `cinch_int_to_nat(word: i64) -> i64`: a non-negative `Int` word as the
+//!   `Nat` of the same value; every caller proves `0 <= x`, so a negative
+//!   one is a compiler-bug trap.
+//! * `cinch_int_add(a: i64, b: i64) -> i64`, `cinch_int_sub(a, b) -> i64`,
+//!   `cinch_int_mul(a, b) -> i64`, `cinch_int_neg(a) -> i64`: exact arithmetic.
+//! * `cinch_int_div(a: i64, b: i64) -> i64`, `cinch_int_rem(a, b) -> i64`:
+//!   division truncated toward zero with the remainder taking the sign of
+//!   the dividend (Rust `/` and `%` semantics on the underlying values),
+//!   faulting on division by zero.
+//! * `cinch_int_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1.
+//! * `cinch_int_from_decimal(ptr: *const u8, len: usize) -> i64`: parse an
+//!   optionally signed ASCII numeral (`[+-]?[0-9]+`, leading zeros
+//!   allowed, `-0` is zero) into a word, faulting on malformed input.
+//! * `cinch_int_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize`:
+//!   write the ASCII representation (sign included) into `buf`, returning
+//!   the length written, and fault when `cap` is too small. Use
+//!   `cinch_int_decimal_len(word: i64) -> usize` to size the buffer.
+//!
+//! `Bytes` (byte buffers; the foundation for the FFI and string slices):
+//!
+//! * `cinch_bytes_new(len: i64) -> i64`: a zeroed buffer block. Generated
+//!   code passes the length through `cinch_nat_to_len(word: i64) -> i64`
+//!   (a `Nat` word's value, `i64::MAX` for a bignum), so a length no
+//!   allocation can hold is the heap `Exhausted` exit and a negative one
+//!   the compiler-bug trap.
+//! * `cinch_bytes_len(word: i64) -> i64`: the length in bytes, fixed when
+//!   the buffer is made (the compiler's facts over `bytes-len b` rely on
+//!   it).
+//! * `cinch_bytes_get(word: i64, index: i64) -> i64`: the byte (0..=255) at
+//!   `index`.
+//! * `cinch_bytes_set(word: i64, index: i64, value: i64) -> i64`: write
+//!   `value` (0..=255) at `index`, returning 0 (the Unit word).
+//! * `cinch_bytes_copy(dst, src, di, si, n: i64) -> i64`: copy `n` bytes
+//!   of `src` at `si` into `dst` at `di` as one `memmove` (same buffer
+//!   and overlap allowed), returning 0. Every bulk copy in the prelude
+//!   goes through it: a Cinch-level loop boxes a `Nat` per index step.
+//!
+//!   The index, value and range checks of these three, and the read-only
+//!   check on a written buffer, are compiler-bug traps: `bytes-get` and
+//!   `bytes-set` take evidence that the index is below `bytes-len b`,
+//!   `bytes-copy-range` that both ranges end inside their buffers, a byte
+//!   value is an `InRange 0 255 Nat` by its type, and a string literal's
+//!   read-only backing exists only inside a `String`, whose every
+//!   conversion out copies.
+//! * `cinch_bytes_compare(a, b: i64) -> i64`: the lexicographic order of
+//!   the two contents as -1/0/1, read in place (`string-compare`).
+//! * `cinch_bytes_data(word: i64) -> i64`, `cinch_bytes_from_data(ptr: *const
+//!   u8, len: i64) -> i64`: the pointer-length crossing for buffer
+//!   contents (the UTF-8 and symbol intrinsics and the canonical ABI
+//!   glue).
+//!
+//! Interned symbols (primitive types specification section 9; see
+//! [`sym`] for the cell discipline):
+//!
+//! * `cinch_sym_intern(ptr: *const u8, len: i64) -> i64`: the cell for the
+//!   `len` bytes at `ptr`; the table is keyed by name, so an equal name
+//!   resolves to the same cell (and to a tick literal's cell).
+//! * `cinch_sym_name(word: i64) -> i64`: a fresh `Bytes` word holding the
+//!   cell's name.
+//! * `cinch_sym_eq(a: i64, b: i64) -> i64`: identity, 0 or 1 (an O(1)
+//!   pointer test).
+//! * `cinch_sym_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1 of the
+//!   lexicographic name order (never the cell addresses).
+//!
+//! Text conversion and content identity (JSON and canonical
+//! serialization; see [`text`]):
+//!
+//! * `cinch_text_sha256(word: i64) -> i64`: the SHA-256 digest (FIPS
+//!   180-4) of the buffer in `word`, as a fresh 32-byte `Bytes` word.
+//! * `cinch_text_f64_to_decimal(v: f64) -> i64`: one float's shortest
+//!   round-trip decimal text (`{:e}` scientific form) as a fresh
+//!   `Bytes` word.
+//! * `cinch_text_f64_from_decimal(word: i64) -> f64`: the float one
+//!   decimal spelling stands for (correctly rounded), faulting on a
+//!   spelling that is not a decimal number.
+//!
+//! Quotation evaluation (supercompilation and JIT specification
+//! section 7; see [`eval`] for the quote block layout):
+//!
+//! * `cinch_eval(quote: i64) -> i64`: evaluate the reified quotation in the
+//!   `Code` block `quote` to its value word; a failing evaluation takes
+//!   a defined fault path and produces no value (exit 70 for the quoted
+//!   program's own fault or a black-holed memo cell, 71 otherwise).
+//!
+//! Every bignum and byte-buffer check exits through `cinch_panic` (71);
+//! the zero-divisor, negative-difference, out-of-bounds and read-only
+//! checks are compiler-bug traps. See `crate::error::Error`.
+//!
+//! Structured concurrency and runtime I/O (concurrency specification
+//! sections 2, 4 and 9; every task a fiber of [`sched`] multiplexed over
+//! at most `CINCH_THREADS` threads, fork-join happens-before,
+//! cancellation as a sequentially consistent atomic):
+//!
+//! * `cinch_scope_open() -> i64`, `cinch_scope_close(scope: i64) -> i64`: the
+//!   structured scope of `withScope`; close cancels and joins unjoined
+//!   children (section 2). The caller is suspended, not blocked, while
+//!   it waits for them.
+//! * `cinch_task_spawn(scope: i64, closure: i64) -> i64`: queue `closure`
+//!   as a task, returning its handle. The closure's reference moves to
+//!   the task, and a reclaiming program's closure is marked first
+//!   (`cinch_mark_mt`). The body runs on a stack of its own (8 MiB
+//!   reserved, guarded: overflowing it is the stack `Exhausted` exit)
+//!   through the closure apply-stub ABI and returns the prelude `Result`
+//!   word (the task outcome ABI of `crate::task`).
+//! * `cinch_task_join_all_or_cancel(scope, handles: i64, n: i64, out: i64) -> i64`:
+//!   `joinAllOrCancel`, handing the results over: -1 and the first
+//!   failure's own `Err` block in `out[0]`; for one handle, 0 and its own
+//!   `Ok` block in `out[0]`; for several, the owned payloads in `out` and
+//!   a mask whose bit `i` says payload `i` is counted, which picks the
+//!   join unit's tuple map. Results no join hands out are dropped by the
+//!   scope's close. The caller is suspended while it waits.
+//! * `cinch_task_poll_cancel() -> i64`: the cancellation observation point
+//!   (section 4), and a yield to the tasks queued behind the caller.
+//! * `cinch_io_write(word: i64) -> i64`, `cinch_io_read(len: i64) -> i64`,
+//!   `cinch_io_sleep(millis: i64) -> i64`: the `Io r` operations (stdout,
+//!   stdin, and a cancellation-aware suspension point). A failed stdout
+//!   write is `Error::OutputFailed` (71), the one operating-system outcome
+//!   here that a program cannot rule out; `cinch_io_read` takes its count
+//!   through `cinch_nat_to_len`, grows its buffer with what arrives, and
+//!   is a blocking region; `cinch_io_sleep` suspends the caller without
+//!   holding a thread and ends early on a cancellation request.
+//! * `cinch_sched_blocking_enter() -> i64`,
+//!   `cinch_sched_blocking_exit() -> i64`: the bracket generated code
+//!   puts around a call to a foreign import whose row carries `Blocking`.
+//!   Between the two the caller may block its thread in the operating
+//!   system: the scheduler allows one more worker thread meanwhile, so
+//!   the other tasks keep running (section 9). Both return 0, and both
+//!   do nothing on a thread that runs no task.
+//! * `cinch_coop_*`: the cooperative single-threaded backend of [`coop`] (the Wasm profile's lowering target) mirrors this surface under these names with the same word conventions.
+//!
+//! Deterministic pure parallelism (runtime ABI 8, design/parallel-evaluation.md
+//! section 3; [`par`]). Each entry computes its defining equation whatever
+//! the participant budget and schedule; closures and the input array are
+//! borrowed (the caller drops them after the call) and result words are
+//! owned by the caller. A reclaiming program's closure (and `parMap`'s
+//! input array) is marked (`cinch_mark_mt`) only when a job reaching it is
+//! first published:
+//!
+//! * `cinch_par_both(f: i64, g: i64, out: i64) -> i64`: `out[0]` is `f`
+//!   applied to the Unit word and `out[1]` is `g` applied to it; returns 0.
+//! * `cinch_par_tabulate(n: i64, f: i64, class: i64) -> i64`: a fresh array
+//!   of element format `class` (the array constructors' format) whose
+//!   element `i` is `f` applied to the `Nat` word of `i`; `n` comes through
+//!   `cinch_nat_to_len`.
+//! * `cinch_par_map_array(f: i64, arr: i64, class: i64) -> i64`: a fresh
+//!   array of format `class` whose element `i` is `f` applied to element
+//!   `i` of `arr` (passed owned: a counted element is dupped for the call).
+//! * `cinch_par_set_workers(n: i64) -> i64`: the participant budget (`n`
+//!   through `cinch_nat_to_len`; 0 restores the default); returns 0.
+//! * `cinch_coop_par_*`: the same four on the cooperative backend, as
+//!   sequential loops in index order.
+//!
+//! The platform layer (P34; `compiler/runtime/src/platform.rs`), the
+//! `cinch_buf_*`/`cinch_clock_*`/`cinch_fs_*`/`cinch_proc_*` externs
+//! behind the prelude's `Effect.Clock`/`Effect.Fs`/`Effect.Process`
+//! homes: word buffers that carry path and content bytes across the
+//! scalar foreign boundary, the runtime-capability clocks, the
+//! filesystem operations and the subprocess operations over real
+//! pipes. The layer also carries this process's own command line: the
+//! `cinch_argv_*` externs (`cinch_argv_init`, called by the generated
+//! entry glue before any program code runs, then `cinch_argv_count` and
+//! `cinch_argv_get`; word 0 is the program name), which is how a
+//! compiled program reads its own arguments; and the program's own
+//! thread, `cinch_run_main`, which the same glue calls next to run the
+//! program on a 1 GiB reserved stack (`CINCH_STACK_SIZE` overrides it)
+//! inside the stack guard of [`stack`], which turns overflowing it into
+//! the `Exhausted` exit.
+//!
+//! The networking and piped-child layers (P40's networking family;
+//! `compiler/runtime/src/net.rs` and the piped section of
+//! `compiler/runtime/src/platform.rs`): the `cinch_net_*` socket and
+//! name-resolution externs over live sockets in a handle table, and the
+//! `cinch_process_*` live-child externs (separately readable stdout and
+//! stderr, writable stdin, a handle table). Both take `Bytes` words
+//! (`crate::abi`) for text and payload and answer the negated error code
+//! of the platform layer's shared vocabulary; the compiler-side units
+//! (`PrimOp::Net`/`PrimOp::Proc`) present those words as the prelude
+//! `Result`.
+//!
+//! The pseudo-terminal layer (`compiler/runtime/src/pty.rs`, the
+//! `Open3`/`PTY` shape of the standard library's process family): the
+//! `cinch_pty_*` externs over a POSIX pseudo-terminal pair, with the
+//! child spawned by `std::process::Command` over the slave end and the
+//! master end read, written and controlled through the handle
+//! (`PrimOp::Pty` presents the same `Result` convention).
+//!
+//! The syscall layer ([`sys`], design/base-as-a-package.md section 5):
+//! the one directory allowed to name an operating system entry point.
+//! It offers words and bytes with a `(result, errno)` convention, a
+//! `syscall`-instruction backend for Linux and a `libSystem` backend for
+//! Darwin, and an audit test that fails when a foreign declaration
+//! appears anywhere else in the crate. The platform, stack, heap, net
+//! and pseudo-terminal layers call it instead of declaring C symbols
+//! themselves; `std` stays in use for allocation, threads and mutexes.
+
+pub mod abi;
+pub mod alloc_kinds;
+pub mod arena;
+pub mod block;
+pub mod bytes;
+pub mod arrays;
+pub mod coop;
+pub mod error;
+pub mod heap;
+pub mod eval;
+pub mod evolution;
+mod int;
+mod limbs;
+mod nat;
+/// Sockets are an operating-system surface a freestanding target does
+/// not have.
+#[cfg(not(target_os = "unknown"))]
+pub mod net;
+pub mod par;
+pub mod park;
+pub mod platform;
+/// A pseudo-terminal is an operating-system surface a freestanding target
+/// does not have.
+#[cfg(not(target_os = "unknown"))]
+pub mod pty;
+pub mod rc;
+pub mod sched;
+pub mod slots;
+mod small;
+pub mod string;
+pub mod stack;
+pub mod stm;
+pub mod mvar;
+pub mod sym;
+pub mod sys;
+pub mod task;
+pub mod text;
+pub mod trace;
+
+pub use error::{Error, Result};
+pub use int::Int;
+pub use nat::Nat;
+pub use bytes::Bytes;
+
+#[cfg(test)]
+mod test_artifacts;

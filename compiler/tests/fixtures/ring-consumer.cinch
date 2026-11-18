@@ -1,0 +1,182 @@
+-- | Exact independent circular-sequence traces with retained aliases to every original node.
+module Main where
+  import Data.Mutable.Ring as R
+  import Data.Mutable.Vec
+  import Data.Mutable.Var
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  -- | A stable fixture identity and an independently replaceable logical value.
+  data Item where
+    -- | Keep fixture identity independent of private storage coordinates.
+    Item :: Nat -> Nat -> Item
+
+  -- | Every original node and eight independently replaceable cursor positions.
+  data World r where
+    -- | The node registry retains aliases through every join, split and arena relocation.
+    World :: Vec r (R.Ring r Item) -> Vec r (Option (R.Ring r Item)) -> World r
+
+  -- | One exact action result, callback observation and complete state checksum.
+  data Step where
+    -- | Kind, source, other, result slot, distance, count, value, returned identity, visit and state.
+    Step :: Nat -> Nat -> Nat -> Nat -> Int -> Nat -> Nat -> Nat -> U64 -> U64 -> Step
+
+  -- | Read the fixture's complete stable node registry.
+  registry :: forall r. World r -> Vec r (R.Ring r Item)
+  registry world = case world of World nodes cursors -> nodes
+
+  -- | Read the fixture's independent cursor positions.
+  positions :: forall r. World r -> Vec r (Option (R.Ring r Item))
+  positions world = case world of World nodes cursors -> cursors
+
+  -- | Read one bounded cursor position, treating a missing fixture position as absent.
+  cursor-at :: forall r. World r -> Nat ->{Mut r} Option (R.Ring r Item)
+  cursor-at world index = case vec-get (positions world) index of Some cursor -> cursor; None -> None
+
+  -- | Convert bounded fixture naturals without a signed overflow.
+  word :: Nat -> U64
+  word value = if value <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 value) else 0
+
+  -- | Mix observations in the independent reference order using wrapping machine arithmetic.
+  mix :: U64 -> U64 -> U64
+  mix hash value = wrapping-add-u64 (wrapping-mul-u64 hash 1099511628211) value
+
+  -- | Mix one bounded natural observation.
+  mix-natural :: U64 -> Nat -> U64
+  mix-natural hash value = mix hash (word value)
+
+  -- | Distinguish an absent cursor from the first stable fixture identity.
+  identity :: forall r. Option (R.Ring r Item) ->{Mut r} Nat
+  identity cursor = case cursor of None -> 0; Some present -> case R.ring-value present of Item id value -> id + 1
+
+  -- | Assign fresh fixture identities while retaining every newly created node exactly once.
+  register-cycle :: forall r. World r -> R.Ring r Item -> Nat -> Nat -> Nat -> Nat ->{Mut r} Unit
+  register-cycle world cursor remaining index factor offset = if remaining == 0 then () else
+    let id = vec-length (registry world) in
+    let value = nat-rem (index * factor + offset) 997 in
+    let assigned = R.ring-set-value cursor (Item id value) in
+    let retained = vec-push (registry world) cursor in
+    register-cycle world (R.ring-next cursor) (remaining - 1) (index + 1) factor offset
+
+  -- | Create a cycle with independently initialized logical values and stable registry entries.
+  initialize :: forall r. World r -> Nat -> Nat -> Nat ->{Mut r} (Bool, Option (R.Ring r Item))
+  initialize world count factor offset = case R.ring-new count (Item 0 0) of
+    Err error -> (False, None)
+    Ok None -> (True, None)
+    Ok (Some cursor) -> let retained = register-cycle world cursor count 0 factor offset in (True, Some cursor)
+
+  -- | Register copied nodes with new identities while retaining their existing logical values.
+  register-copy :: forall r. World r -> R.Ring r Item -> Nat ->{Mut r} Unit
+  register-copy world cursor remaining = if remaining == 0 then () else
+    let id = vec-length (registry world) in
+    let prior = R.ring-value cursor in
+    let assigned = case prior of Item old value -> R.ring-set-value cursor (Item id value) in
+    let retained = vec-push (registry world) cursor in register-copy world (R.ring-next cursor) (remaining - 1)
+
+  -- | Preserve each copy's ordinary value while giving every copied node an independent identity.
+  clone :: forall r. World r -> Option (R.Ring r Item) ->{Mut r} Option (R.Ring r Item)
+  clone world cursor = case cursor of
+    None -> None
+    Some present -> let copied = R.ring-copy present in
+      let retained = register-copy world copied (R.ring-length (Some copied)) in Some copied
+
+  -- | Accumulate callback order and values through an ordinary mutable fixture cell.
+  visit-value :: forall r. Var r U64 -> Item ->{Mut r} Unit
+  visit-value counter item = case item of
+    Item id value -> let old = var-read counter in var-write counter (mix-natural (mix-natural old id) value)
+
+  -- | Observe one complete callback traversal, including the empty traversal's initial checksum.
+  visit :: forall r. Option (R.Ring r Item) ->{Mut r} U64
+  visit cursor = let counter = var-new (1 :: U64) in
+    let visited = R.ring-for-each cursor (visit-value counter) in var-read counter
+
+  -- | Apply one fixture action while preserving source and marker positions until the result is installed.
+  action :: forall r. World r -> Nat -> Option (R.Ring r Item) -> Option (R.Ring r Item) -> Int -> Nat -> Nat ->{Mut r} (Bool, Option (R.Ring r Item), U64)
+  action world kind first other distance count value =
+    if kind == 7 then (case initialize world count 17 value of (ok, cursor) -> (ok, cursor, 0)) else
+    if kind == 8 then (True, clone world first, 0) else
+    if kind == 6 then (True, first, visit first) else
+    case first of
+      None -> (True, None, 0)
+      Some cursor ->
+        if kind == 0 then (True, Some (R.ring-next cursor), 0) else
+        if kind == 1 then (True, Some (R.ring-prev cursor), 0) else
+        if kind == 2 then (True, Some (R.ring-move cursor distance), 0) else
+        if kind == 3 then (case R.ring-link cursor other of Ok returned -> (True, Some returned, 0); Err error -> (False, first, 0)) else
+        if kind == 4 then (True, R.ring-unlink cursor distance, 0) else
+        if kind == 5 then (case R.ring-value cursor of
+          Item id previous -> let assigned = R.ring-set-value cursor (Item id value) in (True, first, 0)) else
+        (True, first, 0)
+
+  -- | Fold both directions in the exact reference observation order.
+  traversal-hash :: forall r. World r -> R.Ring r Item -> Nat -> Bool -> U64 ->{Mut r} U64
+  traversal-hash world cursor remaining forward hash = if remaining == 0 then hash else
+    case R.ring-value cursor of
+      Item id value ->
+        let observed = mix-natural (mix-natural hash id) value in
+        let aliased = if forward then (case vec-get (registry world) id of
+            Some original -> mix observed (if R.ring-same cursor original then (1 :: U64) else (0 :: U64))
+            None -> mix observed 0) else observed in
+        traversal-hash world (if forward then R.ring-next cursor else R.ring-prev cursor) (remaining - 1) forward aliased
+
+  -- | Observe each replaceable cursor's identity and complete component length.
+  positions-hash :: forall r. World r -> Nat -> U64 ->{Mut r} U64
+  positions-hash world index hash = if index == 8 then hash else
+    let cursor = cursor-at world index in
+    let observed = mix-natural (mix-natural hash (identity cursor)) (R.ring-length cursor) in
+    positions-hash world (index + 1) observed
+
+  -- | Observe both complete traversal orders and all original aliases from every retained node.
+  nodes-hash :: forall r. World r -> Nat -> Nat -> U64 ->{Mut r} U64
+  nodes-hash world index count hash = if index == count then hash else
+    case vec-get (registry world) index of
+      None -> 0
+      Some cursor -> case R.ring-value cursor of
+        Item id value ->
+          let observed = mix-natural (mix-natural hash id) value in
+          let adjacent = mix-natural (mix-natural observed (identity (Some (R.ring-next cursor)))) (identity (Some (R.ring-prev cursor))) in
+          let length = R.ring-length (Some cursor) in
+          let counted = mix-natural adjacent length in
+          let forward = traversal-hash world cursor length True counted in
+          let backward = traversal-hash world cursor length False (mix forward 991) in
+          nodes-hash world (index + 1) count (mix backward 997)
+
+  -- | Compute the complete post-action reference checksum independently from its return value.
+  state-hash :: forall r. World r ->{Mut r} U64
+  state-hash world = let cursors = positions-hash world 0 1 in
+    let count = vec-length (registry world) in nodes-hash world 0 count (mix-natural cursors count)
+
+  -- | Require every exact result, callback observation and post-action state in the original sequence.
+  steps-match :: forall r. World r -> List Step ->{Mut r} Bool
+  steps-match world steps = case steps of
+    Nil -> True
+    Cons (Step kind source other output distance count value returned expected-visit expected-state) rest ->
+      let first = cursor-at world source in
+      let second = cursor-at world other in
+      case action world kind first second distance count value of
+        (ok, cursor, observed-visit) ->
+          let installed = vec-set (positions world) output cursor in
+          ok && installed && identity cursor == returned && eq-u64 observed-visit expected-visit &&
+            eq-u64 (state-hash world) expected-state && steps-match world rest
+
+  -- | Initialize eight cursor aliases and retain every node before replaying one independent trace.
+  trace-case :: forall r. Nat -> List Step ->{Mut r} Bool
+  trace-case count steps =
+    let nodes = vec-new () in
+    let cursors = vec-from-list [None,None,None,None,None,None,None,None] in
+    let world = World nodes cursors in
+    case initialize world count 17 23 of
+      (ok, first) ->
+        let root = vec-set cursors 0 first in
+        let middle = vec-set cursors 1 (case first of None -> None; Some cursor -> Some (R.ring-move cursor (nat-to-int (nat-div count 2)))) in
+        let last = vec-set cursors 2 (case first of None -> None; Some cursor -> Some (R.ring-prev cursor)) in
+        case initialize world 3 31 7 of
+          (more-ok, other) ->
+            let other-root = vec-set cursors 3 other in
+            let next = vec-set cursors 4 (case other of None -> None; Some cursor -> Some (R.ring-next cursor)) in
+            let alias = vec-set cursors 7 other in
+            case initialize world 1 1 901 of
+              (singleton-ok, singleton) -> let one = vec-set cursors 5 singleton in
+                ok && root && middle && last && more-ok && other-root && next && alias && singleton-ok && one && steps-match world steps

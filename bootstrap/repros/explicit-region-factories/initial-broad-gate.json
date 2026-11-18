@@ -1,0 +1,14 @@
+{
+  "description": "The first broader run retained the intended row/region refusal, but an existing assertion expected the old unknown-Region diagnostic. Only that expectation was updated; all negative source cases remain.",
+  "log_sha256": "45da72ff87f27915282429ebb096d899f1c04c461271f119fd35bb4982da7232",
+  "failed_test": "effects::row_parameter_annotations_and_names_preserve_their_kind",
+  "previous_expected": "unknown type Region",
+  "actual_refusal": "effect row parameter `e` has an incompatible kind or non-row use",
+  "other_passed": {
+    "lib": 337,
+    "constructor_region_fields": 6,
+    "cross_region_effect_union": 8,
+    "effects": 20
+  },
+  "remaining_targets": "Rank, nominal, kind and Split targets were not reached in this interrupted Cargo test sequence; they run separately."
+}

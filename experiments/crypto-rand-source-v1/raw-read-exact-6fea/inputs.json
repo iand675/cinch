@@ -1,0 +1,56 @@
+{
+  "candidate_module": "Effect.Random.Read",
+  "candidate_epoch": "raw-read-exact-6fea",
+  "source_revision": "6fea5bb39f51722a8ee79537b36fab8f20f7caba",
+  "dependency_revision": "f30db1451460d4571273637218233f589f984230",
+  "sources": [
+    {
+      "module": "Effect.Random.Read",
+      "origin": "6fea5bb39f51722a8ee79537b36fab8f20f7caba",
+      "path": "experiments/crypto-rand-surface-v1/proposed/Effect.Random.Read.cinch",
+      "sha256": "ea45364cfa809b208b06baf48b81e9ca35be36c69dac8134fb306d93548fe376",
+      "bytes": 2540
+    },
+    {
+      "module": "Effect.Stream",
+      "origin": "f30db1451460d4571273637218233f589f984230",
+      "path": "compiler/prelude/Effect/Stream.cinch",
+      "sha256": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+      "bytes": 23587
+    },
+    {
+      "module": "Effect.Buffered.Core",
+      "origin": "f30db1451460d4571273637218233f589f984230",
+      "path": "compiler/prelude/Effect/Buffered/Core.cinch",
+      "sha256": "10f5c2ae23a9171d1cf967de98f6b9e6300c93b7fbb5a8fb45b389d6f411c4b1",
+      "bytes": 20597
+    },
+    {
+      "module": "Effect.Buffered.Internal.Cell",
+      "origin": "f30db1451460d4571273637218233f589f984230",
+      "path": "compiler/prelude/Effect/Buffered/Internal/Cell.cinch",
+      "sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
+      "bytes": 1855
+    }
+  ],
+  "embedded_imports": [
+    "Algebra.Semigroup",
+    "Data.Bool",
+    "Data.Bytes",
+    "Data.Core",
+    "Data.Int",
+    "Data.List",
+    "Data.Machine",
+    "Data.Nat",
+    "Data.Option",
+    "Data.Result",
+    "Data.String",
+    "Effect.Io",
+    "Prim.Sys"
+  ],
+  "builtin_Data_Bytes_authority": true,
+  "builtin_Data_Core_authority": true,
+  "compiler": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+  "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "scope": "source check and canonical documentation extraction only; no IR/link/runtime/timing"
+}

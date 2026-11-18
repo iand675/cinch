@@ -1,0 +1,169 @@
+-- | Dynamic ownership, deep traversal, transparent descriptor and explicit legacy capability controls.
+module Main where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Text.Json.Dynamic
+  import Text.Json.Legacy
+  import Data.Json as Legacy
+  import Data.Machine
+
+  -- | Keep constructed fixture sizes opaque to frontend evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %result = or i32 %0, 0
+      ret i32 %result
+    }
+  -- | Compare every byte of an independently owned output.
+  same :: Bytes -> Bytes -> Bool
+  same left right = eq-i64 (bytes-compare left right) 0
+
+  -- | Compare the complete result of dynamic marshaling.
+  encoded :: JsonAny -> Bytes -> Bool
+  encoded value expected = case json-marshal json-any-type value of Err error -> False; Ok output -> same output expected
+
+  -- | Mutate every exported string/name byte copy while retaining the original input and dynamic owners.
+  byte-owners :: Unit -> Bool
+  byte-owners unit =
+    let input = bytes-from-list [255,0,60] in
+    let text = json-any-bytes input in
+    let object = json-any-object [(input, text)] in
+    let changed-input = if bytes-len input == 3 then bytes-set input 0 97 else () in
+    let changed-text = case json-any-as-bytes text of None -> (); Some output -> if bytes-len output == 3 then bytes-set output 0 98 else () in
+    let changed-name = case json-any-object-members object of None -> (); Some members -> case members of Nil -> (); Cons first rest -> case first of (name, value) -> if bytes-len name == 3 then bytes-set name 0 99 else () in
+    (case json-any-as-bytes text of None -> False; Some bytes -> same bytes (bytes-from-list [255,0,60]))
+      && (case json-any-as-string text of None -> False; Some scalar -> scalar == "�\u{0}<")
+      && encoded object (string-to-bytes "{\"�\\u0000\\u003c\":\"�\\u0000\\u003c\"}")
+
+  -- | Exact names deduplicate before repair; distinct names repairing alike remain separate emitted members.
+  key-owners :: Unit -> Bool
+  key-owners unit =
+    let bad-a = bytes-from-list [255] in let bad-b = bytes-from-list [254] in
+    let object = json-any-object [(bad-a, json-any-bool True), (bad-b, json-any-bool False), (bad-a, json-any-string "last"), (string-to-bytes "z", json-any-null)] in
+    encoded object (string-to-bytes "{\"z\":null,\"�\":false,\"�\":\"last\"}")
+
+  -- | Owned semantic token metadata survives mutation of its input and exported copies.
+  semantic-owners :: Unit -> Bool
+  semantic-owners unit =
+    let input = string-to-bytes "1e9999" in
+    let info = json-semantic-info "unmarshal" 7 "/a~1b/0" input "F64" in
+    let exported = json-semantic-bytes info in
+    let changed-input = if bytes-len input > 0 then bytes-set input 0 50 else () in
+    let changed-export = if bytes-len exported > 0 then bytes-set exported 0 51 else () in
+    let error = JsonSemanticError info (JsonValueError "F64" "value out of range") in
+    json-error-offset error == 7 && json-error-path error == "/a~1b/0" && same (json-semantic-bytes info) (string-to-bytes "1e9999")
+      && (case json-error-semantic (JsonCustomError "wrapper" (JsonPathError "field" error)) of None -> False; Some retained -> same (json-semantic-bytes retained) (string-to-bytes "1e9999"))
+
+  -- | Structural capabilities preserve child errors while checking successful callback fragments.
+  structural-controls :: Unit -> Bool
+  structural-controls unit =
+    let child = json-structural-type "Structure" JsonInvalidKind (\unit -> ()) (\value -> False) (\value -> False) (\options value -> Err (JsonValueError "F64" "+Inf")) (\options source prior -> json-decoded-ok ()) in
+    let invalid = json-structural-type "Structure" JsonInvalidKind (\unit -> ()) (\value -> False) (\value -> False) (\options value -> Ok (string-to-bytes "[")) (\options source prior -> json-decoded-ok ()) in
+    (case json-marshal child () of Err (JsonValueError label value) -> label == "F64" && value == "+Inf"; other -> False)
+      && (case json-marshal invalid () of Err (JsonCustomError label cause) -> label == "Structure"; other -> False)
+
+  -- | Build deeply nested singleton arrays using managed direct spines and tail calls.
+  nest :: Nat -> JsonAny -> JsonAny
+  nest count value = if count == 0 then value else nest (count - 1) (json-any-array [value])
+
+  -- | Convert through both explicit legacy bridges and compare the complete strict output.
+  bridge-output :: JsonAny -> Bytes -> Bool
+  bridge-output value expected = case json-any-to-legacy value of
+    Err error -> False
+    Ok legacy -> case json-any-from-legacy legacy of Err error -> False; Ok restored -> encoded restored expected
+
+  -- | Qualify the maximum accepted depth through encoding, owned decoding and both iterative legacy traversals.
+  deep-control :: Unit -> Bool
+  deep-control unit =
+    let depth = u32-to-nat (runtime-size 10000) in
+    let value = nest depth (json-any-number (json-number-from-text "9007199254740993")) in
+    case json-marshal json-any-type value of
+      Err error -> False
+      Ok output -> bytes-len output == depth * 2 + 16 && (case json-unmarshal-with json-any-type (json-read-options True False json-default-policies) output of Err error -> False; Ok decoded -> encoded decoded output && bridge-output decoded output)
+
+  -- | Build a large flat collection without a native activation per member.
+  flat-values :: Nat -> List JsonAny -> List JsonAny
+  flat-values count reversed = if count == 0 then reversed else flat-values (count - 1) (Cons (json-any-bool False) reversed)
+
+  -- | Qualify flat container counts, complete output lengths and fresh round-trip output.
+  flat-control :: Unit -> Bool
+  flat-control unit =
+    let size = u32-to-nat (runtime-size 4096) in
+    let value = json-any-array (flat-values size Nil) in
+    case json-marshal json-any-type value of
+      Err error -> False
+      Ok output -> bytes-len output == size * 6 + 1 && (case json-unmarshal json-any-type output of Err error -> False; Ok restored -> encoded restored output)
+
+  -- | Retain a complete prior and its first partial-error snapshot across many subsequent dynamic pipelines.
+  retained-pipelines :: Nat -> JsonAny -> JsonAny -> JsonError -> Bool
+  retained-pipelines remaining prior partial original = if remaining == 0 then
+    encoded prior (string-to-bytes "{\"retained\":[true,\"owner\"]}")
+      && encoded partial (string-to-bytes "{\"a\":[1,0,3],\"b\":2}")
+      && json-error-offset original == 14 && json-error-path original == "a.1"
+    else let input = string-to-bytes "{\"x\":[null,false,1,\"text\"],\"x\":{\"y\":-0}}" in
+      case json-unmarshal json-any-type input of
+        Err error -> False
+        Ok next -> encoded next (string-to-bytes "{\"x\":{\"y\":-0}}") && retained-pipelines (remaining - 1) prior partial original
+
+  -- | Observe immutable partial values and error lifetime while later temporary trees are reclaimed.
+  retained-control :: Unit -> Bool
+  retained-control unit =
+    let prior = json-any-object [(string-to-bytes "retained", json-any-array [json-any-bool True, json-any-string "owner"])] in
+    let decoded = json-update json-any-type (string-to-bytes "{\"a\":[1,1e9999,3],\"b\":2}") prior in
+    case json-decoded-error decoded of None -> False; Some error -> retained-pipelines (u32-to-nat (runtime-size 512)) prior (json-decoded-value decoded) error
+
+  -- | Explicit legacy projection refuses malformed text/numbers/spines and finite-overflow spellings.
+  legacy-refusals :: Unit -> Bool
+  legacy-refusals unit =
+    (case json-any-to-legacy (json-any-bytes (bytes-from-list [255])) of Err (JsonEncodingError at text) -> True; other -> False)
+      && (case json-any-to-legacy (json-any-object [(bytes-from-list [255], json-any-null)]) of Err (JsonEncodingError at text) -> True; other -> False)
+      && (case json-any-to-legacy (json-any-number (json-number-from-text "01")) of Err error -> True; other -> False)
+      && (case json-any-to-legacy (json-any-number (json-number-from-text "1e9999")) of Err error -> True; other -> False)
+      && (case json-any-from-legacy (Legacy.JArr Legacy.JNull Legacy.JNull) of Err (JsonTargetError text) -> True; other -> False)
+      && (case json-any-from-legacy (Legacy.JObj "a" Legacy.JNull Legacy.JNull) of Err (JsonTargetError text) -> True; other -> False)
+
+  -- | Existing typed Json-shaped capabilities compose through an explicit descriptor and retain prior values on refusal.
+  legacy-capability :: Unit -> Bool
+  legacy-capability unit =
+    let descriptor = json-legacy-type "LegacyI64" (\unit -> (0 :: I64)) (\value -> eq-i64 value 0) (\value -> eq-i64 value 0) in
+    (case json-marshal descriptor 42 of Err error -> False; Ok output -> same output (string-to-bytes "42"))
+      && (case json-unmarshal descriptor (string-to-bytes "-42") of Err error -> False; Ok value -> eq-i64 value (-42))
+      && (let decoded = json-update descriptor (string-to-bytes "42.0") 7 in eq-i64 (json-decoded-value decoded) 7 && (case json-decoded-error decoded of Some (JsonTypeCause label actual offset path (JsonTypeError expected original at inner)) -> label == "LegacyI64" && actual == "number 42.0" && offset == 4 && expected == "integer"; other -> False))
+      && (let decoded = json-update descriptor (string-to-bytes "9223372036854775808") 7 in eq-i64 (json-decoded-value decoded) 7 && (case json-decoded-error decoded of Some (JsonTypeCause label actual offset path (JsonValueError original description)) -> label == "LegacyI64" && actual == "number 9223372036854775808" && offset == 19 && description == "I64"; other -> False))
+      && bridge-output (json-any-number (json-number-from-text "1234567890123456789012345678901234567890")) (string-to-bytes "1234567890123456789012345678901234567890")
+
+  -- | Return a typed encoder closure whose application byte owner outlives this activation.
+  captured-typed :: Bytes -> JsonAny
+  captured-typed value = json-any-typed json-bytes-type value
+
+  -- | Reclaim temporary typed closures repeatedly while retaining the original captured application bytes.
+  typed-retained :: Nat -> JsonAny -> Bool
+  typed-retained remaining original = if remaining == 0 then encoded original (string-to-bytes "\"AQI=\"")
+    else let temporary = captured-typed (bytes-from-list [0]) in encoded temporary (string-to-bytes "\"AA==\"") && typed-retained (remaining - 1) original
+
+  -- | Mixed typed payloads preserve prepared callback order, present-null omission and their explicit application alias contract.
+  typed-controls :: Unit -> Bool
+  typed-controls unit =
+    let counter = json-custom-type "Counter" (\unit -> bytes-new 1) (\value -> False) (\value -> False)
+          (\options value -> let before = if bytes-len value > 0 then bytes-get value 0 else (0 :: Nat) in
+            let changed = if bytes-len value > 0 then bytes-set value 0 (if before == 0 then 1 else 2) else () in
+            Ok (string-to-bytes (if before == 0 then "0" else "1")))
+          (\options source prior -> json-decoded-ok prior) in
+    let state = bytes-from-list [0] in
+    let object = json-any-object [(bytes-from-list [255], json-any-typed counter state), (string-to-bytes "z", json-any-typed counter state)] in
+    let absent = json-any-typed (json-nullable-type json-bool-type) (None :: Option Bool) in
+    let denied = json-structural-type "Denied" JsonInvalidKind (\unit -> ()) (\value -> False) (\value -> False) (\options value -> Err (JsonValueError "F64" "+Inf")) (\options source prior -> json-decoded-ok ()) in
+    let application-bytes = bytes-from-list [1,2] in let aliased = captured-typed application-bytes in
+    let changed-data = if bytes-len application-bytes == 2 then bytes-set application-bytes 0 255 else () in
+    encoded object (string-to-bytes "{\"z\":0,\"�\":1}") && (if bytes-len state > 0 then bytes-get state 0 == 2 else False)
+      && not (json-type-is-empty json-any-type absent) && not (json-type-is-zero json-any-type absent) && encoded absent (string-to-bytes "null")
+      && (case json-any-typed-label absent of None -> False; Some label -> label == "Option Bool")
+      && (case json-marshal-with json-any-type (json-write-options False False "" "" json-default-policies) (json-any-typed json-string-type "<") of Err error -> False; Ok output -> same output (string-to-bytes "\"<\""))
+      && (case json-marshal json-any-type (json-any-typed denied ()) of Err (JsonValueError label description) -> label == "F64" && description == "+Inf"; other -> False)
+      && encoded aliased (string-to-bytes "\"/wI=\"") && bridge-output aliased (string-to-bytes "\"/wI=\"")
+      && typed-retained (u32-to-nat (runtime-size 512)) (captured-typed (bytes-from-list [1,2]))
+
+  -- | Qualify every independent ownership and structural boundary with an explicitly nonzero failure status.
+  main :: Int
+  main = if not (byte-owners ()) then 1 else if not (key-owners ()) then 2 else if not (semantic-owners ()) then 3
+    else if not (structural-controls ()) then 4 else if not (retained-control ()) then 5 else if not (legacy-refusals ()) then 6
+    else if not (legacy-capability ()) then 7 else if not (deep-control ()) then 8 else if not (flat-control ()) then 9 else if not (typed-controls ()) then 10 else 0

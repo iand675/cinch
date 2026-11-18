@@ -1672,11 +1672,13 @@ fn former_of(name: &str) -> Option<crate::types::Former> {
 // ---------------------------------------------------------------- info tables
 
 /// A declared parameter's kind: a type parameter, an index value with its
-/// type (`n :: Nat`), a proposition parameter (`p :: Prop`), or a type
+/// type (`n :: Nat`), a runtime identity (`r :: Region`), a proposition parameter (`p :: Prop`), or a type
 /// constructor parameter of kind `Type -> ... -> Type` (`f :: Type -> Type`).
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParamKind {
     Type,
+    /// A scoped runtime identity, erased from value and representation arguments.
+    Region,
     Val(Ty),
     Prop,
     /// `Type -> ... -> Type` with `n >= 1` arrows: a higher-kinded type
@@ -1937,8 +1939,27 @@ struct TransferOblig {
     span: ast::Span,
 }
 
+/// Compiler-owned evidence for a sealed primitive's finite positive payload.
+/// This is neither subtyping variance nor an interface-provided annotation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StrictPositivePayload {
+    /// A finite array owns its elements in initialized payload slots.
+    FiniteOwnedArray,
+}
+
+impl StrictPositivePayload {
+    /// Validate the primitive's exact application arity before traversing its payload.
+    fn accepts(self, arity: usize) -> bool {
+        match self {
+            Self::FiniteOwnedArray => arity == 1,
+        }
+    }
+}
+
 #[derive(Clone)]
 struct TypeKind {
+    /// Installed only with the actual sealed primitive; source/import headers have no authority to grant it.
+    strict_positive_payload: Option<StrictPositivePayload>,
     module: String,
     name: String,
     /// Stable nominal identity in checked types. Public names and import
@@ -1946,7 +1967,7 @@ struct TypeKind {
     identity: String,
     arity: usize,
     /// Each parameter's kind, in declaration order: type parameters,
-    /// index values (`Vec (n :: Nat)`'s `n`), and proposition parameters
+    /// erased runtime identities, index values (`Vec (n :: Nat)`'s `n`), and proposition parameters
     /// (`Dec (p :: Prop)`'s `p`).
     param_kinds: Vec<ParamKind>,
     /// A checked data declaration (including the installed indexed data
@@ -3182,6 +3203,8 @@ struct Checker {
     /// un-annotated `forall` binders are classified by where they are used
     /// (a type parameter, an index value, or a region).
     kind_constraints: RefCell<Vec<(String, ParamKind)>>,
+    /// Explicit Type/Region annotations while converting their lexical telescope.
+    declared_parameter_kinds: RefCell<Vec<(String, ParamKind)>>,
     /// Logical definitions (`spec` and `proof` declarations): the erased
     /// total fragment, checked for termination and never emitted
     /// (core specification sections 3 and 8).
@@ -3947,6 +3970,7 @@ impl Checker {
             fold_scx: None,
             idx_pends: Vec::new(),
             kind_constraints: RefCell::new(Vec::new()),
+            declared_parameter_kinds: RefCell::new(Vec::new()),
             logical: std::collections::HashSet::new(),
             corec: std::collections::HashSet::new(),
             allow_eval: true,
@@ -6309,6 +6333,8 @@ impl Checker {
 
     /// A module's own declaration identity, independent of its previous
     /// public surface. Surface rebuilding must be able to add new outputs.
+    /// Actual effect bindings are members too; symbolic kernel labels without
+    /// a declaration cannot become export/import authority through this lookup.
     fn declared_surface_def(&self, module: &str, name: &str) -> Option<SurfaceName> {
         let declared = self
             .values
@@ -6325,6 +6351,7 @@ impl Checker {
                 .get(name)
                 .map(|ss| ss.iter().any(|s| s.module == module))
                 .unwrap_or(false)
+            || self.effect_bindings.contains_key(&(module.to_string(), name.to_string()))
             || self.instance_defs_pending.iter().any(|(m, i)| m == module && i.name.text == name)
             || self.instance_list.iter().any(|i| i.module == module && i.name == name)
             || self.deferred_headers.contains_key(&(module.to_string(), name.to_string()));
@@ -7121,16 +7148,27 @@ impl Checker {
         // Class arguments check against the parameter kinds: `Functor
         // List` and `Functor ((->) r)` take a partially applied type
         // constructor, `Eq a` a fully applied one.
+        let class = self.signature_key(&sig.module, &sig.name);
+        let capability = is_capability_class(&class);
         let mut args = Vec::new();
         for (i, a) in c.args.iter().enumerate() {
-            args.push(self.conv_kind(a, vars, sig.param_kinds.get(i))?);
+            // Kernel capability arguments are runtime identities, so recording
+            // a proper-type constraint before converting them to regions would
+            // contradict an explicit Region binder. Validation below still
+            // requires an in-scope variable for every capability argument.
+            let expected = if capability { None } else { sig.param_kinds.get(i) };
+            args.push(self.conv_kind(a, vars, expected)?);
         }
-        let mut app = ClassApp { class: self.signature_key(&sig.module, &sig.name), args };
-        if is_capability_class(&app.class) {
+        let mut app = ClassApp { class, args };
+        if capability {
             // A capability's argument is a runtime identity (decision D21).
             for (a, src) in app.args.iter_mut().zip(&c.args) {
                 match a {
-                    Ty::Param(p) => *a = Ty::Region(p.clone()),
+                    Ty::Param(p) => {
+                        self.check_declared_region_role(p.as_str(), src.span())?;
+                        *a = Ty::Region(p.clone());
+                    }
+                    Ty::Region(_) => {},
                     _ => {
                         return Err(Error::at(
                             src.span(),
@@ -7172,10 +7210,72 @@ impl Checker {
         vars: &[String],
         expect: Option<&ParamKind>,
     ) -> Result<Ty> {
+        if matches!(expect, Some(ParamKind::Region)) {
+            let name = self.region_arg(ty, vars, "a nominal Region argument")?;
+            self.note_kind(&name, ParamKind::Region);
+            return Ok(Ty::Region(name.into()));
+        }
         let t = self.conv_raw(ty, vars, expect)?;
         self.check_kind(&t, expect, ty.span())?;
         self.check_refine_instance(&t, ty.span())?;
         Ok(t)
+    }
+
+    /// Read the nearest explicit annotation without inferring roles from a client use.
+    fn declared_parameter_kind(&self, name: &str) -> Option<ParamKind> {
+        self.declared_parameter_kinds.borrow().iter().rev()
+            .find(|(bound, _)| bound == name).map(|(_, kind)| kind.clone())
+    }
+
+    /// Preserve an explicit declaration's namespace at existing runtime-identity sites.
+    fn check_declared_region_role(&self, name: &str, span: ast::Span) -> Result<()> {
+        if self.declared_parameter_kind(name).is_some_and(|kind| kind != ParamKind::Region) {
+            return Err(Error::at(span, "a Region argument cannot use an explicitly typed parameter"));
+        }
+        Ok(())
+    }
+
+    /// Scope explicit nominal roles during conversion and restore them on every error path.
+    fn with_declared_parameter_kinds<T>(
+        &self, binders: &[ast::TypeBinder], convert: impl FnOnce(&Self) -> Result<T>,
+    ) -> Result<T> {
+        let start = self.declared_parameter_kinds.borrow().len();
+        for binder in binders {
+            let kind = match &binder.ann {
+                Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Region"] => Some(ParamKind::Region),
+                Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Type"] => Some(ParamKind::Type),
+                _ => None,
+            };
+            if let Some(kind) = kind {
+                self.declared_parameter_kinds.borrow_mut().push((binder.name.text.clone(), kind));
+            }
+        }
+        let inherited_notes = std::mem::take(&mut *self.kind_constraints.borrow_mut());
+        let converted = convert(self);
+        let local_notes = std::mem::replace(&mut *self.kind_constraints.borrow_mut(), inherited_notes);
+        for (name, kind) in &local_notes { self.note_kind(name, kind.clone()); }
+        let result = converted.and_then(|value| {
+            for (name, kind) in &local_notes {
+                if *kind == ParamKind::Region && local_notes.iter()
+                    .any(|(used, actual)| used == name && *actual != ParamKind::Region) {
+                    return Err(Error::plain(format!("region parameter `{name}` has an incompatible type, value or proposition use")));
+                }
+            }
+            for (name, kind) in &self.declared_parameter_kinds.borrow()[start..] {
+                if *kind == ParamKind::Region && local_notes.iter()
+                    .any(|(used, actual)| used == name && *actual != ParamKind::Region) {
+                    return Err(Error::plain(format!("explicit region parameter `{name}` has an incompatible type, value or proposition use")));
+                }
+            }
+            Ok(value)
+        });
+        self.declared_parameter_kinds.borrow_mut().truncate(start);
+        result
+    }
+
+    /// Convert a constructor or field under its defining declaration's explicit roles.
+    fn conv_nominal_type(&self, ty: &ast::Type, vars: &[String], binders: &[ast::TypeBinder]) -> Result<Ty> {
+        self.with_declared_parameter_kinds(binders, |checker| checker.conv_type(ty, vars))
     }
 
     /// Whether `pred arg` in type position is the refinement TYPE named
@@ -7245,6 +7345,7 @@ impl Checker {
     fn check_kind(&self, t: &Ty, expect: Option<&ParamKind>, span: ast::Span) -> Result<()> {
         let Some(expect) = expect else { return Ok(()) };
         let kind = match t {
+            Ty::Region(_) => ParamKind::Region,
             Ty::Adt(name, args) if name == "refined" => {
                 // The lattice former: `refined P T` and (in an
                 // ascription) `refined P` are full types.
@@ -9217,7 +9318,10 @@ impl Checker {
             let head = self.effect_head(path, false)?;
             let arg = match args.as_slice() {
                 [] => None,
-                [n] => Some(n.text.clone()),
+                [n] => {
+                    self.check_declared_region_role(&n.text, n.span)?;
+                    Some(n.text.clone())
+                }
                 _ => {
                     return Err(Error::at(
                         path.span(),
@@ -9245,21 +9349,16 @@ impl Checker {
     /// A region argument of a builtin applied type (`Io r`, `Scope r s`,
     /// `Task s x a`): a `forall`-bound region variable.
     fn region_arg(&self, t: &ast::Type, vars: &[String], what: &str) -> Result<String> {
-        match t {
-            ast::Type::Var(n, _) => {
-                if !vars.contains(&n.text) {
-                    return Err(Error::at(
-                        n.span,
-                        format!("unknown region variable {}", n.text),
-                    ));
-                }
-                Ok(n.text.clone())
-            }
-            other => Err(Error::at(
-                other.span(),
-                format!("{what} must be a region variable"),
-            )),
+        let (name, span) = match t {
+            ast::Type::Var(name, _) => (name.text.clone(), name.span),
+            ast::Type::Con(path, span) if path.segments.len() == 1 => (path.segments[0].text.clone(), *span),
+            other => return Err(Error::at(other.span(), format!("{what} must be a region variable"))),
+        };
+        if !vars.contains(&name) {
+            return Err(Error::at(span, format!("unknown region variable {name}")));
         }
+        self.check_declared_region_role(&name, span)?;
+        Ok(name)
     }
 
     /// Convert a possibly applied type. `Thunk {e} a` and `Lazy {e} r a`
@@ -9399,6 +9498,7 @@ impl Checker {
                             ));
                         }
                     };
+                    self.check_declared_region_role(&region, r.span())?;
                     return Ok(Ty::Lazy {
                         eff: self.conv_row(e, vars)?,
                         region: region.into(),
@@ -9442,6 +9542,7 @@ impl Checker {
                             ));
                         }
                     };
+                    self.check_declared_region_role(&region, r.span())?;
                     let inner = self.conv_type(a, vars)?;
                     return Ok(if is_ref {
                         Ty::Ref(region.into(), Box::new(inner))
@@ -9475,6 +9576,7 @@ impl Checker {
                             ));
                         }
                     };
+                    self.check_declared_region_role(&region, r.span())?;
                     return Ok(Ty::Adt("Io".into(), vec![Ty::Region(region.into())]));
                 }
                 (["Io"], _) => {
@@ -9640,6 +9742,7 @@ impl Checker {
                 Arg::Ty(t) => {
                     let slot = info.as_ref().and_then(|ik| ik.param_kinds.get(i).cloned());
                     let arg = match &slot {
+                        Some(ParamKind::Region) => self.conv_kind(&t, vars, Some(&ParamKind::Region))?,
                         Some(ParamKind::Val(vty)) => {
                             Ty::Idx(Box::new(self.conv_idx(&t, vars, vty)?))
                         }
@@ -9649,6 +9752,15 @@ impl Checker {
                         }
                         _ => self.conv_kind(&t, vars, None)?,
                     };
+                    // An unannotated source slot retains its existing contextual reading.
+                    // An explicit defining Type annotation cannot be filled by a Region.
+                    let explicit_type = info.as_ref().and_then(|head|
+                        self.interface_binders.get(&(head.module.clone(), head.name.clone())))
+                        .and_then(|binders| binders.get(i)).is_some_and(|binder|
+                            matches!(&binder.ann, Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Type"]));
+                    if explicit_type && matches!(slot, Some(ParamKind::Type)) && matches!(arg, Ty::Region(_)) {
+                        return Err(Error::at(t.span(), "a runtime identity cannot fill a nominal Type parameter"));
+                    }
                     // A universe argument claims `Type : Type`: `Type n`
                     // has kind `Type (n + 1)` (core specification
                     // section 2), so it cannot fill a `Type 0` slot.
@@ -9724,6 +9836,10 @@ impl Checker {
                         // spelling (kind binders for signature
                         // parameters).
                         if vars.contains(&name.to_string()) {
+                            if self.declared_parameter_kind(name) == Some(ParamKind::Region) {
+                                if let Some(kind) = expect { self.note_kind(name, kind.clone()); }
+                                return Ok(Ty::Region(name.to_string().into()));
+                            }
                             if self.index_carriers.borrow().iter().rev()
                                 .find(|(binder, _)| binder == name)
                                 .is_some_and(|(_, carrier)| *carrier == Ty::Sort(Sort::Prop))
@@ -9764,6 +9880,10 @@ impl Checker {
                     return Err(Error::at(n.span, "a captured lexical value is not a type variable"));
                 }
                 if vars.contains(&n.text) {
+                    if self.declared_parameter_kind(&n.text) == Some(ParamKind::Region) {
+                        if let Some(kind) = expect { self.note_kind(&n.text, kind.clone()); }
+                        return Ok(Ty::Region(n.text.clone().into()));
+                    }
                     if self.index_carriers.borrow().iter().rev()
                         .find(|(binder, _)| binder == &n.text)
                         .is_some_and(|(_, carrier)| *carrier == Ty::Sort(Sort::Prop))
@@ -9891,6 +10011,7 @@ impl Checker {
         if let ast::Type::Con(p, _) = ann {
             match p.parts().as_slice() {
                 ["Type"] => return Ok(ParamKind::Type),
+                ["Region"] => return Ok(ParamKind::Region),
                 ["Prop"] => return Ok(ParamKind::Prop),
                 _ => {}
             }
@@ -9962,7 +10083,7 @@ impl Checker {
                         ),
                     ));
                 }
-                if uses.iter().any(|k| matches!(k, ParamKind::Type | ParamKind::Val(_) | ParamKind::Prop))
+                if uses.iter().any(|k| matches!(k, ParamKind::Type | ParamKind::Region | ParamKind::Val(_) | ParamKind::Prop))
                 {
                     return Err(Error::at(
                         span,
@@ -9980,6 +10101,7 @@ impl Checker {
                 ParamKind::Val(_) => 1,
                 ParamKind::Prop => 2,
                 ParamKind::Con(_) => 3,
+                ParamKind::Region => 4,
             };
             if let Some(k) = uses.iter().find(|k| axis(k) != axis(hint)) {
                 let _ = k;
@@ -10018,6 +10140,7 @@ impl Checker {
             ParamKind::Val(_) => 1,
             ParamKind::Prop => 2,
             ParamKind::Con(_) => 3,
+            ParamKind::Region => 4,
         };
         let mut distinct_axis: Option<u8> = None;
         let mut ambiguous = false;
@@ -10039,6 +10162,7 @@ impl Checker {
             _ if ambiguous => ParamKind::Type,
             Some(1) => first_val.unwrap_or(ParamKind::Type),
             Some(2) => ParamKind::Prop,
+            Some(4) => ParamKind::Region,
             // An unused binder keeps its historic reading: a type
             // parameter.
             _ => ParamKind::Type,
@@ -10050,29 +10174,57 @@ impl Checker {
     /// their use in the body, exactly as a signature's do, and are renamed
     /// apart so no later substitution can capture them.
     fn conv_nested_forall(&self, binders: &[ast::TypeBinder], body: &ast::Type, vars: &[String], span: ast::Span) -> Result<Ty> {
+        let mut bound: Vec<String> = binders.iter().map(|binder| binder.name.text.clone()).collect();
+        let mut rest = body;
+        while let ast::Type::Forall(more, inner, _) = rest {
+            bound.extend(more.iter().map(|binder| binder.name.text.clone()));
+            rest = inner;
+        }
+        let inherited = std::mem::take(&mut *self.kind_constraints.borrow_mut());
+        let result = self.conv_nested_forall_scoped(binders, body, vars, span);
+        let local = std::mem::replace(&mut *self.kind_constraints.borrow_mut(), inherited);
+        // A nested binder is renamed in the returned scheme. Its spelling
+        // has no authority over sibling scopes; only free-name uses escape.
+        for (name, kind) in local {
+            if !bound.contains(&name) { self.note_kind(&name, kind); }
+        }
+        result
+    }
+
+    /// Classify nested binders using only their scope's own kind-use notes.
+    fn conv_nested_forall_scoped(&self, binders: &[ast::TypeBinder], body: &ast::Type, vars: &[String], span: ast::Span) -> Result<Ty> {
         let mut names: Vec<String> = Vec::new();
+        let mut all_binders = binders.to_vec();
         let mut hints = Vec::new();
         let mut explicit_rows = Vec::new();
+        let mut explicit_regions = Vec::new();
         for b in binders {
             if vars.contains(&b.name.text) || names.contains(&b.name.text) {
                 return Err(Error::at(b.name.span, format!(
                     "the nested forall binder `{}` shadows a type variable already in scope; rename it", b.name.text)));
             }
             let row = matches!(b.ann.as_ref(), Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Row"]);
+            let region = matches!(b.ann.as_ref(), Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Region"]);
             if row { explicit_rows.push(b.name.text.clone()); }
-            let hint = if row { None } else { match &b.ann { Some(ann) => Some(self.binder_kind(ann, vars)?), None => None } };
+            if region { explicit_regions.push(b.name.text.clone()); }
+            let hint = if row || region { None } else { match &b.ann { Some(ann) => Some(self.binder_kind(ann, vars)?), None => None } };
             names.push(b.name.text.clone());
             hints.push((b.name.text.clone(), hint, b.name.span));
         }
         let mut rest = body;
         while let ast::Type::Forall(more, inner, _) = rest {
+            all_binders.extend(more.iter().cloned());
             // `forall a. forall b. T` is one quantifier over `a b`.
             for b in more {
                 if vars.contains(&b.name.text) || names.contains(&b.name.text) {
                     return Err(Error::at(b.name.span, format!(
                         "the nested forall binder `{}` shadows a type variable already in scope; rename it", b.name.text)));
                 }
-                let hint = match &b.ann { Some(ann) => Some(self.binder_kind(ann, vars)?), None => None };
+                let row = matches!(b.ann.as_ref(), Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Row"]);
+                let region = matches!(b.ann.as_ref(), Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Region"]);
+                if row { explicit_rows.push(b.name.text.clone()); }
+                if region { explicit_regions.push(b.name.text.clone()); }
+                let hint = if row || region { None } else { match &b.ann { Some(ann) => Some(self.binder_kind(ann, vars)?), None => None } };
                 names.push(b.name.text.clone());
                 hints.push((b.name.text.clone(), hint, b.name.span));
             }
@@ -10084,21 +10236,27 @@ impl Checker {
         }
         let mut scope = vars.to_vec();
         scope.extend(names.iter().cloned());
-        let converted = self.conv_type(rest, &scope)?;
+        let converted = self.with_declared_parameter_kinds(&all_binders, |checker| checker.conv_type(rest, &scope))?;
         let (mut rows, mut regions) = (Vec::new(), Vec::new());
         collect_row_names(&converted, &mut rows, &mut regions);
         let row_params: Vec<String> = names.iter().filter(|n| rows.contains(n) || explicit_rows.contains(n)).cloned().collect();
-        let region_params: Vec<String> = names.iter().filter(|n| regions.contains(n) && !row_params.contains(n)).cloned().collect();
+        if let Some(name) = explicit_regions.iter().find(|name| row_params.contains(name)) {
+            return Err(Error::at(span, format!("explicit region parameter `{name}` cannot also be an effect row")));
+        }
+        let region_params: Vec<String> = names.iter().filter(|n| (regions.contains(n) || explicit_regions.contains(n)) && !row_params.contains(n)).cloned().collect();
         let converted = crate::types::regionize(&converted, &region_params);
         let constraints = self.kind_constraints.borrow().clone();
         let mut params = Vec::new();
         let mut con_params = Vec::new();
         for (name, hint, binder_span) in hints {
+            if explicit_regions.contains(&name) && constraints.iter().any(|(used, kind)| used == &name && *kind != ParamKind::Region) {
+                return Err(Error::at(binder_span, format!("explicit region parameter `{name}` has an incompatible type, value or proposition use")));
+            }
             if row_params.contains(&name) || region_params.contains(&name) { continue; }
             match self.resolve_binder_kind(&name, hint.as_ref(), &constraints, binder_span)? {
                 ParamKind::Type => params.push(name),
                 ParamKind::Con(n) => { con_params.push((name.clone(), n)); params.push(name); }
-                ParamKind::Val(_) | ParamKind::Prop => return Err(Error::at(binder_span, format!(
+                ParamKind::Region | ParamKind::Val(_) | ParamKind::Prop => return Err(Error::at(binder_span, format!(
                     "the nested forall binder `{name}` is used as a value or proposition; a nested quantifier binds only types, effect rows and regions"))),
             }
         }
@@ -10126,7 +10284,25 @@ impl Checker {
         Ok(Ty::Forall(Box::new(scheme)))
     }
 
+    /// Convert a signature with its explicit roles scoped over both constraints and body.
     fn conv_scheme(&self, ty: &ast::Type) -> Result<Scheme> {
+        // A source signature starts a new note set, as before explicit nominal
+        // roles were introduced. Earlier declarations cannot classify its binders.
+        self.kind_constraints.borrow_mut().clear();
+        let mut binders = Vec::new();
+        let mut rest = ty;
+        loop {
+            match rest {
+                ast::Type::Forall(more, body, _) => { binders.extend(more.iter().cloned()); rest = body; }
+                ast::Type::Using(_, body, _) => rest = body,
+                _ => break,
+            }
+        }
+        self.with_declared_parameter_kinds(&binders, |checker| checker.conv_scheme_scoped(ty))
+    }
+
+    /// Check a signature after installing its explicit lexical binder roles.
+    fn conv_scheme_scoped(&self, ty: &ast::Type) -> Result<Scheme> {
         self.kind_constraints.borrow_mut().clear();
         let mut params: Vec<String> = Vec::new();
         let mut ctx: Vec<(String, ClassApp)> = Vec::new();
@@ -10137,6 +10313,7 @@ impl Checker {
         // Rows occupy Scheme::row_params rather than the proper/index kind
         // namespace. Retain an explicit Row annotation until usage is known.
         let mut explicit_rows = Vec::new();
+        let mut explicit_regions = Vec::new();
         let mut rest = ty;
         loop {
             match rest {
@@ -10147,8 +10324,13 @@ impl Checker {
                         }
                         let explicit_row = matches!(b.ann.as_ref(),
                             Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Row"]);
+                        let explicit_region = matches!(b.ann.as_ref(),
+                            Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Region"]);
                         let hint = if explicit_row {
                             explicit_rows.push(b.name.text.clone());
+                            None
+                        } else if explicit_region {
+                            explicit_regions.push(b.name.text.clone());
                             None
                         } else { match &b.ann {
                             Some(ann) => Some(self.binder_kind(ann, &params)?),
@@ -10251,6 +10433,9 @@ impl Checker {
                     let mut row_params: Vec<String> = Vec::new();
                     let mut region_params: Vec<String> = Vec::new();
                     collect_row_names(&t, &mut row_params, &mut region_params);
+                    for region in &explicit_regions {
+                        if !region_params.contains(region) { region_params.push(region.clone()); }
+                    }
                     for (_, c) in &ctx {
                         for a in &c.args {
                             if let Ty::Region(r) = a {
@@ -10287,6 +10472,11 @@ impl Checker {
                             continue;
                         }
                         if region_params.contains(&name) {
+                            if explicit_regions.contains(&name) && constraints.iter().any(|(used, kind)| used == &name && *kind != ParamKind::Region) {
+                                return Err(Error::at(span, format!(
+                                    "explicit region parameter `{name}` has an incompatible type, value or proposition use"
+                                )));
+                            }
                             continue;
                         }
                         let kind =
@@ -10299,6 +10489,7 @@ impl Checker {
                             }
                             ParamKind::Val(vty) => val_params.push((name, vty)),
                             ParamKind::Prop => prop_params.push(name),
+                            ParamKind::Region => region_params.push(name),
                         }
                     }
                     // Quantified values keep their lexical identities in
@@ -10695,7 +10886,15 @@ impl Checker {
     }
 
     fn subst_ty(t: &Ty, map: &HashMap<String, Ty>) -> Ty {
-        Checker::subst_full(t, map, &HashMap::new(), &HashMap::new())
+        // A nominal family argument can be a runtime identity. Destructuring
+        // such a family must substitute the identity in callback effect labels
+        // as well as in ordinary type positions; otherwise a callback retains
+        // the region spelling from its constructor declaration.
+        let regions = map.iter().filter_map(|(name, ty)| match ty {
+            Ty::Region(region) => Some((name.clone(), region.to_string())),
+            _ => None,
+        }).collect();
+        Checker::subst_full(t, map, &HashMap::new(), &regions)
     }
 
     /// Substitute type parameters (by type), row variables (by tail) and

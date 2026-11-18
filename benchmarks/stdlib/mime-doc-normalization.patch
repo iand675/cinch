@@ -1,0 +1,15 @@
+--- a/compiler/prelude/Text/Mime.cinch
++++ b/compiler/prelude/Text/Mime.cinch
+@@ -139 +139 @@
+-    -- | Equal private byte sequences identify the same exact parameter key.
++    -- Equal private byte sequences identify the same exact parameter key.
+@@ -141 +141 @@
+-    -- | Distinct private byte sequences identify distinct exact parameter keys.
++    -- Distinct private byte sequences identify distinct exact parameter keys.
+@@ -146 +146 @@
+-    -- | Equal private byte keys always share the same digest.
++    -- Equal private byte keys always share the same digest.
+@@ -254 +254,2 @@
+-  -- | Lowercase a proved ASCII interval with exact sixteen-byte stores and scalar tails.
++  -- | Lowercase proved sixteen-byte windows with pure packed-word transforms,
++  -- existing checked word stores and exact scalar tails.

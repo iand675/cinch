@@ -1,0 +1,30 @@
+-- | Keep predicate and yield capabilities through the concrete fields API and reusable factories.
+module Main where
+  import Data.Bytes.Fields
+  import Data.Bytes.View
+  import Data.Bool
+
+  -- | Preserve an IO predicate while admitting the yield's mutation capability.
+  widen-predicate :: forall (r :: Region) (s :: Region). (Char ->{IO r} Bool) -> Char ->{IO r, Mut s} Bool
+  widen-predicate predicate value = predicate value
+
+  -- | Preserve a mutation callback while admitting the predicate's IO capability.
+  widen-output :: forall (r :: Region) (s :: Region). (ByteView ->{Mut s} Bool) -> ByteView ->{IO r, Mut s} Bool
+  widen-output output value = output value
+
+  -- | Interleave distinct capabilities through an explicitly combined callback row.
+  mixed :: forall (r :: Region) (s :: Region). (Char ->{IO r} Bool) -> (ByteView ->{Mut s} Bool) -> ByteView ->{IO r, Mut s} Unit
+  mixed predicate output input = byte-view-fields-func-each (widen-predicate predicate) input (widen-output output)
+
+  -- | Construct a latent traversal without executing the effectful predicate.
+  factory :: forall (e :: Row). (Char ->{|e} Bool) -> ByteView -> ((ByteView ->{|e} Bool) ->{|e} Unit)
+  factory predicate input = byte-view-fields-func-sequence predicate input
+
+  -- | Reinvoke one retained factory and preserve both traversals' effects.
+  repeat :: forall (e :: Row). (Char ->{|e} Bool) -> (ByteView ->{|e} Bool) -> ByteView ->{|e} Unit
+  repeat predicate output input = let sequence = factory predicate input in
+    let first = sequence output in sequence output
+
+  -- | Keep this contract proof independent of actual runtime capabilities.
+  main :: Int
+  main = 0

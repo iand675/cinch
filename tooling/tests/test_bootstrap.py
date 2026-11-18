@@ -14,6 +14,24 @@ import bootstrap_objects
 
 
 class BootstrapContract(unittest.TestCase):
+    def test_compiler_snapshot_excludes_neighboring_reproduction_clients(self):
+        """A retained Main client beside the compiler cannot alter its source closure or aliases."""
+        original = bootstrap.ROOT
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "bootstrap").mkdir()
+            for path in (original / "bootstrap").glob("Bootstrap.*.cinch"):
+                (root / "bootstrap" / path.name).write_bytes(path.read_bytes())
+            (root / "bootstrap/programs").symlink_to(original / "bootstrap/programs", target_is_directory=True)
+            (root / "compiler").symlink_to(original / "compiler", target_is_directory=True)
+            (root / "bootstrap/library-provider.lock.json").write_bytes((original / "bootstrap/library-provider.lock.json").read_bytes())
+            with patch.object(bootstrap, "ROOT", root):
+                before = bootstrap.collect_compiler_sources()
+                (root / "bootstrap/regression-client.cinch").write_text("module Main where\n  main :: Int\n  main = 0\n")
+                after = bootstrap.collect_compiler_sources()
+            self.assertEqual(before, after)
+            self.assertNotIn("regression-client", after["Main.cinch"].decode())
+
     def test_seed_runtime_failure_cannot_fall_back_to_a_debug_archive(self):
         with tempfile.TemporaryDirectory() as temp:
             build = Path(temp)
@@ -49,6 +67,7 @@ class BootstrapContract(unittest.TestCase):
                       "source_sha256": bootstrap.source_hash(files),
                       "builder_sha256": bootstrap.file_hash(builder), "built_by_stage": 0,
                       "shard_count": bootstrap.JOBS,
+                      "seed_flags": bootstrap.seed_flags(),
                       "seed_runtime_profile": "release", "seed_runtime_sha256": bootstrap.file_hash(runtime)}
             (stage / "compiler.cinch").write_bytes(bootstrap.bundle(files))
             (stage / "sources/build/Main.manifest.json").write_text("{}")
@@ -213,22 +232,22 @@ class BootstrapContract(unittest.TestCase):
 
     def test_runtime_abi_preparation_is_exact_and_part_of_source_identity(self):
         live = (bootstrap.ROOT / "bootstrap/Bootstrap.RuntimeAbi.cinch").read_bytes()
-        self.assertEqual(live, bootstrap.runtime_abi_source(7))
+        self.assertEqual(live, bootstrap.runtime_abi_source(10))
         pinned = bootstrap.collect_compiler_sources()
         lock = bootstrap.library_provider_lock()
         self.assertEqual(pinned["Bootstrap.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(lock["runtime_abi"]))
         prepared = {}
-        for runtime_abi in (5, 6, 7):
+        for runtime_abi in bootstrap.RUNTIME_ABIS:
             with self.subTest(runtime_abi=runtime_abi), patch.object(bootstrap, "library_provider_lock", return_value={**lock, "runtime_abi": runtime_abi}):
                 prepared[runtime_abi] = bootstrap.collect_compiler_sources()
             self.assertEqual(prepared[runtime_abi]["Bootstrap.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(runtime_abi))
             self.assertIn(f"runtime-abi = {runtime_abi}".encode(), bootstrap.bundle(prepared[runtime_abi]))
             self.assertIn(f"runtime-abi-int = {runtime_abi}".encode(), prepared[runtime_abi]["Bootstrap.RuntimeAbi.cinch"])
-        self.assertEqual(len({bootstrap.source_hash(files) for files in prepared.values()}), 3)
-        for invalid in (None, True, "5", 0, 4, 8):
+        self.assertEqual(len({bootstrap.source_hash(files) for files in prepared.values()}), len(bootstrap.RUNTIME_ABIS))
+        for invalid in (None, True, "5", 0, 4, 99):
             with self.assertRaises(bootstrap.BootstrapError):
                 bootstrap.runtime_abi_source(invalid)
-        with patch.object(bootstrap, "library_provider_lock", return_value={"runtime_abi": 8}):
+        with patch.object(bootstrap, "library_provider_lock", return_value={"runtime_abi": 99}):
             with self.assertRaises(bootstrap.BootstrapError):
                 bootstrap.collect_compiler_sources()
 

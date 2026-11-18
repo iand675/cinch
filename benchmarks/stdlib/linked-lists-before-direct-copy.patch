@@ -1,0 +1,18 @@
+--- a/compiler/prelude/Data/Mutable/LinkedList.cinch
++++ b/compiler/prelude/Data/Mutable/LinkedList.cinch
+@@ -395,3 +395 @@
+-  -- | Copy a bounded original sequence directly into owned nodes without constructing unused element handles.
+-  -- Read the next original link before insertion can change it, including when
+-  -- both roots alias and the copied endpoint gains a new neighbor.
++  -- | Copy a bounded original sequence, reading the next source link before an insertion can change it.
+@@ -402 +400 @@
+-    case allocate-node destination (node-value node) of
++    case (if front then list-push-front destination (node-value node) else list-push-back destination (node-value node)) of
+@@ -404,6 +402 @@
+-      Ok (destination-index, fresh-node) ->
+-        let previous = if front then no-slot else header destination 2 in
+-        let next = if front then header destination 1 else no-slot in
+-        let linked = attach destination destination-index fresh-node previous next in
+-        let counted = set-header destination 0 (successor (header destination 0)) in
+-        copy-members destination source front following (predecessor remaining)
++      Ok element -> copy-members destination source front following (predecessor remaining)

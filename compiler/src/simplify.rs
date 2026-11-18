@@ -333,6 +333,9 @@ struct Tables {
     static_records: HashMap<String, Core>,
     /// Parameter count by unit name.
     arity: HashMap<String, usize>,
+    /// Parameter classes for retaining computed partial-call arguments at
+    /// their original strict evaluation position.
+    params: HashMap<String, Vec<Class>>,
     /// Instances: subdictionary count and the method unit per physical
     /// slot.
     instances: HashMap<String, (usize, Vec<GlobalId>)>,
@@ -341,9 +344,10 @@ struct Tables {
 impl Tables {
     fn new(program: &Program) -> Tables {
         let mut tables =
-            Tables { ctors: HashMap::new(), lambdas: HashMap::new(), static_records: HashMap::new(), arity: HashMap::new(), instances: HashMap::new() };
+            Tables { ctors: HashMap::new(), lambdas: HashMap::new(), static_records: HashMap::new(), arity: HashMap::new(), params: HashMap::new(), instances: HashMap::new() };
         for f in &program.fns {
             tables.arity.insert(f.id.0.clone(), f.params.len());
+            tables.params.insert(f.id.0.clone(), f.repr.params.clone());
             if is_lambda_unit(&f.id.0) && f.prim.is_none() && f.ctor.is_none() {
                 tables.lambdas.insert(f.id.0.clone(), (f.repr.params.clone(), f.body.clone()));
             }
@@ -379,6 +383,7 @@ impl Tables {
     fn extend(&mut self, foreign: &[FnDef]) {
         for f in foreign {
             self.arity.insert(f.id.0.clone(), f.params.len());
+            self.params.insert(f.id.0.clone(), f.repr.params.clone());
             if let Some((tag, fields)) = f.ctor {
                 self.ctors.insert(f.id.0.clone(), (tag, fields));
             }
@@ -446,13 +451,15 @@ fn is_value(e: &Core, tables: &Tables) -> bool {
         | Core::Bool(_)
         | Core::Unit
         | Core::Var(_)
-        | Core::Global(..)
         | Core::Ctor(..)
         | Core::Prim(_)
         | Core::Foreign(_)
         | Core::SpliceVal(_)
         | Core::StrLit(_)
         | Core::SyntaxLit(..) => true,
+        // A nullary reference executes its body instead of producing a
+        // function value. Its work cannot move past another strict binding.
+        Core::Global(id, _) => tables.arity.get(&id.0).is_some_and(|arity| *arity > 0),
         Core::App(head, args) => {
             matches!(&**head, Core::Ctor(id, _) if tables.ctors.contains_key(&id.0))
                 && args.iter().all(|a| is_value(a, tables))
@@ -901,7 +908,7 @@ fn pass(
             Some(Rule::KnownClosureCall)
         } else if closed_lambda(e, &tables.arity) {
             Some(Rule::KnownClosureCall)
-        } else if opts.saturate_partial && saturate_partial(e, occ, tables) {
+        } else if opts.saturate_partial && saturate_partial(e, occ, tables, fresh) {
             Some(Rule::SaturatePartial)
         } else if opts.case_of_case && case_of_case(e, classes, opts, fresh, t) {
             Some(Rule::CaseOfCase)
@@ -2139,6 +2146,7 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
                 copy.meta.dicts.retain(|(k, _)| *k != i);
                 copy.meta.pure_arrows.retain(|k| *k != i);
                 tables.arity.insert(copy_id.0.clone(), copy.params.len());
+                tables.params.insert(copy_id.0.clone(), copy.repr.params.clone());
                 specs.copies.insert(key, copy_id.0.clone());
                 *specs.per_callee.entry(callee.clone()).or_default() += 1;
                 specs.made += 1;
@@ -2494,6 +2502,13 @@ fn direct_dict_call(e: &mut Core, scope: &Scope, tables: &Tables) -> bool {
 /// - The single read is an application's head. Any other position wants the
 ///   value, not the call, so the closure has to exist.
 ///
+/// Computed saved arguments remain strict bindings where the partial
+/// application stood, in their original order. Only their local values
+/// move to the saturated call: moving the computations across an intervening
+/// write would change what a later argument observes. Their classes come
+/// from the callee's instantiated parameter representations; if a computed
+/// argument has no published class, the rule refuses the merge.
+///
 /// Over-application stops at saturation: `let f = g a in f b c` with `g`'s
 /// arity 2 becomes `(g a b) c`, so the closure record and its stub call go
 /// and the excess stays applied to the result exactly as before. Fewer than
@@ -2503,6 +2518,7 @@ fn saturate_partial(
     e: &mut Core,
     occ: &HashMap<LocalId, Occ>,
     tables: &Tables,
+    fresh: &mut Fresh,
 ) -> bool {
     let Core::Let(l, _, value, body) = e else { return false };
     let count = occ.get(l).copied().unwrap_or_default();
@@ -2510,27 +2526,37 @@ fn saturate_partial(
         return false;
     }
     let Core::App(head, given) = &**value else { return false };
-    let (unit, arity) = match &**head {
-        Core::Global(id, _) => (id.clone(), tables.arity.get(&id.0).copied()),
-        Core::Prim(op) => (GlobalId(op.symbol().to_string()), Some(op.arity())),
+    let (arity, params) = match &**head {
+        Core::Global(id, classes) => (
+            tables.arity.get(&id.0).copied(),
+            tables.params.get(&id.0).map(|params| params.iter().map(|c| c.subst(classes)).collect::<Vec<_>>()),
+        ),
+        Core::Prim(op) => (Some(op.arity()), Some(crate::codegen::prim_param_classes(*op))),
         _ => return false,
     };
     let Some(arity) = arity else { return false };
     if given.len() >= arity {
         return false;
     }
-    // A value that allocates or runs an effect cannot move to its read:
-    // the substitution would move the work, and in a strict language that
-    // changes when it happens. The head is a unit and the arguments are
-    // evaluated where they are, so what moves is the call, which is why the
-    // spine condition below is the whole of the ordering argument.
+    // The partial closure can move to its single unconditional read once
+    // every saved computation remains bound at the closure's old position.
     if !spine_only(body, *l, true) {
         return false;
     }
-    let given = given.clone();
+    let mut given = given.clone();
+    let mut bindings = Vec::new();
+    for (index, argument) in given.iter_mut().enumerate() {
+        if is_value(argument, tables) { continue; }
+        let Some(class) = params.as_ref().and_then(|params| params.get(index)).copied() else { return false };
+        let local = fresh.local();
+        bindings.push((local, class, std::mem::replace(argument, Core::Var(local))));
+    }
     let mut body = (**body).clone();
-    if !merge_in_head(&mut body, *l, &unit, &given, arity) {
+    if !merge_in_head(&mut body, *l, head, &given, arity) {
         return false;
+    }
+    for (local, class, value) in bindings.into_iter().rev() {
+        body = Core::Let(local, class, Box::new(value), Box::new(body));
     }
     *e = body;
     true
@@ -2541,7 +2567,7 @@ fn saturate_partial(
 /// supplied, up to the callee's arity. Arguments beyond it stay applied to
 /// the result. Answers `false` without touching `e` when the read is not in
 /// head position or the merge would not reach saturation.
-fn merge_in_head(e: &mut Core, l: LocalId, unit: &GlobalId, given: &[Core], arity: usize) -> bool {
+fn merge_in_head(e: &mut Core, l: LocalId, function: &Core, given: &[Core], arity: usize) -> bool {
     match e {
         Core::App(head, args) => {
             if matches!(&**head, Core::Var(x) if *x == l) {
@@ -2552,7 +2578,7 @@ fn merge_in_head(e: &mut Core, l: LocalId, unit: &GlobalId, given: &[Core], arit
                 let take = arity - given.len();
                 let mut merged: Vec<Core> = given.to_vec();
                 merged.extend(args.drain(..take));
-                let call = Core::App(Box::new(Core::Global(unit.clone(), Vec::new())), merged);
+                let call = Core::App(Box::new(function.clone()), merged);
                 *e = if args.is_empty() {
                     call
                 } else {
@@ -2560,25 +2586,25 @@ fn merge_in_head(e: &mut Core, l: LocalId, unit: &GlobalId, given: &[Core], arit
                 };
                 return true;
             }
-            if merge_in_head(head, l, unit, given, arity) {
+            if merge_in_head(head, l, function, given, arity) {
                 return true;
             }
             for a in args {
-                if merge_in_head(a, l, unit, given, arity) {
+                if merge_in_head(a, l, function, given, arity) {
                     return true;
                 }
             }
             false
         }
         Core::Let(_, _, value, body) => {
-            if merge_in_head(value, l, unit, given, arity) {
+            if merge_in_head(value, l, function, given, arity) {
                 return true;
             }
-            merge_in_head(body, l, unit, given, arity)
+            merge_in_head(body, l, function, given, arity)
         }
         _ => {
             for slot in child_slots(e) {
-                if merge_in_head(slot, l, unit, given, arity) {
+                if merge_in_head(slot, l, function, given, arity) {
                     return true;
                 }
             }
@@ -2843,6 +2869,7 @@ fn spec_static_args(program: &mut Program, tables: &mut Tables, fresh: &mut Fres
         for (name, index, i, value) in requests {
             let clone = spec_clone(&program.fns[index], name, i, value, fresh);
             tables.arity.insert(clone.id.0.clone(), clone.params.len());
+            tables.params.insert(clone.id.0.clone(), clone.repr.params.clone());
             program.fns.push(clone);
             changed = true;
         }
@@ -3657,8 +3684,8 @@ struct Admitted {
     benefit: usize,
     /// Whether the benefit model may credit a fold at the site: the same
     /// condition as [`Admitted::fold`], restated because the two models
-    /// treat a non-folding decision differently (the threshold model copies
-    /// it anyway when it is small, the benefit model never does).
+    /// treat other non-folding decisions differently. A single-arm field
+    /// projector keeps its check and receives no fold credit in either case.
     folds: bool,
     /// The callee is in a recursive group, so no copy may be made. The
     /// threshold model refuses it at admission; the benefit model admits the
@@ -3666,6 +3693,23 @@ struct Admitted {
     recursive: bool,
     /// The callee is used as a value somewhere in the program.
     valued: bool,
+}
+
+/// Recognize a single constructor-field read without calls, computed
+/// scrutinees, alternative branches or other work. Copying this body keeps
+/// its case check intact: it does not assume the argument's constructor or
+/// move a field computation. Normal admission and copy budgets still apply,
+/// and the ownership pass derives the selected field's reference count at
+/// its new site.
+fn constructor_field_projector(f: &FnDef) -> bool {
+    let Core::Case { scrut, alts } = &f.body else { return false };
+    let Core::Var(parameter) = &**scrut else { return false };
+    if parameter.0 >= f.arity() || alts.len() != 1 {
+        return false;
+    }
+    let CPat::Con { fields, .. } = &alts[0].pat else { return false };
+    let Core::Var(selected) = &*alts[0].body else { return false };
+    fields.contains(selected)
 }
 
 fn candidate(
@@ -3819,14 +3863,18 @@ fn candidate(
             }
             let mut cases = Vec::new();
             case_scrutinee_params(&f.body, &mut cases);
-            let folds = !cases.is_empty();
+            // A pure one-arm field read has no alternative branches to
+            // duplicate. Keep its case rather than requiring a known
+            // constructor at each call; later product-return lowering can
+            // then see the caller taking apart that product directly.
+            let folds = !cases.is_empty() && !constructor_field_projector(f);
             Ok(Admitted {
                 params: params(),
                 cases,
-                // The benefit model never copies a decision it cannot fold:
-                // a duplicated branch is exactly what the benefit term
-                // cannot pay for, because the copy would add arms and remove
-                // no call from inside them.
+                // Other decision-bearing bodies still require a fold:
+                // duplicating alternatives adds arms without removing a
+                // call inside them. The narrow field-read exception above
+                // retains its one case and receives no fold credit.
                 fold: folds,
                 charge: true,
                 certain: size <= opts.inline_small_size,

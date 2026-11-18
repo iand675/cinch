@@ -1,0 +1,157 @@
+{
+  "kind": "actual-full-immutable-UUID-portable-adapter-objects",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "clang_sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b",
+  "cpu_affinity": [
+    4
+  ],
+  "runtime_linked": false,
+  "candidate_selected": false,
+  "package_complete": false,
+  "targets": [
+    {
+      "target": "wasm32-unknown-unknown",
+      "emit": {
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-uuid/build/uuid-packed-portable-a1/wasm32-unknown-unknown/Main.cinch",
+          "--target",
+          "wasm32-unknown-unknown",
+          "-o",
+          "/workspace/dasl-stdlib-uuid/build/uuid-packed-portable-a1/wasm32-unknown-unknown/consumer.ll"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "seconds": 2.754988615983166
+      },
+      "sources": {
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Main.cinch": "943cf1d7399dc683ecd8963176f8d13f61d1615c9789d06681d1e7e8ac0a6758",
+        "Data.Uuid.cinch": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      },
+      "object": {
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-target",
+          "wasm32-unknown-unknown",
+          "-O2",
+          "-c",
+          "-x",
+          "ir",
+          "/workspace/dasl-stdlib-uuid/build/uuid-packed-portable-a1/wasm32-unknown-unknown/consumer.ll",
+          "-o",
+          "/workspace/dasl-stdlib-uuid/build/uuid-packed-portable-a1/wasm32-unknown-unknown/consumer.o"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "seconds": 0.7890772469982039
+      },
+      "llvm_sha256": "842ab65583b22195935bc55fae9afb9b32b717a6ae2c9da02390ef35608dce45",
+      "status": "actual-adapters-object-passed",
+      "object_sha256": "78a0fc7f2805153d31903d43d6a8ba1f761f15562d9e0a0858606b9b2e4ec6de",
+      "object_bytes": 115638,
+      "packed_decoder_call_paths": {
+        "Data.Uuid.uuid-parse-bytes": [
+          "Data.Uuid.uuid-parse-bytes",
+          "Data.Uuid.decode-hex8"
+        ],
+        "Main.main": [
+          "Main.main",
+          "Main.exercise",
+          "Main.exercise.shared0",
+          "Data.Uuid.decode-hex8"
+        ]
+      }
+    },
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "emit": {
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-uuid/build/uuid-packed-portable-a1/aarch64-unknown-linux-gnu/Main.cinch",
+          "--target",
+          "aarch64-unknown-linux-gnu",
+          "-o",
+          "/workspace/dasl-stdlib-uuid/build/uuid-packed-portable-a1/aarch64-unknown-linux-gnu/consumer.ll"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "seconds": 2.959063721005805
+      },
+      "sources": {
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Main.cinch": "943cf1d7399dc683ecd8963176f8d13f61d1615c9789d06681d1e7e8ac0a6758",
+        "Data.Uuid.cinch": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      },
+      "object": {
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-target",
+          "aarch64-unknown-linux-gnu",
+          "-O2",
+          "-c",
+          "-x",
+          "ir",
+          "/workspace/dasl-stdlib-uuid/build/uuid-packed-portable-a1/aarch64-unknown-linux-gnu/consumer.ll",
+          "-o",
+          "/workspace/dasl-stdlib-uuid/build/uuid-packed-portable-a1/aarch64-unknown-linux-gnu/consumer.o"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "seconds": 0.8171525330108125
+      },
+      "llvm_sha256": "b4c6722c97d048f8a959e3d5b09f1950ed047edfc48d220cd591ba2de20c05a7",
+      "status": "actual-adapters-object-passed",
+      "object_sha256": "05745df5a954fea1854c6d7897db49fb8c674b4dd153a70c656f284c80f75e5f",
+      "object_bytes": 107592,
+      "packed_decoder_call_paths": {
+        "Data.Uuid.uuid-parse-bytes": [
+          "Data.Uuid.uuid-parse-bytes",
+          "Data.Uuid.decode-hex8"
+        ],
+        "Main.main": [
+          "Main.main",
+          "Main.exercise",
+          "Main.exercise.shared0",
+          "Data.Uuid.decode-hex8"
+        ]
+      }
+    },
+    {
+      "target": "powerpc64-unknown-linux-gnu",
+      "emit": {
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-uuid/build/uuid-packed-portable-a1/powerpc64-unknown-linux-gnu/Main.cinch",
+          "--target",
+          "powerpc64-unknown-linux-gnu",
+          "-o",
+          "/workspace/dasl-stdlib-uuid/build/uuid-packed-portable-a1/powerpc64-unknown-linux-gnu/consumer.ll"
+        ],
+        "exit": 1,
+        "stdout": "",
+        "stderr": "cinch: unknown target `powerpc64-unknown-linux-gnu`: cross compilation supports exactly these triples: aarch64-apple-darwin, x86_64-apple-darwin, x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, wasm32-unknown-unknown\n",
+        "seconds": 0.010601165005937219
+      },
+      "sources": {
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Main.cinch": "943cf1d7399dc683ecd8963176f8d13f61d1615c9789d06681d1e7e8ac0a6758",
+        "Data.Uuid.cinch": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      },
+      "status": "refused-before-object",
+      "llvm_created": false
+    }
+  ],
+  "scope": "Supported actual CLI targets only; unsupported PPC remains a maintained custom-profile API gate, never a retargeted little-endian claim.",
+  "source_kind": "Separate packed parser source; actual decoder call paths confirmed, no runtime link or PPC CLI promotion."
+}

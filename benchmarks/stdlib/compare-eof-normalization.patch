@@ -1,0 +1,7 @@
+--- a/compiler/prelude/Data/Compare.cinch
++++ b/compiler/prelude/Data/Compare.cinch
+@@ -235,4 +235,3 @@
+   implicit instance Default_Unit :: Default Unit where
+     default-value = ()
+     is-default x = True
+-

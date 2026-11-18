@@ -1,0 +1,143 @@
+{
+  "description": "Retained matched Rust executables: one 64 KiB hash operation through 64-byte stream chunks. Only Effect.Fnv differs; the worker retains scalar state instead of allocating a sink wrapper per chunk. Ordinary reclamation with zero debug quarantine. Counts include identical driver startup/input preparation.",
+  "raw_input_bytes": 65536,
+  "input_chunk_bytes": 64,
+  "iterations": 1,
+  "rc_debug": false,
+  "heap_limit": "32M",
+  "stack_limit": "8M",
+  "compiler_sha256": "2953cb0246737ee110c139fbff4a8968c2da7de271da4b55aff7d94f63c94e84",
+  "driver_sha256": "8addf55b7b96f95ed0c0246b77b2c6ae46b3d21aedd60d999e841bb90dc6b2b9",
+  "runtime_source_sha256": "cc65783bd854ae6b6e820a5adb18e5f59f5aed5ec6a40e52b912fc283c12ca31",
+  "rows": [
+    {
+      "workload": "fnv-stream32a",
+      "variants": {
+        "before": {
+          "source_sha256": "d86b87019b7f9a3a1d5865ce890325156023fb4d7d1179477cb9424ba1180579",
+          "executable_sha256": "2cb17e3e30101fb2036c01b967ebbd54de905c614ac55cdc3b9332dae0ed8b56",
+          "llvm_sha256": "ec8d20fcb96546b5061e95089095363b42609e851063687cb9000861b768dcb4",
+          "allocation_stats": {
+            "blocks": 6798,
+            "bytes": 352045,
+            "peak": 131662,
+            "header-blocks": 5747,
+            "header-bytes": 153984,
+            "immortal": 0,
+            "freed": 5747,
+            "live": 0
+          },
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6798 bytes=352045 peak=131662 header-blocks=5747 header-bytes=153984 immortal=0 freed=5747 live=0\n"
+        },
+        "after": {
+          "source_sha256": "7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464",
+          "executable_sha256": "de1141e1badf1b26e84d6fdf8d8218e7462e0d1b06c6050f5946d91f199cebd0",
+          "llvm_sha256": "fd9aee559f1a305bc9f9c2a27175283cd706118c5d9d65f1708465ce3be89a89",
+          "allocation_stats": {
+            "blocks": 6288,
+            "bytes": 339798,
+            "peak": 131647,
+            "header-blocks": 5237,
+            "header-bytes": 141736,
+            "immortal": 0,
+            "freed": 5237,
+            "live": 0
+          },
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6288 bytes=339798 peak=131647 header-blocks=5237 header-bytes=141736 immortal=0 freed=5237 live=0\n"
+        }
+      },
+      "checksum": 65752
+    },
+    {
+      "workload": "fnv-stream64a",
+      "variants": {
+        "before": {
+          "source_sha256": "d86b87019b7f9a3a1d5865ce890325156023fb4d7d1179477cb9424ba1180579",
+          "executable_sha256": "2cb17e3e30101fb2036c01b967ebbd54de905c614ac55cdc3b9332dae0ed8b56",
+          "llvm_sha256": "ec8d20fcb96546b5061e95089095363b42609e851063687cb9000861b768dcb4",
+          "allocation_stats": {
+            "blocks": 6798,
+            "bytes": 352049,
+            "peak": 131662,
+            "header-blocks": 5747,
+            "header-bytes": 153984,
+            "immortal": 0,
+            "freed": 5747,
+            "live": 0
+          },
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6798 bytes=352049 peak=131662 header-blocks=5747 header-bytes=153984 immortal=0 freed=5747 live=0\n"
+        },
+        "after": {
+          "source_sha256": "7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464",
+          "executable_sha256": "de1141e1badf1b26e84d6fdf8d8218e7462e0d1b06c6050f5946d91f199cebd0",
+          "llvm_sha256": "fd9aee559f1a305bc9f9c2a27175283cd706118c5d9d65f1708465ce3be89a89",
+          "allocation_stats": {
+            "blocks": 6288,
+            "bytes": 339802,
+            "peak": 131647,
+            "header-blocks": 5237,
+            "header-bytes": 141736,
+            "immortal": 0,
+            "freed": 5237,
+            "live": 0
+          },
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6288 bytes=339802 peak=131647 header-blocks=5237 header-bytes=141736 immortal=0 freed=5237 live=0\n"
+        }
+      },
+      "checksum": 65810
+    },
+    {
+      "workload": "fnv-stream128a",
+      "variants": {
+        "before": {
+          "source_sha256": "d86b87019b7f9a3a1d5865ce890325156023fb4d7d1179477cb9424ba1180579",
+          "executable_sha256": "2cb17e3e30101fb2036c01b967ebbd54de905c614ac55cdc3b9332dae0ed8b56",
+          "llvm_sha256": "ec8d20fcb96546b5061e95089095363b42609e851063687cb9000861b768dcb4",
+          "allocation_stats": {
+            "blocks": 8340,
+            "bytes": 397228,
+            "peak": 131671,
+            "header-blocks": 7287,
+            "header-bytes": 199136,
+            "immortal": 0,
+            "freed": 7287,
+            "live": 0
+          },
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=8340 bytes=397228 peak=131671 header-blocks=7287 header-bytes=199136 immortal=0 freed=7287 live=0\n"
+        },
+        "after": {
+          "source_sha256": "7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464",
+          "executable_sha256": "de1141e1badf1b26e84d6fdf8d8218e7462e0d1b06c6050f5946d91f199cebd0",
+          "llvm_sha256": "fd9aee559f1a305bc9f9c2a27175283cd706118c5d9d65f1708465ce3be89a89",
+          "allocation_stats": {
+            "blocks": 7318,
+            "bytes": 372693,
+            "peak": 131656,
+            "header-blocks": 6265,
+            "header-bytes": 174600,
+            "immortal": 0,
+            "freed": 6265,
+            "live": 0
+          },
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=7318 bytes=372693 peak=131656 header-blocks=6265 header-bytes=174600 immortal=0 freed=6265 live=0\n"
+        }
+      },
+      "checksum": 65783
+    }
+  ],
+  "codegen_inspection": {
+    "before": {
+      "llvm_sha256": "ec8d20fcb96546b5061e95089095363b42609e851063687cb9000861b768dcb4",
+      "worker_sha256": "ab21a0fcf4b98477e3b5c81abe24b5f2a32111b35b3b80bbefaedc5558a2e2a6",
+      "worker_lines": 1800,
+      "static_allocation_call_sites": 15
+    },
+    "after": {
+      "llvm_sha256": "fd9aee559f1a305bc9f9c2a27175283cd706118c5d9d65f1708465ce3be89a89",
+      "worker_sha256": "36a2249aa9e06bb2752a74a9d4e566ff03947fb471842f72a3d6c69402089e5f",
+      "worker_lines": 1614,
+      "static_allocation_call_sites": 14
+    },
+    "note": "Static worker allocation call sites are not dynamic counts. Earlier fnv-write LLVM branches around a sink allocation when a constructor-reuse slot is available; the measured block reduction therefore varies by width."
+  }
+}

@@ -1,0 +1,3783 @@
+{
+  "status": "seven operations qualified; package remains partial",
+  "source_sha256": "f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7",
+  "reference": {
+    "sdk": "go1.27.4 linux/amd64",
+    "observer_sha256": "ee8a88edfb2fe648c8c87e33de46b58a546a90415ee048a4f8da6d73b8ff343d",
+    "vectors_sha256": "e064578c95dd0547d03b3b28e18d40774fe77fee9c845f47ebe9b3f10762f144",
+    "scalar_byte_pairs": 65536,
+    "independent_checks": 961,
+    "groups": 61,
+    "complete_buffer_rows": 698
+  },
+  "frontends": {
+    "rust": {
+      "compiler": "/workspace/dasl-stdlib-io/build/stdlib-dynamic-json-parent-frozen/cinch",
+      "sha256": "b924bd00e9f9868dcd0d7ffc4844f8cfcd2379cb6a4915ade6f3f3974558bb3c",
+      "committed_source_epoch": "e4a4d7c9"
+    },
+    "native": {
+      "compiler": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+      "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+      "sealed_pair_sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d",
+      "interfaces_sha256": "f10d002f5d4d4be4fcfc08648306e8bbd368fcce579ec47c25b9a56cda321f0b",
+      "objects_configuration_sha256": "87aa9ec8c8ec6d2802638f00239277b0f76b2a07c3920afb14b4a1d47c072fbd",
+      "wrapper_sha256": "dafbc1069390c480e5c8ca78f774ccac39e5968392fb8ee57a70f924f9021e80"
+    }
+  },
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "functional": {
+    "rust": {
+      "llvm_sha256": "bbd80fedd4088c682f3ebe9dced912d8881b8a1d7a0de940359a5ea8201bf998",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "source_sha256": {
+        "Crypto.ConstantTime.cinch": "f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7",
+        "Main.cinch": "827be96f62b361a67216bbf26f257abf7da64f2bc1fbf0f89fa9f37b3430462e",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      },
+      "compiled_rc_debug": false,
+      "runs": [
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 0,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 1,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 2,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 3,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 4,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 5,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 6,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 7,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 8,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 9,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 10,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 11,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 12,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 13,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 14,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 15,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 16,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 17,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 18,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 19,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 20,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 21,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 22,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 23,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 24,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 25,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 26,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 27,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 28,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 29,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 30,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 31,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 32,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 33,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 34,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 35,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 36,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 37,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 38,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 39,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 40,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 41,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 42,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 43,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 44,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 45,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 46,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 47,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 48,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 49,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 50,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 51,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 52,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 53,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 54,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 55,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 56,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 57,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 58,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 59,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 60,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 0,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 1,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 2,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 3,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 4,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 5,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 6,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 7,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 8,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 9,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 10,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 11,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 12,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 13,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 14,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 15,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 16,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 17,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 18,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 19,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 20,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 21,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 22,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 23,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 24,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 25,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 26,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 27,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 28,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 29,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 30,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 31,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 32,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 33,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 34,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 35,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 36,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 37,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 38,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 39,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 40,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 41,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 42,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 43,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 44,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 45,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 46,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 47,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 48,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 49,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 50,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 51,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 52,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 53,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 54,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 55,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 56,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 57,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 58,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 59,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 60,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 0,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 1,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 2,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 3,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 4,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 5,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 6,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 7,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 8,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 9,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 10,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 11,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 12,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 13,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 14,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 15,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 16,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 17,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 18,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 19,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 20,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 21,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 22,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 23,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 24,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 25,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 26,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 27,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 28,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 29,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 30,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 31,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 32,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 33,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 34,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 35,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 36,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 37,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 38,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 39,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 40,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 41,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 42,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 43,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 44,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 45,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 46,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 47,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 48,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 49,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 50,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 51,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 52,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 53,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 54,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 55,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 56,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 57,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 58,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 59,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 60,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 0,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 1,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 2,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 3,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 4,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 5,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 6,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 7,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 8,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 9,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 10,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 11,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 12,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 13,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 14,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 15,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 16,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 17,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 18,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 19,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 20,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 21,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 22,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 23,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 24,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 25,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 26,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 27,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 28,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 29,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 30,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 31,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 32,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 33,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 34,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 35,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 36,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 37,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 38,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 39,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 40,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 41,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 42,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 43,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 44,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 45,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 46,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 47,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 48,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 49,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 50,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 51,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 52,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 53,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 54,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 55,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 56,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 57,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 58,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 59,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 60,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "scope": "Functional result/owner qualification only; constant-time machine-code and public pipeline benchmark review remain separate.",
+      "executable_o0_sha256": "e644a2f2d14728cff09ff6030c26a09a70014d4b8a4134cb7f0b1a7e28b27549",
+      "link_o0_seconds": 0.25937672800500877,
+      "executable_o2_sha256": "0399daa62ea4aa8968f6491ac5e5f8b669c7d89890883eb6d1c2dcd0d3eed475",
+      "link_o2_seconds": 1.0823218330042437,
+      "retained_receipt_sha256": "809d1427d04346669efd9730feec88721237d01887839440fbe18e5d85601a32"
+    },
+    "native": {
+      "llvm_sha256": "3143ba2f8a9f0f2afd32cac819f1f74f94e73f3af3e5815aae0919cbeed31f46",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "source_sha256": {
+        "Bundle.cinch": "20c288c754ebbef23091ed3c742187005a7e008a6f6e3667383b73f0d6a53bb9",
+        "Crypto.ConstantTime.cinch": "f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7",
+        "Main.cinch": "827be96f62b361a67216bbf26f257abf7da64f2bc1fbf0f89fa9f37b3430462e",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+      },
+      "compiled_rc_debug": true,
+      "runs": [
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 0,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 1,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 2,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 3,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 4,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 5,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 6,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 7,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 8,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 9,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 10,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 11,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 12,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 13,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 14,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 15,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 16,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 17,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 18,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 19,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 20,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 21,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 22,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 23,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 24,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 25,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 26,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 27,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 28,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 29,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 30,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 31,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 32,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 33,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 34,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 35,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 36,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 37,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 38,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 39,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 40,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 41,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 42,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 43,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 44,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 45,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 46,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 47,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 48,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 49,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 50,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 51,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 52,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 53,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 54,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 55,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 56,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 57,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 58,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 59,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": false,
+          "group": 60,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 0,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 1,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 2,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 3,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 4,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 5,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 6,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 7,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 8,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 9,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 10,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 11,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 12,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 13,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 14,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 15,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 16,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 17,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 18,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 19,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 20,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 21,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 22,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 23,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 24,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 25,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 26,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 27,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 28,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 29,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 30,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 31,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 32,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 33,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 34,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 35,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 36,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 37,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 38,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 39,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 40,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 41,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 42,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 43,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 44,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 45,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 46,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 47,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 48,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 49,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 50,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 51,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 52,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 53,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 54,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 55,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 56,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 57,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 58,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 59,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 0,
+          "poisoned": true,
+          "group": 60,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 0,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 1,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 2,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 3,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 4,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 5,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 6,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 7,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 8,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 9,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 10,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 11,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 12,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 13,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 14,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 15,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 16,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 17,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 18,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 19,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 20,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 21,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 22,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 23,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 24,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 25,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 26,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 27,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 28,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 29,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 30,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 31,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 32,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 33,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 34,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 35,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 36,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 37,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 38,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 39,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 40,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 41,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 42,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 43,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 44,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 45,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 46,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 47,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 48,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 49,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 50,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 51,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 52,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 53,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 54,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 55,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 56,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 57,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 58,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 59,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": false,
+          "group": 60,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 0,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 1,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 2,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 3,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 4,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 5,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 6,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 7,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 8,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 9,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 10,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 11,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 12,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 13,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 14,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 15,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 16,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 17,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 18,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 19,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 20,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 21,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 22,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 23,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 24,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 25,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 26,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 27,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 28,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 29,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 30,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 31,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 32,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 33,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 34,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 35,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 36,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 37,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 38,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 39,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 40,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 41,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 42,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 43,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 44,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 45,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 46,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 47,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 48,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 49,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 50,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 51,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 52,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 53,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 54,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 55,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 56,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 57,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 58,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 59,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "optimization": 2,
+          "poisoned": true,
+          "group": 60,
+          "exit": 0,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "scope": "Functional result/owner qualification only; constant-time machine-code and public pipeline benchmark review remain separate.",
+      "provider_object_sha256": "b02e2e0e19b3f09a69ee821a16b3c975ac28d443b4a10126acada470fa152214",
+      "executable_o0_sha256": "c29c5a0a9cf9c7206fc38a99efbd1ee50ea07fe6ec1d2eadd6be829f788a510c",
+      "link_o0_seconds": 0.3389251560001867,
+      "executable_o2_sha256": "55f6b6b45c907592f578a60f4621d0c9ca0d8bfbfd1701a016d4b29cf3a741c6",
+      "link_o2_seconds": 0.4786384210019605,
+      "retained_receipt_sha256": "38acb640970076cdca9ac7bc6a52492f7e8aae42636858990f09020d802b34eb"
+    }
+  },
+  "maintained_target": {
+    "command": "CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=67108864 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_CODEGEN_UNITS=1 CARGO_PROFILE_TEST_CODEGEN_UNITS=1 taskset -c3 cargo test --test lib_constant_time -- --nocapture",
+    "passed": 7,
+    "library_specific_tests": 4,
+    "shared_profile_controls": 3,
+    "compiled_rc_debug": true,
+    "memory_processes": 244,
+    "log_sha256": "ae33840d4392565dca4ea87fbe1fda7bef86fe6832747793804987c2fc7cf998",
+    "test_executable_recovery": {
+      "binary": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/339d31be5ccb5698/out/lib_constant_time-339d31be5ccb5698",
+      "sha256": "52424e8a4770be412ff416ec1e4ffad32783a7d7e3967b4066e0dc06c20ccdc6",
+      "archive": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/339d31be5ccb5698/out/lib_constant_time-339d31be5ccb5698.52424e8a4770be41.zst",
+      "compressed_sha256": "4c6b2ae93cb3497cad4fcf9763e0363ada402abe3e41f1541c1d7de0217c9c08",
+      "decompressed_sha256_verified": true,
+      "original_bytes": 46752224
+    },
+    "library_recovery": {
+      "binary": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/85c87f926c739e09/out/libcinch-85c87f926c739e09.rlib",
+      "sha256": "9deca20c4aa0e23cc9e4c3b15b8b07126085cfb3051ba9c89949a85c7be4a8a1",
+      "archive": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/85c87f926c739e09/out/libcinch-85c87f926c739e09.rlib.9deca20c4aa0e23c.zst",
+      "compressed_sha256": "8e45fe920c542f9b53040f005a08806b3e8fb41eafa9ebb8f14229d94222e944",
+      "decompressed_sha256_verified": true,
+      "original_bytes": 112023182
+    },
+    "rust_source_unchanged_from": "e4a4d7c9",
+    "scope": "Existing parent470/337-unit evidence remains in its recorded epochs; it was not rerun or relabeled."
+  },
+  "machine": {
+    "compiler_sha256": "b924bd00e9f9868dcd0d7ffc4844f8cfcd2379cb6a4915ade6f3f3974558bb3c",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "source_llvm_sha256": "bbd80fedd4088c682f3ebe9dced912d8881b8a1d7a0de940359a5ea8201bf998",
+    "scope": "Concrete host SSA/assembly audit and guarded private workers; foreign targets are object emission, not execution or timing proof.",
+    "commands": [
+      {
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O2",
+          "-S",
+          "-emit-llvm",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/consumer.ll",
+          "-o",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/optimized.ll"
+        ],
+        "label": "optimized-ssa",
+        "exit": 0,
+        "stdout": "",
+        "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n"
+      },
+      {
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O2",
+          "-S",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/consumer.ll",
+          "-o",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/optimized.s"
+        ],
+        "label": "optimized-assembly",
+        "exit": 0,
+        "stdout": "",
+        "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n"
+      },
+      {
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O0",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/consumer.ll",
+          "/workspace/dasl-stdlib-io/compiler/tests/fixtures/constant-time-guard.c",
+          "/workspace/dasl-stdlib-io/build/stdlib-dynamic-json-parent-frozen/libcinchruntime.a",
+          "-Wl,--wrap=main",
+          "-lpthread",
+          "-ldl",
+          "-lm",
+          "-o",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/guard-o0"
+        ],
+        "label": "guard-link-o0",
+        "exit": 0,
+        "stdout": "",
+        "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /tmp/consumer-99e477.o: warning: relocation against `Data.String.Eq_String.==.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n"
+      },
+      {
+        "command": [
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/guard-o0"
+        ],
+        "label": "guard-run-o0",
+        "exit": 0,
+        "stdout": "133644 guard observations passed\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-O2",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/consumer.ll",
+          "/workspace/dasl-stdlib-io/compiler/tests/fixtures/constant-time-guard.c",
+          "/workspace/dasl-stdlib-io/build/stdlib-dynamic-json-parent-frozen/libcinchruntime.a",
+          "-Wl,--wrap=main",
+          "-lpthread",
+          "-ldl",
+          "-lm",
+          "-o",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/guard-o2"
+        ],
+        "label": "guard-link-o2",
+        "exit": 0,
+        "stdout": "",
+        "stderr": "warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n/usr/bin/ld: /tmp/consumer-141212.o: warning: relocation against `Data.String.Eq_String.==.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n"
+      },
+      {
+        "command": [
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/guard-o2"
+        ],
+        "label": "guard-run-o2",
+        "exit": 0,
+        "stdout": "133644 guard observations passed\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-dynamic-json-parent-frozen/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/wasm32-unknown-unknown/Main.cinch",
+          "--target",
+          "wasm32-unknown-unknown",
+          "-o",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/wasm32-unknown-unknown/consumer.ll"
+        ],
+        "label": "wasm32-unknown-unknown-emit",
+        "exit": -6,
+        "stdout": "",
+        "stderr": "\nthread 'main' (702030) has overflowed its stack\nfatal runtime error: stack overflow, aborting\n"
+      },
+      {
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-dynamic-json-parent-frozen/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/wasm32-unknown-unknown/Main.cinch",
+          "--target",
+          "wasm32-unknown-unknown",
+          "-o",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/wasm32-unknown-unknown/consumer.ll"
+        ],
+        "label": "wasm32-unknown-unknown-emit",
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-target",
+          "wasm32-unknown-unknown",
+          "-O2",
+          "-c",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/wasm32-unknown-unknown/consumer.ll",
+          "-o",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/wasm32-unknown-unknown/consumer.o"
+        ],
+        "label": "wasm32-unknown-unknown-object",
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "/workspace/dasl-stdlib-io/build/stdlib-dynamic-json-parent-frozen/cinch",
+          "emit-ir",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/aarch64-unknown-linux-gnu/Main.cinch",
+          "--target",
+          "aarch64-unknown-linux-gnu",
+          "-o",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/aarch64-unknown-linux-gnu/consumer.ll"
+        ],
+        "label": "aarch64-unknown-linux-gnu-emit",
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+          "-target",
+          "aarch64-unknown-linux-gnu",
+          "-O2",
+          "-c",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/aarch64-unknown-linux-gnu/consumer.ll",
+          "-o",
+          "/workspace/dasl-stdlib-io/build/constant-time-source-v4/machine/aarch64-unknown-linux-gnu/consumer.o"
+        ],
+        "label": "aarch64-unknown-linux-gnu-object",
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "guards": [
+      {
+        "optimization": 0,
+        "executable_sha256": "ff4ba73367fdfd2fd6e97f789b19bdc1852ae1ebd450d93445beb67d09f717f2",
+        "observations": 133644
+      },
+      {
+        "optimization": 2,
+        "executable_sha256": "6bf601af80bdfe5ab0d4f64bca29cb71b52783eb3850412a288116adf5ba58f1",
+        "observations": 133644
+      }
+    ],
+    "objects": [
+      {
+        "target": "wasm32-unknown-unknown",
+        "llvm_sha256": "c270add951160b0178094e3e3afdd0fd6fef6653d1265b0245844d6acf5ae3fb",
+        "object_sha256": "ac4a8a3c78273f9fa102dccc7ea698df9b4939eea6fed351c797a1f7b636308b"
+      },
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "llvm_sha256": "84089eb499cca9911b0d0e69190b3d895d54edcc696cbf282e7a2ce9555f2f8e",
+        "object_sha256": "b47adcd7b147313da91214b985059bfad65ae285d6bb4eebc6f743a6dd2f4725"
+      }
+    ],
+    "traversal_audit": {
+      "difference-blocks": {
+        "public_conditional_branches": 9,
+        "secret_conditional_branches": 0,
+        "secret_address_dependencies": 0
+      },
+      "difference-tail": {
+        "public_conditional_branches": 9,
+        "secret_conditional_branches": 0,
+        "secret_address_dependencies": 0
+      }
+    },
+    "optimized_llvm_sha256": "9631b1f55aabb27ccebc22d47fa671546de6df16dfd08cac2a5be0ddc0dd4c1e",
+    "optimized_assembly_sha256": "891a51939be5ed931b450dec079acb9a54515cf948dbb4479a42a49d38f67f3a",
+    "scalar_audit": {
+      "constant-byte-equal": "straight-line SSA; no branch, call, or memory access",
+      "constant-i32-equal": "straight-line SSA; no branch, call, or memory access",
+      "constant-select": "straight-line SSA; no branch, call, or memory access",
+      "less-or-equal-word": "straight-line SSA; no branch, call, or memory access",
+      "select-word": "straight-line SSA; no branch, call, or memory access",
+      "select-byte": "straight-line SSA; no branch, call, or memory access",
+      "zero-word": "straight-line SSA; no branch, call, or memory access"
+    },
+    "guard_source_sha256": "f900aa9bb357aa378eab662643805515a56e4c47ea9bb2772a51584bfc6f4338",
+    "status": "passed"
+  },
+  "benchmarks": {
+    "equality": {
+      "receipt": "benchmarks/stdlib/constant-time-equality-results.json",
+      "sha256": "8fb920f7a13261b9e377656d5abee089d66cd2ebdd362738760f4e4facfff5a9",
+      "preflight_processes": 128,
+      "paired_timing_intervals": 280,
+      "samples": 7
+    },
+    "copy_xor": {
+      "receipt": "benchmarks/stdlib/constant-time-buffers-results.json",
+      "sha256": "ab6d105ed2a713a595f20645b96449c74f9dd0072aa628042558997c029148f5",
+      "preflight_processes": 352,
+      "paired_timing_intervals": 448,
+      "samples": 7
+    }
+  },
+  "documentation": {
+    "modules": 189,
+    "value_exports": 4910,
+    "public_methods": 115,
+    "diagnostics": 0,
+    "orphans": 0,
+    "isolated_imports": {
+      "parent_checks_sha256": "3063c1efdb818641d30d17dcb741609ead5cf8c8875fdb719bedb317cfc1c3a3",
+      "unchanged_parent_source_count": 188,
+      "new_module": "Crypto.ConstantTime",
+      "new_module_source_sha256": "f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7",
+      "compiler_sha256": "b924bd00e9f9868dcd0d7ffc4844f8cfcd2379cb6a4915ade6f3f3974558bb3c",
+      "isolated_new_import_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "total_isolated_imports_across_exact_source_epochs": 125
+    },
+    "generation_log_sha256": "35bfe9c203d7e6c424a5c774564305a3ed2a1978b095326b6781cef9c4f534b1",
+    "validation_log_sha256": "bc3663c6e07c726ef36b85fcb2f80e3d18c23a4c6c632e6e1287b0f615326f27",
+    "drift": "passed",
+    "host_specific_page": "The previously reviewed Prim.Sys variant is retained; the new module page is extracted from its actual isolated interface."
+  },
+  "remaining": [
+    "WithDataIndependentTiming requires architecture-specific nested runtime scope, inherited task state and foreign-call restoration.",
+    "Foreign object emission is not cross-architecture execution or a formal timing proof.",
+    "Packed copying/XOR still use existing checked byte stores; direct inline LLVM stores are outside the current primitive containment policy.",
+    "No new Native-family adoption, production cycle collector, nominal Region-header role or open-row transport claim."
+  ],
+  "recovery_index": {
+    "path": "/tmp/cinch-cold-test-archives.json",
+    "sha256_at_checkpoint": "a062a3bf62c3c89ca83e3c398b9e65afa404ccb09da1a2209251847352c4ea02"
+  },
+  "inventory": {
+    "complete": 23,
+    "partial": 50,
+    "unreviewed": 107,
+    "packages": 180
+  }
+}

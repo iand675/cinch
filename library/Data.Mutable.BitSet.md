@@ -55,7 +55,7 @@ One cell holding the current words.
 
 ## `bitset-capacity`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-capacity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-capacity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Mutable.BitSet.cinch)
 
@@ -63,7 +63,7 @@ One cell holding the current words.
 
 ## `bitset-clear`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-clear</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-clear</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.BitSet.cinch)
 
@@ -71,7 +71,7 @@ One cell holding the current words.
 
 ## `bitset-clear-all`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-clear-all</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-clear-all</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
 
 [Source](/reference-sources/Data.Mutable.BitSet.cinch)
 
@@ -79,7 +79,7 @@ One cell holding the current words.
 
 ## `bitset-count`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-count</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-count</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 The number of set bits: one popcount per word.
 
@@ -89,7 +89,7 @@ The number of set bits: one popcount per word.
 
 ## `bitset-difference-with`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-difference-with</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-difference-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
 
 `a` becomes a & ~b.
 
@@ -99,7 +99,7 @@ The number of set bits: one popcount per word.
 
 ## `bitset-from-list`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-from-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.BitSet.cinch)
 
@@ -107,7 +107,7 @@ The number of set bits: one popcount per word.
 
 ## `bitset-intersect-with`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-intersect-with</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-intersect-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
 
 `a` becomes a & b.
 
@@ -117,7 +117,7 @@ The number of set bits: one popcount per word.
 
 ## `bitset-is-empty`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-is-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)</code></pre>
 
 [Source](/reference-sources/Data.Mutable.BitSet.cinch)
 
@@ -125,7 +125,7 @@ The number of set bits: one popcount per word.
 
 ## `bitset-new`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-new</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>))</code></pre>
 
 An empty set with `n` bits backed before its first growth.
 
@@ -135,7 +135,7 @@ An empty set with `n` bits backed before its first growth.
 
 ## `bitset-next-set`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-next-set</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-next-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
 
 The least set bit at or above `i`.
 
@@ -145,7 +145,7 @@ The least set bit at or above `i`.
 
 ## `bitset-set`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-set</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.BitSet.cinch)
 
@@ -153,7 +153,7 @@ The least set bit at or above `i`.
 
 ## `bitset-test`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-test</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-test</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.BitSet.cinch)
 
@@ -161,7 +161,7 @@ The least set bit at or above `i`.
 
 ## `bitset-to-list`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-to-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 The set bits, ascending.
 
@@ -171,7 +171,7 @@ The set bits, ascending.
 
 ## `bitset-toggle`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-toggle</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-toggle</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
 
 [Source](/reference-sources/Data.Mutable.BitSet.cinch)
 
@@ -179,7 +179,7 @@ The set bits, ascending.
 
 ## `bitset-union-with`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-union-with</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-union-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
 
 `a` becomes a | b (growing to b's words).
 

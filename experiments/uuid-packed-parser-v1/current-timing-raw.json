@@ -1,0 +1,373 @@
+{
+  "kind": "matched-current-compiler-UUID-parser-pair",
+  "status": "passed",
+  "action": "measure",
+  "signature": {
+    "baseline_identity_sha256": "f6a45bf9a5f0a51ba95d90b504e415d48e2f7447bf952e403ef3301366c817c3",
+    "candidate_identity_sha256": "1e511ee135dcaad94f1f4b065ddfc6ac7fd542f941b3e62c413262a8881df0dc",
+    "iterations": 4096,
+    "runner_sha256": "c9983e12d39fd1226377db48f98638a71b007f18843ad42f46271058f2c940bc"
+  },
+  "compiler_sha256": "ad6e72f9cb4b946c7864b088062a2413974ca7b965153e1d7a413a97e0554e14",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "background": "Root exclusiveCPU0START; allpeersackinactive/noheavyjobs; exactad6baseline+packed+sameSDK; Rootc2epoch notused",
+  "cpu_affinity": [
+    0
+  ],
+  "argv0": "uuid-bench",
+  "GOMAXPROCS": "1",
+  "timing_claim": true,
+  "candidate_selected": false,
+  "package_complete": false,
+  "rows": [
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          1942639,
+          1933445,
+          2181159,
+          2052023,
+          2052014
+        ],
+        "packed": [
+          934950,
+          1415033,
+          1313380,
+          1417066,
+          1166679
+        ],
+        "reference": [
+          227823,
+          239481,
+          212440,
+          238820,
+          258390
+        ]
+      },
+      "median_ns": {
+        "baseline": 2052014,
+        "packed": 1313380,
+        "reference": 238820
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 1,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          1189944,
+          1357666,
+          1213440,
+          1098166,
+          1333470
+        ],
+        "packed": [
+          794618,
+          656991,
+          600686,
+          606725,
+          582128
+        ],
+        "reference": [
+          213091,
+          405651,
+          207953,
+          216105,
+          248244
+        ]
+      },
+      "median_ns": {
+        "baseline": 1213440,
+        "packed": 606725,
+        "reference": 216105
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 2,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          2175600,
+          2149952,
+          1882608,
+          2023340,
+          2082770
+        ],
+        "packed": [
+          1494933,
+          1130504,
+          1488384,
+          1332780,
+          1146779
+        ],
+        "reference": [
+          316717,
+          233492,
+          206522,
+          328165,
+          407164
+        ]
+      },
+      "median_ns": {
+        "baseline": 2082770,
+        "packed": 1332780,
+        "reference": 316717
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 3,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          2511576,
+          2254769,
+          1984201,
+          2431556,
+          2397454
+        ],
+        "packed": [
+          1254391,
+          1180740,
+          1274061,
+          1302403,
+          1244025
+        ],
+        "reference": [
+          273763,
+          272731,
+          291759,
+          343368,
+          251148
+        ]
+      },
+      "median_ns": {
+        "baseline": 2397454,
+        "packed": 1254391,
+        "reference": 273763
+      }
+    },
+    {
+      "workload": "parse",
+      "size": 0,
+      "pattern": 4,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          2885200,
+          2685899,
+          3073774,
+          2429504,
+          2783729
+        ],
+        "packed": [
+          646265,
+          668487,
+          658013,
+          701358,
+          943743
+        ],
+        "reference": [
+          141062,
+          130747,
+          108164,
+          134943,
+          248194
+        ]
+      },
+      "median_ns": {
+        "baseline": 2783729,
+        "packed": 668487,
+        "reference": 134943
+      }
+    },
+    {
+      "workload": "format",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          1011456,
+          921861,
+          1033118,
+          958004,
+          882591
+        ],
+        "packed": [
+          974300,
+          914459,
+          1230686,
+          1062722,
+          920458
+        ],
+        "reference": [
+          243257,
+          233732,
+          214594,
+          276127,
+          243458
+        ]
+      },
+      "median_ns": {
+        "baseline": 958004,
+        "packed": 974300,
+        "reference": 243257
+      }
+    },
+    {
+      "workload": "append",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          1140330,
+          966898,
+          941380,
+          1512841,
+          966978
+        ],
+        "packed": [
+          1182804,
+          966428,
+          1036072,
+          990253,
+          979898
+        ],
+        "reference": [
+          303297,
+          390188,
+          252811,
+          236046,
+          253573
+        ]
+      },
+      "median_ns": {
+        "baseline": 966978,
+        "packed": 990253,
+        "reference": 253573
+      }
+    },
+    {
+      "workload": "append",
+      "size": 64,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          957585,
+          1032878,
+          1084435,
+          967519,
+          957754
+        ],
+        "packed": [
+          1029843,
+          979788,
+          1204406,
+          1022362,
+          1081390
+        ],
+        "reference": [
+          351781,
+          327504,
+          532343,
+          334214,
+          357719
+        ]
+      },
+      "median_ns": {
+        "baseline": 967519,
+        "packed": 1029843,
+        "reference": 351781
+      }
+    },
+    {
+      "workload": "append",
+      "size": 4096,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          1340702,
+          1390246,
+          1380312,
+          1435084,
+          1370347
+        ],
+        "packed": [
+          1561245,
+          1780596,
+          1461464,
+          1402606,
+          1377257
+        ],
+        "reference": [
+          2623777,
+          2873444,
+          3129550,
+          2983319,
+          3290513
+        ]
+      },
+      "median_ns": {
+        "baseline": 1380312,
+        "packed": 1461464,
+        "reference": 2983319
+      }
+    },
+    {
+      "workload": "compare",
+      "size": 0,
+      "pattern": 0,
+      "iterations": 4096,
+      "samples_ns": {
+        "baseline": [
+          22404,
+          21953,
+          21963,
+          22484,
+          22124
+        ],
+        "packed": [
+          24287,
+          23896,
+          24426,
+          24737,
+          24136
+        ],
+        "reference": [
+          74152,
+          73942,
+          44236,
+          72029,
+          69095
+        ]
+      },
+      "median_ns": {
+        "baseline": 22124,
+        "packed": 24287,
+        "reference": 72029
+      }
+    }
+  ],
+  "quota_before": {
+    "cpu.stat": "usage_usec 161751799846\nuser_usec 151697587889\nsystem_usec 10054211957\nnice_usec 481860771\nnr_periods 1231226\nnr_throttled 42006\nthrottled_usec 1757103997\nnr_bursts 0\nburst_usec 0\n",
+    "cpu.max": "400000 100000\n"
+  },
+  "quota_after": {
+    "cpu.stat": "usage_usec 161752257926\nuser_usec 151697867084\nsystem_usec 10054390841\nnice_usec 481860771\nnr_periods 1231232\nnr_throttled 42006\nthrottled_usec 1757103997\nnr_bursts 0\nburst_usec 0\n",
+    "cpu.max": "400000 100000\n"
+  },
+  "elapsed_protocol_seconds": 0.5859216089884285
+}

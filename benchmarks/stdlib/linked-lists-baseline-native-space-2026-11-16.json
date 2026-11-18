@@ -1,0 +1,258 @@
+{
+  "description": "Record ordinary process allocation/peak evidence for complete linked-list pipelines.",
+  "frontend": "native",
+  "executable_sha256": "91f603e36efe23bf68d3462b7a15101d36c24f1e76feb2c04bf0039ff4d30ccc",
+  "sources": {
+    "Data.Mutable.LinkedList": "3cc4ffeaacad2f063a0ba111fbde267c21a61ca8394de14ecb336be5abe60ec3",
+    "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7"
+  },
+  "cpu_affinity": [
+    4
+  ],
+  "heap": "32M",
+  "stack": "8M",
+  "poisoned_free": false,
+  "scope": "Whole ordinary process: startup/configuration, prepared immutable input/list/handles, and one complete pipeline iteration. Prepared-owner teardown occurs after the final clock.",
+  "rows": [
+    {
+      "workload": "append-drain",
+      "elements": 32,
+      "stats": {
+        "blocks": 939,
+        "bytes": 28276,
+        "peak": 11379,
+        "header-blocks": 911,
+        "header-bytes": 26776,
+        "immortal": 0,
+        "freed": 911,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 2264070456033627304
+    },
+    {
+      "workload": "append-drain",
+      "elements": 1024,
+      "stats": {
+        "blocks": 24778,
+        "bytes": 759082,
+        "peak": 320887,
+        "header-blocks": 24750,
+        "header-bytes": 757568,
+        "immortal": 0,
+        "freed": 24750,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 4859726190566683064
+    },
+    {
+      "workload": "append-drain",
+      "elements": 16384,
+      "stats": {
+        "blocks": 393438,
+        "bytes": 12064497,
+        "peak": 5113209,
+        "header-blocks": 393410,
+        "header-bytes": 12062976,
+        "immortal": 0,
+        "freed": 393410,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 6461379426591732664
+    },
+    {
+      "workload": "prepend-drain",
+      "elements": 32,
+      "stats": {
+        "blocks": 939,
+        "bytes": 28276,
+        "peak": 11379,
+        "header-blocks": 911,
+        "header-bytes": 26776,
+        "immortal": 0,
+        "freed": 911,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 2264070456033627304
+    },
+    {
+      "workload": "prepend-drain",
+      "elements": 1024,
+      "stats": {
+        "blocks": 24778,
+        "bytes": 759082,
+        "peak": 320887,
+        "header-blocks": 24750,
+        "header-bytes": 757568,
+        "immortal": 0,
+        "freed": 24750,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 4859726190566683064
+    },
+    {
+      "workload": "prepend-drain",
+      "elements": 16384,
+      "stats": {
+        "blocks": 393438,
+        "bytes": 12064497,
+        "peak": 5113209,
+        "header-blocks": 393410,
+        "header-bytes": 12062976,
+        "immortal": 0,
+        "freed": 393410,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 6461379426591732664
+    },
+    {
+      "workload": "move-front",
+      "elements": 32,
+      "stats": {
+        "blocks": 702,
+        "bytes": 20802,
+        "peak": 8617,
+        "header-blocks": 676,
+        "header-bytes": 19304,
+        "immortal": 0,
+        "freed": 676,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 3843100759767130758
+    },
+    {
+      "workload": "move-front",
+      "elements": 1024,
+      "stats": {
+        "blocks": 17590,
+        "bytes": 529234,
+        "peak": 246701,
+        "header-blocks": 17564,
+        "header-bytes": 527728,
+        "immortal": 0,
+        "freed": 17564,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 475193214762766838
+    },
+    {
+      "workload": "move-front",
+      "elements": 16384,
+      "stats": {
+        "blocks": 278728,
+        "bytes": 8393959,
+        "peak": 3933103,
+        "header-blocks": 278702,
+        "header-bytes": 8392440,
+        "immortal": 0,
+        "freed": 278702,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 7159450734214127606
+    },
+    {
+      "workload": "remove-reuse",
+      "elements": 32,
+      "stats": {
+        "blocks": 1022,
+        "bytes": 30274,
+        "peak": 8617,
+        "header-blocks": 996,
+        "header-bytes": 28776,
+        "immortal": 0,
+        "freed": 996,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 2264070456033627304
+    },
+    {
+      "workload": "remove-reuse",
+      "elements": 1024,
+      "stats": {
+        "blocks": 27832,
+        "bytes": 832384,
+        "peak": 246701,
+        "header-blocks": 27806,
+        "header-bytes": 830872,
+        "immortal": 0,
+        "freed": 27806,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 4859726190566683064
+    },
+    {
+      "workload": "remove-reuse",
+      "elements": 16384,
+      "stats": {
+        "blocks": 442568,
+        "bytes": 13243623,
+        "peak": 3933103,
+        "header-blocks": 442542,
+        "header-bytes": 13242104,
+        "immortal": 0,
+        "freed": 442542,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 6461379426591732664
+    },
+    {
+      "workload": "self-copy",
+      "elements": 32,
+      "stats": {
+        "blocks": 1690,
+        "bytes": 51520,
+        "peak": 28947,
+        "header-blocks": 1662,
+        "header-bytes": 50016,
+        "immortal": 0,
+        "freed": 1662,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 8935792838464996989
+    },
+    {
+      "workload": "self-copy",
+      "elements": 1024,
+      "stats": {
+        "blocks": 48338,
+        "bytes": 1488466,
+        "peak": 886039,
+        "header-blocks": 48310,
+        "header-bytes": 1486952,
+        "immortal": 0,
+        "freed": 48310,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 1296879813991809757
+    },
+    {
+      "workload": "self-copy",
+      "elements": 16384,
+      "stats": {
+        "blocks": 770272,
+        "bytes": 23730059,
+        "peak": 14157081,
+        "header-blocks": 770244,
+        "header-bytes": 23728544,
+        "immortal": 0,
+        "freed": 770244,
+        "live": 0
+      },
+      "leaked": 0,
+      "checksum": 696189919849713373
+    }
+  ]
+}

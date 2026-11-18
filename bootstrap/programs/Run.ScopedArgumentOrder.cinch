@@ -1,0 +1,58 @@
+-- | Check strict prefix evaluation, single execution and returned-function ordering around argument witnesses.
+module Main where
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+
+  -- | Observe and increment one caller-visible byte exactly once.
+  advance :: Bytes -> Nat
+  advance cell = if 0 < bytes-len cell then
+    let before = bytes-get cell 0 in
+    let stored = bytes-set cell 0 (if before < 255 then before + 1 else before) in before
+    else 0
+
+  -- | Combine the prefix observation with the later byte read without hiding either value.
+  combine :: Nat -> U64 -> U64
+  combine before after = if before <= 255 then
+    wrapping-add-u64 (wrapping-shl-u64 after 8) (wrapping-i64-to-u64 (nat-to-i64 before))
+    else 0
+
+  -- | The prefix application must execute before the final argument's checked byte read.
+  direct-order :: Unit -> Bool
+  direct-order unit =
+    let cell = bytes-new 1 in
+    if 0 < bytes-len cell then
+      let initialized = bytes-set cell 0 3 in
+      let result = combine (advance cell) (wrapping-i64-to-u64 (nat-to-i64 (bytes-get cell 0))) in
+      eq-u64 result 1027 && bytes-get cell 0 == 4
+    else False
+
+  -- | Return a real function only after executing the visible prefix mutation.
+  returned :: Bytes -> Nat -> U64 -> U64
+  returned cell before = let changed = advance cell in \after -> combine before after
+
+  -- | A saturated producer returning a function must keep its original evaluation boundary.
+  returned-order :: Unit -> Bool
+  returned-order unit =
+    let cell = bytes-new 1 in
+    if 0 < bytes-len cell then
+      let initialized = bytes-set cell 0 3 in
+      let result = returned cell 7 (wrapping-i64-to-u64 (nat-to-i64 (bytes-get cell 0))) in
+      eq-u64 result 1031 && bytes-get cell 0 == 4
+    else False
+
+  -- | A user-bound partial application remains a shared function value with its strict prefix already evaluated.
+  shared-order :: Unit -> Bool
+  shared-order unit =
+    let cell = bytes-new 1 in
+    if 0 < bytes-len cell then
+      let initialized = bytes-set cell 0 3 in
+      let partial = combine (advance cell) in
+      let first = partial (wrapping-i64-to-u64 (nat-to-i64 (bytes-get cell 0))) in
+      let second = partial 5 in
+      eq-u64 first 1027 && eq-u64 second 1283 && bytes-get cell 0 == 4
+    else False
+
+  -- | Observe all three ordering contracts with independent initial storage.
+  main :: Int
+  main = if direct-order () && returned-order () && shared-order () then 0 else 1

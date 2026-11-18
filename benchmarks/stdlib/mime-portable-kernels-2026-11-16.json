@@ -1,0 +1,47 @@
+{
+  "status": "actual selected host body executed; other targets emitted only",
+  "source_library_sha256": "901396fb29df24e32944b73a616a199ecff558e51b7e83e3089a2f7a36e46786",
+  "kernel_ir_sha256": "99c56b3b4e2a8d5fedee935aa87bed374fe532af36a52d75ebff7a04bf0908ab",
+  "host_object_sha256": "99cb4fc5eded516abbc46efff87bb14d685873f52ec3a287c3e6b4a4c2ddaa06",
+  "independent_fixture_sha256": "065ff4e5a7e39517e565a7d1b3ee58291b703dc52dc6d062c2524a0e09e76ea1",
+  "independent_fixture_object_sha256": "6bd149d217ae32dde1a50208ae20a992aacce0d9d0163560b1e256941ae07aa0",
+  "oracle_vectorization": false,
+  "classifier_cases_per_execution": 24576,
+  "lowercase_word_cases_per_execution": 2048,
+  "host_assembly_sha256": "4ab5f5083e18bad16652ab868bf9f4ae07e5f1556efaf16091d6d697750b85ac",
+  "host_instructions": [
+    "paddb",
+    "pminub",
+    "pmaxub",
+    "pcmpeqb",
+    "pmovmskb"
+  ],
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+  "objects": [
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "flags": [
+        "-O2",
+        "-c"
+      ],
+      "sha256": "dbd58afc3ec8cf3879ac12b9b0e214ac1c3886ecb2cbac72874378ad258c70c5",
+      "diagnostic": "warning: overriding the module target triple; successful object emission"
+    },
+    {
+      "target": "wasm32-unknown-unknown",
+      "flags": [
+        "-O2",
+        "-c"
+      ],
+      "sha256": "f3f927be268e146d0c00f1f9c6955156453f34ab4836d93d9fc298b7f358292f",
+      "diagnostic": "warning: overriding the module target triple; successful object emission"
+    }
+  ],
+  "big_endian_execution": false,
+  "memory_boundary": "The pure packed-word transform performs no loads/stores; buffer wrappers use proved Data.Bytes.Word accesses and exact scalar fringes.",
+  "assembly_presentation": {
+    "normalization": "trailing whitespace only; original disassembler output retained in build/mime/kernels-host.s",
+    "raw_sha256": "4ab5f5083e18bad16652ab868bf9f4ae07e5f1556efaf16091d6d697750b85ac",
+    "presentation_sha256": "a7553c4ec077b9f73f47496ecfad0c3ea711a5f1313245e71ae3eeb1d763d87d"
+  }
+}

@@ -1,0 +1,45 @@
+-- | Raw UTF-8 byte utilities and constant-space observations of valid immutable text.
+-- Byte APIs preserve malformed input and report exact one-byte replacement progress.
+-- String APIs rely on the valid UTF-8 invariant; their first/last observations
+-- retain exact scalar width without copying the full input or exposing its backing.
+module Text.Utf8 where
+  import Data.Bytes.Utf8
+  import Data.String (String, string-utf8-first, string-utf8-last, string-length, string-byte-length)
+  import Data.Char
+  import Data.Nat
+  import Data.Option
+
+  export Utf8Status, Utf8End, Utf8Valid, Utf8Invalid, Utf8OutOfBounds, Utf8Step
+  export utf8-scalar-step, utf8-end-step
+  export utf8-step-char, utf8-step-width, utf8-step-status, utf8-decode-at, utf8-first, utf8-last-before, utf8-last
+  export utf8-rune-error, utf8-rune-self, utf8-max-rune, utf8-max-width, utf8-rune-start, utf8-valid-rune, utf8-rune-length
+  export utf8-count-between, utf8-decode-between
+  export utf8-count, utf8-valid, utf8-first-invalid, utf8-full-rune, utf8-encode-rune, utf8-encode-into, utf8-append-rune
+  export utf8-repair, utf8-repair-each, utf8-replace-invalid
+  export utf8-first-text, utf8-last-text, utf8-count-text, utf8-valid-text, utf8-full-rune-text
+
+  -- | Convert a sealed-text scalar observation to a canonical invariant-preserving decoding step.
+  text-step :: Option (Char, Nat) -> Utf8Step
+  text-step observed = case observed of
+    None -> utf8-end-step ()
+    Some pair -> case pair of (scalar, _) -> utf8-scalar-step scalar
+
+  -- | Observe the first scalar and exact encoded width; empty text returns Utf8End with zero width.
+  utf8-first-text :: String -> Utf8Step
+  utf8-first-text text = text-step (string-utf8-first text)
+
+  -- | Observe the last scalar with a bounded reverse scan; empty text returns Utf8End with zero width.
+  utf8-last-text :: String -> Utf8Step
+  utf8-last-text text = text-step (string-utf8-last text)
+
+  -- | Count scalars using the sealed-valid text counter without copying its UTF-8 backing.
+  utf8-count-text :: String -> Nat
+  utf8-count-text text = string-length text
+
+  -- | Every value of String is valid UTF-8; malformed arbitrary input is represented by Bytes.
+  utf8-valid-text :: String -> Bool
+  utf8-valid-text text = True
+
+  -- | Whether valid immutable text contains a complete first scalar; this is exactly nonemptiness.
+  utf8-full-rune-text :: String -> Bool
+  utf8-full-rune-text text = string-byte-length text > 0

@@ -1,0 +1,707 @@
+{
+  "format": 1,
+  "status": "complete",
+  "vectors_sha256": "a7ea9fef37bd2af14b82a7bbce50f6db34adcde4d5864cd966e36088011dad16",
+  "expected_primary_observations": {
+    "media": 551,
+    "formats": 60,
+    "encoded": 816,
+    "decoded": 1538,
+    "writes": 136,
+    "registry": 18
+  },
+  "reports": [
+    {
+      "path": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+      "sha256": "1f1a2d5253fbb0fe768cc304a9839e2cf84eb2882231ed24e53862239e369751",
+      "comment_normalization": [
+        {
+          "module": "Text.Mime",
+          "retained_sha256": "901396fb29df24e32944b73a616a199ecff558e51b7e83e3089a2f7a36e46786",
+          "current_sha256": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+          "change": "complete leading-comment lines only"
+        }
+      ],
+      "completed_runs": 10
+    },
+    {
+      "path": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+      "sha256": "5076b7c46573593bea973f63ea57fa5561a3276d3899e71a896349a7defce1cb",
+      "comment_normalization": [
+        {
+          "module": "Text.Mime",
+          "retained_sha256": "901396fb29df24e32944b73a616a199ecff558e51b7e83e3089a2f7a36e46786",
+          "current_sha256": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+          "change": "complete leading-comment lines only"
+        }
+      ],
+      "completed_runs": 22
+    },
+    {
+      "path": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-first/report.json",
+      "sha256": "ef0270c371645e19854ec30977c27afff5ea5f75acc3da441f8f5a9c9f8109ee",
+      "comment_normalization": [
+        {
+          "module": "Text.Mime",
+          "retained_sha256": "901396fb29df24e32944b73a616a199ecff558e51b7e83e3089a2f7a36e46786",
+          "current_sha256": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+          "change": "complete leading-comment lines only"
+        }
+      ],
+      "completed_runs": 1
+    },
+    {
+      "path": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+      "sha256": "fd771ddfbdeb79839cf4ecdad47398b68e8ccde632cd0a745ecfd0428cbd0ae5",
+      "comment_normalization": [
+        {
+          "module": "Text.Mime",
+          "retained_sha256": "901396fb29df24e32944b73a616a199ecff558e51b7e83e3089a2f7a36e46786",
+          "current_sha256": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+          "change": "complete leading-comment lines only"
+        }
+      ],
+      "completed_runs": 30
+    },
+    {
+      "path": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/report.json",
+      "sha256": "0ca070782ba9df4b076c83036634a682fcd276f9670f1dd863b532d697731c9a",
+      "comment_normalization": [],
+      "completed_runs": 4
+    },
+    {
+      "path": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/report.json",
+      "sha256": "d9aed9b1d6608adeb60e0836b33844b2b3feae9979a7f96679f09700bc298b5c",
+      "comment_normalization": [],
+      "completed_runs": 4
+    }
+  ],
+  "frontends": {
+    "rust": {
+      "identity": {
+        "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+      },
+      "qualified_runs": [
+        {
+          "case": "media-0000",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+          "consumer_sha256": "b67dd2e19942be4f2b383f01c58c5e62a256b11600fe70db1ccda033626577ec",
+          "ir_sha256": "b666ed676ffb6aa33743d0fe94ff03f8bcbebbb4bced0b484464b0c0d102eecc",
+          "executable_sha256": "beaa300687e072da0ecd048bfc73ac21d267ee3e651d6d0656baa2dd929a7f62"
+        },
+        {
+          "case": "media-0128",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+          "consumer_sha256": "6404440013e3e0c24e04539f46fa8f4882d6cd0fd11791dd2d34675f8fd8d28f",
+          "ir_sha256": "f84e83096c713f5eb01493da8c1234e066eb1875028aa951a3b4f5f44dada468",
+          "executable_sha256": "54d97989aae4f617102145ef54b1d991df432cf280f1ec3acd37cc49ec15ac4f"
+        },
+        {
+          "case": "media-0256",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+          "consumer_sha256": "de78fc4b4319c7bab0ed5a0ab3f03488c0d018aa9d661d14b10efeaf70e559c1",
+          "ir_sha256": "cb42f4a16674f6b7872960e6173beb12efbcff247bc06269cec6b2600d6065b6",
+          "executable_sha256": "99cb7fcfad684fdcbefc533eed7667dacaddd7dd08bd8daa45e9541d2a098d1e"
+        },
+        {
+          "case": "media-0384",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+          "consumer_sha256": "ef80f0527da333953961ba4592b5d835a9d78bf6c0433f35c10c201215596cf6",
+          "ir_sha256": "c33c020e601aef6cc176ccc96ab33d3fcdfc85455cf333040c677f7ed1ab8956",
+          "executable_sha256": "64888db4a48eb7f8458808666e91f9ec6bcda3cbaa8df48329def32f5e5a619b"
+        },
+        {
+          "case": "media-0512",
+          "count": 39,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+          "consumer_sha256": "60294faf2cb10aac9527501f38c896eb9f72cdf876c6ced50435b3b26e19f5d7",
+          "ir_sha256": "0b7966f321ddfe9dc57b353b873fd460d5856ffb2b2d108d2c0c7bc608c9eb98",
+          "executable_sha256": "972b861539c3ed81da9c2efea14eed785a5fd967f5780d4ed3cd1e4c58febc5c"
+        },
+        {
+          "case": "formats-0000",
+          "count": 60,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+          "consumer_sha256": "a2aaa70abbf5173628372fe342afcc34334432e0e93920e8d45b8d0153dcef42",
+          "ir_sha256": "123be2781797a0753b02af512f676325117a554409ac333225ba68aa20460631",
+          "executable_sha256": "515043bdb4d5ed811921577bf346831b1baac8161686329cf64258e9a772b853"
+        },
+        {
+          "case": "encoded-0000",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+          "consumer_sha256": "6c672f9d194ad87b2b9c89c398794c3cce26aca548fdc768ab3d0f7660c3c343",
+          "ir_sha256": "6fc8b64506333e305371bdf5ec38d2d30760496652226c333f9a542acf4d31dd",
+          "executable_sha256": "f3fc12fcf5a168eac0aeb0c3a451a642bfae64e235645d9c57b48c1b7905b6f6"
+        },
+        {
+          "case": "encoded-0128",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+          "consumer_sha256": "080f41dc86aa6e3d00416450ab5e5b8a949b70739821a0e24ecfda1d5f977ce7",
+          "ir_sha256": "caefb8d8b71391bcd19b434fc6b18dfbe56715533e344492498133e08acf5b46",
+          "executable_sha256": "9786db537982cedd33fd9762a4a257fcf9194b916ac577eaa2e1611c008c5420"
+        },
+        {
+          "case": "encoded-0256",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+          "consumer_sha256": "df2662d2d512c3a395076344255e2173df92c380664cceaf5ca45af533fb3b2a",
+          "ir_sha256": "8ebc15d6153a8f7b1f7101a715fe41396c7cfb833e9e9119fa81115610f64c4d",
+          "executable_sha256": "b610447bd20ca25d803dfa052f9d090eefe1b24848dc9865ccb487567a37f381"
+        },
+        {
+          "case": "encoded-0384",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/report.json",
+          "consumer_sha256": "28dbe752eefcd17849ea836249999dff69a21313f7a8896a01cdbc29fe629e83",
+          "ir_sha256": "90fa83e47141e96210752be169ed4bf9123f5bcd2599581ab62c983982d40faf",
+          "executable_sha256": "2697ae5f072299257530ea720320f903209e75eea506211a1cad8afb28c19561"
+        },
+        {
+          "case": "encoded-0384",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "9e4b7906eab472e9fb2aad2c8c0b5693b759bea76d225648649d2d9ffd081a88",
+          "ir_sha256": "d17d49f417e1001c4ba0d8e429e2a094b71705aaa8621e30cd3a925ea889c430",
+          "executable_sha256": "e5fd755fc36b8745bb529bf7f133f917599c57398bb4b21926e4eb3939e4d5e8"
+        },
+        {
+          "case": "encoded-0512",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "66ba7caa36ff479dfc2c924296292bb7fa24e9ffcdc659349e69df1b02bf088d",
+          "ir_sha256": "3ed77d1f6b9c02aef132f77f8e55d344beae3b6ceff2b0d79b9ea2f540bb83b1",
+          "executable_sha256": "fd467699a5a13fbfc751af10720d7b27d0ceb73253467fc246f7fa86647c8720"
+        },
+        {
+          "case": "encoded-0640",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "ef3b777936c56a7aa1d2e7a1d34fed764af1c66627df320c509b14be621cad5a",
+          "ir_sha256": "5147eef8f646e2dc937345c2d83f8985c8fc5851e5053cd6d4758cff5d364dae",
+          "executable_sha256": "a16029e13f9f713ee180357c4b3f44fbcccf2438f0b89b10ae553b8aabce669d"
+        },
+        {
+          "case": "encoded-0768",
+          "count": 48,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "43ce9f574d2afcb974ae1ecf0c793139e48b361cae315664479675ffea9d0562",
+          "ir_sha256": "8a717d309f2297cff360f27794002b9be16841d0a3610b9a1093cabb63512e8e",
+          "executable_sha256": "6acbecb7d4e89d00ee0389e4f4031f96abcdd1ccd4b4c7da3e4c000323c34d3b"
+        },
+        {
+          "case": "decoded-0000",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "ea68f18ebed535d80820e1b45d23f5f299b9f4fe88a5a7ec472ab393296d85e7",
+          "ir_sha256": "9eada0174785940b3c088721b02790626347aad4221744b7f29076322a7c40b7",
+          "executable_sha256": "c21195d700263a60261a525a9385d6e3384d6dbbd22460fca7fa2e792197594e"
+        },
+        {
+          "case": "decoded-0128",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "6214697620ebf09d6c25fa0e719e98b96185504c0394447de18cc3d52abafd3c",
+          "ir_sha256": "aa1ae0f8d8a621d2db0fbadffeb7173eba6feb29f01b230845b7b1ef74e6ccf9",
+          "executable_sha256": "aeb3efb42980083e596b9b238e3c5d1d5391a8c123f510de3254f9e50af5ec4e"
+        },
+        {
+          "case": "decoded-0256",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "b5634a5eb45dc67ee7e001b53a35b42aeb21133903233de1c6c6377951e64b6e",
+          "ir_sha256": "b09644e894c0096c4798f8a95045e86014f8ecd1348af332939667df30752289",
+          "executable_sha256": "c96484ca1d5a5f4a699196fab779bc55c61bdd1c089a1f0789015c4f9fba67fd"
+        },
+        {
+          "case": "decoded-0384",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "b982a4c7b3fbe288034970f62160388402c2437dbdb1c205d660603c0a5f6813",
+          "ir_sha256": "89b0dc40d15d99fdcd1a9c3d804d672ad9ecee5dbd17721ec8ab5b7ba673c360",
+          "executable_sha256": "8b568342a66e749bc00d3561b1daad777bd296b00c27f84dccab4b291049f7df"
+        },
+        {
+          "case": "decoded-0512",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "0be9e6de8ae0c68b7b91dd121e69514139f4f0b28e124953b2a86fdfb1a33879",
+          "ir_sha256": "379605645cd90fa5a5f4450a0e662214d2e893c1630ad8654fc23a68409f9790",
+          "executable_sha256": "58a7802abdc36419b83b2496bf8a5f9f5604f1cb3eff4c722b6bb53f3a31feda"
+        },
+        {
+          "case": "decoded-0640",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "2789ac21bbec617fa43e6f710731dbfb976cc4a81e80681fd8bfda8e5dd1dd0d",
+          "ir_sha256": "026f75aaaa43d1c89918635da94e1f9f8fb9459eaffecbee21bcfb34c6470b1f",
+          "executable_sha256": "939a5d932944d8ac448e0faf3440311e6f61023ffa50a756875419b760ae0ef5"
+        },
+        {
+          "case": "decoded-0768",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "c2f57db997ceb363b18f8823462e25594b97cb347793e2f0c93e0859fe7a4037",
+          "ir_sha256": "7adf7b4ed7483f7f7ed878cc0460a7a49a5baa54326c94fe9fac24f6d748a7ca",
+          "executable_sha256": "86c21a03eca53cf6307dd5447581f67b2780228e1dcab7e8e00384d3cb2c20b0"
+        },
+        {
+          "case": "decoded-0896",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "9a5eacfe7f1916f23e54487fa902678f46d034037d2199926c9a182884aeeaf3",
+          "ir_sha256": "0e2edceb396240fae1fe135119c7cb3e7d9d9c1fd6067bf3c48523a2fcc6a612",
+          "executable_sha256": "e39255ba9d767f508f12efb35d1bebf439c71113319d8dc126adbe5779e3fa62"
+        },
+        {
+          "case": "decoded-1024",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "ffe3329309078638a2a0562498d31afc7026fbe3bdb4a87cdd5828dda1d3335e",
+          "ir_sha256": "096bec49895ef3dbde8578e1927011b39803ed8790f4dd8379f07e9b454a78fa",
+          "executable_sha256": "1c161e8e993a3bc36d06d6708191706dddf3557fa3d5b66fd98cf5dfb08238b0"
+        },
+        {
+          "case": "decoded-1152",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "5344f421857487731eb7a981892138c1be2e3bba0808613483570072eaebe96b",
+          "ir_sha256": "fe2227853443d719a8938d863dea6a3ce8da43c84fbc656caad7bb32a6a5b960",
+          "executable_sha256": "8d49d1798100602c343b9204764014794150c64de4fa0428e40c482388a41d22"
+        },
+        {
+          "case": "decoded-1280",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "b708e3da9c148c8f7f43ef0049b3acb15f10774559d92d4cc2d6375eb8600d0e",
+          "ir_sha256": "3c523d475e4cddeecc547d1e0998c5e0dd915617929b7a7398e18a886eccdb88",
+          "executable_sha256": "f235a63fc6bcdb3c3a4c9d9aa770e69a8dfbf0bd6a7a659f96cddb61d0ee4bd4"
+        },
+        {
+          "case": "decoded-1408",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "fc81159482bc610706febd194df92e31efc3cc3118606f35806f117d00ca5fae",
+          "ir_sha256": "dcd306e06144ec603696c415d4f2c872e11ccae4afea8cd95030c2013fe1d0cd",
+          "executable_sha256": "6070db3d47aa81e2be8c3e1037adc13a8c728a18b9baf709e7567ce11333f65e"
+        },
+        {
+          "case": "decoded-1536",
+          "count": 2,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "b2d8718de97f8b0e144c8b7164e2195a206637c49d911b692add841771698e55",
+          "ir_sha256": "6ee9c8466919dd668af8b3a0d566b5cb8d5491a6b9fbe8041289ee581a125118",
+          "executable_sha256": "e3a3fdb380f9737bff500edce721f1527d4562ff81747cc8c6d61a11a26436b7"
+        },
+        {
+          "case": "writes-0000",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "4a7e1aea5b94a66686f5e25c9deae0f0bec34fb406ff832391260620279e35c4",
+          "ir_sha256": "a6c2af2fa975016d969d56583424b84c8e035404c833c6bd83511dac15762f7c",
+          "executable_sha256": "5e3c6098bc0b6c97de135ff134d623928647001ec199d815542a3a469615efa1"
+        },
+        {
+          "case": "writes-0128",
+          "count": 8,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "c396d5038d4172e32f02356d1a9a531f56289538de238615cf4d256c2e278775",
+          "ir_sha256": "baeba0955cd23e94836fae77d81b5941715010e64569f07b26b1d56020735c45",
+          "executable_sha256": "0ebfbc9f1e91f03b6e8f0d7646fc3d971a4fa84a3d2cc880d5a56d54eb414896"
+        },
+        {
+          "case": "registry",
+          "count": 18,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "26ec9829190f88b2d06436658d8fcb0815a558c0c7b90620be61292d3dfe5c14",
+          "ir_sha256": "9a1403f3365556b052b21d4c311863151325e6f289c7aec7345e4b5c75b20c39",
+          "executable_sha256": "65b2b4aea6c9ed257f85a8cf57d5f4e4f9b4595d429fbd1307dc654b1f56fd60"
+        },
+        {
+          "case": "decoded-callbacks",
+          "count": 10,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "5515f4aebbba6da9d64631f5c61a7310254d22c30381269384e4d53de0744f36",
+          "ir_sha256": "96cd239373b5295782dc5b4c994c3acf52000286fb6bd1f0800637f97fa2275c",
+          "executable_sha256": "73d205f6f6d2f0d66954ffa19eaa75bc3b7d2e4acb72533fe2715b252a2ff386"
+        },
+        {
+          "case": "ownership",
+          "count": 7,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-chunked/report.json",
+          "consumer_sha256": "b0dff6d0be7ffc04d912efb4ea9f19cf7175067c4c2a337c5df14f2ac2043d84",
+          "ir_sha256": "acf6b89157be1163e6d2d26f46859c471f4b31f00de933f309fd67cb1363377d",
+          "executable_sha256": "6c3581667df670906a0d82bb5db4d69cba51523673f0d05d774ebd05a14d78bf"
+        },
+        {
+          "case": "ownership",
+          "count": 9,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/report.json",
+          "consumer_sha256": "aba377e458a436a54ccaf0ce60c439e9fe297645809277a067b67cfbb5f58838",
+          "ir_sha256": "6ce15b6b0d7ccee6c3c116955bbd01ffee95f1d8f24eb537a4a20962e1b7f2c5",
+          "executable_sha256": "b9b1d68e6884b46eb251cace29e87a7893f53650b1561ee016ada4e021ae5860"
+        },
+        {
+          "case": "media-0000",
+          "count": 32,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/report.json",
+          "consumer_sha256": "9681d716256d162222adca0403004e960d93a9185fb300b3c79dba3bf9227825",
+          "ir_sha256": "6f85f95088654b2a24cdf6747d0b06f4836d45ea211bb18d2483e3e965752866",
+          "executable_sha256": "5ddb25599a020a247c0f3e6c2745ce2d2e24d68823d79a2aae5127127f342986"
+        },
+        {
+          "case": "encoded-0000",
+          "count": 32,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/report.json",
+          "consumer_sha256": "213a8a24c38ba109852851d6332b370ec1ff3e8dcfe57026c0e18206a2b4651c",
+          "ir_sha256": "cd3577209b1f8a1eb5ff86234c22b8af673cedb2cea5807debea2254b2902eed",
+          "executable_sha256": "3595198d6bd0cbb3fc30575dc7c897ab7e95050220365dd6b03a82cd77221ced"
+        },
+        {
+          "case": "decoded-callbacks",
+          "count": 10,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/b004-final-smoke/report.json",
+          "consumer_sha256": "5515f4aebbba6da9d64631f5c61a7310254d22c30381269384e4d53de0744f36",
+          "ir_sha256": "96cd239373b5295782dc5b4c994c3acf52000286fb6bd1f0800637f97fa2275c",
+          "executable_sha256": "73d205f6f6d2f0d66954ffa19eaa75bc3b7d2e4acb72533fe2715b252a2ff386"
+        }
+      ],
+      "controls": {
+        "decoded-callbacks": 10,
+        "ownership": 9
+      },
+      "covered_primary_observations": {
+        "media": 551,
+        "formats": 60,
+        "encoded": 816,
+        "decoded": 1538,
+        "writes": 136,
+        "registry": 18
+      },
+      "missing": {}
+    },
+    "native": {
+      "identity": {
+        "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+        "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+        "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b",
+        "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+        "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641"
+      },
+      "qualified_runs": [
+        {
+          "case": "media-0000",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-first/report.json",
+          "consumer_sha256": "b67dd2e19942be4f2b383f01c58c5e62a256b11600fe70db1ccda033626577ec",
+          "ir_sha256": "527b676717123219a514b5bb7cdaac650f4009bd40b230738107691eec238636",
+          "executable_sha256": "c405e0ef6260548c99dc12e547aa5c001d04b730ab39ec33a1d86e8be03a5c3f"
+        },
+        {
+          "case": "media-0128",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "6404440013e3e0c24e04539f46fa8f4882d6cd0fd11791dd2d34675f8fd8d28f",
+          "ir_sha256": "3afa710ac5e6046ad2c1f6f1dcfc5cb4c7d98d97e468aac1df9dd6a720e72a8c",
+          "executable_sha256": "211e6f52e8d53e5181e062f030021442d39910febf833b356abf7ac391b60146"
+        },
+        {
+          "case": "media-0256",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "de78fc4b4319c7bab0ed5a0ab3f03488c0d018aa9d661d14b10efeaf70e559c1",
+          "ir_sha256": "dc78c5fc7d4f3b078b58efaec2f64d8d5cda2c3aa6f612e7b61870054dbbe950",
+          "executable_sha256": "647996247398503b77272953b050b27879e569e1a2a9d9d3604940ea2e1e1a8b"
+        },
+        {
+          "case": "media-0384",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "ef80f0527da333953961ba4592b5d835a9d78bf6c0433f35c10c201215596cf6",
+          "ir_sha256": "86f3aa38561c723291f949d7bc522716beb75807ece667da9241455280ebf639",
+          "executable_sha256": "4f407106166bf2554e749eed01ccd0830b87ffb0a6a80a1180d5953de33b8afc"
+        },
+        {
+          "case": "media-0512",
+          "count": 39,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "60294faf2cb10aac9527501f38c896eb9f72cdf876c6ced50435b3b26e19f5d7",
+          "ir_sha256": "10afe60484f759e526ddcb174c1eb5f1599c9f7dc5ab08ffb918a9217cfc3c3d",
+          "executable_sha256": "cca3be1cc3446b83aa03be487a4dd5ac71a536bc20a7e6a47508eb80f79bd495"
+        },
+        {
+          "case": "formats-0000",
+          "count": 60,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "a2aaa70abbf5173628372fe342afcc34334432e0e93920e8d45b8d0153dcef42",
+          "ir_sha256": "849c396854161039ad3749a2732832319a77b03250a14f8dd8bec5c5d14f4575",
+          "executable_sha256": "1dd58ceed9f31391a947fd3666f0011180c75af34c4448faea830742b9a747f5"
+        },
+        {
+          "case": "encoded-0000",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "6c672f9d194ad87b2b9c89c398794c3cce26aca548fdc768ab3d0f7660c3c343",
+          "ir_sha256": "22983035d294d52c47c6b7ef32e6cf9b9cdc860c686fd6686313760de51e3fd3",
+          "executable_sha256": "08089d382ec896564b2faaa62a58f7361c914131031fe8ec8c3214e992e0e753"
+        },
+        {
+          "case": "encoded-0128",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "080f41dc86aa6e3d00416450ab5e5b8a949b70739821a0e24ecfda1d5f977ce7",
+          "ir_sha256": "33a3903f94c0954f3a5f234566be9e71b24fd9d3cfe7de321f74084b76615f93",
+          "executable_sha256": "4dff983a45c106e6687e0b674a91806d76eed1cc215bd50febda38b4876f7de8"
+        },
+        {
+          "case": "encoded-0256",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "df2662d2d512c3a395076344255e2173df92c380664cceaf5ca45af533fb3b2a",
+          "ir_sha256": "4465099c610b205d64ad8c9ca2c803724688d1848fafc45466079a596b5ba6d6",
+          "executable_sha256": "10498d6a709d5717dcbedd3b593343963b76a0b40815bb4f3fff9878eb322e11"
+        },
+        {
+          "case": "encoded-0384",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "9e4b7906eab472e9fb2aad2c8c0b5693b759bea76d225648649d2d9ffd081a88",
+          "ir_sha256": "9131a0ce01994d4c38cd6cd79a5df0aeca6aa362d1afbad083f873636c4ecdc5",
+          "executable_sha256": "25cb120f713b8a001fb0f63a8ac0db5701aa935e2a55035678af1608f5570d83"
+        },
+        {
+          "case": "encoded-0512",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "66ba7caa36ff479dfc2c924296292bb7fa24e9ffcdc659349e69df1b02bf088d",
+          "ir_sha256": "f5b5668b9c77cea7a84f3729de0757013a82f642049988ff0f2a44a1bf180ccb",
+          "executable_sha256": "d5180732c78bfd189cb1a777628097f355853f8ddac06c720ebacf992c977815"
+        },
+        {
+          "case": "encoded-0640",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "ef3b777936c56a7aa1d2e7a1d34fed764af1c66627df320c509b14be621cad5a",
+          "ir_sha256": "cf7fffbc5a3ae30a204dd41a101e665f86626f89650bab7f6a9472ef2849dad8",
+          "executable_sha256": "d0534eb463daa1c014bd3a13169911a616f1915b99c1b61efa0d44368546c7e6"
+        },
+        {
+          "case": "encoded-0768",
+          "count": 48,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "43ce9f574d2afcb974ae1ecf0c793139e48b361cae315664479675ffea9d0562",
+          "ir_sha256": "8d0012ce7089be1f4c466d653f39402742e8035ae925759ccbc1a30b599d9dfa",
+          "executable_sha256": "f8c351d9a56b27a3dc39235d7d7e4a46c630d891a1101797aa218900480e72e1"
+        },
+        {
+          "case": "decoded-0000",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "ea68f18ebed535d80820e1b45d23f5f299b9f4fe88a5a7ec472ab393296d85e7",
+          "ir_sha256": "f5514a56c2c457189a073c9b76b52b6b4f0eacbfd798ff564a9f0da3fbff2705",
+          "executable_sha256": "7ec9dc6cfa637411e4802b27d10a38ac7811e1546a1e9c9c2b700425178305f5"
+        },
+        {
+          "case": "decoded-0128",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "6214697620ebf09d6c25fa0e719e98b96185504c0394447de18cc3d52abafd3c",
+          "ir_sha256": "2d00e5e127b84a36b20cbd1189f4ba098677aafb5bbfa0ecbdaaf639d654d57b",
+          "executable_sha256": "2ba9bcd4c8b04eb4531976b17679d9f2f2483ca40fdcffe0d864a602be2b7323"
+        },
+        {
+          "case": "decoded-0256",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "b5634a5eb45dc67ee7e001b53a35b42aeb21133903233de1c6c6377951e64b6e",
+          "ir_sha256": "0098ac753f77c04050629491d4b0f3d9b52f29182cacf3ec8058c54358bf6080",
+          "executable_sha256": "599589bf1d0602e4a69462666c8eadfd4a8e7739c25ba20e0d5d3636a6c6e921"
+        },
+        {
+          "case": "decoded-0384",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "b982a4c7b3fbe288034970f62160388402c2437dbdb1c205d660603c0a5f6813",
+          "ir_sha256": "f094b84a80bf3a967cf7ac27097535c2fe89cacb372bf89cf1f12cb54c525ec1",
+          "executable_sha256": "d0594e8b0cfbc866ed698bed4fec4b259cfac3da69b21bbe6ce71ef3de7e812f"
+        },
+        {
+          "case": "decoded-0512",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "0be9e6de8ae0c68b7b91dd121e69514139f4f0b28e124953b2a86fdfb1a33879",
+          "ir_sha256": "515c50df0c5c65666f922f679c069ba926efa80a1d65ede8607531d5fba36b61",
+          "executable_sha256": "dfa1255df26b5ece8da67af5ee3ed2f66007c21d8cc3d3bce8e8cb179eaf394a"
+        },
+        {
+          "case": "decoded-0640",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "2789ac21bbec617fa43e6f710731dbfb976cc4a81e80681fd8bfda8e5dd1dd0d",
+          "ir_sha256": "9d6cc43b9670ea0fe321d55d4534e71ae7de726673d0d479b4b408eeb8909fbc",
+          "executable_sha256": "d5ded613dba811b8c6ae4adc3eadd69e7e23aa4616f4000f0b26b825c953a37a"
+        },
+        {
+          "case": "decoded-0768",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "c2f57db997ceb363b18f8823462e25594b97cb347793e2f0c93e0859fe7a4037",
+          "ir_sha256": "0a6dfcc2c6e95ccb3cebdfcd5f289eff571e2f07776a7b74a58095cc130b3051",
+          "executable_sha256": "f8fc0b49514e8ac0cdd1d15d5310f27f17174891e5265ef3df8202d1abe8288d"
+        },
+        {
+          "case": "decoded-0896",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "9a5eacfe7f1916f23e54487fa902678f46d034037d2199926c9a182884aeeaf3",
+          "ir_sha256": "fc8c663fffc0405c2af5ec4982f44c59dfb6ff963904a16cbdb721dfb13001e8",
+          "executable_sha256": "7998493ea0ef6156d7ce7f50d16fc03d4d219cf2e431d5294fef63026ff309aa"
+        },
+        {
+          "case": "decoded-1024",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "ffe3329309078638a2a0562498d31afc7026fbe3bdb4a87cdd5828dda1d3335e",
+          "ir_sha256": "c8935be0e3a81964c0541feb5f39249ae8a561a5fa5651a61917b324c6b580d9",
+          "executable_sha256": "d63f4e5009afd25a5a695d443be765aab9c60ab5981b549265259c1f5d32b9ec"
+        },
+        {
+          "case": "decoded-1152",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "5344f421857487731eb7a981892138c1be2e3bba0808613483570072eaebe96b",
+          "ir_sha256": "f6e8a640e1f5d762b7b514faf91be5426776aa2c31d1f11000f38db0015a3c26",
+          "executable_sha256": "f4b82815c7ee2bcb417c7d6aa0981fb54bc2c2b2fb19657dc0f6cc99381c851d"
+        },
+        {
+          "case": "decoded-1280",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "b708e3da9c148c8f7f43ef0049b3acb15f10774559d92d4cc2d6375eb8600d0e",
+          "ir_sha256": "5f0c592bc3e779ea7a077b62c5c630a335f23bf874efc4cf0bdbe8366e258101",
+          "executable_sha256": "a16a49d858c34c4075a2ba3e979f9a30f3e916f65a6cdc7f33b76d103d9dfd62"
+        },
+        {
+          "case": "decoded-1408",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "fc81159482bc610706febd194df92e31efc3cc3118606f35806f117d00ca5fae",
+          "ir_sha256": "f15f651f2a9f4e8660a424b7ee42e3d34989dba4cb497b265fc0588b4b64daf2",
+          "executable_sha256": "3eceda40aebe1ff972dc76a5e70aa9a45d4750b6e5920f362f1917508574c64d"
+        },
+        {
+          "case": "decoded-1536",
+          "count": 2,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "b2d8718de97f8b0e144c8b7164e2195a206637c49d911b692add841771698e55",
+          "ir_sha256": "b65928675d1b99c2f98afe6cabfa4014e53d113860cbff4c572b760bcaf6c09f",
+          "executable_sha256": "f0c22ebbcb7313ca72255bbd2e5c7322fddebfaf7d9f2a31d67eeddda0600ce8"
+        },
+        {
+          "case": "writes-0000",
+          "count": 128,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "4a7e1aea5b94a66686f5e25c9deae0f0bec34fb406ff832391260620279e35c4",
+          "ir_sha256": "4a4656d299005bf6a8331906fc6a20271da6d802897135cfc39806b498794a9a",
+          "executable_sha256": "d71f85ef9e37bdcba93603bc2654cda93c7ea6c666df799a438939bc96584000"
+        },
+        {
+          "case": "writes-0128",
+          "count": 8,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "c396d5038d4172e32f02356d1a9a531f56289538de238615cf4d256c2e278775",
+          "ir_sha256": "64b6c8d93d63582547382ef7e6b0658c5daf654f680ff79ce05a4043751823b1",
+          "executable_sha256": "210ce0cebff29f692f63cefb5d139b75ee307fa4a4be7981c797adecaffafe81"
+        },
+        {
+          "case": "registry",
+          "count": 18,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "26ec9829190f88b2d06436658d8fcb0815a558c0c7b90620be61292d3dfe5c14",
+          "ir_sha256": "53bcd44e77b76633425ecdc8b2375f90479a79974ce4834f3ed93b2c0d2c747f",
+          "executable_sha256": "0127a6f305418ce6ec25f9c79dc4415660e641d0d86cbd90df2da9c4c93d2303"
+        },
+        {
+          "case": "decoded-callbacks",
+          "count": 10,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "5515f4aebbba6da9d64631f5c61a7310254d22c30381269384e4d53de0744f36",
+          "ir_sha256": "6879043f4823357adceff0d55dffeb5ef4b44ee2324b82f565596ad2d0636516",
+          "executable_sha256": "2da4904fca30cd4c8e13dcbfa66bd623daa1ae3bfc57bb2cec4f150b28a862ad"
+        },
+        {
+          "case": "ownership",
+          "count": 7,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/native-cpu0/report.json",
+          "consumer_sha256": "b0dff6d0be7ffc04d912efb4ea9f19cf7175067c4c2a337c5df14f2ac2043d84",
+          "ir_sha256": "a19736ddabf544331e468499f25a8e6616e5b59e7ccedf03cb2bfc6fdf6f2a86",
+          "executable_sha256": "7deddf51dafe6b775e168626ee00d292a5a43ce055db188a3b8af0e9c4cc53af"
+        },
+        {
+          "case": "ownership",
+          "count": 9,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/report.json",
+          "consumer_sha256": "aba377e458a436a54ccaf0ce60c439e9fe297645809277a067b67cfbb5f58838",
+          "ir_sha256": "7640d689aee7ae23c8c0467ac800eccf204b687743baf39ce34fd80aa47871e8",
+          "executable_sha256": "9789593afe9311449879cf7111a0c328ca958371c1e6e82c793af2856e3716ad"
+        },
+        {
+          "case": "media-0000",
+          "count": 32,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/report.json",
+          "consumer_sha256": "9681d716256d162222adca0403004e960d93a9185fb300b3c79dba3bf9227825",
+          "ir_sha256": "627d21d4a3f0b4781eda9e183b8a0c6c42b84ed7c8dc266ae345b80f7b0919b1",
+          "executable_sha256": "b1d2d584ee713f75a4f5a901058af235c2dbb61f32ebc386cf8ced91a57c3186"
+        },
+        {
+          "case": "encoded-0000",
+          "count": 32,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/report.json",
+          "consumer_sha256": "213a8a24c38ba109852851d6332b370ec1ff3e8dcfe57026c0e18206a2b4651c",
+          "ir_sha256": "3d93fdace8f87d5faca801227e1b4b53247a7f469c41273a2aa08ee2edbeb05a",
+          "executable_sha256": "3ff52b8a487925f60c0ce08e0bcfd73e1d4f12b8c03831c6924bfee2eaf2b3d8"
+        },
+        {
+          "case": "decoded-callbacks",
+          "count": 10,
+          "report": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-final-smoke/report.json",
+          "consumer_sha256": "5515f4aebbba6da9d64631f5c61a7310254d22c30381269384e4d53de0744f36",
+          "ir_sha256": "6879043f4823357adceff0d55dffeb5ef4b44ee2324b82f565596ad2d0636516",
+          "executable_sha256": "2da4904fca30cd4c8e13dcbfa66bd623daa1ae3bfc57bb2cec4f150b28a862ad"
+        }
+      ],
+      "controls": {
+        "decoded-callbacks": 10,
+        "ownership": 9
+      },
+      "covered_primary_observations": {
+        "media": 551,
+        "formats": 60,
+        "encoded": 816,
+        "decoded": 1538,
+        "writes": 136,
+        "registry": 18
+      },
+      "missing": {}
+    }
+  },
+  "historical_failures": [
+    {
+      "report": "build/mime/b004-full-128/report.json",
+      "command": [
+        "/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch",
+        "emit-ir",
+        "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0512.ll"
+      ],
+      "diagnostic": "['/workspace/dasl-stdlib-io/build/array-frame-safe-frozen/cinch', 'emit-ir', '/workspace/dasl-stdlib-mime/build/mime/b004-full-128/Main.cinch', '-o', '/workspace/dasl-stdlib-mime/build/mime/b004-full-128/rust-encoded-0512.ll']: exit -6\n\n\nthread 'main' (471903) has overflowed its stack\nfatal runtime error: stack overflow, aborting\n\n"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+-- | Exercise imported scalar conversion contracts without changing their exact character equality.
+module Main where
+  import Data.Char
+  import Data.Machine
+
+  -- | Round-trip a valid scalar through the exact unsigned conversion.
+  round-trip :: U32 -> Bool
+  round-trip code = case u32-to-char code of
+    Some character -> eq-u32 (char-to-u32 character) code
+    None -> False
+
+  -- | Reject surrogate code points and integers beyond the Unicode scalar range.
+  rejected :: U32 -> Bool
+  rejected code = case u32-to-char code of
+    Some character -> False
+    None -> True
+
+  -- | Check literal conversion, scalar boundaries and supplementary characters with exact expected values.
+  main :: Int
+  main = if eq-u32 (char-to-u32 'λ') 955
+    && round-trip 0 && round-trip 127 && round-trip 955
+    && round-trip 128512 && round-trip 1114111
+    && rejected 55296 && rejected 57343 && rejected 1114112
+    then 0 else 1

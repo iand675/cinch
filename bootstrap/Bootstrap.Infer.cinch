@@ -54,28 +54,76 @@ module Bootstrap.Infer where
     TotalObservation :: String -> BodyBinding -> ByteObservation
     IdentityObservation :: String -> Scheme -> ByteObservation
     ArrayObservation :: String -> Json -> ByteObservation
+  -- | Compiler-owned finite-payload evidence, independent of subtyping or imported metadata.
+  data PayloadCertificate where
+    -- | Only primitive installation grants this certificate for the sealed finite array carrier.
+    FiniteArrayPayload :: String -> Kind -> PayloadCertificate
+
+  -- | Elaboration state including sealed primitive evidence that interfaces cannot grant.
   data TypeContext where
-    MkTypeContext :: List (String, Kind) -> List Decl -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> TypeContext
+    -- | Preserve payload certificates through ordinary context changes; conflicting headers revoke them.
+    MkTypeContext :: List (String, Kind) -> List Decl -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> List PayloadCertificate -> TypeContext
+
+  -- | Remove authority when a source or imported header claims an existing primitive identity.
+  revoke-payload :: String -> List PayloadCertificate -> List PayloadCertificate
+  revoke-payload name entries = case entries of
+    Nil -> Nil
+    Cons (FiniteArrayPayload owner kind) rest -> if same name owner then revoke-payload name rest
+      else Cons (FiniteArrayPayload owner kind) (revoke-payload name rest)
+
+  -- | Read the nominal identity introduced by an alias-bearing type declaration.
+  payload-declaration-name :: Decl -> Option String
+  payload-declaration-name declaration = case declaration of
+    DExternal sp name category syntax metadata -> if same category "type" then Some name else None
+    DData sp name parameters constructors -> Some name
+    DRecord sp name parameters fields -> Some name
+    DCodata sp name parameters observations -> Some name
+    DOpaque sp name parameters representation -> Some name
+    DRefine sp name parameters binder predicate -> Some name
+    DClass sp name parameters methods -> Some name
+    other -> None
+
+  -- | Revoke competing local names and defining identities without trusting imported certificate claims.
+  declaration-payloads :: Decl -> List PayloadCertificate -> List PayloadCertificate
+  declaration-payloads declaration payloads =
+    let remaining = case payload-declaration-name declaration of Some name -> revoke-payload name payloads; None -> payloads in
+    case declaration of
+      DExternal sp name category syntax metadata -> if same category "type" then
+        (case field "identity" metadata of JStr identity -> revoke-payload identity (revoke-payload (interface-global identity) remaining); other -> remaining)
+        else remaining
+      other -> remaining
+
+  -- | Observe a declared kind without granting any payload evidence.
   context-kind :: String -> TypeContext -> Option Kind
-  context-kind name context = case context of MkTypeContext kinds aliases active observers effects source-classes -> lookup-kind name kinds
+  context-kind name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> lookup-kind name kinds
+  -- | Install an ordinary header and revoke any competing primitive payload authority.
   context-add-kind :: String -> Kind -> TypeContext -> TypeContext
-  context-add-kind name kind context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext (Cons (name, kind) kinds) aliases active observers effects source-classes
+  context-add-kind name kind context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext (Cons (name, kind) kinds) aliases active observers effects source-classes (revoke-payload name payloads)
+  -- | Observe checked source/import templates without exposing primitive authority through metadata.
   context-aliases :: TypeContext -> List Decl
-  context-aliases context = case context of MkTypeContext kinds aliases active observers effects source-classes -> aliases
+  context-aliases context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> aliases
+  -- | Retain a template while refusing its ability to impersonate a primitive payload header.
   context-add-alias :: Decl -> TypeContext -> TypeContext
-  context-add-alias alias context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds (Cons alias aliases) active observers effects source-classes
+  context-add-alias alias context = case context of
+    MkTypeContext kinds aliases active observers effects source-classes payloads ->
+      MkTypeContext kinds (Cons alias aliases) active observers effects source-classes (declaration-payloads alias payloads)
+  -- | Enter a checked alias once while retaining the same sealed primitive authority.
   context-enter-alias :: String -> TypeContext -> Option TypeContext
   context-enter-alias name context = case context of
-    MkTypeContext kinds aliases active observers effects source-classes -> if has name active then None else Some (MkTypeContext kinds aliases (Cons name active) observers effects source-classes)
+    MkTypeContext kinds aliases active observers effects source-classes payloads -> if has name active then None else Some (MkTypeContext kinds aliases (Cons name active) observers effects source-classes payloads)
 
+  -- | Observe the context's declared effect families.
   context-effects :: TypeContext -> List CoreEffect
-  context-effects context = case context of MkTypeContext kinds aliases active observers effects source-classes -> effects
+  context-effects context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> effects
+  -- | Extend declared effects without modifying primitive payload authority.
   context-with-effects :: List CoreEffect -> TypeContext -> TypeContext
-  context-with-effects declarations context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active observers (declarations <> effects) source-classes
+  context-with-effects declarations context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active observers (declarations <> effects) source-classes payloads
+  -- | Observe checked class descriptions.
   context-source-classes :: TypeContext -> List CoreClass
-  context-source-classes context = case context of MkTypeContext kinds aliases active observers effects source-classes -> source-classes
+  context-source-classes context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> source-classes
+  -- | Extend class descriptions while preserving sealed primitive authority.
   context-with-source-class :: CoreClass -> TypeContext -> TypeContext
-  context-with-source-class description context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active observers effects (Cons description source-classes)
+  context-with-source-class description context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active observers effects (Cons description source-classes) payloads
   -- The whole-environment projections the checker asks for once per name use,
   -- folded once when the module environment is sealed. A projection of an
   -- environment longer than the sealed one is the same fold over the local
@@ -356,8 +404,30 @@ module Bootstrap.Infer where
       Some KType -> UCon (global-data-string-string) KType
       other -> primitive-type name)
     else primitive-type name
+  -- | Install canonical primitive headers and their compiler-owned evidence together.
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext ([("(->)", arrow-constructor-kind)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
+  primitive-kinds = MkTypeContext ([("(->)", arrow-constructor-kind)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
+  -- | Install finite owned-array payload authority only with the sealed primitive kind.
+  primitive-payloads :: List PayloadCertificate
+  primitive-payloads = if array-type-name "Array" then [FiniteArrayPayload "Array" (KFun KType KType)] else Nil
+
+  -- | Recognize a saturated application using retained primitive authority and its exact kind.
+  certified-array-payload :: TypeContext -> UType -> Option UType
+  certified-array-payload context ty = case ty of
+    UApp (UCon name kind) element -> case context of
+      MkTypeContext kinds aliases active observers effects source-classes payloads ->
+        if payload-certified name kind payloads then (case context-kind name context of
+          Some actual -> if kind-equal actual kind then Some element else None
+          None -> None) else None
+    other -> None
+
+  -- | Match an installed certificate by nominal identity and full primitive constructor kind.
+  payload-certified :: String -> Kind -> List PayloadCertificate -> Bool
+  payload-certified name kind entries = case entries of
+    Nil -> False
+    Cons (FiniteArrayPayload owner expected) rest ->
+      (same name owner && kind-equal kind expected) || payload-certified name kind rest
+
   foreign-pointer-kinds :: List (String, Kind)
   foreign-pointer-kinds = [("RawPtr", KFun KType KType), ("Borrowed", KFun KType KType), ("MaybeNull", KFun KType KType)]
   array-kinds :: List (String, Kind)
@@ -761,16 +831,18 @@ module Bootstrap.Infer where
   checked-typed-source-index sp value st = let out = normalize st value in
     if typed-index-admissible out then (out, unify sp out out st)
     else bad sp "ill-sorted, partial or unchecked typed source index" st
+  -- | Retain a checked byte observation while preserving primitive payload authority.
   context-add-byte-observation :: String -> Option String -> TypeContext -> TypeContext
   context-add-byte-observation name scheme context = case context of
-    MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active (Cons (ByteObservation name scheme) observers) effects source-classes
+    MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active (Cons (ByteObservation name scheme) observers) effects source-classes payloads
   byte-observation :: String -> List ByteObservation -> Option ByteObservation
   byte-observation name observers = case observers of
     Nil -> None
     Cons (ByteObservation binding scheme) rest -> if same name binding then Some (ByteObservation binding scheme) else byte-observation name rest
     Cons other rest -> byte-observation name rest
+  -- | Read a checked byte observation without deriving authority from its spelling.
   context-byte-observation :: String -> TypeContext -> Option ByteObservation
-  context-byte-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes -> byte-observation name observers
+  context-byte-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> byte-observation name observers
   byte-length-binding :: String -> TypeContext -> Bool
   byte-length-binding name context = case context-byte-observation name context of Some observer -> True; None -> False
   imported-observation-scheme :: String -> Json -> TypeContext -> Bool
@@ -782,10 +854,12 @@ module Bootstrap.Infer where
     Nil -> None
     Cons (IdentityObservation symbol sc) rest -> if same name symbol then Some sc else identity-observation name rest
     Cons other rest -> identity-observation name rest
+  -- | Read a checked identity observation while retaining the same context authority.
   context-identity-observation :: String -> TypeContext -> Option Scheme
-  context-identity-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes -> identity-observation name observers
+  context-identity-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> identity-observation name observers
+  -- | Register an identity observation without changing sealed payload evidence.
   context-add-identity :: String -> Scheme -> TypeContext -> TypeContext
-  context-add-identity name sc context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active (Cons (IdentityObservation name sc) observers) effects source-classes
+  context-add-identity name sc context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active (Cons (IdentityObservation name sc) observers) effects source-classes payloads
   identity-type-shape :: TypeExpr -> Bool
   identity-type-shape syntax = case syntax of
     TForall sp binders body -> identity-type-shape body
@@ -1235,6 +1309,7 @@ module Bootstrap.Infer where
     Nil -> Nil
     Cons p rest -> Cons (case p of
       MkTypeParam sp name None only -> if has name (row-parameter-names body) then MkTypeParam sp name (Some (TName sp "Row")) only else
+        if has name (nominal-region-names kinds all body) then MkTypeParam sp name (Some (TName sp "Region")) only else
         let arity = constructor-arity-in kinds locals all name 0 body in
         if arity == 0 then p else MkTypeParam sp name (Some (constructor-kind-syntax sp arity)) only
       other -> p) (infer-forall-parameters kinds locals all rest body)
@@ -1260,10 +1335,14 @@ module Bootstrap.Infer where
     Cons name rest -> case lookup-type-local name locals of
       Some local -> unbound-annotation-regions locals rest
       None -> Cons name (unbound-annotation-regions locals rest)
-  -- Validate every instantiation under fresh rigids. Only after checking
-  -- may the caller choose the representation and the concrete types.
+  -- | Validate every instantiation under fresh rigids before choosing concrete annotation types.
   infer-forall-annotation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> TypeExpr -> TypeExpr -> Store -> (CoreTerm, Store)
   infer-forall-annotation classes kinds families env locals sp expression binders body st =
+    infer-forall-annotation-with False classes kinds families env locals sp expression binders body st
+
+  -- | Retain a strict binding's explicit forall as a pure polymorphic value; ordinary uses instantiate it immediately.
+  infer-forall-annotation-with :: Bool -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> TypeExpr -> TypeExpr -> Store -> (CoreTerm, Store)
+  infer-forall-annotation-with retain classes kinds families env locals sp expression binders body st =
     let visible = value-locals env locals in
     let explicit = region-parameters (forall-params-of binders) (region-names body) in
     case parameters False kinds visible (inferred-forall-parameters kinds visible explicit body) 0 Nil st of
@@ -1276,7 +1355,11 @@ module Bootstrap.Infer where
               (expected, rigids, opened) ->
                 case check classes kinds families env (opened-locals params rigids <> locals) expression expected opened of
                   (value, checked) ->
-                    case open-scheme False scheme (restore-level (store-level st) checked) of
+                    let restored = restore-level (store-level st) checked in
+                    if retain then
+                      let pure = include-effects sp (core-effects value) (URow UEnd) restored in
+                      (CPolyIntro sp (UForall (quants-of params) ty) (rigid-ids rigids) value, pure)
+                    else case open-scheme False scheme restored of
                       (actual, actuals, ready) ->
                         let replacements = annotation-substitution rigids actuals in
                         (map-term-types (\t -> substitute-rigid-types replacements (normalize checked t)) value, ready)
@@ -1321,6 +1404,193 @@ module Bootstrap.Infer where
   region-parameters ps regions = case ps of
     Nil -> Nil
     Cons p rest -> Cons (case p of MkTypeParam s name None only -> if has name regions then MkTypeParam s name (Some (TName s "Region")) only else p; other -> p) (region-parameters rest regions)
+
+  -- | Infer a region argument from an already checked nominal constructor kind.
+  -- Explicit parameter kinds remain authoritative and are checked during conversion.
+  nominal-region-arguments :: TypeContext -> List TypeParam -> Kind -> TypeExpr -> List String
+  nominal-region-arguments kinds params kind arguments = case arguments of
+    TArg sp value rest -> case kind of
+      KFun domain result ->
+        (case (domain, value) of (KRegion, TName at name) -> [name]; other -> Nil)
+        <> nominal-region-names kinds params value <> nominal-region-arguments kinds params result rest
+      other -> nominal-region-names kinds params value <> nominal-region-names kinds params rest
+    other -> Nil
+
+  -- | Remove names bound by an inner forall from the enclosing family's inferred regions.
+  unshadowed-region-names :: List String -> List String -> List String
+  unshadowed-region-names names bound = case names of
+    Nil -> Nil
+    Cons name rest -> if has name bound then unshadowed-region-names rest bound
+      else Cons name (unshadowed-region-names rest bound)
+
+  -- | Follow region positions through nominal applications, function fields and tuples.
+  -- A nested forall shadows names instead of changing the enclosing family's parameters.
+  nominal-region-names :: TypeContext -> List TypeParam -> TypeExpr -> List String
+  nominal-region-names kinds params syntax = case syntax of
+    TApp sp head arguments ->
+      (case known-head-kind kinds Nil params head of
+        Some kind -> nominal-region-arguments kinds params kind arguments
+        None -> nominal-region-names kinds params arguments)
+      <> nominal-region-names kinds params head
+    TFun sp first last -> nominal-region-names kinds params first <> nominal-region-names kinds params last
+    TFunEff sp first row last -> nominal-region-names kinds params first <> nominal-region-names kinds params row <> nominal-region-names kinds params last
+    TUsageArrow sp usage arrow -> nominal-region-names kinds params arrow
+    TUsing sp bounds body -> nominal-region-names kinds params bounds <> nominal-region-names kinds params body
+    TBound sp name annotation rest -> nominal-region-names kinds params annotation <> nominal-region-names kinds params rest
+    TArg sp first rest -> nominal-region-names kinds params first <> nominal-region-names kinds params rest
+    TTuple sp fields -> nominal-region-names kinds params fields
+    TRow sp labels tail -> nominal-region-names kinds params labels
+    TForall sp binders body -> unshadowed-region-names (nominal-region-names kinds params body) (parameter-names-for-check (forall-params-of binders))
+    other -> Nil
+
+  -- | Gather runtime identities used by constructor callbacks and nested region-indexed carriers.
+  constructor-region-names :: TypeContext -> List TypeParam -> List (String, TypeExpr) -> List String
+  constructor-region-names kinds params constructors = case constructors of
+    Nil -> Nil
+    Cons (name, annotation) rest -> region-names annotation <> nominal-region-names kinds params annotation <> constructor-region-names kinds params rest
+
+  -- | Give unannotated runtime identity parameters their Region kind before any constructor checks.
+  inferred-data-parameters :: TypeContext -> List TypeParam -> List (String, TypeExpr) -> List TypeParam
+  inferred-data-parameters kinds params constructors = case params of
+    Nil -> Nil
+    other -> region-parameters params (constructor-region-names kinds params constructors)
+
+  -- | Group only source-owned declaration signatures by their canonical defining module.
+  -- Imported interface schemes never rewrite a source datatype's parameter kinds.
+  phantom-signature-groups :: List Decl -> HashMap String (List TypeExpr) -> HashMap String (List TypeExpr)
+  phantom-signature-groups declarations groups = case declarations of
+    Nil -> groups
+    Cons declaration rest -> case declaration of
+      DSig sp name annotation -> phantom-signature-groups rest (phantom-add-signature name annotation groups)
+      DForeign sp direction abi symbol name annotation -> phantom-signature-groups rest (phantom-add-signature name annotation groups)
+      DMethod sp label symbol annotation -> phantom-signature-groups rest (phantom-add-signature symbol annotation groups)
+      DClass sp owner params members -> phantom-signature-groups rest (phantom-class-signatures params (decls-of members) groups)
+      other -> phantom-signature-groups rest groups
+
+  -- | Keep a method's actual enclosing class binders, not just names that appear in its own annotation.
+  phantom-class-signatures :: List TypeParam -> List Decl -> HashMap String (List TypeExpr) -> HashMap String (List TypeExpr)
+  phantom-class-signatures params members groups = case members of
+    Nil -> groups
+    Cons member rest -> case member of
+      DMethod sp label symbol annotation -> phantom-class-signatures params rest
+        (phantom-add-signature symbol (phantom-class-annotation sp params annotation) groups)
+      DSig sp name annotation -> phantom-class-signatures params rest
+        (phantom-add-signature name (phantom-class-annotation sp params annotation) groups)
+      other -> phantom-class-signatures params rest groups
+
+  -- | Nest the class's lexical forall outside the method's own binders so shadowing cannot grant outer authority.
+  phantom-class-annotation :: Span -> List TypeParam -> TypeExpr -> TypeExpr
+  phantom-class-annotation sp params annotation = case params of
+    Nil -> annotation
+    other -> TForall sp (forall-param-spine sp params) annotation
+
+  -- | Retain one source annotation under its defining module without trusting a local display alias.
+  phantom-add-signature :: String -> TypeExpr -> HashMap String (List TypeExpr) -> HashMap String (List TypeExpr)
+  phantom-add-signature name annotation groups =
+    let owner = foreign-defining-owner (reverse (unpack name)) in
+    let previous = case hash-map-lookup owner groups of None -> Nil; Some annotations -> annotations in
+    hash-map-insert owner (Cons annotation previous) groups
+
+  -- | Collect declared or inferred Region binders while preserving explicit non-Region annotations.
+  phantom-scoped-regions :: TypeContext -> List TypeParam -> TypeExpr -> List String -> List String
+  phantom-scoped-regions kinds params body inherited =
+    let names = parameter-names-for-check params in
+    let suggested = region-names body <> nominal-region-names kinds params body in
+    phantom-region-parameters (region-parameters params suggested)
+      <> unshadowed-region-names suggested names <> unshadowed-region-names inherited names
+
+  -- | Read only actual Region annotations, rather than guessing from a binder's spelling.
+  phantom-region-parameters :: List TypeParam -> List String
+  phantom-region-parameters params = case params of
+    Nil -> Nil
+    Cons parameter rest -> case parameter of
+      MkTypeParam sp name (Some (TName at kind)) only -> if same kind "Region" then Cons name (phantom-region-parameters rest) else phantom-region-parameters rest
+      other -> phantom-region-parameters rest
+
+  -- | Test one exact nominal argument position for a scoped Region variable.
+  phantom-region-argument :: Nat -> List String -> TypeExpr -> Bool
+  phantom-region-argument index regions arguments = case arguments of
+    TArg sp value rest -> if index == 0 then (case value of TName at name -> has name regions; other -> False)
+      else phantom-region-argument (index - 1) regions rest
+    other -> False
+
+  -- | Follow a nominal identity through one lexical annotation, respecting nested forall shadowing.
+  phantom-region-use :: TypeContext -> String -> Nat -> List String -> List String -> TypeExpr -> Bool
+  phantom-region-use kinds owner index bound regions syntax = case syntax of
+    TForall sp binders body ->
+      let params = forall-params-of binders in
+      phantom-region-use kinds owner index (parameter-names-for-check params <> bound)
+        (phantom-scoped-regions kinds params body regions) body
+    TApp sp head arguments -> case source-type-application head arguments of
+      (actual, spine) ->
+        (case actual of TName at name -> same name owner && not (has name bound) && phantom-region-argument index regions spine; other -> False)
+        || phantom-region-use kinds owner index bound regions spine
+    TFun sp first last -> phantom-region-use kinds owner index bound regions first || phantom-region-use kinds owner index bound regions last
+    TFunEff sp first row last -> phantom-region-use kinds owner index bound regions first || phantom-region-use kinds owner index bound regions row || phantom-region-use kinds owner index bound regions last
+    TUsageArrow sp usage arrow -> phantom-region-use kinds owner index bound regions arrow
+    TUsing sp bounds body -> phantom-region-use kinds owner index bound regions bounds || phantom-region-use kinds owner index bound regions body
+    TBound sp name annotation rest -> phantom-region-use kinds owner index bound regions annotation || phantom-region-use kinds owner index bound regions rest
+    TArg sp first rest -> phantom-region-use kinds owner index bound regions first || phantom-region-use kinds owner index bound regions rest
+    TTuple sp fields -> phantom-region-use kinds owner index bound regions fields
+    TRow sp labels tail -> phantom-region-use kinds owner index bound regions labels
+    TRefined sp predicate carrier -> phantom-region-use kinds owner index bound regions predicate || phantom-region-use kinds owner index bound regions carrier
+    other -> False
+
+  -- | Require a Region-position constraint from an actual source signature in the defining module.
+  phantom-region-used :: TypeContext -> String -> Nat -> List TypeExpr -> Bool
+  phantom-region-used kinds owner index annotations = case annotations of
+    Nil -> False
+    Cons annotation rest -> phantom-region-use kinds owner index Nil (phantom-scoped-regions kinds Nil annotation Nil) annotation
+      || phantom-region-used kinds owner index rest
+
+  -- | Detect a parameter occurring in a constructor input, excluding its own nominal result application.
+  phantom-input-mentions :: String -> TypeExpr -> Bool
+  phantom-input-mentions name annotation = case annotation of
+    TFun sp first last -> has name (structural-type-names first) || phantom-input-mentions name last
+    TFunEff sp first row last -> has name (structural-type-names first <> structural-type-names row) || phantom-input-mentions name last
+    TUsageArrow sp usage arrow -> phantom-input-mentions name arrow
+    TForall sp binders body -> not (has name (parameter-names-for-check (forall-params-of binders))) && phantom-input-mentions name body
+    TUsing sp bounds body -> has name (structural-type-names bounds) || phantom-input-mentions name body
+    other -> False
+
+  -- | A phantom parameter has no runtime constructor input that already fixes it as an ordinary value type.
+  phantom-input-present :: String -> List (String, TypeExpr) -> Bool
+  phantom-input-present name constructors = case constructors of
+    Nil -> False
+    Cons (label, annotation) rest -> phantom-input-mentions name annotation || phantom-input-present name rest
+
+  -- | Refine only unannotated phantom positions, retaining explicit source kinds as authoritative.
+  phantom-data-parameters :: TypeContext -> String -> List (String, TypeExpr) -> List TypeExpr -> Nat -> List TypeParam -> (List TypeParam, Bool)
+  phantom-data-parameters kinds owner constructors annotations index params = case params of
+    Nil -> (Nil, False)
+    Cons parameter rest -> case phantom-data-parameters kinds owner constructors annotations (index + 1) rest of
+      (more, changed) -> case parameter of
+        MkTypeParam sp name None only -> if not (phantom-input-present name constructors) && phantom-region-used kinds owner index annotations then
+          (Cons (MkTypeParam sp name (Some (TName sp "Region")) only) more, True)
+          else (Cons parameter more, changed)
+        other -> (Cons parameter more, changed)
+
+  -- | Apply definition-site constraints only to source datatype declarations, never imported headers.
+  phantom-data-declarations :: TypeContext -> HashMap String (List TypeExpr) -> List Decl -> (List Decl, Bool)
+  phantom-data-declarations kinds groups declarations = case declarations of
+    Nil -> (Nil, False)
+    Cons declaration rest -> case phantom-data-declarations kinds groups rest of
+      (more, changed) -> case declaration of
+        DData sp owner params constructors ->
+          let module-owner = foreign-defining-owner (reverse (unpack owner)) in
+          let annotations = case hash-map-lookup module-owner groups of None -> Nil; Some values -> values in
+          case phantom-data-parameters kinds owner constructors annotations 0 params of
+            (refined, local) -> (Cons (DData sp owner refined constructors) more, changed || local)
+        other -> (Cons declaration more, changed)
+
+  -- | Propagate checked nominal Region positions to a fixed point before any constructor or scheme converts.
+  -- Each round can only refine an unannotated phantom parameter once. Imported
+  -- kinds remain fixed, and recollection starts from the original contract store.
+  refine-phantom-data-kinds :: HashMap String (List TypeExpr) -> List Decl -> TypeContext -> Store -> Store -> (List Decl, TypeContext, Store)
+  refine-phantom-data-kinds groups declarations kinds seed checked = case phantom-data-declarations kinds groups declarations of
+    (refined, False) -> (declarations, kinds, checked)
+    (refined, True) -> case collect-kinds refined primitive-kinds seed of
+      (next-kinds, next-store) -> refine-phantom-data-kinds groups refined next-kinds seed next-store
   region-names :: TypeExpr -> List String
   region-names ty = case ty of
     TApp s (TName h name) (TArg a (TName r region) (TArg b carrier (TArgsEnd end))) ->
@@ -1382,16 +1652,18 @@ module Bootstrap.Infer where
   add-kind sp name k kinds st = case context-kind name kinds of
     Some old -> (kinds, add-error sp (string-concat "duplicate type declaration: " name) st)
     None -> (context-add-kind name k kinds, st)
+  -- | Read a checked array observation independently from primitive payload certificates.
   context-array-observation :: String -> TypeContext -> Option Json
-  context-array-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes -> array-observation name observers
+  context-array-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> array-observation name observers
   array-observation :: String -> List ByteObservation -> Option Json
   array-observation name observers = case observers of
     Nil -> None
     Cons (ArrayObservation binding row) rest -> if same name binding then Some row else array-observation name rest
     Cons other rest -> array-observation name rest
+  -- | Retain a checked array observation without granting primitive type authority.
   context-add-array-observation :: String -> Json -> TypeContext -> TypeContext
   context-add-array-observation identity row context = case context of
-    MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active (Cons (ArrayObservation identity row) observers) effects source-classes
+    MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active (Cons (ArrayObservation identity row) observers) effects source-classes payloads
   imported-array-observers :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
   imported-array-observers sp owner rows context st = case rows of
     JArr row rest -> case field "external" row of
@@ -1468,7 +1740,7 @@ module Bootstrap.Infer where
           collect-kinds rest (context-add-byte-observation name None kinds) st else collect-kinds rest kinds st
       DEffect s name ps ops -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (source-effect-kind qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
-      DData s name ps cs -> case parameters False kinds Nil ps 0 Nil st of
+      DData s name ps cs -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
       -- The generated single-constructor data has already checked the
       -- kind. Keep the defining labels as separate source provenance.
@@ -1805,17 +2077,19 @@ module Bootstrap.Infer where
   check-imported-contract sp name category sc metadata st = if valid-type (scheme-body sc) then
     (if same category "constructor" then check-imported-constructor sp name sc metadata st else check-imported-value sp sc metadata st)
     else st
+  -- | Read an independently checked total-body observation.
   context-total-observation :: String -> TypeContext -> Option BodyBinding
-  context-total-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes -> total-observation name observers
+  context-total-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> total-observation name observers
   total-observation :: String -> List ByteObservation -> Option BodyBinding
   total-observation name observers = case observers of
     Nil -> None
     Cons (TotalObservation symbol binding) rest -> if same name symbol then Some binding else total-observation name rest
     Cons other rest -> total-observation name rest
+  -- | Register a checked total body while preserving sealed primitive evidence.
   context-add-total :: Span -> BodyBinding -> TypeContext -> Store -> (TypeContext, Store)
   context-add-total sp binding context st = case context-total-observation (binding-name binding) context of
     Some prior -> (context, if binding-equal prior binding then st else add-error sp "conflicting defining total body declarations" st)
-    None -> (case context of MkTypeContext kinds aliases active observers effects source-classes -> (MkTypeContext kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers) effects source-classes, st))
+    None -> (case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> (MkTypeContext kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers) effects source-classes payloads, st))
   collect-total-metadata :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
   collect-total-metadata sp name native metadata classes kinds st = case field "keyed_ordering" metadata of
     JNull -> collect-closed-body sp name native metadata classes kinds st
@@ -1864,8 +2138,9 @@ module Bootstrap.Infer where
     Nil -> Nil
     Cons (TotalObservation name binding) rest -> Cons (MkBodyBinding binding) (observation-bindings rest)
     Cons other rest -> observation-bindings rest
+  -- | Project checked body observations without exposing payload certificates.
   context-body-bindings :: TypeContext -> List CheckedBinding
-  context-body-bindings context = case context of MkTypeContext kinds aliases active observers effects source-classes -> observation-bindings observers
+  context-body-bindings context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> observation-bindings observers
   register-total-value :: Span -> String -> Scheme -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-total-value sp name sc kinds env st = case context-total-observation name kinds of
     Some binding -> if not (binding-matches name "external" sc binding) then (env, add-error sp "actual imported value disagrees with defining total body scheme" st)
@@ -1933,9 +2208,15 @@ module Bootstrap.Infer where
   domains ty = case arrow-shape ty of UPi id name a row b -> Cons a (domains b); UFun a b -> Cons a (domains b); UFunEff a row b -> Cons a (domains b); UProofFun predicate row result -> Cons predicate (domains result); other -> Nil
   root-name :: UType -> Option String
   root-name ty = case ty of UCon name k -> Some name; URefineFormer name ids body -> Some name; UApp f x -> root-name f; other -> None
+  -- | Find recursive nominal occurrences through all structural carrier wrappers relevant to positivity.
   occurs-owner :: String -> UType -> Bool
   occurs-owner name ty = case ty of
     UCon n k -> same name n
+    URefineFormer owner ids body -> same name owner || occurs-owner name body
+    URefine id binder carrier predicate -> occurs-owner name carrier || occurs-owner name predicate
+    URequire predicates body -> occurs-owner name predicates || occurs-owner name body
+    URow labels -> occurs-owner name labels
+    URowJoin first second -> occurs-owner name first || occurs-owner name second
     UApp f x -> occurs-owner name f || occurs-owner name x
     UPi id binder a row b -> occurs-owner name a || occurs-owner name row || occurs-owner name b
     UFun a b -> occurs-owner name a || occurs-owner name b
@@ -1943,9 +2224,28 @@ module Bootstrap.Infer where
     UUsageArrow usage arrow -> occurs-owner name arrow
     UProofFun predicate row result -> occurs-owner name predicate || occurs-owner name row || occurs-owner name result
     UTuple xs -> occurs-owner name xs
-    UForall qs body -> occurs-owner name body
+    UForall qs body -> occurs-quant-owner name qs || occurs-owner name body
     UArg x rest -> occurs-owner name x || occurs-owner name rest
     other -> False
+  -- | Inspect implicit value domains carried by nested quantifier kinds.
+  occurs-kind-owner :: String -> Kind -> Bool
+  occurs-kind-owner name kind = case kind of
+    KValue carrier -> occurs-owner name carrier
+    KFun first last -> occurs-kind-owner name first || occurs-kind-owner name last
+    other -> False
+
+  -- | Keep quantified kind carriers visible to recursive-occurrence checking.
+  occurs-quant-owner :: String -> Quants -> Bool
+  occurs-quant-owner name parameters = case parameters of
+    QEnd -> False
+    QCons first rest -> occurs-kind-owner name (quant-kind first) || occurs-quant-owner name rest
+
+  -- | Forbid a recursive group's occurrence in an implicit quantified value domain.
+  positive-quantifiers :: List String -> Quants -> Bool
+  positive-quantifiers group parameters = case group of
+    Nil -> True
+    Cons owner rest -> not (occurs-quant-owner owner parameters) && positive-quantifiers rest parameters
+
   -- A data declaration's strongly connected group is what the positivity
   -- discipline judges (core specification section 2, mutual inductive
   -- groups). A declaration on no cycle is the one-member group, so its
@@ -1954,21 +2254,25 @@ module Bootstrap.Infer where
   occurs-group group ty = case group of
     Nil -> False
     Cons first rest -> occurs-owner first ty || occurs-group rest ty
-  positive :: List String -> UType -> Bool
-  positive group ty = case ty of
-    UPi id name a row b -> not (occurs-group group a) && positive group b
-    UFun a b -> not (occurs-group group a) && positive group b
-    UFunEff a row b -> not (occurs-group group a) && positive group b
-    UUsageArrow usage arrow -> positive group arrow
-    UProofFun predicate row result -> not (occurs-group group predicate || occurs-group group row) && positive group result
+  -- | Check strict positivity through direct occurrences and certified finite primitive payloads only.
+  positive :: TypeContext -> List String -> UType -> Bool
+  positive kinds group ty = case ty of
+    UPi id name a row b -> not (occurs-group group a) && positive kinds group b
+    UFun a b -> not (occurs-group group a) && positive kinds group b
+    UFunEff a row b -> not (occurs-group group a) && positive kinds group b
+    UUsageArrow usage arrow -> positive kinds group arrow
+    UProofFun predicate row result -> not (occurs-group group predicate || occurs-group group row) && positive kinds group result
     UApp f x -> if occurs-group group ty then
       (case deferral-parts ty of
-        Some (row, result) -> not (occurs-group group row) && positive group result
-        None -> (case root-name ty of Some name -> has name group && positive-arguments group ty; None -> False))
+        Some (row, result) -> not (occurs-group group row) && positive kinds group result
+        None -> (case root-name ty of
+          Some name -> if has name group then positive-arguments group ty
+            else (case certified-array-payload kinds ty of Some element -> positive kinds group element; None -> False)
+          None -> False))
       else True
-    UTuple xs -> positive group xs
-    UForall qs body -> positive group body
-    UArg x rest -> positive group x && positive group rest
+    UTuple xs -> positive kinds group xs
+    UForall qs body -> positive-quantifiers group qs && positive kinds group body
+    UArg x rest -> positive kinds group x && positive kinds group rest
     -- A refinement's carrier is the value, so a group occurrence there is a
     -- structural occurrence and the former is not established as
     -- positivity-preserving (core specification section 2, clause 4). A
@@ -1978,12 +2282,14 @@ module Bootstrap.Infer where
     URefineFormer name ids body -> not (occurs-group group body)
     -- A required proposition is erased evidence; the carrier it guards keeps
     -- the polarity of its own position.
-    URequire predicates body -> not (occurs-group group predicates) && positive group body
+    URequire predicates body -> not (occurs-group group predicates) && positive kinds group body
     other -> True
+  -- | Preserve the existing refusal of recursive occurrences inside a group's own arguments.
   positive-arguments :: List String -> UType -> Bool
   positive-arguments group ty = case ty of UApp f x -> not (occurs-group group x) && positive-arguments group f; other -> True
-  check-positive :: Span -> List String -> List UType -> Store -> Store
-  check-positive sp group args st = case args of Nil -> st; Cons a rest -> check-positive sp group rest (if positive group a then st else add-error sp "recursive field is negative or needs nested positivity evidence" st)
+  -- | Record a named refusal for an uncertified nested or negative recursive field.
+  check-positive :: TypeContext -> Span -> List String -> List UType -> Store -> Store
+  check-positive kinds sp group args st = case args of Nil -> st; Cons a rest -> check-positive kinds sp group rest (if positive kinds group a then st else add-error sp "recursive field is negative or needs nested positivity evidence" st)
   applied-family :: String -> Kind -> List Quant -> UType
   applied-family name k qs = apply-quantifiers (UCon name k) qs
   apply-quantifiers :: UType -> List Quant -> UType
@@ -2022,6 +2328,7 @@ module Bootstrap.Infer where
           UBound id name kind -> id == quant-id parameter && kind-equal kind (quant-kind parameter)
           other -> False) && constructor-result-parameters rest tail
     other -> False
+  -- | Check constructor result regularity and field positivity against the same authoritative context.
   register-ctors :: TypeContext -> String -> List String -> List Quant -> List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-ctors kinds owner group qs cs env st = case cs of
     Nil -> (env, st)
@@ -2033,7 +2340,7 @@ module Bootstrap.Infer where
         let sr = (if not shape then add-error (type-expr-span ty) "constructor must return its saturated declaring family" ss
           else if constructor-result-parameters qs (constructor-result-arguments result Nil) then ss
           else add-error (type-expr-span ty) "constructor result type mismatch: only value indices may differ from declaring parameters" ss) in
-        let sp = check-positive (type-expr-span ty) group (domains (scheme-body sc)) sr in
+        let sp = check-positive kinds (type-expr-span ty) group (domains (scheme-body sc)) sr in
         case add-binding (type-expr-span ty) name sc "constructor" env sp of (e, se) -> register-ctors kinds owner group qs rest e se
   source-effect-kind :: List Quant -> Kind
   source-effect-kind qs = case qs of Nil -> KEffect; Cons q rest -> KFun (quant-kind q) (source-effect-kind rest)
@@ -2268,7 +2575,7 @@ module Bootstrap.Infer where
           (more, final) -> register all rows classes kinds rest more final
       DEffect s owner ps ops -> case register-operations classes kinds ps ops env st of
         (e, se) -> register all rows classes kinds rest e se
-      DData s owner ps cs -> case parameters False kinds Nil ps 0 Nil st of
+      DData s owner ps cs -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
         (qs, sq) -> case register-ctors kinds owner (data-group all owner) qs cs env sq of (e, se) -> register all rows classes kinds rest e se
       DRecord s owner ps fields -> register all rows classes kinds rest env st
       DCodata s owner ps observations -> register all rows classes kinds rest env st
@@ -2313,6 +2620,7 @@ module Bootstrap.Infer where
         Some body -> Some (UFun (UFun (primitive-type "Unit") observation) body)
         None -> None
       other -> None)
+  -- | Validate imported observed storage and its strict positive fields without accepting metadata authority.
   register-imported-codata :: Span -> String -> List (String, Kind) -> TypeContext -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-imported-codata sp owner classes kinds metadata env st =
     case field "ctors" metadata of
@@ -2321,7 +2629,7 @@ module Bootstrap.Infer where
           case (scheme-requirements sc, storage-observation-body (json-length (field "fields" metadata)) (scheme-body sc)) of
             (Nil, Some body) -> add-binding sp (record-storage-name True owner)
               (MkScheme (scheme-params sc) body) "constructor" env
-              (check-positive sp (Cons owner Nil) (domains body) valid)
+              (check-positive kinds sp (Cons owner Nil) (domains body) valid)
             other -> (env, add-error sp "imported codata observations need a checked observation scheme" valid)
       other -> (env, add-error sp "imported codata has no checked observation contract" st)
   register-source-value :: Span -> String -> Scheme -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
@@ -3691,25 +3999,64 @@ module Bootstrap.Infer where
   let-chain-mentions ids term = case term of
     CLet sp ty id name sc rhs body -> contains-meta id ids || let-chain-mentions ids body
     other -> False
+
+  -- | Preserve an explicit strict forall without generalizing an evaluated annotation or its performed effects.
+  infer-strict-rhs :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
+  infer-strict-rhs classes kinds families env locals syntax st = case syntax of
+    EAnn sp expression (TForall at binders body) ->
+      infer-forall-annotation-with True classes kinds families env locals sp expression binders body st
+    other -> infer classes kinds families env locals syntax st
+
+  -- | Match strict local value generalization: functions, names, integer/unit literals and value-only aggregates.
+  -- Applications and annotations are evaluated once and remain monomorphic.
+  strict-syntactic-value :: Expr -> Bool
+  strict-syntactic-value syntax = case syntax of
+    EVar sp name -> True
+    ECon sp name arguments -> case arguments of EArgsEnd at -> True; other -> False
+    ELitInt sp value -> True
+    EUnit sp -> True
+    ELam sp parameters body -> True
+    ETuple sp fields -> strict-value-fields fields
+    EList sp fields -> strict-value-fields fields
+    other -> False
+
+  -- | Every tuple/list element must itself satisfy the strict value restriction.
+  strict-value-fields :: Expr -> Bool
+  strict-value-fields fields = case fields of
+    EArgsEnd sp -> True
+    EArg sp first rest -> strict-syntactic-value first && strict-value-fields rest
+    other -> False
+
+  -- | Building a function may be pure even when calling it has latent effects; demanding a memo cell is not pure.
+  strict-value-pure :: CoreTerm -> Store -> Bool
+  strict-value-pure value st = case normalize st (core-effects value) of URow UEnd -> True; other -> False
+
+  -- | Generalize only a pure syntactic value, preserving all variables of a single evaluated mutable allocation.
+  strict-value-scheme :: Bool -> Nat -> List CheckedBinding -> CoreTerm -> Store -> (Scheme, List (Nat, UType))
+  strict-value-scheme eligible level env value st = if eligible && strict-value-pure value st then
+    generalize-with level (\u -> env-metas env st) (core-type value) st
+    else (mono (normalize st (core-type value)), Nil)
+  -- | Check strict bindings under an expected result without generalizing evaluated applications.
   check-refined-let :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-refined-let classes kinds families env locals sp bindings body expected st = case bindings of
     EBindingsEnd s -> check classes kinds families env locals body expected st
     EBinding s name rhs rest -> let level = store-level st in
-      case infer classes kinds families env locals rhs (enter-level st) of
+      case infer-strict-rhs classes kinds families env locals rhs (enter-level st) of
         (value, checked) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value checked of
-          (resolved, ready) -> check-refined-binding classes kinds families env locals sp s name rest body expected level resolved ready
+          (resolved, ready) -> check-refined-binding classes kinds families env locals sp s name rest body expected level (strict-syntactic-value rhs) resolved ready
     other -> term-error sp "malformed let binding spine" st
 
-  check-refined-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> UType -> Nat -> CoreTerm -> Store -> (CoreTerm, Store)
-  check-refined-binding classes kinds families env locals sp at name rest body expected level value st =
+  -- | Bind one strict RHS under its source value restriction while retaining dependent witness scopes.
+  check-refined-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> UType -> Nat -> Bool -> CoreTerm -> Store -> (CoreTerm, Store)
+  check-refined-binding classes kinds families env locals sp at name rest body expected level eligible value st =
     if let-result-escapes value then (case value of
       CLet s ty id display sc rhs inner ->
         let binding = MkLocalBinding display sc id level in
         let bound = proof-let-env env binding id sc rhs st in
-        case check-refined-binding classes kinds families bound locals sp at name rest body expected level (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
+        case check-refined-binding classes kinds families bound locals sp at name rest body expected level (eligible && strict-value-pure value st) (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
           (result, done) -> (CLet s expected id display sc rhs result, done)
       other -> term-error at "dependent let result has no retained witness scope" st)
-    else let (scheme, pairs) = generalize-with level (\u -> env-metas env st) (core-type value) st in
+    else let (scheme, pairs) = strict-value-scheme eligible level env value st in
       case fresh-id (restore-level level st) of
         (id, fresh) -> case let-binding at env name scheme id level value fresh of
           (binding, prepared) -> case check-refined-let classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body expected prepared of
@@ -4040,25 +4387,27 @@ module Bootstrap.Infer where
     other -> st
   infer-let :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Store -> (CoreTerm, Store)
   infer-let classes kinds families env locals sp bs body st = infer-let-with-expected classes kinds families env locals sp bs body None st
+  -- | Preserve source value eligibility while inferring strict bindings and their performed effects.
   infer-let-with-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-let-with-expected classes kinds families env locals sp bs body wanted st = case bs of
     EBindingsEnd s -> case wanted of None -> infer classes kinds families env locals body st; Some expected -> check classes kinds families env locals body expected st
     EBinding s name rhs rest ->
       let level = store-level st in
-      case infer classes kinds families env locals rhs (enter-level st) of
+      case infer-strict-rhs classes kinds families env locals rhs (enter-level st) of
         (value, sr) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value sr of
-          (resolved, sd) -> infer-let-binding classes kinds families env locals sp s name rest body level wanted resolved sd
+          (resolved, sd) -> infer-let-binding classes kinds families env locals sp s name rest body level wanted (strict-syntactic-value rhs) resolved sd
     other -> term-error (expr-span bs) "malformed let binding spine" st
-  infer-let-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> Nat -> Option UType -> CoreTerm -> Store -> (CoreTerm, Store)
-  infer-let-binding classes kinds families env locals sp at name rest body level wanted value st =
+  -- | Keep an evaluated strict allocation monomorphic and retain its original mutation/effect identity.
+  infer-let-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> Nat -> Option UType -> Bool -> CoreTerm -> Store -> (CoreTerm, Store)
+  infer-let-binding classes kinds families env locals sp at name rest body level wanted eligible value st =
     if let-result-escapes value then (case value of
       CLet s ty id display sc rhs inner ->
         let binding = MkLocalBinding display sc id level in
         let bound = proof-let-env env binding id sc rhs st in
-        case infer-let-binding classes kinds families bound locals sp at name rest body level wanted (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
+        case infer-let-binding classes kinds families bound locals sp at name rest body level wanted (eligible && strict-value-pure value st) (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
           (result, done) -> (CLet s (core-type result) id display sc rhs result, done)
       other -> term-error at "dependent let result has no retained witness scope" st)
-    else let (scheme, pairs) = generalize-with level (\u -> env-metas env st) (core-type value) st in
+    else let (scheme, pairs) = strict-value-scheme eligible level env value st in
       case fresh-id (restore-level level st) of
         (id, fresh) -> case let-binding at env name scheme id level value fresh of
           (binding, prepared) -> case infer-let-with-expected classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body wanted prepared of
@@ -4123,22 +4472,24 @@ module Bootstrap.Infer where
     case (case pattern of PVar sp name -> group-signature name signatures; other -> None) of
       Some annotation -> (case checked-local-signature kinds env locals annotation st of
         (ty, checked) -> check classes kinds families env locals syntax ty checked)
-      None -> infer classes kinds families env locals syntax st
+      None -> infer-strict-rhs classes kinds families env locals syntax st
+  -- | Retain each local group RHS's actual value restriction when binding its result.
   infer-group-strict :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List (String, TypeExpr) -> Expr -> Store -> (List CheckedBinding, List LocalStep, Store)
   infer-group-strict classes kinds families env locals signatures bindings st = case bindings of
     ELocalStrict sp pattern syntax rest -> let level = store-level st in
       (case infer-group-rhs classes kinds families env locals signatures pattern syntax (enter-level st) of
         (term, checked) -> (case resolve-dictionary-term-with classes (env-instances env) (env-givens env) term checked of
-          (value, prepared) -> (case bind-group-value classes kinds families env locals sp pattern level value prepared of
+          (value, prepared) -> (case bind-group-value classes kinds families env locals sp pattern level (strict-syntactic-value syntax) value prepared of
             (bound, step, ready) -> (case infer-group-strict classes kinds families bound locals signatures rest ready of
               (finished, steps, done) -> (finished, Cons step steps, done)))))
     ELocalMemo sp name syntax rest -> infer-group-strict classes kinds families env locals signatures rest st
     ELocalSignature sp name ty rest -> infer-group-strict classes kinds families env locals signatures rest st
     ELocalEnd sp -> (env, Nil, st)
     other -> (env, Nil, add-error (expr-span bindings) "malformed local binding group" st)
-  bind-group-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Pat -> Nat -> CoreTerm -> Store -> (List CheckedBinding, LocalStep, Store)
-  bind-group-value classes kinds families env locals sp pattern level value st = case pattern of
-    PVar at name -> let (scheme, pairs) = generalize-with level (\u -> env-metas env st) (core-type value) st in
+  -- | Apply the same value restriction to strict local groups and ordinary let syntax.
+  bind-group-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Pat -> Nat -> Bool -> CoreTerm -> Store -> (List CheckedBinding, LocalStep, Store)
+  bind-group-value classes kinds families env locals sp pattern level eligible value st = case pattern of
+    PVar at name -> let (scheme, pairs) = strict-value-scheme eligible level env value st in
       (case fresh-id (restore-level level st) of
         (id, fresh) -> (case let-binding at env name scheme id level value fresh of
           (binding, ready) -> (proof-let-env env binding id scheme value ready,
@@ -5148,14 +5499,15 @@ module Bootstrap.Infer where
       let bound = proof-let-env env (MkLocalBinding name scheme id (store-level ready)) id scheme value ready in
       case check-do classes kinds families (if same name "_" then env else bound) locals sp rest expected (check-borrow-binding at env (scheme-body scheme) ready) of
         (body, done) -> (CLet at expected id name scheme value body, done)
+  -- | Keep do-let values pure and apply the same source value restriction as ordinary lets.
   check-do-lets :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-do-lets classes kinds families env locals sp bindings rest expected st = case bindings of
     EBindingsEnd at -> check-do classes kinds families env locals sp rest expected st
     EBinding at name rhs more -> let level = store-level st in
-      (case infer classes kinds families env locals rhs (enter-level st) of
+      (case infer-strict-rhs classes kinds families env locals rhs (enter-level st) of
         (value, checked) -> let checked-pure = include-effects at (core-effects value) (URow UEnd) checked in
           let continuation = EDo sp (case more of EBindingsEnd end -> rest; other -> EArg sp (ELet sp more (EUnit sp)) rest) in
-          check-refined-binding classes kinds families env locals sp at name (EBindingsEnd at) continuation expected level value checked-pure)
+          check-refined-binding classes kinds families env locals sp at name (EBindingsEnd at) continuation expected level (strict-syntactic-value rhs) value checked-pure)
     other -> term-error sp "malformed do let binding group" st
 
   check-alternatives :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreTerm -> UType -> Expr -> Store -> (CoreTerm, Store)
@@ -5651,8 +6003,9 @@ module Bootstrap.Infer where
   check-field-globals globals fields st = case fields of Nil -> st; Cons field rest -> check-field-globals globals rest (check-core-closed globals [dictionary-field-definition field] st)
   check-instance-globals :: TypingContext -> List CoreInstance -> Store -> Store
   check-instance-globals globals instances st = case instances of Nil -> st; Cons dictionary rest -> check-instance-globals globals rest (check-field-globals globals (instance-fields dictionary) st)
+  -- | Project declared kind headers without serializing primitive payload authority.
   declared-kind-rows :: TypeContext -> List (String, Kind)
-  declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects source-classes -> kinds
+  declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects source-classes payloads -> kinds
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> Store -> Store
   check-global-core kinds bindings instances datas definitions st =
     let rows = declared-kind-rows kinds in
@@ -5703,7 +6056,7 @@ module Bootstrap.Infer where
   checked-data-declaration :: List (String, Kind) -> TypeContext -> List CheckedBinding -> Decl -> Store -> (Option CoreData, Store)
   checked-data-declaration classes kinds env d st = case d of
     DData s name ps cs -> case context-kind name kinds of
-      Some k -> case parameters False kinds Nil ps 0 Nil st of
+      Some k -> case parameters False kinds Nil (inferred-data-parameters kinds ps cs) 0 Nil st of
         (qs, sq) -> case checked-constructors cs env sq of
           (constructors, sc) -> (Some (MkCoreData s name k qs constructors), sc)
       None -> (None, add-error s "typed data declaration has no checked kind" st)
@@ -6450,20 +6803,23 @@ module Bootstrap.Infer where
   elaborate-module label m =
     let interfaces = load-checked-interface-set-from-contracts (total-interface-inputs (module-decls m)) in
     elaborate-module-with-source-bodies interfaces True label m
+  -- | Elaborate source with authoritative imported kinds, lexical regions and independently checked Core closure.
   elaborate-module-with-source-bodies :: Result String InterfaceSet -> Bool -> String -> Module -> Elaboration
   elaborate-module-with-source-bodies interfaces enable label m =
     let original = module-decls m in
     let has-codata = codata-present original in
     let declarations = if has-codata then unwrap-corec-declarations original else original in
-    let ds = if record-definitions-present declarations then record-declarations declarations declarations else declarations in
+    let unkinded = if record-definitions-present declarations then record-declarations declarations declarations else declarations in
     let initial = empty-store label in
     let guarded = if has-codata then check-codata-bodies original (codata-call-graph original) original initial else initial in
-    let contracts = check-imported-refinements ds Nil guarded in
+    let contracts = check-imported-refinements unkinded Nil guarded in
     -- Every data head registers before any constructor type converts
     -- (`collect-kinds`), so a data declaration may name one written later;
     -- `register` judges each declaration's strongly connected group
     -- (core specification section 2, mutual inductive groups).
-    let (source-kinds, source-store) = collect-kinds ds primitive-kinds contracts in
+    let (preliminary-kinds, preliminary-store) = collect-kinds unkinded primitive-kinds contracts in
+    let groups = phantom-signature-groups unkinded hash-map-empty in
+    let (ds, source-kinds, source-store) = refine-phantom-data-kinds groups unkinded preliminary-kinds contracts preliminary-store in
     let rows = class-rows ds in
     let (instance-kinds, instance-store) = source-instance-nominals ds rows source-kinds source-store in
     let (nominal-kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in
@@ -7298,9 +7654,10 @@ module Bootstrap.Infer where
     other -> None
   predicate-base-carrier :: UType -> UType
   predicate-base-carrier carrier = case refinement-view carrier of URefine id name base predicate -> predicate-base-carrier base; other -> carrier
+  -- | Read checked scalar values mathematically inside predicates without changing their runtime carrier.
   predicate-math-carrier :: UType -> Bool
   predicate-math-carrier carrier = case predicate-base-carrier carrier of
-    UCon name KType -> has name ["Nat", "Int", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
+    UCon name KType -> has name ["Nat", "Int", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Char"]
     other -> False
   merge-predicate-carriers :: Option UType -> Option UType -> Option UType
   merge-predicate-carriers first second = case (first, second) of

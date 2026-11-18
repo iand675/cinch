@@ -1,0 +1,29 @@
+{
+  "scope": "Isolated UUID source candidate, no production prelude or Native-family promotion.",
+  "import_commit": "d5a6562a",
+  "tests": 8,
+  "passed": 8,
+  "failed": 0,
+  "runtime_seconds": 18.38,
+  "command": "/tmp/cinch-stdlib-root-cargo-gate.sh test --locked --offline --release --test lib_uuid",
+  "compiler_sha256": "d2e655816179df183eced5476fac8e3f83218b3a46d6ac5f8e0f5e4bf11e86b7",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source_sha256": {
+    "experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
+    "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c"
+  },
+  "log": "bootstrap/repros/uuid-parent-qualified/parent.log",
+  "log_sha256": "82d9031c751c0331c325dfba5fe564cb508b8d500a3ffd03966daee75cd39bfb",
+  "gate_scope": [
+    "Complete independent parse/append/compare/controlled-generation observations",
+    "Real entropy, clock and shared generator state",
+    "Ownership and checked boundaries",
+    "Canonical documentation",
+    "Actual full WASM/AArch64/big-endian PowerPC objects"
+  ],
+  "pending": [
+    "Public pipeline benchmarks/review",
+    "Current Native family qualification",
+    "Production module selection/reference"
+  ]
+}

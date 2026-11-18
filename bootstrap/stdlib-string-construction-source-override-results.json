@@ -1,0 +1,604 @@
+{
+  "description": "Bounded first constructor checkpoint: exact Data.String source override; fresh embedded and Native epochs remain separate integration gates.",
+  "full_stdlib_goal_complete": false,
+  "first_checkpoint_status": "Full 398-row independent corpus, SDK cross-check, O0/O2 source-override deep/ownership gates and corrected paired O2 timings passed; fresh embedded/Native/full gates remain separate.",
+  "source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+  "baseline_source_sha256": "3d35e3bb0d10e90d9f591765fc79f06c3a52c3a1d207fb0a42ad57c67b838a79",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "source_override_discriminator": "-- Explicit constructor source-override receipt v1.",
+  "executed": {
+    "rust_source_override_o0": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "epoch": "source-override",
+      "string_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+      "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+      "opt_level": 0,
+      "native_base_validation_claimed": false,
+      "results": [
+        {
+          "group": "repeats",
+          "cases": 297,
+          "epoch_receipt": {
+            "interface_sha256": "ce0bf9a891fcf8b530900772539545c15298f70d2aaadf9093856d329490a338",
+            "source_hash": "15964886806672214351",
+            "module_source_sha256": "f615647e5e252b32013e0ce4cc2ed6971b21d1f54292d10f9801564b8beaddee"
+          },
+          "entry_sha256": "316353e6dbcb2ec20e1837306b2adb4a71a1846402dad233e365d707a80cb3f4",
+          "executable_sha256": "2aba1423816fc5420f0f09740571b158df6ece3de859b1d04783b5b1deab4229",
+          "llvm_sha256": "a8ee36281d4c63dc187866009a9839c4a1a31035a1d6111a4d366e1bacda42fc",
+          "tail_receipt": {
+            "concat-size": {
+              "emitted_workers": 0,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "concat-copy": {
+              "emitted_workers": 0,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "repeat-double": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            }
+          },
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "concats",
+          "cases": 101,
+          "epoch_receipt": {
+            "interface_sha256": "ce0bf9a891fcf8b530900772539545c15298f70d2aaadf9093856d329490a338",
+            "source_hash": "15964886806672214351",
+            "module_source_sha256": "f615647e5e252b32013e0ce4cc2ed6971b21d1f54292d10f9801564b8beaddee"
+          },
+          "entry_sha256": "0f25a4e7513d534340f3eb65b0894f04b741ae62ef2d2e006a74922c4f023914",
+          "executable_sha256": "7c1f0fc269ca73320cdf8fde2089c9f743cf41476ef86c1461e9317f90fb857e",
+          "llvm_sha256": "13474b853d9baa923f1f4748ea17d71b05ff3785e9da2ec7b7aec998990baca4",
+          "tail_receipt": {
+            "concat-size": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "concat-copy": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "repeat-double": {
+              "emitted_workers": 0,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            }
+          },
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "regression",
+          "cases": 2,
+          "epoch_receipt": {
+            "interface_sha256": "ce0bf9a891fcf8b530900772539545c15298f70d2aaadf9093856d329490a338",
+            "source_hash": "15964886806672214351",
+            "module_source_sha256": "f615647e5e252b32013e0ce4cc2ed6971b21d1f54292d10f9801564b8beaddee"
+          },
+          "entry_sha256": "b304eddc152a2fd2bf6947f96abef63f31af6405c849cd1a5ed0e9d08bf75fc6",
+          "executable_sha256": "23c7392498c92d060d5fd1f22fd6af18181eb416528ff6e57d7a496ef573ffe8",
+          "llvm_sha256": "580f539385f8e070e1a044f35ddac5d5d92e2ffd0991f1763db40e5570252639",
+          "tail_receipt": {
+            "concat-size": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "concat-copy": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "repeat-double": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            }
+          },
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "owners",
+          "cases": 1,
+          "epoch_receipt": {
+            "interface_sha256": "ce0bf9a891fcf8b530900772539545c15298f70d2aaadf9093856d329490a338",
+            "source_hash": "15964886806672214351",
+            "module_source_sha256": "f615647e5e252b32013e0ce4cc2ed6971b21d1f54292d10f9801564b8beaddee"
+          },
+          "entry_sha256": "878b444853ce85ca6bf177316ed0579e0ec107ba50b82bfc0bbf0aa758c0dda6",
+          "executable_sha256": "41f12272369e0148271814fad94672edec2f230fcee2dda420ac7c767645e252",
+          "llvm_sha256": "b71a8dfb094c7e5c4c6adedc268c51adcb94b6545f95e0c62577c659eb80316a",
+          "tail_receipt": {
+            "concat-size": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "concat-copy": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "repeat-double": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            }
+          },
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ]
+        }
+      ]
+    },
+    "rust_source_override_o2": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "epoch": "source-override",
+      "string_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+      "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+      "opt_level": 2,
+      "native_base_validation_claimed": false,
+      "results": [
+        {
+          "group": "repeats",
+          "cases": 297,
+          "epoch_receipt": {
+            "interface_sha256": "ce0bf9a891fcf8b530900772539545c15298f70d2aaadf9093856d329490a338",
+            "source_hash": "15964886806672214351",
+            "module_source_sha256": "f615647e5e252b32013e0ce4cc2ed6971b21d1f54292d10f9801564b8beaddee"
+          },
+          "entry_sha256": "316353e6dbcb2ec20e1837306b2adb4a71a1846402dad233e365d707a80cb3f4",
+          "executable_sha256": "7d7a4a6e12260e93414bf0b4199545faf2a45844a9e2e303434db9600910a10a",
+          "llvm_sha256": "a8ee36281d4c63dc187866009a9839c4a1a31035a1d6111a4d366e1bacda42fc",
+          "tail_receipt": {
+            "concat-size": {
+              "emitted_workers": 0,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "concat-copy": {
+              "emitted_workers": 0,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "repeat-double": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            }
+          },
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "concats",
+          "cases": 101,
+          "epoch_receipt": {
+            "interface_sha256": "ce0bf9a891fcf8b530900772539545c15298f70d2aaadf9093856d329490a338",
+            "source_hash": "15964886806672214351",
+            "module_source_sha256": "f615647e5e252b32013e0ce4cc2ed6971b21d1f54292d10f9801564b8beaddee"
+          },
+          "entry_sha256": "0f25a4e7513d534340f3eb65b0894f04b741ae62ef2d2e006a74922c4f023914",
+          "executable_sha256": "69559a07aa740d7bdb0a5bc32f9fa59343233b624c31955075126eca54c083d3",
+          "llvm_sha256": "13474b853d9baa923f1f4748ea17d71b05ff3785e9da2ec7b7aec998990baca4",
+          "tail_receipt": {
+            "concat-size": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "concat-copy": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "repeat-double": {
+              "emitted_workers": 0,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            }
+          },
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "regression",
+          "cases": 2,
+          "epoch_receipt": {
+            "interface_sha256": "ce0bf9a891fcf8b530900772539545c15298f70d2aaadf9093856d329490a338",
+            "source_hash": "15964886806672214351",
+            "module_source_sha256": "f615647e5e252b32013e0ce4cc2ed6971b21d1f54292d10f9801564b8beaddee"
+          },
+          "entry_sha256": "b304eddc152a2fd2bf6947f96abef63f31af6405c849cd1a5ed0e9d08bf75fc6",
+          "executable_sha256": "292f77ec5be2b502e92616d99bcdd98b54d54849d1b8f5b55cfd5e35bf32f67c",
+          "llvm_sha256": "580f539385f8e070e1a044f35ddac5d5d92e2ffd0991f1763db40e5570252639",
+          "tail_receipt": {
+            "concat-size": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "concat-copy": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "repeat-double": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            }
+          },
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ]
+        },
+        {
+          "group": "owners",
+          "cases": 1,
+          "epoch_receipt": {
+            "interface_sha256": "ce0bf9a891fcf8b530900772539545c15298f70d2aaadf9093856d329490a338",
+            "source_hash": "15964886806672214351",
+            "module_source_sha256": "f615647e5e252b32013e0ce4cc2ed6971b21d1f54292d10f9801564b8beaddee"
+          },
+          "entry_sha256": "878b444853ce85ca6bf177316ed0579e0ec107ba50b82bfc0bbf0aa758c0dda6",
+          "executable_sha256": "7f3b49ca4a9a8ac9e58234b70b4c92d77ec1f2e4607cc0445641bc3b2b8a88ef",
+          "llvm_sha256": "b71a8dfb094c7e5c4c6adedc268c51adcb94b6545f95e0c62577c659eb80316a",
+          "tail_receipt": {
+            "concat-size": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "concat-copy": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            },
+            "repeat-double": {
+              "emitted_workers": 1,
+              "recursive_calls": [],
+              "all_observed_recursive_calls_tail": true
+            }
+          },
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "independent_fixture_rows_prepared": {
+    "repeats": 297,
+    "concats": 101
+  },
+  "fixture_origin": "Independent Python bytes repetition/join oracle; pinned SDK Go1.27.4 agrees on all decoded observations (JSON formatting differs).",
+  "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+  "fresh_embedded_validation": false,
+  "fresh_native_base_validation": false,
+  "cargo_tests_run_in_lane": false,
+  "pending": [
+    "Complete parent-owned fresh embedded compiler, Native provider/bootstrap and full integration gates.",
+    "Continue complete strings/bytes capabilities beyond this constructor checkpoint."
+  ],
+  "source_commit": "32d16d4432b30d4e1b84d06d39aa89b97761aea9",
+  "canonical_source_interface_hash": "9736755187434316968",
+  "reference_sdk_crosscheck": {
+    "sdk": "go version go1.27.4 linux/amd64",
+    "original_fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+    "sdk_output_sha256": "4e871394280719d36062c36603b2279121d8a5adce94b07a365ff661a054fcdc",
+    "all_decoded_observations_equal": true,
+    "rows": {
+      "repeats": 297,
+      "concats": 101
+    }
+  },
+  "benchmark_functional_smokes": {
+    "performance_comparison_claimed": false,
+    "cpu": 3,
+    "ir_clock_boundary_receipts": {
+      "before": {
+        "start_clock_line": 918,
+        "work_loop_line": 1336,
+        "end_clock_line": 1342,
+        "post_clock_input_observation_line": 1348,
+        "retained_after_end_clock": true,
+        "ir_sha256": "934e45cdcfeb656f978e65dacd77417f7b91834ca0a3a8f3668a4e6721b7bbc8"
+      },
+      "after": {
+        "start_clock_line": 131,
+        "work_loop_line": 145,
+        "end_clock_line": 148,
+        "post_clock_input_observation_line": 151,
+        "retained_after_end_clock": true,
+        "ir_sha256": "ca27ea28593a13ef999858547e1d4fdce3673c7d20cd969c90a6917cf7891ea6"
+      }
+    },
+    "results": [
+      {
+        "version": "before",
+        "mode": "repeat",
+        "unit": "x",
+        "debug": false,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 42453685,
+        "wire_sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+        "zero_leaks": true
+      },
+      {
+        "version": "before",
+        "mode": "repeat",
+        "unit": "x",
+        "debug": true,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 42453685,
+        "wire_sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+        "zero_leaks": true
+      },
+      {
+        "version": "before",
+        "mode": "repeat",
+        "unit": "\u00e9\u03bb",
+        "debug": false,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 301583975,
+        "wire_sha256": "6fd4470aa92d24c55f66eaf718294ffba87b9f1744bdc727c616bad81f562cc0",
+        "zero_leaks": true
+      },
+      {
+        "version": "before",
+        "mode": "repeat",
+        "unit": "\u00e9\u03bb",
+        "debug": true,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 301583975,
+        "wire_sha256": "6fd4470aa92d24c55f66eaf718294ffba87b9f1744bdc727c616bad81f562cc0",
+        "zero_leaks": true
+      },
+      {
+        "version": "before",
+        "mode": "concat",
+        "unit": "x",
+        "debug": false,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 42453685,
+        "wire_sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+        "zero_leaks": true
+      },
+      {
+        "version": "before",
+        "mode": "concat",
+        "unit": "x",
+        "debug": true,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 42453685,
+        "wire_sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+        "zero_leaks": true
+      },
+      {
+        "version": "before",
+        "mode": "concat",
+        "unit": "\u00e9\u03bb",
+        "debug": false,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 301583975,
+        "wire_sha256": "6fd4470aa92d24c55f66eaf718294ffba87b9f1744bdc727c616bad81f562cc0",
+        "zero_leaks": true
+      },
+      {
+        "version": "before",
+        "mode": "concat",
+        "unit": "\u00e9\u03bb",
+        "debug": true,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 301583975,
+        "wire_sha256": "6fd4470aa92d24c55f66eaf718294ffba87b9f1744bdc727c616bad81f562cc0",
+        "zero_leaks": true
+      },
+      {
+        "version": "after",
+        "mode": "repeat",
+        "unit": "x",
+        "debug": false,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 42453685,
+        "wire_sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+        "zero_leaks": true
+      },
+      {
+        "version": "after",
+        "mode": "repeat",
+        "unit": "x",
+        "debug": true,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 42453685,
+        "wire_sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+        "zero_leaks": true
+      },
+      {
+        "version": "after",
+        "mode": "repeat",
+        "unit": "\u00e9\u03bb",
+        "debug": false,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 301583975,
+        "wire_sha256": "6fd4470aa92d24c55f66eaf718294ffba87b9f1744bdc727c616bad81f562cc0",
+        "zero_leaks": true
+      },
+      {
+        "version": "after",
+        "mode": "repeat",
+        "unit": "\u00e9\u03bb",
+        "debug": true,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 301583975,
+        "wire_sha256": "6fd4470aa92d24c55f66eaf718294ffba87b9f1744bdc727c616bad81f562cc0",
+        "zero_leaks": true
+      },
+      {
+        "version": "after",
+        "mode": "concat",
+        "unit": "x",
+        "debug": false,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 42453685,
+        "wire_sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+        "zero_leaks": true
+      },
+      {
+        "version": "after",
+        "mode": "concat",
+        "unit": "x",
+        "debug": true,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 42453685,
+        "wire_sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+        "zero_leaks": true
+      },
+      {
+        "version": "after",
+        "mode": "concat",
+        "unit": "\u00e9\u03bb",
+        "debug": false,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 301583975,
+        "wire_sha256": "6fd4470aa92d24c55f66eaf718294ffba87b9f1744bdc727c616bad81f562cc0",
+        "zero_leaks": true
+      },
+      {
+        "version": "after",
+        "mode": "concat",
+        "unit": "\u00e9\u03bb",
+        "debug": true,
+        "count": 65536,
+        "iterations": 2,
+        "checksum": 301583975,
+        "wire_sha256": "6fd4470aa92d24c55f66eaf718294ffba87b9f1744bdc727c616bad81f562cc0",
+        "zero_leaks": true
+      }
+    ]
+  },
+  "benchmark_artifacts": {
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+    "baseline_sha256": "3d35e3bb0d10e90d9f591765fc79f06c3a52c3a1d207fb0a42ad57c67b838a79",
+    "driver_sha256": "0925bde96b3b069c3f203a6402f2655da1d6a2314cebc8fc3b179cc5ea80bd2a",
+    "runner_sha256": "d7ae1ca4b68718d350b5092bec84a5d39940cb402b56289a1fdb04b58ac4e46c",
+    "epoch": "explicit Data.String source override in both versions",
+    "fresh_native_base_validation_claimed": false,
+    "optimization": 2,
+    "cpu": 0,
+    "measurement_scope": "Constructor plus output copy; input setup before start and observable input traversal/teardown after end clock",
+    "executables": {
+      "before": {
+        "sha256": "baa977ef95aa918093ad8af77ae1cdd8dd0e4b0467ca4259ef222e600673dfa3",
+        "epoch_receipt": {
+          "interface_sha256": "d7d98353810be72f5c630a6f113138a73e3349d857e7afc564a4862785e5e979",
+          "source_hash": "9470050574077776376",
+          "module_source_sha256": "dec71cca49b59be1fd5c01f7614ecb8fe8b2aa93204ce9484ffbdd74f9316b6f"
+        }
+      },
+      "after": {
+        "sha256": "cbe37c41062f81ea1a91a87faf7dc6c536ff7b4d285a58d142910711393771d7",
+        "epoch_receipt": {
+          "interface_sha256": "ce0bf9a891fcf8b530900772539545c15298f70d2aaadf9093856d329490a338",
+          "source_hash": "15964886806672214351",
+          "module_source_sha256": "f615647e5e252b32013e0ce4cc2ed6971b21d1f54292d10f9801564b8beaddee"
+        }
+      }
+    },
+    "results": []
+  },
+  "paired_measurements": "benchmarks/stdlib/string-construction-O2-2026-11-16.json",
+  "paired_measurements_sha256": "9be132861d728b90c535f08a1c0e7392d23d7a8c55f8e2e73106dd7c9fdaf8d4",
+  "stack_analysis": "bootstrap/stdlib-string-construction-stack-analysis.json",
+  "measurement_scope_note": "Corrected driver builds no unused repeat piece list and observes retained inputs after the end clock. Exact initial cleanup-inclusive and corrected drivers/samples are both retained.",
+  "initial_cleanup_inclusive_measurements": "benchmarks/stdlib/string-construction-initial-O2-2026-11-16.json"
+}

@@ -1,0 +1,380 @@
+-- | Owned dynamic JSON values with exact number spellings and explicit container identity.
+-- Array and object spines are private. Traversals use explicit work frames so
+-- nesting consumes managed storage rather than one native activation per level.
+-- Raw application strings and names retain exact bytes; encoding repairs malformed
+-- UTF-8 before ordering names. Decoded objects retain the last occurrence of a name.
+-- Explicit typed payloads retain their application value and descriptor capability;
+-- arbitrary mutable application storage follows that descriptor's ownership contract.
+module Text.Json.Dynamic where
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Utf8 (utf8-replace-invalid)
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export JsonAny, json-any-type, json-any-kind, json-any-is-null, json-any-container-is-null
+  export json-any-null, json-any-bool, json-any-float64, json-any-number, json-any-string, json-any-bytes
+  export json-any-array, json-any-object, json-any-null-array, json-any-null-object
+  export json-any-as-bool, json-any-as-float64, json-any-as-number, json-any-as-string, json-any-as-bytes
+  export json-any-array-values, json-any-object-members
+  export json-any-typed, json-any-typed-label
+
+  -- | Opaque dynamic payloads with direct recursive container spines.
+  data JsonAny where
+    -- | The absent dynamic application value.
+    AnyNull :: JsonAny
+    -- | A present boolean, including false.
+    AnyBool :: Bool -> JsonAny
+    -- | A present binary64 value, with nonfinite values rejected during encoding.
+    AnyFloat :: F64 -> JsonAny
+    -- | A present exact or explicitly unchecked number spelling.
+    AnyNumber :: JsonNumber -> JsonAny
+    -- | Independently owned application string bytes.
+    AnyString :: Bytes -> JsonAny
+    -- | A present empty array.
+    AnyArrayEnd :: JsonAny
+    -- | One array item and a private well-formed array tail.
+    AnyArray :: JsonAny -> JsonAny -> JsonAny
+    -- | A present empty object.
+    AnyObjectEnd :: JsonAny
+    -- | An exact owned name, its value and a private well-formed object tail.
+    AnyObject :: Bytes -> JsonAny -> JsonAny -> JsonAny
+    -- | A present array application payload whose underlying collection is null.
+    AnyNullArray :: JsonAny
+    -- | A present object application payload whose underlying collection is null.
+    AnyNullObject :: JsonAny
+    -- | An opaque application label and its retained typed encoding capability.
+    AnyTyped :: String -> (JsonWriteOptions -> Result JsonError Bytes) -> JsonAny
+
+  -- | Snapshot bytes before retaining them in an immutable dynamic value.
+  copy-bytes :: Bytes -> Bytes
+  copy-bytes input = let size = bytes-len input in let output = bytes-new size in let copied = bytes-copy-range output input 0 0 size in output
+
+  -- | Construct the absent dynamic application value.
+  json-any-null :: JsonAny
+  json-any-null = AnyNull
+
+  -- | Construct a present boolean application value.
+  json-any-bool :: Bool -> JsonAny
+  json-any-bool value = AnyBool value
+
+  -- | Construct a binary64 payload; encoding reports nonfinite values explicitly.
+  json-any-float64 :: F64 -> JsonAny
+  json-any-float64 value = AnyFloat value
+
+  -- | Construct an exact-number payload without silently converting it to binary64.
+  json-any-number :: JsonNumber -> JsonAny
+  json-any-number value = AnyNumber value
+
+  -- | Construct a present scalar string with independently owned UTF-8 bytes.
+  json-any-string :: String -> JsonAny
+  json-any-string value = AnyString (string-to-bytes value)
+
+  -- | Snapshot arbitrary application string bytes, preserving malformed sequences until encoding.
+  json-any-bytes :: Bytes -> JsonAny
+  json-any-bytes value = AnyString (copy-bytes value)
+
+  -- | A typed null array remains a present dynamic payload and marshals as null.
+  json-any-null-array :: JsonAny
+  json-any-null-array = AnyNullArray
+
+  -- | A typed null object remains a present dynamic payload and marshals as null.
+  json-any-null-object :: JsonAny
+  json-any-null-object = AnyNullObject
+
+  -- | Retain an application value and its descriptor for use inside mixed dynamic containers.
+  -- Encoding invokes the descriptor with the current options. A typed payload is
+  -- present for omission, including a typed value whose descriptor emits null.
+  -- Mutable application data follows the supplied descriptor's aliasing contract.
+  json-any-typed :: forall a. JsonType a -> a -> JsonAny
+  json-any-typed descriptor value = AnyTyped (json-type-label descriptor) (\options -> json-marshal-value descriptor (json-write-with-addressability options False) value)
+
+  -- | Inspect an opaque typed payload's label without fabricating a decoded representation.
+  json-any-typed-label :: JsonAny -> Option String
+  json-any-typed-label value = case value of AnyTyped label encode -> Some label; other -> None
+
+  -- | Build a private array spine from reversed application elements.
+  array-from-reversed :: List JsonAny -> JsonAny -> JsonAny
+  array-from-reversed values tail = case values of Nil -> tail; Cons first rest -> array-from-reversed rest (AnyArray first tail)
+
+  -- | Construct a present array in application order, retaining immutable child owners.
+  json-any-array :: List JsonAny -> JsonAny
+  json-any-array values = array-from-reversed (reverse values) AnyArrayEnd
+
+  -- | An exact byte comparator and inert conversion capabilities for private application-key storage.
+  raw-key :: JsonKey Bytes
+  raw-key = json-byte-key "Bytes" bytes-compare (\options name -> Ok name) (\options member -> Ok (string-to-bytes (json-member-name member)))
+
+  -- | Snapshot every application name before using it as an immutable ordered-map key.
+  object-index :: List (Bytes, JsonAny) -> JsonMap Bytes JsonAny -> JsonMap Bytes JsonAny
+  object-index entries output = case entries of
+    Nil -> output
+    Cons first rest -> case first of (name, value) -> object-index rest (json-map-set (copy-bytes name) value output)
+
+  -- | Build a private object spine from reversed already-owned entries.
+  object-from-reversed :: List (Bytes, JsonAny) -> JsonAny -> JsonAny
+  object-from-reversed entries tail = case entries of
+    Nil -> tail
+    Cons first rest -> case first of (name, value) -> object-from-reversed rest (AnyObject name value tail)
+
+  -- | Construct an object with exact byte keys in lexical order; later equal keys replace earlier values.
+  json-any-object :: List (Bytes, JsonAny) -> JsonAny
+  json-any-object entries = object-from-reversed (reverse (json-map-entries (object-index entries (json-map-empty raw-key)))) AnyObjectEnd
+
+  -- | Inspect known representation categories; an opaque typed callback has the unspecified category until encoded.
+  json-any-kind :: JsonAny -> JsonKind
+  json-any-kind value = case value of
+    AnyNull -> JsonNullKind
+    AnyBool present -> JsonBooleanKind
+    AnyFloat present -> JsonNumberKind
+    AnyNumber present -> JsonNumberKind
+    AnyString present -> JsonStringKind
+    AnyArrayEnd -> JsonArrayKind
+    AnyArray first rest -> JsonArrayKind
+    AnyObjectEnd -> JsonObjectKind
+    AnyObject name first rest -> JsonObjectKind
+    AnyNullArray -> JsonArrayKind
+    AnyNullObject -> JsonObjectKind
+    AnyTyped label encode -> JsonInvalidKind
+
+  -- | Only an absent dynamic payload is zero or empty for application-field omission.
+  json-any-is-null :: JsonAny -> Bool
+  json-any-is-null value = case value of AnyNull -> True; other -> False
+
+  -- | Distinguish a present typed null collection from a present empty collection.
+  json-any-container-is-null :: JsonAny -> Bool
+  json-any-container-is-null value = case value of AnyNullArray -> True; AnyNullObject -> True; other -> False
+
+  -- | Inspect a present boolean, including false.
+  json-any-as-bool :: JsonAny -> Option Bool
+  json-any-as-bool value = case value of AnyBool present -> Some present; other -> None
+
+  -- | Inspect a floating payload without coercing an exact-number payload.
+  json-any-as-float64 :: JsonAny -> Option F64
+  json-any-as-float64 value = case value of AnyFloat present -> Some present; other -> None
+
+  -- | Inspect an exact-number payload without formatting floating values.
+  json-any-as-number :: JsonAny -> Option JsonNumber
+  json-any-as-number value = case value of AnyNumber present -> Some present; other -> None
+
+  -- | Inspect independently copied exact application string bytes.
+  json-any-as-bytes :: JsonAny -> Option Bytes
+  json-any-as-bytes value = case value of AnyString present -> Some (copy-bytes present); other -> None
+
+  -- | Project application string bytes to scalars, replacing each malformed byte with U+FFFD.
+  json-any-as-string :: JsonAny -> Option String
+  json-any-as-string value = case value of AnyString present -> string-from-bytes (utf8-replace-invalid present); other -> None
+
+  -- | Enumerate a valid private array spine without retaining a native activation per item.
+  array-values :: JsonAny -> List JsonAny -> List JsonAny
+  array-values value reversed = case value of AnyArray first rest -> array-values rest (Cons first reversed); other -> reverse reversed
+
+  -- | Inspect array items; a typed null array is represented by a present empty item list.
+  json-any-array-values :: JsonAny -> Option (List JsonAny)
+  json-any-array-values value = case value of
+    AnyArrayEnd -> Some Nil
+    AnyArray first rest -> Some (array-values value Nil)
+    AnyNullArray -> Some Nil
+    other -> None
+
+  -- | Enumerate an object spine while copying exported name bytes.
+  object-members :: JsonAny -> List (Bytes, JsonAny) -> List (Bytes, JsonAny)
+  object-members value reversed = case value of AnyObject name first rest -> object-members rest (Cons (copy-bytes name, first) reversed); other -> reverse reversed
+
+  -- | Inspect exact application object names in raw-byte order, each returned name independently owned.
+  json-any-object-members :: JsonAny -> Option (List (Bytes, JsonAny))
+  json-any-object-members value = case value of
+    AnyObjectEnd -> Some Nil
+    AnyObject name first rest -> Some (object-members value Nil)
+    AnyNullObject -> Some Nil
+    other -> None
+
+  -- | Explicit decode continuations retain unfinished siblings and already completed children.
+  data DecodeFrame where
+    -- | Remaining array views, reversed completed items, next index and reversed parent path.
+    DecodeArray :: List JsonValue -> List JsonAny -> Nat -> List String -> DecodeFrame
+    -- | Remaining members, exact-key map, current name and reversed parent path.
+    DecodeObject :: List JsonMember -> JsonMap String JsonAny -> String -> List String -> DecodeFrame
+
+  -- | Join an ordered path once, only when a conversion first fails.
+  path-text :: List String -> String
+  path-text reversed = path-pieces (reverse reversed) Nil
+
+  -- | Escape pointer components and interleave dotted path separators without repeatedly copying a growing prefix.
+  path-pieces :: List String -> List String -> String
+  path-pieces ordered pieces = case ordered of
+    Nil -> string-concat-all (reverse pieces)
+    Cons first rest -> path-pieces rest (Cons (pointer-escape (unpack first) Nil) (case pieces of Nil -> Nil; other -> Cons "." pieces))
+
+  -- | Retain a first numeric type error without evaluating or rebuilding later error paths.
+  number-error :: JsonReadOptions -> JsonValue -> JsonNumber -> List String -> Option JsonError -> Option JsonError
+  number-error options source number path prior = case prior of
+    Some error -> prior
+    None -> let actual = string-concat "number " (json-number-text number) in
+      if json-policy-enabled (json-read-policies options) JsonContinueAfterTypeErrors then Some (JsonTypeError "F64" actual (json-value-end source) (path-text path))
+      else Some (JsonSemanticError (json-semantic-info "unmarshal" (json-value-start source) (pointer-text path) (json-value-source source) "F64") (JsonTypeCause "F64" actual (json-value-end source) "" (JsonValueError "F64" "value out of range")))
+
+  -- | Escape one pointer component using scalar traversal without repeated prefix concatenation.
+  pointer-escape :: List Char -> List String -> String
+  pointer-escape characters pieces = case characters of
+    Nil -> string-concat-all (reverse pieces)
+    Cons first rest -> pointer-escape rest (Cons (if char-code first == 126 then "~0" else if char-code first == 47 then "~1" else pack (Cons first Nil)) pieces)
+
+  -- | Render a reversed application path as an escaped JSON pointer only after a first failure.
+  pointer-text :: List String -> String
+  pointer-text reversed = pointer-pieces (reverse reversed) Nil
+
+  -- | Accumulate escaped pointer separators and components with an explicit constant-stack loop.
+  pointer-pieces :: List String -> List String -> String
+  pointer-pieces ordered pieces = case ordered of
+    Nil -> string-concat-all (reverse pieces)
+    Cons first rest -> pointer-pieces rest (Cons (pointer-escape (unpack first) Nil) (Cons "/" pieces))
+
+  -- | Finalize sorted decoded object members from their scalar-key storage.
+  decoded-object :: List (String, JsonAny) -> JsonAny -> JsonAny
+  decoded-object entries tail = case entries of
+    Nil -> tail
+    Cons first rest -> case first of (name, value) -> decoded-object rest (AnyObject (string-to-bytes name) value tail)
+
+  -- | Resume an explicit container continuation, preserving complete or stopped partial values.
+  decode-finish :: JsonReadOptions -> JsonAny -> List DecodeFrame -> Option JsonError -> JsonDecoded JsonAny
+  decode-finish options value frames error = case frames of
+    Nil -> case error of None -> json-decoded-ok value; Some cause -> json-decoded-with-error value cause
+    Cons frame rest ->
+      let stopped = case error of None -> False; Some cause -> not (json-policy-enabled (json-read-policies options) JsonContinueAfterTypeErrors) in
+      case frame of
+        DecodeArray pending completed index path ->
+          let next = Cons value completed in
+          case (if stopped then Nil else pending) of
+            Nil -> decode-finish options (array-from-reversed next AnyArrayEnd) rest error
+            Cons first more -> decode-node options first (Cons (DecodeArray more next (index + 1) path) rest) (Cons (nat-to-string index) path) error
+        DecodeObject pending completed name path ->
+          let next = json-map-set name value completed in
+          case (if stopped then Nil else pending) of
+            Nil -> decode-finish options (decoded-object (reverse (json-map-entries next)) AnyObjectEnd) rest error
+            Cons first more -> decode-node options (json-member-value first) (Cons (DecodeObject more next (json-member-name first) path) rest) (Cons (json-member-name first) path) error
+
+  -- | Decode one source node; all nested descent and completion are tail calls through managed frames.
+  decode-node :: JsonReadOptions -> JsonValue -> List DecodeFrame -> List String -> Option JsonError -> JsonDecoded JsonAny
+  decode-node options source frames path error = case json-value-kind source of
+    JsonNullKind -> decode-finish options AnyNull frames error
+    JsonBooleanKind -> decode-finish options (AnyBool (case json-value-bool source of Some value -> value; None -> False)) frames error
+    JsonStringKind -> decode-finish options (AnyString (string-to-bytes (case json-value-string source of Some value -> value; None -> ""))) frames error
+    JsonNumberKind -> case json-value-number source of
+      None -> json-decoded-failure AnyNull (JsonTargetError "dynamic number source has no number spelling")
+      Some number -> if json-read-use-number options then decode-finish options (AnyNumber number) frames error
+        else case json-number-float64 number of
+          Ok value -> decode-finish options (AnyFloat value) frames error
+          Err cause -> decode-finish options (AnyFloat (i64-to-f64 0)) frames (number-error options source number path error)
+    JsonArrayKind -> case json-array-values source of
+      Some values -> case values of
+        Nil -> decode-finish options AnyArrayEnd frames error
+        Cons first rest -> decode-node options first (Cons (DecodeArray rest Nil 1 path) frames) (Cons "0" path) error
+      None -> json-decoded-failure AnyNull (JsonTargetError "dynamic array source has no element views")
+    JsonObjectKind -> case json-object-members source of
+      Some members -> case members of
+        Nil -> decode-finish options AnyObjectEnd frames error
+        Cons first rest -> decode-node options (json-member-value first) (Cons (DecodeObject rest (json-map-empty json-string-key) (json-member-name first) path) frames) (Cons (json-member-name first) path) error
+      None -> json-decoded-failure AnyNull (JsonTargetError "dynamic object source has no member views")
+    other -> json-decoded-failure AnyNull (JsonTargetError "dynamic source is not a JSON value")
+
+  -- | Replace a non-pointer dynamic application payload after complete source syntax validation.
+  dynamic-update :: JsonReadOptions -> JsonValue -> JsonAny -> JsonDecoded JsonAny
+  dynamic-update options source prior = decode-node options source Nil Nil None
+
+  -- | One already normalized object member, retaining its exact raw name for deterministic tie ordering.
+  data PreparedMember where
+    -- | Normalized name and its immutable dynamic value.
+    Prepared :: Bytes -> JsonAny -> PreparedMember
+
+  -- | Compare normalized names first and their original raw names second without dropping equal repaired names.
+  prepared-compare :: (Bytes, Bytes) -> (Bytes, Bytes) -> I64
+  prepared-compare left right = case left of (ln, lr) -> case right of (rn, rr) -> let order = bytes-compare ln rn in if eq-i64 order 0 then bytes-compare lr rr else order
+
+  -- | Private normalized-name ordering capability, independent of child-value conversion.
+  prepared-key :: JsonKey (Bytes, Bytes)
+  prepared-key = json-key "dynamic member" prepared-compare (\options key -> Ok "") (\options member -> Ok (bytes-new 0, bytes-new 0))
+
+  -- | Normalize and snapshot every object name before any child value is encoded.
+  prepare-object :: JsonAny -> JsonMap (Bytes, Bytes) PreparedMember -> List PreparedMember
+  prepare-object value indexed = case value of
+    AnyObject name child rest -> let normalized = utf8-replace-invalid name in prepare-object rest (json-map-set (normalized, name) (Prepared normalized child) indexed)
+    other -> prepared-values (json-map-entries indexed) Nil
+
+  -- | Drop private sort keys after the complete preparation pass.
+  prepared-values :: List ((Bytes, Bytes), PreparedMember) -> List PreparedMember -> List PreparedMember
+  prepared-values entries reversed = case entries of Nil -> reverse reversed; Cons first rest -> case first of (key, value) -> prepared-values rest (Cons value reversed)
+
+  -- | Explicit encoder work avoids serializing a nested prefix more than once.
+  data EncodeTask where
+    -- | One dynamic value awaits conversion at its explicit container depth.
+    EncodeValue :: JsonAny -> Nat -> EncodeTask
+    -- | A valid private array tail and its comma state await enumeration.
+    EncodeArray :: JsonAny -> Bool -> Nat -> EncodeTask
+    -- | Prepared object entries and their comma state await child conversion.
+    EncodeObject :: List PreparedMember -> Bool -> Nat -> EncodeTask
+    -- | A fixed complete fragment awaits copying into the final joined output.
+    EncodeFragment :: Bytes -> EncodeTask
+
+  -- | Sum fragment lengths with a constant-stack traversal.
+  fragments-size :: List Bytes -> Nat -> Nat
+  fragments-size fragments size = case fragments of Nil -> size; Cons first rest -> fragments-size rest (size + bytes-len first)
+
+  -- | Copy complete fragments into disjoint checked final-output intervals.
+  fragments-copy :: List Bytes -> Bytes -> Nat -> Unit
+  fragments-copy fragments output at = case fragments of
+    Nil -> ()
+    Cons first rest -> let size = bytes-len first in
+      if at + size <= bytes-len output then let copied = bytes-copy-range output first at 0 size in fragments-copy rest output (at + size) else ()
+
+  -- | Allocate one exact-size output after every node has been converted successfully.
+  fragments-join :: List Bytes -> Bytes
+  fragments-join reversed = let pieces = reverse reversed in let output = bytes-new (fragments-size pieces 0) in let copied = fragments-copy pieces output 0 in output
+
+  -- | Convert one primitive using its existing typed descriptor, then resume the dynamic work list.
+  encode-primitive :: forall a. JsonType a -> JsonWriteOptions -> a -> List EncodeTask -> List Bytes -> Result JsonError Bytes
+  encode-primitive descriptor options value tasks pieces = case json-marshal-value descriptor options value of
+    Err error -> Err error
+    Ok output -> encode-tasks options tasks (Cons output pieces)
+
+  -- | Encode depth-first with linear fragment joining and complete name preparation before child callbacks.
+  encode-tasks :: JsonWriteOptions -> List EncodeTask -> List Bytes -> Result JsonError Bytes
+  encode-tasks options tasks pieces = case tasks of
+    Nil -> Ok (fragments-join pieces)
+    Cons first rest -> case first of
+      EncodeFragment output -> encode-tasks options rest (Cons output pieces)
+      EncodeArray value comma depth -> case value of
+        AnyArray child tail -> encode-tasks options (Cons (EncodeValue child depth) (Cons (EncodeArray tail True depth) rest)) (if comma then Cons (string-to-bytes ",") pieces else pieces)
+        other -> encode-tasks options rest (Cons (string-to-bytes "]") pieces)
+      EncodeObject entries comma depth -> case entries of
+        Nil -> encode-tasks options rest (Cons (string-to-bytes "}") pieces)
+        Cons entry more -> case entry of
+          Prepared name child -> encode-tasks options (Cons (EncodeValue child depth) (Cons (EncodeObject more True depth) rest)) (Cons (string-to-bytes ":") (Cons (json-quote-bytes name (json-write-html options)) (if comma then Cons (string-to-bytes ",") pieces else pieces)))
+      EncodeValue value depth -> case value of
+        AnyNull -> encode-tasks options rest (Cons (string-to-bytes "null") pieces)
+        AnyBool present -> encode-primitive json-bool-type options present rest pieces
+        AnyFloat present -> encode-primitive json-float64-type options present rest pieces
+        AnyNumber present -> encode-primitive json-number-type options present rest pieces
+        AnyString present -> encode-tasks options rest (Cons (json-quote-bytes present (json-write-html options)) pieces)
+        AnyNullArray -> encode-tasks options rest (Cons (string-to-bytes "null") pieces)
+        AnyNullObject -> encode-tasks options rest (Cons (string-to-bytes "null") pieces)
+        AnyTyped label encode -> case encode options of Err error -> Err error; Ok output -> encode-tasks options rest (Cons output pieces)
+        AnyArrayEnd -> if depth >= 10000 then Err (JsonValueError "JsonAny" "JSON nesting exceeds 10000") else encode-tasks options rest (Cons (string-to-bytes "[]") pieces)
+        AnyArray child tail -> if depth >= 10000 then Err (JsonValueError "JsonAny" "JSON nesting exceeds 10000") else encode-tasks options (Cons (EncodeArray value False (depth + 1)) rest) (Cons (string-to-bytes "[") pieces)
+        AnyObjectEnd -> if depth >= 10000 then Err (JsonValueError "JsonAny" "JSON nesting exceeds 10000") else encode-tasks options rest (Cons (string-to-bytes "{}") pieces)
+        AnyObject name child tail -> if depth >= 10000 then Err (JsonValueError "JsonAny" "JSON nesting exceeds 10000") else encode-tasks options (Cons (EncodeObject (prepare-object value (json-map-empty prepared-key)) False (depth + 1)) rest) (Cons (string-to-bytes "{") pieces)
+
+  -- | Start one dynamic conversion with explicit depth and no nested prefix copies.
+  dynamic-encode :: JsonWriteOptions -> JsonAny -> Result JsonError Bytes
+  dynamic-encode options value = encode-tasks options (Cons (EncodeValue value 0) Nil) Nil
+
+  -- | Dynamic descriptor: absent-only omission, exact-number selection and iterative owned traversal.
+  json-any-type :: JsonType JsonAny
+  json-any-type = json-structural-type "JsonAny" JsonInvalidKind (\unit -> AnyNull) json-any-is-null json-any-is-null dynamic-encode dynamic-update

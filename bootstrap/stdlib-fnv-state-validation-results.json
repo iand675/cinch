@@ -1,0 +1,65 @@
+{
+  "description": "Persistent FNV hash states, binary checkpoints and inspectable hashing stream adapters. All six FNV constructors and returned hash/clone/binary-state capabilities have reviewed functional mappings. Full stdlib goal remains open.",
+  "full_stdlib_goal_complete": false,
+  "source_sha256": {
+    "compiler/prelude/Text/Fnv/State.cinch": "32143ed6a2a86719094a7ff3dffcd7811a51d0b7c8aae7630fe1fe0487ecd673",
+    "compiler/prelude/Effect/Fnv.cinch": "7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464",
+    "compiler/prelude/Text/Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+    "compiler/prelude/Text/Binary.cinch": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
+    "compiler/tests/lib_fnv_state.rs": "99eeedc4db5054f4a0e1061600c16271ce6ff491ec134bfbded9b0a77bde95ee",
+    "tooling/go_fnv_state_vectors.go": "ec37c14b62a987875eb1785ced9ff2930971af6ad96c7e844f6aef2b72a97aaf"
+  },
+  "compilers": {
+    "rust_sha256": "2953cb0246737ee110c139fbff4a8968c2da7de271da4b55aff7d94f63c94e84",
+    "native_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "compiler_source_unchanged": true,
+    "existing_compiler_gate_evidence": "stdlib-qualified-calls-validation-results.json"
+  },
+  "correctness": {
+    "rust_tests_passed": 11,
+    "native_stage3_tests_passed": 11,
+    "shared_profile_tests": 3,
+    "independent_fixture_rows": {
+      "valid": 108,
+      "arbitrary_restored_state": 216,
+      "variant_and_size": 600,
+      "individual_identifier_corruption": 48
+    },
+    "fixture_sha256": "c030a7f960b0ee33fb475789c2c45f27315da6e41ec71602b20e52e9f761093b",
+    "fixture_reproduces_byte_for_byte": true,
+    "all_two_chunk_splits": true,
+    "mutable_alias_isolation": true,
+    "stream_errors_and_advanced_continuations": true,
+    "one_byte_reads_input_bytes": 65536,
+    "ordinary_heap_limit": "32M",
+    "stack_limit": "8M",
+    "poisoned_free_quarantine_budget": "256M",
+    "zero_leaks_both_reclamation_modes": true
+  },
+  "documentation": {
+    "modules": 135,
+    "value_exports": 3640,
+    "public_methods": 112,
+    "diagnostics": 0,
+    "orphan_comments": 0,
+    "source_drift": false
+  },
+  "benchmarks": {
+    "report": "../benchmarks/stdlib/fnv-state-O2-2026-11-16.json",
+    "rows": 54,
+    "independent_sdk_checksums_match": true,
+    "opt_level": 2,
+    "stream_chunk_bytes": 64,
+    "before_worker_report": "../benchmarks/stdlib/fnv-state-before-worker-O2-2026-11-16.json",
+    "paired_worker_report": "../benchmarks/stdlib/interleaved-fnv-scalar-worker-O2-2026-11-16.json",
+    "allocation_report": "../benchmarks/stdlib/fnv-scalar-worker-allocation-2026-11-16.json",
+    "scope": "Equivalent public results; ownership, fresh buffers, persistent continuations and allocation strategies differ. No throughput or allocation parity claim."
+  },
+  "worker_change": "Carry scalar FnvState in the recursive copying worker; construct the public FnvWriter on return. Existing compiler reuse already avoids some earlier allocations, so dynamic block reductions differ by width.",
+  "coverage": {
+    "reference_packages": 180,
+    "complete": 5,
+    "partial": 63,
+    "unreviewed": 112
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "status": "Focused and broad Rust gates pass; generic Array<Wide> remains a separate open boundary",
+  "source_patch": "042e5f39",
+  "defect": "Wide Slots specialized units accepted/returned i64 while callers supplied/expected i128. The pre-Role legacy and explicit-Role controls produced byte-identical executables and both failed observation15.",
+  "baseline_control_sha256": "8bdc3758e3ee1733d7596746cc68ea6d9311b9e9f1a2bef83f30479040577ee2",
+  "fix": "Keep i128 value boundaries; store owned wide boxes in the existing counted word-slot format. Reads duplicate/unbox, takes move/unbox, writes box/replace/drop. Existing bulk move/clear semantics stay compatible.",
+  "runtime_abi_change": false,
+  "actual_runtime_processes": 8,
+  "optimization_levels": [
+    0,
+    2
+  ],
+  "compiled_rc_debug": true,
+  "profiles": {
+    "normal": "32M heap/8M stack",
+    "poison": "256M heap/8M stack"
+  },
+  "coverage": [
+    "Explicit Region carrier with Bytes/I64/U128",
+    "Direct U128/I128 cells",
+    "Vector growth and both overlap directions",
+    "Read/take/write/replace/pop/truncate/clear",
+    "Complete high-limb results and zero live/leaked owners"
+  ],
+  "not_qualified": [
+    "Generic Array<Wide> conversion, including Vec.freeze/from-array interoperation",
+    "Packed-wide arrays",
+    "Native family adoption"
+  ],
+  "files": {
+    "explicit-role-before.json": "db5dec7d25f83ee3630e0eccf8c65f1e94f5631ddbf8ea193f98c97acce6c635",
+    "legacy-bfac.cinch": "e6d83986168ffb5ddd1b7a345e61e2aa97e0add7a04aeb302519838e982b3f4a",
+    "nominal-runtime.log": "47fe166c8a85571bf290af816e36e92229a00d93ebe8f7e63d304595222f4101",
+    "explicit-role.cinch": "b3aa6c3863eb5cbcda69d81548ed2a8e28ecb891083e6aeee09acd982604b1ee",
+    "mutable-runtime.log": "43f5a1aef00090d8b9c342a0d6053b19a0230ca32287d21cffa63d74ab6b909f",
+    "legacy-bfac-before.json": "db5dec7d25f83ee3630e0eccf8c65f1e94f5631ddbf8ea193f98c97acce6c635"
+  },
+  "post_fix_full_unit_gate": {
+    "passed": 339,
+    "elapsed_seconds": 179.88,
+    "log": "bootstrap/repros/wide-slots-qualified/full-lib.log",
+    "sha256": "1dad1a7495e82cffe3b3294738520d584129591282c1c4df915228fd8e6d3285"
+  },
+  "existing_wide_gate": {
+    "passed": 18,
+    "elapsed_seconds": 60.49,
+    "log": "bootstrap/repros/wide-slots-qualified/existing-wide.log",
+    "sha256": "df90cf69fc7fad14eddc7b17e687b6bbcabb4b8e3d23ac7ab65dbe6c2579947b"
+  },
+  "mvar_regression_gate": {
+    "passed": 12,
+    "elapsed_seconds": 32.89,
+    "log": "bootstrap/repros/wide-slots-qualified/mvar.log",
+    "sha256": "9c56d6176df3935fcc809f95bb2154f86d6dedc4bcbcabffc50814e7a8416110"
+  }
+}

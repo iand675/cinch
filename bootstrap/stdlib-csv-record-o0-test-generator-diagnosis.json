@@ -1,0 +1,23 @@
+{
+  "description": "CSV bounded test O0 failure isolated to preexisting non-tail expected-text construction; CSV stream traversal unchanged",
+  "failing_program": "build/csv-record-o0-probe/Main.cinch",
+  "failing_source_sha256": "3a4cbf6d8b1db9c82516d17a3567cd45553f55e7828454b7e412905a093078eb",
+  "failing_llvm_sha256": "9b0e66b7c158dfe9d89855af46296022b695cc9416592959002bcd67eb16e9b2",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "opt_level": 0,
+  "heap_limit": "32M",
+  "stack_size": "8M",
+  "observed_output": "rows-start\nmultiline-start\nflat-start\ncinch: exhausted: stack\n",
+  "exit_code": 73,
+  "non_tail_call": "Data.String.repeat-from: %t49 = call i64 @\"Data.String.repeat-from\"(...), followed by output copy",
+  "passed_before_failure": [
+    "16384 ordinary CSV rows from one-byte reused source",
+    "16384 repeated multiline quoted field segments"
+  ],
+  "failed_expected_constructor": "string-repeat 65536 \"x\"",
+  "fix": "Documented checked tail-loop bulk copies construct expected text; no CSV library or capacity change.",
+  "minimal_repro": "bootstrap/stdlib-csv-expected-text-stack-repro.cinch",
+  "minimal_repro_sha256": "ca56e5dcadc845606bf8714c4c26ea13209d0fe9010da95ea92f6d994fd283b0",
+  "minimal_repro_status": "Extracted from diagnosed failing constructor; full CSV probe execution and LLVM are the measured failure evidence."
+}

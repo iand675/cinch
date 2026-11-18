@@ -1,6 +1,6 @@
 # Data.String
 
-Immutable UTF-8 text, encoding/decoding, character access, slicing, comparison, and concatenation. Byte conversions copy to preserve immutability.
+Immutable UTF-8 text with bounded-stack construction and joining, scalar/span decoding, SIMD scalar counting, slicing and comparison. Byte conversions preserve immutability.
 
 <span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
 
@@ -71,7 +71,7 @@ never one a caller retains.
 Byte-wise comparison; UTF-8 preserves scalar value order under
 byte-wise lexicographic order, so this is also code point order.
 
-[Source](/reference-sources/Data.String.cinch) · line 341
+[Source](/reference-sources/Data.String.cinch) · line 450
 
 <a id="value-636f70792d62797465732d696e746f"></a>
 
@@ -83,7 +83,7 @@ Concatenation (O(n + m) copies). The range copy is the runtime's
 `memmove` (`bytes-copy-range`, with its two range obligations): a
 loop here boxed a `Nat` for every index step.
 
-[Source](/reference-sources/Data.String.cinch) · line 233
+[Source](/reference-sources/Data.String.cinch) · line 268
 
 <a id="value-656d7074792d737472696e67"></a>
 
@@ -99,12 +99,10 @@ loop here boxed a `Nat` for every index step.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pack</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
-Haskell's `Data.String` pair: `pack` is the `List Char` view of a
-string, `unpack` its inverse (new conversions: no `String`/`List
-Char` pair existed before). `pack` constructs a fresh string (the
-wrap/copy discipline: the buffer is fresh and never aliased).
+Encode a list of Unicode scalar values into one fresh immutable UTF-8 backing.
+A tail size pass and a checked tail encoding pass keep traversal stack bounded.
 
-[Source](/reference-sources/Data.String.cinch) · line 312
+[Source](/reference-sources/Data.String.cinch) · line 406
 
 <a id="value-737472696e672d627974652d696e6465782d66726f6d"></a>
 
@@ -118,7 +116,7 @@ passes the end, and the result says so. A sequence whose width runs
 past the end is malformed, as `utf8-at` decides; the step restates
 that end test, so it answers `i` as a malformed sequence does.
 
-[Source](/reference-sources/Data.String.cinch) · line 286
+[Source](/reference-sources/Data.String.cinch) · line 382
 
 <a id="value-737472696e672d627974652d6c656e677468"></a>
 
@@ -144,7 +142,18 @@ that end test, so it answers `i` as a malformed sequence does.
 
 The scalar value at code point index `n`, by scan (O(n)).
 
-[Source](/reference-sources/Data.String.cinch) · line 185
+[Source](/reference-sources/Data.String.cinch) · line 220
+
+<a id="value-737472696e672d636c6f6e65"></a>
+
+## `string-clone`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-clone</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+
+Copy a string into independent immutable UTF-8 storage, including empty input.
+The mutable backing remains private and cannot alias any caller-owned byte buffer.
+
+[Source](/reference-sources/Data.String.cinch) · line 89
 
 <a id="value-737472696e672d636f6d70617265"></a>
 
@@ -156,7 +165,7 @@ Compares the two backings in place: `string-to-bytes` would copy
 both operands first, and the lexer's keyword table compares every
 identifier against dozens of literals.
 
-[Source](/reference-sources/Data.String.cinch) · line 353
+[Source](/reference-sources/Data.String.cinch) · line 462
 
 <a id="value-737472696e672d636f6e636174"></a>
 
@@ -172,15 +181,11 @@ identifier against dozens of literals.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-concat-all</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
-Every string in the list, in order, in one pass: the buffer is made
-once, at the end of the list, sized to the pieces' total, and each
-piece is copied once on the way back. A right fold of
-`string-concat` would re-copy the whole built suffix at every step,
-quadratic in the result's length. The concatenation of valid UTF-8
-is valid UTF-8, so the buffer wraps without a decode. This is the
-`Monoid String` instance's `mconcat`.
+Concatenate every string in list order into one fresh immutable backing.
+A tail-recursive size pass and a checked bulk-copy pass use bounded traversal
+stack, including lists of empty strings. Concatenation preserves valid UTF-8.
 
-[Source](/reference-sources/Data.String.cinch) · line 252
+[Source](/reference-sources/Data.String.cinch) · line 283
 
 <a id="value-737472696e672d66726f6d2d6279746573"></a>
 
@@ -190,13 +195,27 @@ is valid UTF-8, so the buffer wraps without a decode. This is the
 
 [Source](/reference-sources/Data.String.cinch)
 
+<a id="value-737472696e672d6a6f696e"></a>
+
+## `string-join`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-join</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+
+Join valid UTF-8 pieces with separators into one fresh immutable backing.
+Empty pieces contribute adjacent separators; an empty list produces empty text.
+
+[Source](/reference-sources/Data.String.cinch) · line 341
+
 <a id="value-737472696e672d6c656e677468"></a>
 
 ## `string-length`
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-length</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.String.cinch)
+Count Unicode scalars in sealed-valid UTF-8 using packed leading-byte classification.
+Private SIMD/SWAR blocks count non-continuation bytes; exact scalar fringes never overread.
+
+[Source](/reference-sources/Data.String.cinch) · line 213
 
 <a id="value-737472696e672d6c656e6774682d66726f6d"></a>
 
@@ -206,7 +225,7 @@ is valid UTF-8, so the buffer wraps without a decode. This is the
 
 Length in Unicode scalar values (O(n) scan).
 
-[Source](/reference-sources/Data.String.cinch) · line 173
+[Source](/reference-sources/Data.String.cinch) · line 203
 
 <a id="value-737472696e672d726570656174"></a>
 
@@ -214,11 +233,11 @@ Length in Unicode scalar values (O(n) scan).
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-repeat</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
-`s` repeated `n` times (the run-building helper the padding and
-numeric-format sites spelled out as fixed byte runs): one buffer of
-`n` copies, made once and filled in place.
+Repeat a string the requested natural count into one fresh immutable backing.
+A complete first copy seeds checked prefix doubling, giving logarithmically
+many bulk-copy steps and linear copied bytes. Empty results need no fill loop.
 
-[Source](/reference-sources/Data.String.cinch) · line 269
+[Source](/reference-sources/Data.String.cinch) · line 351
 
 <a id="value-737472696e672d736c696365"></a>
 
@@ -230,7 +249,7 @@ The code point range [start, end); indices past the end clamp and a
 reversed range yields the empty string (the span's subtraction
 takes its `start < end` evidence from the test).
 
-[Source](/reference-sources/Data.String.cinch) · line 298
+[Source](/reference-sources/Data.String.cinch) · line 394
 
 <a id="value-737472696e672d746f2d6279746573"></a>
 
@@ -241,7 +260,29 @@ takes its `start < end` evidence from the test).
 A copy of the backing (the conversion out copies: the caller may
 mutate its copy freely and the `String` never changes).
 
-[Source](/reference-sources/Data.String.cinch) · line 89
+[Source](/reference-sources/Data.String.cinch) · line 94
+
+<a id="value-737472696e672d757466382d6669727374"></a>
+
+## `string-utf8-first`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-utf8-first</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+
+Observe the first scalar and its encoded byte width without copying private backing.
+Empty text has no scalar; every present width is between one and four bytes.
+
+[Source](/reference-sources/Data.String.cinch) · line 182
+
+<a id="value-737472696e672d757466382d6c617374"></a>
+
+## `string-utf8-last`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-utf8-last</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+
+Observe the final scalar and its encoded byte width without scanning or copying the prefix.
+Empty text has no scalar; reverse lookup reads at most four bytes before decoding it.
+
+[Source](/reference-sources/Data.String.cinch) · line 198
 
 <a id="value-756e7061636b"></a>
 
@@ -277,7 +318,7 @@ The `k` continuation bytes from `i`: the caller has checked that
 they lie inside the buffer (`i + k <= bytes-len b`), so each read
 is in bounds and the obligation steps with the index.
 
-[Source](/reference-sources/Data.String.cinch) · line 114
+[Source](/reference-sources/Data.String.cinch) · line 119
 
 <a id="value-757466382d656e636f64652d696e746f"></a>
 
@@ -296,7 +337,7 @@ every value its width admits (`cp < 128` in the first branch, `cp /
 2^22` in the last, past which the unmasked lead byte did not fit a
 byte at all).
 
-[Source](/reference-sources/Data.String.cinch) · line 213
+[Source](/reference-sources/Data.String.cinch) · line 248
 
 <a id="value-757466382d656e636f64652d7769647468"></a>
 
@@ -317,7 +358,7 @@ the lead byte of a two-, three- and four-byte sequence, written as
 the low bits, which is the same number for every lead byte
 `utf8-width` admits and needs no `x >= 192` evidence.
 
-[Source](/reference-sources/Data.String.cinch) · line 127
+[Source](/reference-sources/Data.String.cinch) · line 132
 
 <a id="value-757466382d6d696e"></a>
 
@@ -333,7 +374,10 @@ the low bits, which is the same number for every lead byte
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-valid-from</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.String.cinch)
+Validate UTF-8 from a byte boundary. Complete ASCII words are checked
+with SWAR; non-ASCII sequences and tails retain scalar validation.
+
+[Source](/reference-sources/Data.String.cinch) · line 159
 
 <a id="value-757466382d7769647468"></a>
 
@@ -345,7 +389,7 @@ UTF-8 decoding rules: a lead byte gives the width; continuation
 bytes are 10xxxxxx; overlong encodings, surrogates, and values above
 0x10FFFF are malformed.
 
-[Source](/reference-sources/Data.String.cinch) · line 95
+[Source](/reference-sources/Data.String.cinch) · line 100
 
 # Instances
 
@@ -372,4 +416,4 @@ with its type).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/String.cinch`. Source SHA-256: `27a381efd32575a2b0ca0c4a0d9f3a9c982b64b731d672caad03ba04a997ae79`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/String.cinch`. Source SHA-256: `e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

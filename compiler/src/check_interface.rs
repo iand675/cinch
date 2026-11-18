@@ -38,8 +38,10 @@ impl Checker {
         use InterfaceIndexSort::*;
         let direct = match ty {
             Ty::Nat | Ty::Int => Some(Mathematical),
+            // Character scalar readings share machine values' opaque arithmetic;
+            // retaining the binder's Char type prevents runtime numeric coercions.
             Ty::Prim(Scalar::I8 | Scalar::I16 | Scalar::I32 | Scalar::I64
-                | Scalar::U8 | Scalar::U16 | Scalar::U32 | Scalar::U64) => Some(Machine),
+                | Scalar::U8 | Scalar::U16 | Scalar::U32 | Scalar::U64 | Scalar::Char) => Some(Machine),
             Ty::Bytes => Some(Bytes),
             _ => None,
         };
@@ -610,8 +612,11 @@ impl Checker {
         for (path, arguments) in &row.labels {
             let parts = path.parts();
             let [name] = parts.as_slice() else { return None };
+            // A declaration-owned label can share a kernel spelling. Only
+            // the actual checked kernel identity has this portable encoding.
+            if self.effect_head(path, false).ok()?.as_str() != *name { return None }
             match (*name, arguments.as_slice()) {
-                ("IO" | "Async" | "Cancel" | "Eval", [region])
+                ("IO" | "Mut" | "Async" | "Cancel" | "Eval", [region])
                     if vars.contains(&region.text) && scheme.region_params.contains(&region.text) => {
                     labels.push(format!("{name} {}", region.text));
                 }
@@ -706,7 +711,7 @@ impl Checker {
             // the defining public type row.
             let refined = info.refine.is_some();
             if info.param_kinds.iter().any(|k| match k {
-                ParamKind::Type | ParamKind::Con(_) => false,
+                ParamKind::Type | ParamKind::Con(_) | ParamKind::Region => false,
                 ParamKind::Val(ty) if refined || info.opaque => !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes),
                 _ => true,
             }) { return None }

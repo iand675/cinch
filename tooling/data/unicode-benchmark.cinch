@@ -1,0 +1,566 @@
+-- | Public scalar Unicode pipelines with bounded machine counters and observable wraparound checksums.
+module Main where
+  import Data.Unicode
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Clock
+  import Effect.Process
+
+  -- | Parse validated decimal harness arguments outside the operation timer.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Accumulate only ASCII argument digits; malformed harness input maps to zero.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of Nil -> value; Cons cp rest -> case digit-value cp of None -> 0; Some digit -> decimal-from rest (value * 10 + digit)
+
+  -- | Advance one bounded machine iteration without allocation or imported arithmetic calls.
+  prim bump :: U32 -> U32 where
+    llvm {
+      %next = add i32 %0, 1
+      ret i32 %next
+    }
+
+  -- | Test the bounded machine iteration domain directly.
+  prim before :: U32 -> U32 -> Bool where
+    llvm {
+      %yes = icmp ult i32 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Select one of sixteen stable numeric input/partner observations.
+  prim phase :: U32 -> U32 where
+    llvm {
+      %result = and i32 %0, 15
+      ret i32 %result
+    }
+
+  -- | Include valid and invalid numeric case selectors without modulo or optional arithmetic.
+  prim selector :: U32 -> I32 where
+    llvm {
+      %result = and i32 %0, 3
+      ret i32 %result
+    }
+
+  -- | Observe the complete two's-complement word of a signed public result.
+  prim as-word :: I32 -> U32 where
+    llvm {
+      ret i32 %0
+    }
+
+  -- | Combine independent boolean result bits without a provider call.
+  prim or-word :: U32 -> U32 -> U32 where
+    llvm {
+      %result = or i32 %0, %1
+      ret i32 %result
+    }
+
+  -- | Retain every result word through deterministic unsigned wraparound arithmetic.
+  prim mix :: U64 -> U32 -> U64 where
+    llvm {
+      %wide = zext i32 %1 to i64
+      %changed = xor i64 %0, %wide
+      %result = mul i64 %changed, 1099511628211
+      ret i64 %result
+    }
+
+  -- | Select one boolean observation bit without allocating an optional value.
+  flag :: Bool -> U32 -> U32
+  flag value mask = if value then mask else 0
+
+  -- | Convert the final unsigned checksum once, after timing, without signed truncation.
+  word-natural :: U64 -> Nat
+  word-natural word = u32-to-nat (wrapping-u64-to-u32 word) + u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 word 32)) * 4294967296
+
+  -- | Read one immutable bounded sample without constructing a runtime list.
+  sample :: U32 -> U32 -> I32
+  sample pattern index = case pattern of
+    0 -> sample-a index
+    1 -> sample-b index
+    2 -> sample-c index
+    3 -> sample-d index
+    other -> 0
+
+  -- | One complete shallow sample page for numeric pattern 0.
+  sample-a :: U32 -> I32
+  sample-a index = case index of
+    0 -> 0
+    1 -> 9
+    2 -> 32
+    3 -> 48
+    4 -> 65
+    5 -> 73
+    6 -> 75
+    7 -> 90
+    8 -> 97
+    9 -> 105
+    10 -> 107
+    11 -> 122
+    12 -> 127
+    13 -> 64
+    14 -> 33
+    15 -> 95
+    other -> 0
+
+  -- | One complete shallow sample page for numeric pattern 1.
+  sample-b :: U32 -> I32
+  sample-b index = case index of
+    0 -> 160
+    1 -> 233
+    2 -> 383
+    3 -> 304
+    4 -> 305
+    5 -> 931
+    6 -> 962
+    7 -> 963
+    8 -> 1046
+    9 -> 769
+    10 -> 133
+    11 -> 8239
+    12 -> 8490
+    13 -> 453
+    14 -> 8205
+    15 -> 8592
+    other -> 0
+
+  -- | One complete shallow sample page for numeric pattern 2.
+  sample-c :: U32 -> I32
+  sample-c index = case index of
+    0 -> 66600
+    1 -> 66560
+    2 -> 125218
+    3 -> 125184
+    4 -> 66776
+    5 -> 77824
+    6 -> 93856
+    7 -> 128512
+    8 -> 119834
+    9 -> 119808
+    10 -> 917760
+    11 -> 1114111
+    12 -> 655359
+    13 -> 131072
+    14 -> 1114110
+    15 -> 65536
+    other -> 0
+
+  -- | One complete shallow sample page for numeric pattern 3.
+  sample-d :: U32 -> I32
+  sample-d index = case index of
+    0 -> (-2147483648)
+    1 -> (-1)
+    2 -> 55296
+    3 -> 57343
+    4 -> 1114112
+    5 -> 2147483647
+    6 -> 1114113
+    7 -> 8388607
+    8 -> 0
+    9 -> 128
+    10 -> 65533
+    11 -> 1114111
+    12 -> 55295
+    13 -> 57344
+    14 -> 1114110
+    15 -> (-1)
+    other -> 0
+
+  -- | Read one immutable bounded partner without constructing a runtime list.
+  partner :: U32 -> U32 -> I32
+  partner pattern index = case pattern of
+    0 -> partner-a index
+    1 -> partner-b index
+    2 -> partner-c index
+    3 -> partner-d index
+    other -> 0
+
+  -- | One complete shallow partner page for numeric pattern 0.
+  partner-a :: U32 -> I32
+  partner-a index = case index of
+    0 -> 0
+    1 -> 9
+    2 -> 32
+    3 -> 48
+    4 -> 97
+    5 -> 105
+    6 -> 8490
+    7 -> 122
+    8 -> 65
+    9 -> 305
+    10 -> 75
+    11 -> 90
+    12 -> 127
+    13 -> 64
+    14 -> 33
+    15 -> 95
+    other -> 0
+
+  -- | One complete shallow partner page for numeric pattern 1.
+  partner-b :: U32 -> I32
+  partner-b index = case index of
+    0 -> 32
+    1 -> 88
+    2 -> 83
+    3 -> 105
+    4 -> 73
+    5 -> 962
+    6 -> 931
+    7 -> 962
+    8 -> 1078
+    9 -> 769
+    10 -> 133
+    11 -> 32
+    12 -> 75
+    13 -> 452
+    14 -> 8205
+    15 -> 8592
+    other -> 0
+
+  -- | One complete shallow partner page for numeric pattern 2.
+  partner-c :: U32 -> I32
+  partner-c index = case index of
+    0 -> 66560
+    1 -> 66600
+    2 -> 125184
+    3 -> 125218
+    4 -> 66736
+    5 -> 77824
+    6 -> 93856
+    7 -> 128513
+    8 -> 119808
+    9 -> 119834
+    10 -> 917760
+    11 -> 1114111
+    12 -> 655359
+    13 -> 131072
+    14 -> 1114110
+    15 -> 65536
+    other -> 0
+
+  -- | One complete shallow partner page for numeric pattern 3.
+  partner-d :: U32 -> I32
+  partner-d index = case index of
+    0 -> (-2147483648)
+    1 -> (-2)
+    2 -> 55296
+    3 -> 55296
+    4 -> 1114112
+    5 -> 2147483646
+    6 -> 1114113
+    7 -> (-1)
+    8 -> 0
+    9 -> 128
+    10 -> 65533
+    11 -> 1114111
+    12 -> 55295
+    13 -> 57344
+    14 -> 1114110
+    15 -> 1114112
+    other -> 0
+
+  -- | Observe all named scalar predicates together, including numeric scalar-domain policy.
+  classification :: I32 -> U32
+  classification cp =
+    let yes-a = unicode-is-control-code cp in let bit-a = flag yes-a 1 in
+    let flags-a = bit-a in
+    let yes-b = unicode-is-digit-code cp in let bit-b = flag yes-b 2 in
+    let flags-b = or-word flags-a bit-b in
+    let yes-c = unicode-is-letter-code cp in let bit-c = flag yes-c 4 in
+    let flags-c = or-word flags-b bit-c in
+    let yes-d = unicode-is-lower-code cp in let bit-d = flag yes-d 8 in
+    let flags-d = or-word flags-c bit-d in
+    let yes-e = unicode-is-upper-code cp in let bit-e = flag yes-e 16 in
+    let flags-e = or-word flags-d bit-e in
+    let yes-f = unicode-is-title-code cp in let bit-f = flag yes-f 32 in
+    let flags-f = or-word flags-e bit-f in
+    let yes-g = unicode-is-mark-code cp in let bit-g = flag yes-g 64 in
+    let flags-g = or-word flags-f bit-g in
+    let yes-h = unicode-is-number-code cp in let bit-h = flag yes-h 128 in
+    let flags-h = or-word flags-g bit-h in
+    let yes-i = unicode-is-punct-code cp in let bit-i = flag yes-i 256 in
+    let flags-i = or-word flags-h bit-i in
+    let yes-j = unicode-is-symbol-code cp in let bit-j = flag yes-j 512 in
+    let flags-j = or-word flags-i bit-j in
+    let yes-k = unicode-is-graphic-code cp in let bit-k = flag yes-k 1024 in
+    let flags-k = or-word flags-j bit-k in
+    let yes-l = unicode-is-print-code cp in let bit-l = flag yes-l 2048 in
+    let flags-l = or-word flags-k bit-l in
+    let yes-m = unicode-is-space-code cp in let bit-m = flag yes-m 4096 in
+    let flags-m = or-word flags-l bit-m in
+    let yes-n = unicode-is-scalar-code cp in let bit-n = flag yes-n 8192 in
+    let flags-n = or-word flags-m bit-n in
+    flags-n
+
+  -- | Resolve rotating exact public catalog keys, including unknown names, during the operation.
+  catalog :: U32 -> I32 -> U32
+  catalog index cp = let selected = selector index in let found = catalog-lookup selected index in
+    case found of None -> 0; Some table -> let yes = unicode-range-contains-code table cp in if yes then 3 else 1
+
+  -- | Dispatch catalog setup with direct machine scalar cases rather than imported comparisons.
+  catalog-lookup :: I32 -> U32 -> Option UnicodeRangeTable
+  catalog-lookup selected index = case selected of
+    0 -> unicode-category (if before index 8 then "L" else "NoSuchCategory")
+    1 -> unicode-script (if before index 8 then "Greek" else "Adlam")
+    2 -> unicode-property (if before index 8 then "White_Space" else "Noncharacter_Code_Point")
+    other -> unicode-fold-category (if before index 8 then "Ll" else "NoSuchFold")
+
+  -- | Observe exact returned case-range fields, retaining the public indexed API's allocations.
+  case-observation :: U32 -> U64 -> U64
+  case-observation index checksum = case unicode-case-range-at (u32-to-nat index) of
+    None -> mix checksum 4294967295
+    Some value -> let a = mix checksum (unicode-case-range-low value) in
+      let b = mix a (unicode-case-range-high value) in
+      let upper = as-word (unicode-case-range-upper value) in let c = mix b upper in
+      let lower = as-word (unicode-case-range-lower value) in let d = mix c lower in
+      let title = as-word (unicode-case-range-title value) in mix d title
+
+  -- | Execute public predicates, mappings, fold equivalence, table queries or copied observations.
+  operation :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> I32 -> I32 -> U64 -> U64
+  operation mode table tables special index cp other checksum = case mode of
+    0 -> let yes = unicode-is-letter-code cp in let word = flag yes 1 in mix checksum word
+    1 -> let yes = unicode-is-space-code cp in let word = flag yes 1 in mix checksum word
+    2 -> let word = classification cp in mix checksum word
+    3 ->
+      let upper = as-word (unicode-to-upper-code cp) in let a = mix checksum upper in
+      let lower = as-word (unicode-to-lower-code cp) in let b = mix a lower in
+      let title = as-word (unicode-to-title-code cp) in let c = mix b title in
+      let selected = selector index in let generic = as-word (unicode-to-code selected cp) in mix c generic
+    4 -> let folded = as-word (unicode-simple-fold-code cp) in
+      let a = mix checksum folded in let same = unicode-equal-fold-code cp other in let word = flag same 1 in mix a word
+    5 -> let yes = unicode-range-contains-code table cp in let word = flag yes 1 in mix checksum word
+    6 -> let yes = unicode-range-contains-code table cp in let word = flag yes 1 in mix checksum word
+    7 -> let yes = unicode-range-contains-code table cp in let word = flag yes 1 in mix checksum word
+    8 -> let yes = unicode-range-contains-code table cp in let word = flag yes 1 in mix checksum word
+    9 -> let yes = unicode-range-contains-code table cp in let word = flag yes 1 in mix checksum word
+    10 -> let a = unicode-in-code cp tables in let b = unicode-is-one-of-code tables cp in
+      let first = flag a 1 in let second = flag b 2 in let word = or-word first second in mix checksum word
+    11 -> let word = catalog index cp in mix checksum word
+    12 -> special-operation special cp checksum
+    13 -> special-operation special cp checksum
+    14 -> case-observation index checksum
+    other -> let word = as-word cp in mix checksum word
+
+  -- | Observe all three public special-case mappings with the same bounded checksum protocol.
+  special-operation :: UnicodeSpecialCase -> I32 -> U64 -> U64
+  special-operation special cp checksum = let upper = as-word (unicode-special-to-upper-code special cp) in
+    let a = mix checksum upper in let lower = as-word (unicode-special-to-lower-code special cp) in
+    let b = mix a lower in let title = as-word (unicode-special-to-title-code special cp) in mix b title
+
+  -- | Dispatch once per sample, keeping unrelated workload branches outside each scalar loop.
+  repeat :: U32 -> U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat mode pattern table tables special iterations index checksum = case mode of
+    0 -> repeat-a pattern table tables special iterations index checksum
+    1 -> repeat-b pattern table tables special iterations index checksum
+    2 -> repeat-c pattern table tables special iterations index checksum
+    3 -> repeat-d pattern table tables special iterations index checksum
+    4 -> repeat-e pattern table tables special iterations index checksum
+    5 -> repeat-f pattern table tables special iterations index checksum
+    6 -> repeat-g pattern table tables special iterations index checksum
+    7 -> repeat-h pattern table tables special iterations index checksum
+    8 -> repeat-i pattern table tables special iterations index checksum
+    9 -> repeat-j pattern table tables special iterations index checksum
+    10 -> repeat-k pattern table tables special iterations index checksum
+    11 -> repeat-l pattern table tables special iterations index checksum
+    12 -> repeat-m pattern table tables special iterations index checksum
+    13 -> repeat-n pattern table tables special iterations index checksum
+    14 -> repeat-o pattern table tables special iterations index checksum
+    15 -> repeat-p pattern table tables special iterations index checksum
+    other -> checksum
+
+  -- | Run only public workload 0 with bounded machine state and no inner workload dispatch.
+  repeat-a :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-a pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 0 table tables special at cp other checksum in let following = bump index in
+    repeat-a pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 1 with bounded machine state and no inner workload dispatch.
+  repeat-b :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-b pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 1 table tables special at cp other checksum in let following = bump index in
+    repeat-b pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 2 with bounded machine state and no inner workload dispatch.
+  repeat-c :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-c pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 2 table tables special at cp other checksum in let following = bump index in
+    repeat-c pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 3 with bounded machine state and no inner workload dispatch.
+  repeat-d :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-d pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 3 table tables special at cp other checksum in let following = bump index in
+    repeat-d pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 4 with bounded machine state and no inner workload dispatch.
+  repeat-e :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-e pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 4 table tables special at cp other checksum in let following = bump index in
+    repeat-e pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 5 with bounded machine state and no inner workload dispatch.
+  repeat-f :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-f pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 5 table tables special at cp other checksum in let following = bump index in
+    repeat-f pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 6 with bounded machine state and no inner workload dispatch.
+  repeat-g :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-g pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 6 table tables special at cp other checksum in let following = bump index in
+    repeat-g pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 7 with bounded machine state and no inner workload dispatch.
+  repeat-h :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-h pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 7 table tables special at cp other checksum in let following = bump index in
+    repeat-h pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 8 with bounded machine state and no inner workload dispatch.
+  repeat-i :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-i pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 8 table tables special at cp other checksum in let following = bump index in
+    repeat-i pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 9 with bounded machine state and no inner workload dispatch.
+  repeat-j :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-j pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 9 table tables special at cp other checksum in let following = bump index in
+    repeat-j pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 10 with bounded machine state and no inner workload dispatch.
+  repeat-k :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-k pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 10 table tables special at cp other checksum in let following = bump index in
+    repeat-k pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 11 with bounded machine state and no inner workload dispatch.
+  repeat-l :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-l pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 11 table tables special at cp other checksum in let following = bump index in
+    repeat-l pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 12 with bounded machine state and no inner workload dispatch.
+  repeat-m :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-m pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 12 table tables special at cp other checksum in let following = bump index in
+    repeat-m pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 13 with bounded machine state and no inner workload dispatch.
+  repeat-n :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-n pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 13 table tables special at cp other checksum in let following = bump index in
+    repeat-n pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 14 with bounded machine state and no inner workload dispatch.
+  repeat-o :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-o pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 14 table tables special at cp other checksum in let following = bump index in
+    repeat-o pattern table tables special iterations following next
+    else checksum
+
+  -- | Run only public workload 15 with bounded machine state and no inner workload dispatch.
+  repeat-p :: U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase -> U32 -> U32 -> U64 -> U64
+  repeat-p pattern table tables special iterations index checksum = if before index iterations then
+    let at = phase index in let cp = sample pattern at in let other = partner pattern at in
+    let next = operation 15 table tables special at cp other checksum in let following = bump index in
+    repeat-p pattern table tables special iterations following next
+    else checksum
+
+  -- | Select the checked public workload before entering the timer.
+  mode-code :: String -> U32
+  mode-code name =
+    if name == "letter" then 0
+    else if name == "space" then 1
+    else if name == "classify" then 2
+    else if name == "case" then 3
+    else if name == "fold" then 4
+    else if name == "table-letter" then 5
+    else if name == "table-surrogates" then 6
+    else if name == "table-greek" then 7
+    else if name == "table-space" then 8
+    else if name == "table-custom" then 9
+    else if name == "table-union" then 10
+    else if name == "catalog" then 11
+    else if name == "special-turkish" then 12
+    else if name == "special-custom" then 13
+    else if name == "case-observe" then 14
+    else if name == "harness" then 15
+    else 99
+
+  -- | Select immutable built-ins or a validated synthetic table outside the timer.
+  choose-table :: U32 -> Option UnicodeRangeTable
+  choose-table mode = if eq-u32 mode 6 then unicode-category "Cs" else if eq-u32 mode 7 then unicode-script "Greek"
+    else if eq-u32 mode 8 then unicode-property "White_Space"
+    else if eq-u32 mode 9 then (case unicode-range-table [MkUnicodeRange16 65 90 2, MkUnicodeRange16 931 963 16, MkUnicodeRange16 55296 57343 257] [MkUnicodeRange32 65536 1114111 17] of Err error -> None; Ok table -> Some table)
+    else unicode-category "L"
+
+  -- | Build an explicit identity override, Latin mapping, alternating pair and supplementary rule.
+  custom-special :: Unit -> Result UnicodeCaseError UnicodeSpecialCase
+  custom-special unit = unicode-special-case [MkUnicodeCaseRange 65 90 0 0 0, MkUnicodeCaseRange 233 233 (-145) (-145) (-145), MkUnicodeCaseRange 256 257 1114112 1114112 1114112, MkUnicodeCaseRange 66600 66639 (-40) 0 (-40)]
+
+  -- | Time only public operations and allocation-free machine loop/checksum bookkeeping.
+  measure :: forall r. using (io :: Io r) => U32 -> U32 -> U32 -> UnicodeRangeTable -> List UnicodeRangeTable -> UnicodeSpecialCase ->{IO r} Int
+  measure mode pattern iterations table tables special =
+    let start = clock-monotonic-ns () in let checksum = repeat mode pattern table tables special iterations 0 14695981039346656037 in let end = clock-monotonic-ns () in
+    let elapsed = saturating-sub end start in let result = word-natural checksum in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string elapsed) (string-concat " " (string-concat (nat-to-string result) "\n")))) in 0
+
+  -- | Resolve all table/name/rule setup before the monotonic operation timer.
+  prepare :: forall r. using (io :: Io r) => U32 -> U32 -> U32 ->{IO r} Int
+  prepare mode pattern iterations = case choose-table mode of
+    None -> 3
+    Some table -> case unicode-property "White_Space" of
+      None -> 3
+      Some white -> case custom-special () of
+        Err error -> 3
+        Ok custom -> let tables = [table, white] in let special = if eq-u32 mode 13 then custom else unicode-turkish-case in
+          measure mode pattern iterations table tables special
+
+  -- | Validate bounded host inputs before constructing public library contexts.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Err error -> 2
+    Ok args -> case args of
+      Cons name (Cons pattern (Cons iterations Nil)) -> let mode = mode-code name in
+        let p = decimal pattern in let n = decimal iterations in
+        if before mode 16 && p <= 3 && n <= 10000000 then
+          let raw-pattern = wrapping-i64-to-u32 (nat-to-i64 p) in let raw-count = wrapping-i64-to-u32 (nat-to-i64 n) in
+          prepare mode raw-pattern raw-count
+        else 2
+      other -> 2

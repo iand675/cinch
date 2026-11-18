@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "description": "A borrowed field result outlives the counted payload of a nested frame owner",
+  "source": "bootstrap/programs/Run.NestedFramePayload.cinch",
+  "source_sha256": "16fe6ea4fcb042c7551e2fcbbb5e7c65ec5d46ed27035347463d983b60856fbc",
+  "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "original_compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "strict_order_compiler_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f",
+  "opt_level": 2,
+  "original_compiler": [
+    {
+      "heap": "32M",
+      "debug": "0",
+      "exit": 71,
+      "stderr": "cinchruntime: compiler bug: null or wrong-kind word or corrupt generated data\n"
+    },
+    {
+      "heap": "256M",
+      "debug": "1",
+      "exit": 71,
+      "stderr": "cinchruntime: compiler bug: null or wrong-kind word or corrupt generated data\n"
+    }
+  ],
+  "strict_order_compiler": [
+    {
+      "variant": "default",
+      "heap": "32M",
+      "debug": "0",
+      "exit": 71,
+      "stderr": "cinchruntime: compiler bug: null or wrong-kind word or corrupt generated data\n"
+    },
+    {
+      "variant": "default",
+      "heap": "256M",
+      "debug": "1",
+      "exit": 71,
+      "stderr": "cinchruntime: compiler bug: null or wrong-kind word or corrupt generated data\n"
+    },
+    {
+      "variant": "no-stack",
+      "heap": "32M",
+      "debug": "0",
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "variant": "no-stack",
+      "heap": "256M",
+      "debug": "1",
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "lowered_core": {
+    "Main.main": "unit Main.main :: Int\n  @frame(2 slots, 32 bytes)\n  @stage(lowered)\n  body (let t0 @class(owned)\n    (app (ctor Main.Inner 0 1) @frame(f0) (app (prim cinch.runtime.bytesNew) (nat \"1\")))\n    (let t1 @class(owned)\n      (app (global Main.length-inner) (local t0))\n      (let t4 @class(owned)\n        (let t2 @class(owned)\n          (app (ctor Main.Outer 0 1) @frame(f1) (local t0))\n          (let t3 @class(uncounted)\n            (app (global Main.take-inner) (local t2))\n            (drop t2 @class(owned) (local t3))))\n        (let t6 @class(owned)\n          (let t5 @class(uncounted)\n            (app (global Main.length-inner) (local t4))\n            (drop t4 @class(owned) (local t5)))\n          (if\n            (if\n              (app (prim cinch.prim.eqI64)\n                (let t7 @class(uncounted)\n                  (app (prim cinch.runtime.natCmp) (local t1) (nat \"1\"))\n                  (drop t1 @class(owned) (local t7)))\n                (int 0))\n              (app (prim cinch.prim.eqI64)\n                (let t8 @class(uncounted)\n                  (app (prim cinch.runtime.natCmp) (local t6) (nat \"1\"))\n                  (drop t6 @class(owned) (local t8)))\n                (int 0))\n              (drop t6 @class(owned) (bool false)))\n            (int 0)\n            (int 1))))))\nend",
+    "Main.take-inner": "unit Main.take-inner :: Main.Outer -> Main.Inner\n  @params t0 :: Main.Outer @owned\n  @stage(lowered)\n  body (case (local t0) ((con 0 (t1 @class(owned))) (dup t1 @class(owned) (local t1))))\nend",
+    "Main.length-inner": "unit Main.length-inner :: Main.Inner -> Nat\n  @params t0 :: Main.Inner @owned\n  @stage(lowered)\n  body (case (local t0) ((con 0 (t1 @class(owned))) (app (prim cinch.runtime.bytesLen) (local t1))))\nend"
+  },
+  "csv_full_source_sha256": {
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Effect.Csv.cinch": "115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605",
+    "Effect.Stream.cinch": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+    "Main.cinch": "93fa7137967712916480e49158658eea32a9c09a4915e9962c9da60aaa4bc347",
+    "Text.Csv.Record.cinch": "d14027dab57c59a62b9118ac71d838c0dcc9684b8f62e7a52f07982301441815"
+  },
+  "csv_default_normal": {
+    "exit": 71,
+    "stderr": "cinchruntime: compiler bug: null or wrong-kind word or corrupt generated data\n"
+  },
+  "csv_default_poison": {
+    "exit": 71,
+    "stderr": "cinchruntime: compiler bug: null or wrong-kind word or corrupt generated data\n"
+  },
+  "csv_no_stack_poison": {
+    "exit": 0,
+    "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+  },
+  "initial_counted_guard": {
+    "compiler_sha256": "ddd7c2e4e8104bf41f43d2c94b3480f46f61488fbdcf99540ebfa064f36d766c",
+    "parent_tests": {
+      "lib": 302,
+      "stack_allocation": 21,
+      "wide": 18,
+      "tail_calls": 11,
+      "lib_csv_record": 11
+    },
+    "tiny_runtime_runs": 8,
+    "csv_candidate_runtime_runs": 6,
+    "zero_leaks": true,
+    "superseded_scope": "The initial rule did not prevent raw child addresses from leaving their allocating activation."
+  },
+  "raw_projection_review": {
+    "source": "bootstrap/programs/Run.ReturnedFrameProjection.cinch",
+    "source_sha256": "07902d57c0a80e8c1707e4a245b97a2bd4b01ed5c5c5a03be55c749e2d9c0a01",
+    "review_source_snapshot": "build/raw-projection-return/Main.cinch",
+    "review_source_snapshot_sha256": "2dd3d1778fc8da83dba895589cfcbac433c60a4c8dafaf697b3a40ed9badad57",
+    "lowered_core": "build/raw-projection-return/lowered-sum.core",
+    "llvm": "build/raw-projection-return/retained.ll",
+    "llvm_sha256": "4c36ef54b16a2b51aa3fa88b213c28a04d0181b40c2a91d8d4a26ada0f313097",
+    "finding": "Main.produce returns a child pointer derived from its own alloca. A zero exit under unchanged stack contents does not prove that returned storage survives the activation."
+  },
+  "current_guard": "All nested children remain on the heap until cross-owner field aliases are tracked; standalone raw duplication and safe consuming-callee placements remain eligible.",
+  "current_guard_validation": {
+    "status": "passed",
+    "tests": {
+      "lib": {
+        "passed": 302,
+        "seconds": 207.58
+      },
+      "lib_csv_record": {
+        "passed": 11,
+        "seconds": 55.71
+      },
+      "tail_calls": {
+        "passed": 11,
+        "seconds": 31.18
+      },
+      "wide": {
+        "passed": 18,
+        "seconds": 75.98
+      },
+      "stack_allocation": {
+        "passed": 22,
+        "seconds": 98.19
+      }
+    },
+    "total": 364,
+    "rust_incremental_cache_enabled_for_preserved_gate": false,
+    "focused_log_sha256": "e2349a9b3e5e4fd8b8a42ae993580ddf5a3090040d4b316867b8169b268ab3a7",
+    "preserved_log_sha256": "76c22d63ccc00251dd153085daa21b13329e5ee87bf0b7a1a1676578202998e1",
+    "compiler_snapshot": {
+      "description": "All nested child frame placements refused until projected aliases are tracked; standalone raw duplication and safe owned-callee placements retained",
+      "revision": "269153a77f22d8fd106aedacc4829d68150775c9",
+      "binary_sha256": "cad70e533fcab8305fe6e79ae95f135f61252338c6a5fd5e5358e8f27563e3f4",
+      "stack_source_sha256": "2bfdf8369e5019657b5c7e08110caaf4e1359244673f8f8fc108b666a20274dd",
+      "runtime_archive": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "final_focused_gate": {
+        "target": "stack_allocation",
+        "passed": 22,
+        "seconds": 98.19
+      },
+      "broader_counted_guard_gate": {
+        "lib": 302,
+        "lib_csv_record": 11,
+        "stack_allocation": 21,
+        "tail_calls": 11,
+        "wide": 18
+      },
+      "broader_final_guard_gate": "passed"
+    },
+    "current_stack_source_sha256": "2bfdf8369e5019657b5c7e08110caaf4e1359244673f8f8fc108b666a20274dd"
+  }
+}

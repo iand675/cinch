@@ -1,0 +1,66 @@
+{
+  "module": "Effect.Random.Text",
+  "epoch": "text-wrapper-with-token-v2",
+  "environment_overrides": {
+    "LD_LIBRARY_PATH": "/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu",
+    "CINCH_STORE": "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/text-wrapper-with-token-v2/store",
+    "TMPDIR": "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/text-wrapper-with-token-v2/scratch",
+    "RUST_MIN_STACK": "67108864"
+  },
+  "initial_free_bytes": 522018816,
+  "minimum_free_bytes": 516792320,
+  "peak_unit_bytes": 4884371,
+  "commands": [
+    {
+      "argv": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+        "doc",
+        "extract",
+        "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/text-wrapper-with-token-v2/project/Effect.Random.Text.cinch",
+        "--out",
+        "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/text-wrapper-with-token-v2/docs.json"
+      ],
+      "exit_code": 0,
+      "stdout": "command-0.stdout",
+      "stderr": "command-0.stderr"
+    },
+    {
+      "argv": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/text-wrapper-with-token-v2/project/Effect.Random.Text.cinch",
+        "--rebuild"
+      ],
+      "exit_code": 0,
+      "stdout": "command-1.stdout",
+      "stderr": "command-1.stderr"
+    }
+  ],
+  "guard_violation": null,
+  "runtime_executed": false,
+  "IR_emitted": false,
+  "launcher_sha256": "a6e4dbeb0c0869a873b9c08382551cf0f8bdf3613ea1729a55094e4c32abc560",
+  "elapsed_seconds_not_benchmark": 1.2593806950026192,
+  "final_free_bytes": 516792320,
+  "final_unit_bytes_before_receipt": 4884371,
+  "compiler_sha256_after": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "doc_top_level_keys": [
+    "declarations",
+    "diagnostics",
+    "doc",
+    "module",
+    "orphans",
+    "schema",
+    "source",
+    "sourceSha256"
+  ],
+  "doc_diagnostics": [],
+  "doc_orphans": [],
+  "source_passed": true
+}

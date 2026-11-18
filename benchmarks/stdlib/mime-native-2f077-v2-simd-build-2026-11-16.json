@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "scalar_snapshot": false,
+  "compile_rc_debug": false,
+  "runner_sha256": "5a3a857e3531ffd8f1246207a7c6dd7e936cddfbc046603f3d340e0555923955",
+  "compiler": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "runtime": "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/libcinchruntime.a",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "driver_sha256": "ccc8e8e339b4e66b3043be7b25a32964a0f42b9ace52d192652ff4bb4c2186f3",
+  "reference_source_sha256": "799b1ab6acb4869128236a0ef415efb547976a5f5200588afab714bea4260011",
+  "source_sha256": {
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Data.Unicode.Tables": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Mime": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
+    "Effect.Stream": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+    "Effect.Mime": "1211c316b96474b7ed1d997092520055aca5cabba4b3c262d1a6f9d490fca215"
+  },
+  "compiler_host_stack_bytes": 67108864,
+  "compiler_environment": {
+    "RUST_MIN_STACK": "67108864",
+    "CINCH_STACK_SIZE": "64M"
+  },
+  "allocation_policy": "Cinch returns fresh mutable byte outputs; the reference uses immutable strings and may reuse an unchanged input.",
+  "registry_context_scope": "Cinch owns one custom association in an explicit empty context; the public reference retains its ambient host registry plus the same custom association. Queries and returned bytes match, but total index populations differ.",
+  "profile_scope": "Cinch executable only; the public reference retains its normal GC, heap and goroutine-stack policies.",
+  "profile": {
+    "heap": "32M",
+    "stack": "8M",
+    "poison": false,
+    "leak_check": true
+  },
+  "scope": "Build and measure full MIME public pipelines against a pinned reference.\n\nAll samples, allocation-policy differences and regressions remain visible. The\nscope includes fresh output allocation and an observable scalar output checksum;\ninput generation and decode-fixture encoding occur before the measured interval.\n",
+  "results": [],
+  "native": {
+    "base-interfaces.json": "229ee93293324c20aa30c9fcc3d8c6ba1cd0a8487995c24d619efca4a4fdb9de",
+    "objects.json": "36d5ec975fe45cf327441ff2f25668fe61dcfe70ee33e0235e50b55d9ebdb641",
+    "provider_sha256": "4d1eef3c7da0f5b29f52a12300dd3c854df36dcd0427c9734ef51ae24a7c9d5b"
+  },
+  "compile": {
+    "command": [
+      "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/cinch",
+      "--emit-ir",
+      "--interfaces",
+      "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/base-interfaces.json",
+      "--objects",
+      "/workspace/dasl-stdlib-mime/build/mime/2f077-v2-provisional-snapshot/objects.json",
+      "/workspace/dasl-stdlib-mime/build/mime/bench-2f077-v2-simd/bundle.source",
+      "/workspace/dasl-stdlib-mime/build/mime/bench-2f077-v2-simd/bench.ll"
+    ],
+    "stdout": "",
+    "stderr": ""
+  },
+  "executable_sha256": "0d392ab0d47e67cfafcf4d2d7e773b17d53c7d88a3b1531faaa378990410a448",
+  "reference_executable_sha256": "20d20b8a5a8579e8d3d926054ba43b213d08b5d4d25199816bf9c21a9769b82b",
+  "llvm_sha256": "a868dc13ad8c493634af8af89a6757516c6b24e0661fcd493b8b9f48b9d8c929",
+  "assembly_sha256": "9c364e70c160378780f7bf64c04121a38a37875444ff59356b6fa1dfca26fe14",
+  "target_triple": "x86_64-unknown-linux-gnu",
+  "sdk": "go version go1.27.4 linux/amd64",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)"
+}

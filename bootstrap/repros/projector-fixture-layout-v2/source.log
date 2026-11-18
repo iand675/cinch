@@ -1,0 +1,1 @@
+cinch: compiler/tests/fixtures/inline-field-projector-owned.cinch: 43:5: expected a pattern, found Else

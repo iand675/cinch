@@ -1,0 +1,1447 @@
+-- | Independent JSON value and formatting consumer with runtime inputs and complete byte comparisons.
+module Main where
+  import Text.Json.Value
+  import Data.Machine
+  import Data.Bytes.Word
+  -- | Keep input preparation live through front-end evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Observe a finite float's complete IEEE bit pattern without decimal rendering.
+  prim float-bits :: F64 -> U64 where
+    llvm {
+      %value = bitcast double %0 to i64
+      ret i64 %value
+    }
+  -- | Snapshot fixture bytes through a runtime-sized destination.
+  runtime-bytes :: Bytes -> Bytes
+  runtime-bytes input =
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let out = bytes-new size in
+    if bytes-len input <= bytes-len out then let copied = bytes-copy-range out input 0 0 (bytes-len input) in out else bytes-new 0
+  -- | Compare complete bytes, including embedded NUL and malformed UTF-8.
+  same-bytes :: Bytes -> Bytes -> Bool
+  same-bytes left right = eq-i64 (bytes-compare left right) 0
+  -- | Compare syntax failures using original offsets and neutral JSON diagnostic text.
+  syntax-error :: JsonError -> Nat -> String -> Bool
+  syntax-error actual offset message = case actual of JsonSyntaxError at text -> at == offset && text == message; other -> False
+  -- | Check validation and exact retained raw source for a complete valid document.
+  valid-case :: Bytes -> Bytes -> Bool
+  valid-case input raw = json-valid input && (case json-document input of Err error -> False; Ok document -> same-bytes (json-value-source (json-document-value document)) raw && same-bytes (json-document-input document) input)
+  -- | Check named syntax failure before a document or output can escape.
+  invalid-case :: Bytes -> Nat -> String -> Bool
+  invalid-case input offset message = not (json-valid input) && (case json-document input of Err error -> syntax-error error offset message; Ok document -> False)
+  -- | Compare the entire compact output or its exact original syntax refusal.
+  compact-case :: Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  compact-case input expected valid offset message = case json-compact input of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare indentation, including arbitrary line prefixes and preserved trailing whitespace.
+  indent-case :: Bytes -> String -> String -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-case input prefix step expected valid offset message = case json-indent input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare raw-byte indentation fragments independently of scalar text validity.
+  indent-byte-case :: Bytes -> Bytes -> Bytes -> Bytes -> Bool -> Nat -> String -> Bool
+  indent-byte-case input prefix step expected valid offset message = case json-indent-bytes input prefix step of
+    Ok out -> valid && same-bytes out expected
+    Err error -> not valid && syntax-error error offset message
+  -- | Compare quoted arbitrary bytes and their decoded replacement-scalar text.
+  quote-case :: Bytes -> Bool -> Bytes -> Bytes -> Bool
+  quote-case input html expected decoded =
+    let out = json-quote-bytes input html in same-bytes out expected && (case json-document out of
+      Err error -> False
+      Ok document -> case json-value-string (json-document-value document) of None -> False; Some text -> same-bytes (string-to-bytes text) decoded)
+  -- | Compare valid number spellings and integer/float conversions without a rounding-based oracle.
+  number-case :: String -> Bool -> I64 -> Bool -> U64 -> Bool
+  number-case text integer-ok integer float-ok bits = case json-number text of
+    Err error -> False
+    Ok number -> json-number-text number == text
+      && (case json-number-int64 number of Ok actual -> integer-ok && eq-i64 actual integer; Err error -> not integer-ok)
+      && (case json-number-float64 number of Ok actual -> float-ok && eq-u64 (float-bits actual) bits; Err error -> not float-ok)
+  -- | Reject malformed number spellings at construction rather than admitting an invalid number value.
+  number-invalid :: String -> Bool
+  number-invalid text = case json-number text of Err error -> True; Ok value -> False
+  -- | Preserve a failing fixture index within a bounded group.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks index = case checks of Nil -> 0; Cons first rest -> if first then first-failure rest (index + 1) else index
+  -- | Preserve the first failing group without constructing one enormous evaluation body.
+  first-result :: List Nat -> Nat
+  first-result groups = case groups of Nil -> 0; Cons first rest -> if first > 0 then first else first-result rest
+
+  -- | Exact production rounding primitive.
+  prim numeric-hex-round :: U64 -> U32 -> U8 -> U64 where
+    llvm {
+      %nonzero = icmp ne i32 %1, 0
+      %below64 = icmp ult i32 %1, 64
+      %narrow = and i1 %nonzero, %below64
+      %safecount = select i1 %narrow, i32 %1, i32 1
+      %shift = zext i32 %safecount to i64
+      %quotient = lshr i64 %0, %shift
+      %unit = shl i64 1, %shift
+      %mask = sub i64 %unit, 1
+      %remainder = and i64 %0, %mask
+      %half = lshr i64 %unit, 1
+      %above = icmp ugt i64 %remainder, %half
+      %tie = icmp eq i64 %remainder, %half
+      %low = and i64 %quotient, 1
+      %odd = icmp ne i64 %low, 0
+      %sticky = icmp ne i8 %2, 0
+      %preferup = or i1 %odd, %sticky
+      %tieup = and i1 %tie, %preferup
+      %up = or i1 %above, %tieup
+      %increment = zext i1 %up to i64
+      %rounded = add i64 %quotient, %increment
+      %above64 = icmp ugt i64 %0, -9223372036854775808
+      %tie64 = icmp eq i64 %0, -9223372036854775808
+      %tieup64 = and i1 %tie64, %sticky
+      %up64 = or i1 %above64, %tieup64
+      %result64 = zext i1 %up64 to i64
+      %exact64 = icmp eq i32 %1, 64
+      %widevalue = select i1 %exact64, i64 %result64, i64 0
+      %shifted = select i1 %below64, i64 %rounded, i64 %widevalue
+      %result = select i1 %nonzero, i64 %shifted, i64 %0
+      ret i64 %result
+    }
+
+  -- | Keep the production rounding primitive live on checked runtime-written and loaded words.
+  hex-round-case :: U64 -> U32 -> U8 -> U64 -> Bool
+  hex-round-case prefix shift sticky expected =
+    let input = bytes-new 8 in
+    let written = bytes-write-le64 input 0 prefix in
+    eq-u64 (numeric-hex-round (bytes-read-le64 input 0) shift sticky) expected
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch0 :: Unit -> Nat
+  check-batch0 unit = first-failure [
+      (hex-round-case (0 :: U64) (1 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (0 :: U64) (1 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (1 :: U64) (1 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1 :: U64) (1 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (2 :: U64) (1 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (2 :: U64) (1 :: U32) (1 :: U8) (1 :: U64))] 1
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch1 :: Unit -> Nat
+  check-batch1 unit = first-failure [
+      (hex-round-case (2 :: U64) (1 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (2 :: U64) (1 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (3 :: U64) (1 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3 :: U64) (1 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (4 :: U64) (1 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (4 :: U64) (1 :: U32) (1 :: U8) (2 :: U64))] 7
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch2 :: Unit -> Nat
+  check-batch2 unit = first-failure [
+      (hex-round-case (1 :: U64) (2 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1 :: U64) (2 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (2 :: U64) (2 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2 :: U64) (2 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (3 :: U64) (2 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (3 :: U64) (2 :: U32) (1 :: U8) (1 :: U64))] 13
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch3 :: Unit -> Nat
+  check-batch3 unit = first-failure [
+      (hex-round-case (5 :: U64) (2 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (5 :: U64) (2 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (6 :: U64) (2 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6 :: U64) (2 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (7 :: U64) (2 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (7 :: U64) (2 :: U32) (1 :: U8) (2 :: U64))] 19
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch4 :: Unit -> Nat
+  check-batch4 unit = first-failure [
+      (hex-round-case (3 :: U64) (3 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (3 :: U64) (3 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (4 :: U64) (3 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4 :: U64) (3 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (5 :: U64) (3 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (5 :: U64) (3 :: U32) (1 :: U8) (1 :: U64))] 25
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch5 :: Unit -> Nat
+  check-batch5 unit = first-failure [
+      (hex-round-case (11 :: U64) (3 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (11 :: U64) (3 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (12 :: U64) (3 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (12 :: U64) (3 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (13 :: U64) (3 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (13 :: U64) (3 :: U32) (1 :: U8) (2 :: U64))] 31
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch6 :: Unit -> Nat
+  check-batch6 unit = first-failure [
+      (hex-round-case (7 :: U64) (4 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (7 :: U64) (4 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (8 :: U64) (4 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (8 :: U64) (4 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (9 :: U64) (4 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (9 :: U64) (4 :: U32) (1 :: U8) (1 :: U64))] 37
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch7 :: Unit -> Nat
+  check-batch7 unit = first-failure [
+      (hex-round-case (23 :: U64) (4 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (23 :: U64) (4 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (24 :: U64) (4 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (24 :: U64) (4 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (25 :: U64) (4 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (25 :: U64) (4 :: U32) (1 :: U8) (2 :: U64))] 43
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch8 :: Unit -> Nat
+  check-batch8 unit = first-failure [
+      (hex-round-case (15 :: U64) (5 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (15 :: U64) (5 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (16 :: U64) (5 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (16 :: U64) (5 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (17 :: U64) (5 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (17 :: U64) (5 :: U32) (1 :: U8) (1 :: U64))] 49
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch9 :: Unit -> Nat
+  check-batch9 unit = first-failure [
+      (hex-round-case (47 :: U64) (5 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (47 :: U64) (5 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (48 :: U64) (5 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (48 :: U64) (5 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (49 :: U64) (5 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (49 :: U64) (5 :: U32) (1 :: U8) (2 :: U64))] 55
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch10 :: Unit -> Nat
+  check-batch10 unit = first-failure [
+      (hex-round-case (31 :: U64) (6 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (31 :: U64) (6 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (32 :: U64) (6 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (32 :: U64) (6 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (33 :: U64) (6 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (33 :: U64) (6 :: U32) (1 :: U8) (1 :: U64))] 61
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch11 :: Unit -> Nat
+  check-batch11 unit = first-failure [
+      (hex-round-case (95 :: U64) (6 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (95 :: U64) (6 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (96 :: U64) (6 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (96 :: U64) (6 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (97 :: U64) (6 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (97 :: U64) (6 :: U32) (1 :: U8) (2 :: U64))] 67
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch12 :: Unit -> Nat
+  check-batch12 unit = first-failure [
+      (hex-round-case (63 :: U64) (7 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (63 :: U64) (7 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (64 :: U64) (7 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (64 :: U64) (7 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (65 :: U64) (7 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (65 :: U64) (7 :: U32) (1 :: U8) (1 :: U64))] 73
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch13 :: Unit -> Nat
+  check-batch13 unit = first-failure [
+      (hex-round-case (191 :: U64) (7 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (191 :: U64) (7 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (192 :: U64) (7 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (192 :: U64) (7 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (193 :: U64) (7 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (193 :: U64) (7 :: U32) (1 :: U8) (2 :: U64))] 79
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch14 :: Unit -> Nat
+  check-batch14 unit = first-failure [
+      (hex-round-case (127 :: U64) (8 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (127 :: U64) (8 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (128 :: U64) (8 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (128 :: U64) (8 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (129 :: U64) (8 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (129 :: U64) (8 :: U32) (1 :: U8) (1 :: U64))] 85
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch15 :: Unit -> Nat
+  check-batch15 unit = first-failure [
+      (hex-round-case (383 :: U64) (8 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (383 :: U64) (8 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (384 :: U64) (8 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (384 :: U64) (8 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (385 :: U64) (8 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (385 :: U64) (8 :: U32) (1 :: U8) (2 :: U64))] 91
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch16 :: Unit -> Nat
+  check-batch16 unit = first-failure [
+      (hex-round-case (255 :: U64) (9 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (255 :: U64) (9 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (256 :: U64) (9 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (256 :: U64) (9 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (257 :: U64) (9 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (257 :: U64) (9 :: U32) (1 :: U8) (1 :: U64))] 97
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch17 :: Unit -> Nat
+  check-batch17 unit = first-failure [
+      (hex-round-case (767 :: U64) (9 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (767 :: U64) (9 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (768 :: U64) (9 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (768 :: U64) (9 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (769 :: U64) (9 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (769 :: U64) (9 :: U32) (1 :: U8) (2 :: U64))] 103
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch18 :: Unit -> Nat
+  check-batch18 unit = first-failure [
+      (hex-round-case (511 :: U64) (10 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (511 :: U64) (10 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (512 :: U64) (10 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (512 :: U64) (10 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (513 :: U64) (10 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (513 :: U64) (10 :: U32) (1 :: U8) (1 :: U64))] 109
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch19 :: Unit -> Nat
+  check-batch19 unit = first-failure [
+      (hex-round-case (1535 :: U64) (10 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1535 :: U64) (10 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1536 :: U64) (10 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1536 :: U64) (10 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (1537 :: U64) (10 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1537 :: U64) (10 :: U32) (1 :: U8) (2 :: U64))] 115
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch20 :: Unit -> Nat
+  check-batch20 unit = first-failure [
+      (hex-round-case (1023 :: U64) (11 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1023 :: U64) (11 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (1024 :: U64) (11 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1024 :: U64) (11 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1025 :: U64) (11 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1025 :: U64) (11 :: U32) (1 :: U8) (1 :: U64))] 121
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch21 :: Unit -> Nat
+  check-batch21 unit = first-failure [
+      (hex-round-case (3071 :: U64) (11 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (3071 :: U64) (11 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (3072 :: U64) (11 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3072 :: U64) (11 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (3073 :: U64) (11 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3073 :: U64) (11 :: U32) (1 :: U8) (2 :: U64))] 127
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch22 :: Unit -> Nat
+  check-batch22 unit = first-failure [
+      (hex-round-case (2047 :: U64) (12 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2047 :: U64) (12 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (2048 :: U64) (12 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2048 :: U64) (12 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (2049 :: U64) (12 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (2049 :: U64) (12 :: U32) (1 :: U8) (1 :: U64))] 133
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch23 :: Unit -> Nat
+  check-batch23 unit = first-failure [
+      (hex-round-case (6143 :: U64) (12 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (6143 :: U64) (12 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (6144 :: U64) (12 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6144 :: U64) (12 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (6145 :: U64) (12 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6145 :: U64) (12 :: U32) (1 :: U8) (2 :: U64))] 139
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch24 :: Unit -> Nat
+  check-batch24 unit = first-failure [
+      (hex-round-case (4095 :: U64) (13 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4095 :: U64) (13 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (4096 :: U64) (13 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4096 :: U64) (13 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (4097 :: U64) (13 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (4097 :: U64) (13 :: U32) (1 :: U8) (1 :: U64))] 145
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch25 :: Unit -> Nat
+  check-batch25 unit = first-failure [
+      (hex-round-case (12287 :: U64) (13 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (12287 :: U64) (13 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (12288 :: U64) (13 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (12288 :: U64) (13 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (12289 :: U64) (13 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (12289 :: U64) (13 :: U32) (1 :: U8) (2 :: U64))] 151
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch26 :: Unit -> Nat
+  check-batch26 unit = first-failure [
+      (hex-round-case (8191 :: U64) (14 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (8191 :: U64) (14 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (8192 :: U64) (14 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (8192 :: U64) (14 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (8193 :: U64) (14 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (8193 :: U64) (14 :: U32) (1 :: U8) (1 :: U64))] 157
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch27 :: Unit -> Nat
+  check-batch27 unit = first-failure [
+      (hex-round-case (24575 :: U64) (14 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (24575 :: U64) (14 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (24576 :: U64) (14 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (24576 :: U64) (14 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (24577 :: U64) (14 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (24577 :: U64) (14 :: U32) (1 :: U8) (2 :: U64))] 163
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch28 :: Unit -> Nat
+  check-batch28 unit = first-failure [
+      (hex-round-case (16383 :: U64) (15 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (16383 :: U64) (15 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (16384 :: U64) (15 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (16384 :: U64) (15 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (16385 :: U64) (15 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (16385 :: U64) (15 :: U32) (1 :: U8) (1 :: U64))] 169
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch29 :: Unit -> Nat
+  check-batch29 unit = first-failure [
+      (hex-round-case (49151 :: U64) (15 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (49151 :: U64) (15 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (49152 :: U64) (15 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (49152 :: U64) (15 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (49153 :: U64) (15 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (49153 :: U64) (15 :: U32) (1 :: U8) (2 :: U64))] 175
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch30 :: Unit -> Nat
+  check-batch30 unit = first-failure [
+      (hex-round-case (32767 :: U64) (16 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (32767 :: U64) (16 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (32768 :: U64) (16 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (32768 :: U64) (16 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (32769 :: U64) (16 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (32769 :: U64) (16 :: U32) (1 :: U8) (1 :: U64))] 181
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch31 :: Unit -> Nat
+  check-batch31 unit = first-failure [
+      (hex-round-case (98303 :: U64) (16 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (98303 :: U64) (16 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (98304 :: U64) (16 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (98304 :: U64) (16 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (98305 :: U64) (16 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (98305 :: U64) (16 :: U32) (1 :: U8) (2 :: U64))] 187
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch32 :: Unit -> Nat
+  check-batch32 unit = first-failure [
+      (hex-round-case (65535 :: U64) (17 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (65535 :: U64) (17 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (65536 :: U64) (17 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (65536 :: U64) (17 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (65537 :: U64) (17 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (65537 :: U64) (17 :: U32) (1 :: U8) (1 :: U64))] 193
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch33 :: Unit -> Nat
+  check-batch33 unit = first-failure [
+      (hex-round-case (196607 :: U64) (17 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (196607 :: U64) (17 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (196608 :: U64) (17 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (196608 :: U64) (17 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (196609 :: U64) (17 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (196609 :: U64) (17 :: U32) (1 :: U8) (2 :: U64))] 199
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch34 :: Unit -> Nat
+  check-batch34 unit = first-failure [
+      (hex-round-case (131071 :: U64) (18 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (131071 :: U64) (18 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (131072 :: U64) (18 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (131072 :: U64) (18 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (131073 :: U64) (18 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (131073 :: U64) (18 :: U32) (1 :: U8) (1 :: U64))] 205
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch35 :: Unit -> Nat
+  check-batch35 unit = first-failure [
+      (hex-round-case (393215 :: U64) (18 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (393215 :: U64) (18 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (393216 :: U64) (18 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (393216 :: U64) (18 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (393217 :: U64) (18 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (393217 :: U64) (18 :: U32) (1 :: U8) (2 :: U64))] 211
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch36 :: Unit -> Nat
+  check-batch36 unit = first-failure [
+      (hex-round-case (262143 :: U64) (19 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (262143 :: U64) (19 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (262144 :: U64) (19 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (262144 :: U64) (19 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (262145 :: U64) (19 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (262145 :: U64) (19 :: U32) (1 :: U8) (1 :: U64))] 217
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch37 :: Unit -> Nat
+  check-batch37 unit = first-failure [
+      (hex-round-case (786431 :: U64) (19 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (786431 :: U64) (19 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (786432 :: U64) (19 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (786432 :: U64) (19 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (786433 :: U64) (19 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (786433 :: U64) (19 :: U32) (1 :: U8) (2 :: U64))] 223
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch38 :: Unit -> Nat
+  check-batch38 unit = first-failure [
+      (hex-round-case (524287 :: U64) (20 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (524287 :: U64) (20 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (524288 :: U64) (20 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (524288 :: U64) (20 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (524289 :: U64) (20 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (524289 :: U64) (20 :: U32) (1 :: U8) (1 :: U64))] 229
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch39 :: Unit -> Nat
+  check-batch39 unit = first-failure [
+      (hex-round-case (1572863 :: U64) (20 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1572863 :: U64) (20 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1572864 :: U64) (20 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1572864 :: U64) (20 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (1572865 :: U64) (20 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1572865 :: U64) (20 :: U32) (1 :: U8) (2 :: U64))] 235
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch40 :: Unit -> Nat
+  check-batch40 unit = first-failure [
+      (hex-round-case (1048575 :: U64) (21 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1048575 :: U64) (21 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (1048576 :: U64) (21 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1048576 :: U64) (21 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1048577 :: U64) (21 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1048577 :: U64) (21 :: U32) (1 :: U8) (1 :: U64))] 241
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch41 :: Unit -> Nat
+  check-batch41 unit = first-failure [
+      (hex-round-case (3145727 :: U64) (21 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (3145727 :: U64) (21 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (3145728 :: U64) (21 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3145728 :: U64) (21 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (3145729 :: U64) (21 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3145729 :: U64) (21 :: U32) (1 :: U8) (2 :: U64))] 247
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch42 :: Unit -> Nat
+  check-batch42 unit = first-failure [
+      (hex-round-case (2097151 :: U64) (22 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2097151 :: U64) (22 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (2097152 :: U64) (22 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2097152 :: U64) (22 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (2097153 :: U64) (22 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (2097153 :: U64) (22 :: U32) (1 :: U8) (1 :: U64))] 253
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch43 :: Unit -> Nat
+  check-batch43 unit = first-failure [
+      (hex-round-case (6291455 :: U64) (22 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (6291455 :: U64) (22 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (6291456 :: U64) (22 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6291456 :: U64) (22 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (6291457 :: U64) (22 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6291457 :: U64) (22 :: U32) (1 :: U8) (2 :: U64))] 259
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch44 :: Unit -> Nat
+  check-batch44 unit = first-failure [
+      (hex-round-case (4194303 :: U64) (23 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4194303 :: U64) (23 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (4194304 :: U64) (23 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4194304 :: U64) (23 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (4194305 :: U64) (23 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (4194305 :: U64) (23 :: U32) (1 :: U8) (1 :: U64))] 265
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch45 :: Unit -> Nat
+  check-batch45 unit = first-failure [
+      (hex-round-case (12582911 :: U64) (23 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (12582911 :: U64) (23 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (12582912 :: U64) (23 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (12582912 :: U64) (23 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (12582913 :: U64) (23 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (12582913 :: U64) (23 :: U32) (1 :: U8) (2 :: U64))] 271
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch46 :: Unit -> Nat
+  check-batch46 unit = first-failure [
+      (hex-round-case (8388607 :: U64) (24 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (8388607 :: U64) (24 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (8388608 :: U64) (24 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (8388608 :: U64) (24 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (8388609 :: U64) (24 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (8388609 :: U64) (24 :: U32) (1 :: U8) (1 :: U64))] 277
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch47 :: Unit -> Nat
+  check-batch47 unit = first-failure [
+      (hex-round-case (25165823 :: U64) (24 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (25165823 :: U64) (24 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (25165824 :: U64) (24 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (25165824 :: U64) (24 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (25165825 :: U64) (24 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (25165825 :: U64) (24 :: U32) (1 :: U8) (2 :: U64))] 283
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch48 :: Unit -> Nat
+  check-batch48 unit = first-failure [
+      (hex-round-case (16777215 :: U64) (25 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (16777215 :: U64) (25 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (16777216 :: U64) (25 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (16777216 :: U64) (25 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (16777217 :: U64) (25 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (16777217 :: U64) (25 :: U32) (1 :: U8) (1 :: U64))] 289
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch49 :: Unit -> Nat
+  check-batch49 unit = first-failure [
+      (hex-round-case (50331647 :: U64) (25 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (50331647 :: U64) (25 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (50331648 :: U64) (25 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (50331648 :: U64) (25 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (50331649 :: U64) (25 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (50331649 :: U64) (25 :: U32) (1 :: U8) (2 :: U64))] 295
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch50 :: Unit -> Nat
+  check-batch50 unit = first-failure [
+      (hex-round-case (33554431 :: U64) (26 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (33554431 :: U64) (26 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (33554432 :: U64) (26 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (33554432 :: U64) (26 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (33554433 :: U64) (26 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (33554433 :: U64) (26 :: U32) (1 :: U8) (1 :: U64))] 301
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch51 :: Unit -> Nat
+  check-batch51 unit = first-failure [
+      (hex-round-case (100663295 :: U64) (26 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (100663295 :: U64) (26 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (100663296 :: U64) (26 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (100663296 :: U64) (26 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (100663297 :: U64) (26 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (100663297 :: U64) (26 :: U32) (1 :: U8) (2 :: U64))] 307
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch52 :: Unit -> Nat
+  check-batch52 unit = first-failure [
+      (hex-round-case (67108863 :: U64) (27 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (67108863 :: U64) (27 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (67108864 :: U64) (27 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (67108864 :: U64) (27 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (67108865 :: U64) (27 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (67108865 :: U64) (27 :: U32) (1 :: U8) (1 :: U64))] 313
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch53 :: Unit -> Nat
+  check-batch53 unit = first-failure [
+      (hex-round-case (201326591 :: U64) (27 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (201326591 :: U64) (27 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (201326592 :: U64) (27 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (201326592 :: U64) (27 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (201326593 :: U64) (27 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (201326593 :: U64) (27 :: U32) (1 :: U8) (2 :: U64))] 319
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch54 :: Unit -> Nat
+  check-batch54 unit = first-failure [
+      (hex-round-case (134217727 :: U64) (28 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (134217727 :: U64) (28 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (134217728 :: U64) (28 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (134217728 :: U64) (28 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (134217729 :: U64) (28 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (134217729 :: U64) (28 :: U32) (1 :: U8) (1 :: U64))] 325
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch55 :: Unit -> Nat
+  check-batch55 unit = first-failure [
+      (hex-round-case (402653183 :: U64) (28 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (402653183 :: U64) (28 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (402653184 :: U64) (28 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (402653184 :: U64) (28 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (402653185 :: U64) (28 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (402653185 :: U64) (28 :: U32) (1 :: U8) (2 :: U64))] 331
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch56 :: Unit -> Nat
+  check-batch56 unit = first-failure [
+      (hex-round-case (268435455 :: U64) (29 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (268435455 :: U64) (29 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (268435456 :: U64) (29 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (268435456 :: U64) (29 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (268435457 :: U64) (29 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (268435457 :: U64) (29 :: U32) (1 :: U8) (1 :: U64))] 337
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch57 :: Unit -> Nat
+  check-batch57 unit = first-failure [
+      (hex-round-case (805306367 :: U64) (29 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (805306367 :: U64) (29 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (805306368 :: U64) (29 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (805306368 :: U64) (29 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (805306369 :: U64) (29 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (805306369 :: U64) (29 :: U32) (1 :: U8) (2 :: U64))] 343
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch58 :: Unit -> Nat
+  check-batch58 unit = first-failure [
+      (hex-round-case (536870911 :: U64) (30 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (536870911 :: U64) (30 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (536870912 :: U64) (30 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (536870912 :: U64) (30 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (536870913 :: U64) (30 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (536870913 :: U64) (30 :: U32) (1 :: U8) (1 :: U64))] 349
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch59 :: Unit -> Nat
+  check-batch59 unit = first-failure [
+      (hex-round-case (1610612735 :: U64) (30 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1610612735 :: U64) (30 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1610612736 :: U64) (30 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1610612736 :: U64) (30 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (1610612737 :: U64) (30 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1610612737 :: U64) (30 :: U32) (1 :: U8) (2 :: U64))] 355
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch60 :: Unit -> Nat
+  check-batch60 unit = first-failure [
+      (hex-round-case (1073741823 :: U64) (31 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1073741823 :: U64) (31 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (1073741824 :: U64) (31 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1073741824 :: U64) (31 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1073741825 :: U64) (31 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1073741825 :: U64) (31 :: U32) (1 :: U8) (1 :: U64))] 361
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch61 :: Unit -> Nat
+  check-batch61 unit = first-failure [
+      (hex-round-case (3221225471 :: U64) (31 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (3221225471 :: U64) (31 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (3221225472 :: U64) (31 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3221225472 :: U64) (31 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (3221225473 :: U64) (31 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3221225473 :: U64) (31 :: U32) (1 :: U8) (2 :: U64))] 367
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch62 :: Unit -> Nat
+  check-batch62 unit = first-failure [
+      (hex-round-case (2147483647 :: U64) (32 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2147483647 :: U64) (32 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (2147483648 :: U64) (32 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2147483648 :: U64) (32 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (2147483649 :: U64) (32 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (2147483649 :: U64) (32 :: U32) (1 :: U8) (1 :: U64))] 373
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch63 :: Unit -> Nat
+  check-batch63 unit = first-failure [
+      (hex-round-case (6442450943 :: U64) (32 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (6442450943 :: U64) (32 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (6442450944 :: U64) (32 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6442450944 :: U64) (32 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (6442450945 :: U64) (32 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6442450945 :: U64) (32 :: U32) (1 :: U8) (2 :: U64))] 379
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch64 :: Unit -> Nat
+  check-batch64 unit = first-failure [
+      (hex-round-case (4294967295 :: U64) (33 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4294967295 :: U64) (33 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (4294967296 :: U64) (33 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4294967296 :: U64) (33 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (4294967297 :: U64) (33 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (4294967297 :: U64) (33 :: U32) (1 :: U8) (1 :: U64))] 385
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch65 :: Unit -> Nat
+  check-batch65 unit = first-failure [
+      (hex-round-case (12884901887 :: U64) (33 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (12884901887 :: U64) (33 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (12884901888 :: U64) (33 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (12884901888 :: U64) (33 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (12884901889 :: U64) (33 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (12884901889 :: U64) (33 :: U32) (1 :: U8) (2 :: U64))] 391
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch66 :: Unit -> Nat
+  check-batch66 unit = first-failure [
+      (hex-round-case (8589934591 :: U64) (34 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (8589934591 :: U64) (34 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (8589934592 :: U64) (34 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (8589934592 :: U64) (34 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (8589934593 :: U64) (34 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (8589934593 :: U64) (34 :: U32) (1 :: U8) (1 :: U64))] 397
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch67 :: Unit -> Nat
+  check-batch67 unit = first-failure [
+      (hex-round-case (25769803775 :: U64) (34 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (25769803775 :: U64) (34 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (25769803776 :: U64) (34 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (25769803776 :: U64) (34 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (25769803777 :: U64) (34 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (25769803777 :: U64) (34 :: U32) (1 :: U8) (2 :: U64))] 403
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch68 :: Unit -> Nat
+  check-batch68 unit = first-failure [
+      (hex-round-case (17179869183 :: U64) (35 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (17179869183 :: U64) (35 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (17179869184 :: U64) (35 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (17179869184 :: U64) (35 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (17179869185 :: U64) (35 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (17179869185 :: U64) (35 :: U32) (1 :: U8) (1 :: U64))] 409
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch69 :: Unit -> Nat
+  check-batch69 unit = first-failure [
+      (hex-round-case (51539607551 :: U64) (35 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (51539607551 :: U64) (35 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (51539607552 :: U64) (35 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (51539607552 :: U64) (35 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (51539607553 :: U64) (35 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (51539607553 :: U64) (35 :: U32) (1 :: U8) (2 :: U64))] 415
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch70 :: Unit -> Nat
+  check-batch70 unit = first-failure [
+      (hex-round-case (34359738367 :: U64) (36 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (34359738367 :: U64) (36 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (34359738368 :: U64) (36 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (34359738368 :: U64) (36 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (34359738369 :: U64) (36 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (34359738369 :: U64) (36 :: U32) (1 :: U8) (1 :: U64))] 421
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch71 :: Unit -> Nat
+  check-batch71 unit = first-failure [
+      (hex-round-case (103079215103 :: U64) (36 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (103079215103 :: U64) (36 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (103079215104 :: U64) (36 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (103079215104 :: U64) (36 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (103079215105 :: U64) (36 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (103079215105 :: U64) (36 :: U32) (1 :: U8) (2 :: U64))] 427
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch72 :: Unit -> Nat
+  check-batch72 unit = first-failure [
+      (hex-round-case (68719476735 :: U64) (37 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (68719476735 :: U64) (37 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (68719476736 :: U64) (37 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (68719476736 :: U64) (37 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (68719476737 :: U64) (37 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (68719476737 :: U64) (37 :: U32) (1 :: U8) (1 :: U64))] 433
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch73 :: Unit -> Nat
+  check-batch73 unit = first-failure [
+      (hex-round-case (206158430207 :: U64) (37 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (206158430207 :: U64) (37 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (206158430208 :: U64) (37 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (206158430208 :: U64) (37 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (206158430209 :: U64) (37 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (206158430209 :: U64) (37 :: U32) (1 :: U8) (2 :: U64))] 439
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch74 :: Unit -> Nat
+  check-batch74 unit = first-failure [
+      (hex-round-case (137438953471 :: U64) (38 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (137438953471 :: U64) (38 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (137438953472 :: U64) (38 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (137438953472 :: U64) (38 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (137438953473 :: U64) (38 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (137438953473 :: U64) (38 :: U32) (1 :: U8) (1 :: U64))] 445
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch75 :: Unit -> Nat
+  check-batch75 unit = first-failure [
+      (hex-round-case (412316860415 :: U64) (38 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (412316860415 :: U64) (38 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (412316860416 :: U64) (38 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (412316860416 :: U64) (38 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (412316860417 :: U64) (38 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (412316860417 :: U64) (38 :: U32) (1 :: U8) (2 :: U64))] 451
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch76 :: Unit -> Nat
+  check-batch76 unit = first-failure [
+      (hex-round-case (274877906943 :: U64) (39 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (274877906943 :: U64) (39 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (274877906944 :: U64) (39 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (274877906944 :: U64) (39 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (274877906945 :: U64) (39 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (274877906945 :: U64) (39 :: U32) (1 :: U8) (1 :: U64))] 457
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch77 :: Unit -> Nat
+  check-batch77 unit = first-failure [
+      (hex-round-case (824633720831 :: U64) (39 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (824633720831 :: U64) (39 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (824633720832 :: U64) (39 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (824633720832 :: U64) (39 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (824633720833 :: U64) (39 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (824633720833 :: U64) (39 :: U32) (1 :: U8) (2 :: U64))] 463
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch78 :: Unit -> Nat
+  check-batch78 unit = first-failure [
+      (hex-round-case (549755813887 :: U64) (40 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (549755813887 :: U64) (40 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (549755813888 :: U64) (40 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (549755813888 :: U64) (40 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (549755813889 :: U64) (40 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (549755813889 :: U64) (40 :: U32) (1 :: U8) (1 :: U64))] 469
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch79 :: Unit -> Nat
+  check-batch79 unit = first-failure [
+      (hex-round-case (1649267441663 :: U64) (40 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1649267441663 :: U64) (40 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1649267441664 :: U64) (40 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1649267441664 :: U64) (40 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (1649267441665 :: U64) (40 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1649267441665 :: U64) (40 :: U32) (1 :: U8) (2 :: U64))] 475
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch80 :: Unit -> Nat
+  check-batch80 unit = first-failure [
+      (hex-round-case (1099511627775 :: U64) (41 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1099511627775 :: U64) (41 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (1099511627776 :: U64) (41 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1099511627776 :: U64) (41 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1099511627777 :: U64) (41 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1099511627777 :: U64) (41 :: U32) (1 :: U8) (1 :: U64))] 481
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch81 :: Unit -> Nat
+  check-batch81 unit = first-failure [
+      (hex-round-case (3298534883327 :: U64) (41 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (3298534883327 :: U64) (41 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (3298534883328 :: U64) (41 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3298534883328 :: U64) (41 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (3298534883329 :: U64) (41 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3298534883329 :: U64) (41 :: U32) (1 :: U8) (2 :: U64))] 487
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch82 :: Unit -> Nat
+  check-batch82 unit = first-failure [
+      (hex-round-case (2199023255551 :: U64) (42 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2199023255551 :: U64) (42 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (2199023255552 :: U64) (42 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2199023255552 :: U64) (42 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (2199023255553 :: U64) (42 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (2199023255553 :: U64) (42 :: U32) (1 :: U8) (1 :: U64))] 493
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch83 :: Unit -> Nat
+  check-batch83 unit = first-failure [
+      (hex-round-case (6597069766655 :: U64) (42 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (6597069766655 :: U64) (42 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (6597069766656 :: U64) (42 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6597069766656 :: U64) (42 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (6597069766657 :: U64) (42 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6597069766657 :: U64) (42 :: U32) (1 :: U8) (2 :: U64))] 499
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch84 :: Unit -> Nat
+  check-batch84 unit = first-failure [
+      (hex-round-case (4398046511103 :: U64) (43 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4398046511103 :: U64) (43 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (4398046511104 :: U64) (43 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4398046511104 :: U64) (43 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (4398046511105 :: U64) (43 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (4398046511105 :: U64) (43 :: U32) (1 :: U8) (1 :: U64))] 505
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch85 :: Unit -> Nat
+  check-batch85 unit = first-failure [
+      (hex-round-case (13194139533311 :: U64) (43 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (13194139533311 :: U64) (43 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (13194139533312 :: U64) (43 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (13194139533312 :: U64) (43 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (13194139533313 :: U64) (43 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (13194139533313 :: U64) (43 :: U32) (1 :: U8) (2 :: U64))] 511
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch86 :: Unit -> Nat
+  check-batch86 unit = first-failure [
+      (hex-round-case (8796093022207 :: U64) (44 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (8796093022207 :: U64) (44 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (8796093022208 :: U64) (44 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (8796093022208 :: U64) (44 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (8796093022209 :: U64) (44 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (8796093022209 :: U64) (44 :: U32) (1 :: U8) (1 :: U64))] 517
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch87 :: Unit -> Nat
+  check-batch87 unit = first-failure [
+      (hex-round-case (26388279066623 :: U64) (44 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (26388279066623 :: U64) (44 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (26388279066624 :: U64) (44 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (26388279066624 :: U64) (44 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (26388279066625 :: U64) (44 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (26388279066625 :: U64) (44 :: U32) (1 :: U8) (2 :: U64))] 523
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch88 :: Unit -> Nat
+  check-batch88 unit = first-failure [
+      (hex-round-case (17592186044415 :: U64) (45 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (17592186044415 :: U64) (45 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (17592186044416 :: U64) (45 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (17592186044416 :: U64) (45 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (17592186044417 :: U64) (45 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (17592186044417 :: U64) (45 :: U32) (1 :: U8) (1 :: U64))] 529
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch89 :: Unit -> Nat
+  check-batch89 unit = first-failure [
+      (hex-round-case (52776558133247 :: U64) (45 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (52776558133247 :: U64) (45 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (52776558133248 :: U64) (45 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (52776558133248 :: U64) (45 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (52776558133249 :: U64) (45 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (52776558133249 :: U64) (45 :: U32) (1 :: U8) (2 :: U64))] 535
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch90 :: Unit -> Nat
+  check-batch90 unit = first-failure [
+      (hex-round-case (35184372088831 :: U64) (46 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (35184372088831 :: U64) (46 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (35184372088832 :: U64) (46 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (35184372088832 :: U64) (46 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (35184372088833 :: U64) (46 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (35184372088833 :: U64) (46 :: U32) (1 :: U8) (1 :: U64))] 541
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch91 :: Unit -> Nat
+  check-batch91 unit = first-failure [
+      (hex-round-case (105553116266495 :: U64) (46 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (105553116266495 :: U64) (46 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (105553116266496 :: U64) (46 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (105553116266496 :: U64) (46 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (105553116266497 :: U64) (46 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (105553116266497 :: U64) (46 :: U32) (1 :: U8) (2 :: U64))] 547
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch92 :: Unit -> Nat
+  check-batch92 unit = first-failure [
+      (hex-round-case (70368744177663 :: U64) (47 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (70368744177663 :: U64) (47 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (70368744177664 :: U64) (47 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (70368744177664 :: U64) (47 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (70368744177665 :: U64) (47 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (70368744177665 :: U64) (47 :: U32) (1 :: U8) (1 :: U64))] 553
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch93 :: Unit -> Nat
+  check-batch93 unit = first-failure [
+      (hex-round-case (211106232532991 :: U64) (47 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (211106232532991 :: U64) (47 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (211106232532992 :: U64) (47 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (211106232532992 :: U64) (47 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (211106232532993 :: U64) (47 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (211106232532993 :: U64) (47 :: U32) (1 :: U8) (2 :: U64))] 559
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch94 :: Unit -> Nat
+  check-batch94 unit = first-failure [
+      (hex-round-case (140737488355327 :: U64) (48 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (140737488355327 :: U64) (48 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (140737488355328 :: U64) (48 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (140737488355328 :: U64) (48 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (140737488355329 :: U64) (48 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (140737488355329 :: U64) (48 :: U32) (1 :: U8) (1 :: U64))] 565
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch95 :: Unit -> Nat
+  check-batch95 unit = first-failure [
+      (hex-round-case (422212465065983 :: U64) (48 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (422212465065983 :: U64) (48 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (422212465065984 :: U64) (48 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (422212465065984 :: U64) (48 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (422212465065985 :: U64) (48 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (422212465065985 :: U64) (48 :: U32) (1 :: U8) (2 :: U64))] 571
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch96 :: Unit -> Nat
+  check-batch96 unit = first-failure [
+      (hex-round-case (281474976710655 :: U64) (49 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (281474976710655 :: U64) (49 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (281474976710656 :: U64) (49 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (281474976710656 :: U64) (49 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (281474976710657 :: U64) (49 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (281474976710657 :: U64) (49 :: U32) (1 :: U8) (1 :: U64))] 577
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch97 :: Unit -> Nat
+  check-batch97 unit = first-failure [
+      (hex-round-case (844424930131967 :: U64) (49 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (844424930131967 :: U64) (49 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (844424930131968 :: U64) (49 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (844424930131968 :: U64) (49 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (844424930131969 :: U64) (49 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (844424930131969 :: U64) (49 :: U32) (1 :: U8) (2 :: U64))] 583
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch98 :: Unit -> Nat
+  check-batch98 unit = first-failure [
+      (hex-round-case (562949953421311 :: U64) (50 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (562949953421311 :: U64) (50 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (562949953421312 :: U64) (50 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (562949953421312 :: U64) (50 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (562949953421313 :: U64) (50 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (562949953421313 :: U64) (50 :: U32) (1 :: U8) (1 :: U64))] 589
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch99 :: Unit -> Nat
+  check-batch99 unit = first-failure [
+      (hex-round-case (1688849860263935 :: U64) (50 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1688849860263935 :: U64) (50 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1688849860263936 :: U64) (50 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1688849860263936 :: U64) (50 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (1688849860263937 :: U64) (50 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1688849860263937 :: U64) (50 :: U32) (1 :: U8) (2 :: U64))] 595
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch100 :: Unit -> Nat
+  check-batch100 unit = first-failure [
+      (hex-round-case (1125899906842623 :: U64) (51 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1125899906842623 :: U64) (51 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (1125899906842624 :: U64) (51 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1125899906842624 :: U64) (51 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1125899906842625 :: U64) (51 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1125899906842625 :: U64) (51 :: U32) (1 :: U8) (1 :: U64))] 601
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch101 :: Unit -> Nat
+  check-batch101 unit = first-failure [
+      (hex-round-case (3377699720527871 :: U64) (51 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (3377699720527871 :: U64) (51 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (3377699720527872 :: U64) (51 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3377699720527872 :: U64) (51 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (3377699720527873 :: U64) (51 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3377699720527873 :: U64) (51 :: U32) (1 :: U8) (2 :: U64))] 607
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch102 :: Unit -> Nat
+  check-batch102 unit = first-failure [
+      (hex-round-case (2251799813685247 :: U64) (52 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2251799813685247 :: U64) (52 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (2251799813685248 :: U64) (52 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2251799813685248 :: U64) (52 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (2251799813685249 :: U64) (52 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (2251799813685249 :: U64) (52 :: U32) (1 :: U8) (1 :: U64))] 613
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch103 :: Unit -> Nat
+  check-batch103 unit = first-failure [
+      (hex-round-case (6755399441055743 :: U64) (52 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (6755399441055743 :: U64) (52 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (6755399441055744 :: U64) (52 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6755399441055744 :: U64) (52 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (6755399441055745 :: U64) (52 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6755399441055745 :: U64) (52 :: U32) (1 :: U8) (2 :: U64))] 619
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch104 :: Unit -> Nat
+  check-batch104 unit = first-failure [
+      (hex-round-case (4503599627370495 :: U64) (53 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4503599627370495 :: U64) (53 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (4503599627370496 :: U64) (53 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4503599627370496 :: U64) (53 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (4503599627370497 :: U64) (53 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (4503599627370497 :: U64) (53 :: U32) (1 :: U8) (1 :: U64))] 625
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch105 :: Unit -> Nat
+  check-batch105 unit = first-failure [
+      (hex-round-case (13510798882111487 :: U64) (53 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (13510798882111487 :: U64) (53 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (13510798882111488 :: U64) (53 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (13510798882111488 :: U64) (53 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (13510798882111489 :: U64) (53 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (13510798882111489 :: U64) (53 :: U32) (1 :: U8) (2 :: U64))] 631
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch106 :: Unit -> Nat
+  check-batch106 unit = first-failure [
+      (hex-round-case (9007199254740991 :: U64) (54 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (9007199254740991 :: U64) (54 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (9007199254740992 :: U64) (54 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (9007199254740992 :: U64) (54 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (9007199254740993 :: U64) (54 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (9007199254740993 :: U64) (54 :: U32) (1 :: U8) (1 :: U64))] 637
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch107 :: Unit -> Nat
+  check-batch107 unit = first-failure [
+      (hex-round-case (27021597764222975 :: U64) (54 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (27021597764222975 :: U64) (54 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (27021597764222976 :: U64) (54 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (27021597764222976 :: U64) (54 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (27021597764222977 :: U64) (54 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (27021597764222977 :: U64) (54 :: U32) (1 :: U8) (2 :: U64))] 643
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch108 :: Unit -> Nat
+  check-batch108 unit = first-failure [
+      (hex-round-case (18014398509481983 :: U64) (55 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (18014398509481983 :: U64) (55 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (18014398509481984 :: U64) (55 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (18014398509481984 :: U64) (55 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (18014398509481985 :: U64) (55 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (18014398509481985 :: U64) (55 :: U32) (1 :: U8) (1 :: U64))] 649
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch109 :: Unit -> Nat
+  check-batch109 unit = first-failure [
+      (hex-round-case (54043195528445951 :: U64) (55 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (54043195528445951 :: U64) (55 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (54043195528445952 :: U64) (55 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (54043195528445952 :: U64) (55 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (54043195528445953 :: U64) (55 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (54043195528445953 :: U64) (55 :: U32) (1 :: U8) (2 :: U64))] 655
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch110 :: Unit -> Nat
+  check-batch110 unit = first-failure [
+      (hex-round-case (36028797018963967 :: U64) (56 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (36028797018963967 :: U64) (56 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (36028797018963968 :: U64) (56 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (36028797018963968 :: U64) (56 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (36028797018963969 :: U64) (56 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (36028797018963969 :: U64) (56 :: U32) (1 :: U8) (1 :: U64))] 661
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch111 :: Unit -> Nat
+  check-batch111 unit = first-failure [
+      (hex-round-case (108086391056891903 :: U64) (56 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (108086391056891903 :: U64) (56 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (108086391056891904 :: U64) (56 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (108086391056891904 :: U64) (56 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (108086391056891905 :: U64) (56 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (108086391056891905 :: U64) (56 :: U32) (1 :: U8) (2 :: U64))] 667
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch112 :: Unit -> Nat
+  check-batch112 unit = first-failure [
+      (hex-round-case (72057594037927935 :: U64) (57 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (72057594037927935 :: U64) (57 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (72057594037927936 :: U64) (57 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (72057594037927936 :: U64) (57 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (72057594037927937 :: U64) (57 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (72057594037927937 :: U64) (57 :: U32) (1 :: U8) (1 :: U64))] 673
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch113 :: Unit -> Nat
+  check-batch113 unit = first-failure [
+      (hex-round-case (216172782113783807 :: U64) (57 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (216172782113783807 :: U64) (57 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (216172782113783808 :: U64) (57 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (216172782113783808 :: U64) (57 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (216172782113783809 :: U64) (57 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (216172782113783809 :: U64) (57 :: U32) (1 :: U8) (2 :: U64))] 679
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch114 :: Unit -> Nat
+  check-batch114 unit = first-failure [
+      (hex-round-case (144115188075855871 :: U64) (58 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (144115188075855871 :: U64) (58 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (144115188075855872 :: U64) (58 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (144115188075855872 :: U64) (58 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (144115188075855873 :: U64) (58 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (144115188075855873 :: U64) (58 :: U32) (1 :: U8) (1 :: U64))] 685
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch115 :: Unit -> Nat
+  check-batch115 unit = first-failure [
+      (hex-round-case (432345564227567615 :: U64) (58 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (432345564227567615 :: U64) (58 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (432345564227567616 :: U64) (58 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (432345564227567616 :: U64) (58 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (432345564227567617 :: U64) (58 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (432345564227567617 :: U64) (58 :: U32) (1 :: U8) (2 :: U64))] 691
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch116 :: Unit -> Nat
+  check-batch116 unit = first-failure [
+      (hex-round-case (288230376151711743 :: U64) (59 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (288230376151711743 :: U64) (59 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (288230376151711744 :: U64) (59 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (288230376151711744 :: U64) (59 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (288230376151711745 :: U64) (59 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (288230376151711745 :: U64) (59 :: U32) (1 :: U8) (1 :: U64))] 697
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch117 :: Unit -> Nat
+  check-batch117 unit = first-failure [
+      (hex-round-case (864691128455135231 :: U64) (59 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (864691128455135231 :: U64) (59 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (864691128455135232 :: U64) (59 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (864691128455135232 :: U64) (59 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (864691128455135233 :: U64) (59 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (864691128455135233 :: U64) (59 :: U32) (1 :: U8) (2 :: U64))] 703
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch118 :: Unit -> Nat
+  check-batch118 unit = first-failure [
+      (hex-round-case (576460752303423487 :: U64) (60 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (576460752303423487 :: U64) (60 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (576460752303423488 :: U64) (60 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (576460752303423488 :: U64) (60 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (576460752303423489 :: U64) (60 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (576460752303423489 :: U64) (60 :: U32) (1 :: U8) (1 :: U64))] 709
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch119 :: Unit -> Nat
+  check-batch119 unit = first-failure [
+      (hex-round-case (1729382256910270463 :: U64) (60 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1729382256910270463 :: U64) (60 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1729382256910270464 :: U64) (60 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1729382256910270464 :: U64) (60 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (1729382256910270465 :: U64) (60 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (1729382256910270465 :: U64) (60 :: U32) (1 :: U8) (2 :: U64))] 715
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch120 :: Unit -> Nat
+  check-batch120 unit = first-failure [
+      (hex-round-case (1152921504606846975 :: U64) (61 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1152921504606846975 :: U64) (61 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (1152921504606846976 :: U64) (61 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1152921504606846976 :: U64) (61 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (1152921504606846977 :: U64) (61 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1152921504606846977 :: U64) (61 :: U32) (1 :: U8) (1 :: U64))] 721
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch121 :: Unit -> Nat
+  check-batch121 unit = first-failure [
+      (hex-round-case (3458764513820540927 :: U64) (61 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (3458764513820540927 :: U64) (61 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (3458764513820540928 :: U64) (61 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3458764513820540928 :: U64) (61 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (3458764513820540929 :: U64) (61 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (3458764513820540929 :: U64) (61 :: U32) (1 :: U8) (2 :: U64))] 727
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch122 :: Unit -> Nat
+  check-batch122 unit = first-failure [
+      (hex-round-case (2305843009213693951 :: U64) (62 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2305843009213693951 :: U64) (62 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (2305843009213693952 :: U64) (62 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (2305843009213693952 :: U64) (62 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (2305843009213693953 :: U64) (62 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (2305843009213693953 :: U64) (62 :: U32) (1 :: U8) (1 :: U64))] 733
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch123 :: Unit -> Nat
+  check-batch123 unit = first-failure [
+      (hex-round-case (6917529027641081855 :: U64) (62 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (6917529027641081855 :: U64) (62 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (6917529027641081856 :: U64) (62 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6917529027641081856 :: U64) (62 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (6917529027641081857 :: U64) (62 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (6917529027641081857 :: U64) (62 :: U32) (1 :: U8) (2 :: U64))] 739
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch124 :: Unit -> Nat
+  check-batch124 unit = first-failure [
+      (hex-round-case (4611686018427387903 :: U64) (63 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4611686018427387903 :: U64) (63 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (4611686018427387904 :: U64) (63 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (4611686018427387904 :: U64) (63 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (4611686018427387905 :: U64) (63 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (4611686018427387905 :: U64) (63 :: U32) (1 :: U8) (1 :: U64))] 745
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch125 :: Unit -> Nat
+  check-batch125 unit = first-failure [
+      (hex-round-case (13835058055282163711 :: U64) (63 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (13835058055282163711 :: U64) (63 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (13835058055282163712 :: U64) (63 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (13835058055282163712 :: U64) (63 :: U32) (1 :: U8) (2 :: U64)),
+      (hex-round-case (13835058055282163713 :: U64) (63 :: U32) (0 :: U8) (2 :: U64)),
+      (hex-round-case (13835058055282163713 :: U64) (63 :: U32) (1 :: U8) (2 :: U64))] 751
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch126 :: Unit -> Nat
+  check-batch126 unit = first-failure [
+      (hex-round-case (9223372036854775807 :: U64) (64 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (9223372036854775807 :: U64) (64 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (9223372036854775808 :: U64) (64 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (9223372036854775808 :: U64) (64 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (9223372036854775809 :: U64) (64 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (9223372036854775809 :: U64) (64 :: U32) (1 :: U8) (1 :: U64))] 757
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch127 :: Unit -> Nat
+  check-batch127 unit = first-failure [
+      (hex-round-case (0 :: U64) (0 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (0 :: U64) (0 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (1 :: U64) (0 :: U32) (0 :: U8) (1 :: U64)),
+      (hex-round-case (1 :: U64) (0 :: U32) (1 :: U8) (1 :: U64)),
+      (hex-round-case (9223372036854775808 :: U64) (0 :: U32) (0 :: U8) (9223372036854775808 :: U64)),
+      (hex-round-case (9223372036854775808 :: U64) (0 :: U32) (1 :: U8) (9223372036854775808 :: U64))] 763
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch128 :: Unit -> Nat
+  check-batch128 unit = first-failure [
+      (hex-round-case (18446744073709551615 :: U64) (0 :: U32) (0 :: U8) (18446744073709551615 :: U64)),
+      (hex-round-case (18446744073709551615 :: U64) (0 :: U32) (1 :: U8) (18446744073709551615 :: U64)),
+      (hex-round-case (0 :: U64) (65 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (0 :: U64) (65 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (1 :: U64) (65 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1 :: U64) (65 :: U32) (1 :: U8) (0 :: U64))] 769
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch129 :: Unit -> Nat
+  check-batch129 unit = first-failure [
+      (hex-round-case (9223372036854775808 :: U64) (65 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (9223372036854775808 :: U64) (65 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (18446744073709551615 :: U64) (65 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (18446744073709551615 :: U64) (65 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (0 :: U64) (127 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (0 :: U64) (127 :: U32) (1 :: U8) (0 :: U64))] 775
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch130 :: Unit -> Nat
+  check-batch130 unit = first-failure [
+      (hex-round-case (1 :: U64) (127 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1 :: U64) (127 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (9223372036854775808 :: U64) (127 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (9223372036854775808 :: U64) (127 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (18446744073709551615 :: U64) (127 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (18446744073709551615 :: U64) (127 :: U32) (1 :: U8) (0 :: U64))] 781
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch131 :: Unit -> Nat
+  check-batch131 unit = first-failure [
+      (hex-round-case (0 :: U64) (4294967295 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (0 :: U64) (4294967295 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (1 :: U64) (4294967295 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (1 :: U64) (4294967295 :: U32) (1 :: U8) (0 :: U64)),
+      (hex-round-case (9223372036854775808 :: U64) (4294967295 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (9223372036854775808 :: U64) (4294967295 :: U32) (1 :: U8) (0 :: U64))] 787
+
+  -- | Evaluate bounded independent raw-number-kernel checks with global failure indexes.
+  check-batch132 :: Unit -> Nat
+  check-batch132 unit = first-failure [
+      (hex-round-case (18446744073709551615 :: U64) (4294967295 :: U32) (0 :: U8) (0 :: U64)),
+      (hex-round-case (18446744073709551615 :: U64) (4294967295 :: U32) (1 :: U8) (0 :: U64))] 793
+
+  -- | Print the original failing observation and return a nonzero status on failure.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let failed = first-result [check-batch0 (),check-batch1 (),check-batch2 (),check-batch3 (),check-batch4 (),check-batch5 (),check-batch6 (),check-batch7 (),check-batch8 (),check-batch9 (),check-batch10 (),check-batch11 (),check-batch12 (),check-batch13 (),check-batch14 (),check-batch15 (),check-batch16 (),check-batch17 (),check-batch18 (),check-batch19 (),check-batch20 (),check-batch21 (),check-batch22 (),check-batch23 (),check-batch24 (),check-batch25 (),check-batch26 (),check-batch27 (),check-batch28 (),check-batch29 (),check-batch30 (),check-batch31 (),check-batch32 (),check-batch33 (),check-batch34 (),check-batch35 (),check-batch36 (),check-batch37 (),check-batch38 (),check-batch39 (),check-batch40 (),check-batch41 (),check-batch42 (),check-batch43 (),check-batch44 (),check-batch45 (),check-batch46 (),check-batch47 (),check-batch48 (),check-batch49 (),check-batch50 (),check-batch51 (),check-batch52 (),check-batch53 (),check-batch54 (),check-batch55 (),check-batch56 (),check-batch57 (),check-batch58 (),check-batch59 (),check-batch60 (),check-batch61 (),check-batch62 (),check-batch63 (),check-batch64 (),check-batch65 (),check-batch66 (),check-batch67 (),check-batch68 (),check-batch69 (),check-batch70 (),check-batch71 (),check-batch72 (),check-batch73 (),check-batch74 (),check-batch75 (),check-batch76 (),check-batch77 (),check-batch78 (),check-batch79 (),check-batch80 (),check-batch81 (),check-batch82 (),check-batch83 (),check-batch84 (),check-batch85 (),check-batch86 (),check-batch87 (),check-batch88 (),check-batch89 (),check-batch90 (),check-batch91 (),check-batch92 (),check-batch93 (),check-batch94 (),check-batch95 (),check-batch96 (),check-batch97 (),check-batch98 (),check-batch99 (),check-batch100 (),check-batch101 (),check-batch102 (),check-batch103 (),check-batch104 (),check-batch105 (),check-batch106 (),check-batch107 (),check-batch108 (),check-batch109 (),check-batch110 (),check-batch111 (),check-batch112 (),check-batch113 (),check-batch114 (),check-batch115 (),check-batch116 (),check-batch117 (),check-batch118 (),check-batch119 (),check-batch120 (),check-batch121 (),check-batch122 (),check-batch123 (),check-batch124 (),check-batch125 (),check-batch126 (),check-batch127 (),check-batch128 (),check-batch129 (),check-batch130 (),check-batch131 (),check-batch132 ()] in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in
+    if failed == 0 then 0 else 1

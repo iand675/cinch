@@ -1,0 +1,57 @@
+-- | Verify mutation effect labels without granting their name authority outside effect rows.
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Kinds
+  import Data.List
+  import Data.Option
+
+  -- | The canonical ownership constructor remains the only ordinary Mut nominal kind.
+  kinds :: List (String, Kind)
+  kinds = [("Mut", borrow-constructor-kind), ("Unit", KType), ("Int", KType), ("Log", KEffect)]
+
+  -- | Construct the exact built-in mutation effect label under test.
+  mutation :: UType -> UType
+  mutation region = UApp (UCon "Mut" (KFun KRegion KEffect)) region
+
+  -- | Place one requested effect label inside a closed row.
+  row :: UType -> UType
+  row label = URow (UArg label UEnd)
+
+  -- | Verify a source-style quantified scheme over the supplied region binder kind.
+  scoped :: Kind -> UType -> Bool
+  scoped kind body = scheme-well-formed kinds empty-type-scope (MkScheme [MkQuant 0 "r" kind False] body)
+
+  -- | Exercise positive coexistence and forged, missing or wrongly kinded region refusals.
+  checks :: List Bool
+  checks =
+    let region = UBound 0 "r" KRegion in
+    let unit = UCon "Unit" KType in
+    let integer = UCon "Int" KType in
+    let borrow = UApp (UApp (UCon "Mut" borrow-constructor-kind) region) integer in
+    let label = mutation region in
+    [ nominal-kinds-closed kinds
+    , scoped KRegion (UFunEff unit (row label) unit)
+    , scoped KRegion (UFun borrow borrow)
+    , scoped KRegion (UFunEff borrow (row label) borrow)
+    , scoped KRegion (UFunEff unit (URow (UArg (UCon "Log" KEffect) (UArg label UEnd))) unit)
+    , not (scoped KRegion (UFun label unit))
+    , not (type-well-formed kinds empty-type-scope (UCon "Mut" (KFun KRegion KEffect)))
+    , not (scoped KType (UFunEff unit (row (mutation (UBound 0 "r" KType))) unit))
+    , not (scoped KRegion (UFunEff unit (row (mutation (UBound 1 "missing" KRegion))) unit))
+    , not (scoped KRegion (UFunEff unit (row (mutation (URigid 8 "missing" 0 KRegion))) unit))
+    , not (scoped KRegion (UFunEff unit (row (UApp (UCon "Mut" (KFun KType KEffect)) region)) unit))
+    , not (scoped KRegion (UFunEff unit (row (UCon "Mut" KEffect)) unit))
+    , not (scoped KRegion (UFunEff unit (row (UApp (UCon "Mut" borrow-constructor-kind) region)) unit))
+    , not (scoped KRegion (UFunEff unit (row (UApp (UCon "Forged" (KFun KRegion KEffect)) region)) unit))
+    , not (scheme-well-formed [("Unit", KType)] empty-type-scope (MkScheme [MkQuant 0 "r" KRegion False] (UFunEff unit (row label) unit)))
+    ]
+
+  -- | Return the first failing authority check as a small process exit status.
+  first-failure :: List Bool -> Nat -> Int
+  first-failure values index = case values of
+    Nil -> 0
+    Cons first rest -> if first then first-failure rest (index + 1) else nat-to-int index
+
+  -- | Run every authority check against the actual checked bootstrap implementation.
+  main :: Int
+  main = first-failure checks 1

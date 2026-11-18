@@ -1,0 +1,211 @@
+{
+  "declarations": [
+    {
+      "children": [
+        {
+          "children": [],
+          "doc": {
+            "legacy": false,
+            "line": 17,
+            "links": [],
+            "markdown": "A prime candidate needs at least two significant bits.",
+            "math": [],
+            "summary": "A prime candidate needs at least two significant bits.",
+            "tags": {},
+            "tests": []
+          },
+          "fields": [],
+          "id": "Data.Prime.Candidate.PrimeCandidateError.PrimeCandidateSmallBits",
+          "kind": "constructor",
+          "name": "PrimeCandidateSmallBits",
+          "parameters": [],
+          "signature": "PrimeCandidateSmallBits :: PrimeCandidateError",
+          "source": {
+            "line": 18
+          },
+          "typeParameters": []
+        },
+        {
+          "children": [],
+          "doc": {
+            "legacy": false,
+            "line": 19,
+            "links": [],
+            "markdown": "Input must have exactly ceil(bits/8) bytes.",
+            "math": [],
+            "summary": "Input must have exactly ceil(bits/8) bytes.",
+            "tags": {},
+            "tests": []
+          },
+          "fields": [],
+          "id": "Data.Prime.Candidate.PrimeCandidateError.PrimeCandidateWrongLength",
+          "kind": "constructor",
+          "name": "PrimeCandidateWrongLength",
+          "parameters": [],
+          "signature": "PrimeCandidateWrongLength :: PrimeCandidateError",
+          "source": {
+            "line": 20
+          },
+          "typeParameters": []
+        }
+      ],
+      "doc": {
+        "legacy": false,
+        "line": 15,
+        "links": [],
+        "markdown": "A size refusal before any candidate value is produced.",
+        "math": [],
+        "summary": "A size refusal before any candidate value is produced.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Prime.Candidate.PrimeCandidateError",
+      "kind": "data",
+      "name": "PrimeCandidateError",
+      "parameters": [],
+      "signature": "data PrimeCandidateError where",
+      "source": {
+        "line": 16
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 22,
+        "links": [],
+        "markdown": "Combine bounded top-byte masks and forced bits in a single byte operation.",
+        "math": [],
+        "summary": "Combine bounded top-byte masks and forced bits in a single byte operation.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Prime.Candidate.shape-byte",
+      "kind": "prim",
+      "name": "shape-byte",
+      "parameters": [],
+      "signature": "prim shape-byte :: U8 -> U8 -> U8 -> U8 where",
+      "source": {
+        "line": 23
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 30,
+        "links": [],
+        "markdown": "Force one fixed bit without changing the other byte bits.",
+        "math": [],
+        "summary": "Force one fixed bit without changing the other byte bits.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Prime.Candidate.set-bit",
+      "kind": "prim",
+      "name": "set-bit",
+      "parameters": [],
+      "signature": "prim set-bit :: U8 -> U8 -> U8 where",
+      "source": {
+        "line": 31
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 37,
+        "links": [],
+        "markdown": "Convert a proved byte-valued natural to its exact machine byte.",
+        "math": [],
+        "summary": "Convert a proved byte-valued natural to its exact machine byte.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Prime.Candidate.byte",
+      "kind": "value",
+      "name": "byte",
+      "parameters": [
+        {
+          "doc": "",
+          "name": "value",
+          "type": "Nat"
+        }
+      ],
+      "signature": "byte :: using (value <= 255) => (value :: Nat) -> U8",
+      "source": {
+        "line": 38
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 41,
+        "links": [],
+        "markdown": "Form a small power used only for one-byte candidate masks.",
+        "math": [],
+        "summary": "Form a small power used only for one-byte candidate masks.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Prime.Candidate.power-two",
+      "kind": "value",
+      "name": "power-two",
+      "parameters": [],
+      "signature": "power-two :: Nat -> Nat",
+      "source": {
+        "line": 42
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 45,
+        "links": [],
+        "markdown": "Shape exact bit length, both highest bits and odd parity without predicting entropy.\nThe returned natural is a candidate only, even when it happens to be prime.",
+        "math": [],
+        "summary": "Shape exact bit length, both highest bits and odd parity without predicting entropy. The returned natural is a candidate only, even when it happens to be prime.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Data.Prime.Candidate.prime-candidate-from-bytes",
+      "kind": "value",
+      "name": "prime-candidate-from-bytes",
+      "parameters": [],
+      "signature": "prime-candidate-from-bytes :: Nat -> Bytes -> Result PrimeCandidateError Nat",
+      "source": {
+        "line": 47
+      },
+      "typeParameters": []
+    }
+  ],
+  "diagnostics": [],
+  "doc": {
+    "legacy": false,
+    "line": 1,
+    "links": [],
+    "markdown": "Exact-width odd candidate shaping, independent of any primality claim.\nThese functions do not test primality and must not be used as a prime generator.\nThe input is copied before top-bit and parity changes, preserving caller ownership.",
+    "math": [],
+    "summary": "Exact-width odd candidate shaping, independent of any primality claim. These functions do not test primality and must not be used as a prime generator. The input is copied before top-bit and parity changes, preserving caller ownership.",
+    "tags": {},
+    "tests": []
+  },
+  "module": "Data.Prime.Candidate",
+  "orphans": [],
+  "schema": 1,
+  "source": "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/prime-candidate-exact-6fea/project/Data.Prime.Candidate.cinch",
+  "sourceSha256": "70c82d03f134da6b1f35c1e00846d8d4902a2594ff52125a6f551aef1bc800a9"
+}

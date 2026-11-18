@@ -1,0 +1,21 @@
+{
+  "scope": "Completed debug Rust Cargo cache only; both debug static runtime archives, release/frozen archives, source and every failure remain plain.",
+  "original_paths": [
+    "/workspace/dasl-stdlib-io/compiler/runtime/target/debug/build/cinchruntime/c563a2dc6ca50739/out/libcinchruntime.rlib",
+    "/workspace/dasl-stdlib-io/compiler/runtime/target/debug/libcinchruntime.rlib"
+  ],
+  "original_sha256": "fdebad3c237292e557fe76cca256763ac97281a02d009c55a53b2bb69b1728f7",
+  "original_bytes": 12792478,
+  "original_mode_octal": "0o600",
+  "original_uid": 1000,
+  "original_gid": 1000,
+  "original_mtime_ns": 1794891329433457069,
+  "archive": "/workspace/dasl-stdlib-io/compiler/runtime/target/debug/build/cinchruntime/c563a2dc6ca50739/out/libcinchruntime.rlib.fdebad3c237292e5.zst",
+  "compressed_sha256": "0d0109f4d6eb8dadad877431a642a5140962b7a043af2ce03d341d96753a96df",
+  "decompressed_sha256_verified": true,
+  "passed_runtime_gate": "/tmp/cinch-stdlib-rebase-main-runtime-final-gate.log",
+  "passed_runtime_gate_sha256": "98045fbcbe96a80d6ea47ad87392b734947ed39be5dd86ac7c9afc9517cb7c77",
+  "successful_debug_build": "/tmp/cinch-stdlib-rebase-runtime-debug-build.log",
+  "successful_debug_build_sha256": "c68bc1bd25dbbcf7d7fb9d9536d7fc05754b720e86b96eda2abdf673f2636f1b",
+  "net_bytes_recovered": 10854400
+}

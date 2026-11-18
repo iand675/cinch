@@ -1,0 +1,58 @@
+-- | Public immutable-string materialization with opaque runtime inputs and observable bytes.
+module Main where
+  import Data.String
+  import Data.Bytes
+  import Data.List
+  import Data.Char
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Effect.Clock
+  import Effect.Process
+  import Text.Hex
+  -- | Parse validated nonnegative harness fields before timing.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+  -- | Accumulate one exact decimal natural.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from text n = case text of Nil -> n; Cons c rest -> case digit-value c of None -> 0; Some digit -> let next = n * 10 + digit in decimal-from rest next
+  -- | Build a deep piece list outside the measured interval without another construction helper.
+  pieces :: Nat -> String -> List String -> List String
+  pieces left text reversed = if left == 0 then reverse reversed else
+    let values = Cons text reversed in let remaining = left - 1 in pieces remaining text values
+  -- | Observe bytes from all parts of a fully materialized result rather than only its known length.
+  fingerprint :: Bytes -> Nat
+  fingerprint bytes = let n = bytes-len bytes in if n > 0 then
+    let last = n - 1 in let middle = nat-div n 2 in
+    if last < bytes-len bytes && middle < bytes-len bytes then
+      n + bytes-get bytes 0 * 257 + bytes-get bytes middle * 65537 + bytes-get bytes last * 16777217
+    else 0
+    else 0
+  -- | Select one changed complete public construction without hiding a loop in a primitive.
+  construct :: Bool -> String -> String -> List String -> Nat -> Nat -> String
+  construct repeat text doubled values count salt = if repeat then string-repeat (count + salt) text
+    else case values of Nil -> empty-string; Cons first rest -> string-concat-all (Cons (if salt == 0 then text else doubled) rest)
+  -- | Materialize a changed public result on each iteration and consume its copied bytes.
+  operation :: Bool -> String -> String -> List String -> Nat -> Nat -> Nat
+  operation repeat text doubled values count i =
+    let salt = nat-rem i 2 in let result = construct repeat text doubled values count salt in
+    fingerprint (string-to-bytes result)
+  -- | Sequence primitive observations before the ordinary measured tail loop.
+  measure-loop :: Bool -> String -> String -> List String -> Nat -> Nat -> Nat -> Nat -> Nat
+  measure-loop repeat text doubled values count left i total = if left == 0 then total else
+    let value = operation repeat text doubled values count i in let next-total = nat-rem (total + value) 1000000007 in
+    let remaining = left - 1 in let next = i + 1 in measure-loop repeat text doubled values count remaining next next-total
+  -- | Time complete public construction and output-copy pipelines after all inputs are prepared.
+  measure :: forall r. using (io :: Io r) => Bool -> String -> Nat -> Nat ->{IO r} Int
+  measure repeat text count iterations =
+    let doubled = string-concat text text in let values = pieces count text Nil in
+    let original = if repeat then string-repeat count text else string-concat-all values in
+    let digest = hex-encode (sha256-bytes (string-to-bytes original)) in
+    let start = clock-monotonic-ns () in let checksum = measure-loop repeat text doubled values count iterations 0 0 in
+    let end = clock-monotonic-ns () in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string checksum) (string-concat " " (string-concat digest "\n")))))) in 0
+  -- | Resolve validated harness arguments before the clock boundary.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons mode (Cons text (Cons count (Cons iterations Nil)))) -> measure (mode == "repeat") text (decimal count) (decimal iterations)
+    other -> 2

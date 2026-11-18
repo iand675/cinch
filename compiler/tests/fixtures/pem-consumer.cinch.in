@@ -1,0 +1,159 @@
+-- | Independent arbitrary-byte PEM framing, metadata, Base64 and exact-remainder observations.
+module Main where
+  import Text.Pem
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Process
+
+  -- | Compare all bytes without lossy text conversion.
+  same :: Bytes -> Bytes -> Bool
+  same first second = let ordering = bytes-compare first second in eq-i64 ordering 0
+
+  -- | Locate a bounded delimiter in the fixture's hexadecimal metadata stream.
+  field-end :: Bytes -> Nat -> Nat
+  field-end source at = if at < bytes-len source then if bytes-get source at == 0 then at else field-end source (at + 1) else at
+
+  -- | Decode one lowercase hexadecimal fixture digit.
+  nibble :: Nat -> Nat
+  nibble value = if value >= 97 then value - 87 else if value >= 48 then value - 48 else 0
+
+  -- | Fill a fresh fixture field using only checked ordinary byte writes.
+  fill-field :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Unit
+  fill-field source at end out cursor = if at + 1 < bytes-len source && at + 1 < end && cursor < bytes-len out then
+    let value = nibble (bytes-get source at) * 16 + nibble (bytes-get source (at + 1)) in
+    if value <= 255 then let written = bytes-set out cursor value in fill-field source (at + 2) end out (cursor + 1) else ()
+    else ()
+
+  -- | Read a separately owned arbitrary-byte fixture field and retain its next offset.
+  field :: Bytes -> Nat -> (Bytes, Nat)
+  field source at = let end = field-end source at in
+    if at <= end then let size = nat-div (end - at) 2 in let out = bytes-new size in
+      let filled = fill-field source at end out 0 in (out, end + 1)
+    else (bytes-new 0, end + 1)
+
+  -- | Read an exact little-endian fixture count rather than building deep refined literal lists.
+  count-field :: Bytes -> Nat -> (Nat, Nat)
+  count-field source at = case field source at of
+    (bytes, next) -> if bytes-len bytes == 4 then (u32-to-nat (bytes-read-le32 bytes 0), next) else (0, next)
+
+  -- | Read byte metadata flags without treating UTF-8 text validity as PEM validity.
+  flag-field :: Bytes -> Nat -> (Bool, Nat)
+  flag-field source at = case field source at of
+    (bytes, next) -> (if bytes-len bytes == 1 then bytes-get bytes 0 == 1 else False, next)
+
+  -- | Reconstruct exact independently observed metadata; public construction must preserve every byte.
+  headers :: Bytes -> Nat -> Nat -> List PemHeader -> (List PemHeader, Nat)
+  headers source at remaining result =
+    if remaining > 0 then
+      case field source at of
+        (key, a) -> case field source a of
+          (value, b) -> headers source b (remaining - 1) (Cons (pem-header key value) result)
+    else (result, at)
+
+  -- | Read a complete label/header/payload observation with an explicit cursor.
+  block-field :: Bytes -> Nat -> (PemBlock, Nat)
+  block-field source at = case field source at of
+    (label, a) -> case count-field source a of
+      (count, b) -> case headers source b count Nil of
+        (values, c) -> case field source c of
+          (payload, d) -> (pem-block label values payload, d)
+
+  -- | Compare every returned header key and value in canonical byte order.
+  same-headers :: List PemHeader -> List PemHeader -> Bool
+  same-headers first second = case first of
+    Nil -> case second of Nil -> True; Cons header rest -> False
+    Cons a rest -> case second of
+      Nil -> False
+      Cons b tail -> same (pem-header-key a) (pem-header-key b)
+        && same (pem-header-value a) (pem-header-value b) && same-headers rest tail
+
+  -- | Observe every returned block capability rather than only payload decoding.
+  same-block :: PemBlock -> PemBlock -> Bool
+  same-block first second = same (pem-block-type first) (pem-block-type second)
+    && same (pem-block-bytes first) (pem-block-bytes second)
+    && same-headers (pem-block-headers first) (pem-block-headers second)
+
+  -- | Mutate caller storage to expose any accidental alias of decoded metadata or remainder.
+  mutate :: Bytes -> Nat -> Unit
+  mutate source at = if at < bytes-len source then let changed = bytes-set source at 255 in mutate source (at + 1) else ()
+
+  -- | Match the exact refusal class or canonical independently encoded bytes.
+  encoded :: PemBlock -> Bool -> Bytes -> Bool
+  encoded block valid expected = case pem-encode-bytes block of
+    Err error -> if valid then False else (case error of PemInvalidHeaderKey index -> True; PemOutputError failure -> False)
+    Ok output -> if valid then same output expected else False
+
+  -- | Check one encode observation twice, independently of later mutations of a returned buffer.
+  encode-row :: Bytes -> Nat -> (Bool, Nat)
+  encode-row source at = case block-field source at of
+    (block, a) -> case flag-field source a of
+      (valid, b) -> case field source b of
+        (expected, next) -> (encoded block valid expected, next)
+
+  -- | Distinguish absence from an empty found block and preserve all fresh remainder bytes.
+  decoded :: Option PemBlock -> Bool -> PemBlock -> Bool
+  decoded actual found expected = case actual of
+    None -> not found
+    Some block -> found && same-block block expected
+
+  -- | Verify complete decoding before and after mutating every caller input byte.
+  decode-row :: Bytes -> Nat -> (Bool, Nat)
+  decode-row source at = case field source at of
+    (input, a) -> case flag-field source a of
+      (found, b) -> case block-field source b of
+        (expected, c) -> case field source c of
+          (rest, next) -> case pem-decode input of
+            (actual, remainder) ->
+              let initial = decoded actual found expected && same remainder rest in
+              let changed = mutate input 0 in (initial && decoded actual found expected && same remainder rest, next)
+
+  -- | Check a small corpus page while bounding poisoned-free quarantine and preserving row identity.
+  rows :: Bytes -> Nat -> Nat -> Bool -> Bool
+  rows source at remaining encoding = if remaining == 0 then True
+    else if at < bytes-len source then
+      let observed = if encoding then encode-row source at else decode-row source at in
+      case observed of (passed, next) -> passed && rows source next (remaining - 1) encoding
+    else False
+
+  -- | Select one exact independent corpus page from its bounded readonly offset table.
+  run-group :: U32 -> U32 -> Bool
+  run-group mode index = if eq-u32 mode 0 && lt-u32 index __ENCODE_GROUPS__ then
+    let source = string-to-bytes __ENCODES__ in let offset = u32-to-nat (unicode-data-pem-encode-offsets index) in
+    let first = u32-to-nat (wrapping-mul-u32 index 8) in
+    if first < __ENCODE_ROWS__ then let remaining = __ENCODE_ROWS__ - first in rows source offset (if remaining < 8 then remaining else 8) True else False
+    else if eq-u32 mode 1 && lt-u32 index __DECODE_GROUPS__ then
+      let source = string-to-bytes __DECODES__ in let offset = u32-to-nat (unicode-data-pem-decode-offsets index) in
+      let first = u32-to-nat (wrapping-mul-u32 index 8) in
+      if first < __DECODE_ROWS__ then let remaining = __DECODE_ROWS__ - first in rows source offset (if remaining < 8 then remaining else 8) False else False
+    else False
+
+  -- | Traverse the complete ordinary-memory fixture set without retaining prior mutable fields.
+  all-groups :: U32 -> U32 -> Bool
+  all-groups mode index = let count = if eq-u32 mode 0 then (__ENCODE_GROUPS__ :: U32) else __DECODE_GROUPS__ in
+    if lt-u32 index count then run-group mode index && all-groups mode (wrapping-add-u32 index 1) else True
+
+  -- | Parse only ASCII decimal group metadata, independent of Unicode header trimming.
+  decimal :: List Char -> Nat -> Nat
+  decimal input value = case input of Nil -> value; Cons cp rest -> case digit-value cp of None -> 0; Some digit -> decimal rest (value * 10 + digit)
+
+__WORDS__
+
+  -- | Select the complete normal corpus or one bounded diagnostic/poisoned page.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Err error -> 2
+    Ok args -> case args of
+      Nil -> if all-groups 0 0 && all-groups 1 0 then 0 else 1
+      Cons mode (Cons index Nil) -> let m = decimal (unpack mode) 0 in let i = decimal (unpack index) 0 in
+        if m <= 1 && i < 1024 then let raw-mode = wrapping-i64-to-u32 (nat-to-i64 m) in let raw-index = wrapping-i64-to-u32 (nat-to-i64 i) in
+          if run-group raw-mode raw-index then 0 else 1
+        else 2
+      other -> 2

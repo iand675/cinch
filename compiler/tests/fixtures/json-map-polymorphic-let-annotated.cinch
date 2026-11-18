@@ -1,0 +1,8 @@
+-- | Computed polymorphic empty-map value lowering reproduction.
+module Main where
+  import Text.Json.Codec
+  -- | Read the same generalized value both parametrically and at a concrete element type.
+  main :: Int
+  main = let descriptor = json-map-type json-string-key json-int64-type in
+    let prior = (json-map-null json-string-key :: JsonMap String I64) in
+    if json-map-is-null prior && (case json-marshal descriptor prior of Ok bytes -> True; Err error -> False) then 0 else 1

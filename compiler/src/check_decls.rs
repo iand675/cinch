@@ -90,12 +90,21 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
     })
 }
 
+/// Recover a payload certificate only from the unique authoritative builtin header.
+/// Imported/source headers cannot grant evidence, and a competing identity revokes it.
+fn sealed_positive_payload(types: &HashMap<String, Vec<TypeKind>>, identity: &str) -> Option<StrictPositivePayload> {
+    let mut headers = types.values().flatten().filter(|entry| entry.identity == identity);
+    let evidence = headers.next()?.strict_positive_payload?;
+    headers.all(|entry| entry.strict_positive_payload == Some(evidence)).then_some(evidence)
+}
+
 /// The positivity discipline (core specification section 2; roadmap gap
 /// A1): a data declaration may occur in a constructor field only strictly
 /// positively, as the field type itself or in the codomain of an arrow.
-/// Negative occurrences and nesting inside other type constructors are
-/// rejected: positivity-preserving nesting is an open design point
-/// (dependent core kernel design, section 5).
+/// The actual sealed finite-array payload also preserves strict positivity.
+/// Unknown containers, negative function positions and recursive occurrences
+/// in a group's own type arguments remain refused. No subtyping covariance
+/// follows from this finite-payload certificate.
 ///
 /// `group` is the declaration's strongly connected group in its module
 /// (`data_sccs`): itself when it is not recursive, every member of the
@@ -103,6 +112,7 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
 /// as one block, so a member may occur in another member's constructor and
 /// the occurrence is judged against the whole group.
 fn check_group_positivity(
+    types: &HashMap<String, Vec<TypeKind>>,
     group: &[String],
     field: &str,
     ty: &Ty,
@@ -116,7 +126,7 @@ fn check_group_positivity(
     } else {
         format!("the recursive group {{{}}}", group.join(", "))
     };
-    fn go(group: &[String], label: &str, field: &str, ctor: &ast::Name, ty: &Ty, span: ast::Span, positive: bool) -> Result<()> {
+    fn go(types: &HashMap<String, Vec<TypeKind>>, group: &[String], label: &str, field: &str, ctor: &ast::Name, ty: &Ty, span: ast::Span, positive: bool) -> Result<()> {
         let bad = |what: &str| {
             Err(Error::at(
                 span,
@@ -143,6 +153,15 @@ fn check_group_positivity(
                     }
                     Ok(())
                 } else {
+                    if !args.iter().any(|argument| mentions_group(argument, group)) {
+                        return Ok(());
+                    }
+                    if sealed_positive_payload(types, n).is_some_and(|evidence| evidence.accepts(args.len())) {
+                        for a in args {
+                            go(types, group, label, field, ctor, a, span, positive)?;
+                        }
+                        return Ok(());
+                    }
                     for a in args {
                         if mentions_group(a, group) {
                             return bad("nested inside another type constructor");
@@ -151,24 +170,34 @@ fn check_group_positivity(
                     Ok(())
                 }
             }
-            // An arrow's parameter is a negative position; its result is
-            // positive. A dependent pair is a product: both sides are
-            // positive.
+            // Strict positivity excludes every recursive arrow-domain
+            // occurrence, including double negatives. The codomain and
+            // both dependent-pair components preserve their position.
             Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } => {
-                go(group, label, field, ctor, a, span, !positive)?;
-                go(group, label, field, ctor, b, span, positive)
+                if mentions_group(a, group) {
+                    return bad("negatively");
+                }
+                go(types, group, label, field, ctor, b, span, positive)
             }
             Ty::Sigma { dom, cod, .. } => {
-                go(group, label, field, ctor, dom, span, positive)?;
-                go(group, label, field, ctor, cod, span, positive)
+                go(types, group, label, field, ctor, dom, span, positive)?;
+                go(types, group, label, field, ctor, cod, span, positive)
             }
             // A polytype's binders introduce no occurrence; its body keeps
             // the polarity of its position (design/rank-n-polymorphism.md
             // section 3).
-            Ty::Forall(scheme) => go(group, label, field, ctor, &scheme.ty, span, positive),
+            Ty::Forall(scheme) => {
+                if scheme.val_params.iter().any(|(_, ty)| mentions_group(ty, group)) {
+                    return bad("negatively");
+                }
+                if scheme.ctx.iter().any(|(_, app)| app.args.iter().any(|ty| mentions_group(ty, group))) {
+                    return bad("nested inside another type constructor");
+                }
+                go(types, group, label, field, ctor, &scheme.ty, span, positive)
+            },
             Ty::Tuple(items) => {
                 for i in items {
-                    go(group, label, field, ctor, i, span, positive)?;
+                    go(types, group, label, field, ctor, i, span, positive)?;
                 }
                 Ok(())
             }
@@ -177,7 +206,7 @@ fn check_group_positivity(
                 // reading as a product component. A `Later` payload is a
                 // guarded future observation (core language specification
                 // section 9), read the same way.
-                go(group, label, field, ctor, inner, span, positive)
+                go(types, group, label, field, ctor, inner, span, positive)
             }
             // A handler carries its input and output by value, so a group
             // occurrence inside one is a structural occurrence, and the
@@ -189,15 +218,40 @@ fn check_group_positivity(
                 }
                 Ok(())
             }
+            // Higher-kinded heads, boundary pointers and borrow formers
+            // carry no established strictly-positive payload evidence.
+            _ if mentions_group(ty, group) => bad("nested inside another type constructor"),
             _ => Ok(()),
         }
     }
-    go(group, &label, field, ctor, ty, span, true)
+    go(types, group, &label, field, ctor, ty, span, true)
 }
 
-/// Does this type mention any member of the group?
+/// Find recursive occurrences in every runtime type former used by positivity.
+/// This walk is deliberately independent from ordinary source-name occurrence
+/// queries: higher-kinded applications and pointer payloads cannot be skipped.
 fn mentions_group(t: &Ty, group: &[String]) -> bool {
-    group.iter().any(|m| ty_mentions(t, m))
+    match t {
+        Ty::Param(name) => group.iter().any(|owner| owner.as_str() == name.as_str()),
+        Ty::Adt(name, args) => group.iter().any(|owner| owner.as_str() == name.as_str())
+            || args.iter().any(|ty| mentions_group(ty, group)),
+        Ty::App(head, args) => mentions_group(head, group)
+            || args.iter().any(|ty| mentions_group(ty, group)),
+        Ty::Tuple(items) => items.iter().any(|ty| mentions_group(ty, group)),
+        Ty::Fun(domain, _, _, result) | Ty::Pi { dom: domain, cod: result, .. }
+        | Ty::Sigma { dom: domain, cod: result, .. } =>
+            mentions_group(domain, group) || mentions_group(result, group),
+        Ty::Forall(scheme) => {
+            let visible: Vec<String> = group.iter().filter(|name| !scheme.params.contains(name)).cloned().collect();
+            mentions_group(&scheme.ty, &visible)
+                || scheme.val_params.iter().any(|(_, ty)| mentions_group(ty, &visible))
+                || scheme.ctx.iter().any(|(_, app)| app.args.iter().any(|ty| mentions_group(ty, &visible)))
+        }
+        Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. }
+        | Ty::Ref(_, inner) | Ty::Mut(_, inner) | Ty::Ptr { pointee: inner, .. } => mentions_group(inner, group),
+        Ty::Handler { input, output, .. } => mentions_group(input, group) || mentions_group(output, group),
+        _ => group.iter().any(|name| t.mentions_idx(name)),
+    }
 }
 
 /// The data type names a source type expression names without a module
@@ -368,6 +422,18 @@ fn builtin_type_name(name: &str) -> bool {
     )
 }
 
+/// Primitive spellings reserved by data and refinement declarations.
+/// Other kernel type formers can have distinct, qualified source-owned names;
+/// recognizing their spelling is not permission to skip a nominal declaration.
+fn reserved_data_type_name(name: &str) -> bool {
+    Scalar::parse(name).is_some() || matches!(name,
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
+            | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"
+            | "Code" | "Syntax" | "TypeSyntax" | "PackedCode"
+            | "SyntaxBinding" | "Declarations" | "Name" | "Secret"
+            | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap")
+}
+
 /// The effect labels a foreign binding's row must account for (foreign
 /// function interface specification section 4: I/O, global state,
 /// blocking, divergence, reentrancy, thread affinity and failure).
@@ -379,6 +445,20 @@ fn accounted_effect(head: &str) -> bool {
         head,
         "Foreign" | "IO" | "Global" | "Blocking" | "Diverge" | "Fail" | "Reentrant" | "ThreadAffine"
     )
+}
+
+/// Keep declaration-owned effects distinct from kernel labels in every source path.
+///
+/// Ordinary unowned effects retain their legacy global identity. A spelling used by
+/// a kernel effect instead needs its defining module, just like an owned declaration;
+/// it remains a legal, independently handleable source effect, never kernel authority.
+fn declared_effect_head(module: &str, name: &ast::Name) -> String {
+    if name.declaration_binding().is_some() || accounted_effect(&name.text)
+        || matches!(name.text.as_str(), "Async" | "Cancel" | "Eval" | "Mut" | "MVar") {
+        format!("{module}.{}", name.text)
+    } else {
+        name.text.clone()
+    }
 }
 
 /// The arrow count of a (possibly curried) function type.
@@ -692,6 +772,7 @@ impl Checker {
             if row_params.contains(&name) || region_params.contains(&name) { continue; }
             match kind {
                 ParamKind::Type => scheme.params.push(name.into()),
+                ParamKind::Region => { if !region_params.contains(&name) { region_params.push(name); } },
                 ParamKind::Con(arity) => { scheme.con_params.push((name.clone().into(), arity)); scheme.params.push(name.into()); }
                 ParamKind::Val(carrier) => {
                     kinds.insert(name.clone(), Ty::Idx(Box::new(ITerm::Var(name.clone().into()))));
@@ -723,6 +804,7 @@ impl Checker {
     fn install_builtins(&mut self) {
         for n in ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym"] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
+                strict_positive_payload: None,
                 data_family: false,
                 module: "<builtin>".into(),
                 name: n.into(), identity: n.into(),
@@ -735,8 +817,12 @@ impl Checker {
         }
         // Opaque runtime type constructors: no source constructor can forge
         // a shape, a column layout or a transactional variable's cell.
-        for name in ["Array", "Tensor", "Columnar", "TVar", "MVarCell"] {
+        for (name, payload) in [
+            ("Array", Some(StrictPositivePayload::FiniteOwnedArray)),
+            ("Tensor", None), ("Columnar", None), ("TVar", None), ("MVarCell", None),
+        ] {
             self.types.entry(name.into()).or_default().push(TypeKind {
+                strict_positive_payload: payload,
                 data_family: false,
                 module: "<builtin>".into(), name: name.into(), identity: name.into(), arity: 1,
                 param_kinds: vec![ParamKind::Type], ctors: Vec::new(), fields: None,
@@ -747,6 +833,7 @@ impl Checker {
         // section 4, decision D21). The value is a uniform word; the
         // identity lives in the type.
         self.types.entry("Io".to_string()).or_default().push(TypeKind {
+            strict_positive_payload: None,
             data_family: false,
             module: "<builtin>".into(),
             name: "Io".into(), identity: "Io".into(),
@@ -760,6 +847,7 @@ impl Checker {
         // (primitive types specification, section 2).
         for s in Scalar::ALL {
             self.types.entry(s.name().to_string()).or_default().push(TypeKind {
+                strict_positive_payload: None,
                 data_family: false,
                 module: "<builtin>".into(),
                 name: s.name().into(), identity: s.name().into(),
@@ -834,6 +922,7 @@ impl Checker {
         use crate::types::{EffLabel, EffRow, Mult, RowTail};
         for (n, arity) in [("Scope", 2), ("Task", 3)] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
+                strict_positive_payload: None,
                 data_family: false,
                 module: "<builtin>".into(),
                 name: n.into(), identity: n.into(),
@@ -1088,7 +1177,7 @@ impl Checker {
     }
 
     /// Deterministic pure parallelism (`design/parallel-evaluation.md`
-    /// sections 2.1 and 4.1): three compiler-known values whose meaning is
+    /// sections 2.1 and 4.1): compiler-known values whose meaning is
     /// their sequential defining equation, so no result depends on the
     /// participant count or the schedule. Each carries a full scheme here
     /// (they are builtins, not prelude foreign imports), and the
@@ -1220,6 +1309,9 @@ impl Checker {
             },
             ParOp::MapArray,
         );
+        // Participant budgets are hints: their Unit result and pure source
+        // row do not depend on the configured execution schedule.
+        reg(self, "parWorkers", Scheme::mono(Ty::fun(Ty::Nat, Ty::Unit)), ParOp::Workers);
     }
 
     /// Staging (P9): the builtin compile-time types and the capability API
@@ -1590,6 +1682,7 @@ impl Checker {
             ("SchemaRead", 0),
         ] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
+                strict_positive_payload: None,
                 data_family: false,
                 module: "<builtin>".into(),
                 name: n.into(), identity: n.into(),
@@ -2280,6 +2373,7 @@ impl Checker {
                 }
                 match k {
                     ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                    ParamKind::Region => {},
                     ParamKind::Val(t) => idx_params.push(IxParam::Val(p.clone().into(), t.clone())),
                     ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone().into())),
                 }
@@ -2309,7 +2403,7 @@ impl Checker {
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
-                region_params: Vec::new(),
+                region_params: params.iter().filter_map(|(name, kind)| (*kind == ParamKind::Region).then(|| name.clone())).collect(),
                 ctx: Vec::new(),
                 ty,
             };
@@ -2356,6 +2450,7 @@ impl Checker {
             ctor_names.push((cname, tag));
         }
         self.types.entry(name.to_string()).or_default().push(TypeKind {
+            strict_positive_payload: None,
             data_family: true,
             module: "<builtin>".to_string(),
             name: name.to_string(), identity: name.to_string(),
@@ -3007,13 +3102,16 @@ impl Checker {
     }
 
     /// A nominal declaration's parameters and their kinds: a kind
-    /// annotation classifies each one as a type parameter or an index value
+    /// annotation classifies each one as a type, runtime identity or index value
     /// (`data Vec (n :: Nat) (a :: Type)`); an un-annotated parameter is a
     /// type parameter (dependent core kernel design, section 5).
     fn nominal_params(&mut self, params: &[ast::TypeBinder]) -> Result<(Vec<String>, Vec<ParamKind>)> {
         let mut names: Vec<String> = Vec::new();
         let mut kinds: Vec<ParamKind> = Vec::new();
         for b in params {
+            if names.contains(&b.name.text) {
+                return Err(Error::at(b.name.span, "duplicate nominal parameter"));
+            }
             let k = match &b.ann {
                 Some(ann) => self.binder_kind(ann, &names)?,
                 None => ParamKind::Type,
@@ -3060,6 +3158,8 @@ impl Checker {
             /// The type names the declaration's body mentions.
             references: Vec<String>,
             data_family: bool,
+            /// The collecting branch's actual reserved-name policy for this declaration kind.
+            reserved: bool,
             fields: Option<Vec<String>>,
             field_erased: Vec<bool>,
         }
@@ -3076,6 +3176,7 @@ impl Checker {
                         params: &data.params,
                         references,
                         data_family: true,
+                        reserved: reserved_data_type_name(&data.name.text),
                         fields: None,
                         field_erased: Vec::new(),
                     });
@@ -3090,6 +3191,7 @@ impl Checker {
                         params: &rec.params,
                         references,
                         data_family: false,
+                        reserved: matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"),
                         fields: Some(rec.fields.iter().map(|f| f.name.text.clone()).collect()),
                         field_erased: rec.fields.iter().map(|f| f.erased).collect(),
                     });
@@ -3128,10 +3230,10 @@ impl Checker {
             }
         }
         for h in heads {
-            if Scalar::parse(&h.name.text).is_some() || builtin_type_name(&h.name.text) {
-                // The collecting branch refuses a builtin redefinition by
-                // name; registering it first would shadow the builtin for
-                // the rest of the module.
+            if h.reserved {
+                // Match the collecting branch's policy exactly. Other
+                // kernel spellings may name a qualified source-owned
+                // nominal; omitting its head would lose that ownership.
                 continue;
             }
             // A name this module already declares is a duplicate; the
@@ -3146,10 +3248,14 @@ impl Checker {
                 return Err(Error::at(h.name.span, format!("duplicate type {}", h.name.text)));
             }
             let (params, param_kinds) = self.nominal_params(h.params)?;
+            // Earlier constructors can refer to a later member of this block.
+            // Keep that member's explicit telescope available before either body checks.
+            self.interface_binders.insert((module.to_string(), h.name.text.clone()), h.params.to_vec());
             self.types
                 .entry(h.name.text.clone())
                 .or_default()
                 .push(TypeKind {
+                    strict_positive_payload: None,
                     data_family: h.data_family,
                     module: module.to_string(),
                     name: h.name.text.clone(),
@@ -3291,7 +3397,7 @@ impl Checker {
                 if !effect_sites.insert(site.clone()) || self.effect_bindings.get(&site).is_some_and(|head| self.effects.contains_key(head)) {
                     return Err(Error::at(effect.name.span, format!("duplicate effect {}", effect.name.text)));
                 }
-                let head = if effect.name.declaration_binding().is_some() { format!("{module}.{}", effect.name.text) } else { effect.name.text.clone() };
+                let head = declared_effect_head(&module, &effect.name);
                 if self.effects.contains_key(&head) {
                     return Err(Error::at(effect.name.span, format!("duplicate effect {}", effect.name.text)));
                 }
@@ -3846,24 +3952,13 @@ impl Checker {
                     {
                         return Err(Error::at(o.name.span, format!("duplicate type {}", o.name.text)));
                     }
-                    let mut params: Vec<String> = Vec::new();
-                    let mut param_kinds: Vec<ParamKind> = Vec::new();
-                    for b in &o.params {
-                        let k = match &b.ann {
-                            Some(ann) => self.binder_kind(ann, &params)?,
-                            None => ParamKind::Type,
-                        };
-                        // Keep the checked carrier/function kind just as for
-                        // other nominal declarations; opacity hides values
-                        // and layouts, not parameter kinds.
-                        params.push(b.name.text.clone());
-                        param_kinds.push(k);
-                    }
+                    let (params, param_kinds) = self.nominal_params(&o.params)?;
                     // Abstract: no constructors and no fields, so values
                     // arise only from foreign calls and there is no
                     // layout projection (foreign function interface
                     // specification section 2).
                     let tk = TypeKind {
+                        strict_positive_payload: None,
                         data_family: false,
                         module: module.clone(),
                         name: o.name.text.clone(), identity: nominal_identity(&module, &o.name),
@@ -3881,29 +3976,7 @@ impl Checker {
                 }
                 ast::Decl::Data(data) => {
                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
-                    if Scalar::parse(&data.name.text).is_some()
-                        || matches!(
-                            data.name.text.as_str(),
-                            "Nat"
-                                | "Int"
-                                | "Bool"
-                                | "Unit"
-                                | "Bytes"
-                                | "Sym"
-                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"
-                                | "Code"
-                                | "Syntax"
-                                | "TypeSyntax" | "PackedCode"
-                                | "SyntaxBinding"
-                                | "Declarations"
-                                | "Name"
-                                | "Secret"
-                                | "IoCap"
-                                | "FileReadCap"
-                                | "FileWriteCap"
-                                | "ProcCap"
-                        )
-                    {
+                    if reserved_data_type_name(&data.name.text) {
                         return Err(Error::at(
                             data.name.span,
                             format!("{} is a builtin primitive type and cannot be redefined", data.name.text),
@@ -3951,7 +4024,7 @@ impl Checker {
                                 };
                                 vars.push(b.name.text.clone());
                                 match k {
-                                    ParamKind::Type | ParamKind::Con(_) => {
+                                    ParamKind::Region | ParamKind::Type | ParamKind::Con(_) => {
                                         return Err(Error::at(
                                             b.name.span,
                                             "constructor-local type parameters are not supported in this slice; move the parameter to the family",
@@ -3978,7 +4051,7 @@ impl Checker {
                                             "effect rows on constructor arguments are not supported in the bootstrap slice",
                                         ));
                                     }
-                                    let t = self.conv_type(arg, &vars)?;
+                                    let t = self.conv_nominal_type(arg, &vars, &data.params)?;
                                     let m = match mult {
                                         Some(n) => Mult::parse(&n.text).ok_or_else(|| {
                                             Error::at(n.span, format!("unknown multiplicity {}", n.text))
@@ -4003,7 +4076,7 @@ impl Checker {
                                             format!("duplicate binder {}", name.text),
                                         ));
                                     }
-                                    let t = self.conv_type(ann, &vars)?;
+                                    let t = self.conv_nominal_type(ann, &vars, &data.params)?;
                                     let m = match mult {
                                         Some(n) => Mult::parse(&n.text).ok_or_else(|| {
                                             Error::at(n.span, format!("unknown multiplicity {}", n.text))
@@ -4018,7 +4091,7 @@ impl Checker {
                                 other => break other,
                             }
                         };
-                        let res_ty = self.conv_type(result, &vars)?;
+                        let res_ty = self.conv_nominal_type(result, &vars, &data.params)?;
                         // The result is the declared family applied to its
                         // parameters: type and proposition parameters must
                         // be the declared ones, index parameters may be
@@ -4034,6 +4107,7 @@ impl Checker {
                                         ParamKind::Type | ParamKind::Con(_) => {
                                             Ty::Param(params[i].clone().into())
                                         }
+                                        ParamKind::Region => Ty::Region(params[i].clone().into()),
                                         ParamKind::Val(_) => continue,
                                         ParamKind::Prop => {
                                             Ty::Prp(Box::new(PTerm::Var(params[i].clone())))
@@ -4068,7 +4142,7 @@ impl Checker {
                         // block.
                         let group = self.data_group(&module, &data.name);
                         for (fname, fty, _) in &fields {
-                            check_group_positivity(&group, fname, fty, &c.name, c.ty.span())?;
+                            check_group_positivity(&self.types, &group, fname, fty, &c.name, c.ty.span())?;
                         }
                         if fields.iter().any(|(_, ty, mult)| *mult == Mult::Zero && !erased_ty(ty)) {
                             return Err(Error::at(
@@ -4092,6 +4166,7 @@ impl Checker {
                             }
                             match k {
                                 ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                                ParamKind::Region => {},
                                 ParamKind::Val(t) => {
                                     idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                                 }
@@ -4111,6 +4186,20 @@ impl Checker {
                                 Ty::fun_mult(t.clone(), *m, EffRow::pure(), rest)
                             };
                         }
+                        // Callback fields can mention a family parameter as a
+                        // runtime identity. Quantify that namespace
+                        // exactly as an ordinary function signature does;
+                        // treating them as type metavariables leaves the
+                        // callback's effect label fixed to its source spelling.
+                        let mut row_params = Vec::new();
+                        let mut region_params: Vec<String> = params.iter().zip(&param_kinds).filter_map(|(name, kind)| (*kind == ParamKind::Region).then(|| name.clone())).collect();
+                        collect_row_names(&scheme_ty, &mut row_params, &mut region_params);
+                        for name in &region_params {
+                            if params.iter().zip(&param_kinds).any(|(parameter, kind)| parameter == name && !matches!(kind, ParamKind::Type | ParamKind::Region)) {
+                                return Err(Error::at(c.name.span, format!("runtime identity {name} cannot also be an index or higher-kinded family parameter")));
+                            }
+                        }
+                        type_params.retain(|name| !region_params.contains(name));
                         let scheme = Scheme {
             evidence_params: Vec::new(),
             con_params: higher_kinded_parameters(&params, &param_kinds),
@@ -4120,9 +4209,9 @@ impl Checker {
                             val_params: Vec::new(),
                             prop_params: Vec::new(),
                             row_params: Vec::new(),
-                            region_params: Vec::new(),
+                            region_params: region_params.clone(),
                             ctx: Vec::new(),
-                            ty: scheme_ty,
+                            ty: crate::types::regionize(&scheme_ty, &region_params),
                         };
                         self.remember_interface_constructor(&module, &c.name.text, &c.ty, &scheme, &data.params);
                         self.add_value(
@@ -4201,29 +4290,7 @@ impl Checker {
                     if set.repr.as_ref().is_some_and(|r| r.unboxed) {
                         return Err(Error::at(r.name.span, "repr(unboxed) requires a data or record declaration"));
                     }
-                    if Scalar::parse(&r.name.text).is_some()
-                        || matches!(
-                            r.name.text.as_str(),
-                            "Nat"
-                                | "Int"
-                                | "Bool"
-                                | "Unit"
-                                | "Bytes"
-                                | "Sym"
-                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"
-                                | "Code"
-                                | "Syntax"
-                                | "TypeSyntax" | "PackedCode"
-                                | "SyntaxBinding"
-                                | "Declarations"
-                                | "Name"
-                                | "Secret"
-                                | "IoCap"
-                                | "FileReadCap"
-                                | "FileWriteCap"
-                                | "ProcCap"
-                        )
-                    {
+                    if reserved_data_type_name(&r.name.text) {
                         return Err(Error::at(
                             r.name.span,
                             format!("{} is a builtin primitive type and cannot be redefined", r.name.text),
@@ -4320,6 +4387,7 @@ impl Checker {
                     // Register the type before its transparent
                     // constructor (whose scheme mentions the type).
                     self.types.entry(r.name.text.clone()).or_default().push(TypeKind {
+                        strict_positive_payload: None,
                         data_family: false,
                         module: module.clone(),
                         name: r.name.text.clone(), identity: nominal_identity(&module, &r.name),
@@ -4345,6 +4413,7 @@ impl Checker {
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
                             ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Region => Ty::Region(p.clone().into()),
                             _ => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                         })
                         .collect();
@@ -4364,6 +4433,7 @@ impl Checker {
                         }
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                            ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
@@ -4503,12 +4573,13 @@ impl Checker {
                     let mut vars = params.clone();
                     let mut field_tys = Vec::new();
                     for f in &rec.fields {
-                        let t = self.conv_type(&f.ty, &vars)?;
+                        let t = self.conv_nominal_type(&f.ty, &vars, &rec.params)?;
                         // A record is a data declaration with one
                         // constructor, so its fields obey the same
                         // group positivity discipline (core specification
                         // section 2).
                         check_group_positivity(
+                            &self.types,
                             &self.data_group(&module, &rec.name),
                             &f.name.text,
                             &t,
@@ -4566,6 +4637,7 @@ impl Checker {
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
                             ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Region => Ty::Region(p.clone().into()),
                             ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
                         })
@@ -4580,6 +4652,7 @@ impl Checker {
                         }
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                            ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
@@ -4620,7 +4693,7 @@ impl Checker {
                         val_params: Vec::new(),
                         prop_params: Vec::new(),
                         row_params: Vec::new(),
-                        region_params: Vec::new(),
+                        region_params: params.iter().zip(&param_kinds).filter_map(|(name, kind)| (*kind == ParamKind::Region).then(|| name.clone())).collect(),
                         ctx: Vec::new(),
                         ty: scheme_ty,
                     };
@@ -4694,16 +4767,7 @@ impl Checker {
                     {
                         return Err(Error::at(rec.name.span, format!("duplicate type {}", rec.name.text)));
                     }
-                    let mut params: Vec<String> = Vec::new();
-                    let mut param_kinds: Vec<ParamKind> = Vec::new();
-                    for b in &rec.params {
-                        let k = match &b.ann {
-                            Some(ann) => self.binder_kind(ann, &params)?,
-                            None => ParamKind::Type,
-                        };
-                        params.push(b.name.text.clone());
-                        param_kinds.push(k);
-                    }
+                    let (params, param_kinds) = self.nominal_params(&rec.params)?;
                     let mut obs_names: Vec<String> = Vec::new();
                     for f in &rec.fields {
                         let fset = self.validate_attr_site(&f.attrs, AttrSite::Field)?;
@@ -4731,6 +4795,7 @@ impl Checker {
                     // types, which may mention the type being declared
                     // (`tail :: Later (Stream a)`).
                     self.types.entry(rec.name.text.clone()).or_default().push(TypeKind {
+                        strict_positive_payload: None,
                         data_family: false,
                         module: module.clone(),
                         name: rec.name.text.clone(), identity: nominal_identity(&module, &rec.name),
@@ -4743,8 +4808,8 @@ impl Checker {
                     let mut vars = params.clone();
                     let mut obs_tys = Vec::new();
                     for f in &rec.fields {
-                        let t = self.conv_type(&f.ty, &vars)?;
-                        check_group_positivity(&[nominal_identity(&module, &rec.name)], &f.name.text, &t, &rec.name, f.span)?;
+                        let t = self.conv_nominal_type(&f.ty, &vars, &rec.params)?;
+                        check_group_positivity(&self.types, &[nominal_identity(&module, &rec.name)], &f.name.text, &t, &rec.name, f.span)?;
                         obs_tys.push(t);
                         vars.push(f.name.text.clone());
                     }
@@ -4755,6 +4820,7 @@ impl Checker {
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
                             ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Region => Ty::Region(p.clone().into()),
                             ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
                         })
@@ -4769,6 +4835,7 @@ impl Checker {
                         }
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                            ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
@@ -4809,7 +4876,7 @@ impl Checker {
                         val_params: Vec::new(),
                         prop_params: Vec::new(),
                         row_params: Vec::new(),
-                        region_params: Vec::new(),
+                        region_params: params.iter().zip(&param_kinds).filter_map(|(name, kind)| (*kind == ParamKind::Region).then(|| name.clone())).collect(),
                         ctx: Vec::new(),
                         ty: scheme_ty,
                     };
@@ -5107,6 +5174,7 @@ impl Checker {
                     // a type former (the capability binder rule of
                     // decision D21 already builds `Ty::Adt(class, args)`).
                     let tk = TypeKind {
+                        strict_positive_payload: None,
                         data_family: false,
                         module: module.clone(),
                         name: sig.name.text.clone(),
@@ -5142,8 +5210,7 @@ impl Checker {
                     }
                 }
                 ast::Decl::Effect(eff) => {
-                    let owned = eff.name.declaration_binding().is_some();
-                    let head = if owned { format!("{module}.{}", eff.name.text) } else { eff.name.text.clone() };
+                    let head = declared_effect_head(&module, &eff.name);
                     let site = (module.clone(), eff.name.text.clone());
                     if self.effects.contains_key(&head) {
                         return Err(Error::at(eff.name.span, format!("duplicate effect {}", eff.name.text)));
@@ -8601,13 +8668,25 @@ impl Checker {
                 meta,
                 // An inline target fragment receives its arguments as
                 // machine scalars (`validate_prim_body` refuses anything
-                // else), so every parameter is a raw word. The classes
+                // else). Wide scalars retain their two-word representation;
+                // the remaining parameters use a raw canonical word. The classes
                 // still have to be stated: a separately compiled consumer
                 // reads them out of the object's ABI (`object_abi`), and a
                 // default representation leaves that map empty.
                 repr: crate::core::UnitRepr {
                     tparams: 0,
-                    params: vec![crate::core::Class::Raw; arity],
+                    params: arg_tys.iter().map(|ty| {
+                        if matches!(ty, Ty::Prim(s) if s.is_wide()) {
+                            crate::core::Class::Wide
+                        } else {
+                            crate::core::Class::Raw
+                        }
+                    }).collect(),
+                    result: if matches!(&res_ty, Ty::Prim(s) if s.is_wide()) {
+                        Some(crate::core::Class::Wide)
+                    } else {
+                        None
+                    },
                     fields: Vec::new(),
                     ..Default::default()
                 },
@@ -10284,6 +10363,7 @@ impl Checker {
                 ParamKind::Val(_) => 1,
                 ParamKind::Prop => 2,
                 ParamKind::Con(_) => 3,
+                ParamKind::Region => 4,
             };
             let mut distinct_axis: Option<u8> = None;
             let mut first_val: Option<ParamKind> = None;
@@ -10301,6 +10381,7 @@ impl Checker {
                 (Some(h), _) => h.clone(),
                 (None, Some(1)) => first_val.unwrap_or(ParamKind::Type),
                 (None, Some(2)) => ParamKind::Prop,
+                (None, Some(4)) => ParamKind::Region,
                 (None, _) => ParamKind::Type,
             };
             kinds.insert(name.clone(), kind);
@@ -10875,24 +10956,18 @@ impl Checker {
         }
         let total_bodies = self.interface_checked_bodies.clone().unwrap_or_else(|| self.checked_total_bodies());
         let (plans, foreigns) = self.build_abi_maps();
-        let mut program = Program {
-            total_bodies,
-            fns: self.fns,
-            instances: self.instance_defs,
-            main: main_exit,
-            rewrites: self.rewrites,
-            plans,
-            foreigns,
-            prims: self.prims,
-            laws: self.law_rows,
-            lent: Default::default(),
-            frame: Default::default(),
-            stack: Default::default(),
-            borrowed: Default::default(),
-            lent_entries: Default::default(),
-            private_modules: Vec::new(),
-            inline: Default::default(),
-        };
+        let mut program = Program::from_functions(self.fns);
+        program.total_bodies = total_bodies;
+        program.instances = self.instance_defs;
+        program.main = main_exit;
+        program.rewrites = self.rewrites;
+        program.plans = plans;
+        program.foreigns = foreigns;
+        program.prims = self.prims;
+        program.laws = self.law_rows;
+        // This is the original complete checked constructor inventory,
+        // before dictionary lowering, specialization or reachability pruning.
+        program.certify_builtin_constructors()?;
         crate::dictionary_values::lower(&mut program)?;
         Ok(program)
     }
@@ -11054,6 +11129,7 @@ impl Checker {
             Ty::Prim(Scalar::I16) | Ty::Prim(Scalar::U16) => "i16".into(),
             Ty::Prim(Scalar::I32) | Ty::Prim(Scalar::U32) | Ty::Prim(Scalar::Char) => "i32".into(),
             Ty::Prim(Scalar::I64) | Ty::Prim(Scalar::U64) => "i64".into(),
+            Ty::Prim(Scalar::I128) | Ty::Prim(Scalar::U128) => "i128".into(),
             Ty::Prim(Scalar::F32) => "float".into(),
             Ty::Prim(Scalar::F64) => "double".into(),
             Ty::Prim(Scalar::Usize) | Ty::Prim(Scalar::Isize) => format!("i{}", self.usize_bits),
@@ -17485,6 +17561,7 @@ impl Checker {
                     .unwrap_or_else(|| format!("p{i}")),
                 kind: match kind {
                     ParamKind::Type => "Type".to_string(),
+                    ParamKind::Region => "Region".to_string(),
                     ParamKind::Val(ty) => ty.to_string(),
                     ParamKind::Prop => "Prop".to_string(),
                     ParamKind::Con(n) => vec!["Type"; n + 1].join(" -> "),
@@ -18456,6 +18533,31 @@ fn in_named_module(
     in_module(&where_, e)
 }
 
+/// Create an optional checker clock without changing the checked program.
+fn checker_phase_clock() -> Option<std::time::Instant> {
+    std::env::var_os("CINCH_TRACE_DRIVER_PHASES").map(|_| std::time::Instant::now())
+}
+
+/// Report a checker boundary to stderr; scope identifies its clock and module contains only a name.
+///
+/// Write failures are ignored, and no timestamp enters an artifact.
+fn trace_checker_phase(
+    started: Option<std::time::Instant>,
+    scope: &str,
+    phase: &str,
+    module: Option<&str>,
+) {
+    if let Some(started) = started {
+        use std::io::Write;
+        let module = module.unwrap_or("-");
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "cinch.checker.phase scope={scope} phase={phase} module={module} elapsed_seconds={:.6}",
+            started.elapsed().as_secs_f64()
+        );
+    }
+}
+
 /// [`check_program_multi_full_probe`]'s body; the plain entry delegates
 /// with no probe. Returning the checker before [`Checker::finish`] is what
 /// lets a front end reuse the checked prelude and session across probes.
@@ -18476,6 +18578,8 @@ fn check_program_multi_full_prepared_impl(
     Vec<Diagnostic>,
     Option<ProbeResult>,
 )> {
+    let phase_trace = checker_phase_clock();
+    trace_checker_phase(phase_trace, "prepare", "begin", None);
     // The target's view of the program (modules specification section 11):
     // a conditional import or declaration that does not hold for this
     // profile is gone before anything reads the syntax, so no scope, no
@@ -18604,6 +18708,7 @@ fn check_program_multi_full_prepared_impl(
         c.collecting_declarations = false;
         Ok(family)
     };
+    trace_checker_phase(phase_trace, "prepare", "headers.begin", None);
     let mut c = make_checker()?;
     let family = match collect_headers(&mut c) {
         Ok(family) => family,
@@ -18651,6 +18756,8 @@ fn check_program_multi_full_prepared_impl(
             family
         }
     };
+    trace_checker_phase(phase_trace, "prepare", "headers.end", None);
+    trace_checker_phase(phase_trace, "prepare", "initial_layout.begin", None);
     if c.defer_generated_headers { c.finish_deferred_headers(false)?; }
     // Module parameter types convert once every name is collected (module
     // parameters as module arguments).
@@ -18665,12 +18772,16 @@ fn check_program_multi_full_prepared_impl(
     // section 2).
     c.build_foreign_contracts()?;
     c.prepare_task_forwarders();
+    trace_checker_phase(phase_trace, "prepare", "initial_layout.end", None);
+    trace_checker_phase(phase_trace, "prepare", "embedded_bodies.begin", None);
     // The prelude family compiles first: its functions and instances run
     // during compile-time evaluation.
     for p in &family {
         c.check_bodies(&p.name.text, &prelude_name)
             .map_err(|e| in_named_module(&c.module_files, &p.name.text, e))?;
     }
+    trace_checker_phase(phase_trace, "prepare", "embedded_bodies.end", None);
+    trace_checker_phase(phase_trace, "prepare", "staging.begin", None);
     // The staging phase (modules specification sections 7-10): compile
     // the compile-time fragment, schedule and run generators, expand macro
     // calls, and collect generated declarations under ordinary rules.
@@ -18688,6 +18799,8 @@ fn check_program_multi_full_prepared_impl(
             temporal: Vec::new(),
         }
     };
+    trace_checker_phase(phase_trace, "prepare", "staging.end", None);
+    trace_checker_phase(phase_trace, "prepare", "generated_layout.begin", None);
     if c.defer_generated_headers { c.finish_deferred_headers(true)?; }
     // Generated declarations may declare instances: their heads convert
     // now that their modules are collected.
@@ -18697,10 +18810,16 @@ fn check_program_multi_full_prepared_impl(
     c.compute_unpack_plans()?;
     c.build_foreign_contracts()?;
     c.prepare_task_forwarders();
+    trace_checker_phase(phase_trace, "prepare", "generated_layout.end", None);
+    trace_checker_phase(phase_trace, "prepare", "source_bodies.begin", None);
     for m in modules {
+        trace_checker_phase(phase_trace, "prepare", "source_body.begin", Some(&m.name.text));
         c.check_bodies(&m.name.text, &prelude_name)
             .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;
+        trace_checker_phase(phase_trace, "prepare", "source_body.end", Some(&m.name.text));
     }
+    trace_checker_phase(phase_trace, "prepare", "source_bodies.end", None);
+    trace_checker_phase(phase_trace, "prepare", "post_body.begin", None);
     // The guarded-letrec rule over the top-level value bindings (the
     // D302 compiler defect): an eager reference cycle among them would
     // re-enter its own thunk and crash the compiled binary at run time,
@@ -18711,7 +18830,10 @@ fn check_program_multi_full_prepared_impl(
     // declarations (primitive operations and inline target IR
     // specification sections 5-6: justification, tiering and body
     // selection need the whole program's names and the target profile).
+    trace_checker_phase(phase_trace, "prepare", "prims.begin", None);
     c.check_prims()?;
+    trace_checker_phase(phase_trace, "prepare", "prims.end", None);
+    trace_checker_phase(phase_trace, "prepare", "laws.begin", None);
     // The law tier evaluates the instances' real method code over
     // sample values whose shapes follow the predicate's bounds (a
     // preservation witness at `length xs <= 200` is a 200-element
@@ -18732,9 +18854,12 @@ fn check_program_multi_full_prepared_impl(
             ))
         }
     }
+    trace_checker_phase(phase_trace, "prepare", "laws.end", None);
+    trace_checker_phase(phase_trace, "prepare", "rewrites.begin", None);
     // Rewrite rules are checked after every module's declarations (their
     // `match`, `replace` and `justify` terms reference them).
     c.check_rewrites()?;
+    trace_checker_phase(phase_trace, "prepare", "rewrites.end", None);
     // Upgrade declarations are checked after every module's records and
     // functions (runtime evolution specification section 3: migration
     // field checking over the two records' field tables).
@@ -18747,6 +18872,7 @@ fn check_program_multi_full_prepared_impl(
     // released by its matching deallocator (foreign function interface
     // specification section 4).
     c.check_deallocators()?;
+    trace_checker_phase(phase_trace, "prepare", "post_body.end", None);
     // The collection literals' fold boundary (surface grammar local
     // amendments section 10) accumulates through every unit's check.
     report.literal_folds = std::mem::take(&mut c.literal_folds);
@@ -18759,6 +18885,7 @@ fn check_program_multi_full_prepared_impl(
     // verify against the checked program's D104 groups before any
     // interface is emitted (decisions D112-D114).
     let safety_records = std::mem::take(&mut c.safety_records);
+    trace_checker_phase(phase_trace, "prepare", "interfaces.begin", None);
     // Body-dependent contracts are finalized only after all checked bodies.
     c.interface_checked_bodies = Some(c.checked_total_bodies());
     // Interfaces in dependency order: imports are known when built.
@@ -18798,6 +18925,7 @@ fn check_program_multi_full_prepared_impl(
     for (module, imports) in interface_module_order(&c, prelude, modules, &prelude_name)? {
         emit(&c, &module.name.text, &imports)?;
     }
+    trace_checker_phase(phase_trace, "prepare", "interfaces.end", None);
     let diags = std::mem::take(&mut c.diags);
     // P21's probe (the REPL is backed by the analysis layer): evaluate
     // the session's expression now that every module's code exists, just
@@ -18816,6 +18944,7 @@ fn check_program_multi_full_prepared_impl(
         safety_records,
         instance_searches,
     };
+    trace_checker_phase(phase_trace, "prepare", "end", None);
     Ok((prepared, ifaces, report, diags, probe_out))
 }
 
@@ -18875,6 +19004,8 @@ fn check_program_multi_full_impl(
     probe: Option<&ProbeTerm<'_>>, reference_sink: Option<&mut Vec<CheckedReference>>,
     module_preludes: &HashMap<String, String>,
 ) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
+    let phase_trace = checker_phase_clock();
+    trace_checker_phase(phase_trace, "full", "begin", None);
     // The preparation only needs to know whether editor references are
     // requested; the actual references travel back inside the prepared
     // state and are appended after the checker is finished.
@@ -18885,7 +19016,10 @@ fn check_program_multi_full_impl(
     )?;
     // `finish` consumes the checker; the preparation captured the safety
     // records and checked references that the final program needs.
+    trace_checker_phase(phase_trace, "full", "prepared_finish.begin", None);
     let (mut program, checked_references, safety_records) = prepared.finish()?;
+    trace_checker_phase(phase_trace, "full", "prepared_finish.end", None);
+    trace_checker_phase(phase_trace, "full", "safety.begin", None);
     // P20: the group-level safety claims verify over the finished
     // program's D104 groups; the report says which proof method
     // established each `bounded(n)` bound (decision D113).
@@ -18894,6 +19028,8 @@ fn check_program_multi_full_impl(
     // on their definitions (design/llvm-contract-attributes.md).
     contract_facts(&safety_records, &mut program);
     if let Some(sink) = reference_sink { sink.extend(checked_references); }
+    trace_checker_phase(phase_trace, "full", "safety.end", None);
+    trace_checker_phase(phase_trace, "full", "end", None);
     Ok((program, ifaces, report, diags, probe_out))
 }
 
@@ -21433,11 +21569,11 @@ fn law_index_arithmetic(op: &IdxOp, left: &Value, right: &Value) -> Result<Value
 fn scalar_shape(name: &str) -> Option<(u32, bool)> {
     Some(match name {
         "I8" => (8, true),
-        "U8" | "Char" => (8, false),
+        "U8" => (8, false),
         "I16" => (16, true),
         "U16" => (16, false),
         "I32" => (32, true),
-        "U32" => (32, false),
+        "U32" | "Char" => (32, false),
         "I64" | "Isize" => (64, true),
         "U64" | "Usize" => (64, false),
         _ => return None,
@@ -22139,6 +22275,7 @@ impl Checker {
     /// Primitive operation semantics for compile-time evaluation.
     fn eval_prim(&mut self, cx: &mut StageCx, op: PrimOp, args: &[Value]) -> Result<Value> {
         use crate::core::{ArithMode, ArithOp, BitOp, CmpOp, IntOp, NatOp, PrimOp, ShiftOp};
+        let op = op.resolve_widths(self.usize_bits);
         // The evaluator's machine values are words; an operation over a
         // wide scalar would compute at the wrong width.
         if op.touches_wide() {
@@ -22258,12 +22395,12 @@ impl Checker {
                 let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
                 let v = if max {
                     if signed {
-                        (1i64 << (bits - 1)) - 1
+                        ((1i128 << (bits - 1)) - 1) as i64
                     } else {
                         mask_to(bits, false, -1)
                     }
                 } else if signed {
-                    -(1i64 << (bits - 1))
+                    (-(1i128 << (bits - 1))) as i64
                 } else {
                     0
                 };
@@ -22295,8 +22432,8 @@ impl Checker {
             }
             PrimOp::Arith { ty, op: aop, mode } => {
                 let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
-                let a = word_of(&args[0], "a machine word")?;
-                let b = word_of(&args[1], "a machine word")?;
+                let a = mask_to(bits, signed, word_of(&args[0], "a machine word")?);
+                let b = mask_to(bits, signed, word_of(&args[1], "a machine word")?);
                 let raw = match aop {
                     ArithOp::Add => a.wrapping_add(b),
                     ArithOp::Sub => a.wrapping_sub(b),
@@ -22305,36 +22442,26 @@ impl Checker {
                 Ok(Value::Word(match mode {
                     ArithMode::Wrapping => mask_to(bits, signed, raw),
                     ArithMode::Saturating => {
-                        let w = mask_to(bits, signed, raw);
                         if signed {
-                            let (lo, hi) = (-(1i64 << (bits - 1)), (1i64 << (bits - 1)) - 1);
+                            let (lo, hi) = (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1);
                             // Re-do in wider space to detect overflow.
                             let wide = match aop {
                                 ArithOp::Add => (a as i128) + (b as i128),
                                 ArithOp::Sub => (a as i128) - (b as i128),
                                 ArithOp::Mul => (a as i128) * (b as i128),
                             };
-                            if wide > hi as i128 {
-                                hi
-                            } else if wide < lo as i128 {
-                                lo
-                            } else {
-                                w
-                            }
+                            wide.clamp(lo, hi) as i64
                         } else {
-                            let max = if bits >= 64 { u64::MAX as i128 } else { (1i128 << bits) - 1 };
+                            // Two unsigned words can produce a full 128-bit
+                            // product. Signed i128 cannot hold that product.
+                            let max = (1u128 << bits) - 1;
+                            let (a, b) = (a as u64 as u128, b as u64 as u128);
                             let wide = match aop {
-                                ArithOp::Add => (a as u64 as i128) + (b as u64 as i128),
-                                ArithOp::Sub => (a as u64 as i128) - (b as u64 as i128),
-                                ArithOp::Mul => (a as u64 as i128) * (b as u64 as i128),
+                                ArithOp::Add => a + b,
+                                ArithOp::Sub => a.saturating_sub(b),
+                                ArithOp::Mul => a * b,
                             };
-                            if wide > max {
-                                max as i64
-                            } else if wide < 0 {
-                                0
-                            } else {
-                                w
-                            }
+                            wide.min(max) as i64
                         }
                     }
                     ArithMode::Checked => {
@@ -22350,9 +22477,11 @@ impl Checker {
                 Ok(Value::Word(match mode {
                     ArithMode::Wrapping => mask_to(bits, signed, a.wrapping_neg()),
                     ArithMode::Saturating => {
-                        let lo = -(1i64 << (bits - 1));
-                        if signed && a == lo {
-                            (1i64 << (bits - 1)) - 1
+                        let lo = (-(1i128 << (bits - 1))) as i64;
+                        if !signed {
+                            0
+                        } else if a == lo {
+                            ((1i128 << (bits - 1)) - 1) as i64
                         } else {
                             mask_to(bits, signed, a.wrapping_neg())
                         }
@@ -22380,7 +22509,7 @@ impl Checker {
                         if signed {
                             a.wrapping_shr(n)
                         } else {
-                            mask_to(bits, false, a).wrapping_shr(n)
+                            ((mask_to(bits, false, a) as u64) >> n) as i64
                         }
                     }
                 };
@@ -22392,7 +22521,9 @@ impl Checker {
                 let n = word_of(&args[1], "a rotate count")?.rem_euclid(bits as i64) as u32;
                 let mask = if bits >= 64 { u64::MAX } else { (1u64 << bits) - 1 };
                 let a = a & mask;
-                let r = if right {
+                let r = if n == 0 {
+                    a
+                } else if right {
                     ((a >> n) | (a << (bits - n))) & mask
                 } else {
                     ((a << n) | (a >> (bits - n))) & mask
@@ -22616,6 +22747,9 @@ impl Checker {
                 let pair = self.global_value(cx, "Tuple.2")?;
                 self.apply_value(cx, pair, vec![a, b])
             }
+            PrimOp::Par { op: crate::core::ParOp::Workers, .. } => Err(Error::plain(
+                "`parWorkers` configures the runtime participant budget and is not available at compile time",
+            )),
             PrimOp::Par { op, .. } => Err(Error::plain(format!(
                 "`{}` is not available at compile time in this slice: the compile-time evaluator has no array values (its array primitives are unavailable for the same reason)",
                 op.name()
@@ -24606,5 +24740,253 @@ impl Checker {
             Err(e) => out.eval_error = Some(e.to_string()),
         }
         Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod sealed_array_positivity_tests {
+    use super::*;
+
+    /// Install the actual primitive headers without obtaining authority from source metadata.
+    fn checker() -> Checker {
+        let mut checker = Checker::new();
+        checker.install_builtins();
+        checker
+    }
+
+    /// Build the source declaration's canonical recursive occurrence.
+    fn recursive() -> Ty { Ty::Adt("Main.Arena".into(), vec![]) }
+
+    /// Apply an arbitrary canonical container identity to one payload.
+    fn container(name: &str, payload: Ty) -> Ty { Ty::Adt(name.into(), vec![payload]) }
+
+    /// Check a single field under the same declaration-group discipline as ordinary constructors.
+    fn accepted(checker: &Checker, field: Ty) -> bool {
+        let span = ast::Span::new(1, 1);
+        check_group_positivity(&checker.types, &["Main.Arena".into()], "payload", &field,
+            &ast::Name::new("Pool", span), span).is_ok()
+    }
+
+    /// Actual finite arrays compose through tuples and positive function results.
+    #[test]
+    fn actual_sealed_array_payloads_preserve_strict_positivity() {
+        let checker = checker();
+        assert!(accepted(&checker, container("Array", recursive())));
+        assert!(accepted(&checker, container("Array", container("Array", recursive()))));
+        assert!(accepted(&checker, container("Array", Ty::Tuple(vec![Ty::Nat, recursive()]))));
+        assert!(accepted(&checker, container("Array", Ty::fun(Ty::Unit, recursive()))));
+        assert!(sealed_positive_payload(&checker.types, "Tensor").is_none());
+    }
+
+    /// Nested admission must not erase negative domains, including double-negative functions.
+    #[test]
+    fn certified_payloads_refuse_every_negative_function_domain() {
+        let checker = checker();
+        let negative = Ty::fun(recursive(), Ty::Unit);
+        let double_negative = Ty::fun(negative.clone(), Ty::Unit);
+        for field in [negative.clone(), double_negative.clone(), container("Array", negative), container("Array", double_negative)] {
+            assert!(!accepted(&checker, field));
+        }
+        let mut quantified = Scheme::mono(Ty::Unit);
+        quantified.val_params.push(("x".into(), recursive()));
+        let field = Ty::Forall(Box::new(quantified));
+        assert!(!accepted(&checker, field.clone()));
+        assert!(!accepted(&checker, container("Array", field)));
+    }
+
+    /// Unknown constructors and higher-kinded heads retain no positivity authority.
+    #[test]
+    fn unknown_payloads_and_recursive_arguments_remain_refused() {
+        let checker = checker();
+        for name in ["Data.Core.List", "Other.Array", "Tensor", "Columnar", "TVar"] {
+            assert!(!accepted(&checker, container("Array", container(name, recursive()))));
+        }
+        let unknown = Ty::App(Box::new(Ty::Param("Array".into())), vec![recursive()]);
+        assert!(!accepted(&checker, container("Array", unknown)));
+        assert!(!accepted(&checker, container("Array", container("Main.Arena", recursive()))));
+        assert!(!accepted(&checker, Ty::Adt("Array".into(), vec![recursive(), Ty::Unit])));
+    }
+
+    /// Read ordinary header facts without inventing a source-absent module importer.
+    /// The production source checker has no interface-import API; this tests its
+    /// authority boundary using actual serialized contracts rather than fabricated field shapes.
+    fn contract_header(module: &str, local: &str, header: &crate::interface::TypeExport) -> TypeKind {
+        assert!(header.parameters.iter().all(|parameter| parameter.kind == "Type"));
+        TypeKind {
+            strict_positive_payload: None,
+            module: module.into(), name: local.into(), identity: header.identity.clone(),
+            arity: header.params.len(), param_kinds: vec![ParamKind::Type; header.params.len()],
+            data_family: header.kind == "data", ctors: vec![], fields: None,
+            field_erased: vec![], opaque: header.kind == "opaque", refine: None,
+        }
+    }
+
+    /// Genuine API-produced contracts retain defining identities after source deletion and cannot mint primitive evidence.
+    #[test]
+    fn serialized_source_absent_contract_headers_do_not_mint_primitive_certificates() {
+        let source = "-- | Produce an ordinary private carrier contract.\nmodule PayloadFixture where\n  export Carrier, make\n  -- | An ordinary positive-looking carrier still has no primitive authority.\n  data Carrier a where\n    -- | Retain the actual defining private constructor.\n    Held :: a -> Carrier a\n  -- | Expose the carrier's defining nominal contract.\n  make :: forall a. a -> Carrier a\n  make value = Held value\nmodule Main where\n  -- | Keep contract production independent from construction.\n  main :: Int\n  main = 0\n";
+        let directory = tempfile::tempdir().unwrap();
+        let producer = directory.path().join("Producer.cinch");
+        std::fs::write(&producer, source).unwrap();
+        let (_, interfaces) = crate::driver::check_sources_ifaces(
+            &std::fs::read_to_string(&producer).unwrap(), producer.to_str().unwrap()).unwrap();
+        let emitted = interfaces.iter().find(|interface| interface.module == "PayloadFixture").unwrap();
+        let file = directory.path().join("PayloadFixture.cinchif");
+        std::fs::write(&file, emitted.to_json()).unwrap();
+        std::fs::remove_file(&producer).unwrap();
+        assert!(!producer.exists());
+        let bytes = std::fs::read_to_string(&file).unwrap();
+        let contract = crate::interface::Iface::from_json(&bytes).unwrap();
+        let header = contract.exports.types.iter().find(|header| header.name == "Carrier").unwrap();
+        assert_eq!(header.identity, "PayloadFixture.Carrier");
+        let resolved = contract.exports.values.iter().find(|value| value.name == "make")
+            .unwrap().resolved.as_ref().unwrap();
+        let nominal = resolved.nominals.iter().find(|nominal| nominal.identity == header.identity).unwrap();
+        assert_eq!(nominal.constructors.as_ref().unwrap(), &vec!["PayloadFixture.Held".to_string()]);
+        let mut checker = checker();
+        for local in ["Carrier", "Renamed", "Array", "Qualified.Array"] {
+            let ordinary = contract_header(&contract.module, local, header);
+            checker.types.entry(local.into()).or_default().push(ordinary);
+            assert!(!accepted(&checker, container("Array", container(&header.identity, recursive()))));
+            assert!(accepted(&checker, container("Array", recursive())));
+        }
+        let mut forged: serde_json::Value = serde_json::from_str(&bytes).unwrap();
+        forged["exports"]["types"][0]["strict_positive_payload"] = serde_json::json!({
+            "kind": "finite-owned-array", "identity": "Array", "verified": true
+        });
+        let ignored = crate::interface::Iface::from_json(&forged.to_string()).unwrap();
+        assert_eq!(ignored.exports.types, contract.exports.types);
+        let mut impostor = header.clone();
+        impostor.identity = "Array".into();
+        checker.types.entry("DifferentLocalAlias".into()).or_default()
+            .push(contract_header(&contract.module, "DifferentLocalAlias", &impostor));
+        assert!(!accepted(&checker, container("Array", recursive())));
+    }
+
+    /// Reusing a primitive's spelling or forging an imported nominal header cannot mint evidence.
+    #[test]
+    fn source_and_imported_impostor_headers_cannot_grant_payload_evidence() {
+        let mut checker = checker();
+        let mut fake = checker.types["Array"][0].clone();
+        fake.strict_positive_payload = None;
+        fake.module = "Impostor".into();
+        fake.identity = "Impostor.Array".into();
+        checker.types.entry("Array".into()).or_default().push(fake.clone());
+        assert!(!accepted(&checker, container("Impostor.Array", recursive())));
+        assert!(accepted(&checker, container("Array", recursive())));
+        fake.identity = "Array".into();
+        checker.types.entry("forged".into()).or_default().push(fake);
+        assert!(!accepted(&checker, container("Array", recursive())));
+    }
+}
+
+
+#[cfg(test)]
+mod staged_word_boundary_tests {
+    use super::*;
+    use crate::core::{ArithMode, ArithOp, CmpOp, PrimOp, ShiftOp};
+
+    /// Evaluate the actual staging primitive with an explicit target word width.
+    fn evaluate(bits: u32, op: PrimOp, args: &[i64]) -> Value {
+        let mut checker = Checker::new();
+        checker.usize_bits = bits;
+        let mut cx = StageCx::new(&StagingCx::default());
+        let values = args.iter().copied().map(Value::Word).collect::<Vec<_>>();
+        checker.eval_prim(&mut cx, op, &values).unwrap()
+    }
+
+    /// Compare a staged word directly, without passing through runtime folding.
+    fn expect_word(bits: u32, op: PrimOp, args: &[i64], expected: i64) {
+        match evaluate(bits, op, args) {
+            Value::Word(actual) => assert_eq!(actual, expected, "{op:?} {args:?}"),
+            other => panic!("expected word, found {}", value_kind_name(&other)),
+        }
+    }
+
+    /// Native scalar saturation agrees with independent host integer operations at every width.
+    #[test]
+    fn saturating_arithmetic_matches_independent_scalar_boundaries() {
+        macro_rules! cases {
+            ($ty:ty, $scalar:ident, [$($value:expr),+]) => {{
+                let values: &[$ty] = &[$($value),+];
+                for &a in values {
+                    for &b in values {
+                        for (op, expected) in [
+                            (ArithOp::Add, a.saturating_add(b)),
+                            (ArithOp::Sub, a.saturating_sub(b)),
+                            (ArithOp::Mul, a.saturating_mul(b)),
+                        ] {
+                            expect_word(64, PrimOp::Arith { ty: Scalar::$scalar, op,
+                                mode: ArithMode::Saturating }, &[a as i64, b as i64], expected as i64);
+                        }
+                    }
+                }
+            }};
+        }
+        cases!(i8, I8, [i8::MIN, -1, 0, 1, i8::MAX]);
+        cases!(u8, U8, [0, 1, 127, 128, u8::MAX]);
+        cases!(i16, I16, [i16::MIN, -1, 0, 1, i16::MAX]);
+        cases!(u16, U16, [0, 1, 32767, 32768, u16::MAX]);
+        cases!(i32, I32, [i32::MIN, -1, 0, 1, i32::MAX]);
+        cases!(u32, U32, [0, 1, 2147483647, 2147483648, u32::MAX]);
+        cases!(i64, I64, [i64::MIN, -1, 0, 1, i64::MAX]);
+        cases!(u64, U64, [0, 1, 9223372036854775807, 9223372036854775808, u64::MAX]);
+    }
+
+    /// Signed bound constants retain their full width without overflowing the host interpreter.
+    #[test]
+    fn signed_bound_constants_match_each_scalar_width() {
+        for (ty, low, high) in [(Scalar::I8, i8::MIN as i64, i8::MAX as i64),
+            (Scalar::I16, i16::MIN as i64, i16::MAX as i64),
+            (Scalar::I32, i32::MIN as i64, i32::MAX as i64),
+            (Scalar::I64, i64::MIN, i64::MAX)] {
+            expect_word(64, PrimOp::Bound { ty, max: false }, &[], low);
+            expect_word(64, PrimOp::Bound { ty, max: true }, &[], high);
+        }
+    }
+
+    /// High unsigned bits are shifted logically; a zero or full-width rotation is an identity.
+    #[test]
+    fn unsigned_shifts_and_rotations_match_host_bit_operations() {
+        for a in [0u64, 1, 0x8000000000000001, u64::MAX] {
+            for n in [0u32, 1, 31, 32, 63, 64, 65, u32::MAX] {
+                expect_word(64, PrimOp::Shift { ty: Scalar::U64, op: ShiftOp::Shr, checked: false },
+                    &[a as i64, n as i64], a.wrapping_shr(n) as i64);
+                expect_word(64, PrimOp::Rotate { ty: Scalar::U64, right: false },
+                    &[a as i64, n as i64], a.rotate_left(n) as i64);
+                expect_word(64, PrimOp::Rotate { ty: Scalar::U64, right: true },
+                    &[a as i64, n as i64], a.rotate_right(n) as i64);
+            }
+        }
+    }
+
+    /// A staged character comparison observes complete Unicode scalars, including differing high bytes.
+    #[test]
+    fn character_order_uses_complete_unicode_scalars() {
+        for a in [0u32, 255, 256, 0xd7ff, 0xe000, 0x10000, 0x10ffff] {
+            for b in [0u32, 255, 256, 0xd7ff, 0xe000, 0x10000, 0x10ffff] {
+                match evaluate(64, PrimOp::Cmp { ty: Scalar::Char, op: CmpOp::Lt }, &[a as i64, b as i64]) {
+                    Value::Bool(actual) => assert_eq!(actual, a < b),
+                    _ => panic!("character comparison did not return Bool"),
+                }
+            }
+        }
+    }
+
+    /// Pointer words follow the selected target, including conversion, bounds and saturation.
+    #[test]
+    fn pointer_words_use_target_width_in_staging() {
+        for bits in [32, 64] {
+            let high = if bits == 32 { u32::MAX as i64 } else { -1 };
+            expect_word(bits, PrimOp::Bound { ty: Scalar::Usize, max: true }, &[], high);
+            expect_word(bits, PrimOp::Arith { ty: Scalar::Usize, op: ArithOp::Add,
+                mode: ArithMode::Saturating }, &[high, 1], high);
+            expect_word(bits, PrimOp::Shift { ty: Scalar::Usize, op: ShiftOp::Shr, checked: false },
+                &[high, 1], if bits == 32 { 2147483647 } else { i64::MAX });
+            expect_word(bits, PrimOp::Conv { from: Scalar::Usize, to: Scalar::U64,
+                mode: crate::core::ConvMode::Total }, &[-1], high);
+            expect_word(bits, PrimOp::Bound { ty: Scalar::Isize, max: false }, &[],
+                if bits == 32 { i32::MIN as i64 } else { i64::MIN });
+        }
     }
 }

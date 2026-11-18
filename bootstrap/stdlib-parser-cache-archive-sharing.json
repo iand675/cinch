@@ -1,0 +1,61 @@
+{
+  "scope": "Share immutable identical compressed recovery files; every original archive path and compressed/decompressed SHA remains unchanged. Original archive mtimes recorded for independent-copy restoration; no source, provider, compiler or runtime input is touched.",
+  "files": [
+    {
+      "path": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/11a701b488e842c5/out/tree-sitter-cinch/parser.c.d2b5f5be079433fb.zst",
+      "compressed_sha256": "7e4214e056b9b3cc7be39c5c3e970f4541d2f2c00206f074056d89bb8b36222d",
+      "size": 1613985,
+      "mode": 33152,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794777936712845930,
+      "inode_before": 1205973,
+      "allocated_bytes": 1617920
+    },
+    {
+      "path": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/51cfe6bf250c2b55/out/tree-sitter-cinch/parser.c.d2b5f5be079433fb.zst",
+      "compressed_sha256": "7e4214e056b9b3cc7be39c5c3e970f4541d2f2c00206f074056d89bb8b36222d",
+      "size": 1613985,
+      "mode": 33152,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794863058808709773,
+      "inode_before": 1966294,
+      "allocated_bytes": 1617920
+    },
+    {
+      "path": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/5cf33ea17e3b3728/out/tree-sitter-cinch/parser.c.d2b5f5be079433fb.zst",
+      "compressed_sha256": "7e4214e056b9b3cc7be39c5c3e970f4541d2f2c00206f074056d89bb8b36222d",
+      "size": 1613985,
+      "mode": 33152,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794834084053925163,
+      "inode_before": 437167,
+      "allocated_bytes": 1617920
+    },
+    {
+      "path": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/a24c568e8e1c4c1f/out/tree-sitter-cinch/parser.c.d2b5f5be079433fb.zst",
+      "compressed_sha256": "7e4214e056b9b3cc7be39c5c3e970f4541d2f2c00206f074056d89bb8b36222d",
+      "size": 1613985,
+      "mode": 33152,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794807058995422091,
+      "inode_before": 567689,
+      "allocated_bytes": 1617920
+    },
+    {
+      "path": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/b03bc78af459efdd/out/tree-sitter-cinch/parser.c.d2b5f5be079433fb.zst",
+      "compressed_sha256": "7e4214e056b9b3cc7be39c5c3e970f4541d2f2c00206f074056d89bb8b36222d",
+      "size": 1613985,
+      "mode": 33152,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794864011285484298,
+      "inode_before": 1835228,
+      "allocated_bytes": 1617920
+    }
+  ],
+  "canonical": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/11a701b488e842c5/out/tree-sitter-cinch/parser.c.d2b5f5be079433fb.zst"
+}

@@ -1,0 +1,15 @@
+module Scoped where
+  inspect :: forall r s. Scope r s -> Int
+  inspect token = 7
+  pending :: forall s e a. Unit -> Task s e a
+  pending unit = pending unit
+module Shadow where
+  data Scope where
+    ScopeValue :: Scope
+  identity :: Shadow.Scope -> Shadow.Scope
+  identity value = value
+module Main where
+  import Scoped as Scopes
+  import Shadow as Local
+  main :: Int
+  main = 0

@@ -1,0 +1,19 @@
+{
+  "scope": "Actual source-absent public-header mutation with coherent dependency hashes. All seven original consumers passed; the public-header mutation is rejected at elaboration with status4 and two kind diagnostics, rather than the assumed loader90.",
+  "test_passed": 6,
+  "test_failed": 1,
+  "original_expected_stage": 90,
+  "actual_stage": 4,
+  "checker_project": "/tmp/cinch_boot_nominal_region_native_consumer_762233_1",
+  "checker_sha256": "736d76316488bb36afe04352b6c6490f8d2b1dd8aa40e7623d5881f3ce4b5c28",
+  "generated_llvm_sha256": "9d853c7005369a5253c5aa490425598a4b160a1ad9cb24cc0085b540ed6207b6",
+  "files": {
+    "RegionOwner.cinchif": "8d35b07da6606f4a2a314391ef152f2ef17c7d898950c49e3b43083020de82dd",
+    "diagnostic.txt": "9f3b0a3d90683f167e6219a64f62d522823cc3a22d3a01ef7c0f35a6761ec86b",
+    "consumer.cinch": "3a13633646e42cae58755f3a27de3429afda493799adfbc41ba79c65733fc570",
+    "producer.cinch": "9a6208a9e8a92e4978c21cf0cea5448b0ff3b13ba291312a6fa8fa6a8a2feaaa",
+    "gate.log": "5f5702a34a8449663eb8e9f3391331b549482121bc07daa5d1bb5a6c6274f91b",
+    "RegionFacade.cinchif": "7343233c0f9f805a15a7d533b55d130fd1ac2f9cb8085bf0c84a127e0b8f5eff",
+    "interface_nominal_regions.rs": "9ff1734577f94689c9d89b2c9df5086e4eb06b8db1e4a2b9df8cb9877f65a45a"
+  }
+}

@@ -159,3 +159,47 @@ module Main where
         None => panic!("deep-recursion-control: died on a signal instead of the Exhausted exit"),
     }
 }
+
+/// Nested checked arguments must not turn a saturated recursive call into a partial closure.
+/// The exact recurrence runs over 64 KiB on the ordinary eight-mebibyte stack.
+#[test]
+fn nested_checked_tail_arguments_preserve_constant_stack_and_exact_result() {
+    let source = include_str!("../../bootstrap/programs/Run.NestedArgumentTail.cinch");
+    expect_ok("nested-checked-tail", source, 0);
+    assert_eq!(
+        group_mark("nested-checked-tail", source, "Main.fingerprint"),
+        "marked"
+    );
+}
+
+/// Fusing an internal partial call preserves strict prefix effects, single execution and returned functions.
+#[test]
+fn scoped_argument_calls_preserve_prefix_and_returned_function_evaluation_order() {
+    expect_ok(
+        "scoped-argument-order",
+        include_str!("../../bootstrap/programs/Run.ScopedArgumentOrder.cinch"),
+        0,
+    );
+}
+
+/// Runtime-selected functions can saturate before their type's last arrow;
+/// their bodies run before excess arguments read a shared mutable byte.
+#[test]
+fn returned_functions_preserve_dynamic_arity_and_each_strict_boundary() {
+    expect_ok(
+        "returned-argument-order",
+        include_str!("../../bootstrap/programs/Run.ReturnedArgumentOrder.cinch"),
+        0,
+    );
+}
+
+/// Fusing a one-shot partial application keeps its saved computations
+/// before intervening writes and still permits constant-stack direct calls.
+#[test]
+fn saved_partial_arguments_keep_their_original_strict_position() {
+    expect_ok(
+        "saved-partial-order",
+        include_str!("../../bootstrap/programs/Run.SavedPartialOrder.cinch"),
+        0,
+    );
+}

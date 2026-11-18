@@ -1,0 +1,844 @@
+-- | Configurable CSV fixture consumer with runtime input and precise expected metadata.
+module Main where
+  import Text.Csv.Record
+  import Effect.Csv
+  import Effect.Stream
+  import Data.Char
+  import Data.Machine
+  -- | Keep immutable fixture input in runtime execution rather than constant evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Rebuild fixture text through a runtime-sized copied byte interval.
+  runtime-text :: String -> String
+  runtime-text text =
+    let input = string-to-bytes text in
+    let n = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let out = bytes-new n in
+    if bytes-len input <= bytes-len out then
+      let copied = bytes-copy-range out input 0 0 (bytes-len input) in
+      case string-from-bytes out of Some result -> result; None -> ""
+    else ""
+  -- | Obtain a validated scalar from compact fixture data.
+  scalar :: Nat -> Char
+  scalar code = case char-from-code code of Some value -> value; None -> ','
+  -- | Build a checked fixture dialect without embedding representation constructors.
+  config :: Nat -> Nat -> CsvFieldPolicy -> Bool -> Bool -> CsvOptions
+  config delimiter comment policy lazy trim =
+    case csv-options (scalar delimiter) (if comment == 0 then None else Some (scalar comment)) policy lazy trim of
+      Ok selected -> selected
+      Err error -> csv-default-options
+  -- | Compare immutable field lists without requiring an orphan list equality instance.
+  fields-equal :: List String -> List String -> Bool
+  fields-equal left right = case left of
+    Nil -> case right of Nil -> True; Cons first rest -> False
+    Cons a more -> case right of Nil -> False; Cons b rest -> a == b && fields-equal more rest
+  -- | Compare every expected field position through the safe public indexing API.
+  positions-equal :: CsvRecord -> List (Nat, Nat) -> Nat -> Bool
+  positions-equal row positions index = case positions of
+    Nil -> case csv-record-field-position row index of None -> True; Some value -> False
+    Cons first rest -> case first of
+      (line, column) -> case csv-record-field-position row index of
+        None -> False
+        Some actual -> case actual of (actual-line, actual-column) -> actual-line == line && actual-column == column && positions-equal row rest (index + 1)
+  -- | Complete expected read progress and structured error details.
+  data Expected where
+    -- | Fields, positions, input offset, error kind/location and expected/actual counts.
+    Expect :: List String -> List (Nat, Nat) -> Nat -> String -> Nat -> Nat -> Nat -> Nat -> Nat -> Expected
+  -- | Compare precise error locations while treating both quote failures as one external category.
+  error-equal :: Option CsvRecordError -> String -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool
+  error-equal actual kind start line column expected count = case actual of
+    None -> kind == ""
+    Some failure -> csv-record-error-start-line failure == start && csv-record-error-line failure == line && csv-record-error-column failure == column
+      && (case failure of
+        CsvBareQuote a b c -> kind == "bare"
+        CsvQuote a b c -> kind == "quote"
+        CsvUnclosedQuote a b c -> kind == "quote"
+        CsvFieldCount a b c required received -> kind == "fields" && required == expected && received == count
+        CsvFieldEncoding a b c index -> False)
+  -- | Compare every advanced read, including continuing after malformed physical records.
+  read-equal :: CsvReader -> List Expected -> Bool
+  read-equal reader expected = case expected of
+    Nil -> case csv-reader-read reader of (CsvEnd, next) -> True; other -> False
+    Cons first rest -> case first of
+      Expect fields positions offset kind start line column required count -> case csv-reader-read reader of
+        (CsvReadRecord row error, next) -> fields-equal (csv-record-fields row) fields
+          && positions-equal row positions 0 && csv-reader-input-offset next == offset
+          && error-equal error kind start line column required count && read-equal next rest
+        other -> False
+  -- | Give all writer fixtures runtime text as well as their static expected output.
+  runtime-fields :: List String -> List String
+  runtime-fields fields = case fields of Nil -> Nil; Cons first rest -> Cons (runtime-text first) (runtime-fields rest)
+  -- | Identify the first failed fixture without obscuring later source positions.
+  first-failure :: List Bool -> Nat -> Nat
+  first-failure checks index = case checks of
+    Nil -> 0
+    Cons first rest -> if first then first-failure rest (index + 1) else index
+  -- | Preserve a bounded group's original failing index without expanding all fixtures in one body.
+  first-result :: List Nat -> Nat
+  first-result groups = case groups of Nil -> 0; Cons first rest -> if first > 0 then first else first-result rest
+
+  -- | Limit every successful source read while preserving its actual advanced continuation.
+  chunked :: forall r. using (io :: Io r) => Nat -> ByteReader r -> ByteReader r
+  chunked maximum source = stream-reader (\n -> case stream-read source (if maximum < n then maximum else n) of
+    (result, next) -> (result, chunked maximum next))
+  -- | Compare every streamed record, source offset and parse error against independent results.
+  stream-read-equal :: forall r. using (io :: Io r) => CsvStreamReader r -> List Expected ->{IO r} Bool
+  stream-read-equal reader expected = case expected of
+    Nil -> case csv-stream-read reader of (Ok CsvEnd, next) -> True; other -> False
+    Cons first rest -> case first of
+      Expect fields positions offset kind start line column required count -> case csv-stream-read reader of
+        (Ok (CsvReadRecord row error), next) -> fields-equal (csv-record-fields row) fields
+          && positions-equal row positions 0 && csv-stream-input-offset next == offset
+          && error-equal error kind start line column required count && stream-read-equal next rest
+        other -> False
+  -- | Observe the exact bytes emitted by synchronous record writing and completion.
+  stream-write-equal :: forall r. using (io :: Io r) => CsvOptions -> Bool -> List String -> String ->{IO r} Bool
+  stream-write-equal selected crlf fields expected = case csv-stream-write (csv-stream-writer selected crlf writer-buffer) fields of
+    (Ok unit, next) -> case csv-stream-flush next of
+      (Ok unit, final) -> case writer-bytes (csv-stream-writer-sink final) of
+        None -> False
+        Some bytes -> case string-from-bytes bytes of None -> False; Some actual -> actual == expected
+      other -> False
+    other -> False
+
+  -- | Rebuild arbitrary fixture bytes through a runtime-sized independently owned interval.
+  runtime-bytes :: Bytes -> Bytes
+  runtime-bytes input =
+    let n = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len input)))) in
+    let out = bytes-new n in
+    if bytes-len input <= bytes-len out then let copied = bytes-copy-range out input 0 0 (bytes-len input) in out else bytes-new 0
+  -- | Compare byte fields without decoding invalid UTF-8 or treating NUL as a terminator.
+  raw-fields-equal :: List Bytes -> List Bytes -> Bool
+  raw-fields-equal left right = case left of
+    Nil -> case right of Nil -> True; Cons first rest -> False
+    Cons first rest -> case right of Nil -> False; Cons actual more -> eq-i64 (bytes-compare first actual) 0 && raw-fields-equal rest more
+  -- | Keep arbitrary byte writer inputs in runtime execution as well as their reader counterparts.
+  runtime-raw-fields :: List Bytes -> List Bytes
+  runtime-raw-fields fields = case fields of Nil -> Nil; Cons first rest -> Cons (runtime-bytes first) (runtime-raw-fields rest)
+  -- | Compare all safe raw field position observations, including the out-of-range boundary.
+  raw-positions-equal :: CsvByteRecord -> List (Nat, Nat) -> Nat -> Bool
+  raw-positions-equal row positions index = case positions of
+    Nil -> case csv-byte-record-field-position row index of None -> True; Some value -> False
+    Cons first rest -> case first of
+      (line, column) -> case csv-byte-record-field-position row index of
+        None -> False
+        Some actual -> case actual of (actual-line, actual-column) -> actual-line == line && actual-column == column && raw-positions-equal row rest (index + 1)
+  -- | Expected arbitrary-byte fields and structured source/error metadata.
+  data RawExpected where
+    -- | Field bytes, positions, offset, error kind/location and field-count mismatch details.
+    ExpectBytes :: List Bytes -> List (Nat, Nat) -> Nat -> String -> Nat -> Nat -> Nat -> Nat -> Nat -> RawExpected
+  -- | Compare each pure byte-reader step without converting its fields to text.
+  raw-read-equal :: CsvByteReader -> List RawExpected -> Bool
+  raw-read-equal reader expected = case expected of
+    Nil -> case csv-byte-reader-read reader of (CsvByteEnd, next) -> True; other -> False
+    Cons first rest -> case first of
+      ExpectBytes fields positions offset kind start line column required count -> case csv-byte-reader-read reader of
+        (CsvReadByteRecord row error, next) -> raw-fields-equal (csv-byte-record-fields row) fields
+          && raw-positions-equal row positions 0 && csv-byte-reader-input-offset next == offset
+          && error-equal error kind start line column required count && raw-read-equal next rest
+        other -> False
+  -- | Compare streamed arbitrary-byte fields and positions across source chunk boundaries.
+  raw-stream-equal :: forall r. using (io :: Io r) => CsvByteStreamReader r -> List RawExpected ->{IO r} Bool
+  raw-stream-equal reader expected = case expected of
+    Nil -> case csv-byte-stream-read reader of (Ok CsvByteEnd, next) -> True; other -> False
+    Cons first rest -> case first of
+      ExpectBytes fields positions offset kind start line column required count -> case csv-byte-stream-read reader of
+        (Ok (CsvReadByteRecord row error), next) -> raw-fields-equal (csv-byte-record-fields row) fields
+          && raw-positions-equal row positions 0 && csv-byte-stream-input-offset next == offset
+          && error-equal error kind start line column required count && raw-stream-equal next rest
+        other -> False
+  -- | Observe lossless byte writing through the same inspectable sink and completion protocol.
+  raw-write-equal :: forall r. using (io :: Io r) => CsvOptions -> Bool -> List Bytes -> Bytes ->{IO r} Bool
+  raw-write-equal selected crlf fields expected = case csv-byte-stream-write (csv-stream-writer selected crlf writer-buffer) fields of
+    (Ok unit, next) -> case writer-bytes (csv-stream-writer-sink next) of
+      None -> False
+      Some actual -> eq-i64 (bytes-compare actual expected) 0
+    other -> False
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch0 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch0 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list []))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [255]))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [97,44,255,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)])] 1
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch1 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch1 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))) [(ExpectBytes [(bytes-from-list [97])] [(1,1)] 8 "quote" 1 1 6 0 0),(ExpectBytes [(bytes-from-list [110]),(bytes-from-list [114])] [(2,1),(2,3)] 12 "fields" 2 2 1 1 2)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [(bytes-from-list [97])] [(1,1)] 8 "quote" 1 1 6 0 0),(ExpectBytes [(bytes-from-list [110]),(bytes-from-list [114])] [(2,1),(2,3)] 12 "fields" 2 2 1 1 2)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))) [(ExpectBytes [(bytes-from-list [227,128,128,97]),(bytes-from-list [128])] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [227,128,128,97]),(bytes-from-list [128])] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [206,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [255,206,187,120,10]))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "fields" 2 2 1 1 2)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "fields" 2 2 1 1 2)])] 13
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch2 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch2 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [97,44,0,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [230,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)])] 25
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch3 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch3 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvInferFields False False) (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvInferFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list []))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [255]))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [97,44,255,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)])] 37
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch4 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch4 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))) [(ExpectBytes [(bytes-from-list [97])] [(1,1)] 8 "quote" 1 1 6 0 0),(ExpectBytes [(bytes-from-list [110]),(bytes-from-list [114])] [(2,1),(2,3)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [(bytes-from-list [97])] [(1,1)] 8 "quote" 1 1 6 0 0),(ExpectBytes [(bytes-from-list [110]),(bytes-from-list [114])] [(2,1),(2,3)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [(bytes-from-list [97])] [(1,1)] 8 "quote" 1 1 6 0 0),(ExpectBytes [(bytes-from-list [110]),(bytes-from-list [114])] [(2,1),(2,3)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [(bytes-from-list [97])] [(1,1)] 8 "quote" 1 1 6 0 0),(ExpectBytes [(bytes-from-list [110]),(bytes-from-list [114])] [(2,1),(2,3)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))) [(ExpectBytes [(bytes-from-list [227,128,128,97]),(bytes-from-list [128])] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [227,128,128,97]),(bytes-from-list [128])] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [206,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [255,206,187,120,10]))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)])] 49
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch5 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch5 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [97,44,0,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [230,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)])] 61
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch6 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch6 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields False False) (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list []))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [255]))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "fields" 1 1 1 2 1)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "fields" 1 1 1 2 1)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [97,44,255,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)])] 73
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch7 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch7 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))) [(ExpectBytes [(bytes-from-list [97])] [(1,1)] 8 "quote" 1 1 6 0 0),(ExpectBytes [(bytes-from-list [110]),(bytes-from-list [114])] [(2,1),(2,3)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [(bytes-from-list [97])] [(1,1)] 8 "quote" 1 1 6 0 0),(ExpectBytes [(bytes-from-list [110]),(bytes-from-list [114])] [(2,1),(2,3)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))) [(ExpectBytes [(bytes-from-list [227,128,128,97]),(bytes-from-list [128])] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [227,128,128,97]),(bytes-from-list [128])] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [206,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [255,206,187,120,10]))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "fields" 1 1 1 2 1)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "fields" 1 1 1 2 1)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "fields" 1 1 1 2 1),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "fields" 1 1 1 2 1),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)])] 85
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch8 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch8 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [97,44,0,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "fields" 1 1 1 2 1)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "fields" 1 1 1 2 1)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "fields" 1 1 1 2 1)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "fields" 1 1 1 2 1)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "fields" 1 1 1 2 1)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "fields" 1 1 1 2 1)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [230,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)])] 97
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch9 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch9 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 (CsvExactFields 2) False False) (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 (CsvExactFields 2) False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list []))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [255]))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [97,44,255,10]))) [(ExpectBytes [(bytes-from-list [97,44,255])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97,44,255])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))) [(ExpectBytes [] [] 6 "bare" 1 1 3 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [] [] 6 "bare" 1 1 3 0 0)])] 109
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch10 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch10 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))) [(ExpectBytes [] [] 10 "quote" 1 2 2 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [] [] 10 "quote" 1 2 2 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))) [(ExpectBytes [] [] 8 "bare" 1 1 3 0 0),(ExpectBytes [(bytes-from-list [110,44,114])] [(2,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [] [] 8 "bare" 1 1 3 0 0),(ExpectBytes [(bytes-from-list [110,44,114])] [(2,1)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))) [(ExpectBytes [(bytes-from-list [227,128,128,97,44,128])] [(1,1)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [227,128,128,97,44,128])] [(1,1)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [206,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [206,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [255,206,187,120,10]))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)])] 121
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch11 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch11 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))) [(ExpectBytes [(bytes-from-list [97,44,98])] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [97,44,98])] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [97,44,0,10]))) [(ExpectBytes [(bytes-from-list [97,44,0])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97,44,0])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [230,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [230,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)])] 133
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch12 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch12 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 59 35 CsvAnyFields False False) (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [240,128,255,44,97])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255,44,97])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255,44,97])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 59 35 CsvAnyFields False False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255,44,97])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list []))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [255]))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [97,44,255,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)])] 145
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch13 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch13 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))) [(ExpectBytes [(bytes-from-list [97])] [(1,1)] 8 "quote" 1 1 6 0 0),(ExpectBytes [(bytes-from-list [110]),(bytes-from-list [114])] [(2,1),(2,3)] 12 "fields" 2 2 1 1 2)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [(bytes-from-list [97])] [(1,1)] 8 "quote" 1 1 6 0 0),(ExpectBytes [(bytes-from-list [110]),(bytes-from-list [114])] [(2,1),(2,3)] 12 "fields" 2 2 1 1 2)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [128])] [(1,4),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [128])] [(1,4),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [128])] [(1,4),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [128])] [(1,4),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [206,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [255,206,187,120,10]))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)])] 157
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch14 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch14 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [97,44,0,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)])] 169
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch15 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch15 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [230,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 35 CsvInferFields False True) (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 35 CsvInferFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list []))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [255]))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [97,44,255,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)])] 181
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch16 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch16 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98,128,34,120,10,110,44,114,10])] [(1,1),(1,3)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98,128,34,120,10,110,44,114,10])] [(1,1),(1,3)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))) [(ExpectBytes [(bytes-from-list [227,128,128,97]),(bytes-from-list [128])] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [227,128,128,97]),(bytes-from-list [128])] [(1,1),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [206,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [255,206,187,120,10]))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)])] 193
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch17 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch17 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [97,44,0,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)])] 205
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch18 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch18 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [230,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True False) (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True False) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list []))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [255]))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [97,44,255,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)])] 217
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch19 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch19 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,3)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [(bytes-from-list [255,254,10,120]),(bytes-from-list [121])] [(1,1),(2,4)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98,128,34,120,10,110,44,114,10])] [(1,1),(1,3)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98,128,34,120,10,110,44,114,10])] [(1,1),(1,3)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [128])] [(1,4),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [128])] [(1,4),(1,6)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [206,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [255,206,187,120,10]))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)])] 229
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch20 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch20 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [98])] [(2,1),(2,3)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [97,44,0,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [0])] [(1,1),(1,3)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)])] 241
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch21 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch21 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [230,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255]),(bytes-from-list [97])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 44 0 CsvAnyFields True True) (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 44 0 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255]),(bytes-from-list [97])] [(1,1),(1,5)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list []))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [255]))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [97,44,255,10]))) [(ExpectBytes [(bytes-from-list [97,44,255])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97,44,255])] [(1,1)] 4 "" 0 0 0 0 0)])] 253
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch22 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch22 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))) [(ExpectBytes [] [] 6 "bare" 1 1 3 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [] [] 6 "bare" 1 1 3 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))) [(ExpectBytes [] [] 10 "quote" 1 2 2 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [] [] 10 "quote" 1 2 2 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))) [(ExpectBytes [] [] 8 "bare" 1 1 3 0 0),(ExpectBytes [(bytes-from-list [110,44,114])] [(2,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [] [] 8 "bare" 1 1 3 0 0),(ExpectBytes [(bytes-from-list [110,44,114])] [(2,1)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))) [(ExpectBytes [(bytes-from-list [97,44,128])] [(1,4)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [97,44,128])] [(1,4)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [206,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [206,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)])] 265
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch23 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch23 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [255,206,187,120,10]))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255]),(bytes-from-list [120])] [(1,1),(1,4)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97,44,98])] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97,44,98])] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [97,44,0,10]))) [(ExpectBytes [(bytes-from-list [97,44,0])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97,44,0])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)])] 277
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch24 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch24 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [230,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [230,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 955 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [240,128,255,44,97])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 955 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255,44,97])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list []))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [255]))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [97,44,255,10]))) [(ExpectBytes [(bytes-from-list [97,44,255])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97,44,255])] [(1,1)] 4 "" 0 0 0 0 0)])] 289
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch25 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch25 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))) [(ExpectBytes [] [] 6 "bare" 1 1 3 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [] [] 6 "bare" 1 1 3 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))) [(ExpectBytes [] [] 10 "quote" 1 2 2 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [] [] 10 "quote" 1 2 2 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))) [(ExpectBytes [] [] 8 "bare" 1 1 3 0 0),(ExpectBytes [(bytes-from-list [110,44,114])] [(2,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [] [] 8 "bare" 1 1 3 0 0),(ExpectBytes [(bytes-from-list [110,44,114])] [(2,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [] [] 8 "bare" 1 1 3 0 0),(ExpectBytes [(bytes-from-list [110,44,114])] [(2,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [] [] 8 "bare" 1 1 3 0 0),(ExpectBytes [(bytes-from-list [110,44,114])] [(2,1)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))) [(ExpectBytes [(bytes-from-list [97,44,128])] [(1,4)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [97,44,128])] [(1,4)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [206,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [206,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)])] 301
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch26 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch26 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [255,206,187,120,10]))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97,44,98])] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97,44,98])] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [97,44,0,10]))) [(ExpectBytes [(bytes-from-list [97,44,0])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97,44,0])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255]),(bytes-from-list [122])] [(1,1),(1,5),(1,9)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255]),(bytes-from-list [122])] [(1,1),(1,5),(1,9)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255]),(bytes-from-list [122])] [(1,1),(1,5),(1,9)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255]),(bytes-from-list [122])] [(1,1),(1,5),(1,9)] 10 "" 0 0 0 0 0)])] 313
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch27 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch27 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97,240,159,152,128,255,240,159,152,128,122])] [(1,1)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [230,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [230,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 28450 8251 CsvAnyFields False True) (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [240,128,255,44,97])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 28450 8251 CsvAnyFields False True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255,44,97])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list []))) []),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list []))))) []),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [255]))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255]))))) [(ExpectBytes [(bytes-from-list [255])] [(1,1)] 1 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [97,44,255,10]))) [(ExpectBytes [(bytes-from-list [97,44,255])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,255,10]))))) [(ExpectBytes [(bytes-from-list [97,44,255])] [(1,1)] 4 "" 0 0 0 0 0)])] 325
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch28 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch28 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))) [(ExpectBytes [(bytes-from-list [255,44,34,120,34])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255,44,34,120,34])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255,44,34,120,34])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [255,44,34,120,34,10]))))) [(ExpectBytes [(bytes-from-list [255,44,34,120,34])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))) [(ExpectBytes [(bytes-from-list [255,254,10,120,34,44,121,10])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,255,254,13,10,120,34,44,121,10]))))) [(ExpectBytes [(bytes-from-list [255,254,10,120,34,44,121,10])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))) [(ExpectBytes [(bytes-from-list [97,44,34,98,128,34,120])] [(1,1)] 8 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [110,44,114])] [(2,1)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,34,98,128,34,120,10,110,44,114,10]))))) [(ExpectBytes [(bytes-from-list [97,44,34,98,128,34,120])] [(1,1)] 8 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [110,44,114])] [(2,1)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))) [(ExpectBytes [(bytes-from-list [97,44,128])] [(1,4)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [227,128,128,97,44,128,10]))))) [(ExpectBytes [(bytes-from-list [97,44,128])] [(1,4)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [206,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [206,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [206,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [206,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)])] 337
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch29 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch29 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [255,206,187,120,10]))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [255,206,187,120,10]))))) [(ExpectBytes [(bytes-from-list [255,206,187,120])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97,44,98])] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [35,255,10,97,44,98,10]))))) [(ExpectBytes [(bytes-from-list [35,255])] [(1,1)] 3 "" 0 0 0 0 0),(ExpectBytes [(bytes-from-list [97,44,98])] [(2,1)] 7 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [97,44,0,10]))) [(ExpectBytes [(bytes-from-list [97,44,0])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97,44,0])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 7 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97,44,0])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 4096 (reader-from-bytes (runtime-bytes (bytes-from-list [97,44,0,10]))))) [(ExpectBytes [(bytes-from-list [97,44,0])] [(1,1)] 4 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [34,227,128,255,34,10]))))) [(ExpectBytes [(bytes-from-list [227,128,255])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,230,188,162,255,230,188,162,122,10]))))) [(ExpectBytes [(bytes-from-list [97,230,188,162,255,230,188,162,122])] [(1,1)] 10 "" 0 0 0 0 0)])] 349
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch30 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch30 unit = first-failure [
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255]),(bytes-from-list [122])] [(1,1),(1,6),(1,11)] 12 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [97,240,159,152,128,255,240,159,152,128,122,10]))))) [(ExpectBytes [(bytes-from-list [97]),(bytes-from-list [255]),(bytes-from-list [122])] [(1,1),(1,6),(1,11)] 12 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [230,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [230,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [230,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [230,255,44,97])] [(1,1)] 5 "" 0 0 0 0 0)]),
+      (raw-read-equal (csv-byte-reader (config 128512 128221 CsvAnyFields True True) (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))) [(ExpectBytes [(bytes-from-list [240,128,255,44,97])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (raw-stream-equal (csv-byte-stream-reader (config 128512 128221 CsvAnyFields True True) (chunked 1 (reader-from-bytes (runtime-bytes (bytes-from-list [240,128,255,44,97,10]))))) [(ExpectBytes [(bytes-from-list [240,128,255,44,97])] [(1,1)] 6 "" 0 0 0 0 0)]),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [])) (bytes-from-list [10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) False (runtime-raw-fields []) (bytes-from-list [10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [])])) (bytes-from-list [10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [])]) (bytes-from-list [10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255])])) (bytes-from-list [255,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255])]) (bytes-from-list [255,10]))] 361
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch31 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch31 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])])) (bytes-from-list [34,255,44,120,34,44,34,97,34,34,128,34,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])]) (bytes-from-list [34,255,44,120,34,44,34,97,34,34,128,34,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])])) (bytes-from-list [34,97,13,255,34,44,34,97,10,128,34,44,34,13,10,34,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])]) (bytes-from-list [34,97,13,255,34,44,34,97,10,128,34,44,34,13,10,34,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])])) (bytes-from-list [206,255,44,206,187,255,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])]) (bytes-from-list [206,255,44,206,187,255,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])])) (bytes-from-list [34,227,128,128,255,34,44,0,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])]) (bytes-from-list [34,227,128,128,255,34,44,0,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [])) (bytes-from-list [13,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) True (runtime-raw-fields []) (bytes-from-list [13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [])])) (bytes-from-list [13,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [])]) (bytes-from-list [13,10]))] 373
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch32 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch32 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255])])) (bytes-from-list [255,13,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255])]) (bytes-from-list [255,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])])) (bytes-from-list [34,255,44,120,34,44,34,97,34,34,128,34,13,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])]) (bytes-from-list [34,255,44,120,34,44,34,97,34,34,128,34,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])])) (bytes-from-list [34,97,255,34,44,34,97,13,10,128,34,44,34,13,10,34,13,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])]) (bytes-from-list [34,97,255,34,44,34,97,13,10,128,34,44,34,13,10,34,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])])) (bytes-from-list [206,255,44,206,187,255,13,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])]) (bytes-from-list [206,255,44,206,187,255,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])])) (bytes-from-list [34,227,128,128,255,34,44,0,13,10])) 0),
+      (raw-write-equal (config 44 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])]) (bytes-from-list [34,227,128,128,255,34,44,0,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [])) (bytes-from-list [10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) False (runtime-raw-fields []) (bytes-from-list [10]))] 385
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch33 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch33 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [])])) (bytes-from-list [10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [])]) (bytes-from-list [10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255])])) (bytes-from-list [255,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255])]) (bytes-from-list [255,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])])) (bytes-from-list [255,44,120,59,34,97,34,34,128,34,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])]) (bytes-from-list [255,44,120,59,34,97,34,34,128,34,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])])) (bytes-from-list [34,97,13,255,34,59,34,97,10,128,34,59,34,13,10,34,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])]) (bytes-from-list [34,97,13,255,34,59,34,97,10,128,34,59,34,13,10,34,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])])) (bytes-from-list [206,255,59,206,187,255,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])]) (bytes-from-list [206,255,59,206,187,255,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])])) (bytes-from-list [34,227,128,128,255,34,59,0,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])]) (bytes-from-list [34,227,128,128,255,34,59,0,10]))] 397
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch34 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch34 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [])) (bytes-from-list [13,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) True (runtime-raw-fields []) (bytes-from-list [13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [])])) (bytes-from-list [13,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [])]) (bytes-from-list [13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255])])) (bytes-from-list [255,13,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255])]) (bytes-from-list [255,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])])) (bytes-from-list [255,44,120,59,34,97,34,34,128,34,13,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])]) (bytes-from-list [255,44,120,59,34,97,34,34,128,34,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])])) (bytes-from-list [34,97,255,34,59,34,97,13,10,128,34,59,34,13,10,34,13,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])]) (bytes-from-list [34,97,255,34,59,34,97,13,10,128,34,59,34,13,10,34,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])])) (bytes-from-list [206,255,59,206,187,255,13,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])]) (bytes-from-list [206,255,59,206,187,255,13,10]))] 409
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch35 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch35 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])])) (bytes-from-list [34,227,128,128,255,34,59,0,13,10])) 0),
+      (raw-write-equal (config 59 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])]) (bytes-from-list [34,227,128,128,255,34,59,0,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [])) (bytes-from-list [10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) False (runtime-raw-fields []) (bytes-from-list [10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [])])) (bytes-from-list [10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [])]) (bytes-from-list [10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255])])) (bytes-from-list [255,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255])]) (bytes-from-list [255,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])])) (bytes-from-list [255,44,120,206,187,34,97,34,34,128,34,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])]) (bytes-from-list [255,44,120,206,187,34,97,34,34,128,34,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])])) (bytes-from-list [34,97,13,255,34,206,187,34,97,10,128,34,206,187,34,13,10,34,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])]) (bytes-from-list [34,97,13,255,34,206,187,34,97,10,128,34,206,187,34,13,10,34,10]))] 421
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch36 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch36 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])])) (bytes-from-list [206,255,206,187,34,206,187,255,34,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])]) (bytes-from-list [206,255,206,187,34,206,187,255,34,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])])) (bytes-from-list [34,227,128,128,255,34,206,187,0,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])]) (bytes-from-list [34,227,128,128,255,34,206,187,0,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [])) (bytes-from-list [13,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) True (runtime-raw-fields []) (bytes-from-list [13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [])])) (bytes-from-list [13,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [])]) (bytes-from-list [13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255])])) (bytes-from-list [255,13,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255])]) (bytes-from-list [255,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])])) (bytes-from-list [255,44,120,206,187,34,97,34,34,128,34,13,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])]) (bytes-from-list [255,44,120,206,187,34,97,34,34,128,34,13,10]))] 433
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch37 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch37 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])])) (bytes-from-list [34,97,255,34,206,187,34,97,13,10,128,34,206,187,34,13,10,34,13,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])]) (bytes-from-list [34,97,255,34,206,187,34,97,13,10,128,34,206,187,34,13,10,34,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])])) (bytes-from-list [206,255,206,187,34,206,187,255,34,13,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])]) (bytes-from-list [206,255,206,187,34,206,187,255,34,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])])) (bytes-from-list [34,227,128,128,255,34,206,187,0,13,10])) 0),
+      (raw-write-equal (config 955 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])]) (bytes-from-list [34,227,128,128,255,34,206,187,0,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [])) (bytes-from-list [10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields []) (bytes-from-list [10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [])])) (bytes-from-list [10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [])]) (bytes-from-list [10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255])])) (bytes-from-list [255,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255])]) (bytes-from-list [255,10]))] 445
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch38 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch38 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])])) (bytes-from-list [255,44,120,230,188,162,34,97,34,34,128,34,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])]) (bytes-from-list [255,44,120,230,188,162,34,97,34,34,128,34,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])])) (bytes-from-list [34,97,13,255,34,230,188,162,34,97,10,128,34,230,188,162,34,13,10,34,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])]) (bytes-from-list [34,97,13,255,34,230,188,162,34,97,10,128,34,230,188,162,34,13,10,34,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])])) (bytes-from-list [206,255,230,188,162,206,187,255,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])]) (bytes-from-list [206,255,230,188,162,206,187,255,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])])) (bytes-from-list [34,227,128,128,255,34,230,188,162,0,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])]) (bytes-from-list [34,227,128,128,255,34,230,188,162,0,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [])) (bytes-from-list [13,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields []) (bytes-from-list [13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [])])) (bytes-from-list [13,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [])]) (bytes-from-list [13,10]))] 457
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch39 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch39 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255])])) (bytes-from-list [255,13,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255])]) (bytes-from-list [255,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])])) (bytes-from-list [255,44,120,230,188,162,34,97,34,34,128,34,13,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])]) (bytes-from-list [255,44,120,230,188,162,34,97,34,34,128,34,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])])) (bytes-from-list [34,97,255,34,230,188,162,34,97,13,10,128,34,230,188,162,34,13,10,34,13,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])]) (bytes-from-list [34,97,255,34,230,188,162,34,97,13,10,128,34,230,188,162,34,13,10,34,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])])) (bytes-from-list [206,255,230,188,162,206,187,255,13,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])]) (bytes-from-list [206,255,230,188,162,206,187,255,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])])) (bytes-from-list [34,227,128,128,255,34,230,188,162,0,13,10])) 0),
+      (raw-write-equal (config 28450 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])]) (bytes-from-list [34,227,128,128,255,34,230,188,162,0,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [])) (bytes-from-list [10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields []) (bytes-from-list [10]))] 469
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch40 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch40 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [])])) (bytes-from-list [10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [])]) (bytes-from-list [10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255])])) (bytes-from-list [255,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255])]) (bytes-from-list [255,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])])) (bytes-from-list [255,44,120,240,159,152,128,34,97,34,34,128,34,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])]) (bytes-from-list [255,44,120,240,159,152,128,34,97,34,34,128,34,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])])) (bytes-from-list [34,97,13,255,34,240,159,152,128,34,97,10,128,34,240,159,152,128,34,13,10,34,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])]) (bytes-from-list [34,97,13,255,34,240,159,152,128,34,97,10,128,34,240,159,152,128,34,13,10,34,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])])) (bytes-from-list [206,255,240,159,152,128,206,187,255,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])]) (bytes-from-list [206,255,240,159,152,128,206,187,255,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])])) (bytes-from-list [34,227,128,128,255,34,240,159,152,128,0,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) False (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])]) (bytes-from-list [34,227,128,128,255,34,240,159,152,128,0,10]))] 481
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch41 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch41 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [])) (bytes-from-list [13,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields []) (bytes-from-list [13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [])])) (bytes-from-list [13,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [])]) (bytes-from-list [13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255])])) (bytes-from-list [255,13,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255])]) (bytes-from-list [255,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])])) (bytes-from-list [255,44,120,240,159,152,128,34,97,34,34,128,34,13,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [255,44,120]),(bytes-from-list [97,34,128])]) (bytes-from-list [255,44,120,240,159,152,128,34,97,34,34,128,34,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])])) (bytes-from-list [34,97,255,34,240,159,152,128,34,97,13,10,128,34,240,159,152,128,34,13,10,34,13,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [97,13,255]),(bytes-from-list [97,10,128]),(bytes-from-list [13,10])]) (bytes-from-list [34,97,255,34,240,159,152,128,34,97,13,10,128,34,240,159,152,128,34,13,10,34,13,10])),
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])])) (bytes-from-list [206,255,240,159,152,128,206,187,255,13,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [206,255]),(bytes-from-list [206,187,255])]) (bytes-from-list [206,255,240,159,152,128,206,187,255,13,10]))] 493
+
+  -- | Evaluate a bounded group of independent bytes fixtures with original failing indices.
+  check-batch42 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  check-batch42 unit = first-failure [
+      (eq-i64 (bytes-compare (csv-render-byte-record (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])])) (bytes-from-list [34,227,128,128,255,34,240,159,152,128,0,13,10])) 0),
+      (raw-write-equal (config 128512 0 CsvAnyFields False False) True (runtime-raw-fields [(bytes-from-list [227,128,128,255]),(bytes-from-list [0])]) (bytes-from-list [34,227,128,128,255,34,240,159,152,128,0,13,10]))] 505
+
+  -- | Print a failing fixture index and return a nonzero exit status for failed observations.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let result = first-result [check-batch0 (),check-batch1 (),check-batch2 (),check-batch3 (),check-batch4 (),check-batch5 (),check-batch6 (),check-batch7 (),check-batch8 (),check-batch9 (),check-batch10 (),check-batch11 (),check-batch12 (),check-batch13 (),check-batch14 (),check-batch15 (),check-batch16 (),check-batch17 (),check-batch18 (),check-batch19 (),check-batch20 (),check-batch21 (),check-batch22 (),check-batch23 (),check-batch24 (),check-batch25 (),check-batch26 (),check-batch27 (),check-batch28 (),check-batch29 (),check-batch30 (),check-batch31 (),check-batch32 (),check-batch33 (),check-batch34 (),check-batch35 (),check-batch36 (),check-batch37 (),check-batch38 (),check-batch39 (),check-batch40 (),check-batch41 (),check-batch42 ()] in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string result) "\n")) in
+    if result == 0 then 0 else 1

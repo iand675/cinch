@@ -1,0 +1,211 @@
+  -- | A concrete application record whose wire view has arithmetic fields, blank padding and an array.
+  data Packet where
+    -- | Exact typed application fields; padding is deliberately absent from this application value.
+    Packet :: Bool -> U16 -> I32 -> F32 -> F64 -> (F64, F64) -> List U16 -> Packet
+  -- | Convert one concrete nested wire view into the application record.
+  packet-from-wire :: (Bool, (U16, (I32, (F32, (F64, ((F64, F64), (Unit, List U16))))))) -> Packet
+  packet-from-wire view = case view of (active, (code, (count, (single, (double, (complex, (blank, samples))))))) -> Packet active code count single double complex samples
+  -- | Expose exactly the declared wire fields and an explicit blank-padding value.
+  packet-to-wire :: Packet -> (Bool, (U16, (I32, (F32, (F64, ((F64, F64), (Unit, List U16)))))))
+  packet-to-wire value = case value of Packet active code count single double complex samples -> (active, (code, (count, (single, (double, (complex, ((), samples)))))))
+  -- | Compose an actual forty-four-byte record codec from concrete public layouts.
+  packet-layout :: B.BinaryLayout Packet
+  packet-layout = B.binary-map packet-from-wire packet-to-wire
+    (B.binary-pair B.binary-bool (B.binary-pair B.binary-u16 (B.binary-pair B.binary-i32 (B.binary-pair B.binary-f32 (B.binary-pair B.binary-f64 (B.binary-pair B.binary-complex128 (B.binary-pair (B.binary-padding 3) (B.binary-array 3 B.binary-u16))))))))
+  -- | Observe independent record bytes, concrete codec conversion, padding and all nested fields.
+  record-case :: U8 -> Bool -> U16 -> U32 -> U32 -> U64 -> U64 -> U64 -> List U16 -> String -> Bool
+  record-case selected active code count single double real imaginary samples expected =
+    let wire-order = order selected in let raw = input expected in
+    let value = Packet active code (wrapping-u32-to-i32 count) (B.binary-f32-from-bits single) (B.binary-f64-from-bits double) (B.binary-f64-from-bits real, B.binary-f64-from-bits imaginary) samples in
+    B.binary-size packet-layout == 44 && check-buffer packet-layout wire-order value raw
+      && (case B.binary-encode packet-layout wire-order value of Err error -> False; Ok encoded -> same encoded raw)
+      && (case B.binary-decode packet-layout wire-order raw of
+        Err error -> False
+        Ok pair -> case pair of (decoded, used) -> case B.binary-encode packet-layout wire-order decoded of Err error -> False; Ok encoded -> used == 44 && same encoded raw)
+  -- | Compare shortest signed and unsigned variable integers, including copied append and checked offset stores.
+  varint-case :: U64 -> String -> String -> Bool
+  varint-case bits unsigned signed =
+    let u = input unsigned in let s = input signed in let value = wrapping-u64-to-i64 bits in
+    same (B.binary-encode-uvarint bits) u && same (B.binary-encode-varint value) s
+      && same (B.binary-append-uvarint (input "aa") bits) (joined (input "aa") u)
+      && same (B.binary-append-varint (input "aa") value) (joined (input "aa") s)
+      && (case B.binary-decode-uvarint (joined (input "aabb") u) 2 of Ok (actual, used) -> eq-u64 actual bits && used == bytes-len u; Err error -> False)
+      && (case B.binary-decode-varint (joined (input "aabb") s) 2 of Ok (actual, used) -> eq-i64 actual value && used == bytes-len s; Err error -> False)
+      && (let destination = bytes-new (bytes-len u + 2) in case B.binary-put-uvarint destination 1 bits of Ok used -> used == bytes-len u && same (part destination 1 (used + 1)) u; Err error -> False)
+      && (let destination = bytes-new (bytes-len s + 2) in case B.binary-put-varint destination 1 value of Ok used -> used == bytes-len s && same (part destination 1 (used + 1)) s; Err error -> False)
+  -- | Compare exact prefix failures without inventing partial numeric values on failure.
+  prefix-buffer :: Bytes -> U8 -> Nat -> U64 -> Bool
+  prefix-buffer raw kind count value = case B.binary-decode-uvarint raw 0 of
+    Ok (actual, used) -> eq-u8 kind 0 && used == count && eq-u64 actual value
+    Err (B.BinaryIncompleteVarint used) -> eq-u8 kind 1 && used == count
+    Err (B.BinaryVarintOverflow used) -> eq-u8 kind 2 && used == count
+    other -> False
+  -- | Compare exact stream prefix progress and preserve all bytes after its ten-byte bound.
+  prefix-case :: forall r. using (io :: Io r) => String -> U8 -> Nat -> U64 -> U8 -> Nat -> U64 -> String ->{IO r} Bool
+  prefix-case text buffer-kind buffer-count buffer-value stream-kind stream-count stream-value remaining =
+    let raw = input text in let buffer-ok = prefix-buffer raw buffer-kind buffer-count buffer-value in
+    case E.binary-read-uvarint (reader-from-bytes raw) of
+      (result, advanced) ->
+        let ok = case result of
+                Ok (actual, used) -> eq-u8 stream-kind 0 && used == stream-count && eq-u64 actual stream-value
+                Err E.BinaryEndOfInput -> eq-u8 stream-kind 1 && stream-count == 0
+                Err (E.BinaryInputFailure used cause) -> eq-u8 stream-kind 2 && used == stream-count
+                Err (E.BinaryFormatFailure (B.BinaryVarintOverflow used)) -> eq-u8 stream-kind 2 && used == stream-count
+                other -> False in
+        case stream-read-all 17 advanced of (Ok rest, next) -> buffer-ok && ok && same rest (input remaining); other -> False
+  -- | Observe buffer aliases only after the operation under test has completed.
+  alias-contract :: Unit -> Bool
+  alias-contract unit =
+    let source = input "11223344" in
+    case B.binary-decode (B.binary-bytes 4) B.BinaryBigEndian source of
+      Err error -> False
+      Ok (decoded, used) -> let changed = if 0 < bytes-len source then bytes-set source 0 255 else () in
+        same decoded (input "11223344")
+          && (case B.binary-encode-into (B.binary-bytes 4) B.BinaryBigEndian source 0 source of
+            Err error -> False
+            Ok n -> n == 4 && same source (input "ff223344"))
+  -- | Verify nested validation is atomic and huge mismatched layouts fail before allocation.
+  validation-contract :: Unit -> Bool
+  validation-contract unit =
+    let destination = input "aabbccddeeff" in let before = part destination 0 6 in
+    let layout = B.binary-pair B.binary-u16 (B.binary-array 2 B.binary-u16) in
+    (case B.binary-encode-into layout B.BinaryBigEndian destination 0 (4660, [5]) of
+      Err (B.BinaryLengthMismatch expected actual) -> expected == 2 && actual == 1 && same destination before
+      other -> False)
+      && (case B.binary-encode (B.binary-array 1000000000 B.binary-u64) B.BinaryLittleEndian Nil of
+        Err (B.BinaryLengthMismatch expected actual) -> expected == 1000000000 && actual == 0
+        other -> False)
+      && (case B.binary-decode-at B.binary-u16 B.BinaryLittleEndian destination 7 of Err (B.BinaryInvalidOffset p n) -> p == 7 && n == 6; other -> False)
+      && (case B.binary-decode-at B.binary-u32 B.BinaryLittleEndian destination 4 of Err (B.BinaryShortInput required available) -> required == 4 && available == 2; other -> False)
+      && (case B.binary-put-u64 B.BinaryBigEndian destination 0 1 of Err (B.BinaryShortDestination required available) -> required == 8 && available == 6 && same destination before; other -> False)
+      && (case B.binary-put-uvarint destination 5 16384 of Err (B.BinaryShortDestination required available) -> required == 3 && available == 1 && same destination before; other -> False)
+  -- | Check explicit padding, empty layouts, noncanonical true bytes and standard complex records.
+  contracts-case :: Unit -> Bool
+  contracts-case unit = alias-contract () && validation-contract () && aggregate-contract ()
+    && B.binary-max-varint16 == 3 && B.binary-max-varint32 == 5 && B.binary-max-varint64 == 10
+    && B.binary-order-name B.BinaryLittleEndian == "LittleEndian" && B.binary-order-name B.BinaryBigEndian == "BigEndian" && B.binary-order-name B.BinaryNativeEndian == "NativeEndian"
+    && (case B.binary-decode B.binary-bool B.BinaryBigEndian (input "ff") of Ok (value, used) -> value && used == 1; Err error -> False)
+    && (case B.binary-encode (B.binary-padding 3) B.BinaryBigEndian () of Ok bytes -> same bytes (input "000000"); Err error -> False)
+    && (case B.binary-decode (B.binary-padding 3) B.BinaryBigEndian (input "ff12aa") of Ok (value, used) -> used == 3; Err error -> False)
+    && (case B.binary-encode B.binary-unit B.BinaryBigEndian () of Ok bytes -> bytes-len bytes == 0; Err error -> False)
+    && (case B.binary-encode B.binary-complex-value B.BinaryBigEndian (Complex.complex (B.binary-f64-from-bits 9223372036854775808) (B.binary-f64-from-bits 9221120237041090561)) of Ok bytes -> same bytes (input "80000000000000007ff8000000000001"); Err error -> False)
+    && same (B.binary-append-u16 B.BinaryBigEndian (input "aa") 4660) (input "aa1234")
+    && same (B.binary-append-u32 B.BinaryLittleEndian (input "aa") 305419896) (input "aa78563412")
+    && same (B.binary-append-u64 B.BinaryBigEndian (input "aa") 81985529216486895) (input "aa0123456789abcdef")
+    && (case B.binary-read-u16 B.BinaryBigEndian (input "aa1234") 1 of Ok value -> eq-u16 value 4660; Err error -> False)
+    && (case B.binary-read-u32 B.BinaryBigEndian (input "aa12345678") 1 of Ok value -> eq-u32 value 305419896; Err error -> False)
+    && (case B.binary-read-u64 B.BinaryBigEndian (input "aa0123456789abcdef") 1 of Ok value -> eq-u64 value 81985529216486895; Err error -> False)
+  -- | Return one byte per callback while reusing the same mutable allocation.
+  reused-reader :: forall r. using (io :: Io r) => Bytes -> Bytes -> Nat -> ByteReader r
+  reused-reader raw scratch offset = stream-reader (\requested ->
+    if offset < bytes-len raw && 0 < bytes-len scratch then
+      let changed = bytes-set scratch 0 (bytes-get raw offset) in let next = offset + 1 in
+      (Ok scratch, reused-reader raw scratch next)
+    else (Ok (bytes-new 0), reused-reader raw scratch offset))
+  -- | A callback source that advances to a distinguishable continuation on failure.
+  failing-reader :: forall r. using (io :: Io r) => ByteReader r
+  failing-reader = stream-reader (\requested -> (Err (StreamClosed "test"), reader-from-bytes (input "ab")))
+  -- | A callback sink that validates the next byte, mutates its offer and accepts only one byte.
+  -- An independent empty buffer marks the final advanced continuation.
+  tiny-writer :: forall r. using (io :: Io r) => Bytes -> Nat -> ByteWriter r
+  tiny-writer expected offset = stream-writer (\offered ->
+    if offset < bytes-len expected && 0 < bytes-len offered then
+      if bytes-get offered 0 == bytes-get expected offset then
+        let mutated = bytes-set offered (bytes-len offered - 1) 255 in let next = offset + 1 in
+        (Ok 1, if next == bytes-len expected then writer-buffer else tiny-writer expected next)
+      else (Err (StreamClosed "test"), writer-buffer)
+    else (Err (StreamClosed "test"), writer-buffer))
+  -- | Refuse output after a known first byte, returning a distinguishable advanced sink.
+  failing-writer :: forall r. using (io :: Io r) => Nat -> ByteWriter r
+  failing-writer used = stream-writer (\offered -> if used == 0 then (Ok 1, failing-writer 1) else (Err (StreamClosed "test"), writer-buffer))
+  -- | Check full fixed reads, mutable callback ownership, empty EOF and partial truncation.
+  fixed-stream-contract :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  fixed-stream-contract unit =
+    let expected = input "12345678aa" in
+    case E.binary-read B.binary-u32 B.BinaryBigEndian (reused-reader expected (bytes-new 1) 0) of
+      (Err error, source) -> False
+      (Ok value, source) ->
+        let first = eq-u32 value 305419896 in
+        let rest = case stream-read source 1 of (Ok bytes, next) -> same bytes (input "aa"); other -> False in
+        let empty = case E.binary-read B.binary-u16 B.BinaryBigEndian (reader-from-bytes (bytes-new 0)) of (Err E.BinaryEndOfInput, next) -> True; other -> False in
+        let short = case E.binary-read B.binary-u32 B.BinaryBigEndian (reader-from-bytes (input "1234")) of
+                (Err (E.BinaryInputFailure used (StreamUnexpectedEnd required got)), next) -> used == 2 && required == 4 && got == 2
+                other -> False in
+        first && rest && empty && short
+  -- | Check advanced failure handles and zero-size operations without invoking callbacks.
+  failure-stream-contract :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  failure-stream-contract unit =
+    let read-ok = case E.binary-read B.binary-u16 B.BinaryBigEndian failing-reader of
+            (Err (E.BinaryInputFailure count (StreamClosed name)), advanced) -> case stream-read advanced 1 of (Ok bytes, next) -> count == 0 && same bytes (input "ab"); other -> False
+            other -> False in
+    let write-ok = case E.binary-write B.binary-u32 B.BinaryBigEndian (failing-writer 0) 305419896 of
+            (Err (E.BinaryOutputFailure count (StreamClosed name)), advanced) -> case writer-bytes advanced of Some bytes -> count == 1 && bytes-len bytes == 0; None -> False
+            other -> False in
+    let empty-read = case E.binary-read B.binary-unit B.BinaryBigEndian failing-reader of
+            (Ok value, advanced) -> case stream-read advanced 1 of (Err (StreamClosed name), next) -> True; other -> False
+            other -> False in
+    let empty-write = case E.binary-write B.binary-unit B.BinaryBigEndian (failing-writer 1) () of
+            (Ok count, advanced) -> count == 0
+            other -> False in
+    read-ok && write-ok && empty-read && empty-write
+  -- | Observe adaptive short writes, mutated offers, exact varint streams and transport progress.
+  streams-case :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  streams-case unit =
+    let expected = input "0123456789abcdef" in
+    let tiny = case E.binary-write B.binary-u64 B.BinaryBigEndian (tiny-writer expected 0) 81985529216486895 of (Ok count, advanced) -> count == 8; other -> False in
+    let varint-write = case E.binary-write-uvarint writer-buffer 18446744073709551615 of
+            (Ok count, sink) -> case writer-bytes sink of Some bytes -> count == 10 && same bytes (input "ffffffffffffffffff01"); None -> False
+            other -> False in
+    let signed-write = case E.binary-write-varint writer-buffer (-9223372036854775808) of
+            (Ok count, sink) -> case writer-bytes sink of Some bytes -> count == 10 && same bytes (input "ffffffffffffffffff01"); None -> False
+            other -> False in
+    let signed-read = case E.binary-read-varint (reader-from-bytes (input "ffffffffffffffffff01aa")) of
+            (Ok (value, used), advanced) -> case stream-read advanced 1 of (Ok bytes, next) -> eq-i64 value (-9223372036854775808) && used == 10 && same bytes (input "aa"); other -> False
+            other -> False in
+    tiny && varint-write && signed-write && signed-read && fixed-stream-contract () && failure-stream-contract () && protocol-stream-contract ()
+
+  -- | Repeatedly release temporary packed arrays and exact floating payloads under a bounded heap.
+  stress-loop :: Nat -> Nat -> Bool
+  stress-loop left count = if left == 0 then True else
+    let values = make-values (\bits -> B.binary-f32-from-bits (wrapping-u64-to-u32 bits)) 9 count 0 Nil in
+    let layout = B.binary-array count B.binary-f32 in
+    let valid = case B.binary-encode layout B.BinaryBigEndian values of
+          Err error -> False
+          Ok encoded -> case B.binary-decode layout B.BinaryBigEndian encoded of
+            Err error -> False
+            Ok (decoded, used) -> used == count * 4 && check-values (\value -> wrapping-u32-to-u64 (B.binary-f32-bits value)) 9 decoded 0 count in
+    if valid then let remaining = left - 1 in stress-loop remaining count else False
+  -- | Keep large temporary-owner construction outside constant evaluation and repeat public pipelines.
+  stress-case :: Unit -> Bool
+  stress-case unit = stress-loop (runtime-count 32) (runtime-count 4097)
+
+  -- | Check invalid callback counts, stalled output and validation before any writer callback.
+  protocol-stream-contract :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  protocol-stream-contract unit =
+    let source = stream-reader (\n -> (Ok (input "010203"), reader-from-bytes (input "ab"))) in
+    let invalid-read = case E.binary-read B.binary-u16 B.BinaryBigEndian source of (Err (E.BinaryInputFailure used (StreamInvalidCount required actual)), advanced) -> (case stream-read advanced 1 of (Ok bytes, next) -> used == 0 && required == 2 && actual == 3 && same bytes (input "ab"); other -> False); other -> False in
+    let stalled = stream-writer (\bytes -> (Ok 0, writer-buffer)) in
+    let zero-write = case E.binary-write B.binary-u16 B.BinaryBigEndian stalled 4660 of (Err (E.BinaryOutputFailure used (StreamShortWrite required actual)), advanced) -> used == 0 && required == 2 && actual == 0; other -> False in
+    let invalid = stream-writer (\bytes -> (Ok (bytes-len bytes + 1), writer-buffer)) in
+    let invalid-write = case E.binary-write B.binary-u16 B.BinaryBigEndian invalid 4660 of (Err (E.BinaryOutputFailure used (StreamInvalidCount required actual)), advanced) -> used == 0 && required == 2 && actual == 3; other -> False in
+    let value-error = case E.binary-write (B.binary-array 2 B.binary-u16) B.BinaryBigEndian (failing-writer 1) [1] of (Err (E.BinaryFormatFailure (B.BinaryLengthMismatch expected actual)), sink) -> (case writer-bytes sink of None -> expected == 2 && actual == 1; Some bytes -> False); other -> False in
+    invalid-read && zero-write && invalid-write && value-error
+  -- | Fill a deterministic large frame with checked byte values in a bounded-stack tail loop.
+  fill-frame :: Bytes -> Nat -> Unit
+  fill-frame frame i = if i < bytes-len frame then let written = bytes-set frame i (nat-rem i 256) in let next = i + 1 in fill-frame frame next else ()
+  -- | Exercise a full sixty-four-kibibyte frame through mutating single-byte short writes.
+  stream-stress-case :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  stream-stress-case unit = let size = runtime-count 65536 in let expected = bytes-new size in let initialized = fill-frame expected 0 in
+    case E.binary-write (B.binary-bytes size) B.BinaryBigEndian (tiny-writer expected 0) expected of
+      (Ok count, advanced) -> count == size && protocol-stream-contract ()
+      other -> False
+
+  -- | Verify composite arrays and nested arrays through their concrete public combinators.
+  aggregate-contract :: Unit -> Bool
+  aggregate-contract unit =
+    let complex-layout = B.binary-array 2 B.binary-complex64 in
+    let complex-values = [(B.binary-f32-from-bits 1, B.binary-f32-from-bits 2147483648), (B.binary-f32-from-bits 1065353216, B.binary-f32-from-bits 2143289345)] in
+    let nested-layout = B.binary-array 2 (B.binary-array 2 B.binary-u16) in
+    let nested-values = [[1,65535],[4660,0]] in
+    (case B.binary-encode complex-layout B.BinaryBigEndian complex-values of Err error -> False; Ok bytes -> same bytes (input "00000001800000003f8000007fc00001") && (case B.binary-decode complex-layout B.BinaryBigEndian bytes of Err error -> False; Ok (decoded, used) -> used == 16 && (case B.binary-encode complex-layout B.BinaryBigEndian decoded of Err error -> False; Ok encoded -> same encoded bytes)))
+      && (case B.binary-encode nested-layout B.BinaryBigEndian nested-values of Err error -> False; Ok bytes -> same bytes (input "0001ffff12340000") && (case B.binary-decode nested-layout B.BinaryBigEndian bytes of Err error -> False; Ok (decoded, used) -> used == 8 && (case B.binary-encode nested-layout B.BinaryBigEndian decoded of Err error -> False; Ok encoded -> same encoded bytes)))

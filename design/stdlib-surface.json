@@ -1,0 +1,2257 @@
+{
+  "format": 1,
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "scope": "All public reference packages; internal/vendor implementation packages excluded. Language/runtime-specific packages remain open until an idiomatic mapping is reviewed.",
+  "completion_rule": "A package is complete only after operation-level capability mapping, implemented public declarations, runtime/error tests and relevant benchmarks have been reviewed. Module presence alone is partial coverage.",
+  "packages": [
+    {
+      "reference_package": "archive/tar",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 85
+    },
+    {
+      "reference_package": "archive/zip",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 78
+    },
+    {
+      "reference_package": "bufio",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Stream",
+        "Effect.Buffered.Core"
+      ],
+      "remaining": [
+        "buffered readers and writers",
+        "scanner split functions and token limits",
+        "peek/discard/unread contracts"
+      ],
+      "reference_declarations": 80,
+      "capability_mapping": "tooling/data/buffered-capabilities.json",
+      "foundation_evidence": "tooling/data/buffered-core-checkpoint.json",
+      "tests": [
+        "lib_buffered_io"
+      ],
+      "review": "Only the explicit event/transfer foundation is integrated: signed progress, simultaneous prefix/error observations, live advanced callbacks and initialized I/O cells. Both frozen frontends pass eight source-selected normal/poison processes and effect/private-constructor controls. Full80 Reader/Writer/Scanner implementation and public pipeline benchmarks remain in progress; no package completion is claimed."
+    },
+    {
+      "reference_package": "bytes",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Bytes",
+        "Data.Bytes.Build",
+        "Data.Bytes.Search",
+        "Data.Bytes.Word",
+        "Data.StringIo",
+        "Data.Bytes.View",
+        "Data.Bytes.Split"
+      ],
+      "remaining": [
+        "Complete the 102-record capability review, including splitting, iteration, replacement, Unicode operations and buffer APIs",
+        "General byte-view search/cut/compare, stable compiled patterns and exact-byte bounded-view queries are implemented; further byte families remain open"
+      ],
+      "reference_declarations": 102,
+      "tests": [
+        "lib_byte_search",
+        "lib_byte_build",
+        "lib_byte_split"
+      ],
+      "benchmarks": [
+        "bootstrap/stdlib-byte-view-selected-results.json",
+        "bootstrap/stdlib-byte-split-results.json"
+      ],
+      "capabilities": {
+        "IndexByte": "Data.Bytes.Search.bytes-index-byte; Data.Bytes.View.byte-view-index-byte additionally queries owner-retaining bounded views with relative offsets",
+        "LastIndexByte": "Data.Bytes.Search.bytes-last-index-byte -> Option Nat",
+        "Clone": "Data.Bytes.Build.bytes-clone; always fresh mutable output",
+        "Repeat": "Data.Bytes.Build.bytes-repeat; count-first checked natural input",
+        "Join": "Data.Bytes.Build.bytes-join; separator-aware fresh output",
+        "Contains": "Data.Bytes.View.bytes-contains",
+        "Count": "Data.Bytes.View.bytes-count, including raw UTF8 empty separator policy",
+        "Index": "Data.Bytes.View.bytes-index",
+        "LastIndex": "Data.Bytes.View.bytes-last-index",
+        "HasPrefix": "Data.Bytes.View.bytes-has-prefix",
+        "HasSuffix": "Data.Bytes.View.bytes-has-suffix",
+        "Cut": "Data.Bytes.View.bytes-cut -> Option owner-retaining bounded views",
+        "CutLast": "Data.Bytes.View.bytes-cut-last -> Option owner-retaining bounded views",
+        "CutPrefix": "Data.Bytes.View.bytes-cut-prefix",
+        "CutSuffix": "Data.Bytes.View.bytes-cut-suffix",
+        "Compare": "Data.Bytes.bytes-compare; byte-view-compare is additionally available",
+        "Equal": "Data.Bytes Eq_Bytes; byte-view-equal is additionally available",
+        "Split": "Data.Bytes.Split.bytes-split; retained mutable ByteView fragments",
+        "SplitN": "Data.Bytes.Split.bytes-split-limit; None is unlimited and Some zero yields no fragments",
+        "SplitAfter": "Data.Bytes.Split.bytes-split-after; separators remain in the preceding fragment",
+        "SplitAfterN": "Data.Bytes.Split.bytes-split-after-limit; final permitted fragment is the unsplit remainder",
+        "SplitSeq": "Data.Bytes.Split.bytes-split-seq; persistent explicit producer state, with separately named shared cursors",
+        "SplitAfterSeq": "Data.Bytes.Split.bytes-split-after-seq; persistent delimiter-including traversal",
+        "Lines": "Data.Bytes.Split.bytes-lines; LF-inclusive traversal, no trailing empty fragment"
+      },
+      "byte_view_index_evidence": "bootstrap/stdlib-byte-view-index-byte-results.json",
+      "split_evidence": "bootstrap/stdlib-byte-split-results.json",
+      "split_review": "Initial source and retained-owner outputs are implemented and benchmarked. All9 maintained parent tests pass, including public outputs, owners, deep input, private full-width progress atO0/O2, and actual wasm32/AArch64/big-endian objects. The parent compiler repair2ab93c5b removes a false LLVM memory-free assertion that had moved boxed Nat comparisons after owner release. Candidate acceleration and full package completion remain separate."
+    },
+    {
+      "reference_package": "cmp",
+      "status": "complete",
+      "cinch_modules": [
+        "Data.Compare",
+        "Relation.Ord"
+      ],
+      "remaining": [],
+      "reference_declarations": 4,
+      "tests": [
+        "lib_compare"
+      ],
+      "benchmarks": [
+        "integer",
+        "float",
+        "choice",
+        "string"
+      ],
+      "capabilities": {
+        "func Compare[$0 Ordered]($0, $0) int": "Data.Compare.Compare / compare -> Ordering",
+        "func Less[$0 Ordered]($0, $0) bool": "Data.Compare.Compare / less",
+        "func Or[$0 comparable](...$0) $0": "Data.Compare.Default / first-non-default; explicit fallback/predicate via first-non-default-by",
+        "type Ordered interface {}": "Data.Compare.Compare with scalar instances; explicit capability instead of a closed type union"
+      },
+      "review": "All four recorded declarations have explicit Cinch capability mappings. Integer, mathematical integer, Char, String and IEEE float orders are covered; floating NaNs precede numbers and signed zeros compare equal. Explicit Default policies preserve the first non-default representation and canonicalize an all-zero float selection to positive zero. Both frozen frontends and the repaired Rust compiler pass 1229 independent reference/default observations; 124 recorded ordinary/poison process runs have zero leaks across the full and focused epochs. Parent lib_compare passes all three checks, including current Rust CLI execution. Both benchmark drivers and slower selection/string results are retained; no throughput parity claim. Structural default instances are optional and remain a separate constructor-inventory compiler follow-up."
+    },
+    {
+      "reference_package": "compress/bzip2",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "compress/flate",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Zlib"
+      ],
+      "remaining": [],
+      "reference_declarations": 38
+    },
+    {
+      "reference_package": "compress/gzip",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 33
+    },
+    {
+      "reference_package": "compress/lzw",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 15
+    },
+    {
+      "reference_package": "compress/zlib",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Zlib"
+      ],
+      "remaining": [],
+      "reference_declarations": 25
+    },
+    {
+      "reference_package": "container/heap",
+      "status": "complete",
+      "cinch_modules": [
+        "Data.Mutable.Heap",
+        "Data.Mutable.HeapView"
+      ],
+      "remaining": [],
+      "reference_declarations": 11,
+      "tests": [
+        "lib_heap_view"
+      ],
+      "benchmarks": [
+        "owned-build-drain",
+        "view-build-drain",
+        "owned-root-repair",
+        "view-root-repair"
+      ],
+      "capability_mapping": "bootstrap/stdlib-heap-validation-results.json",
+      "review": "All11 reference records have owned or callback-backed mappings. Both frozen frontends pass33 consumers with1040 exact callback/storage/identity steps in ordinary and poisoned ownership profiles; parent lib_heap_view passes all7 tests. The prerequisite mutation/inference compiler family now passes rebuilt current-source Stage1, identical self-built Stages2/3+51interfaces, source-absent consumers, changed-source rebuild, all88 direct semantics and15 forged-Core authority observations. All67 heap/view declarations have canonical docs; benchmark/space/codegen evidence and remaining overhead are retained without parity claims.",
+      "native_family_evidence": "bootstrap/mutable-native-family-validation-results.json"
+    },
+    {
+      "reference_package": "container/list",
+      "status": "complete",
+      "cinch_modules": [
+        "Data.List",
+        "Data.Mutable.LinkedList"
+      ],
+      "remaining": [],
+      "reference_declarations": 21,
+      "tests": [
+        "lib_linked_list"
+      ],
+      "benchmarks": [
+        "append-drain",
+        "prepend-drain",
+        "move-front",
+        "remove-reuse",
+        "self-copy"
+      ],
+      "capability_mapping": "bootstrap/stdlib-linked-list-validation-results.json",
+      "review": "All21 declarations map to stable typed nodes, checked membership/navigation/movement, independent detached values and bounded self-copy. Both frozen frontends and explicit Native O2 consumers pass768 exact full-state observations plus owned-Bytes/U64/capacity controls, all ordinary and poisoned profiles zero live/leaks. Parent lib_linked_list passes all7 tests; the mutation/inference compiler prerequisite now passes its complete self-built Native family and source-absent protocol. All76 declarations have canonical docs. Public15-row/frontend benchmark and allocation evidence retains slower results; interleaved copy-worker comparisons improve Rust about33% and Native about14%, with131072 fewer blocks. No throughput/allocation parity is claimed.",
+      "native_family_evidence": "bootstrap/mutable-native-family-validation-results.json"
+    },
+    {
+      "reference_package": "container/ring",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Mutable.Ring"
+      ],
+      "remaining": [
+        "Parent maintained target and full merged self-built Native qualification",
+        "Matched newer scalar-lowering performance follow-up; retained arena/owner overhead remains material"
+      ],
+      "reference_declarations": 10,
+      "tests": [
+        "lib_ring"
+      ],
+      "benchmarks": [
+        "construct-traverse",
+        "growing-joins",
+        "balanced-joins-aliases",
+        "split-rejoin",
+        "detached-copy"
+      ],
+      "capability_mapping": "bootstrap/stdlib-ring.md",
+      "review": "All10 records have explicit typed circular-cursor mappings. The full768-action independent trace corpus and managed-owner controls pass repaired Rust and an experimental Native Array emitter in normal and poisoned profiles. Reviewed public benchmarks retain the SIMD offset kernel and a rejected extraction candidate; the package remains partial pending parent and self-built family gates."
+    },
+    {
+      "reference_package": "context",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Clock",
+        "Effect.Concurrent"
+      ],
+      "remaining": [],
+      "reference_declarations": 21
+    },
+    {
+      "reference_package": "crypto",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 69
+    },
+    {
+      "reference_package": "crypto/aes",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "crypto/cipher",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 37
+    },
+    {
+      "reference_package": "crypto/des",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 6
+    },
+    {
+      "reference_package": "crypto/dsa",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "crypto/ecdh",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 23
+    },
+    {
+      "reference_package": "crypto/ecdsa",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 37
+    },
+    {
+      "reference_package": "crypto/ed25519",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "crypto/elliptic",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 43
+    },
+    {
+      "reference_package": "crypto/fips140",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "crypto/hkdf",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "crypto/hmac",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Digest"
+      ],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "crypto/hpke",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 51
+    },
+    {
+      "reference_package": "crypto/md5",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Digest"
+      ],
+      "remaining": [],
+      "reference_declarations": 6
+    },
+    {
+      "reference_package": "crypto/mldsa",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 39
+    },
+    {
+      "reference_package": "crypto/mlkem",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 34
+    },
+    {
+      "reference_package": "crypto/mlkem/mlkemtest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "crypto/pbkdf2",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 1
+    },
+    {
+      "reference_package": "crypto/rand",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Random"
+      ],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "crypto/rc4",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 7
+    },
+    {
+      "reference_package": "crypto/rsa",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 61
+    },
+    {
+      "reference_package": "crypto/sha1",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Digest"
+      ],
+      "remaining": [],
+      "reference_declarations": 6
+    },
+    {
+      "reference_package": "crypto/sha256",
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Sha256",
+        "Text.Digest",
+        "Text.Sha256"
+      ],
+      "remaining": [],
+      "reference_declarations": 10,
+      "tests": [
+        "lib_sha256"
+      ],
+      "benchmarks": [
+        "sha256",
+        "sha224",
+        "sha256-state",
+        "sha224-state",
+        "sha256-roundtrip",
+        "sha224-roundtrip",
+        "sha256-stream",
+        "sha224-stream",
+        "sha256-stream4096",
+        "sha224-stream4096",
+        "sha256-runtime"
+      ],
+      "capability_mapping": {
+        "BlockSize/Size/Size224 (value and ideal-integer declarations)": "sha256-block-size, sha256-size and sha224-size expose exact Nat constants 64, 32 and 28 without processing input",
+        "Sum256/Sum224": "sha256-sum and sha224-sum return fresh network-order digest bytes for a complete input",
+        "New/New224": "sha256-state and sha224-state initialize immutable states with distinct standard chaining words",
+        "hash.Hash.Write": "sha256-state-update consumes every byte; Effect.Sha256.sha256-write returns the accepted count and advanced state; sha256-hashing-writer adapts either variant to ByteWriter",
+        "hash.Hash.Sum": "sha256-state-sum finalizes a retained state without modifying it; sha256-state-append copies a caller prefix before the digest",
+        "hash.Hash.Reset/Size/BlockSize": "sha256-state-reset preserves the variant; state-size is 28 or 32 with an InRange bound; state-block-size is 64",
+        "hash.Cloner.Clone": "Retaining a Sha256State branches computation; pending bytes and chaining words never alias mutable caller storage",
+        "encoding.BinaryMarshaler/BinaryAppender": "sha256-state-save and sha256-state-append-save encode the 108-byte identifier/chaining/tail/count checkpoint with network-order numeric fields and zero unused tail bytes",
+        "encoding.BinaryUnmarshaler": "sha256-state-load uses its template only to select the variant; identifier checks precede exact size, arbitrary chaining/count bits are accepted, and only live count-modulo-64 tail bytes are copied"
+      },
+      "review": "All ten recorded declarations, including duplicate value/ideal-integer constant records, and returned hash/clone/binary-state capabilities have functional mappings. SHA-224 and SHA-256 share a generated four-word SIMD schedule and exactly sixty-four ordered rounds per block, with exact private word loads and remaining-length machine counters. Independent fixtures cover 132 digest/checkpoint cases, every requested two-chunk split through 129 bytes and selected larger padding/block boundaries, 160 arbitrary restored-state updates including wrapped counts and noncanonical unused tails, and 912 identifier/size cases. Rust passes twelve target tests including three shared profile checks, an explicit O2/RC-debug temporary-owner stress case, and actual kernel compilation for WebAssembly, AArch64 and big-endian PowerPC. The self-built compiler passes ten selected target checks, excluding the two explicit Rust cases. Both execution modes validate ordinary 32 MiB heap/8 MiB stack bounds and a separate 256 MiB poisoned-free quarantine with zero leaks, including retained branches, mutable-buffer isolation, precise error precedence, source continuations and a 64 KiB one-byte stream. Foreign execution is not claimed. Three constant/generation tests and three inventory tool tests pass; fixture bytes and the generated private suffix reproduce exactly. The existing digest regression target passes four Rust checks. Forty-eight public pipeline/control rows match independent SDK checksums; paired executables record a modest 32-byte whole-buffer improvement while retaining unsuccessful intermediate measurements. Exact source patches reproduce all measured intermediates. Whole-buffer hashing avoids the intermediate state and tail buffer; state rendering retains the original specialization shape. Constants and all public/private declarations have canonical module-owned documentation. Portable SIMD/scalar compression remains slower than optional hardware SHA instructions; small-input and immutable buffer allocation costs differ from the reference implementation. Functional completion does not assert hardware or allocation parity. The full stdlib goal remains open."
+    },
+    {
+      "reference_package": "crypto/sha3",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 32
+    },
+    {
+      "reference_package": "crypto/sha512",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Digest"
+      ],
+      "remaining": [],
+      "reference_declarations": 18
+    },
+    {
+      "reference_package": "crypto/subtle",
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.ConstantTime"
+      ],
+      "remaining": [
+        "Data-independent timing runtime scope, inherited task state and foreign-call restoration"
+      ],
+      "reference_declarations": 8,
+      "capability_mapping": "tooling/data/constant-time-capabilities.json",
+      "tests": [
+        "lib_constant_time"
+      ],
+      "review": "Seven public operations are implemented with typed dimensions, exact alias/error tests, independent references, host machine-code/bounds audits and public pipeline benchmarks. The timing scope remains open; package is partial."
+    },
+    {
+      "reference_package": "crypto/tls",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 352
+    },
+    {
+      "reference_package": "crypto/x509",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 336
+    },
+    {
+      "reference_package": "crypto/x509/pkix",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 51
+    },
+    {
+      "reference_package": "database/sql",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 166
+    },
+    {
+      "reference_package": "database/sql/driver",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 128
+    },
+    {
+      "reference_package": "debug/buildinfo",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "debug/dwarf",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 637
+    },
+    {
+      "reference_package": "debug/elf",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3296
+    },
+    {
+      "reference_package": "debug/gosym",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 55
+    },
+    {
+      "reference_package": "debug/macho",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 458
+    },
+    {
+      "reference_package": "debug/pe",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 347
+    },
+    {
+      "reference_package": "debug/plan9obj",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 38
+    },
+    {
+      "reference_package": "embed",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "encoding",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 12
+    },
+    {
+      "reference_package": "encoding/ascii85",
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Ascii85",
+        "Text.Ascii85"
+      ],
+      "remaining": [],
+      "reference_declarations": 7,
+      "tests": [
+        "lib_ascii85",
+        "lib_ascii85_buffers"
+      ],
+      "benchmarks": [
+        "ascii85-encode",
+        "ascii85-decode",
+        "ascii85-stream-encode",
+        "ascii85-stream-decode",
+        "ascii85-bytes-encode",
+        "ascii85-into-encode",
+        "ascii85-into-decode",
+        "ascii85-prefix-decode",
+        "ascii85-controls-decode",
+        "ascii85-controls-prefix-decode",
+        "ascii85-offset-decode"
+      ],
+      "capability_mapping": {
+        "Encode": "ascii85-encode-into writes a checked caller interval and returns its actual count; ascii85-encode-bytes and ascii85-encode provide fresh buffer and text conveniences",
+        "Decode": "ascii85-decode-into exposes completed output, consumed input and an optional codec error with a finish flag; ascii85-decode-at adds checked source offsets for repeated small destinations without copying unread suffixes; ascii85-decode-prefix allocates fresh output",
+        "MaxEncodedLen": "ascii85-max-encoded-length gives the complete safe output bound, including a full final allocation",
+        "NewEncoder": "Effect.Ascii85.ascii85-writer, ascii85-write and ascii85-finish use explicit advanced continuations and flush the final quantum without closing the underlying sink",
+        "NewDecoder": "Effect.Ascii85.ascii85-reader implements bounded input fetches, incremental pending symbols and sticky stream failures",
+        "CorruptInputError": "InvalidAscii85Byte and TruncatedAscii85Quantum preserve original byte positions; ascii85-error-offset projects the position",
+        "CorruptInputError.Error": "ascii85-error-message renders codec diagnostics; separate Ascii85BufferError cases and ascii85-buffer-error-message describe source/destination offset and capacity failures"
+      },
+      "review": "All seven reference declarations have functional mappings. Independent wire fixtures, 924 finite-capacity/finalization cases, every byte in each digit position after a valid group, all two-chunk splits, expanding overlapping shorthand, preserved invalid-byte snapshots and checked offsets pass with both compilers. On malformed input the reference implementation resets reported counts after writing complete groups; independent successful non-final decoding of its valid prefix recovers those boundaries for the stronger prefix-preserving Cinch API. SIMD handles complete groups and eight control bytes; unsigned inline LLVM interval checks avoid snapshots for disjoint buffers. ARM64 and big-endian PowerPC compile the kernels without claiming execution there. Independent public pipeline checksums and retained timing/allocation ablations are reviewed; complete means functional coverage, not equal object mutation, allocation complexity or throughput. Existing stream adapters can still copy buffered output on small reads."
+    },
+    {
+      "reference_package": "encoding/asn1",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 73
+    },
+    {
+      "reference_package": "encoding/base32",
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Base32",
+        "Text.Base32"
+      ],
+      "remaining": [],
+      "reference_declarations": 21,
+      "tests": [
+        "lib_go_stdlib::base32_matches_go_rfc4648_both_alphabets_and_raw_forms",
+        "lib_go_stdlib::base32_scalar_tails_follow_long_simd_prefixes",
+        "lib_base32_encoding"
+      ],
+      "benchmarks": [
+        "base32-encode",
+        "base32-decode",
+        "encode-bytes",
+        "decode-bytes",
+        "custom-encode",
+        "custom-decode",
+        "stream-encode64",
+        "stream-decode64"
+      ],
+      "capability_mapping": {
+        "Encoding/NewEncoding": "Opaque Base32Encoding; checked32-byte copied alphabet and immutable inverse lookup, with Base32ConfigError",
+        "StdEncoding/HexEncoding": "base32-standard-encoding and base32-hex-encoding",
+        "StdPadding/NoPadding (typed and ideal constants)": "Some61 from the standard padding getter; None selects unpadded output",
+        "WithPadding": "base32-with-padding returns a checked persistent configuration",
+        "EncodedLen/DecodedLen": "base32-encoded-length and base32-decoded-length",
+        "Encode/EncodeToString/AppendEncode": "Fresh byte output, optional UTF-8 text, copied-prefix append and atomic checked destination writes",
+        "Decode/DecodeString/AppendDecode": "Atomic byte convenience plus text/prefix/append/destination operations retaining completed output and precise errors",
+        "CorruptInputError/Error": "Base32InputError, original-byte offset and module-owned diagnostic",
+        "NewEncoder/Write/Close": "Inspectable Base32Writer with accepted input counts, explicit finish and advanced sink on failures",
+        "NewDecoder/Read": "Bounded source reader with private surplus cursor, inert zero reads and delayed sticky failure"
+      },
+      "review": "All 21 recorded declarations have idiomatic mappings. Full target14 Rust/12 selected Native checks cover 450 valid, 216 malformed and 24 configuration vectors, all small chunk splits, caller-buffer aliasing, explicit writer finish/failure and bounded one-byte reads through 64 KiB. Both frozen frontends pass ordinary32MiB heap/8MiB stack and separate 256 MiB poisoned-free validation with zero leaks. The final padding-only optimization additionally passes100 standard/hex padded goldens on both frontends; all 48 candidate benchmark preflights match. Private custom gather kernels retain owners, use zero-coded inverse entries and packed SWAR validation. Actual kernels compile for WebAssembly, AArch64 and big-endian PowerPC without foreign execution. All 48 public benchmark rows match independent checksums; paired cursor/padding changes and ordinary allocation probes retain exact before/after identities. Binary alphabets use lossless byte APIs and optional UTF-8 conversion. Error offsets count original bytes; raw tails 1/3/6 and post-padding data are rejected. Functional completion does not assert throughput or allocation parity."
+    },
+    {
+      "reference_package": "encoding/base64",
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Base64",
+        "Text.Base64",
+        "Text.Base64.Encoding"
+      ],
+      "remaining": [],
+      "reference_declarations": 24,
+      "tests": [
+        "lib_base64",
+        "lib_base64_encoding"
+      ],
+      "benchmarks": [
+        "encode-bytes",
+        "decode-bytes",
+        "custom-encode",
+        "custom-decode",
+        "legacy-encode",
+        "legacy-decode",
+        "stream-encode64",
+        "stream-decode64"
+      ],
+      "capability_mapping": {
+        "Encoding/NewEncoding": "Opaque Base64Encoding; validated copied custom alphabets and inverse maps, returning Base64ConfigError",
+        "StdEncoding/URLEncoding/RawStdEncoding/RawURLEncoding": "Four immutable public configurations",
+        "StdPadding/NoPadding (value and ideal-integer records)": "Some 61 from the standard padding getter and None for no padding; raw public configurations provide common no-padding policies",
+        "WithPadding/Strict": "Checked persistent base64-with-padding and base64-strict sharing immutable private tables",
+        "EncodedLen/DecodedLen": "Exact encoded length and conservative decoded byte capacity bound",
+        "Encode/EncodeToString/AppendEncode": "Fresh exact bytes, optional UTF-8 text, copied-prefix append and checked offset destination writes",
+        "Decode/DecodeString/AppendDecode": "Whole-buffer atomic convenience plus progress-preserving byte/text, append and checked offset destination decoding",
+        "CorruptInputError/Error": "Named original-byte failures with message and offset accessors; precise module-owned offset policy",
+        "NewEncoder/Write/Close": "Inspectable Base64Writer, accepted-byte writes, explicit finish and advanced-sink retrieval on success/failure",
+        "NewDecoder/Read": "Bounded decoding reader, copied surplus, inert zero reads and sticky delayed failures"
+      },
+      "review": "All 24 recorded declarations have idiomatic mappings. Nine configurations, 333 valid, 1125 malformed, 32 strict and 6 constructor fixture rows run in 22 consumer groups on both frozen frontends with 32 MiB heap/8MiB stack and separate 256 MiB poisoned-free validation, all zero leaks. Parent Rust target passed 12 tests including foreign object compilation for WebAssembly, AArch64 and big-endian PowerPC; no foreign execution is claimed. All 32 public benchmark rows match independent checksums; paired scalar-field decoder traversal reduces state allocation with retained controls and ordinary space probes. Arbitrary byte alphabets use optional UTF-8 conversion. Original-byte error offsets, strict-bit policy, checked capacity bounds and immutable ownership are explicit. Functional completion does not assert throughput or allocation parity."
+    },
+    {
+      "reference_package": "encoding/binary",
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Binary",
+        "Text.Binary",
+        "Text.Binary.Layout"
+      ],
+      "remaining": [],
+      "reference_declarations": 36,
+      "tests": [
+        "lib_go_stdlib::fixed_width_binary_matches_go_and_validates_writes",
+        "lib_go_stdlib::varints_match_go_including_signed_extrema_and_malformed_input"
+      ],
+      "benchmarks": [
+        "binary",
+        "varint",
+        "encode",
+        "roundtrip"
+      ],
+      "capability_mapping": {
+        "const MaxVarintLen16 = 3": "Text.Binary.Layout.binary-max-varint16",
+        "const MaxVarintLen16 ideal-int": "Text.Binary.Layout.binary-max-varint16",
+        "const MaxVarintLen32 = 5": "Text.Binary.Layout.binary-max-varint32",
+        "const MaxVarintLen32 ideal-int": "Text.Binary.Layout.binary-max-varint32",
+        "const MaxVarintLen64 = 10": "Text.Binary.Layout.binary-max-varint64",
+        "const MaxVarintLen64 ideal-int": "Text.Binary.Layout.binary-max-varint64",
+        "func Append([]uint8, ByteOrder, interface{}) ([]uint8, error)": "Text.Binary.Layout.binary-append",
+        "func AppendUvarint([]uint8, uint64) []uint8": "Text.Binary.Layout.binary-append-uvarint",
+        "func AppendVarint([]uint8, int64) []uint8": "Text.Binary.Layout.binary-append-varint",
+        "func Decode([]uint8, ByteOrder, interface{}) (int, error)": "Text.Binary.Layout.binary-decode / binary-decode-at",
+        "func Encode([]uint8, ByteOrder, interface{}) (int, error)": "Text.Binary.Layout.binary-encode / binary-encode-into",
+        "func PutUvarint([]uint8, uint64) int": "Text.Binary.Layout.binary-put-uvarint",
+        "func PutVarint([]uint8, int64) int": "Text.Binary.Layout.binary-put-varint",
+        "func Read(io.Reader, ByteOrder, interface{}) error": "Effect.Binary.binary-read",
+        "func ReadUvarint(io.ByteReader) (uint64, error)": "Effect.Binary.binary-read-uvarint",
+        "func ReadVarint(io.ByteReader) (int64, error)": "Effect.Binary.binary-read-varint",
+        "func Size(interface{}) int": "Text.Binary.Layout.binary-size",
+        "func Uvarint([]uint8) (uint64, int)": "Text.Binary.Layout.binary-decode-uvarint",
+        "func Varint([]uint8) (int64, int)": "Text.Binary.Layout.binary-decode-varint",
+        "func Write(io.Writer, ByteOrder, interface{}) error": "Effect.Binary.binary-write",
+        "type AppendByteOrder interface { AppendUint16, AppendUint32, AppendUint64, String }": "Text.Binary.Layout.BinaryOrder and concrete read/put/append operations",
+        "type AppendByteOrder interface, AppendUint16([]uint8, uint16) []uint8": "Text.Binary.Layout.binary-append-u16",
+        "type AppendByteOrder interface, AppendUint32([]uint8, uint32) []uint8": "Text.Binary.Layout.binary-append-u32",
+        "type AppendByteOrder interface, AppendUint64([]uint8, uint64) []uint8": "Text.Binary.Layout.binary-append-u64",
+        "type AppendByteOrder interface, String() string": "Text.Binary.Layout.binary-order-name",
+        "type ByteOrder interface { PutUint16, PutUint32, PutUint64, String, Uint16, Uint32, Uint64 }": "Text.Binary.Layout.BinaryOrder and concrete read/put/append operations",
+        "type ByteOrder interface, PutUint16([]uint8, uint16)": "Text.Binary.Layout.binary-put-u16",
+        "type ByteOrder interface, PutUint32([]uint8, uint32)": "Text.Binary.Layout.binary-put-u32",
+        "type ByteOrder interface, PutUint64([]uint8, uint64)": "Text.Binary.Layout.binary-put-u64",
+        "type ByteOrder interface, String() string": "Text.Binary.Layout.binary-order-name",
+        "type ByteOrder interface, Uint16([]uint8) uint16": "Text.Binary.Layout.binary-read-u16",
+        "type ByteOrder interface, Uint32([]uint8) uint32": "Text.Binary.Layout.binary-read-u32",
+        "type ByteOrder interface, Uint64([]uint8) uint64": "Text.Binary.Layout.binary-read-u64",
+        "var BigEndian bigEndian": "Text.Binary.Layout.BinaryBigEndian",
+        "var LittleEndian littleEndian": "Text.Binary.Layout.BinaryLittleEndian",
+        "var NativeEndian nativeEndian": "Text.Binary.Layout.BinaryNativeEndian"
+      },
+      "review": "All 36 recorded declarations have idiomatic mappings through typed layouts, pure record views, byte-order values, exact integer/float/complex bit codecs, arrays/products/padding, checked offset/append operations and explicit streams. Existing Text.Binary remains available. Both frozen frontends pass 1020 independent scalar/array/record/varint/prefix rows and alias/bounds/error/stream contracts,32 \u00d7 4097-element temporary-array stress and 64 KiB mutating single-byte writes. Normal 32 MiB heap/8 MiB stack and separate poisoned 256 MiB runs have zero leaks. Parent Rust target passes 13 tests including WebAssembly/AArch64/big-endian PowerPC kernel objects; no foreign execution. All 131 declarations have canonical docs. Six paired array pipelines match independent wire SHA256/checksums and improve 1.46\u20131.77x relative to a retained scalar baseline. Generic descriptor callbacks, tagged counters and checked stores retain costs; completion does not claim throughput/allocation parity."
+    },
+    {
+      "reference_package": "encoding/csv",
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Csv",
+        "Text.Csv",
+        "Text.Csv.Record"
+      ],
+      "remaining": [],
+      "reference_declarations": 34,
+      "tests": [
+        "lib_csv_record"
+      ],
+      "benchmarks": [
+        "read-plain",
+        "read-quoted",
+        "write-plain",
+        "write-quoted",
+        "stream-read",
+        "stream-write"
+      ],
+      "capability_mapping": {
+        "NewReader, Reader.Read, Reader.ReadAll": "csv-record-reader, csv-byte-reader, csv-reader-read, csv-byte-reader-read, csv-reader-read-all, csv-byte-reader-read-all, csv-stream-reader, csv-byte-stream-reader, csv-stream-read, csv-byte-stream-read, csv-stream-read-all, csv-byte-stream-read-all",
+        "Reader.Comma, Reader.Comment, Reader.FieldsPerRecord, Reader.LazyQuotes, Reader.TrimLeadingSpace": "csv-options, csv-options-delimiter, csv-options-comment, csv-options-field-policy, csv-options-lazy-quotes, csv-options-trim-leading-space, csv-reader-configure, csv-byte-reader-configure, csv-stream-reader-configure, csv-byte-stream-reader-configure",
+        "Reader.FieldPos, Reader.InputOffset": "csv-record-field-position, csv-byte-record-field-position, csv-reader-input-offset, csv-byte-reader-input-offset, csv-stream-input-offset, csv-byte-stream-input-offset",
+        "ParseError, ParseError.StartLine, ParseError.Line, ParseError.Column, ParseError.Err, ParseError.Error, ParseError.Unwrap, ErrBareQuote, ErrQuote, ErrFieldCount": "CsvRecordError, CsvBareQuote, CsvQuote, CsvUnclosedQuote, CsvFieldCount, csv-record-error-start-line, csv-record-error-line, csv-record-error-column, csv-record-error-message; Structured algebraic errors expose causes directly; no exception wrapper required.",
+        "NewWriter, Writer.Comma, Writer.UseCRLF, Writer.Write, Writer.WriteAll, Writer.Error, Writer.Flush": "csv-stream-writer, csv-stream-writer-configure, csv-stream-write, csv-byte-stream-write, csv-stream-write-all, csv-byte-stream-write-all, csv-stream-writer-error, csv-stream-flush, csv-render-record, csv-render-byte-record, csv-render-records, csv-render-byte-records; Synchronous per-record draining; flush observes completion/error. ByteWriter has no borrowed-descriptor flush capability.",
+        "Reader.ReuseRecord": "Immutable returned records and copied raw getters preserve retained values; no mutable row-reuse switch.",
+        "Reader.TrailingComma, ErrTrailingComma": "Deprecated policy/error has no active reader semantics; trailing empty fields are accepted and counted."
+      },
+      "review": "All 34 recorded declarations have idiomatic mappings. Validated Unicode delimiters/comments, strict/lazy quotes, trimming, CRLF, field policies, partial records, original byte positions, reconfiguration and bounded readers support both immutable text and lossless bytes. All 572 independent rows plus chunk sizes 1/7/4096, errors, aliases and bounded 64 KiB fields pass three compiler epochs; 38 accepted standalone normal/poison runs have zero live bytes/leaks. Parent Rust target passes 11 tests. All 214 declarations have canonical docs. All 32 public benchmark rows match SDK observables; paired large-record pipelines improve 3.25\u20139.30x. Small pure writers retain 15\u201320% elapsed-time overhead and about 2 extra allocations/operation relative to the retained counter baseline. Faster variants were rejected for contextual inlining corruption, with old/new compiler reproductions retained. Synchronous flush, immutable row ownership and largest-record storage are explicit; completion does not claim allocation or speed parity."
+    },
+    {
+      "reference_package": "encoding/gob",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 17
+    },
+    {
+      "reference_package": "encoding/hex",
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Hex",
+        "Text.Hex"
+      ],
+      "remaining": [],
+      "reference_declarations": 15,
+      "tests": [
+        "lib_hex",
+        "lib_hex_stream"
+      ],
+      "benchmarks": [
+        "hex-encode",
+        "hex-decode",
+        "hex-append-encode",
+        "hex-append-decode",
+        "hex-into-encode",
+        "hex-into-decode",
+        "hex-dump",
+        "hex-stream-encode",
+        "hex-stream-decode",
+        "hex-stream-dump",
+        "hex-bytes-encode",
+        "hex-prefix-decode"
+      ],
+      "capability_mapping": {
+        "Encode, EncodeToString": "hex-encode-into writes a checked caller interval; hex-encode-bytes and hex-encode return fresh bytes or text",
+        "Decode, DecodeString": "hex-decode-into and hex-decode-prefix retain completed pairs and an optional error; hex-decode provides an all-or-error text convenience",
+        "AppendEncode, AppendDecode": "hex-encode-append and hex-decode-append copy the prefix and preserve complete decoded pairs on failure",
+        "EncodedLen, DecodedLen": "hex-encoded-length and hex-decoded-length compute exact encode and maximum complete decode lengths",
+        "Dump": "hex-dump and hex-dump-bytes provide grouped sixteen-byte rows, printable ASCII and wrapping 32-bit offsets",
+        "Dumper": "hex-dumper, hex-dump-write and hex-dump-finish retain a partial row until explicit idempotent finalization; hex-dumper-sink exposes the advanced sink",
+        "NewEncoder": "hex-writer/hex-write provide inspectable encoding continuations; hex-encoding-writer composes through ByteWriter and retries short output writes",
+        "NewDecoder": "hex-reader composes through ByteReader with bounded source fetches, a private output cursor, absolute input offsets and completed output before failure",
+        "InvalidByteError, InvalidByteError.Error, ErrLength": "InvalidHexByte stores offset and byte, OddHexLength names an unpaired final digit, hex-error-message renders diagnostics; a streaming valid odd tail is StreamUnexpectedEnd"
+      },
+      "review": "All 15 reference declarations have reviewed functional mappings. Both compilers execute independent byte, prefix and dump fixtures, all byte/lane cases, every stream split, odd short writes, sticky failures, alias isolation and finalization. Caller destinations explicitly reject insufficient capacity before mutation; immutable continuations retain advanced sinks. Dump sinks buffer unfinished rows until finish and do not own underlying close/flush. SIMD nibble/ASCII kernels and SWAR column scatter cross-compile for 32-bit Wasm, ARM64 and big-endian PowerPC without claiming foreign execution. Public pipeline benchmarks retain independent SDK checksums, allocation differences and an alternating scatter comparison; completion does not assert identical allocation cost, streaming latency or throughput."
+    },
+    {
+      "reference_package": "encoding/json",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Json",
+        "Text.Json",
+        "Text.Json.Binary32",
+        "Text.Json.Codec",
+        "Text.Json.Value",
+        "Text.Json.Dynamic",
+        "Text.Json.Legacy"
+      ],
+      "remaining": [
+        "Complete directional-kind, method, error and legacy-policy operation mappings",
+        "Effectful incremental encoder/decoder adapters, disabled-policy syntax partial mutation and complete streaming contracts",
+        "Full public-pipeline benchmarks and final92-record review"
+      ],
+      "reference_declarations": 92,
+      "tests": [
+        "lib_json_value",
+        "lib_json_codec"
+      ],
+      "benchmarks": [],
+      "capability_mapping": "bootstrap/stdlib-json-capability-plan.json (all92 records remain in scope)",
+      "review": "Owned source/tape values, binary codecs, exact binary32/binary64 conversion, record policies, persistent maps and raw numeric adapters are implemented. Dynamic owned trees, opaque typed payloads, separate read/write descriptor capabilities and explicit legacy bridges now pass470 independent observations plus10 lifecycle/ownership controls on both frozen frontends.758 declarations have canonical documentation. Full92 mapping, complete methods/errors and policy semantics, bounded effectful streaming and public pipeline benchmarks remain open.",
+      "raw_number_evidence": "bootstrap/stdlib-json-raw-number-evidence.json",
+      "dynamic_evidence": "bootstrap/stdlib-json-dynamic-evidence.json"
+    },
+    {
+      "reference_package": "encoding/json/jsontext",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 113
+    },
+    {
+      "reference_package": "encoding/json/v2",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 45
+    },
+    {
+      "reference_package": "encoding/pem",
+      "status": "complete",
+      "cinch_modules": [
+        "Text.Pem",
+        "Effect.Pem"
+      ],
+      "remaining": [],
+      "reference_declarations": 7,
+      "tests": [
+        "lib_pem"
+      ],
+      "benchmarks": [
+        "encode",
+        "decode",
+        "recovery",
+        "writer",
+        "copy-control"
+      ],
+      "capability_mapping": "tooling/data/pem-capabilities.json",
+      "review": "All7 records have explicit byte-preserving block, persistent-header, decode/remainder, encode and advanced-writer mappings. Selected source9478 passes1120 standalone O0/O2 normal/poison processes across both frozen frontends. Parent lib_pem passes8 tests including actual WebAssembly/AArch64/big-endian PowerPC kernel objects; all101 declarations have canonical docs. Paired public benchmark/codegen review retains ordinary decode and selected small/wide regressions and copy-control variation. The newer scalar-lowering compiler performance comparison remains a separate follow-up; no speed parity or cross-target runtime execution is inferred.",
+      "performance_evidence": "tooling/data/pem-public-benchmarks.json",
+      "runtime_evidence": "tooling/data/pem-selected-evidence.json"
+    },
+    {
+      "reference_package": "encoding/xml",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 83
+    },
+    {
+      "reference_package": "errors",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Result"
+      ],
+      "remaining": [],
+      "reference_declarations": 7
+    },
+    {
+      "reference_package": "expvar",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 39
+    },
+    {
+      "reference_package": "flag",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.OptionParser"
+      ],
+      "remaining": [],
+      "reference_declarations": 93
+    },
+    {
+      "reference_package": "fmt",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Scan",
+        "Text.Show"
+      ],
+      "remaining": [],
+      "reference_declarations": 43
+    },
+    {
+      "reference_package": "go/ast",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 486
+    },
+    {
+      "reference_package": "go/build",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 105
+    },
+    {
+      "reference_package": "go/build/constraint",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 30
+    },
+    {
+      "reference_package": "go/constant",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 50
+    },
+    {
+      "reference_package": "go/doc",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 77
+    },
+    {
+      "reference_package": "go/doc/comment",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 55
+    },
+    {
+      "reference_package": "go/format",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "go/importer",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "go/parser",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 22
+    },
+    {
+      "reference_package": "go/printer",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 18
+    },
+    {
+      "reference_package": "go/scanner",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "go/token",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 223
+    },
+    {
+      "reference_package": "go/types",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 509
+    },
+    {
+      "reference_package": "go/version",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "hash",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Hash"
+      ],
+      "remaining": [],
+      "reference_declarations": 32
+    },
+    {
+      "reference_package": "hash/adler32",
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Adler32",
+        "Text.Adler32",
+        "Text.Checksum"
+      ],
+      "remaining": [],
+      "reference_declarations": 4,
+      "tests": [
+        "lib_go_stdlib::checksums_match_go_and_update_over_every_split",
+        "lib_adler32"
+      ],
+      "benchmarks": [
+        "adler32",
+        "adler32-state",
+        "adler32-roundtrip",
+        "adler32-stream",
+        "adler32-stream4096"
+      ],
+      "capability_mapping": {
+        "Size (value and untyped integer declarations)": "adler32-state-size adler32-state supplies the fixed digest size 4 as Nat without processing input",
+        "Checksum": "Text.Adler32.adler32-sum; existing Text.Checksum.adler32-sum delegates to the standalone implementation",
+        "New": "adler32-state initializes the immutable 32-bit accumulator to 1",
+        "hash.Hash.Write": "adler32-state-update consumes a full buffer; Effect.Adler32.adler32-write returns its accepted count and advanced scalar state; adler32-hashing-writer adapts to ByteWriter",
+        "hash.Hash.Sum/Sum32": "adler32-state-word returns U32; adler32-state-sum returns fresh network-order bytes; adler32-state-append copies a caller prefix before the digest",
+        "hash.Hash.Reset/Size/BlockSize": "adler32-state-reset returns the initial state; size is 4 and preferred block size is 4, with arbitrary input lengths supported",
+        "hash.Cloner.Clone": "Retaining an immutable Adler32State branches computation; every update preserves all prior states",
+        "encoding.BinaryMarshaler/BinaryAppender": "adler32-state-save and adler32-state-append-save encode adl, version byte 1 and the full network-order checksum",
+        "encoding.BinaryUnmarshaler": "adler32-state-load checks the four-byte identifier before exact eight-byte size and accepts all 32-bit payloads without retaining mutable source storage"
+      },
+      "review": "All four recorded declarations (including two records of Size) and returned hash/clone/binary-state capabilities have functional mappings. Independent fixtures cover 46 digest/checkpoint cases, all two-chunk splits through 257 bytes and selected long segment boundaries, 414 arbitrary restored-state updates, and 60 malformed size/identifier cases. Both compilers pass the ten-test target (including three shared profile checks), mutable-buffer isolation, precise errors, stream continuation tests and a 64 KiB one-byte reader under normal 32 MiB heap/8 MiB stack bounds plus separate poisoned-free validation, with zero leaks. Rust also passes all twelve existing stdlib regression tests, including ARM CRC/big-endian kernel compile checks. The portable SIMD core now has a standalone home; the compatibility Text.Checksum module still includes CRC embedded assembly unsupported by the self-built frontend, an existing CRC integration limitation not repaired here. Machine U32 accumulation reduces after bounded 5552-byte segments, preserving accepted state words and exact scalar tails. Twenty-four public pipeline/control rows match independent SDK checksums; paired frozen executables establish the local reduction improvement without claiming allocation/throughput parity. Large test corpus setup uses an LLVM identity to keep generation at runtime after the Rust compiler overflowed its stack on fully constant setup; that compiler limitation is not claimed fixed."
+    },
+    {
+      "reference_package": "hash/crc32",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Checksum"
+      ],
+      "remaining": [
+        "table and hash-state capability review",
+        "inspectable stream adapters and serialized state",
+        "native frontend validation of embedded assembly bodies"
+      ],
+      "reference_declarations": 16,
+      "tests": [
+        "lib_go_stdlib::checksums_match_go_and_update_over_every_split"
+      ],
+      "benchmarks": [
+        "crc32",
+        "crc32c"
+      ]
+    },
+    {
+      "reference_package": "hash/crc64",
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Crc64",
+        "Text.Checksum",
+        "Text.Crc64"
+      ],
+      "remaining": [],
+      "reference_declarations": 11,
+      "tests": [
+        "lib_go_stdlib::checksums_match_go_and_update_over_every_split",
+        "lib_crc64"
+      ],
+      "benchmarks": [
+        "crc64",
+        "crc64-table",
+        "crc64-state",
+        "crc64-roundtrip",
+        "crc64-stream",
+        "crc64-stream4096",
+        "crc64-table-build"
+      ],
+      "capability_mapping": {
+        "ISO/ECMA (value and ideal-integer declarations)": "crc64-iso and crc64-ecma expose the complete reflected U64 polynomials",
+        "Size (value and ideal-integer declarations)": "crc64-size is the digest size 8 as Nat",
+        "Table/MakeTable": "Crc64Table is opaque immutable polynomial storage; crc64-table supports every U64 polynomial and prepares eight slices; crc64-table-entry/entries expose every base entry without mutable aliases",
+        "Checksum/Update": "crc64-table-sum and crc64-table-update use a reusable table; polynomial conveniences crc64-sum/update preserve the older Text.Checksum names",
+        "New / hash.Hash64.Write": "crc64-state starts at zero with a prepared table; crc64-state-update consumes a full buffer; crc64-write reports accepted bytes and the advanced state; crc64-hashing-writer adapts to ByteWriter",
+        "hash.Hash64.Sum/Sum64": "crc64-state-word observes U64; crc64-state-sum returns fresh network-order digest bytes; crc64-state-append copies the prefix before appending",
+        "hash.Hash64.Reset/Size/BlockSize": "crc64-state-reset preserves the table and returns checksum zero; size is 8 and block size is 1",
+        "hash.Cloner.Clone": "Retaining a Crc64State branches computation; updates preserve every earlier state and its immutable table",
+        "encoding.BinaryMarshaler/BinaryAppender": "crc64-state-save/append-save encode crc, version 2, the network-order base-table fingerprint and the full checksum in twenty bytes",
+        "encoding.BinaryUnmarshaler": "crc64-state-load checks identifier, exact twenty-byte length and matching table fingerprint in that order; it accepts every checksum payload and retains no mutable input buffer"
+      },
+      "review": "All eleven recorded declarations, including duplicate constant value/ideal-integer records, and returned hash/clone/binary-state capabilities have functional mappings. Immutable tables support every reflected U64 polynomial and expose every base entry without mutable aliases. Seven independent complete tables, 350 digest/checkpoint cases, 525 arbitrary restored-state updates and 791 malformed-state cases validate identifier/size/table error precedence. Requested two-chunk splits cover every position through 65 bytes and selected larger boundaries, including 16383/16384/16385 and 64 KiB. Rust passes twelve target tests including three shared profile checks and an explicit O2/RC-debug ephemeral-owner stress case; the self-built compiler passes eleven target checks with that Rust-only case excluded. A strengthened nonzero branching/isolation case is rerun through both compilers. Both modes validate ordinary 32 MiB heap/8 MiB stack bounds and a separate 256 MiB poisoned-free quarantine with zero leaks, including a 64 KiB one-byte stream. Twelve Rust compatibility tests pass, with actual CRC SIMD/SWAR kernels compiled for 32-bit WebAssembly, AArch64 with/without CRC capability and big-endian PowerPC; no foreign execution is claimed. The compiler prerequisite preserves private U128 SIMD pair results. Prepared-table traversal uses exact remaining-length machine counters and retains both backing owners, removing natural-number/ownership runtime paths from the O2 word loop. Thirty-two public pipeline/control rows match independent SDK checksums; retained source patches and paired frozen executables record counter-only and polynomial table-selection gains. Eight-slice construction, copied serialization buffers and owned stream chunks have different allocation costs; functional completion does not assert allocation or throughput parity. The compatibility Text.Checksum facade still includes CRC-32 embedded assembly unsupported by the self-built frontend; standalone CRC-64 is validated independently. Full stdlib coverage remains open."
+    },
+    {
+      "reference_package": "hash/fnv",
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Fnv",
+        "Text.Fnv",
+        "Text.Fnv.State"
+      ],
+      "remaining": [],
+      "reference_declarations": 6,
+      "tests": [
+        "lib_go_stdlib::fnv_matches_go_and_updates_over_every_split",
+        "lib_fnv128::fnv128_matches_reference_vectors_and_every_chunk_split",
+        "lib_fnv128::fnv128_updates_preserve_arbitrary_high_bits_and_exact_tails",
+        "lib_fnv_state"
+      ],
+      "benchmarks": [
+        "fnv32a",
+        "fnv64a",
+        "fnv128",
+        "fnv128a",
+        "fnv-state32",
+        "fnv-state32a",
+        "fnv-state64",
+        "fnv-state64a",
+        "fnv-state128",
+        "fnv-state128a",
+        "fnv-roundtrip32",
+        "fnv-roundtrip32a",
+        "fnv-roundtrip64",
+        "fnv-roundtrip64a",
+        "fnv-roundtrip128",
+        "fnv-roundtrip128a",
+        "fnv-stream32",
+        "fnv-stream32a",
+        "fnv-stream64",
+        "fnv-stream64a",
+        "fnv-stream128",
+        "fnv-stream128a"
+      ],
+      "capability_mapping": {
+        "New32": "Text.Fnv.State.fnv32-state and Text.Fnv.fnv32/fnv32-update provide persistent and scalar FNV-1, 32 bits",
+        "New32a": "Text.Fnv.State.fnv32a-state and Text.Fnv.fnv32a/fnv32a-update provide persistent and scalar FNV-1a, 32 bits",
+        "New64": "Text.Fnv.State.fnv64-state and Text.Fnv.fnv64/fnv64-update provide persistent and scalar FNV-1, 64 bits",
+        "New64a": "Text.Fnv.State.fnv64a-state and Text.Fnv.fnv64a/fnv64a-update provide persistent and scalar FNV-1a, 64 bits",
+        "New128": "Text.Fnv.State.fnv128-state and Text.Fnv.fnv128/fnv128-update preserve the complete FNV-1 high/low pair",
+        "New128a": "Text.Fnv.State.fnv128a-state and Text.Fnv.fnv128a/fnv128a-update preserve the complete FNV-1a high/low pair",
+        "hash.Hash.Write": "fnv-state-update consumes a complete byte buffer; Effect.Fnv.fnv-write returns the accepted count and advanced sink; fnv-hashing-writer adapts to the generic ByteWriter protocol",
+        "hash.Hash.Sum": "fnv-state-sum returns fresh network-order digest bytes; fnv-state-append copies the caller prefix and appends those bytes without changing the state",
+        "hash.Hash.Reset": "fnv-state-reset returns the initial state of the same fixed variant",
+        "hash.Hash.Size/BlockSize": "fnv-state-size returns 4, 8 or 16 bytes; fnv-state-block-size is 1",
+        "hash.Hash32.Sum32/hash.Hash64.Sum64": "fnv-state-word32 and fnv-state-word64 expose matching widths as Option machine words; fnv-state-words128 provides a complete high/low observation",
+        "hash.Cloner.Clone": "FnvState contains immutable scalar words; retaining it branches computation, and subsequent updates preserve every prior state",
+        "encoding.BinaryMarshaler/BinaryAppender": "fnv-state-save and fnv-state-append-save emit the four-byte variant identifier and complete network-order state in fresh storage",
+        "encoding.BinaryUnmarshaler": "fnv-state-load checks the template variant before exact size; distinct identifier/length errors leave both arguments unchanged and all payload bit patterns are accepted"
+      },
+      "review": "All six reference constructors and their returned hash, clone and binary-state capabilities have idiomatic functional mappings. Independent fixtures cover 108 digest/checkpoint cases, every two-chunk split, 216 arbitrary restored payloads, 600 tag/size cases and 48 separately corrupted identifier bytes. Both compilers pass persistent-state, mutable-alias isolation, precise errors, generic writer composition and advanced-source failure tests. A 64 KiB one-byte stream copy passes ordinary 32 MiB heap/8 MiB stack bounds and separate poisoned-free validation, with zero leaks. Existing ordered eight-byte LLVM kernels remain unchanged; the sequential recurrence is not reassociated into SIMD lanes. Network-order serialization reuses Text.Binary. The 54 explicit-O2 public state/checkpoint/stream pipeline rows match independent SDK checksums. Completion means functional coverage, not identical mutable object shape or allocations; small-read copying, per-chunk continuation/state allocation and serialization allocation costs remain documented."
+    },
+    {
+      "reference_package": "hash/maphash",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.HashMap"
+      ],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "html",
+      "status": "complete",
+      "cinch_modules": [
+        "Text.Html"
+      ],
+      "remaining": [],
+      "reference_declarations": 2,
+      "tests": [
+        "lib_html"
+      ],
+      "benchmarks": [
+        "escape-bytes",
+        "unescape-bytes",
+        "escape-text",
+        "unescape-text",
+        "escape-length"
+      ],
+      "capability_mapping": {
+        "html.EscapeString": "Text.Html.html-escape; byte and exact-capacity APIs additionally preserve arbitrary bytes and avoid mandatory text conversion",
+        "html.UnescapeString": "Text.Html.html-unescape; full 2231-entry HTML5 table, numeric/legacy references, single-pass expansion and unchanged unknown text"
+      },
+      "review": "Both public declarations have complete text mappings, with additional lossless byte APIs and exact escaped sizing. All 2231 named HTML5 references, numeric replacement rules, malformed inputs and arbitrary byte values are covered by 3448 exact cases and 106 large pipelines. Both frozen frontends pass ordinary 32 MiB heap/8 MiB stack and separate 256 MiB poisoned-free validation with zero leaks. Parent Rust target: 7 passed; selected Native harness: 6 passed. Kernel objects compile for WebAssembly, AArch64 and big-endian PowerPC; no foreign execution is claimed. Three generator tests pass and source tables reproduce. Two expanding HTML5 names extend the pinned reference table. All 72 public benchmark rows match reference observables. Retained variants expose dense-input costs, small-input regressions and noisy controls. The final bound-argument production assembly matches the measured candidate. Functional completion does not assert throughput or allocation parity."
+    },
+    {
+      "reference_package": "html/template",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 76
+    },
+    {
+      "reference_package": "image",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 281
+    },
+    {
+      "reference_package": "image/color",
+      "status": "partial",
+      "cinch_modules": [],
+      "remaining": [
+        "Public pipeline timing and performance review",
+        "Production module selection and generated reference",
+        "Current Native qualification"
+      ],
+      "reference_declarations": 78,
+      "candidate_modules": [
+        {
+          "module": "Image.Color",
+          "path": "experiments/image-color-v1/sources/Image.Color.cinch",
+          "availability": "Isolated review candidate; absent from production prelude"
+        }
+      ],
+      "capability_mapping": "experiments/image-color-v1/operation-map.json",
+      "tests": [
+        "lib_image_color"
+      ],
+      "review": "All78 cumulative reference records have explicit idiomatic candidate mappings. Complete model/helper/palette and retained-owner runtime matrix passes O2 and exact accepted-IR O0; current Root C2/d91 maintained parent passes2/2. All95 declarations have canonical documentation. Actual numeric kernels pass51,052,544 scalar comparisons and actual AArch64/WebAssembly/big-endian PowerPC object checks; no foreign execution claimed. Matched public-pipeline preflights cover21 modes, but elapsed timing and production selection remain pending. No package completion or Native-family admission claimed."
+    },
+    {
+      "reference_package": "image/color/palette",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "image/draw",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 25
+    },
+    {
+      "reference_package": "image/gif",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 22
+    },
+    {
+      "reference_package": "image/jpeg",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 15
+    },
+    {
+      "reference_package": "image/png",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 24
+    },
+    {
+      "reference_package": "index/suffixarray",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 7
+    },
+    {
+      "reference_package": "io",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Stream"
+      ],
+      "remaining": [
+        "ReaderAt/WriterAt and sections",
+        "seek/close/flush contracts",
+        "pipes and cancellation",
+        "stream adapters for codecs"
+      ],
+      "reference_declarations": 107,
+      "tests": [
+        "lib_stream"
+      ],
+      "benchmarks": [
+        "stream-copy-buffer",
+        "stream-copy-discard",
+        "stream-read-all"
+      ]
+    },
+    {
+      "reference_package": "io/fs",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Find",
+        "Effect.Fs"
+      ],
+      "remaining": [],
+      "reference_declarations": 105
+    },
+    {
+      "reference_package": "io/ioutil",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Fs",
+        "Effect.Stream"
+      ],
+      "remaining": [],
+      "reference_declarations": 16
+    },
+    {
+      "reference_package": "iter",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.List",
+        "Data.Producer"
+      ],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "log",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Log"
+      ],
+      "remaining": [],
+      "reference_declarations": 51
+    },
+    {
+      "reference_package": "log/slog",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Log"
+      ],
+      "remaining": [],
+      "reference_declarations": 172
+    },
+    {
+      "reference_package": "log/syslog",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 71
+    },
+    {
+      "reference_package": "maps",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.HashMap",
+        "Data.Map",
+        "Data.Mutable.BTree",
+        "Data.Mutable.HashTable",
+        "Data.Mutable.IndexMap"
+      ],
+      "remaining": [],
+      "reference_declarations": 10
+    },
+    {
+      "reference_package": "math",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Machine"
+      ],
+      "remaining": [],
+      "reference_declarations": 133
+    },
+    {
+      "reference_package": "math/big",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.BigDecimal",
+        "Data.Int",
+        "Data.Nat",
+        "Data.Rational"
+      ],
+      "remaining": [],
+      "reference_declarations": 190
+    },
+    {
+      "reference_package": "math/bits",
+      "status": "complete",
+      "cinch_modules": [
+        "Algebra.Bits",
+        "Data.Machine",
+        "Data.Word"
+      ],
+      "remaining": [],
+      "reference_declarations": 52,
+      "tests": [
+        "lib_word_ops::word_bit_operations_match_reference_widths_and_rotations",
+        "lib_word_ops::word_wide_arithmetic_matches_reference_carry_borrow_and_products",
+        "lib_word_ops::word_division_matches_reference_and_names_invalid_inputs"
+      ],
+      "benchmarks": [
+        "word-add64",
+        "word-mul64",
+        "word-div64",
+        "word-bits64",
+        "word-load"
+      ],
+      "capability_mapping": {
+        "UintSize": "Data.Word.word-bits derives 32/64 from the target Usize intrinsic",
+        "LeadingZeros, TrailingZeros, OnesCount": "Data.Machine leading-zeros/count-ones/trailing-zeros families and Algebra.Bits methods cover U8/U16/U32/U64/Usize, including zero",
+        "Len": "Data.Word.bit-length-u8/u16/u32/u64/usize",
+        "Reverse": "Data.Machine.reverse-bits-u8/u16/u32/u64/usize, using LLVM bit-reversal lowering",
+        "ReverseBytes": "Data.Word.reverse-bytes-u16/u32/u64/usize, using inline LLVM byte swaps",
+        "RotateLeft": "Data.Word.rotate-signed-u8/u16/u32/u64/usize, with I64 counts reduced modulo the width",
+        "Add, Sub": "Data.Word.add-carry and sub-borrow for U32/U64/Usize, with Boolean incoming/outgoing flags",
+        "Mul": "Data.Word.mul-wide for U32/U64/Usize, returning high then low",
+        "Div": "Data.Word.div-wide for U32/U64/Usize returns quotient/remainder or explicit zero/overflow errors; proven U32/U64 forms return tuples under checked preconditions",
+        "Rem": "Data.Word.rem-wide for U32/U64/Usize accepts high words above the divisor and explicitly rejects zero"
+      },
+      "review": "All reference capability families mapped to fixed and native widths. Independent edge/random arithmetic, every eight-bit reversal, signed rotation boundaries, zero/overflow errors and guarded raw kernels are tested. Usize paths also cross-compile for 32-bit Wasm; ARM and big-endian PowerPC checks compile kernels without claiming execution on those targets. All ten word-operation tests also pass with the updated self-built compiler, including proof-bearing division and signed/unsigned machine ordering boundaries. Functional coverage does not assert matching allocation costs or division throughput."
+    },
+    {
+      "reference_package": "math/cmplx",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Complex"
+      ],
+      "remaining": [],
+      "reference_declarations": 27
+    },
+    {
+      "reference_package": "math/rand",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Random"
+      ],
+      "remaining": [],
+      "reference_declarations": 47
+    },
+    {
+      "reference_package": "math/rand/v2",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Random"
+      ],
+      "remaining": [],
+      "reference_declarations": 60
+    },
+    {
+      "reference_package": "mime",
+      "status": "complete",
+      "cinch_modules": [
+        "Text.Mime",
+        "Effect.Mime"
+      ],
+      "remaining": [],
+      "reference_declarations": 16,
+      "tests": [
+        "lib_mime"
+      ],
+      "benchmarks": [
+        "parse",
+        "format",
+        "b-encode",
+        "q-encode",
+        "header",
+        "header-q",
+        "registry"
+      ],
+      "capability_mapping": "tooling/data/mime-capabilities.json",
+      "runtime_evidence": "benchmarks/stdlib/mime-coverage-complete-2026-11-16.json",
+      "performance_evidence": "benchmarks/stdlib/mime-public-assembly-review-2026-11-16.json",
+      "review": "All 16 records have explicit media, raw encoded-word, charset callback and immutable registry mappings. Both admitted frontend/provider pairs pass the full 3119-observation corpus plus callback and ownership controls with zero leaks under normal and poisoned-free profiles. Parent lib_mime passes both tests; all 192 declarations have canonical documentation. Actual portable kernel objects and both public pipeline benchmark windows are retained. Codec regressions, registry population differences and the separate newer Native admission scope remain explicit."
+    },
+    {
+      "reference_package": "mime/multipart",
+      "status": "partial",
+      "cinch_modules": [],
+      "remaining": [
+        "Current Native family qualification",
+        "Performance improvements and optimized candidate review",
+        "Production module selection and generated reference"
+      ],
+      "reference_declarations": 37,
+      "candidate_modules": [
+        {
+          "module": "Text.Multipart",
+          "path": "experiments/multipart-promotion-v1/sources/Text.Multipart.cinch",
+          "availability": "Isolated review candidate; absent from production prelude"
+        },
+        {
+          "module": "Effect.Multipart",
+          "path": "experiments/multipart-promotion-v1/sources/Effect.Multipart.cinch",
+          "availability": "Isolated review candidate; absent from production prelude"
+        }
+      ],
+      "capability_mapping": "experiments/multipart-promotion-v1/capability-mapping.json",
+      "tests": [
+        "lib_multipart_promotion"
+      ],
+      "review": "All37 reference declarations have explicit candidate mappings. Combined Rust330/d91 corpora pass1128 observations in23consumers/46 normal-poison processes separately atO2 and exact accepted-IR O0, zero leaks. The current-source baseline benchmark completes16conditions/288interleaved warmup-sample observations with192 Cinch zero-leak processes; raw samples, regressions and remaining reference gaps are retained. Root f9/d91 maintained parent gate passes2/2 with genuine19 defining Region contracts. Source/metadata/runtime epochs remain distinct. Optimized candidates, current Native family and production selection require separate review; no package completion claimed.",
+      "benchmark_evidence": "experiments/multipart-promotion-v1/performance-results.json",
+      "corpus_evidence": [
+        "experiments/multipart-promotion-v1/corpus-o2-gate.json",
+        "experiments/multipart-promotion-v1/corpus-o0-gate.json"
+      ]
+    },
+    {
+      "reference_package": "mime/quotedprintable",
+      "status": "complete",
+      "cinch_modules": [
+        "Text.QuotedPrintable",
+        "Effect.QuotedPrintable"
+      ],
+      "remaining": [],
+      "reference_declarations": 8,
+      "tests": [
+        "lib_quoted_printable"
+      ],
+      "benchmarks": [
+        "benchmarks/stdlib/quoted-printable-validation-2026-11-16.json",
+        "benchmarks/stdlib/quoted-printable-final-benchmark-native-stream-policy-2026-11-16.json",
+        "benchmarks/stdlib/quoted-printable-final-benchmark-rust-stream-policy-2026-11-16.json"
+      ],
+      "capability_mapping": {
+        "NewReader": "quoted-printable-reader over ByteReader",
+        "Reader": "opaque QuotedPrintableReader",
+        "Reader.Read": "quoted-printable-read: fresh bytes, simultaneous status, advanced reader",
+        "NewWriter": "quoted-printable-writer with explicit mode and ByteWriter",
+        "Writer": "opaque QuotedPrintableWriter",
+        "Writer.Binary": "quoted-printable-writer-policy and quoted-printable-writer-mode, including failed handles",
+        "Writer.Write": "quoted-printable-write: accepted input count, error and advanced sink",
+        "Writer.Close": "quoted-printable-finish: flush final line without closing sink"
+      },
+      "review": "All eight records have implemented typed mappings. Independent whole-value, reader/writer trace, ownership, short-write, error precedence and mode-readback observations pass both identified frozen frontends in normal and poisoned profiles. Parent SDK-free Cargo target passes both tests. Bounded SIMD classifiers and all raw public timing samples, including slower Native results, are retained. Complete denotes functional coverage through the standard ByteReader/ByteWriter contract, not performance parity."
+    },
+    {
+      "reference_package": "net",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.IpAddr",
+        "Effect.Net",
+        "Effect.Resolv"
+      ],
+      "remaining": [],
+      "reference_declarations": 381
+    },
+    {
+      "reference_package": "net/http",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Http"
+      ],
+      "remaining": [],
+      "reference_declarations": 505
+    },
+    {
+      "reference_package": "net/http/cgi",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 14
+    },
+    {
+      "reference_package": "net/http/cookiejar",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 9
+    },
+    {
+      "reference_package": "net/http/fcgi",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "net/http/httptest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 33
+    },
+    {
+      "reference_package": "net/http/httptrace",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 32
+    },
+    {
+      "reference_package": "net/http/httputil",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 53
+    },
+    {
+      "reference_package": "net/http/pprof",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 6
+    },
+    {
+      "reference_package": "net/mail",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 20
+    },
+    {
+      "reference_package": "net/netip",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.IpAddr"
+      ],
+      "remaining": [],
+      "reference_declarations": 80
+    },
+    {
+      "reference_package": "net/rpc",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 57
+    },
+    {
+      "reference_package": "net/rpc/jsonrpc",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "net/smtp",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 27
+    },
+    {
+      "reference_package": "net/textproto",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 64
+    },
+    {
+      "reference_package": "net/url",
+      "status": "complete",
+      "cinch_modules": [
+        "Text.Uri",
+        "Text.Url",
+        "Text.Url.Codec",
+        "Text.Url.Error",
+        "Text.Url.Ip",
+        "Text.Url.Model",
+        "Text.Url.Parser",
+        "Text.Url.Query",
+        "Text.Url.Resolve",
+        "Text.Url.Scan",
+        "Text.Url.Userinfo"
+      ],
+      "remaining": [],
+      "reference_declarations": 62,
+      "tests": [
+        "lib_url"
+      ],
+      "benchmarks": [
+        "query-escape",
+        "query-unescape",
+        "path-escape",
+        "path-unescape",
+        "parse-render",
+        "query-values",
+        "resolve",
+        "join"
+      ],
+      "capability_mapping": {
+        "func JoinPath(string, ...string) (string, error)": "url-join",
+        "func Parse(string) (*URL, error)": "url-parse / url-parse-text",
+        "func ParseQuery(string) (Values, error)": "url-parse-query / url-parse-query-limit",
+        "func ParseRequestURI(string) (*URL, error)": "url-parse-request-uri",
+        "func PathEscape(string) string": "url-path-escape / url-path-escape-text",
+        "func PathUnescape(string) (string, error)": "url-path-unescape",
+        "func QueryEscape(string) string": "url-query-escape / url-query-escape-text",
+        "func QueryUnescape(string) (string, error)": "url-query-unescape",
+        "func User(string) *Userinfo": "url-user",
+        "func UserPassword(string, string) *Userinfo": "url-user-password",
+        "method (*Error) Error() string": "url-error-message / url-error-render",
+        "method (*Error) Temporary() bool": "url-error-temporary",
+        "method (*Error) Timeout() bool": "url-error-timeout",
+        "method (*Error) Unwrap() error": "url-error-cause",
+        "method (*URL) AppendBinary([]uint8) ([]uint8, error)": "url-append-binary",
+        "method (*URL) Clone() *URL": "url-clone",
+        "method (*URL) EscapedFragment() string": "url-escaped-fragment",
+        "method (*URL) EscapedPath() string": "url-escaped-path",
+        "method (*URL) Hostname() string": "url-hostname",
+        "method (*URL) IsAbs() bool": "url-is-absolute",
+        "method (*URL) JoinPath(...string) *URL": "url-join-path / url-join-path-checked",
+        "method (*URL) MarshalBinary() ([]uint8, error)": "url-marshal-binary",
+        "method (*URL) Parse(string) (*URL, error)": "url-parse-reference",
+        "method (*URL) Port() string": "url-port",
+        "method (*URL) Query() Values": "url-query",
+        "method (*URL) Redacted() string": "url-redacted",
+        "method (*URL) RequestURI() string": "url-request-uri",
+        "method (*URL) ResolveReference(*URL) *URL": "url-resolve-reference",
+        "method (*URL) String() string": "url-to-bytes / url-to-text",
+        "method (*URL) UnmarshalBinary([]uint8) error": "url-unmarshal-binary",
+        "method (*Userinfo) Password() (string, bool)": "url-password",
+        "method (*Userinfo) String() string": "url-userinfo-bytes",
+        "method (*Userinfo) Username() string": "url-username",
+        "method (EscapeError) Error() string": "url-failure-message",
+        "method (InvalidHostError) Error() string": "url-failure-message",
+        "method (Values) Add(string, string)": "url-values-add",
+        "method (Values) Clone() Values": "url-values-clone",
+        "method (Values) Del(string)": "url-values-delete",
+        "method (Values) Encode() string": "url-values-encode",
+        "method (Values) Get(string) string": "url-values-get",
+        "method (Values) Has(string) bool": "url-values-has",
+        "method (Values) Set(string, string)": "url-values-set",
+        "type Error struct": "UrlError cause / url-error",
+        "type Error struct, Err error": "url-error-cause / url-error",
+        "type Error struct, Op string": "url-error-operation / url-error",
+        "type Error struct, URL string": "url-error-input / url-error",
+        "type EscapeError string": "UrlFailure / UrlInvalidEscape / url-failure-detail",
+        "type InvalidHostError string": "UrlFailure / UrlInvalidHost / url-failure-detail",
+        "type URL struct": "Url / UrlComponents / UrlParts / url-from-components / url-components",
+        "type URL struct, ForceQuery bool": "url-force-query / UrlParts / url-from-components",
+        "type URL struct, Fragment string": "url-fragment / UrlParts / url-from-components",
+        "type URL struct, Host string": "url-host / UrlParts / url-from-components",
+        "type URL struct, OmitHost bool": "url-omit-host / UrlParts / url-from-components",
+        "type URL struct, Opaque string": "url-opaque / UrlParts / url-from-components",
+        "type URL struct, Path string": "url-path / UrlParts / url-from-components",
+        "type URL struct, RawFragment string": "url-raw-fragment / UrlParts / url-from-components",
+        "type URL struct, RawPath string": "url-raw-path / UrlParts / url-from-components",
+        "type URL struct, RawQuery string": "url-raw-query / UrlParts / url-from-components",
+        "type URL struct, Scheme string": "url-scheme / UrlParts / url-from-components",
+        "type URL struct, User *Userinfo": "url-userinfo / UrlParts / url-from-components",
+        "type Userinfo struct": "UrlUserinfo / url-user / url-user-password",
+        "type Values map[string][]string": "UrlValues / url-values-empty / url-values-from-pairs / url-values-pairs / url-values-get-all / url-values-set-all"
+      },
+      "review": "All 62 recorded declarations have idiomatic mappings. Immutable byte-preserving components, checked parsing/request parsing, copied credential/error accessors, persistent ordered query multimaps, rendering, binary operations, reference resolution and path joining preserve arbitrary bytes; text views are optional UTF-8 conversions. Existing Text.Uri is preserved. Final source passes302 zero-leak memory runs on both frozen frontends including 3226 parse/request rows, 534 query rows, 364 reference rows, 104 join rows, 27 stress cases through 10001 query fields and exhaustive 65536 hex pairs. Parent Rust target passes 8 tests including actual WebAssembly/AArch64/big-endian PowerPC kernel objects; foreign execution is not claimed. All 258 declarations have canonical docs. All 90 public benchmark checksums match SDK observables. Retained comparisons improve dense percent decoding 1.82\u20132.01x and downstream pipelines 1.42\u20131.726x; an ordinary 6% regression sample and remaining dense-output costs are explicit. Completion does not assert throughput or allocation parity."
+    },
+    {
+      "reference_package": "os",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Fs",
+        "Effect.Process",
+        "Effect.Stream"
+      ],
+      "remaining": [],
+      "reference_declarations": 285
+    },
+    {
+      "reference_package": "os/exec",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Process"
+      ],
+      "remaining": [],
+      "reference_declarations": 49
+    },
+    {
+      "reference_package": "os/signal",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Signal"
+      ],
+      "remaining": [],
+      "reference_declarations": 6
+    },
+    {
+      "reference_package": "os/user",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 23
+    },
+    {
+      "reference_package": "path",
+      "status": "complete",
+      "cinch_modules": [
+        "Data.Path",
+        "Text.Path"
+      ],
+      "remaining": [],
+      "reference_declarations": 9,
+      "tests": [
+        "lib_path"
+      ],
+      "benchmarks": [
+        "clean-component",
+        "clean-segments",
+        "base",
+        "ext",
+        "compiled-match",
+        "match",
+        "join"
+      ],
+      "capability_mapping": {
+        "Base/Clean/Dir/Ext/IsAbs/Join/Split": "Text.Path.path-base/clean/dir/ext/is-absolute/join/split provide portable slash-separated lexical text operations; existing Data.Path behavior is preserved",
+        "Match": "path-match returns a checked result; path-pattern/path-pattern-match support reusable validated patterns",
+        "ErrBadPattern": "PathPatternError/InvalidPathPattern plus a stable module-owned diagnostic"
+      },
+      "review": "All nine declarations have idiomatic mappings. UTF-8 slash paths are lexical and do not touch disk; backslashes and drive letters are ordinary text. Patterns are fully validated before matching. Stars advance by byte; question marks and classes decode scalars, including replacement behavior after a skipped UTF-8 continuation byte. Both frozen frontends pass 364 lexical, 170 join and 2347 glob cases plus 100 iterations of 16385-byte owner/captured-pattern stress. Ordinary 32 MiB heap/8 MiB stack and separate 256 MiB poisoned validation have zero leaks. Parent Rust target: 9 passed; selected Native harness: 7 passed. Actual kernels compile for WebAssembly, AArch64 and big-endian PowerPC, without foreign execution. All 32 paired/reference benchmark rows match. Private complete-word workers remove natural-number and owner calls. Retained baseline patches and 32 ordinary allocation probes record local gains and control variation without parity claims."
+    },
+    {
+      "reference_package": "path/filepath",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Path",
+        "Effect.Find"
+      ],
+      "remaining": [],
+      "reference_declarations": 32
+    },
+    {
+      "reference_package": "plugin",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 4
+    },
+    {
+      "reference_package": "reflect",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 265
+    },
+    {
+      "reference_package": "regexp",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Regex"
+      ],
+      "remaining": [],
+      "reference_declarations": 50
+    },
+    {
+      "reference_package": "regexp/syntax",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Regex"
+      ],
+      "remaining": [],
+      "reference_declarations": 178
+    },
+    {
+      "reference_package": "runtime",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 130
+    },
+    {
+      "reference_package": "runtime/cgo",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "runtime/coverage",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 5
+    },
+    {
+      "reference_package": "runtime/debug",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 37
+    },
+    {
+      "reference_package": "runtime/metrics",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 27
+    },
+    {
+      "reference_package": "runtime/pprof",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 19
+    },
+    {
+      "reference_package": "runtime/race",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 0
+    },
+    {
+      "reference_package": "runtime/trace",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 21
+    },
+    {
+      "reference_package": "slices",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Array",
+        "Data.List",
+        "Data.Mutable.Vec"
+      ],
+      "remaining": [],
+      "reference_declarations": 40
+    },
+    {
+      "reference_package": "sort",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.List",
+        "Data.Mutable.Vec",
+        "Data.Sorted"
+      ],
+      "remaining": [],
+      "reference_declarations": 40
+    },
+    {
+      "reference_package": "strconv",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Machine",
+        "Text.Scan",
+        "Text.Show"
+      ],
+      "remaining": [
+        "explicit-base and width-aware integer conversion",
+        "float/complex conversion policies",
+        "quoting/unquoting and append operations"
+      ],
+      "reference_declarations": 45
+    },
+    {
+      "reference_package": "strings",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.String",
+        "Text.Builder",
+        "Text.Scan"
+      ],
+      "remaining": [],
+      "reference_declarations": 84
+    },
+    {
+      "reference_package": "structs",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 1
+    },
+    {
+      "reference_package": "sync",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Stm",
+        "Effect.Concurrent.MVar"
+      ],
+      "remaining": [],
+      "reference_declarations": 46,
+      "review": "Native single-place variables provide blocking/nonblocking take/read/put/swap, cancellation and checked stored-value ownership. Other synchronization contracts still require operation-level review; module presence is partial coverage."
+    },
+    {
+      "reference_package": "sync/atomic",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Stm"
+      ],
+      "remaining": [],
+      "reference_declarations": 94
+    },
+    {
+      "reference_package": "syscall",
+      "status": "partial",
+      "cinch_modules": [
+        "Prim.Sys"
+      ],
+      "remaining": [],
+      "reference_declarations": 12809
+    },
+    {
+      "reference_package": "testing",
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Benchmark",
+        "Effect.Coverage",
+        "Effect.Test"
+      ],
+      "remaining": [],
+      "reference_declarations": 170
+    },
+    {
+      "reference_package": "testing/cryptotest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 1
+    },
+    {
+      "reference_package": "testing/fstest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 15
+    },
+    {
+      "reference_package": "testing/iotest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 10
+    },
+    {
+      "reference_package": "testing/quick",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 21
+    },
+    {
+      "reference_package": "testing/slogtest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 2
+    },
+    {
+      "reference_package": "testing/synctest",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "text/scanner",
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Lex",
+        "Text.Scan"
+      ],
+      "remaining": [],
+      "reference_declarations": 59
+    },
+    {
+      "reference_package": "text/tabwriter",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 19
+    },
+    {
+      "reference_package": "text/template",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 39
+    },
+    {
+      "reference_package": "text/template/parse",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 262
+    },
+    {
+      "reference_package": "time",
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Date",
+        "Data.Time",
+        "Effect.Clock"
+      ],
+      "remaining": [],
+      "reference_declarations": 189
+    },
+    {
+      "reference_package": "time/tzdata",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 0
+    },
+    {
+      "reference_package": "unicode",
+      "status": "complete",
+      "cinch_modules": [
+        "Data.Char",
+        "Data.Unicode",
+        "Data.Unicode.Kernel",
+        "Data.Unicode.Names",
+        "Data.Unicode.Range",
+        "Data.Unicode.Tables"
+      ],
+      "remaining": [],
+      "reference_declarations": 344,
+      "tests": [
+        "lib_unicode_kernel",
+        "lib_unicode_catalog"
+      ],
+      "benchmarks": [
+        "benchmarks/stdlib/unicode-optimization-evidence.json"
+      ],
+      "capability_mapping": "tooling/data/unicode-capabilities.json: all 344 actual declaration records mapped",
+      "review": "All 344 declaration records have reviewed functional mappings. Exhaustive code-point, scalar, case, custom-range and catalog observations pass both frozen frontends in normal and poisoned reclamation modes. The classification-only optimization preserves all unrelated case/fold/table accessor bodies and removes 174 imported calls from the Native classification graph; paired public benchmarks retain all samples and observed regressions. Parent kernel/catalog gates pass all eleven checks, including portable inline LLVM object emission. Complete denotes functional coverage; immutable catalog trees and typed observation allocations have different costs from the reference implementation."
+    },
+    {
+      "reference_package": "unicode/utf16",
+      "status": "complete",
+      "cinch_modules": [
+        "Text.Utf16"
+      ],
+      "remaining": [],
+      "reference_declarations": 7,
+      "tests": [
+        "lib_utf16::utf16_matches_scalar_and_surrogate_reference_vectors",
+        "lib_utf16::utf16_byte_codecs_match_text_and_reject_odd_lengths"
+      ],
+      "benchmarks": [
+        "utf16le-encode",
+        "utf16le-decode",
+        "utf16be-encode",
+        "utf16be-decode"
+      ],
+      "capability_mapping": {
+        "IsSurrogate": "utf16-is-surrogate accepts numeric code points, including invalid scalar values",
+        "RuneLen": "utf16-rune-length returns Some 1/2 for a valid scalar, None for the invalid sentinel case",
+        "EncodeRune": "utf16-encode-rune returns a high/low U16 pair or the replacement pair",
+        "DecodeRune": "utf16-decode-rune accepts numeric pair positions and returns a scalar or U+FFFD",
+        "Encode": "utf16-encode maps List I64 to List U16, replacing each invalid input scalar",
+        "Decode": "utf16-decode maps List U16 to List Char with replacement of unpaired surrogates",
+        "AppendRune": "utf16-append-rune preserves existing units and appends a valid encoding or replacement; immutable list-spine copying is documented"
+      },
+      "review": "All seven reference declarations have an idiomatic functional mapping. Additional explicit-order byte codecs use bounded SWAR ASCII blocks. Sequence append is linear on immutable lists; benchmarks explicitly cover ASCII byte-codec pipelines, not all Unicode workloads. All functional mappings passed runtime tests under both the Rust compiler and the frozen self-built candidate, with poisoned frees, reference-count validation and zero leaks. Independent ASCII pipeline benchmarks are retained; complete means functional coverage, not equal allocation complexity or measured throughput."
+    },
+    {
+      "reference_package": "unicode/utf8",
+      "status": "complete",
+      "cinch_modules": [
+        "Data.Bytes.Utf8",
+        "Data.Char",
+        "Data.String",
+        "Text.Utf8"
+      ],
+      "remaining": [],
+      "reference_declarations": 23,
+      "tests": [
+        "lib_word_utf8",
+        "lib_utf8",
+        "lib_utf8_text",
+        "lib_string_scalars"
+      ],
+      "benchmarks": [
+        "utf8-valid",
+        "utf8-count",
+        "utf8-repair",
+        "string-length"
+      ],
+      "capability_mapping": "tooling/data/unicode-capabilities.json",
+      "review": "All23 cumulative records have concrete raw-byte/numeric or immutable-text mappings. Arbitrary malformed input remains representable through byte APIs; text adapters preserve the valid String invariant without exposing backing. The unchanged raw kernels retain their full-domain/malformed/ownership qualification. Final2f077 self-built String/Bytes distribution and actual804-case text/owner checks pass with matching provider/runtime and zero leaks; parent text6 and scalar5 tests pass, including real portable objects. Full parent library326 and affected text consumers pass. Exact source/compiler epochs and benchmark/codegen limits are retained; no newer scalar-family adoption is inferred.",
+      "native_family_evidence": "bootstrap/stdlib-string-combined-native-family-results.json"
+    },
+    {
+      "reference_package": "unique",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    },
+    {
+      "reference_package": "unsafe",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 0
+    },
+    {
+      "reference_package": "uuid",
+      "status": "partial",
+      "cinch_modules": [],
+      "remaining": [
+        "Production module selection and generated reference",
+        "Concurrent shared-generator stress",
+        "Full current Native family qualification",
+        "Performance improvements and review of explicit immutable/total/stateful adaptations"
+      ],
+      "reference_declarations": 13,
+      "candidate_modules": [
+        {
+          "module": "Data.Uuid",
+          "path": "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
+          "availability": "Isolated review candidate; absent from production prelude"
+        },
+        {
+          "module": "Effect.Uuid",
+          "path": "experiments/uuid-candidate-v1/sources/Effect.Uuid.cinch",
+          "availability": "Isolated review candidate; absent from production prelude"
+        }
+      ],
+      "capability_mapping": "bootstrap/stdlib-uuid-operation-mapping.json",
+      "tests": [
+        "lib_uuid"
+      ],
+      "review": "All13 installed reference declarations have explicit operation-level candidate mappings, including total parsed witnesses, immutable receiver replacement and explicit serialized V7 state. Root release parent passes8/8; independent fixtures cover660 parse,204 append,370 comparison,9 clock sequences and48 actual secure-generation payload observations. Qualified sources remain isolated experiments. Benchmark samples show remaining parse/render/generation costs and variable measurements; the missing initial quota counter is explicit. No production selection or package completion claimed."
+    },
+    {
+      "reference_package": "weak",
+      "status": "unreviewed",
+      "cinch_modules": [],
+      "remaining": [],
+      "reference_declarations": 3
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "status": "Existing named compiler refusal; no parallel runtime or portable object outcome yet",
+  "diagnostic": "I128/U128 in a parallel task payload is not lowered yet (phase1)",
+  "passed": 3,
+  "failed": 2,
+  "scope": "Array Get/Set partial calls and cross-target checks must be qualified independently from unsupported wide Par payloads. The guard is retained.",
+  "files": {
+    "Main.cinch": "04b65b981fbeb821d18ee5ff0b1f6233558eb05bf7146c8bd0014c779d94e913",
+    "gate.log": "6b476a957957875c76745c8b4488d54d4c2fbc0e6f3473b4fcf8629736c56647",
+    "wide_array_followups.rs": "986096f95600d0e11c182b0b4c4b959c0bf83d757a227c36bd74fb796a8341f6"
+  }
+}

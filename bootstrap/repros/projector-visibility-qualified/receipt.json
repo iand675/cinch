@@ -1,0 +1,37 @@
+{
+  "scope": "General field-projector admission and defining source-effect visibility/identity; no new Native family or private-field proof admission.",
+  "projector_source_commit": "64ef15d7",
+  "visibility_source_commit": "8b93bcb2",
+  "focused": {
+    "inline_copy_passed": 7,
+    "runtime_seconds": 1.64,
+    "simplify_passed": 48,
+    "failed": 0,
+    "owned_runtime": "Actual O0/O2 builds, normal32M/poison256M,8M stack,zero leaks"
+  },
+  "visibility": {
+    "passed": 10,
+    "failed": 0,
+    "runtime_seconds": 20.85,
+    "coverage": "13declared kernel-head spellings,legacycustomlabel,forward headers,owned handler execution,intrinsic refusals,selected renamed effect exports,wrong-owner and hidden-effect refusal,source-knownNat/Bytes"
+  },
+  "fixture_layout_corrections": "Original failed project /tmp/.tmpxs8fzV and bootstrap/repros/projector-fixture-layout-v2 remain plain; corrected source checked before runtime rerun.",
+  "logs": {
+    "bootstrap/repros/projector-visibility-qualified/fixture-source-v3.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bootstrap/repros/projector-visibility-qualified/full-units.log": "a1ffd8d297cebaf82748fd9a48f946bc4134fd6829987d5f932a06b442533f6f",
+    "bootstrap/repros/projector-visibility-qualified/focused.log": "4c15f89b4cc7eea05f39aa7d13cade72c53a4c34cccf78ec7bc43c778e32474b",
+    "bootstrap/repros/projector-visibility-qualified/visibility.log": "ecb9ab649d3c189dd07abfed43cb9ffac1ffb0e34b3be8122558c1d67c3a076e",
+    "bootstrap/repros/projector-visibility-qualified/effect-identity.log": "6471d4b9346362b446f0172f56e961ef8804fe6615e75505b4f74ea559d4f2a2"
+  },
+  "full_active_unit_suite": {
+    "passed": 343,
+    "failed": 0,
+    "runtime_seconds": 109.05,
+    "scope": "Active workspace suite includes four separate unpublished checked-row tests; this patch preserves the published339-unit baseline."
+  },
+  "independent_effect_identity_target": {
+    "passed": 8,
+    "failed": 0,
+    "runtime_seconds": 14.42
+  }
+}

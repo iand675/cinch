@@ -1,0 +1,558 @@
+{
+  "after": [
+    {
+      "action": "first",
+      "input": "612c623b632c64",
+      "separator": "2c",
+      "value": "612c",
+      "present": true,
+      "held": [
+        "612c"
+      ]
+    },
+    {
+      "action": "separator-and-prior-result-mutation",
+      "input": "7a2c623b632c64",
+      "separator": "3b",
+      "value": "623b",
+      "present": true,
+      "held": [
+        "7a2c",
+        "623b"
+      ]
+    },
+    {
+      "action": "separator-restored",
+      "input": "7a2c623b632c64",
+      "separator": "2c",
+      "value": "632c",
+      "present": true,
+      "held": [
+        "7a2c",
+        "623b",
+        "632c"
+      ]
+    },
+    {
+      "action": "last",
+      "input": "7a2c623b632c64",
+      "separator": "2c",
+      "value": "64",
+      "present": true,
+      "held": [
+        "7a2c",
+        "623b",
+        "632c",
+        "64"
+      ]
+    },
+    {
+      "action": "exhausted",
+      "input": "7a2c623b632c64",
+      "separator": "2c",
+      "value": "",
+      "present": false,
+      "held": [
+        "7a2c",
+        "623b",
+        "632c",
+        "64"
+      ]
+    },
+    {
+      "action": "exhausted-again",
+      "input": "7a2c623b632c64",
+      "separator": "2c",
+      "value": "",
+      "present": false,
+      "held": [
+        "7a2c",
+        "623b",
+        "632c",
+        "64"
+      ]
+    }
+  ],
+  "aliased": [
+    {
+      "action": "aliased-separator-before-first-pull",
+      "input": "613b627c63",
+      "separator": "3b",
+      "value": "61",
+      "present": true,
+      "held": [
+        "61"
+      ]
+    },
+    {
+      "action": "aliased-separator-and-future-input",
+      "input": "617c623a63",
+      "separator": "7c",
+      "value": "623a63",
+      "present": true,
+      "held": [
+        "61",
+        "623a63"
+      ]
+    },
+    {
+      "action": "exhausted",
+      "input": "617c623a63",
+      "separator": "7c",
+      "value": "",
+      "present": false,
+      "held": [
+        "61",
+        "623a63"
+      ]
+    }
+  ],
+  "counter_boundaries": [
+    254,
+    1,
+    65277,
+    0,
+    0,
+    3
+  ],
+  "empty_mutation": [
+    {
+      "action": "first",
+      "input": "61f09f998262",
+      "separator": "",
+      "value": "61",
+      "present": true,
+      "held": [
+        "61"
+      ]
+    },
+    {
+      "action": "after-future-scalar-mutation",
+      "input": "61ff9f998262",
+      "separator": "",
+      "value": "ff",
+      "present": true,
+      "held": [
+        "61",
+        "ff"
+      ]
+    },
+    {
+      "action": "after-future-scalar-mutation",
+      "input": "61ff9f998262",
+      "separator": "",
+      "value": "9f",
+      "present": true,
+      "held": [
+        "61",
+        "ff",
+        "9f"
+      ]
+    },
+    {
+      "action": "after-future-scalar-mutation",
+      "input": "61ff9f998262",
+      "separator": "",
+      "value": "99",
+      "present": true,
+      "held": [
+        "61",
+        "ff",
+        "9f",
+        "99"
+      ]
+    },
+    {
+      "action": "after-future-scalar-mutation",
+      "input": "61ff9f998262",
+      "separator": "",
+      "value": "82",
+      "present": true,
+      "held": [
+        "61",
+        "ff",
+        "9f",
+        "99",
+        "82"
+      ]
+    },
+    {
+      "action": "after-future-scalar-mutation",
+      "input": "61ff9f998262",
+      "separator": "",
+      "value": "62",
+      "present": true,
+      "held": [
+        "61",
+        "ff",
+        "9f",
+        "99",
+        "82",
+        "62"
+      ]
+    },
+    {
+      "action": "after-future-scalar-mutation",
+      "input": "61ff9f998262",
+      "separator": "",
+      "value": "",
+      "present": false,
+      "held": [
+        "61",
+        "ff",
+        "9f",
+        "99",
+        "82",
+        "62"
+      ]
+    },
+    {
+      "action": "after-future-scalar-mutation",
+      "input": "61ff9f998262",
+      "separator": "",
+      "value": "",
+      "present": false,
+      "held": [
+        "61",
+        "ff",
+        "9f",
+        "99",
+        "82",
+        "62"
+      ]
+    }
+  ],
+  "independent": [
+    {
+      "action": "first-factory",
+      "input": "612c622c63",
+      "separator": "2c",
+      "value": "61",
+      "present": true,
+      "held": [
+        "61"
+      ]
+    },
+    {
+      "action": "second-factory",
+      "input": "612c622c63",
+      "separator": "2c",
+      "value": "61",
+      "present": true,
+      "held": [
+        "61",
+        "61"
+      ]
+    },
+    {
+      "action": "copied-first-callback",
+      "input": "612c622c63",
+      "separator": "2c",
+      "value": "62",
+      "present": true,
+      "held": [
+        "61",
+        "61",
+        "62"
+      ]
+    },
+    {
+      "action": "first-after-copy",
+      "input": "612c622c63",
+      "separator": "2c",
+      "value": "63",
+      "present": true,
+      "held": [
+        "61",
+        "61",
+        "62",
+        "63"
+      ]
+    },
+    {
+      "action": "second-independent",
+      "input": "612c622c63",
+      "separator": "2c",
+      "value": "62",
+      "present": true,
+      "held": [
+        "61",
+        "61",
+        "62",
+        "63",
+        "62"
+      ]
+    }
+  ],
+  "lines_mutation": [
+    {
+      "action": "first-line",
+      "input": "610a620d0a630a",
+      "separator": "0a",
+      "value": "610a",
+      "present": true,
+      "held": [
+        "610a"
+      ]
+    },
+    {
+      "action": "after-line-boundary-mutation",
+      "input": "610a620d78630a",
+      "separator": "0a",
+      "value": "620d78630a",
+      "present": true,
+      "held": [
+        "610a",
+        "620d78630a"
+      ]
+    },
+    {
+      "action": "after-line-boundary-mutation",
+      "input": "610a620d78630a",
+      "separator": "0a",
+      "value": "",
+      "present": false,
+      "held": [
+        "610a",
+        "620d78630a"
+      ]
+    },
+    {
+      "action": "after-line-boundary-mutation",
+      "input": "610a620d78630a",
+      "separator": "0a",
+      "value": "",
+      "present": false,
+      "held": [
+        "610a",
+        "620d78630a"
+      ]
+    }
+  ],
+  "multibyte_mutation": [
+    {
+      "action": "changed-before-first",
+      "input": "612d2d623d3d632d2d64",
+      "separator": "3d3d",
+      "value": "612d2d62",
+      "present": true,
+      "held": [
+        "612d2d62"
+      ]
+    },
+    {
+      "action": "restored-after-first",
+      "input": "612d2d623d3d632d2d64",
+      "separator": "2d2d",
+      "value": "63",
+      "present": true,
+      "held": [
+        "612d2d62",
+        "63"
+      ]
+    },
+    {
+      "action": "restored-after-first",
+      "input": "612d2d623d3d632d2d64",
+      "separator": "2d2d",
+      "value": "64",
+      "present": true,
+      "held": [
+        "612d2d62",
+        "63",
+        "64"
+      ]
+    },
+    {
+      "action": "restored-after-first",
+      "input": "612d2d623d3d632d2d64",
+      "separator": "2d2d",
+      "value": "",
+      "present": false,
+      "held": [
+        "612d2d62",
+        "63",
+        "64"
+      ]
+    },
+    {
+      "action": "restored-after-first",
+      "input": "612d2d623d3d632d2d64",
+      "separator": "2d2d",
+      "value": "",
+      "present": false,
+      "held": [
+        "612d2d62",
+        "63",
+        "64"
+      ]
+    }
+  ],
+  "repeat": {
+    "first_invocation": [
+      "61",
+      "62",
+      "63"
+    ],
+    "fresh_factory_invocation": [
+      "61",
+      "62",
+      "63"
+    ],
+    "same_sequence_second_invocation": [
+      "63"
+    ]
+  },
+  "sdk_version": "go1.27.4",
+  "split": [
+    {
+      "action": "first",
+      "input": "612c623b632c64",
+      "separator": "2c",
+      "value": "61",
+      "present": true,
+      "held": [
+        "61"
+      ]
+    },
+    {
+      "action": "separator-and-prior-result-mutation",
+      "input": "7a2c623b632c64",
+      "separator": "3b",
+      "value": "62",
+      "present": true,
+      "held": [
+        "7a",
+        "62"
+      ]
+    },
+    {
+      "action": "separator-restored",
+      "input": "7a2c623b632c64",
+      "separator": "2c",
+      "value": "63",
+      "present": true,
+      "held": [
+        "7a",
+        "62",
+        "63"
+      ]
+    },
+    {
+      "action": "last",
+      "input": "7a2c623b632c64",
+      "separator": "2c",
+      "value": "64",
+      "present": true,
+      "held": [
+        "7a",
+        "62",
+        "63",
+        "64"
+      ]
+    },
+    {
+      "action": "exhausted",
+      "input": "7a2c623b632c64",
+      "separator": "2c",
+      "value": "",
+      "present": false,
+      "held": [
+        "7a",
+        "62",
+        "63",
+        "64"
+      ]
+    },
+    {
+      "action": "exhausted-again",
+      "input": "7a2c623b632c64",
+      "separator": "2c",
+      "value": "",
+      "present": false,
+      "held": [
+        "7a",
+        "62",
+        "63",
+        "64"
+      ]
+    }
+  ],
+  "stop": [
+    {
+      "action": "first",
+      "input": "612c622c63",
+      "separator": "2c",
+      "value": "61",
+      "present": true,
+      "held": [
+        "61"
+      ]
+    },
+    {
+      "action": "after-stop",
+      "input": "612c7a2c63",
+      "separator": "3b",
+      "value": "",
+      "present": false,
+      "held": [
+        "61"
+      ]
+    },
+    {
+      "action": "after-stop-again",
+      "input": "612c7a2c63",
+      "separator": "3b",
+      "value": "",
+      "present": false,
+      "held": [
+        "61"
+      ]
+    }
+  ],
+  "yielded_separator": [
+    {
+      "action": "first-after",
+      "input": "617c627c63",
+      "separator": "7c",
+      "value": "617c",
+      "present": true,
+      "held": [
+        "617c"
+      ]
+    },
+    {
+      "action": "delimiter-mutated-through-yielded-alias",
+      "input": "613b627c63",
+      "separator": "3b",
+      "value": "627c63",
+      "present": true,
+      "held": [
+        "613b",
+        "627c63"
+      ]
+    },
+    {
+      "action": "delimiter-mutated-through-yielded-alias",
+      "input": "613b627c63",
+      "separator": "3b",
+      "value": "",
+      "present": false,
+      "held": [
+        "613b",
+        "627c63"
+      ]
+    },
+    {
+      "action": "delimiter-mutated-through-yielded-alias",
+      "input": "613b627c63",
+      "separator": "3b",
+      "value": "",
+      "present": false,
+      "held": [
+        "613b",
+        "627c63"
+      ]
+    }
+  ]
+}

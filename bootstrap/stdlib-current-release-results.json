@@ -1,0 +1,49 @@
+{
+  "scope": "Fresh official Cargo release compiler qualification; no Native-family admission.",
+  "source_checkpoint": "2a558db0",
+  "compiler_sha256": "08929f8db0ff3d6be9e50b3c066f9cdc269deaa923b14ada8607dd3e5ee667bc",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "unit_gate": {
+    "passed": 339,
+    "failed": 0,
+    "runtime_seconds": 105.91,
+    "compile_and_run_seconds": 298.8637135740137
+  },
+  "artifact_invariance": {
+    "files_per_epoch": 70,
+    "byte_identical": true,
+    "baseline": "75c24ebe648007082891a43f54ad9ccb0de407710dc1134e861915e3fde6cfa9",
+    "release_diagnostics_disabled_and_enabled": true
+  },
+  "build": {
+    "fresh_release_cache": true,
+    "old_dependencies_copied": false,
+    "offline_locked": true,
+    "allocated_bytes": 359866368,
+    "stage_seconds_including_benchmark_pause": 324.0217847159947,
+    "benchmark_pause_seconds_reported_rounded": 42.375,
+    "stage_specific_disk_start_gib": 1.4,
+    "allocation_cap_mib": 850,
+    "reserve_mib": 350
+  },
+  "evidence": {
+    "bootstrap/repros/current-release-qualified/benchmark-pause.json": "3b82bdc3a316b9612ce755c3268be2568a365393a3f603cf43a2c2f36b0965dc",
+    "bootstrap/repros/current-release-qualified/build-results.json": "99e88decff5c0bd7c80750fb3ea18525ea85072776b892877bce6ec2c069c605",
+    "bootstrap/repros/current-release-qualified/build.log": "b6c46ef09249f665ea56599d37512f5fcac77f98c99cfd0d647e0f7d3258b4e5",
+    "bootstrap/repros/current-release-qualified/build.py": "736d25a654167aeea19074f94a5f17774d68c059b3dfe51b932e7f1aaa3cf8e9",
+    "bootstrap/repros/current-release-qualified/invariance-results.json": "0a4c1a267bdbf88c684c6e4ca4fa21894c3ab188d85c03dc62e1ca93af10bac5",
+    "bootstrap/repros/current-release-qualified/invariance.log": "188861b6c25faa9de3d2fb827c6fe11a6bd620ea2372bd54bb49aff9b5d81c08",
+    "bootstrap/repros/current-release-qualified/unit-results.json": "c7716c4ae7b7be6071d354b11b7688096b614e2f0b53f13893a11d443400477b",
+    "bootstrap/repros/current-release-qualified/units.log": "07cd34ca747ec5ff5feae47a28c18118674fffeb7ee06623e8f798ae716ff781",
+    "bootstrap/repros/current-release-qualified/units.py": "1a9a165fbaa02ff7fb5e2fafd162afa7963e5d21115276f816fb981dcaf88ac4"
+  },
+  "pending": [
+    "Full51 current Native source gate",
+    "Current Native family admission",
+    "Wide columnarZip/parallel/packed layouts"
+  ],
+  "notes": [
+    "Debug-host 60/180 second deadlines did not prove a compiler regression; bootstrap normally builds its Rust seed in release mode.",
+    "Internal phase tracing changes diagnostics only; all70 emitted artifacts remain byte-identical."
+  ]
+}

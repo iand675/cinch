@@ -58,7 +58,7 @@ Overflow behavior is never implicit. For every integer type `t` and each of addi
 | `wrapping` | `wrappingAdd : t -> t -> t` | Two's complement wrap modulo `2^n` |
 | `saturating` | `saturatingAdd : t -> t -> t` | Clamp to `minBound` or `maxBound` |
 
-The families are `checkedAdd`, `wrappingAdd`, `saturatingAdd`, and likewise `Sub`, `Mul`, `Neg`. `U32.wrappingAdd` (used as the worked example in [Platform proofs and SIMD specification](platform-proofs-and-simd-specification.md) section 5) is this operation: the scalar model is the sum modulo `2^32`. `checkedNeg` returns `None` for `minBound`; `wrappingNeg` and `saturatingNeg` follow their family. Bounds are `minBound, maxBound : t`.
+The families are `checkedAdd`, `wrappingAdd`, `saturatingAdd`, and likewise `Sub`, `Mul`, `Neg`. `U32.wrappingAdd` (used as the worked example in [Platform proofs and SIMD specification](platform-proofs-and-simd-specification.md) section 5) is this operation: the scalar model is the sum modulo `2^32`. For signed types, `checkedNeg` returns `None` for `minBound`. For unsigned types, only zero has a representable negation: `checkedNeg 0` is `Some 0`, every other checked negation is `None`, and every saturating negation is zero. `wrappingNeg` follows its modular family. Bounds are `minBound, maxBound : t`.
 
 Division and remainder exist only as `checkedDiv, checkedRem : t -> t -> Option t`. They return `None` when the divisor is zero and, for signed types, when the quotient `minBound / -1` would overflow. Quotients truncate toward zero; the remainder satisfies `x = checkedDiv x y * y + checkedRem x y` when both are `Some`. Flooring variants are library functions, not primitives.
 

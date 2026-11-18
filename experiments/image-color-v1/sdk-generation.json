@@ -1,0 +1,34 @@
+{
+  "scope": "Actual pinned SDK color reference generation, not a Cinch runtime/performance result.",
+  "command": [
+    "/tmp/cinch-go-current/go/bin/go",
+    "build",
+    "-trimpath",
+    "-o",
+    "/workspace/dasl-stdlib-multipart/build/image-color/sdk-v1/reference",
+    "/workspace/dasl-stdlib-multipart/build/image-color/sdk-v1/reference.go"
+  ],
+  "source_sha256": "16230909806eb6b360607f2eefad18050eba7b76e2433f725bbd35e630f51eb6",
+  "sdk_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "build_stdout": "",
+  "build_stderr": "",
+  "build_returncode": 0,
+  "cpu_affinity": [
+    1
+  ],
+  "generator_returncode": 0,
+  "generator_stderr": "",
+  "seconds": 3.1803361320053227,
+  "output_bytes": 5733145,
+  "final_free_bytes": 881983488,
+  "sdk": "go1.27.4",
+  "counts": {
+    "vectors": 1808,
+    "rgb_conversions": 343,
+    "cmyk_conversions": 96,
+    "palettes": 15,
+    "constants": 4
+  },
+  "vectors_sha256": "0a7932a4b6d0cf1bd7f29e04077df3c834745b84c6ddd16946f0693d088ce5b6",
+  "executable_sha256": "284db5f919a076133db3fecad525c563f4fab1a589cb4b46b107ec392334e377"
+}

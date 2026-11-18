@@ -1,0 +1,89 @@
+{
+  "description": "ASCII85 caller-buffer and offset-decoding validation. This completes the reviewed ASCII85 functional surface, not the full standard library goal.",
+  "full_stdlib_goal_complete": false,
+  "source_sha256": {
+    "compiler/prelude/Text/Ascii85.cinch": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
+    "compiler/prelude/Effect/Ascii85.cinch": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
+    "compiler/tests/lib_ascii85.rs": "9b1e6c0af2cde2b8ca7d3f1f213d5376224f470c0e8ba9245fde9c9e068d818e",
+    "compiler/tests/lib_ascii85_buffers.rs": "f47d0a58e421e4fd69856036fa38aaeea63619ec071398750e975203b5109842",
+    "tooling/go_stdlib_vectors.go": "13d6756e8800150d136d89ac44680f48bf30dcce54161b96229243923bfcfba2"
+  },
+  "compilers": {
+    "rust_benchmark_sha256": "2953cb0246737ee110c139fbff4a8968c2da7de271da4b55aff7d94f63c94e84",
+    "native_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f"
+  },
+  "correctness": {
+    "rust": {
+      "lib_ascii85": 9,
+      "lib_ascii85_buffers": 10
+    },
+    "native_stage3": {
+      "lib_ascii85": 9,
+      "lib_ascii85_buffers": 10
+    },
+    "shared_profile_tests_per_target": 3,
+    "strengthened_overlap_case_rerun_both_compilers": true,
+    "progress_fixture_rows": 924,
+    "fixture_reproduces_byte_for_byte": true,
+    "fixture_sha256": "ce2c58738b0ba74fc5b5aae35ab1fa7d78f19dfd87b8d4b0ad4d28b05b9ebc6a",
+    "all_byte_values_in_each_of_five_digit_positions": true,
+    "portable_kernels": "ARM64 and big-endian PowerPC64 compile checks; no foreign execution claim",
+    "ownership": "Zero-leak checks with ordinary 32 MiB live heap / 8 MiB stack, plus separate 256 MiB poisoned-block quarantine budget",
+    "offset_allocation_budget_bytes": 67108864,
+    "error_progress": "Completed output and consumed boundary retained on malformed source; intentionally stronger than the SDK, which reports zero counts on these errors."
+  },
+  "documentation": {
+    "source_modules": 133,
+    "value_exports": 3616,
+    "methods": 112,
+    "diagnostics": 0,
+    "orphan_comments": 0,
+    "reference_source_drift": false
+  },
+  "benchmarks": [
+    "ascii85-complete-O2-2026-11-16.json",
+    "ascii85-forced-snapshot-ablation-O2-2026-11-16.json",
+    "ascii85-scalar-control-ablation-O2-2026-11-16.json",
+    "interleaved-ascii85-control-runs-O2-2026-11-16.json",
+    "interleaved-ascii85-long-encoder-control-O2-2026-11-16.json",
+    "interleaved-ascii85-snapshot-elision-O2-2026-11-16.json",
+    "ascii85-offset-allocation-2026-11-16.json"
+  ],
+  "residual_codegen_inspection": {
+    "llvm_artifact": "build/ascii85-complete-bench/after/bench.ll",
+    "llvm_sha256": "c7dd64adda3863e377619df9c16282c64dc9a77d4bbc2dc590dfcc03aee8a309",
+    "scope": "Static call-site observations in retained Rust-generated LLVM, not dynamic instruction counts. Product-return optimization removes boxes on the measured small-read path; native allocation counters describe a separate backend.",
+    "functions": {
+      "Main.ascii85-offset-fingerprint": {
+        "llvm_sha256": "2308b312244924f6a1bc911c99def7b877d567fa25061fd8dbc497326b51bcc7",
+        "lines": 915,
+        "allocation_call_lines": [],
+        "rc_call_sites": 85
+      },
+      "Text.Ascii85.decode-to#cc": {
+        "llvm_sha256": "4fb626d17ce6bf68387d1ed47ca51a5d927d2a6085c36a4310373ae3a67b3677",
+        "lines": 450,
+        "allocation_call_lines": [],
+        "rc_call_sites": 33
+      },
+      "Text.Ascii85.decode-to-byte#cc": {
+        "llvm_sha256": "fa803211c38433261a53939d307e58e35e079339dcf04f8c987e8be2deab22c0",
+        "lines": 360,
+        "allocation_call_lines": [],
+        "rc_call_sites": 28
+      },
+      "Text.Ascii85.source-for-write": {
+        "llvm_sha256": "708a9baff102f8021a910f3a777ea0c1f24e2064234027f9f3b82badd4a8b1e5",
+        "lines": 82,
+        "allocation_call_lines": [],
+        "rc_call_sites": 7
+      }
+    }
+  },
+  "coverage": {
+    "reference_packages": 180,
+    "complete": 4,
+    "partial": 64,
+    "unreviewed": 112
+  }
+}

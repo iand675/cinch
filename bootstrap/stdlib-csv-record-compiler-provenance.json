@@ -1,0 +1,51 @@
+{
+  "native_epochs": [
+    {
+      "label": "old_native",
+      "compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+      "wrapper_sha256": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+      "interfaces_sha256": "1efa9dc943e2ad79f1e1fd350618000da7e7f6e0795b83789054dbdb11a975d3",
+      "objects_manifest_sha256": "100023001018d140f06602b87eec20b09bf0bb062c677b8c0c449d6643c62aeb",
+      "library_object_sha256": "6d9c2d00ae3d7d2a4e1119938770fe9ac2c936d8988c2762b7358073a7a713a7",
+      "library_metadata_sha256": "31c4f4a9a996835830066187b2843ec2ab012d561a54a72c59c3bbacb4c28826",
+      "runtime_archive_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "runtime_archive_path": "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+      "compile_helper_path": "/workspace/dasl-stdlib-io/tooling/verify_stage3.py",
+      "compile_helper_sha256": "df6b9dca7de413c1e2c4e49376df4a8bea8937f8cf0784c1f9f8a254ef696f67"
+    },
+    {
+      "label": "fresh_fixed_point_native",
+      "compiler_sha256": "4a14ad5dd79cff86a14deb513b1bb5f5e6e8e12a8866fd342b7d37d8915f526a",
+      "wrapper_sha256": "d402939abc0f6e1b9c036e3a87a4b585af3ada6bd8ba68c43e3a8b049ebc36e8",
+      "interfaces_sha256": "cbe51b568e67208210b8ba2fff70dda599cef0fc448dd8610f9e9c42bf34f8e8",
+      "objects_manifest_sha256": "8c01eb3ac97015528ae59f7ab0fcddc75dd47edc517f6e0b3faed286c0af914f",
+      "library_object_sha256": "2b459a81ac51e8e7a4f5e1730b9dc9fd22bc5976096cd717accbc9a84b05875d",
+      "library_metadata_sha256": "5158fc3f8c659647334b110772d3ed03d0b6c29be6024989abf16e9ea33bc755",
+      "runtime_archive_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "runtime_archive_path": "/workspace/dasl-stdlib-codegen/build/scoped-call-stage3-experimental/libcinchruntime.a",
+      "compile_helper_path": "/workspace/dasl-stdlib-codegen/build/scoped-call-stage3-experimental/tooling/verify_stage3.py",
+      "compile_helper_sha256": "df6b9dca7de413c1e2c4e49376df4a8bea8937f8cf0784c1f9f8a254ef696f67"
+    }
+  ],
+  "rust": {
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "snapshot": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
+      "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
+      "source_sha256": {
+        "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+        "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+        "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+        "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+      }
+    },
+    "runtime_identity": "Host ensure_runtime archive at compiled CARGO_MANIFEST_DIR; distinct from both Native provider runtime archives.",
+    "runtime_archive_path": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+    "runtime_archive_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "compiled_manifest_dir": "/workspace/dasl-stdlib-io/compiler",
+    "compiled_manifest_dir_receipt": "Eight occurrences in frozen executable bytes, including the runtime lock/path constant."
+  },
+  "source_base_commit": "75d6a0cd9b454971c951b4bd4333a89cfc99a079",
+  "fresh_gate_scope": "Compiler agent reports restored-pin stage0\u20133 smokes, identical stage2/3 executable/LLVM/interfaces, interface-only consumer and changed-source rebuild; parent owns broader integration tests."
+}

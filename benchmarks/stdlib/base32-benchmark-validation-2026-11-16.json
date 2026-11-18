@@ -1,0 +1,264 @@
+{
+  "description": "Read-only Base32 source freezing, public pipeline measurements and two isolated storage/padding experiments; no library source edits by this lane",
+  "full_stdlib_goal_complete": false,
+  "library_sources_modified_by_lane": [],
+  "source_identities": {
+    "validated-baseline": {
+      "Text.Base32": "c6ba4bb8bd5d91163f6d9b984af35fe40a22d618bc6f4c2bd31be5cf825027a4",
+      "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "Effect.Base32": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
+      "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+    },
+    "cursor-copy-baseline": {
+      "Text.Base32": "c6ba4bb8bd5d91163f6d9b984af35fe40a22d618bc6f4c2bd31be5cf825027a4",
+      "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "Effect.Base32": "56be422a4d99b7ead687ad1348df1e1a82f82297c6df5c0c6eddeb99adc4149f",
+      "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+    },
+    "o1-padding-candidate": {
+      "Text.Base32": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
+      "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "Effect.Base32": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
+      "Effect.Stream": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33"
+    }
+  },
+  "compilers": {
+    "binary_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "snapshot": {
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
+      "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
+      "source_sha256": {
+        "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+        "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+        "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+        "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+      }
+    },
+    "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+    "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f"
+  },
+  "preflight": {
+    "baseline_and_cursor_baseline_rows": 48,
+    "padding_candidate_rows": 48,
+    "padding_remainder_rows": 15,
+    "independent_reference_checksums_all_match": true,
+    "heap": "32M",
+    "stack": "8M",
+    "rc_debug_runtime": false,
+    "leak_check": true,
+    "zero_leaks_all_cinch_probes": true,
+    "parent_baseline_rust_target_cases_reported": 14,
+    "parent_baseline_native_target_cases_reported": 12,
+    "candidate_parent_focused_golden_tests_required": false,
+    "candidate_parent_focused_goldens": {
+      "cases": 100,
+      "frontends": [
+        "frozen Rust O0",
+        "frozen Native stage3"
+      ],
+      "normal_and_poisoned_free": true,
+      "zero_leaks": true
+    }
+  },
+  "benchmarks": {
+    "baseline_timed_rows": 48,
+    "workloads": 12,
+    "input_sizes": [
+      32,
+      1024,
+      16384,
+      65536
+    ],
+    "samples_per_executable_per_row": 5,
+    "iterations": 64,
+    "normal_space_rows": 48,
+    "equal_executable_path_lengths_for_space": true,
+    "all_space_live_and_leaked_counts_zero": true
+  },
+  "cursor_experiment": {
+    "changed_sources": [
+      "Effect.Base32"
+    ],
+    "private_change": "Copy remaining private surplus after each positive read instead of retaining buffer/cursor; scalar-field decoder, zero-coded tables and bounded legacy helpers unchanged",
+    "patch": "base32-cursor-copy-baseline.patch",
+    "patch_reconstructs_exact_snapshot": true,
+    "paired_rows": 9,
+    "stream_16k_before_over_after": 1.144599949157911,
+    "stream_64k_before_over_after": 1.1652466582428482,
+    "large_control_max_difference_percent": 3.22,
+    "tiny_32_byte_encode_control_difference_percent": 7.35,
+    "stream_32_byte_gain_claimed": false,
+    "equal_path_64k_stream_space": {
+      "before": {
+        "blocks": 9659,
+        "bytes": 2140836,
+        "peak": 328036
+      },
+      "after": {
+        "blocks": 7637,
+        "bytes": 850596,
+        "peak": 328036
+      }
+    }
+  },
+  "padding_experiment": {
+    "changed_sources": [
+      "Text.Base32"
+    ],
+    "isolated_change": "Use input length modulo5 with padding0/6/4/3/1 rather than scanning fixed-alphabet ASCII output as Unicode scalars",
+    "patch": "base32-o1-padding-candidate.patch",
+    "patch_reconstructs_exact_snapshot": true,
+    "baseline_module_sha256": "c6ba4bb8bd5d91163f6d9b984af35fe40a22d618bc6f4c2bd31be5cf825027a4",
+    "candidate_module_sha256": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
+    "paired_rows": 9,
+    "legacy_encode_before_over_after": {
+      "32": 1.8590744606317127,
+      "16384": 12.470868411659882,
+      "65536": 12.966544703074346
+    },
+    "byte_api_control_max_difference_percent": 3.13,
+    "equal_path_64k_legacy_space": {
+      "before": {
+        "blocks": 209984,
+        "bytes": 4685542,
+        "peak": 275795
+      },
+      "after": {
+        "blocks": 265,
+        "bytes": 491162,
+        "peak": 275795
+      }
+    },
+    "parent_adoption_and_focused_padding_goldens_pending": false,
+    "candidate_not_substituted_into_baseline_reports": true,
+    "parent_adopted": true
+  },
+  "codegen_inspection": {
+    "Text.Base32.encode-config-word": {
+      "assembly_sha256": "2898982da78f19c2333334829fc64581c3e42ee7d72877a06401c218a04fa8c9",
+      "lines": 200,
+      "packed_shift_shuffle_instructions": 21,
+      "calls": [
+        "cinch_bytes_data@PLT",
+        "cinch_bytes_len@PLT"
+      ]
+    },
+    "Text.Base32.decode-config-word": {
+      "assembly_sha256": "33aca17386a555f224e719beb26496faad2178ced2d67706ace6395666088a4f",
+      "lines": 227,
+      "packed_shift_shuffle_instructions": 2,
+      "calls": [
+        "cinch_bytes_data@PLT",
+        "cinch_bytes_len@PLT"
+      ]
+    },
+    "Text.Base32.decode-config-fields#cc": {
+      "assembly_sha256": "56e7d8c5165cb2377659c3cede310eb41aedd2ee37362cbfab3f5a3db91d2d0e",
+      "lines": 4808,
+      "packed_shift_shuffle_instructions": 6,
+      "calls": [
+        "\"Text.Base32.config-is-padding\"@PLT",
+        "\"Text.Base32.config-value\"@PLT",
+        "\"Text.Base32.decode-config-word\"@PLT",
+        "\"Text.Base32.store-config-prefix\"@PLT",
+        "\"Text.Base32.valid-tail\"@PLT",
+        "cinch.rc.drop.tobj",
+        "cinch.rc.dup.tobj",
+        "cinch_alloc_ctor@PLT",
+        "cinch_bytes_data@PLT",
+        "cinch_bytes_get@PLT",
+        "cinch_bytes_len@PLT",
+        "cinch_drop_mt@PLT",
+        "cinch_drop_slow@PLT",
+        "cinch_dup_mt@PLT",
+        "cinch_frame_release@PLT",
+        "cinch_free@PLT",
+        "cinch_nat_add@PLT",
+        "cinch_nat_cmp@PLT",
+        "cinch_nat_div@PLT",
+        "cinch_nat_mul@PLT",
+        "cinch_nat_sub@PLT",
+        "cinch_nat_to_i64@PLT"
+      ]
+    },
+    "Text.Base32.encode-config-buffer": {
+      "assembly_sha256": "cf6f4ab231b91c36b7006b4161871e84c174d7a8e8a2bae2da97f02582fd35a1",
+      "lines": 2741,
+      "packed_shift_shuffle_instructions": 21,
+      "calls": [
+        "\"Text.Base32.collect-config-tail\"@PLT",
+        "\"Text.Base32.encode-config-word\"@PLT",
+        "\"Text.Base32.pad-config-output\"@PLT",
+        "\"Text.Base32.store-config-prefix\"@PLT",
+        "cinch_bytes_data@PLT",
+        "cinch_bytes_get@PLT",
+        "cinch_bytes_len@PLT",
+        "cinch_bytes_set@PLT",
+        "cinch_drop_mt@PLT",
+        "cinch_drop_slow@PLT",
+        "cinch_dup_mt@PLT",
+        "cinch_frame_release@PLT",
+        "cinch_free@PLT",
+        "cinch_nat_add@PLT",
+        "cinch_nat_cmp@PLT",
+        "cinch_nat_div@PLT",
+        "cinch_nat_mul@PLT",
+        "cinch_nat_sub@PLT",
+        "cinch_nat_to_i64@PLT"
+      ]
+    },
+    "Effect.Base32.read-decoded#cc": {
+      "assembly_sha256": "db66a7f12626ab5780b56f77cd5be97a8731b503df959a0c8ed55eb52ec9ff3f",
+      "lines": 3291,
+      "packed_shift_shuffle_instructions": 0,
+      "calls": [
+        "\"Effect.Base32.stream-error\"@PLT",
+        "\"Effect.Stream.reader-from-bytes#cc\"@PLT",
+        "\"Effect.Stream.stream-read#cc\"@PLT",
+        "\"Text.Base32.base32-decoder-feed#cc\"@PLT",
+        "\"Text.Base32.base32-decoder-finish#cc\"@PLT",
+        "cinch.runtime.bytesNew@PLT",
+        "cinch_alloc_ctor@PLT",
+        "cinch_alloc_shaped@PLT",
+        "cinch_bytes_copy@PLT",
+        "cinch_bytes_len@PLT",
+        "cinch_bytes_new@PLT",
+        "cinch_drop_mt@PLT",
+        "cinch_drop_slow@PLT",
+        "cinch_dup_mt@PLT",
+        "cinch_frame_release@PLT",
+        "cinch_free@PLT",
+        "cinch_nat_add@PLT",
+        "cinch_nat_cmp@PLT",
+        "cinch_nat_sub@PLT",
+        "cinch_nat_to_i64@PLT",
+        "cinch_nat_to_len@PLT"
+      ]
+    }
+  },
+  "tool_tests": {
+    "source_freezing_and_override_unit_tests": 2,
+    "source_snapshots_verified_before_measurement": true,
+    "parent_source_hashes_matched_before_and_after_baseline_window": true
+  },
+  "reports": [
+    "base32-encoding-O2-2026-11-16.json",
+    "base32-before-padding-O2-2026-11-16.json",
+    "base32-preflight-2026-11-16.json",
+    "base32-padding-preflight-2026-11-16.json",
+    "base32-padding-remainders-2026-11-16.json",
+    "base32-encoding-space-2026-11-16.json",
+    "base32-padding-space-2026-11-16.json",
+    "interleaved-base32-cursor-O2-2026-11-16.json",
+    "interleaved-base32-padding-O2-2026-11-16.json",
+    "base32-source-snapshots-2026-11-16.json"
+  ],
+  "limitations": [
+    "These reports describe public pipelines including immutable buffers and adapter allocation; they do not establish isolated kernel or allocation parity.",
+    "Generated SIMD word helpers inline their packed operations, but surrounding loops still call checked byte/word stores, reference-count helpers and natural-number paths. Stores remain visible and no containment rule is bypassed.",
+    "The padding change is adopted after 100 focused goldens passed on both frontends. The full 48-row timed sweep remains the pre-padding snapshot; paired padding results and candidate preflights identify the adopted bytes separately.",
+    "Frozen snapshots are retained in local build directories and identified by committed manifests; patches reconstruct experimental sources from the identified baseline.",
+    "No Cargo build, full compiler suite or library implementation edit occurred in this lane."
+  ]
+}

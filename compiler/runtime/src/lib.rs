@@ -577,6 +577,12 @@ pub mod block;
 pub mod bytes;
 pub mod arrays;
 pub mod coop;
+/// Operating-system entropy filling; unavailable on freestanding targets.
+#[cfg(not(target_os = "unknown"))]
+mod entropy;
+/// Owned public entropy boundary checks for the isolated provider candidate.
+#[cfg(all(test, not(target_os = "unknown")))]
+mod entropy_boundary_tests;
 pub mod error;
 pub mod heap;
 pub mod eval;

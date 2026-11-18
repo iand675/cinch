@@ -1,0 +1,156 @@
+{
+  "scope": "Link actual public color call paths to the exact independently tested arithmetic bodies.",
+  "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+  "runtime_report_sha256": "d28fdffb8fb31aa75bc8f02a74cb92edad5f4cdf8350a5654f3771381feb189e",
+  "kernel_report_sha256": "816ba311a9ed22ec33e435a0badeabbdf3a6e7db94a48a3675247cc3227baaed",
+  "actual_public_ir_sha256": "274dc383447855991cf55ed4fbcce6f0a37b662589bb15b98790940eb6cb4f12",
+  "optimized_kernel_assembly_sha256": "505574e154fd20aec4097076ae99069d6443c5b66f79467380e300e2eaa957a6",
+  "runner_sha256": "a834bc2d4ecf035b7a6eeebc5f686a1b9adc265d07557ad1e5359195834c9648",
+  "kernels": [
+    {
+      "kernel": "expand8",
+      "actual_symbol": "Image.Color.expand8.llvm",
+      "public_entrypoint_path": [
+        "Main.main",
+        "Main.ownership-match",
+        "Image.Color.expand8",
+        "Image.Color.expand8.llvm"
+      ],
+      "emitted_body_equals_independently_tested_source": true,
+      "optimized_host_body": "color_expand8:                          # @color_expand8\n# %bb.0:\n\tmovd\t%edi, %xmm0\n\tpxor\t%xmm1, %xmm1\n\tpunpcklbw\t%xmm1, %xmm0            # xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1],xmm0[2],xmm1[2],xmm0[3],xmm1[3],xmm0[4],xmm1[4],xmm0[5],xmm1[5],xmm0[6],xmm1[6],xmm0[7],xmm1[7]\n\tpmullw\t.LCPI0_0(%rip), %xmm0           # [257,257,257,257,u,u,u,u]\n\tmovq\t%xmm0, %rax\n\tretq\n",
+      "vector_integer_instructions": [
+        "pmullw",
+        "punpcklbw"
+      ]
+    },
+    {
+      "kernel": "premultiply",
+      "actual_symbol": "Image.Color.premultiply.llvm",
+      "public_entrypoint_path": [
+        "Main.main",
+        "Main.ownership-match",
+        "Image.Color.premultiply",
+        "Image.Color.premultiply.llvm"
+      ],
+      "emitted_body_equals_independently_tested_source": true,
+      "optimized_host_body": "color_premultiply:                      # @color_premultiply\n# %bb.0:\n\tmovq\t%rdi, %xmm0\n\tmovabsq\t$-281474976710656, %rax         # imm = 0xFFFF000000000000\n\tandq\t%rdi, %rax\n\tshrq\t$48, %rdi\n\tmovd\t%edi, %xmm1\n\tpshuflw\t$0, %xmm1, %xmm1                # xmm1 = xmm1[0,0,0,0,4,5,6,7]\n\tmovdqa\t%xmm1, %xmm2\n\tpmulhuw\t%xmm0, %xmm2\n\tpmullw\t%xmm0, %xmm1\n\tpunpcklwd\t%xmm2, %xmm1            # xmm1 = xmm1[0],xmm2[0],xmm1[1],xmm2[1],xmm1[2],xmm2[2],xmm1[3],xmm2[3]\n\tmovdqa\t.LCPI1_0(%rip), %xmm0           # xmm0 = [2147516417,2147516417,2147516417,2147516417]\n\tpshufd\t$245, %xmm1, %xmm2              # xmm2 = xmm1[1,1,3,3]\n\tpmuludq\t%xmm0, %xmm1\n\tpshufd\t$237, %xmm1, %xmm1              # xmm1 = xmm1[1,3,2,3]\n\tpmuludq\t%xmm0, %xmm2\n\tpshufd\t$237, %xmm2, %xmm0              # xmm0 = xmm2[1,3,2,3]\n\tpunpckldq\t%xmm0, %xmm1            # xmm1 = xmm1[0],xmm0[0],xmm1[1],xmm0[1]\n\tpsrld\t$15, %xmm1\n\tpshuflw\t$232, %xmm1, %xmm0              # xmm0 = xmm1[0,2,2,3,4,5,6,7]\n\tpshufd\t$232, %xmm0, %xmm0              # xmm0 = xmm0[0,2,2,3]\n\tmovq\t%xmm0, %rcx\n\tmovabsq\t$281474976710655, %rdx          # imm = 0xFFFFFFFFFFFF\n\tandq\t%rcx, %rdx\n\torq\t%rdx, %rax\n\tretq\n",
+      "vector_integer_instructions": [
+        "pmulhuw",
+        "pmullw",
+        "pmuludq",
+        "psrld",
+        "punpckldq",
+        "punpcklwd"
+      ]
+    },
+    {
+      "kernel": "unpremultiply",
+      "actual_symbol": "Image.Color.unpremultiply.llvm",
+      "public_entrypoint_path": [
+        "Main.main",
+        "Main.ownership-match",
+        "Image.Color.convert-standard",
+        "Image.Color.unpremultiply",
+        "Image.Color.unpremultiply.llvm"
+      ],
+      "emitted_body_equals_independently_tested_source": true,
+      "optimized_host_body": "color_unpremultiply:                    # @color_unpremultiply\n# %bb.0:\n\tmovq\t%rdi, %xmm1\n\tpxor\t%xmm0, %xmm0\n\tmovdqa\t%xmm1, %xmm2\n\tmovq\t%rdi, %rax\n\tshrq\t$48, %rax\n\tmovabsq\t$281474976710655, %rsi          # imm = 0xFFFFFFFFFFFF\n\tleaq\t1(%rsi), %rcx\n\tcmpq\t%rcx, %rdi\n\tmovl\t$1, %r8d\n\tcmovael\t%eax, %r8d\n\tpunpcklwd\t%xmm0, %xmm2            # xmm2 = xmm2[0],xmm0[0],xmm2[1],xmm0[1],xmm2[2],xmm0[2],xmm2[3],xmm0[3]\n\tpunpcklwd\t%xmm1, %xmm0            # xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1],xmm0[2],xmm1[2],xmm0[3],xmm1[3]\n\tpsubd\t%xmm2, %xmm0\n\tmovd\t%xmm0, %eax\n\txorl\t%edx, %edx\n\tdivl\t%r8d\n\tmovd\t%eax, %xmm1\n\tpshufd\t$85, %xmm0, %xmm2               # xmm2 = xmm0[1,1,1,1]\n\tmovd\t%xmm2, %eax\n\txorl\t%edx, %edx\n\tdivl\t%r8d\n\tmovd\t%eax, %xmm2\n\tpunpckldq\t%xmm2, %xmm1            # xmm1 = xmm1[0],xmm2[0],xmm1[1],xmm2[1]\n\tpshufd\t$238, %xmm0, %xmm0              # xmm0 = xmm0[2,3,2,3]\n\tmovd\t%xmm0, %eax\n\txorl\t%edx, %edx\n\tdivl\t%r8d\n\tmovd\t%eax, %xmm0\n\tpunpcklqdq\t%xmm0, %xmm1            # xmm1 = xmm1[0],xmm0[0]\n\tpshuflw\t$232, %xmm1, %xmm0              # xmm0 = xmm1[0,2,2,3,4,5,6,7]\n\tpshufd\t$232, %xmm0, %xmm0              # xmm0 = xmm0[0,2,2,3]\n\tmovq\t%xmm0, %rdx\n\tandq\t%rsi, %rdx\n\tmovabsq\t$-281474976710656, %rax         # imm = 0xFFFF000000000000\n\tandq\t%rdi, %rax\n\torq\t%rdx, %rax\n\tcmpq\t%rcx, %rdi\n\tcmovbq\t%rdi, %rax\n\tretq\n",
+      "vector_integer_instructions": [
+        "psubd",
+        "punpckldq",
+        "punpcklqdq",
+        "punpcklwd"
+      ]
+    },
+    {
+      "kernel": "gray-sum",
+      "actual_symbol": "Image.Color.gray-sum.llvm",
+      "public_entrypoint_path": [
+        "Main.main",
+        "Main.ownership-match",
+        "Image.Color.convert-standard",
+        "Image.Color.gray-sum",
+        "Image.Color.gray-sum.llvm"
+      ],
+      "emitted_body_equals_independently_tested_source": true,
+      "optimized_host_body": "color_gray_sum:                         # @color_gray_sum\n# %bb.0:\n\tmovzwl\t%di, %eax\n\tmovl\t%edi, %ecx\n\tshrl\t$16, %ecx\n\tshrq\t$32, %rdi\n\tmovzwl\t%di, %edx\n\timull\t$19595, %eax, %eax              # imm = 0x4C8B\n\timull\t$38470, %ecx, %ecx              # imm = 0x9646\n\taddl\t%eax, %ecx\n\timull\t$7471, %edx, %eax               # imm = 0x1D2F\n\taddl\t%ecx, %eax\n\taddl\t$32768, %eax                    # imm = 0x8000\n\tretq\n",
+      "vector_integer_instructions": []
+    },
+    {
+      "kernel": "ycbcr16",
+      "actual_symbol": "Image.Color.ycbcr16.llvm",
+      "public_entrypoint_path": [
+        "Main.main",
+        "Main.ownership-match",
+        "Image.Color.ycbcr16",
+        "Image.Color.ycbcr16.llvm"
+      ],
+      "emitted_body_equals_independently_tested_source": true,
+      "optimized_host_body": "color_ycbcr16:                          # @color_ycbcr16\n# %bb.0:\n\tmovq\t%rdi, %rax\n\tmovzbl\t%al, %ecx\n\tmovzbl\t%ah, %edx\n\tshrl\t$16, %eax\n\tmovzbl\t%al, %esi\n\timull\t$65793, %ecx, %edi              # imm = 0x10101\n\taddl\t$-128, %edx\n\taddl\t$-128, %esi\n\timull\t$91881, %esi, %eax              # imm = 0x166E9\n\taddl\t%edi, %eax\n\timull\t$-22554, %edx, %ecx             # imm = 0xA7E6\n\timull\t$-46802, %esi, %esi             # imm = 0xFFFF492E\n\taddl\t%edi, %ecx\n\taddl\t%esi, %ecx\n\timull\t$116130, %edx, %edx             # imm = 0x1C5A2\n\taddl\t%edi, %edx\n\tsarl\t$8, %eax\n\txorl\t%esi, %esi\n\ttestl\t%eax, %eax\n\tcmovlel\t%esi, %eax\n\tcmpl\t$65535, %eax                    # imm = 0xFFFF\n\tmovl\t$65535, %edi                    # imm = 0xFFFF\n\tcmovgel\t%edi, %eax\n\tsarl\t$8, %ecx\n\ttestl\t%ecx, %ecx\n\tcmovlel\t%esi, %ecx\n\tcmpl\t$65535, %ecx                    # imm = 0xFFFF\n\tcmovgel\t%edi, %ecx\n\tsarl\t$8, %edx\n\ttestl\t%edx, %edx\n\tcmovlel\t%esi, %edx\n\tcmpl\t$65535, %edx                    # imm = 0xFFFF\n\tcmovgel\t%edi, %edx\n\tshll\t$16, %ecx\n\torl\t%eax, %ecx\n\tshlq\t$32, %rdx\n\torq\t%rdx, %rcx\n\tmovabsq\t$-281474976710656, %rax         # imm = 0xFFFF000000000000\n\torq\t%rcx, %rax\n\tretq\n",
+      "vector_integer_instructions": []
+    },
+    {
+      "kernel": "rgb-ycbcr",
+      "actual_symbol": "Image.Color.rgb-ycbcr.llvm",
+      "public_entrypoint_path": [
+        "Main.main",
+        "Main.helpers-match",
+        "Main.helper-match",
+        "Image.Color.rgb-ycbcr",
+        "Image.Color.rgb-ycbcr.llvm"
+      ],
+      "emitted_body_equals_independently_tested_source": true,
+      "optimized_host_body": "color_rgb_ycbcr:                        # @color_rgb_ycbcr\n# %bb.0:\n\tmovq\t%rdi, %rcx\n\tmovzbl\t%cl, %eax\n\tmovzbl\t%ch, %edx\n\tshrl\t$16, %ecx\n\tmovzbl\t%cl, %esi\n\timull\t$19595, %eax, %ecx              # imm = 0x4C8B\n\timull\t$38470, %edx, %edi              # imm = 0x9646\n\taddl\t%ecx, %edi\n\timull\t$7471, %esi, %ecx               # imm = 0x1D2F\n\taddl\t%edi, %ecx\n\taddl\t$32768, %ecx                    # imm = 0x8000\n\tshrl\t$16, %ecx\n\timull\t$-11056, %eax, %edi             # imm = 0xD4D0\n\timull\t$-21712, %edx, %r8d             # imm = 0xAB30\n\taddl\t%edi, %r8d\n\timull\t$-5328, %esi, %edi              # imm = 0xEB30\n\tshll\t$15, %esi\n\taddl\t%r8d, %esi\n\taddl\t$8421376, %esi                  # imm = 0x808000\n\tshrl\t$16, %esi\n\tshll\t$15, %eax\n\timull\t$-27440, %edx, %edx             # imm = 0x94D0\n\taddl\t%eax, %edx\n\tleal\t(%rdi,%rdx), %eax\n\taddl\t$8421376, %eax                  # imm = 0x808000\n\tshrl\t$16, %eax\n\tcmpl\t$255, %esi\n\tmovl\t$255, %edx\n\tcmovael\t%edx, %esi\n\tcmpl\t$255, %eax\n\tcmovael\t%edx, %eax\n\tshll\t$8, %esi\n\torl\t%ecx, %esi\n\tshll\t$16, %eax\n\torl\t%esi, %eax\n\tretq\n",
+      "vector_integer_instructions": []
+    },
+    {
+      "kernel": "rgb-cmyk",
+      "actual_symbol": "Image.Color.rgb-cmyk.llvm",
+      "public_entrypoint_path": [
+        "Main.main",
+        "Main.helpers-match",
+        "Main.helper-match",
+        "Image.Color.rgb-cmyk",
+        "Image.Color.rgb-cmyk.llvm"
+      ],
+      "emitted_body_equals_independently_tested_source": true,
+      "optimized_host_body": "color_rgb_cmyk:                         # @color_rgb_cmyk\n# %bb.0:\n\tpushq\t%rbx\n\tmovq\t%rdi, %rcx\n\tmovzbl\t%cl, %edx\n\tmovzbl\t%ch, %eax\n\tshrl\t$16, %ecx\n\tmovzbl\t%cl, %ecx\n\tcmpl\t%eax, %edx\n\tmovl\t%eax, %r8d\n\tcmoval\t%edx, %r8d\n\tcmpl\t%ecx, %r8d\n\tcmovbel\t%ecx, %r8d\n\tcmpl\t$1, %r8d\n\tmovl\t%r8d, %ebx\n\tadcl\t$0, %ebx\n\tmovl\t%r8d, %esi\n\tsubl\t%edx, %esi\n\tmovl\t%r8d, %edx\n\tsubl\t%eax, %edx\n\tmovl\t%r8d, %edi\n\tsubl\t%ecx, %edi\n\tmovl\t%esi, %eax\n\tshll\t$8, %eax\n\tsubl\t%esi, %eax\n\tmovl\t%edx, %ecx\n\tshll\t$8, %ecx\n\tsubl\t%edx, %ecx\n\tmovl\t%edi, %esi\n\tshll\t$8, %esi\n\tsubl\t%edi, %esi\n\txorl\t%edx, %edx\n\tdivl\t%ebx\n\tmovl\t%eax, %edi\n\tmovl\t%ecx, %eax\n\txorl\t%edx, %edx\n\tdivl\t%ebx\n\tmovl\t%eax, %ecx\n\tmovl\t%esi, %eax\n\txorl\t%edx, %edx\n\tdivl\t%ebx\n                                        # kill: def $eax killed $eax def $rax\n\tnotl\t%r8d\n\tshlq\t$8, %rcx\n\tshlq\t$16, %rax\n\tshll\t$24, %r8d\n\torl\t%edi, %r8d\n\torq\t%rcx, %r8\n\torq\t%r8, %rax\n\tpopq\t%rbx\n\tretq\n",
+      "vector_integer_instructions": []
+    },
+    {
+      "kernel": "cmyk16",
+      "actual_symbol": "Image.Color.cmyk16.llvm",
+      "public_entrypoint_path": [
+        "Main.main",
+        "Main.ownership-match",
+        "Image.Color.cmyk16",
+        "Image.Color.cmyk16.llvm"
+      ],
+      "emitted_body_equals_independently_tested_source": true,
+      "optimized_host_body": "color_cmyk16:                           # @color_cmyk16\n# %bb.0:\n\tmovq\t%rdi, %rcx\n\tmovzbl\t%cl, %edx\n\tmovzbl\t%ch, %esi\n\tmovl\t%ecx, %eax\n\tshrl\t$24, %eax\n\tshldl\t$8, %ecx, %eax\n                                        # kill: def $ecx killed $ecx killed $rcx\n\tshrl\t$16, %ecx\n\tmovzbl\t%cl, %edi\n\txorl\t$65535, %eax                    # imm = 0xFFFF\n\tmovl\t%edx, %ecx\n\tshll\t$8, %ecx\n\torl\t%edx, %ecx\n\txorl\t$65535, %ecx                    # imm = 0xFFFF\n\timull\t%eax, %ecx\n\tmovl\t$2147516417, %r8d               # imm = 0x80008001\n\timulq\t%r8, %rcx\n\tshrq\t$47, %rcx\n\tmovl\t%esi, %edx\n\tshll\t$8, %edx\n\torl\t%esi, %edx\n\txorl\t$65535, %edx                    # imm = 0xFFFF\n\timull\t%eax, %edx\n\timulq\t%r8, %rdx\n\tmovl\t%edi, %esi\n\tshll\t$8, %esi\n\torl\t%edi, %esi\n\txorl\t$65535, %esi                    # imm = 0xFFFF\n\timull\t%eax, %esi\n\timulq\t%r8, %rsi\n\tshrq\t$31, %rdx\n\tandq\t$-65536, %rdx                   # imm = 0xFFFF0000\n\torq\t%rcx, %rdx\n\tshrq\t$15, %rsi\n\tmovabsq\t$281470681743360, %rcx          # imm = 0xFFFF00000000\n\tandq\t%rsi, %rcx\n\torq\t%rdx, %rcx\n\tmovabsq\t$-281474976710656, %rax         # imm = 0xFFFF000000000000\n\torq\t%rcx, %rax\n\tretq\n",
+      "vector_integer_instructions": []
+    },
+    {
+      "kernel": "distance4",
+      "actual_symbol": "Image.Color.distance4.llvm",
+      "public_entrypoint_path": [
+        "Main.main",
+        "Main.ownership-match",
+        "Image.Color.nearest#cc",
+        "Image.Color.distance4",
+        "Image.Color.distance4.llvm"
+      ],
+      "emitted_body_equals_independently_tested_source": true,
+      "optimized_host_body": "color_distance4:                        # @color_distance4\n# %bb.0:\n\tmovq\t%rdi, %xmm0\n\tmovq\t%rsi, %xmm1\n\tpxor\t%xmm2, %xmm2\n\tpunpcklwd\t%xmm2, %xmm0            # xmm0 = xmm0[0],xmm2[0],xmm0[1],xmm2[1],xmm0[2],xmm2[2],xmm0[3],xmm2[3]\n\tpunpcklwd\t%xmm2, %xmm1            # xmm1 = xmm1[0],xmm2[0],xmm1[1],xmm2[1],xmm1[2],xmm2[2],xmm1[3],xmm2[3]\n\tpsubd\t%xmm1, %xmm0\n\tpshufd\t$245, %xmm0, %xmm1              # xmm1 = xmm0[1,1,3,3]\n\tpmuludq\t%xmm0, %xmm0\n\tpshufd\t$232, %xmm0, %xmm0              # xmm0 = xmm0[0,2,2,3]\n\tpmuludq\t%xmm1, %xmm1\n\tpshufd\t$232, %xmm1, %xmm1              # xmm1 = xmm1[0,2,2,3]\n\tpunpckldq\t%xmm1, %xmm0            # xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1]\n\tpsrld\t$2, %xmm0\n\tpshufd\t$238, %xmm0, %xmm1              # xmm1 = xmm0[2,3,2,3]\n\tpaddd\t%xmm0, %xmm1\n\tpshufd\t$85, %xmm1, %xmm0               # xmm0 = xmm1[1,1,1,1]\n\tpaddd\t%xmm1, %xmm0\n\tmovd\t%xmm0, %eax\n\tretq\n",
+      "vector_integer_instructions": [
+        "paddd",
+        "pmuludq",
+        "psrld",
+        "psubd",
+        "punpckldq",
+        "punpcklwd"
+      ]
+    }
+  ],
+  "limits": "Actual vector instructions and complete public call reachability are demonstrated; elapsed performance and foreign execution are not."
+}

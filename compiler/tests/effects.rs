@@ -763,6 +763,7 @@ module Main where
     );
 }
 
+/// Explicit kind annotations retain row identity and refuse conflicting region/value uses.
 #[test]
 fn row_parameter_annotations_and_names_preserve_their_kind() {
     for scheme in [
@@ -783,8 +784,7 @@ fn row_parameter_annotations_and_names_preserve_their_kind() {
     ] {
         let source = format!("module Main where\n  callback :: {scheme}\n  callback = callback\n  main :: Int\n  main = 0\n");
         let error=check_sources(&source,"row-kind.cinch").expect_err(scheme).to_string();
-        let expected = if scheme.contains(":: Region") { "unknown type Region" }
-            else { "incompatible kind or non-row use" };
+        let expected = "incompatible kind or non-row use";
         assert!(error.contains(expected), "{scheme}: {error}");
     }
 }

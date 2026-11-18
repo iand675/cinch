@@ -1,0 +1,655 @@
+{
+  "format": 1,
+  "description": "Alternating retained executables with matched compiler, driver, optimization and runtime sources",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "compiler_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+  "runtime_source_sha256": "ea8bbc995f110fd750a0ae42d4949c62fbce7e26c9f3456c9f00d77637cfaa1c",
+  "driver_sha256": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5",
+  "opt_level": 2,
+  "iterations": 128,
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cpu_affinity": [
+    0
+  ],
+  "warmup_processes_per_case": 1,
+  "inputs": {
+    "before": {
+      "report": "benchmarks/stdlib/html-baseline-identity-O2-2026-11-16.json",
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Html.cinch": "a463d51e08dd682e791db16fee0571c70f453fa9666e05e4cbcc82e8a8ebcb3a",
+        "Main.cinch": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5"
+      },
+      "executable_sha256": "3e6d19b6cf2145617db43487baab2b4feffed485183ff45c33e347aca05a167c",
+      "llvm_sha256": "c34bd52e2f3c914afbc53f92ffb9e5852521b5ca4ac536c2ce6f0d266dd2a177"
+    },
+    "after": {
+      "report": "benchmarks/stdlib/html-pipelines-O2-2026-11-16.json",
+      "sources": {
+        "Text.Fnv.cinch": "54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+        "Text.Html.cinch": "623dfd85923ac842775582d536e279f0a3e13d93c42b5536e0751617c8af2811",
+        "Main.cinch": "6e173f9d68c8bec7edeead4bc47392af48831090818df732083290344f774bd5"
+      },
+      "executable_sha256": "e398f95ed95bee0ad2ec0e39cfc07c2a1b00b313a00b9c3a74873ff83681804f",
+      "llvm_sha256": "eb3b915888abc51fdee1a5d7c76f5532063f227de3794594a9a24af56e755966"
+    }
+  },
+  "results": [
+    {
+      "workload": "escape-bytes",
+      "raw_input_bytes": 32,
+      "checksum": 41408,
+      "samples_ns": {
+        "before": [
+          12078,
+          60391,
+          12058,
+          12058,
+          12479,
+          12298,
+          12058,
+          22184,
+          21663
+        ],
+        "after": [
+          12169,
+          15814,
+          11988,
+          12048,
+          13981,
+          11988,
+          22123,
+          21763,
+          23846
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 96.078125,
+        "after": 109.2265625
+      },
+      "before_over_after": 0.8796223446105429
+    },
+    {
+      "workload": "escape-bytes",
+      "raw_input_bytes": 16384,
+      "checksum": 2134464,
+      "samples_ns": {
+        "before": [
+          1876487,
+          1879101,
+          1953924,
+          2008716,
+          1864579,
+          1796686,
+          1848415,
+          948399,
+          956641
+        ],
+        "after": [
+          1860873,
+          1880994,
+          1862766,
+          1723636,
+          1890688,
+          1861735,
+          1191615,
+          930301,
+          946596
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 14567.0234375,
+        "after": 14538.0703125
+      },
+      "before_over_after": 1.0019915383801044
+    },
+    {
+      "workload": "escape-bytes",
+      "raw_input_bytes": 65536,
+      "checksum": 8425920,
+      "samples_ns": {
+        "before": [
+          3848537,
+          3861067,
+          4041208,
+          4502503,
+          3914056,
+          3787195,
+          3911372,
+          3913635,
+          3943190
+        ],
+        "after": [
+          4202250,
+          3863981,
+          3932524,
+          3913075,
+          4409122,
+          3806804,
+          4164073,
+          3956641,
+          3833544
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 30575.2734375,
+        "after": 30722.84375
+      },
+      "before_over_after": 0.9951967235292143
+    },
+    {
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 32,
+      "checksum": 41408,
+      "samples_ns": {
+        "before": [
+          13631,
+          46270,
+          13400,
+          13811,
+          26240,
+          26600,
+          29094,
+          26189,
+          25709
+        ],
+        "after": [
+          63255,
+          8223,
+          8773,
+          8282,
+          18098,
+          15703,
+          16675,
+          15713,
+          15994
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 204.6015625,
+        "after": 122.7578125
+      },
+      "before_over_after": 1.6667090943804492
+    },
+    {
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 16384,
+      "checksum": 2134464,
+      "samples_ns": {
+        "before": [
+          512022,
+          522937,
+          555226,
+          558040,
+          522837,
+          522407,
+          523679,
+          286372,
+          286131
+        ],
+        "after": [
+          432161,
+          407074,
+          408115,
+          437389,
+          533003,
+          434845,
+          479393,
+          207452,
+          235855
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 4084.6640625,
+        "after": 3376.2578125
+      },
+      "before_over_after": 1.2098199513607197
+    },
+    {
+      "workload": "unescape-bytes",
+      "raw_input_bytes": 65536,
+      "checksum": 8425920,
+      "samples_ns": {
+        "before": [
+          1284785,
+          1310504,
+          1285457,
+          1200098,
+          1281340,
+          1202462,
+          1333439,
+          1228531,
+          1286168
+        ],
+        "after": [
+          996010,
+          857622,
+          961088,
+          936180,
+          871733,
+          1035650,
+          1003482,
+          1046477,
+          863932
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 10037.3828125,
+        "after": 7508.5
+      },
+      "before_over_after": 1.3368026653126457
+    },
+    {
+      "workload": "escape-text",
+      "raw_input_bytes": 32,
+      "checksum": 41408,
+      "samples_ns": {
+        "before": [
+          44948,
+          43646,
+          43716,
+          43596,
+          44307,
+          43857,
+          44156,
+          44237,
+          43956
+        ],
+        "after": [
+          27362,
+          27051,
+          26900,
+          26841,
+          26660,
+          26821,
+          27371,
+          26740,
+          26790
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 343.40625,
+        "after": 209.6953125
+      },
+      "before_over_after": 1.6376439029842405
+    },
+    {
+      "workload": "escape-text",
+      "raw_input_bytes": 16384,
+      "checksum": 2134464,
+      "samples_ns": {
+        "before": [
+          3584590,
+          3877992,
+          3775647,
+          7086104,
+          5969753,
+          3567073,
+          3558942,
+          3687334,
+          3563989
+        ],
+        "after": [
+          2369770,
+          2254005,
+          2232143,
+          2512195,
+          2167275,
+          2167565,
+          2077780,
+          2007264,
+          2316549
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 28807.296875,
+        "after": 17438.6171875
+      },
+      "before_over_after": 1.6519255262767663
+    },
+    {
+      "workload": "escape-text",
+      "raw_input_bytes": 65536,
+      "checksum": 8425920,
+      "samples_ns": {
+        "before": [
+          15988406,
+          15965952,
+          16465384,
+          16530632,
+          16253585,
+          16540367,
+          16976514,
+          16030299,
+          17008602
+        ],
+        "after": [
+          8250529,
+          8588477,
+          8292001,
+          8223918,
+          8601308,
+          8227044,
+          8372913,
+          8148946,
+          8255006
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 128635.8125,
+        "after": 64492.234375
+      },
+      "before_over_after": 1.994593825855487
+    },
+    {
+      "workload": "unescape-text",
+      "raw_input_bytes": 32,
+      "checksum": 41408,
+      "samples_ns": {
+        "before": [
+          44517,
+          45899,
+          49535,
+          44467,
+          49264,
+          49955,
+          46249,
+          45428,
+          44257
+        ],
+        "after": [
+          25759,
+          25979,
+          26139,
+          24818,
+          25658,
+          25688,
+          25869,
+          25298,
+          25558
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 358.5859375,
+        "after": 200.6875
+      },
+      "before_over_after": 1.7867876051074432
+    },
+    {
+      "workload": "unescape-text",
+      "raw_input_bytes": 16384,
+      "checksum": 2134464,
+      "samples_ns": {
+        "before": [
+          3030776,
+          3738512,
+          6168062,
+          5979909,
+          5876763,
+          5901520,
+          3039229,
+          2934831,
+          3080901
+        ],
+        "after": [
+          1739500,
+          1763406,
+          3124797,
+          3074472,
+          3092839,
+          3140150,
+          1528132,
+          1520150,
+          1553941
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 29207.125,
+        "after": 13776.609375
+      },
+      "before_over_after": 2.1200517634622997
+    },
+    {
+      "workload": "unescape-text",
+      "raw_input_bytes": 65536,
+      "checksum": 8425920,
+      "samples_ns": {
+        "before": [
+          15908755,
+          15861534,
+          16845216,
+          15954244,
+          15807934,
+          16024510,
+          16394387,
+          16352824,
+          15831708
+        ],
+        "after": [
+          6152718,
+          6127901,
+          6188943,
+          6424568,
+          6128963,
+          6124846,
+          6268262,
+          6309696,
+          6237246
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 124642.53125,
+        "after": 48351.1171875
+      },
+      "before_over_after": 2.57786248798866
+    },
+    {
+      "workload": "escape-length",
+      "raw_input_bytes": 32,
+      "checksum": 4096,
+      "samples_ns": {
+        "before": [
+          3726,
+          3926,
+          3816,
+          4426,
+          3966,
+          3986,
+          3785,
+          4547,
+          6850
+        ],
+        "after": [
+          3896,
+          3756,
+          3685,
+          3656,
+          4637,
+          3685,
+          6359,
+          3776,
+          4116
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 30.984375,
+        "after": 29.5
+      },
+      "before_over_after": 1.0503177966101696
+    },
+    {
+      "workload": "escape-length",
+      "raw_input_bytes": 16384,
+      "checksum": 2097152,
+      "samples_ns": {
+        "before": [
+          803340,
+          741658,
+          754407,
+          843661,
+          846254,
+          687486,
+          746895,
+          642909,
+          665322
+        ],
+        "after": [
+          837512,
+          749128,
+          819104,
+          719694,
+          643780,
+          662037,
+          726024,
+          848889,
+          664511
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 5835.1171875,
+        "after": 5672.0625
+      },
+      "before_over_after": 1.028746983570791
+    },
+    {
+      "workload": "escape-length",
+      "raw_input_bytes": 65536,
+      "checksum": 8388608,
+      "samples_ns": {
+        "before": [
+          2837104,
+          2791785,
+          2846578,
+          2731785,
+          2976123,
+          2799447,
+          2601999,
+          2645985,
+          2628990
+        ],
+        "after": [
+          2715240,
+          2841120,
+          2827149,
+          3141292,
+          3026118,
+          2617674,
+          2826367,
+          2754730,
+          2791856
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 21810.8203125,
+        "after": 22080.9921875
+      },
+      "before_over_after": 0.9877645047511523
+    },
+    {
+      "workload": "bytes-copy",
+      "raw_input_bytes": 32,
+      "checksum": 41408,
+      "samples_ns": {
+        "before": [
+          6169,
+          6380,
+          6109,
+          6240,
+          6099,
+          6380,
+          6080,
+          6539,
+          6280
+        ],
+        "after": [
+          6329,
+          6199,
+          6220,
+          6199,
+          6349,
+          6150,
+          6370,
+          6229,
+          6199
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 48.75,
+        "after": 48.59375
+      },
+      "before_over_after": 1.0032154340836013
+    },
+    {
+      "workload": "bytes-copy",
+      "raw_input_bytes": 16384,
+      "checksum": 2134464,
+      "samples_ns": {
+        "before": [
+          54492,
+          52029,
+          114543,
+          51358,
+          51668,
+          51869,
+          51758,
+          51608,
+          54572
+        ],
+        "after": [
+          52840,
+          52368,
+          51498,
+          51918,
+          75754,
+          51908,
+          51758,
+          51919,
+          53069
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 405.2265625,
+        "after": 405.6171875
+      },
+      "before_over_after": 0.9990369614206746
+    },
+    {
+      "workload": "bytes-copy",
+      "raw_input_bytes": 65536,
+      "checksum": 8425920,
+      "samples_ns": {
+        "before": [
+          232140,
+          231429,
+          230377,
+          243327,
+          231759,
+          230867,
+          283067,
+          234393,
+          230237
+        ],
+        "after": [
+          248194,
+          231028,
+          231249,
+          249716,
+          230327,
+          254333,
+          256957,
+          350237,
+          230688
+        ]
+      },
+      "median_ns_per_operation": {
+        "before": 1810.6171875,
+        "after": 1939.015625
+      },
+      "before_over_after": 0.9337816385569353
+    }
+  ]
+}

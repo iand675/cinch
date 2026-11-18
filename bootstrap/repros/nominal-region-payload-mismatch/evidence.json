@@ -1,0 +1,16 @@
+{
+  "exit": 1,
+  "optimization": 0,
+  "poisoned": false,
+  "checked_rc": true,
+  "live": 0,
+  "leaked": 0,
+  "original_project": "/tmp/.tmpcxvvcl",
+  "files": {
+    "consumer.ll": "ab457d9dd323334d04dec0ce603ca7919a0268ef00ab8a9103cfa3a067c4d59a",
+    "consumer": "3559f4da721e6e3045a4945d80a1a0b4b5a41685b48afdd43f959c071eab510c",
+    "Main.cinch": "67e5ec8b0727f8f101e9cb0f6a73087ae40bd713d2c93870d52783d3e9e2e650",
+    "Data.Wide.cinch": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133",
+    "Data.Mutable.Var.cinch": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+  }
+}

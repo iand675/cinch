@@ -1,0 +1,193 @@
+{
+  "description": "Stable mutable doubly linked lists with checked ownership, reusable indexed storage and independently retained element values.",
+  "status": "Complete capability mapping, both frontend runtime/reference/ownership gates, parent Cargo targets, full self-built Native family and documented source distribution passed. Full standard-library goal remains open.",
+  "reference_package": "container/list",
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "reference_declarations": 21,
+  "full_stdlib_goal_complete": false,
+  "cinch_modules": [
+    "Data.Mutable.LinkedList"
+  ],
+  "source_sha256": {
+    "compiler/prelude/Data/Mutable/LinkedList.cinch": "7251889893471322b75e5c8d7006ec87402c929db744b97cd3cdd7c90af38301",
+    "compiler/tests/lib_linked_list.rs": "7f41ac65a0412d70d725efc8ed736f7809bf0a771d7b2259d0fe2bbb5c3c9d00",
+    "compiler/tests/fixtures/linked-list-consumer.cinch": "61e53f3f0514c63a10a0cb858f363a6543cb499d64e3a7df912f52b4c61050aa",
+    "compiler/tests/fixtures/linked-list-control.cinch": "d1b1c816afac975b12bcac8660d7b857f3518ab96d27461b8ae3dbb4016e818d",
+    "compiler/tests/fixtures/linked-list-vectors.json": "b988edfcdfea32df3da3597ca482eef716cbcda39a84f25c718c7eb9aa26a10e",
+    "tooling/go_linked_list_vectors.go": "4aee768cbcf965d3975518289a3626fc3784037713c257bca64807eade266376",
+    "tooling/generate_linked_list_cases.py": "5fcf852cfec4e7e8151e1633359e35164f54962aa3c525be4e568da061c3448f",
+    "tooling/validate_linked_lists.py": "f066fdcb246f34675c31cd02644c0584dfa945675fa374fc799b0e945795cb6f",
+    "tooling/linked-list-benchmark.cinch": "39067d5eaf222f2037ea302f3b92e1cf3289a1fe2e3d8a13bbc5cd03433afb28",
+    "tooling/bench_linked_list_reference.go": "1c695a92ca974f79aa27915c90d4461b9eed8e63171af429b6bf5f42d24e58d8",
+    "tooling/bench_linked_lists.py": "4b32920995c9248fc1224fecae57a7f8bfa2ec1a2a11d7a93a1822a5db065ce4",
+    "tooling/probe_linked_list_space.py": "34c21ad14123e8d1e00965c77384b2c9466718cb3f9a32d0afabe3b9d36fb561",
+    "tooling/report_linked_list_codegen.py": "e55f5a590f8983b6b4ed8b2b53d77c0b4101600b16ee3d1735e22838690e0edb",
+    "benchmarks/stdlib/linked-lists-before-direct-copy.patch": "4eb125f27526585c635d8a709fd4ff8d30359915bc2b8fadef63cb5c087867e8",
+    "benchmarks/stdlib/linked-lists-notes.md": "dfdf0dca70e046f604fb00862fe34bb1a25847a937eb879d18048533f187951d"
+  },
+  "capability_mapping": {
+    "func New() *List": "list-new / list-with-capacity construct opaque, initialized empty roots.",
+    "method (*Element) Next() *Element": "list-next takes the owning root and returns checked optional membership.",
+    "method (*Element) Prev() *Element": "list-prev takes the owning root and returns checked optional membership.",
+    "method (*List) Back() *Element": "list-back returns None when empty and a stable value handle otherwise.",
+    "method (*List) Front() *Element": "list-front returns None when empty and a stable value handle otherwise.",
+    "method (*List) Init() *List": "list-clear resets the existing root, invalidates old membership and releases arena owners; the caller already retains the root value.",
+    "method (*List) InsertAfter(interface{}, *Element) *Element": "list-insert-after returns a new stable handle or an explicit foreign/removed/capacity error.",
+    "method (*List) InsertBefore(interface{}, *Element) *Element": "list-insert-before returns a new stable handle or an explicit foreign/removed/capacity error.",
+    "method (*List) Len() int": "list-length observes the live count in constant time.",
+    "method (*List) MoveAfter(*Element, *Element)": "list-move-after checks both memberships before changing links; self-movement succeeds unchanged.",
+    "method (*List) MoveBefore(*Element, *Element)": "list-move-before checks both memberships before changing links; self-movement succeeds unchanged.",
+    "method (*List) MoveToBack(*Element)": "list-move-back preserves node identity, value and count.",
+    "method (*List) MoveToFront(*Element)": "list-move-front preserves node identity, value and count.",
+    "method (*List) PushBack(interface{}) *Element": "list-push-back creates a typed value node with a stable handle.",
+    "method (*List) PushBackList(*List)": "list-append-list copies values in order, supports distinct mutation regions, and bounds self-copy to the original count.",
+    "method (*List) PushFront(interface{}) *Element": "list-push-front creates a typed value node with a stable handle.",
+    "method (*List) PushFrontList(*List)": "list-prepend-list copies values in order, supports distinct mutation regions, and bounds self-copy to the original count.",
+    "method (*List) Remove(*Element) interface{}": "list-remove checks membership before unlinking and returns the retained typed value. Invalid handles return a named error; list-element-value still permits independent value access.",
+    "type Element struct": "Opaque ListElement retains only its node and identity/membership tokens; list-same-element compares stable identity even after detachment.",
+    "type Element struct, Value interface{}": "list-element-value and list-element-set read/write typed values independently of membership, including after removal, clearing or root destruction.",
+    "type List struct": "Opaque LinkedList owns indexed links, live arena slots and reusable holes. Public construction replaces uninitialized object states."
+  },
+  "safe_language_choices": [
+    "Opaque initialized constructors replace uninitialized root/object states. Empty navigation uses Option; stale/foreign membership uses module-owned Result errors before structural mutation.",
+    "Removed and cleared element handles keep independently readable/writable values. They never retain their former root or neighboring nodes; supplied value graphs remain ordinary application values.",
+    "Owner identity tokens distinguish lists; membership generation tokens distinguish clears; unbounded immutable serials distinguish removed/reused positions without counter wraparound.",
+    "Capacity naturals, including values above machine width, are checked before machine-word conversion. Invalid capacity/handle requests leave list contents unchanged.",
+    "Cross-region value copying declares both mutation effects; source values are shared through ordinary typed ownership while copied list nodes and memberships are independent."
+  ],
+  "coverage": {
+    "initial_sizes": [
+      0,
+      1,
+      2,
+      3,
+      8,
+      17,
+      64,
+      257
+    ],
+    "actions_per_case": 96,
+    "exact_post_action_observations": 768,
+    "reference_fixture_reproduces_exactly": true,
+    "observations": [
+      "both complete sequence directions",
+      "all stable fixture identities and alias relations",
+      "every retained value, including removed/cleared nodes",
+      "membership against both owners",
+      "both navigation directions and exact named refusals",
+      "all public mutation results"
+    ],
+    "additional_controls": [
+      "empty/owned-capacity constructors",
+      "unbounded capacity refusals",
+      "stable movement and self-movement",
+      "atomic invalid marker operations",
+      "removed value mutation and slot reuse",
+      "clear generation invalidation",
+      "self-copy in both directions",
+      "owned Bytes after root destruction/replacement",
+      "U64 all-ones and high-bit payloads"
+    ]
+  },
+  "runtime_validation": {
+    "rust": {
+      "report": "stdlib-linked-list-rust-validation-results.json",
+      "consumers": 9,
+      "runs": 18,
+      "all_zero_live_and_leaked": true,
+      "artifacts": "build/linked-list-optimized-rust"
+    },
+    "native": {
+      "report": "stdlib-linked-list-native-validation-results.json",
+      "consumers": 9,
+      "runs": 18,
+      "all_zero_live_and_leaked": true,
+      "artifacts": "build/linked-list-optimized-native"
+    }
+  },
+  "native_O2_report": "stdlib-linked-list-native-O2-validation-results.json",
+  "ordinary_heap": "32M",
+  "runtime_stack": "8M",
+  "separate_poisoned_heap": "256M",
+  "compiler_host_stack": "64M for large observation fixtures only",
+  "documentation": {
+    "declaration_entries": 70,
+    "nested_constructors": 6,
+    "canonical_documented_declarations_total": 76,
+    "diagnostics": 0,
+    "orphans": 0
+  },
+  "benchmark": {
+    "pipelines": [
+      "append-drain",
+      "prepend-drain",
+      "move-front",
+      "remove-reuse",
+      "self-copy"
+    ],
+    "sizes": [
+      32,
+      1024,
+      16384
+    ],
+    "rows_per_frontend": 15,
+    "iterations": 16,
+    "samples": 5,
+    "excluded_warmup": 1,
+    "timing_cpu": [
+      0
+    ],
+    "shared_machine_background": "Parent CPU3 JSON gate, Base CPU1 mutable-family work, and separate-CPU functional work may overlap; shared memory/caches are not isolated.",
+    "prepared_owners_observed_after_final_clock": true,
+    "complete_independent_checksums": 30,
+    "paired_comparison": "../benchmarks/stdlib/linked-lists-copy-paired-2026-11-16.json",
+    "timing_reports": [
+      "../benchmarks/stdlib/linked-lists-rust-O2-2026-11-16.json",
+      "../benchmarks/stdlib/linked-lists-native-O2-2026-11-16.json"
+    ],
+    "space_reports": [
+      "../benchmarks/stdlib/linked-lists-rust-space-2026-11-16.json",
+      "../benchmarks/stdlib/linked-lists-native-space-2026-11-16.json"
+    ],
+    "codegen_reports": [
+      "../benchmarks/stdlib/linked-lists-rust-codegen-2026-11-16.json",
+      "../benchmarks/stdlib/linked-lists-native-codegen-2026-11-16.json"
+    ],
+    "notes": "../benchmarks/stdlib/linked-lists-notes.md",
+    "allocation_or_throughput_parity_claimed": false,
+    "baseline_reconstruction_patch": "../benchmarks/stdlib/linked-lists-before-direct-copy.patch"
+  },
+  "optimization": {
+    "change": "Copy allocated nodes directly instead of constructing and discarding a public element handle/result wrapper for each copied node.",
+    "source_layout_or_public_API_changed": false,
+    "sixteen_K_source_values_new_nodes": 65536,
+    "ordinary_process_fewer_allocations": 131072,
+    "ordinary_process_cumulative_bytes_reduction_approx": 3670000,
+    "peak_memory_improvement_claimed": false,
+    "controlled_same_window_medians_ns": {
+      "rust": {
+        "baseline": 18987665.4375,
+        "optimized": 12680970.3125,
+        "reference": 5432958.0
+      },
+      "native": {
+        "baseline": 56357185.9375,
+        "optimized": 48213699.5,
+        "reference": 5723638.4375
+      }
+    },
+    "simd_notes": "Dependent linked traversal and ordered mutations are serial. Slot indices/flags use existing inline machine-word primitives; arena growth uses the ownership-moving bulk slot transfer, not a new scalar copy loop."
+  },
+  "frontend_provenance": {
+    "rust": "Frozen f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e compiler and matched host runtime.",
+    "native": "Cinch frontend build/mutable-kind-emitter/cinch compiled by frozen Rust; exact binary/base/object/runtime identities retained by consumer and benchmark reports. This is not a completed self-built stage3 fixed point.",
+    "mixed_epoch_interface_parity_claimed": false
+  },
+  "pending": [
+    "Parent lib_linked_list Cargo target: four new tests plus three common profile tests, seven expected.",
+    "Parent complete self-built Native fixed point and final source/interface distribution gates.",
+    "Parent shared inventory/module-home and generated documentation updates; existing Data.List does not provide this mutable handle surface."
+  ],
+  "parent_integration": "stdlib-search-linked-list-integration-results.json",
+  "native_family": "mutable-native-family-validation-results.json"
+}

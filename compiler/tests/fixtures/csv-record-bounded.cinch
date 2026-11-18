@@ -1,0 +1,88 @@
+-- | CSV stream live-memory and tail-loop stress with a reused one-byte source buffer.
+module Main where
+  import Text.Csv.Record
+  import Effect.Csv
+  import Effect.Stream
+  import Data.Machine
+
+  -- | Keep large deterministic input generation in the executable rather than constant evaluation.
+  prim runtime-count :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Compare immutable parsed field lists without retaining earlier rows.
+  same :: List String -> List String -> Bool
+  same left right = case left of
+    Nil -> case right of Nil -> True; Cons first rest -> False
+    Cons first rest -> case right of Nil -> False; Cons actual more -> first == actual && same rest more
+
+  -- | Generate a repeated source lazily, returning the same mutable one-byte buffer on every read.
+  repeated-source :: forall r. using (io :: Io r) => Bytes -> Nat -> Nat -> Bytes -> ByteReader r
+  repeated-source pattern remaining position scratch = stream-reader (\requested ->
+    if remaining > 0 then
+      if position < bytes-len pattern then
+        if 0 < bytes-len scratch then
+          let written = bytes-set scratch 0 (bytes-get pattern position) in
+          let next = if position + 1 < bytes-len pattern then position + 1 else (0 :: Nat) in
+          (Ok scratch, repeated-source pattern (remaining - 1) next scratch)
+        else (Ok (bytes-new 0), reader-from-string "")
+      else (Ok (bytes-new 0), reader-from-string "")
+    else (Ok (bytes-new 0), reader-from-string ""))
+
+  -- | Consume many generated records without materializing their total source or retaining earlier records.
+  consume-rows :: forall r. using (io :: Io r) => CsvStreamReader r -> Nat -> Nat ->{IO r} Bool
+  consume-rows reader count expected = case csv-stream-read reader of
+    (Ok CsvEnd, next) -> count == expected && csv-stream-input-offset next == expected * 4
+    (Ok (CsvReadRecord row None), next) -> same (csv-record-fields row) ["a", "b"] && consume-rows next (count + 1) expected
+    other -> False
+
+  -- | Fill repeated expected text with checked bulk copies and constant traversal stack.
+  fill-pattern :: Bytes -> Bytes -> Nat -> Unit
+  fill-pattern pattern out at =
+    if bytes-len pattern > 0 then
+      if at + bytes-len pattern <= bytes-len out then
+        let copied = bytes-copy-range out pattern at 0 (bytes-len pattern) in
+        fill-pattern pattern out (at + bytes-len pattern)
+      else ()
+    else ()
+
+  -- | Build expected UTF-8 text without a recursive allocation-before-copy helper.
+  expected-text :: Nat -> String -> String
+  expected-text count text =
+    let pattern = string-to-bytes text in let out = bytes-new (count * bytes-len pattern) in
+    let copied = fill-pattern pattern out 0 in
+    case string-from-bytes out of Some result -> result; None -> ""
+
+  -- | Generate one long quoted multiline field from small source pieces, then validate its exact content.
+  large-field :: forall r. using (io :: Io r) => Nat ->{IO r} Bool
+  large-field count =
+    let begin = reader-from-string "\"" in
+    let repeated = repeated-source (string-to-bytes "x\n") (count * 2) 0 (bytes-new 1) in
+    let source = reader-concat [begin, repeated, reader-from-string "\",z\n"] in
+    case csv-stream-read (csv-stream-reader csv-default-options source) of
+      (Ok (CsvReadRecord row None), next) -> same (csv-record-fields row) [expected-text count "x\n", "z"]
+        && (case csv-stream-read next of (Ok CsvEnd, final) -> csv-stream-input-offset final == count * 2 + 5; other -> False)
+      other -> False
+
+  -- | Exercise retained owners and exact sixteen-byte SIMD traversal across one long physical line.
+  flat-field :: forall r. using (io :: Io r) => Nat ->{IO r} Bool
+  flat-field count =
+    let repeated = repeated-source (string-to-bytes "x") count 0 (bytes-new 1) in
+    let source = reader-concat [reader-from-string "\"", repeated, reader-from-string "\"\n"] in
+    case csv-stream-read (csv-stream-reader csv-default-options source) of
+      (Ok (CsvReadRecord row None), next) -> same (csv-record-fields row) [expected-text count "x"]
+        && (case csv-stream-read next of (Ok CsvEnd, final) -> csv-stream-input-offset final == count + 3; other -> False)
+      other -> False
+
+  -- | Observe both stream-shape stress cases under normal and poisoned-free ownership validation.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let rows = u32-to-nat (runtime-count 16384) in
+    let source = repeated-source (string-to-bytes "a,b\n") (rows * 4) 0 (bytes-new 1) in
+    let first = consume-rows (csv-stream-reader csv-default-options source) 0 rows in
+    let second = large-field rows in
+    let third = flat-field (rows * 4) in
+    let failed = if first && second && third then (0 :: Nat) else if not first then 1 else if not second then 2 else 3 in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string failed) "\n")) in if failed == 0 then 0 else 1

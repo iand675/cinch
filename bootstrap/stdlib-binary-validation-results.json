@@ -1,0 +1,501 @@
+{
+  "description": "Concrete typed fixed binary codecs, offsets, append and explicit streams; existing Text.Binary preserved.",
+  "full_stdlib_goal_complete": false,
+  "status": "Both frozen frontend corpora passed; integrated Rust target passed 13 tests after temporary-project dependency correction",
+  "sources_sha256": {
+    "compiler/prelude/Text/Binary/Layout.cinch": "2bf98a83aaed9aeb72ac3e69d285d15aa28ff65b6543236b659bb775beb8f1d2",
+    "compiler/prelude/Effect/Binary.cinch": "ccc9fe29127f391045105575e80fb446b3452798f2e3166f939521c51b10470c",
+    "compiler/tests/lib_binary_layout.rs": "4ac9008c6c286de0edaba98e35ed2e595b7465531affd1d58ed9c6c4bcd46d35",
+    "compiler/tests/fixtures/binary-layout-vectors.json": "3b1a14e41378ad8f6ef011a8c711f3bb6e5cde8e427b75528039557a48d51d36",
+    "compiler/tests/fixtures/binary-layout-consumers.cinchpart": "61160a15357c9b15cc460ae8387dbe5d9e64b79977e36fbbcdf79efe6ed38a90",
+    "compiler/tests/fixtures/binary-layout-contracts.cinchpart": "b45675d70ca7ef234a8171f0bde931f42abf1bbe66f4136413ef5ada717ed8e9",
+    "compiler/tests/fixtures/binary-layout-kernel-entry.cinchpart": "7664156a17096935249e0ce9119d4d33aed536d2ae1a190355319780f2f81b4b",
+    "tooling/go_binary_layout_vectors.go": "7633a9643f21601e2166c725685b952b9139749917bce250c3b9de33d7e92984",
+    "tooling/generate_binary_layout_consumers.py": "b9ebbaa37ff8754ba34ca60df20f317fd111a3e0d8f98ecf9a49d62747069418",
+    "tooling/validate_binary_layout.py": "881e7595bd3e3f0683353982a282c2ee13f2fbc1c243fe8f7b475e5f5231e8c2",
+    "tooling/validate_binary_layout_kernels.py": "443f3c0afe63745afd7e171a2def7b8acdd6d775169a668474e004646e34d264",
+    "tooling/bench_binary_layout.py": "a364b7a9daa0bce5bfe3d53e7e618dedbc6d0220d13e998f231b08abc5b6972b",
+    "benchmarks/stdlib/binary-scalar-array-baseline.patch": "ee500b59a852e1a187ed835a90fb2cbad9642f25c47f9427191e84d33a329781",
+    "benchmarks/stdlib/binary-layout-notes.md": "779a80161a68b5a0aa3a28002815db809fa429241886898c7cf56f4fdcd6114a",
+    "benchmarks/stdlib/binary-packed-O2-2026-11-16.json": "9bd37ad671a752831f495a123d4d1830ebe4b3ae5fcfaada7bc1c9521047fcda"
+  },
+  "compilers": {
+    "rust_cli_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "native_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "native_wrapper_sha256": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+    "compiler_implementation_unchanged": true
+  },
+  "reference_package": "encoding/binary",
+  "reference_declaration_records": 36,
+  "capability_mapping": [
+    {
+      "declaration": "const MaxVarintLen16 = 3",
+      "capability": "Text.Binary.Layout.binary-max-varint16"
+    },
+    {
+      "declaration": "const MaxVarintLen16 ideal-int",
+      "capability": "Text.Binary.Layout.binary-max-varint16"
+    },
+    {
+      "declaration": "const MaxVarintLen32 = 5",
+      "capability": "Text.Binary.Layout.binary-max-varint32"
+    },
+    {
+      "declaration": "const MaxVarintLen32 ideal-int",
+      "capability": "Text.Binary.Layout.binary-max-varint32"
+    },
+    {
+      "declaration": "const MaxVarintLen64 = 10",
+      "capability": "Text.Binary.Layout.binary-max-varint64"
+    },
+    {
+      "declaration": "const MaxVarintLen64 ideal-int",
+      "capability": "Text.Binary.Layout.binary-max-varint64"
+    },
+    {
+      "declaration": "func Append([]uint8, ByteOrder, interface{}) ([]uint8, error)",
+      "capability": "Text.Binary.Layout.binary-append"
+    },
+    {
+      "declaration": "func AppendUvarint([]uint8, uint64) []uint8",
+      "capability": "Text.Binary.Layout.binary-append-uvarint"
+    },
+    {
+      "declaration": "func AppendVarint([]uint8, int64) []uint8",
+      "capability": "Text.Binary.Layout.binary-append-varint"
+    },
+    {
+      "declaration": "func Decode([]uint8, ByteOrder, interface{}) (int, error)",
+      "capability": "Text.Binary.Layout.binary-decode / binary-decode-at"
+    },
+    {
+      "declaration": "func Encode([]uint8, ByteOrder, interface{}) (int, error)",
+      "capability": "Text.Binary.Layout.binary-encode / binary-encode-into"
+    },
+    {
+      "declaration": "func PutUvarint([]uint8, uint64) int",
+      "capability": "Text.Binary.Layout.binary-put-uvarint"
+    },
+    {
+      "declaration": "func PutVarint([]uint8, int64) int",
+      "capability": "Text.Binary.Layout.binary-put-varint"
+    },
+    {
+      "declaration": "func Read(io.Reader, ByteOrder, interface{}) error",
+      "capability": "Effect.Binary.binary-read"
+    },
+    {
+      "declaration": "func ReadUvarint(io.ByteReader) (uint64, error)",
+      "capability": "Effect.Binary.binary-read-uvarint"
+    },
+    {
+      "declaration": "func ReadVarint(io.ByteReader) (int64, error)",
+      "capability": "Effect.Binary.binary-read-varint"
+    },
+    {
+      "declaration": "func Size(interface{}) int",
+      "capability": "Text.Binary.Layout.binary-size"
+    },
+    {
+      "declaration": "func Uvarint([]uint8) (uint64, int)",
+      "capability": "Text.Binary.Layout.binary-decode-uvarint"
+    },
+    {
+      "declaration": "func Varint([]uint8) (int64, int)",
+      "capability": "Text.Binary.Layout.binary-decode-varint"
+    },
+    {
+      "declaration": "func Write(io.Writer, ByteOrder, interface{}) error",
+      "capability": "Effect.Binary.binary-write"
+    },
+    {
+      "declaration": "type AppendByteOrder interface { AppendUint16, AppendUint32, AppendUint64, String }",
+      "capability": "Text.Binary.Layout.BinaryOrder and concrete read/put/append operations"
+    },
+    {
+      "declaration": "type AppendByteOrder interface, AppendUint16([]uint8, uint16) []uint8",
+      "capability": "Text.Binary.Layout.binary-append-u16"
+    },
+    {
+      "declaration": "type AppendByteOrder interface, AppendUint32([]uint8, uint32) []uint8",
+      "capability": "Text.Binary.Layout.binary-append-u32"
+    },
+    {
+      "declaration": "type AppendByteOrder interface, AppendUint64([]uint8, uint64) []uint8",
+      "capability": "Text.Binary.Layout.binary-append-u64"
+    },
+    {
+      "declaration": "type AppendByteOrder interface, String() string",
+      "capability": "Text.Binary.Layout.binary-order-name"
+    },
+    {
+      "declaration": "type ByteOrder interface { PutUint16, PutUint32, PutUint64, String, Uint16, Uint32, Uint64 }",
+      "capability": "Text.Binary.Layout.BinaryOrder and concrete read/put/append operations"
+    },
+    {
+      "declaration": "type ByteOrder interface, PutUint16([]uint8, uint16)",
+      "capability": "Text.Binary.Layout.binary-put-u16"
+    },
+    {
+      "declaration": "type ByteOrder interface, PutUint32([]uint8, uint32)",
+      "capability": "Text.Binary.Layout.binary-put-u32"
+    },
+    {
+      "declaration": "type ByteOrder interface, PutUint64([]uint8, uint64)",
+      "capability": "Text.Binary.Layout.binary-put-u64"
+    },
+    {
+      "declaration": "type ByteOrder interface, String() string",
+      "capability": "Text.Binary.Layout.binary-order-name"
+    },
+    {
+      "declaration": "type ByteOrder interface, Uint16([]uint8) uint16",
+      "capability": "Text.Binary.Layout.binary-read-u16"
+    },
+    {
+      "declaration": "type ByteOrder interface, Uint32([]uint8) uint32",
+      "capability": "Text.Binary.Layout.binary-read-u32"
+    },
+    {
+      "declaration": "type ByteOrder interface, Uint64([]uint8) uint64",
+      "capability": "Text.Binary.Layout.binary-read-u64"
+    },
+    {
+      "declaration": "var BigEndian bigEndian",
+      "capability": "Text.Binary.Layout.BinaryBigEndian"
+    },
+    {
+      "declaration": "var LittleEndian littleEndian",
+      "capability": "Text.Binary.Layout.BinaryLittleEndian"
+    },
+    {
+      "declaration": "var NativeEndian nativeEndian",
+      "capability": "Text.Binary.Layout.BinaryNativeEndian"
+    }
+  ],
+  "fixture_rows": {
+    "arrays": 396,
+    "prefixes": 54,
+    "records": 24,
+    "scalars": 531,
+    "varints": 15
+  },
+  "fixtures_reproduce_byte_for_byte": true,
+  "cli_validation": {
+    "rust": [
+      {
+        "group": "scalars",
+        "cases": 531,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "arrays",
+        "cases": 396,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "records",
+        "cases": 24,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "varints",
+        "cases": 15,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "prefixes",
+        "cases": 54,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "contracts",
+        "cases": 1,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "streams",
+        "cases": 1,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "stress",
+        "cases": 1,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "stream-stress",
+        "cases": 1,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      }
+    ],
+    "native": [
+      {
+        "group": "scalars",
+        "cases": 531,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "arrays",
+        "cases": 396,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "records",
+        "cases": 24,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "varints",
+        "cases": 15,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "prefixes",
+        "cases": 54,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "contracts",
+        "cases": 1,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "streams",
+        "cases": 1,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "stress",
+        "cases": 1,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      },
+      {
+        "group": "stream-stress",
+        "cases": 1,
+        "runs": [
+          {
+            "debug": false,
+            "zero_leaks": true
+          },
+          {
+            "debug": true,
+            "zero_leaks": true
+          }
+        ]
+      }
+    ]
+  },
+  "ownership_modes": {
+    "normal_heap": "32M",
+    "normal_stack": "8M",
+    "poisoned_heap": "256M",
+    "leak_check": true,
+    "all_runs_zero_leaks": true
+  },
+  "canonical_documentation": {
+    "Text.Binary.Layout": 113,
+    "Effect.Binary": 18,
+    "all_declarations_canonical": true,
+    "orphans": 0,
+    "diagnostics": 0,
+    "reference_language_prose": false
+  },
+  "portable_objects": {
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "kernel_source_sha256": "ab03540a6123bc5bfbdf76902f6ca99e5d7dab4cdef35fdb1616d985797239b0",
+    "foreign_execution": false,
+    "objects": [
+      {
+        "target": "wasm32-unknown-unknown",
+        "ir_sha256": "d44fbbf101a9618e4ecb3bd4bcf8add68746ab63b913324b24e70ecdbb88b5e4",
+        "object_sha256": "4d6efed6a83c9d5ef57cda7d6ae5782f588a2fdce42b4f606a032c79075cae6c"
+      },
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "ir_sha256": "d083270f2c9ad7557fee7072a7efe2511c4c68ae9ce92cc1a973035daddb94ae",
+        "object_sha256": "9c1982ad4c39b8294848f4db8e8ad5ff93b30c63e93ee1978c868a31dd8c695f"
+      }
+    ]
+  },
+  "cargo_validation": {
+    "target": "lib_binary_layout",
+    "tests_supplied": 10,
+    "run_in_lane": false,
+    "parent_owned": true,
+    "parent_passed": 13,
+    "semantic_tests": 10,
+    "shared_profile_tests": 3,
+    "seconds": 57.8,
+    "foreign_object_targets": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "powerpc64-unknown-linux-gnu big endian"
+    ],
+    "harness_correction": "Copy the complete source-distributed dependency closure beside Main; library implementations unchanged",
+    "harness_sha256_before": "332155412bcfbe56572b9ab2207bb6c1003a0de10fc2c37f8c7b7b78cf11ae25"
+  },
+  "benchmarks": "benchmarks/stdlib/binary-packed-O2-2026-11-16.json",
+  "limitations": [
+    "Explicit descriptors replace reflection and mutable destinations; unsupported application types require concrete inverse wire views.",
+    "List arrays carry a descriptor-declared fixed count.",
+    "Malformed variable integers return values only on success, plus explicit precise failure counts and advanced stream handles.",
+    "Generic descriptor callbacks, tagged counters and checked-store machinery remain in optimized code; all stores stay within checked Cinch boundaries.",
+    "Foreign objects compile; foreign execution and the supplied big-endian Rust test are not claimed run in this lane.",
+    "Full standard-library initiative remains open."
+  ],
+  "package_review_status": "complete"
+}

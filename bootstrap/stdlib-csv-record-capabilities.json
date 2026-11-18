@@ -1,0 +1,137 @@
+{
+  "reference_package": "encoding/csv",
+  "cinch_modules": [
+    "Text.Csv.Record",
+    "Effect.Csv"
+  ],
+  "legacy_preserved": "Text.Csv",
+  "capabilities": [
+    {
+      "reference": [
+        "NewReader",
+        "Reader.Read",
+        "Reader.ReadAll"
+      ],
+      "apis": [
+        "csv-record-reader",
+        "csv-byte-reader",
+        "csv-reader-read",
+        "csv-byte-reader-read",
+        "csv-reader-read-all",
+        "csv-byte-reader-read-all",
+        "csv-stream-reader",
+        "csv-byte-stream-reader",
+        "csv-stream-read",
+        "csv-byte-stream-read",
+        "csv-stream-read-all",
+        "csv-byte-stream-read-all"
+      ]
+    },
+    {
+      "reference": [
+        "Reader.Comma",
+        "Reader.Comment",
+        "Reader.FieldsPerRecord",
+        "Reader.LazyQuotes",
+        "Reader.TrimLeadingSpace"
+      ],
+      "apis": [
+        "csv-options",
+        "csv-options-delimiter",
+        "csv-options-comment",
+        "csv-options-field-policy",
+        "csv-options-lazy-quotes",
+        "csv-options-trim-leading-space",
+        "csv-reader-configure",
+        "csv-byte-reader-configure",
+        "csv-stream-reader-configure",
+        "csv-byte-stream-reader-configure"
+      ]
+    },
+    {
+      "reference": [
+        "Reader.FieldPos",
+        "Reader.InputOffset"
+      ],
+      "apis": [
+        "csv-record-field-position",
+        "csv-byte-record-field-position",
+        "csv-reader-input-offset",
+        "csv-byte-reader-input-offset",
+        "csv-stream-input-offset",
+        "csv-byte-stream-input-offset"
+      ]
+    },
+    {
+      "reference": [
+        "ParseError",
+        "ParseError.StartLine",
+        "ParseError.Line",
+        "ParseError.Column",
+        "ParseError.Err",
+        "ParseError.Error",
+        "ParseError.Unwrap",
+        "ErrBareQuote",
+        "ErrQuote",
+        "ErrFieldCount"
+      ],
+      "apis": [
+        "CsvRecordError",
+        "CsvBareQuote",
+        "CsvQuote",
+        "CsvUnclosedQuote",
+        "CsvFieldCount",
+        "csv-record-error-start-line",
+        "csv-record-error-line",
+        "csv-record-error-column",
+        "csv-record-error-message"
+      ],
+      "adaptation": "Structured algebraic errors expose causes directly; no exception wrapper required."
+    },
+    {
+      "reference": [
+        "NewWriter",
+        "Writer.Comma",
+        "Writer.UseCRLF",
+        "Writer.Write",
+        "Writer.WriteAll",
+        "Writer.Error",
+        "Writer.Flush"
+      ],
+      "apis": [
+        "csv-stream-writer",
+        "csv-stream-writer-configure",
+        "csv-stream-write",
+        "csv-byte-stream-write",
+        "csv-stream-write-all",
+        "csv-byte-stream-write-all",
+        "csv-stream-writer-error",
+        "csv-stream-flush",
+        "csv-render-record",
+        "csv-render-byte-record",
+        "csv-render-records",
+        "csv-render-byte-records"
+      ],
+      "adaptation": "Synchronous per-record draining; flush observes completion/error. ByteWriter has no borrowed-descriptor flush capability."
+    },
+    {
+      "reference": [
+        "Reader.ReuseRecord"
+      ],
+      "adaptation": "Immutable returned records and copied raw getters preserve retained values; no mutable row-reuse switch."
+    },
+    {
+      "reference": [
+        "Reader.TrailingComma",
+        "ErrTrailingComma"
+      ],
+      "adaptation": "Deprecated policy/error has no active reader semantics; trailing empty fields are accepted and counted."
+    }
+  ],
+  "limits": [
+    "Live streaming storage scales with largest record plus fragment overhead and bounded lookahead, not source length.",
+    "Read-all materializes all returned records.",
+    "Synchronous writer retains one rendered record and cannot flush an underlying borrowed ByteWriter.",
+    "Foreign targets are object-compilation checks, not execution."
+  ]
+}

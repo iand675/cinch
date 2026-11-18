@@ -1,0 +1,1346 @@
+-- | Observe public constant-time primitives with independently captured results.
+module Main where
+  import Crypto.ConstantTime
+  import Data.Bytes
+  import Data.Machine
+  import Data.List
+  import Data.Bool
+  import Data.Nat
+  import Effect.Process
+  -- | Combine complete observations while keeping each group bounded.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+  -- | Fill one prepared input from its public size and deterministic salt.
+  fill :: Bytes -> Nat -> Nat -> Unit
+  fill buffer position salt = if position < bytes-len buffer then
+    let value = (position * 73 + salt * 37 + position / 7) % 256 in
+    let written = if value <= 255 then bytes-set buffer position value else () in fill buffer (position + 1) salt
+    else ()
+  -- | Allocate reproducible input without using an operation under test.
+  pattern :: Nat -> Nat -> Bytes
+  pattern size salt = let buffer = bytes-new size in let filled = fill buffer 0 salt in buffer
+  -- | Hash every output byte in order, including the unchanged destination tail.
+  fingerprint-from :: Bytes -> Nat -> U64 -> U64
+  fingerprint-from buffer position hash = if position < bytes-len buffer then
+    let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get buffer position)) in
+    fingerprint-from buffer (position + 1) (wrapping-mul-u64 (bit-xor-u64 hash byte) 1099511628211)
+    else hash
+  -- | Observe the complete output with a fixed independent rolling hash.
+  fingerprint :: Bytes -> U64
+  fingerprint buffer = fingerprint-from buffer 0 14695981039346656037
+  -- | Keep mismatch construction outside the comparison under test.
+  compare-case :: Nat -> Nat -> Nat -> Bool -> Bool
+  compare-case size other changed expected =
+    let left = pattern size 1 in let right = pattern other 1 in
+    let modified = (if changed < bytes-len right then
+      let old = wrapping-i64-to-u8 (nat-to-i64 (bytes-get right changed)) in
+      bytes-set right changed (u8-to-nat (bit-xor-u8 old 128))
+      else ()) in
+    constant-bytes-equal left right == expected
+  -- | Conditional copying reports exact public lengths before mutating a mismatched destination.
+  copy-case :: Nat -> Nat -> Bool -> Bool -> Bool -> U64 -> Bool
+  copy-case size count selected alias failed expected =
+    let destination = pattern size (if alias then 1 else 2) in
+    let source = if alias then destination else pattern count 1 in
+    let outcome = constant-copy selected destination source in
+    let status = (case outcome of
+      Ok unit -> not failed
+      Err (ConstantTimeLengthMismatch got needed) -> failed && got == size && needed == count
+      other -> False) in
+    status && fingerprint destination == expected
+  -- | XOR handles either exact source alias and preserves short-destination atomicity.
+  xor-case :: Nat -> Nat -> Nat -> Nat -> Bool -> Nat -> U64 -> Bool
+  xor-case size left-size right-size alias failed count expected =
+    let left = pattern left-size 1 in let right = pattern right-size 2 in
+    let destination = if alias == 1 then left else if alias == 2 then right else pattern size 3 in
+    let outcome = xor-bytes destination left right in
+    let status = (case outcome of
+      Ok written -> not failed && written == count
+      Err (ConstantTimeShortDestination needed got) -> failed && got == size && needed == (if left-size <= right-size then left-size else right-size)
+      other -> False) in
+    status && fingerprint destination == expected
+  -- | Exhaust every byte pair through the actual public primitive.
+  byte-equalities :: U32 -> U32 -> U64 -> U64
+  byte-equalities left right hash = if left < 256 then
+    if right < 256 then
+      let same = constant-byte-equal (wrapping-u32-to-u8 left) (wrapping-u32-to-u8 right) in
+      let observed = ((if same then 1 else 0) :: U64) in
+      byte-equalities left (wrapping-add-u32 right 1) (wrapping-mul-u64 (bit-xor-u64 hash observed) 1099511628211)
+    else byte-equalities (wrapping-add-u32 left 1) 0 hash
+    else hash
+
+  -- | Observe complete independent result group 0.
+  group0 :: Unit -> Bool
+  group0 unit = all [
+    (byte-equalities 0 0 14695981039346656037 == (3152643677380658213 :: U64)),
+    (constant-i32-equal (-2147483648 :: I32) (-2147483648 :: I32) == True),
+    (constant-i32-equal (-2147483648 :: I32) (-2147483647 :: I32) == False),
+    (constant-i32-equal (-2147483648 :: I32) (-256 :: I32) == False),
+    (constant-i32-equal (-2147483648 :: I32) (-1 :: I32) == False),
+    (constant-i32-equal (-2147483648 :: I32) (0 :: I32) == False),
+    (constant-i32-equal (-2147483648 :: I32) (1 :: I32) == False),
+    (constant-i32-equal (-2147483648 :: I32) (255 :: I32) == False),
+    (constant-i32-equal (-2147483648 :: I32) (256 :: I32) == False),
+    (constant-i32-equal (-2147483648 :: I32) (2147483646 :: I32) == False),
+    (constant-i32-equal (-2147483648 :: I32) (2147483647 :: I32) == False),
+    (constant-i32-equal (-2147483647 :: I32) (-2147483648 :: I32) == False),
+    (constant-i32-equal (-2147483647 :: I32) (-2147483647 :: I32) == True),
+    (constant-i32-equal (-2147483647 :: I32) (-256 :: I32) == False),
+    (constant-i32-equal (-2147483647 :: I32) (-1 :: I32) == False),
+    (constant-i32-equal (-2147483647 :: I32) (0 :: I32) == False)
+    ]
+
+  -- | Observe complete independent result group 1.
+  group1 :: Unit -> Bool
+  group1 unit = all [
+    (constant-i32-equal (-2147483647 :: I32) (1 :: I32) == False),
+    (constant-i32-equal (-2147483647 :: I32) (255 :: I32) == False),
+    (constant-i32-equal (-2147483647 :: I32) (256 :: I32) == False),
+    (constant-i32-equal (-2147483647 :: I32) (2147483646 :: I32) == False),
+    (constant-i32-equal (-2147483647 :: I32) (2147483647 :: I32) == False),
+    (constant-i32-equal (-256 :: I32) (-2147483648 :: I32) == False),
+    (constant-i32-equal (-256 :: I32) (-2147483647 :: I32) == False),
+    (constant-i32-equal (-256 :: I32) (-256 :: I32) == True),
+    (constant-i32-equal (-256 :: I32) (-1 :: I32) == False),
+    (constant-i32-equal (-256 :: I32) (0 :: I32) == False),
+    (constant-i32-equal (-256 :: I32) (1 :: I32) == False),
+    (constant-i32-equal (-256 :: I32) (255 :: I32) == False),
+    (constant-i32-equal (-256 :: I32) (256 :: I32) == False),
+    (constant-i32-equal (-256 :: I32) (2147483646 :: I32) == False),
+    (constant-i32-equal (-256 :: I32) (2147483647 :: I32) == False),
+    (constant-i32-equal (-1 :: I32) (-2147483648 :: I32) == False)
+    ]
+
+  -- | Observe complete independent result group 2.
+  group2 :: Unit -> Bool
+  group2 unit = all [
+    (constant-i32-equal (-1 :: I32) (-2147483647 :: I32) == False),
+    (constant-i32-equal (-1 :: I32) (-256 :: I32) == False),
+    (constant-i32-equal (-1 :: I32) (-1 :: I32) == True),
+    (constant-i32-equal (-1 :: I32) (0 :: I32) == False),
+    (constant-i32-equal (-1 :: I32) (1 :: I32) == False),
+    (constant-i32-equal (-1 :: I32) (255 :: I32) == False),
+    (constant-i32-equal (-1 :: I32) (256 :: I32) == False),
+    (constant-i32-equal (-1 :: I32) (2147483646 :: I32) == False),
+    (constant-i32-equal (-1 :: I32) (2147483647 :: I32) == False),
+    (constant-i32-equal (0 :: I32) (-2147483648 :: I32) == False),
+    (constant-i32-equal (0 :: I32) (-2147483647 :: I32) == False),
+    (constant-i32-equal (0 :: I32) (-256 :: I32) == False),
+    (constant-i32-equal (0 :: I32) (-1 :: I32) == False),
+    (constant-i32-equal (0 :: I32) (0 :: I32) == True),
+    (constant-i32-equal (0 :: I32) (1 :: I32) == False),
+    (constant-i32-equal (0 :: I32) (255 :: I32) == False)
+    ]
+
+  -- | Observe complete independent result group 3.
+  group3 :: Unit -> Bool
+  group3 unit = all [
+    (constant-i32-equal (0 :: I32) (256 :: I32) == False),
+    (constant-i32-equal (0 :: I32) (2147483646 :: I32) == False),
+    (constant-i32-equal (0 :: I32) (2147483647 :: I32) == False),
+    (constant-i32-equal (1 :: I32) (-2147483648 :: I32) == False),
+    (constant-i32-equal (1 :: I32) (-2147483647 :: I32) == False),
+    (constant-i32-equal (1 :: I32) (-256 :: I32) == False),
+    (constant-i32-equal (1 :: I32) (-1 :: I32) == False),
+    (constant-i32-equal (1 :: I32) (0 :: I32) == False),
+    (constant-i32-equal (1 :: I32) (1 :: I32) == True),
+    (constant-i32-equal (1 :: I32) (255 :: I32) == False),
+    (constant-i32-equal (1 :: I32) (256 :: I32) == False),
+    (constant-i32-equal (1 :: I32) (2147483646 :: I32) == False),
+    (constant-i32-equal (1 :: I32) (2147483647 :: I32) == False),
+    (constant-i32-equal (255 :: I32) (-2147483648 :: I32) == False),
+    (constant-i32-equal (255 :: I32) (-2147483647 :: I32) == False),
+    (constant-i32-equal (255 :: I32) (-256 :: I32) == False)
+    ]
+
+  -- | Observe complete independent result group 4.
+  group4 :: Unit -> Bool
+  group4 unit = all [
+    (constant-i32-equal (255 :: I32) (-1 :: I32) == False),
+    (constant-i32-equal (255 :: I32) (0 :: I32) == False),
+    (constant-i32-equal (255 :: I32) (1 :: I32) == False),
+    (constant-i32-equal (255 :: I32) (255 :: I32) == True),
+    (constant-i32-equal (255 :: I32) (256 :: I32) == False),
+    (constant-i32-equal (255 :: I32) (2147483646 :: I32) == False),
+    (constant-i32-equal (255 :: I32) (2147483647 :: I32) == False),
+    (constant-i32-equal (256 :: I32) (-2147483648 :: I32) == False),
+    (constant-i32-equal (256 :: I32) (-2147483647 :: I32) == False),
+    (constant-i32-equal (256 :: I32) (-256 :: I32) == False),
+    (constant-i32-equal (256 :: I32) (-1 :: I32) == False),
+    (constant-i32-equal (256 :: I32) (0 :: I32) == False),
+    (constant-i32-equal (256 :: I32) (1 :: I32) == False),
+    (constant-i32-equal (256 :: I32) (255 :: I32) == False),
+    (constant-i32-equal (256 :: I32) (256 :: I32) == True),
+    (constant-i32-equal (256 :: I32) (2147483646 :: I32) == False)
+    ]
+
+  -- | Observe complete independent result group 5.
+  group5 :: Unit -> Bool
+  group5 unit = all [
+    (constant-i32-equal (256 :: I32) (2147483647 :: I32) == False),
+    (constant-i32-equal (2147483646 :: I32) (-2147483648 :: I32) == False),
+    (constant-i32-equal (2147483646 :: I32) (-2147483647 :: I32) == False),
+    (constant-i32-equal (2147483646 :: I32) (-256 :: I32) == False),
+    (constant-i32-equal (2147483646 :: I32) (-1 :: I32) == False),
+    (constant-i32-equal (2147483646 :: I32) (0 :: I32) == False),
+    (constant-i32-equal (2147483646 :: I32) (1 :: I32) == False),
+    (constant-i32-equal (2147483646 :: I32) (255 :: I32) == False),
+    (constant-i32-equal (2147483646 :: I32) (256 :: I32) == False),
+    (constant-i32-equal (2147483646 :: I32) (2147483646 :: I32) == True),
+    (constant-i32-equal (2147483646 :: I32) (2147483647 :: I32) == False),
+    (constant-i32-equal (2147483647 :: I32) (-2147483648 :: I32) == False),
+    (constant-i32-equal (2147483647 :: I32) (-2147483647 :: I32) == False),
+    (constant-i32-equal (2147483647 :: I32) (-256 :: I32) == False),
+    (constant-i32-equal (2147483647 :: I32) (-1 :: I32) == False),
+    (constant-i32-equal (2147483647 :: I32) (0 :: I32) == False)
+    ]
+
+  -- | Observe complete independent result group 6.
+  group6 :: Unit -> Bool
+  group6 unit = all [
+    (constant-i32-equal (2147483647 :: I32) (1 :: I32) == False),
+    (constant-i32-equal (2147483647 :: I32) (255 :: I32) == False),
+    (constant-i32-equal (2147483647 :: I32) (256 :: I32) == False),
+    (constant-i32-equal (2147483647 :: I32) (2147483646 :: I32) == False),
+    (constant-i32-equal (2147483647 :: I32) (2147483647 :: I32) == True),
+    (constant-select False (-9223372036854775808 :: I64) (-9223372036854775808 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select False (-9223372036854775808 :: I64) (-2147483648 :: I64) == (-2147483648 :: I64)),
+    (constant-select False (-9223372036854775808 :: I64) (-1 :: I64) == (-1 :: I64)),
+    (constant-select False (-9223372036854775808 :: I64) (0 :: I64) == (0 :: I64)),
+    (constant-select False (-9223372036854775808 :: I64) (1 :: I64) == (1 :: I64)),
+    (constant-select False (-9223372036854775808 :: I64) (2147483647 :: I64) == (2147483647 :: I64)),
+    (constant-select False (-9223372036854775808 :: I64) (9223372036854775807 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select False (-2147483648 :: I64) (-9223372036854775808 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select False (-2147483648 :: I64) (-2147483648 :: I64) == (-2147483648 :: I64)),
+    (constant-select False (-2147483648 :: I64) (-1 :: I64) == (-1 :: I64)),
+    (constant-select False (-2147483648 :: I64) (0 :: I64) == (0 :: I64))
+    ]
+
+  -- | Observe complete independent result group 7.
+  group7 :: Unit -> Bool
+  group7 unit = all [
+    (constant-select False (-2147483648 :: I64) (1 :: I64) == (1 :: I64)),
+    (constant-select False (-2147483648 :: I64) (2147483647 :: I64) == (2147483647 :: I64)),
+    (constant-select False (-2147483648 :: I64) (9223372036854775807 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select False (-1 :: I64) (-9223372036854775808 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select False (-1 :: I64) (-2147483648 :: I64) == (-2147483648 :: I64)),
+    (constant-select False (-1 :: I64) (-1 :: I64) == (-1 :: I64)),
+    (constant-select False (-1 :: I64) (0 :: I64) == (0 :: I64)),
+    (constant-select False (-1 :: I64) (1 :: I64) == (1 :: I64)),
+    (constant-select False (-1 :: I64) (2147483647 :: I64) == (2147483647 :: I64)),
+    (constant-select False (-1 :: I64) (9223372036854775807 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select False (0 :: I64) (-9223372036854775808 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select False (0 :: I64) (-2147483648 :: I64) == (-2147483648 :: I64)),
+    (constant-select False (0 :: I64) (-1 :: I64) == (-1 :: I64)),
+    (constant-select False (0 :: I64) (0 :: I64) == (0 :: I64)),
+    (constant-select False (0 :: I64) (1 :: I64) == (1 :: I64)),
+    (constant-select False (0 :: I64) (2147483647 :: I64) == (2147483647 :: I64))
+    ]
+
+  -- | Observe complete independent result group 8.
+  group8 :: Unit -> Bool
+  group8 unit = all [
+    (constant-select False (0 :: I64) (9223372036854775807 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select False (1 :: I64) (-9223372036854775808 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select False (1 :: I64) (-2147483648 :: I64) == (-2147483648 :: I64)),
+    (constant-select False (1 :: I64) (-1 :: I64) == (-1 :: I64)),
+    (constant-select False (1 :: I64) (0 :: I64) == (0 :: I64)),
+    (constant-select False (1 :: I64) (1 :: I64) == (1 :: I64)),
+    (constant-select False (1 :: I64) (2147483647 :: I64) == (2147483647 :: I64)),
+    (constant-select False (1 :: I64) (9223372036854775807 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select False (2147483647 :: I64) (-9223372036854775808 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select False (2147483647 :: I64) (-2147483648 :: I64) == (-2147483648 :: I64)),
+    (constant-select False (2147483647 :: I64) (-1 :: I64) == (-1 :: I64)),
+    (constant-select False (2147483647 :: I64) (0 :: I64) == (0 :: I64)),
+    (constant-select False (2147483647 :: I64) (1 :: I64) == (1 :: I64)),
+    (constant-select False (2147483647 :: I64) (2147483647 :: I64) == (2147483647 :: I64)),
+    (constant-select False (2147483647 :: I64) (9223372036854775807 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select False (9223372036854775807 :: I64) (-9223372036854775808 :: I64) == (-9223372036854775808 :: I64))
+    ]
+
+  -- | Observe complete independent result group 9.
+  group9 :: Unit -> Bool
+  group9 unit = all [
+    (constant-select False (9223372036854775807 :: I64) (-2147483648 :: I64) == (-2147483648 :: I64)),
+    (constant-select False (9223372036854775807 :: I64) (-1 :: I64) == (-1 :: I64)),
+    (constant-select False (9223372036854775807 :: I64) (0 :: I64) == (0 :: I64)),
+    (constant-select False (9223372036854775807 :: I64) (1 :: I64) == (1 :: I64)),
+    (constant-select False (9223372036854775807 :: I64) (2147483647 :: I64) == (2147483647 :: I64)),
+    (constant-select False (9223372036854775807 :: I64) (9223372036854775807 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select True (-9223372036854775808 :: I64) (-9223372036854775808 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select True (-9223372036854775808 :: I64) (-2147483648 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select True (-9223372036854775808 :: I64) (-1 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select True (-9223372036854775808 :: I64) (0 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select True (-9223372036854775808 :: I64) (1 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select True (-9223372036854775808 :: I64) (2147483647 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select True (-9223372036854775808 :: I64) (9223372036854775807 :: I64) == (-9223372036854775808 :: I64)),
+    (constant-select True (-2147483648 :: I64) (-9223372036854775808 :: I64) == (-2147483648 :: I64)),
+    (constant-select True (-2147483648 :: I64) (-2147483648 :: I64) == (-2147483648 :: I64)),
+    (constant-select True (-2147483648 :: I64) (-1 :: I64) == (-2147483648 :: I64))
+    ]
+
+  -- | Observe complete independent result group 10.
+  group10 :: Unit -> Bool
+  group10 unit = all [
+    (constant-select True (-2147483648 :: I64) (0 :: I64) == (-2147483648 :: I64)),
+    (constant-select True (-2147483648 :: I64) (1 :: I64) == (-2147483648 :: I64)),
+    (constant-select True (-2147483648 :: I64) (2147483647 :: I64) == (-2147483648 :: I64)),
+    (constant-select True (-2147483648 :: I64) (9223372036854775807 :: I64) == (-2147483648 :: I64)),
+    (constant-select True (-1 :: I64) (-9223372036854775808 :: I64) == (-1 :: I64)),
+    (constant-select True (-1 :: I64) (-2147483648 :: I64) == (-1 :: I64)),
+    (constant-select True (-1 :: I64) (-1 :: I64) == (-1 :: I64)),
+    (constant-select True (-1 :: I64) (0 :: I64) == (-1 :: I64)),
+    (constant-select True (-1 :: I64) (1 :: I64) == (-1 :: I64)),
+    (constant-select True (-1 :: I64) (2147483647 :: I64) == (-1 :: I64)),
+    (constant-select True (-1 :: I64) (9223372036854775807 :: I64) == (-1 :: I64)),
+    (constant-select True (0 :: I64) (-9223372036854775808 :: I64) == (0 :: I64)),
+    (constant-select True (0 :: I64) (-2147483648 :: I64) == (0 :: I64)),
+    (constant-select True (0 :: I64) (-1 :: I64) == (0 :: I64)),
+    (constant-select True (0 :: I64) (0 :: I64) == (0 :: I64)),
+    (constant-select True (0 :: I64) (1 :: I64) == (0 :: I64))
+    ]
+
+  -- | Observe complete independent result group 11.
+  group11 :: Unit -> Bool
+  group11 unit = all [
+    (constant-select True (0 :: I64) (2147483647 :: I64) == (0 :: I64)),
+    (constant-select True (0 :: I64) (9223372036854775807 :: I64) == (0 :: I64)),
+    (constant-select True (1 :: I64) (-9223372036854775808 :: I64) == (1 :: I64)),
+    (constant-select True (1 :: I64) (-2147483648 :: I64) == (1 :: I64)),
+    (constant-select True (1 :: I64) (-1 :: I64) == (1 :: I64)),
+    (constant-select True (1 :: I64) (0 :: I64) == (1 :: I64)),
+    (constant-select True (1 :: I64) (1 :: I64) == (1 :: I64)),
+    (constant-select True (1 :: I64) (2147483647 :: I64) == (1 :: I64)),
+    (constant-select True (1 :: I64) (9223372036854775807 :: I64) == (1 :: I64)),
+    (constant-select True (2147483647 :: I64) (-9223372036854775808 :: I64) == (2147483647 :: I64)),
+    (constant-select True (2147483647 :: I64) (-2147483648 :: I64) == (2147483647 :: I64)),
+    (constant-select True (2147483647 :: I64) (-1 :: I64) == (2147483647 :: I64)),
+    (constant-select True (2147483647 :: I64) (0 :: I64) == (2147483647 :: I64)),
+    (constant-select True (2147483647 :: I64) (1 :: I64) == (2147483647 :: I64)),
+    (constant-select True (2147483647 :: I64) (2147483647 :: I64) == (2147483647 :: I64)),
+    (constant-select True (2147483647 :: I64) (9223372036854775807 :: I64) == (2147483647 :: I64))
+    ]
+
+  -- | Observe complete independent result group 12.
+  group12 :: Unit -> Bool
+  group12 unit = all [
+    (constant-select True (9223372036854775807 :: I64) (-9223372036854775808 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select True (9223372036854775807 :: I64) (-2147483648 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select True (9223372036854775807 :: I64) (-1 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select True (9223372036854775807 :: I64) (0 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select True (9223372036854775807 :: I64) (1 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select True (9223372036854775807 :: I64) (2147483647 :: I64) == (9223372036854775807 :: I64)),
+    (constant-select True (9223372036854775807 :: I64) (9223372036854775807 :: I64) == (9223372036854775807 :: I64)),
+    (constant-less-or-equal 0 0 == True),
+    (constant-less-or-equal 0 1 == True),
+    (constant-less-or-equal 0 2 == True),
+    (constant-less-or-equal 0 255 == True),
+    (constant-less-or-equal 0 256 == True),
+    (constant-less-or-equal 0 65535 == True),
+    (constant-less-or-equal 0 2147483646 == True),
+    (constant-less-or-equal 0 2147483647 == True),
+    (constant-less-or-equal 1 0 == False)
+    ]
+
+  -- | Observe complete independent result group 13.
+  group13 :: Unit -> Bool
+  group13 unit = all [
+    (constant-less-or-equal 1 1 == True),
+    (constant-less-or-equal 1 2 == True),
+    (constant-less-or-equal 1 255 == True),
+    (constant-less-or-equal 1 256 == True),
+    (constant-less-or-equal 1 65535 == True),
+    (constant-less-or-equal 1 2147483646 == True),
+    (constant-less-or-equal 1 2147483647 == True),
+    (constant-less-or-equal 2 0 == False),
+    (constant-less-or-equal 2 1 == False),
+    (constant-less-or-equal 2 2 == True),
+    (constant-less-or-equal 2 255 == True),
+    (constant-less-or-equal 2 256 == True),
+    (constant-less-or-equal 2 65535 == True),
+    (constant-less-or-equal 2 2147483646 == True),
+    (constant-less-or-equal 2 2147483647 == True),
+    (constant-less-or-equal 255 0 == False)
+    ]
+
+  -- | Observe complete independent result group 14.
+  group14 :: Unit -> Bool
+  group14 unit = all [
+    (constant-less-or-equal 255 1 == False),
+    (constant-less-or-equal 255 2 == False),
+    (constant-less-or-equal 255 255 == True),
+    (constant-less-or-equal 255 256 == True),
+    (constant-less-or-equal 255 65535 == True),
+    (constant-less-or-equal 255 2147483646 == True),
+    (constant-less-or-equal 255 2147483647 == True),
+    (constant-less-or-equal 256 0 == False),
+    (constant-less-or-equal 256 1 == False),
+    (constant-less-or-equal 256 2 == False),
+    (constant-less-or-equal 256 255 == False),
+    (constant-less-or-equal 256 256 == True),
+    (constant-less-or-equal 256 65535 == True),
+    (constant-less-or-equal 256 2147483646 == True),
+    (constant-less-or-equal 256 2147483647 == True),
+    (constant-less-or-equal 65535 0 == False)
+    ]
+
+  -- | Observe complete independent result group 15.
+  group15 :: Unit -> Bool
+  group15 unit = all [
+    (constant-less-or-equal 65535 1 == False),
+    (constant-less-or-equal 65535 2 == False),
+    (constant-less-or-equal 65535 255 == False),
+    (constant-less-or-equal 65535 256 == False),
+    (constant-less-or-equal 65535 65535 == True),
+    (constant-less-or-equal 65535 2147483646 == True),
+    (constant-less-or-equal 65535 2147483647 == True),
+    (constant-less-or-equal 2147483646 0 == False),
+    (constant-less-or-equal 2147483646 1 == False),
+    (constant-less-or-equal 2147483646 2 == False),
+    (constant-less-or-equal 2147483646 255 == False),
+    (constant-less-or-equal 2147483646 256 == False),
+    (constant-less-or-equal 2147483646 65535 == False),
+    (constant-less-or-equal 2147483646 2147483646 == True),
+    (constant-less-or-equal 2147483646 2147483647 == True),
+    (constant-less-or-equal 2147483647 0 == False)
+    ]
+
+  -- | Observe complete independent result group 16.
+  group16 :: Unit -> Bool
+  group16 unit = all [
+    (constant-less-or-equal 2147483647 1 == False),
+    (constant-less-or-equal 2147483647 2 == False),
+    (constant-less-or-equal 2147483647 255 == False),
+    (constant-less-or-equal 2147483647 256 == False),
+    (constant-less-or-equal 2147483647 65535 == False),
+    (constant-less-or-equal 2147483647 2147483646 == False),
+    (constant-less-or-equal 2147483647 2147483647 == True),
+    (compare-case 0 0 1 True),
+    (compare-case 0 0 0 True),
+    (compare-case 0 0 0 True),
+    (compare-case 0 0 1 True),
+    (compare-case 0 1 2 False),
+    (copy-case 0 0 False False False 14695981039346656037),
+    (copy-case 1 0 False False True 12638234479555655069),
+    (copy-case 0 0 False True False 14695981039346656037),
+    (copy-case 0 0 True False False 14695981039346656037)
+    ]
+
+  -- | Observe complete independent result group 17.
+  group17 :: Unit -> Bool
+  group17 unit = all [
+    (copy-case 1 0 True False True 12638234479555655069),
+    (copy-case 0 0 True True False 14695981039346656037),
+    (xor-case 0 0 0 0 False 0 14695981039346656037),
+    (xor-case 3 0 0 0 False 0 1682809251283843753),
+    (xor-case 0 0 0 1 False 0 14695981039346656037),
+    (xor-case 0 0 0 2 False 0 14695981039346656037),
+    (xor-case 0 0 0 0 False 0 14695981039346656037),
+    (xor-case 3 0 0 0 False 0 1682809251283843753),
+    (xor-case 0 0 0 1 False 0 14695981039346656037),
+    (xor-case 0 0 0 2 False 0 14695981039346656037),
+    (xor-case 0 0 0 0 False 0 14695981039346656037),
+    (xor-case 3 0 0 0 False 0 1682809251283843753),
+    (xor-case 0 0 0 1 False 0 14695981039346656037),
+    (xor-case 0 0 0 2 False 0 14695981039346656037),
+    (xor-case 0 0 1 0 False 0 14695981039346656037),
+    (xor-case 3 0 1 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 18.
+  group18 :: Unit -> Bool
+  group18 unit = all [
+    (xor-case 0 0 1 1 False 0 14695981039346656037),
+    (xor-case 1 0 1 2 False 0 12638234479555655069),
+    (compare-case 1 1 2 True),
+    (compare-case 1 1 0 False),
+    (compare-case 1 1 0 False),
+    (compare-case 1 1 0 False),
+    (compare-case 1 2 3 False),
+    (copy-case 0 1 False False True 14695981039346656037),
+    (copy-case 1 1 False False False 12638234479555655069),
+    (copy-case 2 1 False False True 661313396267820746),
+    (copy-case 1 1 False True False 12638112433764923648),
+    (copy-case 0 1 True False True 14695981039346656037),
+    (copy-case 1 1 True False False 12638112433764923648),
+    (copy-case 2 1 True False True 661313396267820746),
+    (copy-case 1 1 True True False 12638112433764923648),
+    (xor-case 0 1 0 0 False 0 14695981039346656037)
+    ]
+
+  -- | Observe complete independent result group 19.
+  group19 :: Unit -> Bool
+  group19 unit = all [
+    (xor-case 3 1 0 0 False 0 1682809251283843753),
+    (xor-case 1 1 0 1 False 0 12638112433764923648),
+    (xor-case 0 1 0 2 False 0 14695981039346656037),
+    (xor-case 0 1 0 0 False 0 14695981039346656037),
+    (xor-case 3 1 0 0 False 0 1682809251283843753),
+    (xor-case 1 1 0 1 False 0 12638112433764923648),
+    (xor-case 0 1 0 2 False 0 14695981039346656037),
+    (xor-case 0 1 1 0 True 0 14695981039346656037),
+    (xor-case 1 1 1 0 False 1 12638193797625411262),
+    (xor-case 4 1 1 0 False 1 3644410113866239929),
+    (xor-case 1 1 1 1 False 1 12638193797625411262),
+    (xor-case 1 1 1 2 False 1 12638193797625411262),
+    (xor-case 0 1 2 0 True 0 14695981039346656037),
+    (xor-case 1 1 2 0 False 1 12638193797625411262),
+    (xor-case 4 1 2 0 False 1 3644410113866239929),
+    (xor-case 1 1 2 1 False 1 12638193797625411262)
+    ]
+
+  -- | Observe complete independent result group 20.
+  group20 :: Unit -> Bool
+  group20 unit = all [
+    (xor-case 2 1 2 2 False 1 625917917939453559),
+    (compare-case 2 2 3 True),
+    (compare-case 2 2 0 False),
+    (compare-case 2 2 1 False),
+    (compare-case 2 2 1 False),
+    (compare-case 2 3 4 False),
+    (copy-case 1 2 False False True 12638234479555655069),
+    (copy-case 2 2 False False False 661313396267820746),
+    (copy-case 3 2 False False True 6369200490802100066),
+    (copy-case 2 2 False True False 555411734794425834),
+    (copy-case 1 2 True False True 12638234479555655069),
+    (copy-case 2 2 True False False 555411734794425834),
+    (copy-case 3 2 True False True 6369200490802100066),
+    (copy-case 2 2 True True False 555411734794425834),
+    (xor-case 0 2 0 0 False 0 14695981039346656037),
+    (xor-case 3 2 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 21.
+  group21 :: Unit -> Bool
+  group21 unit = all [
+    (xor-case 2 2 0 1 False 0 555411734794425834),
+    (xor-case 0 2 0 2 False 0 14695981039346656037),
+    (xor-case 0 2 1 0 True 0 14695981039346656037),
+    (xor-case 1 2 1 0 False 1 12638193797625411262),
+    (xor-case 4 2 1 0 False 1 3644410113866239929),
+    (xor-case 2 2 1 1 False 1 626097138334851952),
+    (xor-case 1 2 1 2 False 1 12638193797625411262),
+    (xor-case 1 2 2 0 True 0 12638193797625411262),
+    (xor-case 2 2 2 0 False 2 625942107195274201),
+    (xor-case 5 2 2 0 False 2 15325376779541355407),
+    (xor-case 2 2 2 1 False 2 625942107195274201),
+    (xor-case 2 2 2 2 False 2 625942107195274201),
+    (xor-case 1 2 3 0 True 0 12638193797625411262),
+    (xor-case 2 2 3 0 False 2 625942107195274201),
+    (xor-case 5 2 3 0 False 2 15325376779541355407),
+    (xor-case 2 2 3 1 False 2 625942107195274201)
+    ]
+
+  -- | Observe complete independent result group 22.
+  group22 :: Unit -> Bool
+  group22 unit = all [
+    (xor-case 3 2 3 2 False 2 1740926137404649855),
+    (compare-case 3 3 4 True),
+    (compare-case 3 3 0 False),
+    (compare-case 3 3 1 False),
+    (compare-case 3 3 2 False),
+    (compare-case 3 4 5 False),
+    (copy-case 2 3 False False True 661313396267820746),
+    (copy-case 3 3 False False False 6369200490802100066),
+    (copy-case 4 3 False False True 12865562465399172517),
+    (copy-case 3 3 False True False 11115888935845498119),
+    (copy-case 2 3 True False True 661313396267820746),
+    (copy-case 3 3 True False False 11115888935845498119),
+    (copy-case 4 3 True False True 12865562465399172517),
+    (copy-case 3 3 True True False 11115888935845498119),
+    (xor-case 0 3 0 0 False 0 14695981039346656037),
+    (xor-case 3 3 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 23.
+  group23 :: Unit -> Bool
+  group23 unit = all [
+    (xor-case 3 3 0 1 False 0 11115888935845498119),
+    (xor-case 0 3 0 2 False 0 14695981039346656037),
+    (xor-case 0 3 1 0 True 0 14695981039346656037),
+    (xor-case 1 3 1 0 False 1 12638193797625411262),
+    (xor-case 4 3 1 0 False 1 3644410113866239929),
+    (xor-case 3 3 1 1 False 1 1876131982787447589),
+    (xor-case 1 3 1 2 False 1 12638193797625411262),
+    (xor-case 2 3 3 0 True 0 625875036985953330),
+    (xor-case 3 3 3 0 False 3 1741116352916330358),
+    (xor-case 6 3 3 0 False 3 5342929034476115899),
+    (xor-case 3 3 3 1 False 3 1741116352916330358),
+    (xor-case 3 3 3 2 False 3 1741116352916330358),
+    (xor-case 2 3 4 0 True 0 625875036985953330),
+    (xor-case 3 3 4 0 False 3 1741116352916330358),
+    (xor-case 6 3 4 0 False 3 5342929034476115899),
+    (xor-case 3 3 4 1 False 3 1741116352916330358)
+    ]
+
+  -- | Observe complete independent result group 24.
+  group24 :: Unit -> Bool
+  group24 unit = all [
+    (xor-case 4 3 4 2 False 3 4786637773394813449),
+    (compare-case 7 7 8 True),
+    (compare-case 7 7 0 False),
+    (compare-case 7 7 3 False),
+    (compare-case 7 7 6 False),
+    (compare-case 7 8 9 False),
+    (copy-case 6 7 False False True 2309389045082387442),
+    (copy-case 7 7 False False False 14257297857692632118),
+    (copy-case 8 7 False False True 16862246090099302068),
+    (copy-case 7 7 False True False 15212823713571215515),
+    (copy-case 6 7 True False True 2309389045082387442),
+    (copy-case 7 7 True False False 15212823713571215515),
+    (copy-case 8 7 True False True 16862246090099302068),
+    (copy-case 7 7 True True False 15212823713571215515),
+    (xor-case 0 7 0 0 False 0 14695981039346656037),
+    (xor-case 3 7 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 25.
+  group25 :: Unit -> Bool
+  group25 unit = all [
+    (xor-case 7 7 0 1 False 0 15212823713571215515),
+    (xor-case 0 7 0 2 False 0 14695981039346656037),
+    (xor-case 2 7 3 0 True 0 625875036985953330),
+    (xor-case 3 7 3 0 False 3 1741116352916330358),
+    (xor-case 6 7 3 0 False 3 5342929034476115899),
+    (xor-case 7 7 3 1 False 3 9800498141943836422),
+    (xor-case 3 7 3 2 False 3 1741116352916330358),
+    (xor-case 6 7 7 0 True 0 3488290618376153318),
+    (xor-case 7 7 7 0 False 7 8245490575973992722),
+    (xor-case 10 7 7 0 False 7 4466689326501860868),
+    (xor-case 7 7 7 1 False 7 8245490575973992722),
+    (xor-case 7 7 7 2 False 7 8245490575973992722),
+    (xor-case 6 7 8 0 True 0 3488290618376153318),
+    (xor-case 7 7 8 0 False 7 8245490575973992722),
+    (xor-case 10 7 8 0 False 7 4466689326501860868),
+    (xor-case 7 7 8 1 False 7 8245490575973992722)
+    ]
+
+  -- | Observe complete independent result group 26.
+  group26 :: Unit -> Bool
+  group26 unit = all [
+    (xor-case 8 7 8 2 False 7 3709152646024405128),
+    (compare-case 8 8 9 True),
+    (compare-case 8 8 0 False),
+    (compare-case 8 8 4 False),
+    (compare-case 8 8 7 False),
+    (compare-case 8 9 10 False),
+    (copy-case 7 8 False False True 14257297857692632118),
+    (copy-case 8 8 False False False 16862246090099302068),
+    (copy-case 9 8 False False True 4126062889757752389),
+    (copy-case 8 8 False True False 14587650044602682074),
+    (copy-case 7 8 True False True 14257297857692632118),
+    (copy-case 8 8 True False False 14587650044602682074),
+    (copy-case 9 8 True False True 4126062889757752389),
+    (copy-case 8 8 True True False 14587650044602682074),
+    (xor-case 0 8 0 0 False 0 14695981039346656037),
+    (xor-case 3 8 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 27.
+  group27 :: Unit -> Bool
+  group27 unit = all [
+    (xor-case 8 8 0 1 False 0 14587650044602682074),
+    (xor-case 0 8 0 2 False 0 14695981039346656037),
+    (xor-case 3 8 4 0 True 0 1682809251283843753),
+    (xor-case 4 8 4 0 False 4 4786637773394813449),
+    (xor-case 7 8 4 0 False 4 1836712184458145737),
+    (xor-case 8 8 4 1 False 4 11841704232689595510),
+    (xor-case 4 8 4 2 False 4 4786637773394813449),
+    (xor-case 7 8 8 0 True 0 16548280579971023705),
+    (xor-case 8 8 8 0 False 8 3709193327954648935),
+    (xor-case 11 8 8 0 False 8 9278541637870020234),
+    (xor-case 8 8 8 1 False 8 3709193327954648935),
+    (xor-case 8 8 8 2 False 8 3709193327954648935),
+    (xor-case 7 8 9 0 True 0 16548280579971023705),
+    (xor-case 8 8 9 0 False 8 3709193327954648935),
+    (xor-case 11 8 9 0 False 8 9278541637870020234),
+    (xor-case 8 8 9 1 False 8 3709193327954648935)
+    ]
+
+  -- | Observe complete independent result group 28.
+  group28 :: Unit -> Bool
+  group28 unit = all [
+    (xor-case 9 8 9 2 False 8 8371141275014335388),
+    (compare-case 9 9 10 True),
+    (compare-case 9 9 0 False),
+    (compare-case 9 9 4 False),
+    (compare-case 9 9 8 False),
+    (compare-case 9 10 11 False),
+    (copy-case 8 9 False False True 16862246090099302068),
+    (copy-case 9 9 False False False 4126062889757752389),
+    (copy-case 10 9 False False True 4259230723013769211),
+    (copy-case 9 9 False True False 4634564320406351836),
+    (copy-case 8 9 True False True 16862246090099302068),
+    (copy-case 9 9 True False False 4634564320406351836),
+    (copy-case 10 9 True False True 4259230723013769211),
+    (copy-case 9 9 True True False 4634564320406351836),
+    (xor-case 0 9 0 0 False 0 14695981039346656037),
+    (xor-case 3 9 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 29.
+  group29 :: Unit -> Bool
+  group29 unit = all [
+    (xor-case 9 9 0 1 False 0 4634564320406351836),
+    (xor-case 0 9 0 2 False 0 14695981039346656037),
+    (xor-case 3 9 4 0 True 0 1682809251283843753),
+    (xor-case 4 9 4 0 False 4 4786637773394813449),
+    (xor-case 7 9 4 0 False 4 1836712184458145737),
+    (xor-case 9 9 4 1 False 4 17466760270394672328),
+    (xor-case 4 9 4 2 False 4 4786637773394813449),
+    (xor-case 8 9 9 0 True 0 16594615919713875138),
+    (xor-case 9 9 9 0 False 9 8371042318967796398),
+    (xor-case 12 9 9 0 False 9 12091314830496489394),
+    (xor-case 9 9 9 1 False 9 8371042318967796398),
+    (xor-case 9 9 9 2 False 9 8371042318967796398),
+    (xor-case 8 9 10 0 True 0 16594615919713875138),
+    (xor-case 9 9 10 0 False 9 8371042318967796398),
+    (xor-case 12 9 10 0 False 9 12091314830496489394),
+    (xor-case 9 9 10 1 False 9 8371042318967796398)
+    ]
+
+  -- | Observe complete independent result group 30.
+  group30 :: Unit -> Bool
+  group30 unit = all [
+    (xor-case 10 9 10 2 False 9 4400620772287346614),
+    (compare-case 15 15 16 True),
+    (compare-case 15 15 0 False),
+    (compare-case 15 15 7 False),
+    (compare-case 15 15 14 False),
+    (compare-case 15 16 17 False),
+    (copy-case 14 15 False False True 9870096486893337283),
+    (copy-case 15 15 False False False 15845406715770959563),
+    (copy-case 16 15 False False True 14275391695098582920),
+    (copy-case 15 15 False True False 16218766965807369976),
+    (copy-case 14 15 True False True 9870096486893337283),
+    (copy-case 15 15 True False False 16218766965807369976),
+    (copy-case 16 15 True False True 14275391695098582920),
+    (copy-case 15 15 True True False 16218766965807369976),
+    (xor-case 0 15 0 0 False 0 14695981039346656037),
+    (xor-case 3 15 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 31.
+  group31 :: Unit -> Bool
+  group31 unit = all [
+    (xor-case 15 15 0 1 False 0 16218766965807369976),
+    (xor-case 0 15 0 2 False 0 14695981039346656037),
+    (xor-case 6 15 7 0 True 0 3488290618376153318),
+    (xor-case 7 15 7 0 False 7 8245490575973992722),
+    (xor-case 10 15 7 0 False 7 4466689326501860868),
+    (xor-case 15 15 7 1 False 7 2469006916746603861),
+    (xor-case 7 15 7 2 False 7 8245490575973992722),
+    (xor-case 14 15 15 0 True 0 2578341136526665949),
+    (xor-case 15 15 15 0 False 15 5336716138799625540),
+    (xor-case 18 15 15 0 False 15 6282103438407210559),
+    (xor-case 15 15 15 1 False 15 5336716138799625540),
+    (xor-case 15 15 15 2 False 15 5336716138799625540),
+    (xor-case 14 15 16 0 True 0 2578341136526665949),
+    (xor-case 15 15 16 0 False 15 5336716138799625540),
+    (xor-case 18 15 16 0 False 15 6282103438407210559),
+    (xor-case 15 15 16 1 False 15 5336716138799625540)
+    ]
+
+  -- | Observe complete independent result group 32.
+  group32 :: Unit -> Bool
+  group32 unit = all [
+    (xor-case 16 15 16 2 False 15 1718535685079284821),
+    (compare-case 16 16 17 True),
+    (compare-case 16 16 0 False),
+    (compare-case 16 16 8 False),
+    (compare-case 16 16 15 False),
+    (compare-case 16 17 18 False),
+    (copy-case 15 16 False False True 15845406715770959563),
+    (copy-case 16 16 False False False 14275391695098582920),
+    (copy-case 17 16 False False True 10074649019061904316),
+    (copy-case 16 16 False True False 4602375069017704674),
+    (copy-case 15 16 True False True 15845406715770959563),
+    (copy-case 16 16 True False False 4602375069017704674),
+    (copy-case 17 16 True False True 10074649019061904316),
+    (copy-case 16 16 True True False 4602375069017704674),
+    (xor-case 0 16 0 0 False 0 14695981039346656037),
+    (xor-case 3 16 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 33.
+  group33 :: Unit -> Bool
+  group33 unit = all [
+    (xor-case 16 16 0 1 False 0 4602375069017704674),
+    (xor-case 0 16 0 2 False 0 14695981039346656037),
+    (xor-case 7 16 8 0 True 0 16548280579971023705),
+    (xor-case 8 16 8 0 False 8 3709193327954648935),
+    (xor-case 11 16 8 0 False 8 9278541637870020234),
+    (xor-case 16 16 8 1 False 8 8747894878233084439),
+    (xor-case 8 16 8 2 False 8 3709193327954648935),
+    (xor-case 15 16 16 0 True 0 4607069520807421558),
+    (xor-case 16 16 16 0 False 16 1718502699730438491),
+    (xor-case 19 16 16 0 False 16 13258254111329724429),
+    (xor-case 16 16 16 1 False 16 1718502699730438491),
+    (xor-case 16 16 16 2 False 16 1718502699730438491),
+    (xor-case 15 16 17 0 True 0 4607069520807421558),
+    (xor-case 16 16 17 0 False 16 1718502699730438491),
+    (xor-case 19 16 17 0 False 16 13258254111329724429),
+    (xor-case 16 16 17 1 False 16 1718502699730438491)
+    ]
+
+  -- | Observe complete independent result group 34.
+  group34 :: Unit -> Bool
+  group34 unit = all [
+    (xor-case 17 16 17 2 False 16 9357333970048168037),
+    (compare-case 17 17 18 True),
+    (compare-case 17 17 0 False),
+    (compare-case 17 17 8 False),
+    (compare-case 17 17 16 False),
+    (compare-case 17 18 19 False),
+    (copy-case 16 17 False False True 14275391695098582920),
+    (copy-case 17 17 False False False 10074649019061904316),
+    (copy-case 18 17 False False True 9162845791469993211),
+    (copy-case 17 17 False True False 8201873251537528943),
+    (copy-case 16 17 True False True 14275391695098582920),
+    (copy-case 17 17 True False False 8201873251537528943),
+    (copy-case 18 17 True False True 9162845791469993211),
+    (copy-case 17 17 True True False 8201873251537528943),
+    (xor-case 0 17 0 0 False 0 14695981039346656037),
+    (xor-case 3 17 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 35.
+  group35 :: Unit -> Bool
+  group35 unit = all [
+    (xor-case 17 17 0 1 False 0 8201873251537528943),
+    (xor-case 0 17 0 2 False 0 14695981039346656037),
+    (xor-case 7 17 8 0 True 0 16548280579971023705),
+    (xor-case 8 17 8 0 False 8 3709193327954648935),
+    (xor-case 11 17 8 0 False 8 9278541637870020234),
+    (xor-case 17 17 8 1 False 8 15303722891800524256),
+    (xor-case 8 17 8 2 False 8 3709193327954648935),
+    (xor-case 16 17 17 0 True 0 16539562150081966090),
+    (xor-case 17 17 17 0 False 17 9357238312536513680),
+    (xor-case 20 17 17 0 False 17 1713701752434544961),
+    (xor-case 17 17 17 1 False 17 9357238312536513680),
+    (xor-case 17 17 17 2 False 17 9357238312536513680),
+    (xor-case 16 17 18 0 True 0 16539562150081966090),
+    (xor-case 17 17 18 0 False 17 9357238312536513680),
+    (xor-case 20 17 18 0 False 17 1713701752434544961),
+    (xor-case 17 17 18 1 False 17 9357238312536513680)
+    ]
+
+  -- | Observe complete independent result group 36.
+  group36 :: Unit -> Bool
+  group36 unit = all [
+    (xor-case 18 17 18 2 False 17 1314410942545446799),
+    (compare-case 31 31 32 True),
+    (compare-case 31 31 0 False),
+    (compare-case 31 31 15 False),
+    (compare-case 31 31 30 False),
+    (compare-case 31 32 33 False),
+    (copy-case 30 31 False False True 10565715459850260134),
+    (copy-case 31 31 False False False 7048380323986626894),
+    (copy-case 32 31 False False True 5280187905789194449),
+    (copy-case 31 31 False True False 9009759495283868375),
+    (copy-case 30 31 True False True 10565715459850260134),
+    (copy-case 31 31 True False False 9009759495283868375),
+    (copy-case 32 31 True False True 5280187905789194449),
+    (copy-case 31 31 True True False 9009759495283868375),
+    (xor-case 0 31 0 0 False 0 14695981039346656037),
+    (xor-case 3 31 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 37.
+  group37 :: Unit -> Bool
+  group37 unit = all [
+    (xor-case 31 31 0 1 False 0 9009759495283868375),
+    (xor-case 0 31 0 2 False 0 14695981039346656037),
+    (xor-case 14 31 15 0 True 0 2578341136526665949),
+    (xor-case 15 31 15 0 False 15 5336716138799625540),
+    (xor-case 18 31 15 0 False 15 6282103438407210559),
+    (xor-case 31 31 15 1 False 15 13203429248312184499),
+    (xor-case 15 31 15 2 False 15 5336716138799625540),
+    (xor-case 30 31 31 0 True 0 11139798864917668962),
+    (xor-case 31 31 31 0 False 31 14518739078899934066),
+    (xor-case 34 31 31 0 False 31 1254081701876920391),
+    (xor-case 31 31 31 1 False 31 14518739078899934066),
+    (xor-case 31 31 31 2 False 31 14518739078899934066),
+    (xor-case 30 31 32 0 True 0 11139798864917668962),
+    (xor-case 31 31 32 0 False 31 14518739078899934066),
+    (xor-case 34 31 32 0 False 31 1254081701876920391),
+    (xor-case 31 31 32 1 False 31 14518739078899934066)
+    ]
+
+  -- | Observe complete independent result group 38.
+  group38 :: Unit -> Bool
+  group38 unit = all [
+    (xor-case 32 31 32 2 False 31 14477049565502541013),
+    (compare-case 32 32 33 True),
+    (compare-case 32 32 0 False),
+    (compare-case 32 32 16 False),
+    (compare-case 32 32 31 False),
+    (compare-case 32 33 34 False),
+    (copy-case 31 32 False False True 7048380323986626894),
+    (copy-case 32 32 False False False 5280187905789194449),
+    (copy-case 33 32 False False True 7247394870232945805),
+    (copy-case 32 32 False True False 10337876017959392085),
+    (copy-case 31 32 True False True 7048380323986626894),
+    (copy-case 32 32 True False False 10337876017959392085),
+    (copy-case 33 32 True False True 7247394870232945805),
+    (copy-case 32 32 True True False 10337876017959392085),
+    (xor-case 0 32 0 0 False 0 14695981039346656037),
+    (xor-case 3 32 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 39.
+  group39 :: Unit -> Bool
+  group39 unit = all [
+    (xor-case 32 32 0 1 False 0 10337876017959392085),
+    (xor-case 0 32 0 2 False 0 14695981039346656037),
+    (xor-case 15 32 16 0 True 0 4607069520807421558),
+    (xor-case 16 32 16 0 False 16 1718502699730438491),
+    (xor-case 19 32 16 0 False 16 13258254111329724429),
+    (xor-case 32 32 16 1 False 16 18382180551758519172),
+    (xor-case 16 32 16 2 False 16 1718502699730438491),
+    (xor-case 31 32 32 0 True 0 7551625310346433593),
+    (xor-case 32 32 32 0 False 32 14477049565502541013),
+    (xor-case 35 32 32 0 False 32 15172899369889238397),
+    (xor-case 32 32 32 1 False 32 14477049565502541013),
+    (xor-case 32 32 32 2 False 32 14477049565502541013),
+    (xor-case 31 32 33 0 True 0 7551625310346433593),
+    (xor-case 32 32 33 0 False 32 14477049565502541013),
+    (xor-case 35 32 33 0 False 32 15172899369889238397),
+    (xor-case 32 32 33 1 False 32 14477049565502541013)
+    ]
+
+  -- | Observe complete independent result group 40.
+  group40 :: Unit -> Bool
+  group40 unit = all [
+    (xor-case 33 32 33 2 False 32 16439816000916890049),
+    (compare-case 33 33 34 True),
+    (compare-case 33 33 0 False),
+    (compare-case 33 33 16 False),
+    (compare-case 33 33 32 False),
+    (compare-case 33 34 35 False),
+    (copy-case 32 33 False False True 5280187905789194449),
+    (copy-case 33 33 False False False 7247394870232945805),
+    (copy-case 34 33 False False True 2336508078368579214),
+    (copy-case 33 33 False True False 5181250276433311892),
+    (copy-case 32 33 True False True 5280187905789194449),
+    (copy-case 33 33 True False False 5181250276433311892),
+    (copy-case 34 33 True False True 2336508078368579214),
+    (copy-case 33 33 True True False 5181250276433311892),
+    (xor-case 0 33 0 0 False 0 14695981039346656037),
+    (xor-case 3 33 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 41.
+  group41 :: Unit -> Bool
+  group41 unit = all [
+    (xor-case 33 33 0 1 False 0 5181250276433311892),
+    (xor-case 0 33 0 2 False 0 14695981039346656037),
+    (xor-case 15 33 16 0 True 0 4607069520807421558),
+    (xor-case 16 33 16 0 False 16 1718502699730438491),
+    (xor-case 19 33 16 0 False 16 13258254111329724429),
+    (xor-case 33 33 16 1 False 16 2547170641675173207),
+    (xor-case 16 33 16 2 False 16 1718502699730438491),
+    (xor-case 32 33 33 0 True 0 2325026350734475113),
+    (xor-case 33 33 33 0 False 33 16439876474056441654),
+    (xor-case 36 33 33 0 False 33 106023893417736362),
+    (xor-case 33 33 33 1 False 33 16439876474056441654),
+    (xor-case 33 33 33 2 False 33 16439876474056441654),
+    (xor-case 32 33 34 0 True 0 2325026350734475113),
+    (xor-case 33 33 34 0 False 33 16439876474056441654),
+    (xor-case 36 33 34 0 False 33 106023893417736362),
+    (xor-case 33 33 34 1 False 33 16439876474056441654)
+    ]
+
+  -- | Observe complete independent result group 42.
+  group42 :: Unit -> Bool
+  group42 unit = all [
+    (xor-case 34 33 34 2 False 33 2043847712498362419),
+    (compare-case 63 63 64 True),
+    (compare-case 63 63 0 False),
+    (compare-case 63 63 31 False),
+    (compare-case 63 63 62 False),
+    (compare-case 63 64 65 False),
+    (copy-case 62 63 False False True 1574690170845044314),
+    (copy-case 63 63 False False False 12016868005714137838),
+    (copy-case 64 63 False False True 13327382364710153388),
+    (copy-case 63 63 False True False 14818799523203942523),
+    (copy-case 62 63 True False True 1574690170845044314),
+    (copy-case 63 63 True False False 14818799523203942523),
+    (copy-case 64 63 True False True 13327382364710153388),
+    (copy-case 63 63 True True False 14818799523203942523),
+    (xor-case 0 63 0 0 False 0 14695981039346656037),
+    (xor-case 3 63 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 43.
+  group43 :: Unit -> Bool
+  group43 unit = all [
+    (xor-case 63 63 0 1 False 0 14818799523203942523),
+    (xor-case 0 63 0 2 False 0 14695981039346656037),
+    (xor-case 30 63 31 0 True 0 11139798864917668962),
+    (xor-case 31 63 31 0 False 31 14518739078899934066),
+    (xor-case 34 63 31 0 False 31 1254081701876920391),
+    (xor-case 63 63 31 1 False 31 8612238407301517634),
+    (xor-case 31 63 31 2 False 31 14518739078899934066),
+    (xor-case 62 63 63 0 True 0 513875171808872454),
+    (xor-case 63 63 63 0 False 63 992601376845974314),
+    (xor-case 66 63 63 0 False 63 13657434539495399148),
+    (xor-case 63 63 63 1 False 63 992601376845974314),
+    (xor-case 63 63 63 2 False 63 992601376845974314),
+    (xor-case 62 63 64 0 True 0 513875171808872454),
+    (xor-case 63 63 64 0 False 63 992601376845974314),
+    (xor-case 66 63 64 0 False 63 13657434539495399148),
+    (xor-case 63 63 64 1 False 63 992601376845974314)
+    ]
+
+  -- | Observe complete independent result group 44.
+  group44 :: Unit -> Bool
+  group44 unit = all [
+    (xor-case 64 63 64 2 False 63 16138583896581116960),
+    (compare-case 64 64 65 True),
+    (compare-case 64 64 0 False),
+    (compare-case 64 64 32 False),
+    (compare-case 64 64 63 False),
+    (compare-case 64 65 66 False),
+    (copy-case 63 64 False False True 12016868005714137838),
+    (copy-case 64 64 False False False 13327382364710153388),
+    (copy-case 65 64 False False True 11667355932757765901),
+    (copy-case 64 64 False True False 13778871966889654202),
+    (copy-case 63 64 True False True 12016868005714137838),
+    (copy-case 64 64 True False False 13778871966889654202),
+    (copy-case 65 64 True False True 11667355932757765901),
+    (copy-case 64 64 True True False 13778871966889654202),
+    (xor-case 0 64 0 0 False 0 14695981039346656037),
+    (xor-case 3 64 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 45.
+  group45 :: Unit -> Bool
+  group45 unit = all [
+    (xor-case 64 64 0 1 False 0 13778871966889654202),
+    (xor-case 0 64 0 2 False 0 14695981039346656037),
+    (xor-case 31 64 32 0 True 0 7551625310346433593),
+    (xor-case 32 64 32 0 False 32 14477049565502541013),
+    (xor-case 35 64 32 0 False 32 15172899369889238397),
+    (xor-case 64 64 32 1 False 32 17829168984187822906),
+    (xor-case 32 64 32 2 False 32 14477049565502541013),
+    (xor-case 63 64 64 0 True 0 12517325879508226937),
+    (xor-case 64 64 64 0 False 64 16138554209767155263),
+    (xor-case 67 64 64 0 False 64 15408463333764240402),
+    (xor-case 64 64 64 1 False 64 16138554209767155263),
+    (xor-case 64 64 64 2 False 64 16138554209767155263),
+    (xor-case 63 64 65 0 True 0 12517325879508226937),
+    (xor-case 64 64 65 0 False 64 16138554209767155263),
+    (xor-case 67 64 65 0 False 64 15408463333764240402),
+    (xor-case 64 64 65 1 False 64 16138554209767155263)
+    ]
+
+  -- | Observe complete independent result group 46.
+  group46 :: Unit -> Bool
+  group46 unit = all [
+    (xor-case 65 64 65 2 False 64 2322667082383652420),
+    (compare-case 65 65 66 True),
+    (compare-case 65 65 0 False),
+    (compare-case 65 65 32 False),
+    (compare-case 65 65 64 False),
+    (compare-case 65 66 67 False),
+    (copy-case 64 65 False False True 13327382364710153388),
+    (copy-case 65 65 False False False 11667355932757765901),
+    (copy-case 66 65 False False True 3791735091038830627),
+    (copy-case 65 65 False True False 17908602266725211452),
+    (copy-case 64 65 True False True 13327382364710153388),
+    (copy-case 65 65 True False False 17908602266725211452),
+    (copy-case 66 65 True False True 3791735091038830627),
+    (copy-case 65 65 True True False 17908602266725211452),
+    (xor-case 0 65 0 0 False 0 14695981039346656037),
+    (xor-case 3 65 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 47.
+  group47 :: Unit -> Bool
+  group47 unit = all [
+    (xor-case 65 65 0 1 False 0 17908602266725211452),
+    (xor-case 0 65 0 2 False 0 14695981039346656037),
+    (xor-case 31 65 32 0 True 0 7551625310346433593),
+    (xor-case 32 65 32 0 False 32 14477049565502541013),
+    (xor-case 35 65 32 0 False 32 15172899369889238397),
+    (xor-case 65 65 32 1 False 32 6714861258641754044),
+    (xor-case 32 65 32 2 False 32 14477049565502541013),
+    (xor-case 64 65 65 0 True 0 1253029821021761122),
+    (xor-case 65 65 65 0 False 65 2322691271639473062),
+    (xor-case 68 65 65 0 False 65 17349814635965172970),
+    (xor-case 65 65 65 1 False 65 2322691271639473062),
+    (xor-case 65 65 65 2 False 65 2322691271639473062),
+    (xor-case 64 65 66 0 True 0 1253029821021761122),
+    (xor-case 65 65 66 0 False 65 2322691271639473062),
+    (xor-case 68 65 66 0 False 65 17349814635965172970),
+    (xor-case 65 65 66 1 False 65 2322691271639473062)
+    ]
+
+  -- | Observe complete independent result group 48.
+  group48 :: Unit -> Bool
+  group48 unit = all [
+    (xor-case 66 65 66 2 False 65 13713825192360292430),
+    (compare-case 127 127 128 True),
+    (compare-case 127 127 0 False),
+    (compare-case 127 127 63 False),
+    (compare-case 127 127 126 False),
+    (compare-case 127 128 129 False),
+    (copy-case 126 127 False False True 10902296573882154291),
+    (copy-case 127 127 False False False 5450080599840945307),
+    (copy-case 128 127 False False True 5311023747104319896),
+    (copy-case 127 127 False True False 13043094287660593848),
+    (copy-case 126 127 True False True 10902296573882154291),
+    (copy-case 127 127 True False False 13043094287660593848),
+    (copy-case 128 127 True False True 5311023747104319896),
+    (copy-case 127 127 True True False 13043094287660593848),
+    (xor-case 0 127 0 0 False 0 14695981039346656037),
+    (xor-case 3 127 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 49.
+  group49 :: Unit -> Bool
+  group49 unit = all [
+    (xor-case 127 127 0 1 False 0 13043094287660593848),
+    (xor-case 0 127 0 2 False 0 14695981039346656037),
+    (xor-case 62 127 63 0 True 0 513875171808872454),
+    (xor-case 63 127 63 0 False 63 992601376845974314),
+    (xor-case 66 127 63 0 False 63 13657434539495399148),
+    (xor-case 127 127 63 1 False 63 7025759997163721693),
+    (xor-case 63 127 63 2 False 63 992601376845974314),
+    (xor-case 126 127 127 0 True 0 4165563045813608349),
+    (xor-case 127 127 127 0 False 127 16345325151824518068),
+    (xor-case 130 127 127 0 False 127 3941627613513332719),
+    (xor-case 127 127 127 1 False 127 16345325151824518068),
+    (xor-case 127 127 127 2 False 127 16345325151824518068),
+    (xor-case 126 127 128 0 True 0 4165563045813608349),
+    (xor-case 127 127 128 0 False 127 16345325151824518068),
+    (xor-case 130 127 128 0 False 127 3941627613513332719),
+    (xor-case 127 127 128 1 False 127 16345325151824518068)
+    ]
+
+  -- | Observe complete independent result group 50.
+  group50 :: Unit -> Bool
+  group50 unit = all [
+    (xor-case 128 127 128 2 False 127 3760044540461065029),
+    (compare-case 128 128 129 True),
+    (compare-case 128 128 0 False),
+    (compare-case 128 128 64 False),
+    (compare-case 128 128 127 False),
+    (compare-case 128 129 130 False),
+    (copy-case 127 128 False False True 5450080599840945307),
+    (copy-case 128 128 False False False 5311023747104319896),
+    (copy-case 129 128 False False True 1077229097738378892),
+    (copy-case 128 128 False True False 9420943246224056738),
+    (copy-case 127 128 True False True 5450080599840945307),
+    (copy-case 128 128 True False False 9420943246224056738),
+    (copy-case 129 128 True False True 1077229097738378892),
+    (copy-case 128 128 True True False 9420943246224056738),
+    (xor-case 0 128 0 0 False 0 14695981039346656037),
+    (xor-case 3 128 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 51.
+  group51 :: Unit -> Bool
+  group51 unit = all [
+    (xor-case 128 128 0 1 False 0 9420943246224056738),
+    (xor-case 0 128 0 2 False 0 14695981039346656037),
+    (xor-case 63 128 64 0 True 0 12517325879508226937),
+    (xor-case 64 128 64 0 False 64 16138554209767155263),
+    (xor-case 67 128 64 0 False 64 15408463333764240402),
+    (xor-case 128 128 64 1 False 64 7292584018574568975),
+    (xor-case 64 128 64 2 False 64 16138554209767155263),
+    (xor-case 127 128 128 0 True 0 8193150785052117046),
+    (xor-case 128 128 128 0 False 128 3760081923856424203),
+    (xor-case 131 128 128 0 False 128 6044886678648748093),
+    (xor-case 128 128 128 1 False 128 3760081923856424203),
+    (xor-case 128 128 128 2 False 128 3760081923856424203),
+    (xor-case 127 128 129 0 True 0 8193150785052117046),
+    (xor-case 128 128 129 0 False 128 3760081923856424203),
+    (xor-case 131 128 129 0 False 128 6044886678648748093),
+    (xor-case 128 128 129 1 False 128 3760081923856424203)
+    ]
+
+  -- | Observe complete independent result group 52.
+  group52 :: Unit -> Bool
+  group52 unit = all [
+    (xor-case 129 128 129 2 False 128 9178037821269308501),
+    (compare-case 129 129 130 True),
+    (compare-case 129 129 0 False),
+    (compare-case 129 129 64 False),
+    (compare-case 129 129 128 False),
+    (compare-case 129 130 131 False),
+    (copy-case 128 129 False False True 5311023747104319896),
+    (copy-case 129 129 False False False 1077229097738378892),
+    (copy-case 130 129 False False True 15000733114204887339),
+    (copy-case 129 129 False True False 8472859850330764975),
+    (copy-case 128 129 True False True 5311023747104319896),
+    (copy-case 129 129 True False False 8472859850330764975),
+    (copy-case 130 129 True False True 15000733114204887339),
+    (copy-case 129 129 True True False 8472859850330764975),
+    (xor-case 0 129 0 0 False 0 14695981039346656037),
+    (xor-case 3 129 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 53.
+  group53 :: Unit -> Bool
+  group53 unit = all [
+    (xor-case 129 129 0 1 False 0 8472859850330764975),
+    (xor-case 0 129 0 2 False 0 14695981039346656037),
+    (xor-case 63 129 64 0 True 0 12517325879508226937),
+    (xor-case 64 129 64 0 False 64 16138554209767155263),
+    (xor-case 67 129 64 0 False 64 15408463333764240402),
+    (xor-case 129 129 64 1 False 64 14705413098494141096),
+    (xor-case 64 129 64 2 False 64 16138554209767155263),
+    (xor-case 128 129 129 0 True 0 8304992829562816842),
+    (xor-case 129 129 129 0 False 129 9177906979385551392),
+    (xor-case 132 129 129 0 False 129 12178068609289617009),
+    (xor-case 129 129 129 1 False 129 9177906979385551392),
+    (xor-case 129 129 129 2 False 129 9177906979385551392),
+    (xor-case 128 129 130 0 True 0 8304992829562816842),
+    (xor-case 129 129 130 0 False 129 9177906979385551392),
+    (xor-case 132 129 130 0 False 129 12178068609289617009),
+    (xor-case 129 129 130 1 False 129 9177906979385551392)
+    ]
+
+  -- | Observe complete independent result group 54.
+  group54 :: Unit -> Bool
+  group54 unit = all [
+    (xor-case 130 129 130 2 False 129 5202483781609383551),
+    (compare-case 255 255 256 True),
+    (compare-case 255 255 0 False),
+    (compare-case 255 255 127 False),
+    (compare-case 255 255 254 False),
+    (compare-case 255 256 257 False),
+    (copy-case 254 255 False False True 3733435848313657222),
+    (copy-case 255 255 False False False 8934239732325477870),
+    (copy-case 256 255 False False True 2268667311456260081),
+    (copy-case 255 255 False True False 18147586713554105687),
+    (copy-case 254 255 True False True 3733435848313657222),
+    (copy-case 255 255 True False False 18147586713554105687),
+    (copy-case 256 255 True False True 2268667311456260081),
+    (copy-case 255 255 True True False 18147586713554105687),
+    (xor-case 0 255 0 0 False 0 14695981039346656037),
+    (xor-case 3 255 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 55.
+  group55 :: Unit -> Bool
+  group55 unit = all [
+    (xor-case 255 255 0 1 False 0 18147586713554105687),
+    (xor-case 0 255 0 2 False 0 14695981039346656037),
+    (xor-case 126 255 127 0 True 0 4165563045813608349),
+    (xor-case 127 255 127 0 False 127 16345325151824518068),
+    (xor-case 130 255 127 0 False 127 3941627613513332719),
+    (xor-case 255 255 127 1 False 127 12575497528220321731),
+    (xor-case 127 255 127 2 False 127 16345325151824518068),
+    (xor-case 254 255 255 0 True 0 11174835633484175842),
+    (xor-case 255 255 255 0 False 255 2691679019464893202),
+    (xor-case 258 255 255 0 False 255 7992086289129905319),
+    (xor-case 255 255 255 1 False 255 2691679019464893202),
+    (xor-case 255 255 255 2 False 255 2691679019464893202),
+    (xor-case 254 255 256 0 True 0 11174835633484175842),
+    (xor-case 255 255 256 0 False 255 2691679019464893202),
+    (xor-case 258 255 256 0 False 255 7992086289129905319),
+    (xor-case 255 255 256 1 False 255 2691679019464893202)
+    ]
+
+  -- | Observe complete independent result group 56.
+  group56 :: Unit -> Bool
+  group56 unit = all [
+    (xor-case 256 255 256 2 False 255 927159967736026741),
+    (compare-case 256 256 257 True),
+    (compare-case 256 256 0 False),
+    (compare-case 256 256 128 False),
+    (compare-case 256 256 255 False),
+    (compare-case 256 257 258 False),
+    (copy-case 255 256 False False True 8934239732325477870),
+    (copy-case 256 256 False False False 2268667311456260081),
+    (copy-case 257 256 False False True 7179628890804357933),
+    (copy-case 256 256 False True False 17275370768239895253),
+    (copy-case 255 256 True False True 8934239732325477870),
+    (copy-case 256 256 True False False 17275370768239895253),
+    (copy-case 257 256 True False True 7179628890804357933),
+    (copy-case 256 256 True True False 17275370768239895253),
+    (xor-case 0 256 0 0 False 0 14695981039346656037),
+    (xor-case 3 256 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 57.
+  group57 :: Unit -> Bool
+  group57 unit = all [
+    (xor-case 256 256 0 1 False 0 17275370768239895253),
+    (xor-case 0 256 0 2 False 0 14695981039346656037),
+    (xor-case 127 256 128 0 True 0 8193150785052117046),
+    (xor-case 128 256 128 0 False 128 3760081923856424203),
+    (xor-case 131 256 128 0 False 128 6044886678648748093),
+    (xor-case 256 256 128 1 False 128 9016980705522106196),
+    (xor-case 128 256 128 2 False 128 3760081923856424203),
+    (xor-case 255 256 256 0 True 0 13278061736514976953),
+    (xor-case 256 256 256 0 False 256 927159967736026741),
+    (xor-case 259 256 256 0 False 256 3874797871850099485),
+    (xor-case 256 256 256 1 False 256 927159967736026741),
+    (xor-case 256 256 256 2 False 256 927159967736026741),
+    (xor-case 255 256 257 0 True 0 13278061736514976953),
+    (xor-case 256 256 257 0 False 256 927159967736026741),
+    (xor-case 259 256 257 0 False 256 3874797871850099485),
+    (xor-case 256 256 257 1 False 256 927159967736026741)
+    ]
+
+  -- | Observe complete independent result group 58.
+  group58 :: Unit -> Bool
+  group58 unit = all [
+    (xor-case 257 256 257 2 False 256 13507238754792525793),
+    (compare-case 257 257 258 True),
+    (compare-case 257 257 0 False),
+    (compare-case 257 257 128 False),
+    (compare-case 257 257 256 False),
+    (compare-case 257 258 259 False),
+    (copy-case 256 257 False False True 2268667311456260081),
+    (copy-case 257 257 False False False 7179628890804357933),
+    (copy-case 258 257 False False True 15333830990617327278),
+    (copy-case 257 257 False True False 8916742896613052180),
+    (copy-case 256 257 True False True 2268667311456260081),
+    (copy-case 257 257 True False False 8916742896613052180),
+    (copy-case 258 257 True False True 15333830990617327278),
+    (copy-case 257 257 True True False 8916742896613052180),
+    (xor-case 0 257 0 0 False 0 14695981039346656037),
+    (xor-case 3 257 0 0 False 0 1682809251283843753)
+    ]
+
+  -- | Observe complete independent result group 59.
+  group59 :: Unit -> Bool
+  group59 unit = all [
+    (xor-case 257 257 0 1 False 0 8916742896613052180),
+    (xor-case 0 257 0 2 False 0 14695981039346656037),
+    (xor-case 127 257 128 0 True 0 8193150785052117046),
+    (xor-case 128 257 128 0 False 128 3760081923856424203),
+    (xor-case 131 257 128 0 False 128 6044886678648748093),
+    (xor-case 257 257 128 1 False 128 15297507786957602375),
+    (xor-case 128 257 128 2 False 128 3760081923856424203),
+    (xor-case 256 257 257 0 True 0 14699151753962475753),
+    (xor-case 257 257 257 0 False 257 13507299227932077398),
+    (xor-case 260 257 257 0 False 257 6226485832631981322),
+    (xor-case 257 257 257 1 False 257 13507299227932077398),
+    (xor-case 257 257 257 2 False 257 13507299227932077398),
+    (xor-case 256 257 258 0 True 0 14699151753962475753),
+    (xor-case 257 257 258 0 False 257 13507299227932077398),
+    (xor-case 260 257 258 0 False 257 6226485832631981322),
+    (xor-case 257 257 258 1 False 257 13507299227932077398)
+    ]
+
+  -- | Observe complete independent result group 60.
+  group60 :: Unit -> Bool
+  group60 unit = all [
+    (xor-case 258 257 258 2 False 257 5912496381931255123)
+    ]
+
+  -- | Select one bounded complete observation group.
+  selected :: String -> Bool
+  selected index = if index == "0" then group0 () else if index == "1" then group1 () else if index == "2" then group2 () else if index == "3" then group3 () else if index == "4" then group4 () else if index == "5" then group5 () else if index == "6" then group6 () else if index == "7" then group7 () else if index == "8" then group8 () else if index == "9" then group9 () else if index == "10" then group10 () else if index == "11" then group11 () else if index == "12" then group12 () else if index == "13" then group13 () else if index == "14" then group14 () else if index == "15" then group15 () else if index == "16" then group16 () else if index == "17" then group17 () else if index == "18" then group18 () else if index == "19" then group19 () else if index == "20" then group20 () else if index == "21" then group21 () else if index == "22" then group22 () else if index == "23" then group23 () else if index == "24" then group24 () else if index == "25" then group25 () else if index == "26" then group26 () else if index == "27" then group27 () else if index == "28" then group28 () else if index == "29" then group29 () else if index == "30" then group30 () else if index == "31" then group31 () else if index == "32" then group32 () else if index == "33" then group33 () else if index == "34" then group34 () else if index == "35" then group35 () else if index == "36" then group36 () else if index == "37" then group37 () else if index == "38" then group38 () else if index == "39" then group39 () else if index == "40" then group40 () else if index == "41" then group41 () else if index == "42" then group42 () else if index == "43" then group43 () else if index == "44" then group44 () else if index == "45" then group45 () else if index == "46" then group46 () else if index == "47" then group47 () else if index == "48" then group48 () else if index == "49" then group49 () else if index == "50" then group50 () else if index == "51" then group51 () else if index == "52" then group52 () else if index == "53" then group53 () else if index == "54" then group54 () else if index == "55" then group55 () else if index == "56" then group56 () else if index == "57" then group57 () else if index == "58" then group58 () else if index == "59" then group59 () else if index == "60" then group60 () else False
+
+  -- | Run each group in an independent bounded process.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons index Nil) -> if selected index then 0 else 1
+    other -> 2

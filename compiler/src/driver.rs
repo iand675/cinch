@@ -5482,6 +5482,21 @@ fn object_paths(objects: &[PathBuf]) -> Vec<String> {
         .collect()
 }
 
+/// Write an optional monotonic driver-phase timestamp without changing compilation results.
+///
+/// A caller creates the clock only when `CINCH_TRACE_DRIVER_PHASES` is present.
+/// Trace output uses stderr and ignores write errors; no timestamp enters an artifact.
+fn trace_driver_phase(started: Option<std::time::Instant>, phase: &str) {
+    if let Some(started) = started {
+        use std::io::Write;
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "cinch.driver.phase {phase} elapsed_seconds={:.6}",
+            started.elapsed().as_secs_f64()
+        );
+    }
+}
+
 /// [`driver_with_profile`] with explicit options: the whole compile,
 /// with the flags that are neither a mode nor a profile.
 #[allow(clippy::too_many_arguments)]
@@ -5493,6 +5508,9 @@ pub fn driver_with_profile_opts(
     profile: &crate::core::TargetProfile,
     opts: &DriverOptions,
 ) -> Result<i32> {
+    let phase_trace =
+        std::env::var_os("CINCH_TRACE_DRIVER_PHASES").map(|_| std::time::Instant::now());
+    trace_driver_phase(phase_trace, "driver.begin");
     if mode != Mode::EmitObject && !opts.object_roots.is_empty() {
         return Err(Error::plain(
             "explicit object roots require emit-object mode",
@@ -5712,6 +5730,7 @@ pub fn driver_with_profile_opts(
         entry_modules: project.entry_modules.clone(),
         schema_tool: std::env::var("CINCH_SCHEMA_TOOL").ok(),
     };
+    trace_driver_phase(phase_trace, "check.begin");
     let (program, ifaces, report, _diags) = check::check_program_multi_full_with_preludes(
         &prelude.modules,
         &modules,
@@ -5721,12 +5740,16 @@ pub fn driver_with_profile_opts(
         profile,
         &project.module_preludes,
     )?;
+    trace_driver_phase(phase_trace, "check.end");
+    trace_driver_phase(phase_trace, "contracts.begin");
     // Metadata boundary checks (design note, section 3).
     // Each interface's contract hash, rendered once for this compile: the
     // chain check and the artifacts written below both read it.
     let contract_hashes = crate::interface::contract_hashes(&ifaces);
     crate::interface::verify_chain_with(&ifaces, &contract_hashes).map_err(|e| Error::plain(e.to_string()))?;
     crate::interface::check_coherence(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
+    trace_driver_phase(phase_trace, "contracts.end");
+    trace_driver_phase(phase_trace, "interface_bodies.begin");
     // Interface optimisations (design/inline-unfolding-policy.md section
     // 12, mechanism A): the unfoldings a library artifact carries join the
     // inliner as foreign bodies, and the units they describe are external
@@ -5777,6 +5800,7 @@ pub fn driver_with_profile_opts(
     } else {
         (program, Vec::new())
     };
+    trace_driver_phase(phase_trace, "interface_bodies.end");
     // Core dumps (design/core-output.md section 2): the checked program
     // prints here, and the ownership stage prints the count pass applied to
     // that same program, which is why the two are target independent.
@@ -5841,6 +5865,7 @@ pub fn driver_with_profile_opts(
     // Specialization (supercompilation and JIT specification sections
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
+    trace_driver_phase(phase_trace, "optimization.begin");
     let (mut program, mut opt, method_families) = if mode == Mode::EmitObject {
         crate::specialize::optimize_object_with_foreign(
             &program,
@@ -5865,6 +5890,7 @@ pub fn driver_with_profile_opts(
             crate::specialize::optimize_with_foreign(&program, profile, &foreign, &opts.simplifier())?;
         (program, opt, Vec::new())
     };
+    trace_driver_phase(phase_trace, "optimization.end");
     // Dead-unit elimination (design/stack-allocation.md section 7.4): after
     // inlining, whose copies leave a callee with no call site, and before
     // reference counting, so the removal is not paid for. `check` prunes
@@ -5963,6 +5989,7 @@ pub fn driver_with_profile_opts(
             program.fns.retain(|f| !owned_by_unselected(&f.id.0));
         }
     }
+    trace_driver_phase(phase_trace, "artifacts.begin");
     write_artifacts(
         &out_dir,
         &entry_stem,
@@ -5980,12 +6007,14 @@ pub fn driver_with_profile_opts(
         opts.emit_interface_optimisations || mode == Mode::EmitObject,
         &contract_hashes,
     )?;
+    trace_driver_phase(phase_trace, "artifacts.end");
     if mode == Mode::Check {
         // A check reaches no later stage, so `--dump-core=owned` and
         // `--dump-core=lowered` dump the checked program and say so in
         // `@stage(checked)`: the dump never claims a stage the mode did not
         // reach.
         dump.record(&manifest_path, &core_rows, None)?;
+        trace_driver_phase(phase_trace, "check.return");
         return Ok(0);
     }
     // Artifact admission (platform proofs and SIMD specification

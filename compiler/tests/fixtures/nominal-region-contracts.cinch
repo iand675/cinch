@@ -1,0 +1,80 @@
+-- | Define explicit runtime-identity roles without exposing private constructors.
+module RegionOwner where
+  export Carrier, Phantom, Envelope, Observed, Mark, Legacy
+  export run, keep-phantom, keep-envelope, keep-observed, keep-mark, legacy-use, open-run
+  export keep-runtime-identity, keep-io
+
+  -- | Retain a callback tied to one erased runtime identity.
+  data Carrier (r :: Region) a where
+    -- | Store the callback without running its mutation effect.
+    Held :: (Unit ->{Mut r} a) -> Carrier r a
+
+  -- | Run the retained callback in its defining runtime identity.
+  run :: forall (r :: Region) a. Carrier r a ->{Mut r} a
+  run value = case value of Held callback -> callback ()
+
+  -- | Region roles follow the explicitly bound runtime identity.
+  keep-runtime-identity :: forall (runtime :: Region) a. Carrier runtime a -> Carrier runtime a
+  keep-runtime-identity value = value
+
+  -- | Existing explicit capability identities remain valid alongside nominal roles.
+  keep-io :: forall (r :: Region). using (io :: Io r) => Io r -> Io r
+  keep-io value = value
+
+  -- | A role can remain explicit even when the runtime payload is empty.
+  data Phantom {r :: Region} where {}
+
+  -- | Preserve an erased identity on an otherwise empty carrier.
+  keep-phantom :: forall (r :: Region). Phantom r -> Phantom r
+  keep-phantom value = value
+
+  -- | A record's constructor retains the same erased identity as its field.
+  record Envelope (r :: Region) a where
+    -- | Keep one callback under the record owner's identity.
+    callback :: Unit ->{Mut r} a
+
+  -- | Preserve the complete record telescope.
+  keep-envelope :: forall (r :: Region) a. Envelope r a -> Envelope r a
+  keep-envelope value = value
+
+  -- | A codata observation retains an explicit runtime identity.
+  codata Observed (r :: Region) a where
+    -- | Observe a value under the carrier's mutation effect.
+    observe :: Unit ->{Mut r} a
+
+  -- | Preserve the complete codata telescope without observing it.
+  keep-observed :: forall (r :: Region) a. Observed r a -> Observed r a
+  keep-observed value = value
+
+  -- | An abstract carrier hides its representation but keeps its Region role.
+  opaque type Mark (r :: Region) a :: Type
+
+  -- | Preserve an abstract carrier's declaration-owned identity.
+  keep-mark :: forall (r :: Region) a. Mark r a -> Mark r a
+  keep-mark value = value
+
+  -- | An unchanged unannotated family retains its historical Type header.
+  data Legacy r where
+    -- | Keep an ordinary empty value with the original unannotated telescope.
+    Old :: Legacy r
+
+  -- | Keep the older contextual source contract available as an import refusal control.
+  legacy-use :: forall r. Legacy r ->{Mut r} Unit
+  legacy-use value = ()
+
+  -- | Open callback rows remain outside the closed resolved-contract protocol.
+  open-run :: forall (r :: Region) a ef. Carrier r a -> (a ->{|ef} a) ->{Mut r | ef} a
+  open-run value callback = callback (run value)
+
+-- | Reexport checked roles under new public spellings without changing their owner.
+module RegionFacade where
+  import RegionOwner (Carrier as Handle, Phantom as EmptyHandle, Envelope, Observed, Mark, Legacy, run as invoke, keep-phantom, keep-envelope, keep-observed, keep-mark, legacy-use)
+  export Handle, EmptyHandle, Envelope, Observed, Mark, Legacy, invoke
+  export keep-phantom, keep-envelope, keep-observed, keep-mark, legacy-use
+
+-- | Keep the producer independent from any runtime identity allocation.
+module Main where
+  import RegionFacade
+  -- | Contract production requires no executed mutation.
+  main :: Int
+  main = 0

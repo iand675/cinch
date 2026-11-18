@@ -1,0 +1,242 @@
+-- | Encoded-word decoding with explicit, inspectable charset reader capabilities.
+-- Callbacks preserve arbitrary caller error values and may return converted
+-- bytes with EOF or failure simultaneously. Header conversion failure discards
+-- the returned header output. Borrowed readers and writers are never closed.
+module Effect.Mime where
+  import Effect.Stream
+  import Text.Mime
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Utf8 (utf8-first-invalid)
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String (String, empty-string, string-concat, string-to-bytes, string-from-bytes)
+
+  export MimeCharsetStatus, MimeCharsetMore, MimeCharsetEnd, MimeCharsetFailure
+  export MimeCharsetReader, mime-charset-reader, mime-charset-reader-read
+  export mime-charset-reader-with-copy, mime-charset-reader-copy
+  export mime-charset-reader-from-bytes, mime-charset-reader-from-stream
+  export MimeWordDecoder, mime-word-decoder, mime-default-word-decoder
+  export mime-word-decoder-charset-reader, mime-word-decoder-with-charset-reader
+  export MimeDecodeFailure, MimeWordSyntaxFailure, MimeCharsetCallbackFailure, MimeCharsetReadFailure, MimeCharsetInvalidCount, MimeOutputWriteFailure
+  export mime-word-decode, mime-header-decode, mime-word-decode-text, mime-header-decode-text
+  export mime-word-write, mime-header-write
+
+  -- | Status delivered alongside one converted byte prefix.
+  data MimeCharsetStatus e where
+    -- | The source can produce more bytes; an empty prefix does not imply EOF.
+    MimeCharsetMore :: MimeCharsetStatus e
+    -- | Genuine EOF follows this prefix, including a positive final prefix.
+    MimeCharsetEnd :: MimeCharsetStatus e
+    -- | An arbitrary caller failure follows this same prefix.
+    MimeCharsetFailure :: e -> MimeCharsetStatus e
+
+  -- | Explicit converted-reader continuation with arbitrary caller error values.
+  data MimeCharsetReader r e where
+    -- | Private read capability returning a prefix, simultaneous status and advanced handle.
+    CharsetStep :: (Nat ->{IO r} ((Bytes, MimeCharsetStatus e), MimeCharsetReader r e)) -> MimeCharsetReader r e
+    -- | Private optional whole-reader copy capability, preserving optimized reader behavior explicitly.
+    CharsetCopy :: MimeCharsetReader r e -> (Unit ->{IO r} Result e Bytes) -> MimeCharsetReader r e
+
+  -- | Wrap a caller reader capability. Positive reads must not exceed the request;
+  -- prefixes may accompany EOF/failure, and zero reads remain inert.
+  mime-charset-reader :: forall r e. (Nat ->{IO r} ((Bytes, MimeCharsetStatus e), MimeCharsetReader r e)) -> MimeCharsetReader r e
+  mime-charset-reader step = CharsetStep step
+
+  -- | Read one converted prefix; always continue with the returned handle.
+  mime-charset-reader-read :: forall r e. using (io :: Io r) => MimeCharsetReader r e -> Nat ->{IO r} ((Bytes, MimeCharsetStatus e), MimeCharsetReader r e)
+  mime-charset-reader-read reader count = if count == 0 then ((bytes-new 0, MimeCharsetMore), reader)
+    else case reader of
+      CharsetStep step -> step count
+      CharsetCopy source copy -> mime-charset-reader-read source count
+
+  -- | Attach an optional complete-copy capability, used once before pull reads.
+  -- This models readers that expose a direct complete-copy operation in addition to Read.
+  mime-charset-reader-with-copy :: forall r e. (Unit ->{IO r} Result e Bytes) -> MimeCharsetReader r e -> MimeCharsetReader r e
+  mime-charset-reader-with-copy copy reader = CharsetCopy reader copy
+
+  -- | Observe the optional complete-copy capability without advancing the reader.
+  mime-charset-reader-copy :: forall r e. MimeCharsetReader r e -> Option (Unit ->{IO r} Result e Bytes)
+  mime-charset-reader-copy reader = case reader of CharsetStep step -> None; CharsetCopy source copy -> Some copy
+
+  -- | Snapshot a checked byte span into fresh independently mutable storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at count = if at + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 at count in out
+    else bytes-new 0
+
+  -- | Own a complete input snapshot before invoking external conversion callbacks.
+  snapshot :: Bytes -> Bytes
+  snapshot input = part input 0 (bytes-len input)
+
+  -- | Construct a reader over privately copied bytes; positive reads deliver
+  -- data with More and a later empty read delivers End.
+  mime-charset-reader-from-bytes :: forall r e. using (io :: Io r) => Bytes -> MimeCharsetReader r e
+  mime-charset-reader-from-bytes input = converted-bytes (snapshot input) 0
+
+  -- | Advance one private byte reader while preserving original snapshots.
+  converted-bytes :: forall r e. using (io :: Io r) => Bytes -> Nat -> MimeCharsetReader r e
+  converted-bytes input at = CharsetStep (\request ->
+    if at < bytes-len input then
+      let remaining = bytes-len input - at in
+      let count = if request < remaining then request else remaining in
+      ((part input at count, MimeCharsetMore), converted-bytes input (at + count))
+    else ((bytes-new 0, MimeCharsetEnd), converted-bytes input at))
+
+  -- | Bridge ordinary streams by explicitly mapping their error vocabulary into
+  -- the caller's error type. Empty positive stream reads mean EOF.
+  mime-charset-reader-from-stream :: forall r e. using (io :: Io r) => (StreamError -> e) -> ByteReader r -> MimeCharsetReader r e
+  mime-charset-reader-from-stream inject source = CharsetStep (\request -> case stream-read source request of
+    (Err error, next) -> ((bytes-new 0, MimeCharsetFailure (inject error)), mime-charset-reader-from-stream inject next)
+    (Ok bytes, next) -> ((bytes, if bytes-len bytes == 0 then MimeCharsetEnd else MimeCharsetMore), mime-charset-reader-from-stream inject next))
+
+  -- | Decoder configuration retaining the exact optional callback capability.
+  data MimeWordDecoder r e where
+    -- | Private readable and replaceable callback; no process-global conversion state.
+    WordDecoder :: Option (String -> ByteReader r ->{IO r} Result e (MimeCharsetReader r e)) -> MimeWordDecoder r e
+
+  -- | Construct a decoder with an explicit optional charset reader callback.
+  mime-word-decoder :: forall r e. Option (String -> ByteReader r ->{IO r} Result e (MimeCharsetReader r e)) -> MimeWordDecoder r e
+  mime-word-decoder reader = WordDecoder reader
+
+  -- | Select only the built-in UTF-8, Latin-1 and US-ASCII conversions.
+  mime-default-word-decoder :: forall r. using (io :: Io r) => Unit -> MimeWordDecoder r Unit
+  mime-default-word-decoder unit = WordDecoder None
+
+  -- | Observe the exact optional callback, preserving its arbitrary caller error type.
+  mime-word-decoder-charset-reader :: forall r e. MimeWordDecoder r e -> Option (String -> ByteReader r ->{IO r} Result e (MimeCharsetReader r e))
+  mime-word-decoder-charset-reader decoder = case decoder of WordDecoder reader -> reader
+
+  -- | Replace or clear a callback explicitly; the decoder has no hidden mutable fields.
+  mime-word-decoder-with-charset-reader :: forall r old fresh. Option (String -> ByteReader r ->{IO r} Result fresh (MimeCharsetReader r fresh)) -> MimeWordDecoder r old -> MimeWordDecoder r fresh
+  mime-word-decoder-with-charset-reader reader decoder = WordDecoder reader
+
+  -- | Decoding distinguishes syntax, callback creation and converted-reader failures.
+  data MimeDecodeFailure e where
+    -- | A precise transfer-body, unsupported-charset or checked text failure.
+    MimeWordSyntaxFailure :: MimeError -> MimeDecodeFailure e
+    -- | The caller's original error value from creating a converted reader.
+    MimeCharsetCallbackFailure :: e -> MimeDecodeFailure e
+    -- | The caller's original converted-reader error, including one after positive bytes.
+    MimeCharsetReadFailure :: e -> MimeDecodeFailure e
+    -- | A callback reader violated its requested-count contract; no out-of-bounds copy occurs.
+    MimeCharsetInvalidCount :: Nat -> Nat -> MimeDecodeFailure e
+    -- | The original stream error after every confirmed output byte was retained by the advanced sink.
+    MimeOutputWriteFailure :: StreamError -> MimeDecodeFailure e
+
+  -- | Total the lengths of complete independent output pieces.
+  pieces-size :: List Bytes -> Nat -> Nat
+  pieces-size pieces count = case pieces of Nil -> count; Cons bytes rest -> pieces-size rest (count + bytes-len bytes)
+
+  -- | Copy aggregate spans only after their destination bounds are established.
+  copy-pieces :: Bytes -> Nat -> List Bytes -> Unit
+  copy-pieces out at pieces = case pieces of
+    Nil -> ()
+    Cons bytes rest -> if at + bytes-len bytes <= bytes-len out then
+      let copied = bytes-copy-range out bytes at 0 (bytes-len bytes) in
+      copy-pieces out (at + bytes-len bytes) rest
+      else ()
+
+  -- | Flatten reversed independent spans once, rather than repeatedly copying an accumulated prefix.
+  finish-pieces :: List Bytes -> Bytes
+  finish-pieces reversed = let pieces = reverse reversed in
+    let out = bytes-new (pieces-size pieces 0) in let copied = copy-pieces out 0 pieces in out
+
+  -- | Drain a converted reader with the conventional 32768-byte request size.
+  -- Prefixes accompanying failure are consumed but no decoded output is returned on error.
+  drain-converted :: forall r e. using (io :: Io r) => MimeCharsetReader r e -> List Bytes ->{IO r} Result (MimeDecodeFailure e) Bytes
+  drain-converted reader pieces = case mime-charset-reader-read reader 32768 of
+    (pair, next) -> case pair of
+      (bytes, status) ->
+        if bytes-len bytes <= 32768 then
+          case status of
+            MimeCharsetFailure error -> Err (MimeCharsetReadFailure error)
+            MimeCharsetEnd -> Ok (finish-pieces (Cons (snapshot bytes) pieces))
+            MimeCharsetMore -> drain-converted next (Cons (snapshot bytes) pieces)
+        else Err (MimeCharsetInvalidCount 32768 (bytes-len bytes))
+
+  -- | Use a complete-copy capability once when supplied; otherwise preserve
+  -- every ordered pull-read observation. Caller-owned output is always copied.
+  collect-converted :: forall r e. using (io :: Io r) => MimeCharsetReader r e ->{IO r} Result (MimeDecodeFailure e) Bytes
+  collect-converted reader = case mime-charset-reader-copy reader of
+    None -> drain-converted reader Nil
+    Some copy -> case copy () of
+      Err error -> Err (MimeCharsetReadFailure error)
+      Ok bytes -> Ok (snapshot bytes)
+
+  -- | Convert one transfer-decoded token. Built-ins bypass callbacks; custom
+  -- callbacks receive a lowercase label and an independent input byte reader.
+  convert-token :: forall r e. using (io :: Io r) => MimeWordDecoder r e -> MimeWordToken ->{IO r} Result (MimeDecodeFailure e) Bytes
+  convert-token decoder token =
+    let charset = mime-word-token-charset token in
+    let content = mime-word-token-content token in
+    case mime-convert-known-charset charset content of
+      Some bytes -> Ok bytes
+      None -> case mime-word-decoder-charset-reader decoder of
+        None -> Err (MimeWordSyntaxFailure (MimeUnhandledCharset (mime-quote-bytes charset)))
+        Some reader -> case reader (mime-charset-name charset) (reader-from-bytes content) of
+          Err error -> Err (MimeCharsetCallbackFailure error)
+          Ok converted -> collect-converted converted
+
+  -- | Decode one complete encoded word to fresh arbitrary bytes, preserving typed
+  -- caller errors. Any failure discards the returned decoded output completely.
+  mime-word-decode :: forall r e. using (io :: Io r) => MimeWordDecoder r e -> Bytes ->{IO r} Result (MimeDecodeFailure e) Bytes
+  mime-word-decode decoder input = case mime-word-token (snapshot input) of
+    Err error -> Err (MimeWordSyntaxFailure error)
+    Ok token -> convert-token decoder token
+
+  -- | Recognize only linear header whitespace for deletion between successful words.
+  linear-space :: Bytes -> Nat -> Bool
+  linear-space input at = if at < bytes-len input then
+    let byte = bytes-get input at in
+    (byte == 32 || byte == 9 || byte == 13 || byte == 10) && linear-space input (at + 1)
+    else True
+
+  -- | Decode header candidates in order. Structurally incomplete syntax stops
+  -- scanning; malformed transfer bodies remain literal and reset adjacency.
+  header-pieces :: forall r e. using (io :: Io r) => MimeWordDecoder r e -> Bytes -> Nat -> Bool -> List Bytes ->{IO r} Result (MimeDecodeFailure e) Bytes
+  header-pieces decoder input at between pieces = case mime-header-step input at of
+    MimeHeaderEnd suffix -> Ok (finish-pieces (Cons suffix pieces))
+    MimeHeaderWord prefix spelling next result -> case result of
+      Err error -> header-pieces decoder input next False (Cons spelling (Cons prefix pieces))
+      Ok token -> case convert-token decoder token of
+        Err error -> Err error
+        Ok bytes -> let before = if between && linear-space prefix 0 then pieces else Cons prefix pieces in
+          header-pieces decoder input next True (Cons bytes before)
+
+  -- | Decode all header words from one retained input snapshot. Linear whitespace
+  -- between successful words is removed. Callback/read failure discards all output.
+  mime-header-decode :: forall r e. using (io :: Io r) => MimeWordDecoder r e -> Bytes ->{IO r} Result (MimeDecodeFailure e) Bytes
+  mime-header-decode decoder input = header-pieces decoder (snapshot input) 0 False Nil
+
+  -- | Validate a complete decoded byte result before exposing an immutable String.
+  decoded-text :: forall e. Result (MimeDecodeFailure e) Bytes -> Result (MimeDecodeFailure e) String
+  decoded-text result = case result of
+    Err error -> Err error
+    Ok bytes -> case string-from-bytes bytes of
+      Some text -> Ok text
+      None -> case utf8-first-invalid bytes of Some at -> Err (MimeWordSyntaxFailure (MimeInvalidUtf8 at)); None -> Err (MimeWordSyntaxFailure (MimeInvalidUtf8 0))
+
+  -- | Checked String convenience; raw UTF-8-labelled payloads are never silently repaired.
+  mime-word-decode-text :: forall r e. using (io :: Io r) => MimeWordDecoder r e -> String ->{IO r} Result (MimeDecodeFailure e) String
+  mime-word-decode-text decoder input = decoded-text (mime-word-decode decoder (string-to-bytes input))
+
+  -- | Checked header String convenience preserving callback and converted-reader errors.
+  mime-header-decode-text :: forall r e. using (io :: Io r) => MimeWordDecoder r e -> String ->{IO r} Result (MimeDecodeFailure e) String
+  mime-header-decode-text decoder input = decoded-text (mime-header-decode decoder (string-to-bytes input))
+
+  -- | Encode complete bytes, drain short writes through the shared stream helper,
+  -- and return the exact advanced borrowed sink on either outcome.
+  mime-word-write :: forall r. using (io :: Io r) => MimeWordEncoder -> Bytes -> Bytes -> ByteWriter r ->{IO r} (Result StreamError Nat, ByteWriter r)
+  mime-word-write encoder charset input sink = stream-write-all sink (mime-word-encode-bytes encoder charset input)
+
+  -- | Decode the complete header before touching the borrowed sink; callback
+  -- failure leaves it untouched. Successful output uses ordinary exact stream progress.
+  mime-header-write :: forall r e. using (io :: Io r) => MimeWordDecoder r e -> Bytes -> ByteWriter r ->{IO r} (Result (MimeDecodeFailure e) Nat, ByteWriter r)
+  mime-header-write decoder input sink = case mime-header-decode decoder input of
+    Err error -> (Err error, sink)
+    Ok bytes -> case stream-write-all sink bytes of
+      (Ok count, next) -> (Ok count, next)
+      (Err error, next) -> (Err (MimeOutputWriteFailure error), next)

@@ -1,0 +1,91 @@
+diff --git a/compiler/src/check_interface.rs b/compiler/src/check_interface.rs
+index e67fa612..ff68dbc3 100644
+--- a/compiler/src/check_interface.rs
++++ b/compiler/src/check_interface.rs
+@@ -613,7 +613,7 @@ impl Checker {
+             let parts = path.parts();
+             let [name] = parts.as_slice() else { return None };
+             match (*name, arguments.as_slice()) {
+-                ("IO" | "Async" | "Cancel" | "Eval", [region])
++                ("IO" | "Mut" | "Async" | "Cancel" | "Eval", [region])
+                     if vars.contains(&region.text) && scheme.region_params.contains(&region.text) => {
+                     labels.push(format!("{name} {}", region.text));
+                 }
+diff --git a/compiler/tests/interface_region_effects.rs b/compiler/tests/interface_region_effects.rs
+index dae9ed8a..5dc64f47 100644
+--- a/compiler/tests/interface_region_effects.rs
++++ b/compiler/tests/interface_region_effects.rs
+@@ -5,8 +5,10 @@ use cinch::interface::{Iface, SCHEMA_VERSION};
+ #[test]
+ fn resolved_contracts_keep_region_binders_and_closed_kernel_effects() {
+     let dir = common::project("region_contracts", &[
++        ("Data.Mutable.Var.cinch", include_str!("../prelude/Data/Mutable/Var.cinch")),
+         ("A.cinch", r#"module A where
+-  export identity-io, write, implicit-region, callback, row-polymorphic, signal
++  import Data.Mutable.Var
++  export identity-io, write, implicit-region, callback, row-polymorphic, signal, read-cell, mixed-cell, open-cell
+   effect Notice where
+     signal :: Nat ->{Notice} Nat
+   identity-io :: forall r. Io r -> Io r
+@@ -19,6 +21,15 @@ fn resolved_contracts_keep_region_binders_and_closed_kernel_effects() {
+   callback f = f ()
+   row-polymorphic :: forall e. (Unit ->{|e} Unit) ->{|e} Unit
+   row-polymorphic f = f ()
++  -- | Preserve the real mutable cell owner in a closed mutation contract.
++  read-cell :: forall r. Var r Nat ->{Mut r} Nat
++  read-cell cell = var-read cell
++  -- | Mutation and I/O can refer to the same explicit runtime identity.
++  mixed-cell :: forall r. Var r Nat ->{IO r, Mut r} Nat
++  mixed-cell cell = var-read cell
++  -- | An open callback row remains outside the closed transport protocol.
++  open-cell :: forall r e. Var r Nat -> (Nat ->{|e} Nat) ->{Mut r | e} Nat
++  open-cell cell callback = callback (var-read cell)
+ "#),
+         ("Main.cinch", "module Main where\n  import A\n  main :: Int\n  main = 0\n"),
+     ]);
+@@ -49,6 +60,16 @@ fn resolved_contracts_keep_region_binders_and_closed_kernel_effects() {
+     assert!(implicit.scheme.contains("{r :: Region}"), "inferred binder stays explicit in the contract");
+     assert!(a.exports.values.iter().find(|v| v.name == "row-polymorphic").unwrap().resolved.is_none(),
+         "an open row must not be published as closed");
++    for name in ["read-cell", "mixed-cell"] {
++        let value = a.exports.values.iter().find(|v| v.name == name).unwrap();
++        let resolved = value.resolved.as_ref().unwrap_or_else(|| panic!("missing closed mutation contract: {name}"));
++        assert!(resolved.scheme.contains("Mut r"), "{}", resolved.scheme);
++        assert!(resolved.scheme.contains("r :: Region"), "{}", resolved.scheme);
++        assert!(resolved.nominals.iter().any(|n| n.identity == "Data.Mutable.Var.Var"));
++        if name == "mixed-cell" { assert!(resolved.scheme.contains("IO r")); }
++    }
++    assert!(a.exports.values.iter().find(|v| v.name == "open-cell").unwrap().resolved.is_none(),
++        "an open mutation row must not be restamped as closed");
+     assert!(Iface::from_json(&a.to_json().replace(&format!("\"schema\":{SCHEMA_VERSION}"), "\"schema\":5")).is_err());
+     common::cleanup(&dir);
+ }
+@@ -100,3 +121,28 @@ module Main where
+     cinch::interface::verify_chain(&interfaces).expect("actual source owners and dependencies");
+     common::cleanup(&dir);
+ }
++
++/// A declaration-owned effect sharing a kernel spelling must not acquire kernel transport authority.
++#[test]
++fn owned_mutation_spelling_is_not_exported_as_a_kernel_effect() {
++    let dir = common::project("owned_mutation_contract", &[
++        ("A.cinch", r#"-- | A declaration-owned operation is distinct from kernel mutation.
++module A where
++  stage family :: Declarations
++  stage family = quoteDecls where {
++    -- | This lexical mutation spelling belongs to this declaration group.
++    effect Mut r where { invoke :: Unit ->{Mut r} Nat };
++    -- | Preserve the owned effect rather than claiming kernel mutation.
++    run :: forall r. Unit ->{Mut r} Nat;
++    run unit = invoke unit }
++  generate do
++    emit family
++"#),
++        ("Main.cinch", "module Main where\n  import A\n  main :: Int\n  main = 0\n"),
++    ]);
++    let interfaces = common::check_interfaces(&dir, "Main.cinch").expect("owned effect source is valid");
++    let interface = interfaces.iter().find(|i| i.module == "A").unwrap();
++    let run = interface.exports.values.iter().find(|value| value.name == "run").unwrap();
++    assert!(run.resolved.is_none(), "an owned effect was mistaken for kernel Mut: {:?}", run.resolved);
++    common::cleanup(&dir);
++}

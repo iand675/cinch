@@ -1,0 +1,38 @@
+{
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "llvm_sha256": "79a35515a53b0b918b2f661237b680de879ad2c500b945d8aed6a5394a2dbe01",
+  "assembly_sha256": "074f1db87c9c90bb14d65b17536ce0fea39095e246d2944dc874e71cb99ea98d",
+  "target": "x86_64-unknown-linux-gnu",
+  "opt_level": 2,
+  "description": "Actual emitted private machine-counter loops; no calls, mathematical arithmetic or ownership callbacks inside the hot traversal",
+  "loops": [
+    {
+      "symbol": "Text.Csv.Record.skip-match-blocks",
+      "unaligned_vector_loads": 7,
+      "vector_byte_compares": 7,
+      "call_instructions": [],
+      "body_sha256": "389ae5744adc88200be1a0644fc867fd56ed515eb2c776db8b51327159d0b47b"
+    },
+    {
+      "symbol": "Text.Csv.Record.skip-special-blocks",
+      "unaligned_vector_loads": 8,
+      "vector_byte_compares": 32,
+      "call_instructions": [],
+      "body_sha256": "e648697fa52cc8a2ec6e5a900bfd66f628f734c2e5685ae74a761ac790996d67"
+    },
+    {
+      "symbol": "Effect.Csv.skip-match-blocks",
+      "unaligned_vector_loads": 7,
+      "vector_byte_compares": 7,
+      "call_instructions": [],
+      "body_sha256": "49c4498cf7cbdcbcfde8ced6fb458d27f336a04b7c46eb0839a280a091bc3427"
+    },
+    {
+      "symbol": "Effect.Csv.skip-special-blocks",
+      "unaligned_vector_loads": 8,
+      "vector_byte_compares": 32,
+      "call_instructions": [],
+      "body_sha256": "6c02e9785dddce72a0cb1684507ea30a400ca59e39e04c872965b108c3cebe2b"
+    }
+  ]
+}

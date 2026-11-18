@@ -1,0 +1,78 @@
+{
+  "status": "Qualified Rust generic-wide Array subset with explicit retained limitations; full library/Native surface remains active",
+  "source_commits": [
+    "6e2d218e",
+    "37d1dca1",
+    "e7762b29"
+  ],
+  "focused_passed": 5,
+  "elapsed_seconds": 17.26,
+  "checked_rc_runtime_profiles": 4,
+  "optimization_levels": [
+    0,
+    2
+  ],
+  "scope": [
+    "Generic boxed U128/I128 arrays",
+    "Source List@W conversion and Option@W results",
+    "Persistent set aliases and zero/invalid boundaries",
+    "Tensor get/set and shape/data",
+    "Source-constructed tuple leaf columnar operations",
+    "Vec freeze/thaw copies",
+    "Direct-wide columnarZip named refusal in both positions at lengths0/1"
+  ],
+  "open": [
+    "Layout-aware direct-wide columnar tuples",
+    "Packed-wide representation",
+    "Wide parallel task payload implementation",
+    "Source-absent followups and full Native family adoption"
+  ],
+  "log_sha256": "e54aafc1157ac187a7d482b4044079b962766c19d5b20e9d831e8a713a446995",
+  "full_unit_gate": {
+    "passed": 339,
+    "elapsed_seconds": 179.02,
+    "log": "bootstrap/repros/wide-arrays-qualified/full-lib.log",
+    "sha256": "674526a572e28e7cba060079cab27edbf204397662604864cd167f75545d3efc"
+  },
+  "followup_gate": {
+    "passed": 6,
+    "elapsed_seconds": 14.01,
+    "log": "bootstrap/repros/wide-arrays-qualified/followups.log",
+    "sha256": "84823cd2ed5b940e7209c19d4ede617547138a06c26121444bc154685e6b1c59",
+    "actual_objects": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "powerpc64-unknown-linux-gnu"
+    ],
+    "scope": "Actual HOF/partial Get/Set and retained-alias execution at O0/O2, normal/poison; separate named wide-Par refusal; object emission only on foreign targets."
+  },
+  "existing_arrays_gate": {
+    "passed": 19,
+    "scope": "18 original broad cases passed, including the actual self-hosted emitter/runtime/forged-layout matrix; the remaining missing-parser fixture was corrected and passed alone. The six-minute emitter was not rebuilt redundantly.",
+    "original_log": "bootstrap/repros/array-fixture-missing-parser/gate.log",
+    "corrected_fixture_log": "bootstrap/repros/wide-arrays-qualified/builtin-fixture-repaired.log",
+    "corrected_fixture_log_sha256": "f3adf6596d1bf4df129da2ca44e8a5b6b394427475c3ec47b4ce3baa8df4080c"
+  },
+  "mutable_regression_gate": {
+    "passed": 7,
+    "elapsed_seconds": 13.48,
+    "log": "bootstrap/repros/wide-arrays-qualified/mutable.log",
+    "sha256": "b8972ab02098f6831c8e48642b754d1e1b277ba89354636a0366faaf83239de6"
+  },
+  "additional_regressions": [
+    {
+      "target": "wide",
+      "passed": 18,
+      "seconds": 60.22,
+      "log": "bootstrap/repros/wide-arrays-qualified/wide.log",
+      "sha256": "0d1c244d4756ad4a0ea7cade574a30774ee2a6bb7c4cb75c8b7724452f119173"
+    },
+    {
+      "target": "mvar",
+      "passed": 12,
+      "seconds": 32.83,
+      "log": "bootstrap/repros/wide-arrays-qualified/mvar.log",
+      "sha256": "ba75326748bbd27aca3088ecf5113a04d946252e9a959f8dd774220cb8283dbb"
+    }
+  ]
+}

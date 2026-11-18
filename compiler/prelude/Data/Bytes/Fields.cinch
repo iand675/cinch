@@ -1,0 +1,195 @@
+-- | Retained raw-byte fields with Unicode whitespace and effect-preserving scalar predicates.
+-- Fields are nonempty fixed views into the original owner. Malformed UTF8 bytes
+-- each present U+FFFD to a predicate and remain unchanged in returned aliases.
+-- Predicate callbacks run once per decoded scalar from left to right. Sequence
+-- factories do no scanning at construction and start afresh on every invocation.
+module Data.Bytes.Fields where
+  import Data.Bytes
+  import Data.Bytes.View
+  import Data.Bytes.Utf8 as Utf8
+  import Data.Unicode.Kernel
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Producer
+
+  export ByteFieldsState, byte-view-fields-start, bytes-fields-start, byte-fields-next, byte-fields-next-with
+  export byte-view-fields, bytes-fields, byte-view-fields-func, bytes-fields-func
+  export byte-view-fields-producer, bytes-fields-producer, byte-view-fields-func-producer, bytes-fields-func-producer
+  export byte-view-fields-each, bytes-fields-each, byte-view-fields-func-each, bytes-fields-func-each
+  export byte-view-fields-sequence, bytes-fields-sequence, byte-view-fields-func-sequence, bytes-fields-func-sequence
+
+  -- | Immutable explicit progress retaining a complete fixed input owner.
+  -- Reusing a state replays its scan against current aliases; it does not share a hidden mutable cursor.
+  data ByteFieldsState where
+    -- | Store a sealed input view, the next byte position and whether the final field was returned.
+    FieldsState :: ByteView -> Nat -> Bool -> ByteFieldsState
+
+  -- | Start independent explicit progress without reading input contents or invoking callbacks.
+  byte-view-fields-start :: ByteView -> ByteFieldsState
+  byte-view-fields-start input = FieldsState input 0 False
+
+  -- | Retain a whole fixed buffer in fresh explicit progress without copying it.
+  bytes-fields-start :: Bytes -> ByteFieldsState
+  bytes-fields-start input = byte-view-fields-start (bytes-view input)
+
+  -- | Retain the exact nonempty range found by an internal bounded scan.
+  field-span :: ByteView -> (begin :: Nat) -> refined (begin < end) Nat -> ByteView
+  field-span input begin end = byte-view-take (end - begin) (byte-view-drop begin input)
+
+  -- | Finish one active field at the logical end, or finish an all-delimiter suffix.
+  finish-field :: ByteView -> Nat -> Option Nat -> Step ByteFieldsState ByteView
+  finish-field input end start = case start of
+    None -> Done
+    Some begin -> if begin < end then let part = field-span input begin end in Yield part (FieldsState input end True) else Done
+
+  -- | Scan only after the previous predicate returned; never cache future decoded bytes across callbacks.
+  -- The current scalar and width are observed before invoking the predicate, so its byte mutations do not change that increment.
+  scan-with :: forall (e :: Row). (Char ->{|e} Bool) -> ByteView -> Nat -> Option Nat ->{|e} Step ByteFieldsState ByteView
+  scan-with predicate input position start = let end = byte-view-length input in
+    if position >= end then finish-field input end start else
+      let decoded = byte-view-utf8-at input position in let value = Utf8.utf8-step-char decoded in
+      let width = Utf8.utf8-step-width decoded in let separator = predicate value in
+      let next = position + width in
+      if separator then case start of
+        None -> scan-with predicate input next None
+        Some begin -> if begin < position then let part = field-span input begin position in Yield part (FieldsState input next False)
+          else scan-with predicate input next None
+      else case start of
+        None -> scan-with predicate input next (Some position)
+        Some begin -> scan-with predicate input next (Some begin)
+
+  -- | Advance one field using a genuinely effectful scalar predicate and return explicit next progress.
+  -- Current input mutations remain observable. Each malformed byte is one replacement-scalar predicate call.
+  byte-fields-next-with :: forall (e :: Row). (Char ->{|e} Bool) -> ByteFieldsState ->{|e} Step ByteFieldsState ByteView
+  byte-fields-next-with predicate state = case state of
+    FieldsState input position finished -> if finished then Done else scan-with predicate input position None
+
+  -- | End one current ASCII class run through the sealed SIMD observation.
+  ascii-run-end :: ByteView -> Nat -> Bool -> Nat
+  ascii-run-end input position spaces = case byte-view-ascii-space-run-end input position spaces of
+    None -> position
+    Some end -> end
+
+  -- | Scan default Unicode whitespace with full ASCII blocks and exact scalar fallback.
+  -- No block result survives a yielded field, so future input mutations are observed on the next advance.
+  scan-space :: ByteView -> Nat -> Option Nat -> Step ByteFieldsState ByteView
+  scan-space input position start = let end = byte-view-length input in
+    if position >= end then finish-field input end start else case start of
+      None -> let at = ascii-run-end input position True in
+        if at >= end then Done else
+          let decoded = byte-view-utf8-at input at in let value = Utf8.utf8-step-char decoded in
+          let width = Utf8.utf8-step-width decoded in let next = at + width in
+          if unicode-is-space value then scan-space input next None else scan-space input next (Some at)
+      Some begin -> let at = ascii-run-end input position False in
+        if at >= end then finish-field input end (Some begin) else
+          let decoded = byte-view-utf8-at input at in let value = Utf8.utf8-step-char decoded in
+          let width = Utf8.utf8-step-width decoded in let next = at + width in
+          if unicode-is-space value then
+            if begin < at then let part = field-span input begin at in Yield part (FieldsState input next False)
+            else scan-space input next None
+          else scan-space input next (Some begin)
+
+  -- | Advance one default Unicode-whitespace field without copying its bytes.
+  byte-fields-next :: ByteFieldsState -> Step ByteFieldsState ByteView
+  byte-fields-next state = case state of
+    FieldsState input position finished -> if finished then Done else scan-space input position None
+
+  -- | Materialize default fields with an accumulator and bounded tail recursion.
+  collect-space :: ByteFieldsState -> List ByteView -> List ByteView
+  collect-space state reversed = case byte-fields-next state of
+    Done -> reverse reversed
+    Skip next -> collect-space next reversed
+    Yield part next -> let values = Cons part reversed in collect-space next values
+
+  -- | Materialize predicate fields while preserving every callback effect in scan order.
+  collect-with :: forall (e :: Row). (Char ->{|e} Bool) -> ByteFieldsState -> List ByteView ->{|e} List ByteView
+  collect-with predicate state reversed = case byte-fields-next-with predicate state of
+    Done -> reverse reversed
+    Skip next -> collect-with predicate next reversed
+    Yield part next -> let values = Cons part reversed in collect-with predicate next values
+
+  -- | Split a sealed range around Unicode whitespace; discard empty leading, trailing and intermediate runs.
+  byte-view-fields :: ByteView -> List ByteView
+  byte-view-fields input = collect-space (byte-view-fields-start input) Nil
+
+  -- | Split complete raw bytes around Unicode whitespace into retained mutable aliases.
+  bytes-fields :: Bytes -> List ByteView
+  bytes-fields input = byte-view-fields (bytes-view input)
+
+  -- | Eagerly collect fields using once-per-scalar left-to-right predicate calls, including all trailing delimiters.
+  byte-view-fields-func :: forall (e :: Row). (Char ->{|e} Bool) -> ByteView ->{|e} List ByteView
+  byte-view-fields-func predicate input = collect-with predicate (byte-view-fields-start input) Nil
+
+  -- | Eagerly collect complete-buffer aliases while preserving the predicate's effects.
+  bytes-fields-func :: forall (e :: Row). (Char ->{|e} Bool) -> Bytes ->{|e} List ByteView
+  bytes-fields-func predicate input = byte-view-fields-func predicate (bytes-view input)
+
+  -- | Build a persistent default producer; fresh folds observe current input from the beginning.
+  byte-view-fields-producer :: ByteView -> Producer ByteFieldsState ByteView
+  byte-view-fields-producer input = Producer byte-fields-next (byte-view-fields-start input)
+
+  -- | Build a persistent default producer over a complete buffer without copying it.
+  bytes-fields-producer :: Bytes -> Producer ByteFieldsState ByteView
+  bytes-fields-producer input = byte-view-fields-producer (bytes-view input)
+
+  -- | Adapt a pure-row predicate to the existing pure Producer abstraction.
+  -- Effectful predicates use the next-with or callback sequence operations instead.
+  byte-view-fields-func-producer :: (Char -> Bool) -> ByteView -> Producer ByteFieldsState ByteView
+  byte-view-fields-func-producer predicate input = Producer (byte-fields-next-with predicate) (byte-view-fields-start input)
+
+  -- | Build the pure-row predicate Producer convenience adapter over complete raw bytes.
+  bytes-fields-func-producer :: (Char -> Bool) -> Bytes -> Producer ByteFieldsState ByteView
+  bytes-fields-func-producer predicate input = byte-view-fields-func-producer predicate (bytes-view input)
+
+  -- | Visit default fields in order, stopping immediately when the yield callback returns False.
+  visit-space :: forall (e :: Row). (ByteView ->{|e} Bool) -> ByteFieldsState ->{|e} Unit
+  visit-space output state = case byte-fields-next state of
+    Done -> ()
+    Skip next -> visit-space output next
+    Yield part next -> let more = output part in if more then visit-space output next else ()
+
+  -- | Interleave predicate and yield effects without reading beyond a yielded boundary.
+  -- The next state already consumes the decoded terminator width before the callback can mutate those bytes.
+  visit-with :: forall (e :: Row). (Char ->{|e} Bool) -> (ByteView ->{|e} Bool) -> ByteFieldsState ->{|e} Unit
+  visit-with predicate output state = case byte-fields-next-with predicate state of
+    Done -> ()
+    Skip next -> visit-with predicate output next
+    Yield part next -> let more = output part in if more then visit-with predicate output next else ()
+
+  -- | Traverse default fields with an effectful yield callback and no materialized outer list.
+  byte-view-fields-each :: forall (e :: Row). ByteView -> (ByteView ->{|e} Bool) ->{|e} Unit
+  byte-view-fields-each input output = visit-space output (byte-view-fields-start input)
+
+  -- | Traverse complete-buffer default fields while preserving yield effects and early stop.
+  bytes-fields-each :: forall (e :: Row). Bytes -> (ByteView ->{|e} Bool) ->{|e} Unit
+  bytes-fields-each input output = byte-view-fields-each (bytes-view input) output
+
+  -- | Traverse predicate fields with a shared effect row containing every predicate and yield capability.
+  -- Use explicit effect weakening wrappers when distinct callback rows need a combined row.
+  byte-view-fields-func-each :: forall (e :: Row). (Char ->{|e} Bool) -> ByteView -> (ByteView ->{|e} Bool) ->{|e} Unit
+  byte-view-fields-func-each predicate input output = visit-with predicate output (byte-view-fields-start input)
+
+  -- | Traverse complete-buffer predicate fields without restricting either callback to a pure or IO-only row.
+  bytes-fields-func-each :: forall (e :: Row). (Char ->{|e} Bool) -> Bytes -> (ByteView ->{|e} Bool) ->{|e} Unit
+  bytes-fields-func-each predicate input output = byte-view-fields-func-each predicate (bytes-view input) output
+
+  -- | Construct a reusable default sequence without scanning; each invocation starts at the beginning.
+  byte-view-fields-sequence :: forall (e :: Row). ByteView -> ((ByteView ->{|e} Bool) ->{|e} Unit)
+  byte-view-fields-sequence input = \output -> byte-view-fields-each input output
+
+  -- | Retain complete raw bytes in a reusable effectful-yield sequence factory.
+  bytes-fields-sequence :: forall (e :: Row). Bytes -> ((ByteView ->{|e} Bool) ->{|e} Unit)
+  bytes-fields-sequence input = byte-view-fields-sequence (bytes-view input)
+
+  -- | Capture an effectful predicate and fixed input range without invoking any callback.
+  -- Every traversal is fresh; callback state and mutable input aliases remain shared and observable.
+  -- Its row includes the intended yield capabilities too; apply explicit effect weakening before construction when needed.
+  byte-view-fields-func-sequence :: forall (e :: Row). (Char ->{|e} Bool) -> ByteView -> ((ByteView ->{|e} Bool) ->{|e} Unit)
+  byte-view-fields-func-sequence predicate input = \output -> byte-view-fields-func-each predicate input output
+
+  -- | Construct a reusable predicate/yield sequence over a retained complete byte buffer.
+  bytes-fields-func-sequence :: forall (e :: Row). (Char ->{|e} Bool) -> Bytes -> ((ByteView ->{|e} Bool) ->{|e} Unit)
+  bytes-fields-func-sequence predicate input = byte-view-fields-func-sequence predicate (bytes-view input)

@@ -1,0 +1,22 @@
+warning: function `getrandom` is never used
+ --> /workspace/dasl-stdlib-entropy/experiments/random-provider-v1/deterministic-v1/wrapper.rs:9:19
+  |
+9 |     pub(crate) fn getrandom(_buf: &mut [u8]) -> (i64, i64) {
+  |                   ^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fill` is never used
+  --> /workspace/dasl-stdlib-entropy/experiments/random-provider-v1/deterministic-v1/../proposed/compiler/runtime/src/entropy.rs:10:15
+   |
+10 | pub(crate) fn fill(buf: &mut [u8]) -> io::Result<()> {
+   |               ^^^^
+
+warning: function `device_fill` is never used
+  --> /workspace/dasl-stdlib-entropy/experiments/random-provider-v1/deterministic-v1/../proposed/compiler/runtime/src/entropy.rs:39:4
+   |
+39 | fn device_fill(buf: &mut [u8]) -> io::Result<()> {
+   |    ^^^^^^^^^^^
+
+warning: 3 warnings emitted
+

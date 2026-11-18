@@ -67,6 +67,8 @@ mod c {
         pub(super) fn open(path: *const u8, flags: i32, ...) -> i32;
         pub(super) fn _exit(code: i32) -> !;
         pub(super) fn getpid() -> i32;
+        /// Return the virtual-address slide of the indexed loaded Mach-O image.
+        pub(super) fn _dyld_get_image_vmaddr_slide(index: u32) -> isize;
         pub(super) fn kill(pid: i32, sig: i32) -> i32;
         pub(super) fn pause() -> i32;
         pub(super) fn mmap(
@@ -163,6 +165,11 @@ pub(crate) fn exit(code: i32) -> ! {
 
 pub(crate) fn getpid() -> i64 {
     i64::from(unsafe { c::getpid() })
+}
+
+/// Return the main executable's slide for file-relative stack-trace addresses.
+pub(crate) fn main_image_slide() -> usize {
+    unsafe { c::_dyld_get_image_vmaddr_slide(0) as usize }
 }
 
 pub(crate) fn kill(pid: i64, sig: i64) -> (i64, i64) {

@@ -1,0 +1,12 @@
+{
+  "scope": "Recover zero-filled storage in the newly built diagnostic compiler while keeping identical plain bytes, inode, size, mode, owner and mtime.",
+  "path": "build/stdlib-driver-phase-frozen/cinch",
+  "sha256_before": "75c24ebe648007082891a43f54ad9ccb0de407710dc1134e861915e3fde6cfa9",
+  "sha256_after": "75c24ebe648007082891a43f54ad9ccb0de407710dc1134e861915e3fde6cfa9",
+  "allocated_bytes_before": 59224064,
+  "allocated_bytes_after": 58621952,
+  "recovered_bytes": 602112,
+  "returncode": 0,
+  "stderr": "",
+  "input_bytes_unchanged": true
+}

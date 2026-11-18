@@ -1,0 +1,220 @@
+-- | Independent complete linked-list traces, including detached values and stable alias identities.
+module Main where
+  import Data.Mutable.LinkedList as LL
+  import Data.Mutable.Vec
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  -- | A fixture identity and its independently replaceable logical value.
+  data Item where
+    -- | Keep the fixture identity separate from the list's private insertion serial.
+    Item :: Nat -> Nat -> Item
+
+  -- | Two lists and every stable element reference ever observed, including removed ones.
+  data World r where
+    -- | Retain detached handles without making the implementation retain their old list roots.
+    World :: LL.LinkedList r Item -> LL.LinkedList r Item -> Vec r (LL.ListElement r Item) -> World r
+
+  -- | One operation with exact independent result and complete-state checksum.
+  data Step where
+    -- | Kind, list, reference, marker, value, result kind, identity, returned value and state.
+    Step :: Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> U64 -> Step
+
+  -- | Select the exact fixture list by its bounded input identifier.
+  selected :: forall r. World r -> Nat -> LL.LinkedList r Item
+  selected world which = case world of World first second handles -> if which == 0 then first else second
+
+  -- | Observe the fixture's shared registry of stable handles.
+  registry :: forall r. World r -> Vec r (LL.ListElement r Item)
+  registry world = case world of World first second handles -> handles
+
+  -- | Read one fixture reference through the vector's checked interface.
+  reference-at :: forall r. World r -> Nat ->{Mut r} Option (LL.ListElement r Item)
+  reference-at world index = vec-get (registry world) index
+
+  -- | Convert bounded fixture identifiers and values to exact machine words.
+  word :: Nat -> U64
+  word value = if value <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 value) else 0
+
+  -- | Mix each observation in the independently specified order with wrapping arithmetic.
+  mix :: U64 -> U64 -> U64
+  mix hash value = wrapping-add-u64 (wrapping-mul-u64 hash 1099511628211) value
+
+  -- | Mix one natural-valued fixture observation.
+  mix-natural :: U64 -> Nat -> U64
+  mix-natural hash value = mix hash (word value)
+
+  -- | Decode one named checked refusal without accepting an unrelated failure.
+  error-code :: LL.LinkedListError -> Nat
+  error-code error = case error of
+    LL.ForeignListElement -> 3
+    LL.RemovedListElement -> 4
+    LL.ListCapacityExceeded -> 8
+
+  -- | Normalize a successful structural update or its exact refusal.
+  unit-result :: Result LL.LinkedListError Unit -> (Nat, Nat, Nat)
+  unit-result result = case result of Ok unit -> (0, 0, 0); Err error -> (error-code error, 0, 0)
+
+  -- | Assign a fresh fixture identity to a newly created node while preserving its logical value.
+  remember :: forall r. World r -> Nat -> Result LL.LinkedListError (LL.ListElement r Item) ->{Mut r} (Nat, Nat, Nat)
+  remember world value result = case result of
+    Err error -> (error-code error, 0, 0)
+    Ok element ->
+      let identity = vec-length (registry world) in
+      let assigned = LL.list-element-set element (Item identity value) in
+      let retained = vec-push (registry world) element in (1, identity, 0)
+
+  -- | Populate bounded initial inputs at runtime, avoiding a large constant constructor tree.
+  initialize :: forall r. World r -> Nat -> Nat -> Nat -> Nat -> Nat ->{Mut r} Bool
+  initialize world which count factor offset index = if index == count then True else
+    let value = nat-rem (index * factor + offset) 997 in
+    let result = remember world value (LL.list-push-back (selected world which) (Item 0 value)) in
+    case result of (1, identity, returned) -> initialize world which count factor offset (index + 1); other -> False
+
+  -- | Follow a bounded number of checked links before registering copied nodes.
+  skip-members :: forall r. LL.LinkedList r Item -> Option (LL.ListElement r Item) -> Nat ->{Mut r} Option (LL.ListElement r Item)
+  skip-members list cursor count = if count == 0 then cursor else case cursor of
+    None -> None
+    Some element -> case LL.list-next list element of Ok following -> skip-members list following (count - 1); Err error -> None
+
+  -- | Give each copied node its own fixture identity without changing the copied value.
+  register-copies :: forall r. World r -> LL.LinkedList r Item -> Option (LL.ListElement r Item) -> Nat ->{Mut r} Bool
+  register-copies world list cursor count = if count == 0 then True else case cursor of
+    None -> False
+    Some element -> case LL.list-element-value element of
+      Item old-identity value ->
+        let result = remember world value (Ok element) in
+        case LL.list-next list element of
+          Err error -> False
+          Ok following -> register-copies world list following (count - 1)
+
+  -- | Copy values through the public API, including bounded self-copy in either direction.
+  copy-values :: forall r. World r -> Nat -> Nat -> Bool ->{Mut r} (Nat, Nat, Nat)
+  copy-values world which marker front =
+    let destination = selected world which in
+    let source = selected world (nat-rem marker 2) in
+    let original = LL.list-length destination in
+    let count = LL.list-length source in
+    let result = if front then LL.list-prepend-list destination source else LL.list-append-list destination source in
+    case result of
+      Err error -> (error-code error, 0, 0)
+      Ok unit ->
+        let first = LL.list-front destination in
+        let cursor = skip-members destination first (if front then 0 else original) in
+        if register-copies world destination cursor count then (0, 0, 0) else (9, 0, 0)
+
+  -- | Execute one public mutation, preserving the reference operation's argument and result order.
+  perform :: forall r. World r -> Nat -> Nat -> Nat -> Nat -> Nat ->{Mut r} (Nat, Nat, Nat)
+  perform world kind which reference marker value =
+    let list = selected world which in
+    case (reference-at world reference, reference-at world marker) of
+      (Some element, Some marked) -> case kind of
+        0 -> remember world value (LL.list-push-back list (Item 0 value))
+        1 -> remember world value (LL.list-push-front list (Item 0 value))
+        2 -> remember world value (LL.list-insert-before list (Item 0 value) marked)
+        3 -> remember world value (LL.list-insert-after list (Item 0 value) marked)
+        4 -> case LL.list-remove list element of Err error -> (error-code error, 0, 0); Ok (Item identity actual) -> (2, identity, actual)
+        5 -> unit-result (LL.list-move-front list element)
+        6 -> unit-result (LL.list-move-back list element)
+        7 -> unit-result (LL.list-move-before list element marked)
+        8 -> unit-result (LL.list-move-after list element marked)
+        9 -> case LL.list-element-value element of Item identity actual -> let changed = LL.list-element-set element (Item identity value) in (0, 0, 0)
+        10 -> copy-values world which marker False
+        11 -> copy-values world which marker True
+        12 -> let cleared = LL.list-clear list in (0, 0, 0)
+        13 -> (0, 0, 0)
+        other -> (9, 0, 0)
+      other -> (9, 0, 0)
+
+  -- | Verify that a newly observed alias denotes the previously registered stable identity.
+  alias-word :: forall r. World r -> Nat -> LL.ListElement r Item ->{Mut r} U64
+  alias-word world identity element = case reference-at world identity of
+    None -> 0
+    Some expected -> if LL.list-same-element element expected then 1 else 0
+
+  -- | Fold a complete forward/backward sequence with a bound that diagnoses malformed cycles.
+  sequence-hash :: forall r. World r -> LL.LinkedList r Item -> Bool -> Option (LL.ListElement r Item) -> Nat -> U64 ->{Mut r} U64
+  sequence-hash world list forward cursor remaining hash = if remaining == 0 then
+    (case cursor of None -> hash; Some element -> mix hash 1000019)
+    else case cursor of
+      None -> mix hash 1000003
+      Some element -> case LL.list-element-value element of
+        Item identity value ->
+          let observed = mix-natural (mix-natural hash identity) value in
+          let aliased = if forward then mix observed (alias-word world identity element) else observed in
+          let following = if forward then LL.list-next list element else LL.list-prev list element in
+          case following of Err error -> mix-natural aliased (1000033 + error-code error); Ok adjacent -> sequence-hash world list forward adjacent (remaining - 1) aliased
+
+  -- | Observe length, both complete traversal orders and every live node's alias identity.
+  list-hash :: forall r. World r -> Nat -> U64 ->{Mut r} U64
+  list-hash world which hash =
+    let list = selected world which in
+    let count = LL.list-length list in
+    let front = LL.list-front list in
+    let forward = sequence-hash world list True front count (mix-natural hash count) in
+    let back = LL.list-back list in
+    let backward = sequence-hash world list False back count (mix forward 991) in
+    mix-natural backward (which + 997)
+
+  -- | Fold a checked navigation result, including the exact refusal or neighboring stable identity.
+  navigation-hash :: forall r. World r -> Result LL.LinkedListError (Option (LL.ListElement r Item)) -> U64 ->{Mut r} U64
+  navigation-hash world result hash = case result of
+    Err error -> mix-natural hash (error-code error)
+    Ok None -> mix hash 0
+    Ok (Some element) -> case LL.list-element-value element of
+      Item identity value ->
+        let observed = mix-natural (mix hash 1) (identity + 1) in mix observed (alias-word world identity element)
+
+  -- | Observe membership and both directions for one reference against one explicit owner.
+  relation-hash :: forall r. World r -> Nat -> LL.ListElement r Item -> U64 ->{Mut r} U64
+  relation-hash world which element hash =
+    let list = selected world which in
+    let member = LL.list-is-member list element in
+    let observed = mix hash (if member then (1 :: U64) else (0 :: U64)) in
+    let following = LL.list-next list element in
+    let next-hash = navigation-hash world following observed in
+    let preceding = LL.list-prev list element in
+    navigation-hash world preceding next-hash
+
+  -- | Fold every retained reference's value and checked relations, including removed and cleared nodes.
+  handles-hash :: forall r. World r -> Nat -> Nat -> U64 ->{Mut r} U64
+  handles-hash world index count hash = if index == count then hash else case reference-at world index of
+    None -> mix hash 1000037
+    Some element -> case LL.list-element-value element of
+      Item identity value ->
+        let observed = mix-natural (mix-natural hash identity) value in
+        let first = relation-hash world 0 element observed in
+        let second = relation-hash world 1 element first in
+        handles-hash world (index + 1) count second
+
+  -- | Compute the exact reference state checksum independently of the operation's own return value.
+  state-hash :: forall r. World r ->{Mut r} U64
+  state-hash world =
+    let first = list-hash world 0 1 in
+    let second = list-hash world 1 first in
+    let count = vec-length (registry world) in
+    handles-hash world 0 count (mix-natural second count)
+
+  -- | Check every public action result and full post-operation state in its original sequence.
+  steps-match :: forall r. World r -> List Step ->{Mut r} Bool
+  steps-match world steps = case steps of
+    Nil -> True
+    Cons (Step kind which reference marker value code identity returned expected) rest ->
+      let actual = perform world kind which reference marker value in
+      let observed = state-hash world in
+      case actual of
+        (actual-code, actual-identity, actual-returned) ->
+          actual-code == code && actual-identity == identity && actual-returned == returned && eq-u64 observed expected && steps-match world rest
+
+  -- | Build both independent initial lists and then execute a bounded reference trace.
+  trace-case :: forall r. Nat -> List Step ->{Mut r} Bool
+  trace-case count steps =
+    let first = LL.list-new () in
+    let second = LL.list-new () in
+    let handles = vec-new () in
+    let world = World first second handles in
+    let initialized = initialize world 0 count 17 23 0 in
+    let additional = initialize world 1 3 31 7 0 in
+    initialized && additional && steps-match world steps

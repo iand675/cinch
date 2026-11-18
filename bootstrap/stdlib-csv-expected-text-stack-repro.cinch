@@ -1,0 +1,16 @@
+-- | Isolate the existing unoptimized repeated-text constructor's traversal stack usage.
+module Main where
+  import Data.Machine
+
+  -- | Keep the requested text length in runtime execution.
+  prim runtime-count :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Observe the complete repeated text length under the ordinary eight-mebibyte stack limit.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let count = u32-to-nat (runtime-count 65536) in
+    let printed = ioWrite (string-to-bytes (nat-to-string (string-byte-length (string-repeat count "x")))) in 0

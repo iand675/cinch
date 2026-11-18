@@ -399,7 +399,12 @@ fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: 
     }
     match mode {
         Mode::Check => { publish_check_artifacts(frontend, &dir, &entry, &ir)?; Ok(0) }
-        Mode::Build => if exe.is_file() { Ok(0) } else { Err("selected compiler succeeded without an executable".into()) },
+        Mode::Build => if exe.is_file() {
+            // Match the development driver's inspectable LLVM companion so
+            // consumers can verify the actual selected compiler's kernels.
+            std::fs::copy(&ir, exe.with_extension("ll")).map_err(|e| e.to_string())?;
+            Ok(0)
+        } else { Err("selected compiler succeeded without an executable".into()) },
         // Match the Native driver: programs inherit the test caller's working directory.
         Mode::Run => std::process::Command::new(&exe).args(&request.program_args).status().map_err(|e| e.to_string())?.code().ok_or_else(|| "external test artifact terminated without an exit code".into()),
         Mode::EmitIr => if ir.is_file() {

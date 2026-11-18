@@ -1,0 +1,18 @@
+902665 openat(AT_FDCWD, "/sys/kernel/mm/transparent_hugepage/hpage_pmd_size", O_RDONLY) = 3
+902665 read(3, "2097152\n", 20)         = 8
+902665 close(3)                         = 0
+902665 openat(AT_FDCWD, "/proc/self/cgroup", O_RDONLY|O_CLOEXEC) = 3
+902665 read(3, "0::/\n", 65536)         = 5
+902665 read(3, "", 65536)               = 0
+902665 close(3)                         = 0
+902665 openat(AT_FDCWD, "/proc/self/mountinfo", O_RDONLY|O_CLOEXEC) = 3
+902665 read(3, "119 92 0:27 / / ro,nosuid,nodev,"..., 65536) = 4035
+902665 close(3)                         = 0
+902665 openat(AT_FDCWD, "/sys/fs/cgroup/cpu.max", O_RDONLY|O_CLOEXEC) = 3
+902665 write(2, "BEGIN SDK ENTROPY DRAW len=16\n", 30) = 30
+902665 getrandom("\x97\x8e\x38\x5d\x50\xad\x39\xbb\xc2\x11\x70\x99\x7e\x21\xc0\xc6\x17\x81\xb6\x99\xfd\x58\x01\x97\xc8\xd6\xe8\xa9\xd1\xba\xae\x14", 32, 0) = 32
+902665 write(2, "END SDK ENTROPY DRAW len=16\n", 28) = 28
+902665 write(1, "sdk-probe bytes=16 status=ok\n", 29) = 29
+902667 +++ exited with 0 +++
+902666 +++ exited with 0 +++
+902665 +++ exited with 0 +++

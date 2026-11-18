@@ -1,0 +1,85 @@
+-- | Exact numeric/error/refusal/ownership contracts beyond valid scalar and byte fingerprints.
+module Main where
+  import Data.Bytes.Utf8
+  import Data.Bytes
+  import Data.Bool
+  import Data.Char
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  -- | Compare all bytes, including embedded zero and malformed replacement data.
+  same :: Bytes -> Bytes -> Bool
+  same first second = eq-i64 (bytes-compare first second) 0
+
+  -- | Every invalid numeric encoding emits the same three replacement bytes.
+  invalid-number :: I32 -> Bool
+  invalid-number cp = not (utf8-valid-rune cp)
+    && (case utf8-rune-length cp of None -> True; Some n -> False)
+    && same (utf8-encode-rune cp) (bytes-from-list [239,191,189])
+
+  -- | Exact-capacity encoding succeeds, while refusal preserves the complete destination.
+  capacity :: Unit -> Bool
+  capacity unit = let short = bytes-from-list [17,18,19,20,21] in
+    let refused = utf8-encode-into short 2 128512 in
+    (case refused of None -> True; Some width -> False) && same short (bytes-from-list [17,18,19,20,21])
+    && (case utf8-encode-into short 1 128512 of None -> False; Some width -> width == 4)
+    && same short (bytes-from-list [17,240,159,152,128])
+    && (case utf8-encode-into short 18446744073709551616 65 of None -> True; Some width -> False)
+    && same short (bytes-from-list [17,240,159,152,128])
+
+  -- | Alias replacements are read-only and grouped repair differs from per-byte repair.
+  aliases :: Unit -> Bool
+  aliases unit = let source = bytes-from-list [255,65,255,255] in
+    let grouped = utf8-repair source source in let each = utf8-repair-each source source in
+    let a = same grouped (bytes-from-list [255,65,255,255,65,255,65,255,255]) in
+    let b = same each (bytes-from-list [255,65,255,255,65,255,65,255,255,255,65,255,255]) in
+    let written = if bytes-len source > 0 then bytes-set source 0 1 else () in a && b
+      && same grouped (bytes-from-list [255,65,255,255,65,255,65,255,255])
+      && same each (bytes-from-list [255,65,255,255,65,255,65,255,255,255,65,255,255])
+
+  -- | Valid inputs and appends still return fresh independently mutable storage.
+  fresh :: Unit -> Bool
+  fresh unit = let source = bytes-from-list [65,66] in let replacement = bytes-from-list [63] in
+    let fixed = utf8-repair source replacement in let each = utf8-repair-each source replacement in
+    let appended = utf8-append-rune source 128512 in
+    let a = if bytes-len source > 0 then bytes-set source 0 67 else () in
+    let b = if bytes-len replacement > 0 then bytes-set replacement 0 64 else () in
+    same fixed (bytes-from-list [65,66]) && same each (bytes-from-list [65,66])
+      && same appended (bytes-from-list [65,66,240,159,152,128])
+      && bytes-len (utf8-repair (bytes-new 0) source) == 0
+      && same (utf8-replace-invalid (bytes-from-list [255,128])) (bytes-from-list [239,191,189,239,191,189])
+
+  -- | End, invalid and huge-offset steps retain distinct status and exact consumed widths.
+  statuses :: Unit -> Bool
+  statuses unit = let source = bytes-from-list [239,191,189,255] in
+    (case utf8-step-status (utf8-first source) of Utf8Valid -> True; other -> False)
+    && (case utf8-step-status (utf8-last source) of Utf8Invalid -> True; other -> False)
+    && (case utf8-step-status (utf8-decode-at source 4) of Utf8End -> True; other -> False)
+    && (case utf8-step-status (utf8-decode-at source 18446744073709551616) of Utf8OutOfBounds -> True; other -> False)
+    && utf8-step-width (utf8-last-before source 3) == 3
+    && utf8-step-width (utf8-last-before source 2) == 1
+    && utf8-step-width (utf8-decode-at source 4) == 0
+    && utf8-step-width (utf8-decode-at source 5) == 0
+
+  -- | Check the scalar step constructor derives consistent metadata.
+  factory :: Char -> Nat -> Bool
+  factory scalar expected = let step = utf8-scalar-step scalar in
+    utf8-step-char step == scalar && utf8-step-width step == expected
+      && (case utf8-step-status step of Utf8Valid -> True; other -> False)
+
+  -- | Cover every UTF-8 scalar-width boundary and the distinct empty observation.
+  factories :: Unit -> Bool
+  factories unit = factory '\u{0}' 1 && factory '\u{7F}' 1 && factory '\u{80}' 2
+    && factory '\u{7FF}' 2 && factory '\u{800}' 3 && factory '\u{D7FF}' 3
+    && factory '\u{E000}' 3 && factory '\u{FFFF}' 3 && factory '\u{10000}' 4
+    && factory '\u{10FFFF}' 4
+    && utf8-step-char (utf8-end-step ()) == utf8-rune-error
+    && utf8-step-width (utf8-end-step ()) == 0
+    && (case utf8-step-status (utf8-end-step ()) of Utf8End -> True; other -> False)
+
+  -- | Verify all invalid numeric classes, atomic mutations and independent result ownership.
+  main :: Int
+  main = if invalid-number (-2147483648) && invalid-number (-1) && invalid-number 55296
+    && invalid-number 57343 && invalid-number 1114112 && invalid-number 2147483647
+    && capacity () && aliases () && fresh () && statuses () && factories () then 0 else 1

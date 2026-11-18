@@ -1,0 +1,390 @@
+-- | Hexadecimal conversion between byte buffers and text.
+-- Encoding emits two lowercase ASCII characters per byte. Decoding accepts either
+-- case, without whitespace or prefixes. Invalid-byte offsets count UTF-8 bytes;
+-- an invalid final byte takes precedence over an odd-length error. Whole-text
+-- decoding rejects the input on error; prefix and append APIs retain completed
+-- bytes alongside the error. Complete blocks use inline LLVM SIMD nibble lanes;
+-- short tails and precise error reporting use the scalar path.
+module Text.Hex where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export HexError, OddHexLength, InvalidHexByte, HexShortDestination
+  export hex-encode, hex-decode, hex-encoded-length, hex-decoded-length
+  export hex-encode-bytes, hex-decode-prefix, hex-encode-append, hex-decode-append
+  export hex-encode-into, hex-decode-into
+  export hex-dump, hex-dump-bytes, hex-error-message
+
+  -- | A hexadecimal input or destination is invalid. Prefix APIs return completed output alongside this error.
+  data HexError where
+    -- | The final valid hexadecimal digit has no matching low digit.
+    OddHexLength :: HexError
+    -- | An invalid UTF-8 byte, represented by its zero-based byte offset followed by its value.
+    InvalidHexByte :: Nat -> Nat -> HexError
+    -- | Required output bytes and available destination bytes. No destination bytes were changed.
+    HexShortDestination :: Nat -> Nat -> HexError
+
+  -- | Render a diagnostic with original byte positions or the required output capacity.
+  hex-error-message :: HexError -> String
+  hex-error-message error = case error of
+    OddHexLength -> "unpaired final hexadecimal digit"
+    InvalidHexByte offset byte -> string-concat "invalid hexadecimal byte " (string-concat (nat-to-string byte) (string-concat " at byte " (nat-to-string offset)))
+    HexShortDestination required available -> string-concat "hexadecimal output requires " (string-concat (nat-to-string required) (string-concat " bytes; available " (nat-to-string available)))
+
+  -- | The exact encoded character and byte count for a buffer of the given length: twice its length.
+  hex-encoded-length :: Nat -> Nat
+  hex-encoded-length n = n * 2
+
+  -- | The maximum complete decoded byte count for an encoded length: floor(length / 2). This does not validate the input.
+  hex-decoded-length :: Nat -> Nat
+  hex-decoded-length n = nat-div n 2
+
+  -- | Render a nibble as its lowercase ASCII byte; the defensive out-of-range result is the digit zero.
+  hex-digit :: Nat -> InRange 0 255 Nat
+  hex-digit n = if n < 10 then n + 48 else if n < 16 then n + 87 else 48
+
+  -- | Encode all bytes as lowercase hexadecimal ASCII. Empty input produces empty text; complete blocks use SIMD and the tail is exact.
+  hex-encode :: Bytes -> String
+  hex-encode b =
+    let out = bytes-new (hex-encoded-length (bytes-len b)) in
+    let filled = encode-buffer-from b 0 out 0 in
+    case string-from-bytes out of
+      Some s -> s
+      None -> empty-string
+
+  -- | Encode directly to a fresh lowercase ASCII buffer, without a text conversion.
+  hex-encode-bytes :: Bytes -> Bytes
+  hex-encode-bytes input =
+    let out = bytes-new (hex-encoded-length (bytes-len input)) in
+    let filled = encode-buffer-from input 0 out 0 in out
+
+  -- | Append encoded bytes to a copied prefix. Neither input buffer is mutated or retained by alias.
+  hex-encode-append :: Bytes -> Bytes -> Bytes
+  hex-encode-append prefix input =
+    let start = bytes-len prefix in
+    let out = bytes-new (start + hex-encoded-length (bytes-len input)) in
+    let copied = bytes-copy-range out prefix 0 0 start in
+    let filled = encode-buffer-from input 0 out start in out
+
+  -- | Encode into a destination starting at an offset and return the written byte count.
+  -- The entire destination range is checked before writing. Source/destination overlap is safe.
+  hex-encode-into :: Bytes -> Nat -> Bytes -> Result HexError Nat
+  hex-encode-into destination start input =
+    let required = hex-encoded-length (bytes-len input) in
+    if start <= bytes-len destination && required <= bytes-len destination - start then
+      let source = copy-prefix input (bytes-len input) in
+      let filled = encode-buffer-from source 0 destination start in Ok required
+    else Err (HexShortDestination required (saturating-sub (bytes-len destination) start))
+
+  -- | Recognize an ASCII hexadecimal byte of either case, retaining its four-bit range.
+  hex-value :: Nat -> Option (InRange 0 15 Nat)
+  hex-value n =
+    if n >= 48 && n <= 57 then Some (n - 48)
+    else if n >= 65 && n <= 70 then Some (n - 55)
+    else if n >= 97 && n <= 102 then Some (n - 87)
+    else None
+
+  -- | Decode text atomically: malformed input returns only an error, without a partial buffer.
+  hex-decode :: String -> Result HexError Bytes
+  hex-decode text = case hex-decode-prefix (string-to-bytes text) of
+    (out, None) -> Ok out
+    (out, Some error) -> Err error
+
+  -- | Decode all complete valid pairs from arbitrary encoded bytes, preserving a prefix on error.
+  -- Invalid byte offsets refer to the original input, including invalid non-UTF-8 bytes.
+  hex-decode-prefix :: Bytes -> (Bytes, Option HexError)
+  hex-decode-prefix input = hex-decode-append (bytes-new 0) input
+
+  -- | Append decoded bytes to a copied prefix, retaining completed pairs even if later input is invalid.
+  -- Error offsets refer to the encoded input, independently of the prefix length.
+  hex-decode-append :: Bytes -> Bytes -> (Bytes, Option HexError)
+  hex-decode-append prefix input =
+    let start = bytes-len prefix in
+    let out = bytes-new (start + hex-decoded-length (bytes-len input)) in
+    if start <= bytes-len out then
+      let copied = bytes-copy-range out prefix 0 0 start in
+      case decode-buffer-from input 0 out start of
+        (end, error) -> (if end == bytes-len out then out else copy-prefix out end, error)
+    else (copy-prefix prefix start, Some (HexShortDestination start (bytes-len out)))
+
+  -- | Decode into a destination and return completed bytes plus any decoding error.
+  -- A short range returns zero and HexShortDestination before mutation; malformed input
+  -- retains its valid decoded prefix. The source is snapshotted so overlap is safe.
+  hex-decode-into :: Bytes -> Nat -> Bytes -> (Nat, Option HexError)
+  hex-decode-into destination start input =
+    let required = hex-decoded-length (bytes-len input) in
+    if start <= bytes-len destination && required <= bytes-len destination - start then
+      let source = copy-prefix input (bytes-len input) in
+      case decode-buffer-from source 0 destination start of
+        (end, error) -> (saturating-sub end start, error)
+    else (0, Some (HexShortDestination required (saturating-sub (bytes-len destination) start)))
+
+  -- | Snapshot an initialized prefix, including the empty prefix, without retaining an alias.
+  copy-prefix :: Bytes -> Nat -> Bytes
+  copy-prefix input n = if n <= bytes-len input then
+    let out = bytes-new n in
+    let copied = bytes-copy-range out input 0 0 n in out
+    else bytes-new 0
+
+  -- | Encode four packed bytes as eight lowercase ASCII hex bytes using SIMD nibble lanes.
+  prim encode4 :: U32 -> U64 where
+    llvm {
+      %in0 = or i32 %0, 0
+      %v = bitcast i32 %in0 to <4 x i8>
+      %pairs = shufflevector <4 x i8> %v, <4 x i8> poison, <8 x i32> <i32 0, i32 0, i32 1, i32 1, i32 2, i32 2, i32 3, i32 3>
+      %shifted = lshr <8 x i8> %pairs, <i8 4, i8 0, i8 4, i8 0, i8 4, i8 0, i8 4, i8 0>
+      %n = and <8 x i8> %shifted, <i8 15, i8 15, i8 15, i8 15, i8 15, i8 15, i8 15, i8 15>
+      %letter = icmp ugt <8 x i8> %n, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %base = select <8 x i1> %letter, <8 x i8> <i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87>, <8 x i8> <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %ascii = add <8 x i8> %n, %base
+      %result = bitcast <8 x i8> %ascii to i64
+      ret i64 %result
+    } when endian little
+    llvm {
+      %in0 = call i32 @llvm.bswap.i32(i32 %0)
+      %v = bitcast i32 %in0 to <4 x i8>
+      %pairs = shufflevector <4 x i8> %v, <4 x i8> poison, <8 x i32> <i32 0, i32 0, i32 1, i32 1, i32 2, i32 2, i32 3, i32 3>
+      %shifted = lshr <8 x i8> %pairs, <i8 4, i8 0, i8 4, i8 0, i8 4, i8 0, i8 4, i8 0>
+      %n = and <8 x i8> %shifted, <i8 15, i8 15, i8 15, i8 15, i8 15, i8 15, i8 15, i8 15>
+      %letter = icmp ugt <8 x i8> %n, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %base = select <8 x i1> %letter, <8 x i8> <i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87>, <8 x i8> <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %ascii = add <8 x i8> %n, %base
+      %result = bitcast <8 x i8> %ascii to i64
+      %out = call i64 @llvm.bswap.i64(i64 %result)
+      ret i64 %out
+    } when endian big
+
+  -- | Decode eight ASCII bytes in SIMD lanes; bits 32..39 flag invalid lanes and the low word holds four bytes.
+  prim decode8 :: U64 -> U64 where
+    llvm {
+      %in0 = or i64 %0, 0
+      %v = bitcast i64 %in0 to <8 x i8>
+      %folded = or <8 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %dlo = icmp uge <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %dhi = icmp ule <8 x i8> %v, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %digit = and <8 x i1> %dlo, %dhi
+      %alo = icmp uge <8 x i8> %folded, <i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97>
+      %ahi = icmp ule <8 x i8> %folded, <i8 102, i8 102, i8 102, i8 102, i8 102, i8 102, i8 102, i8 102>
+      %alpha = and <8 x i1> %alo, %ahi
+      %valid = or <8 x i1> %digit, %alpha
+      %bad = xor <8 x i1> %valid, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %mask = bitcast <8 x i1> %bad to i8
+      %d = sub <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %a = sub <8 x i8> %folded, <i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87>
+      %n = select <8 x i1> %digit, <8 x i8> %d, <8 x i8> %a
+      %hi = shufflevector <8 x i8> %n, <8 x i8> poison, <4 x i32> <i32 0, i32 2, i32 4, i32 6>
+      %lo = shufflevector <8 x i8> %n, <8 x i8> poison, <4 x i32> <i32 1, i32 3, i32 5, i32 7>
+      %hs = shl <4 x i8> %hi, <i8 4, i8 4, i8 4, i8 4>
+      %joined = or <4 x i8> %hs, %lo
+      %packed = bitcast <4 x i8> %joined to i32
+      %payload = zext i32 %packed to i64
+      %m = zext i8 %mask to i64
+      %ms = shl i64 %m, 32
+      %result = or i64 %payload, %ms
+      ret i64 %result
+    } when endian little
+    llvm {
+      %in0 = call i64 @llvm.bswap.i64(i64 %0)
+      %v = bitcast i64 %in0 to <8 x i8>
+      %folded = or <8 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %dlo = icmp uge <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %dhi = icmp ule <8 x i8> %v, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
+      %digit = and <8 x i1> %dlo, %dhi
+      %alo = icmp uge <8 x i8> %folded, <i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97>
+      %ahi = icmp ule <8 x i8> %folded, <i8 102, i8 102, i8 102, i8 102, i8 102, i8 102, i8 102, i8 102>
+      %alpha = and <8 x i1> %alo, %ahi
+      %valid = or <8 x i1> %digit, %alpha
+      %bad = xor <8 x i1> %valid, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %mask = bitcast <8 x i1> %bad to i8
+      %d = sub <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
+      %a = sub <8 x i8> %folded, <i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87, i8 87>
+      %n = select <8 x i1> %digit, <8 x i8> %d, <8 x i8> %a
+      %hi = shufflevector <8 x i8> %n, <8 x i8> poison, <4 x i32> <i32 0, i32 2, i32 4, i32 6>
+      %lo = shufflevector <8 x i8> %n, <8 x i8> poison, <4 x i32> <i32 1, i32 3, i32 5, i32 7>
+      %hs = shl <4 x i8> %hi, <i8 4, i8 4, i8 4, i8 4>
+      %joined = or <4 x i8> %hs, %lo
+      %packed = bitcast <4 x i8> %joined to i32
+      %canonical = call i32 @llvm.bswap.i32(i32 %packed)
+      %payload = zext i32 %canonical to i64
+      %m = zext i8 %mask to i64
+      %ms = shl i64 %m, 32
+      %result = or i64 %payload, %ms
+      ret i64 %result
+    } when endian big
+
+  -- | Fill complete four-byte SIMD blocks, then the exact scalar tail.
+  encode-buffer-from :: Bytes -> Nat -> Bytes -> Nat -> Unit
+  encode-buffer-from b i out oi =
+    if i + 4 <= bytes-len b && oi + 8 <= bytes-len out then
+      let stored = bytes-write-le64 out oi (encode4 (bytes-read-le32 b i)) in
+      encode-buffer-from b (i + 4) out (oi + 8)
+    else if i < bytes-len b && oi + 2 <= bytes-len out then
+      let v = bytes-get b i in
+      let hi = bytes-set out oi (hex-digit (nat-div v 16)) in
+      let lo = bytes-set out (oi + 1) (hex-digit (nat-rem v 16)) in
+      encode-buffer-from b (i + 1) out (oi + 2)
+    else ()
+
+  -- | Decode SIMD blocks directly into the output, then identify a scalar error or exact tail.
+  -- Each decoded block is stored once; no per-byte list nodes are allocated.
+  decode-buffer-from :: Bytes -> Nat -> Bytes -> Nat -> (Nat, Option HexError)
+  decode-buffer-from input i out oi =
+    if i + 8 <= bytes-len input && oi + 4 <= bytes-len out then
+      let word = decode8 (bytes-read-le64 input i) in
+      if eq-u64 (wrapping-shr-u64 word 32) 0 then
+        let stored = bytes-write-le32 out oi (wrapping-u64-to-u32 word) in
+        decode-buffer-from input (i + 8) out (oi + 4)
+      else decode-scalar input i out oi
+    else decode-scalar input i out oi
+
+  -- | Store a valid pair or stop at the first invalid byte, preferring an invalid tail to odd length.
+  decode-scalar :: Bytes -> Nat -> Bytes -> Nat -> (Nat, Option HexError)
+  decode-scalar input i out oi =
+    if i < bytes-len input then
+      let first = bytes-get input i in
+      case hex-value first of
+        None -> (oi, Some (InvalidHexByte i first))
+        Some high -> if i + 1 < bytes-len input then
+          let second = bytes-get input (i + 1) in
+          case hex-value second of
+            None -> (oi, Some (InvalidHexByte (i + 1) second))
+            Some low -> if oi < bytes-len out then
+              let stored = bytes-set out oi (high * 16 + low) in
+              decode-buffer-from input (i + 2) out (oi + 1)
+              else (oi, Some (HexShortDestination 1 0))
+          else (oi, Some OddHexLength)
+    else (oi, None)
+
+  -- | Render sixteen-byte rows with eight-digit offsets, grouped lowercase hex and printable ASCII.
+  -- Non-printable bytes become dots. Empty input is empty text; no final offset-only row is emitted.
+  hex-dump :: Bytes -> String
+  hex-dump input = if bytes-len input == 0 then empty-string else
+    case string-from-bytes (hex-dump-bytes 0 input) of
+      Some text -> text
+      None -> empty-string
+
+  -- | Render a dump as ASCII bytes starting at an explicit 32-bit line offset.
+  -- Offsets wrap modulo 2^32. A short last row is padded only before its ASCII column.
+  hex-dump-bytes :: U32 -> Bytes -> Bytes
+  hex-dump-bytes offset input =
+    if bytes-len input == 0 then bytes-new 0 else
+      let count = bytes-len input in
+      let full = nat-div count 16 in
+      let tail = nat-rem count 16 in
+      let out = bytes-new (full * 79 + (if tail == 0 then 0 else 63 + tail)) in
+      let digits = hex-encode-bytes input in
+      let template = string-to-bytes "                                                            |" in
+      let filled = dump-lines input digits template 0 out 0 offset in out
+
+  -- | Render checked complete or short rows without recopying their already formatted prefix.
+  dump-lines :: Bytes -> Bytes -> Bytes -> Nat -> Bytes -> Nat -> U32 -> Unit
+  dump-lines input digits template i out oi offset =
+    if i < bytes-len input then
+      let left = bytes-len input - i in
+      let n = if left < 16 then left else 16 in
+      if n <= 16 then
+        let filled = dump-line input digits template i n out oi offset in
+        dump-lines input digits template (i + n) out (oi + 63 + n) (wrapping-add-u32 offset (wrapping-i64-to-u32 (nat-to-i64 n)))
+      else ()
+    else ()
+
+  -- | Copy one fixed column template, then fill its offset, digit pairs, ASCII bytes and terminator.
+  dump-line :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Bytes -> Nat -> U32 -> Unit
+  dump-line input digits template start n out oi offset =
+    if start + n <= bytes-len input && n <= 16 && oi + 63 + n <= bytes-len out && oi + 61 <= bytes-len out && 61 <= bytes-len template then
+      let copied = bytes-copy-range out template oi 0 61 in
+      let address = if oi + 8 <= bytes-len out then bytes-write-le64 out oi (encode4 (dump-swap32 offset)) else () in
+      let pairs = dump-digits digits (start * 2) n out oi 0 in
+      let right = dump-ascii input start n out (oi + 61) 0 in
+      let close = oi + 61 + n in
+      if close + 2 <= bytes-len out then
+        let bar = bytes-set out close 124 in bytes-set out (close + 1) 10
+      else ()
+    else ()
+
+  -- | Scatter the SIMD-encoded digit pairs into grouped three-character columns.
+  dump-digits :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Nat -> Unit
+  dump-digits digits start n out oi j =
+    if j + 4 <= n then
+      let from = start + j * 2 in
+      let position = oi + 10 + j * 3 + (if j < 8 then 0 else 1) in
+      if from + 8 <= bytes-len digits && position + 12 <= bytes-len out then
+        let packed = bytes-read-le64 digits from in
+        let first = bytes-write-le64 out position (dump-columns-low packed) in
+        let last = bytes-write-le32 out (position + 8) (dump-columns-high packed) in
+        dump-digits digits start n out oi (j + 4)
+      else ()
+    else if j < n then
+      let from = start + j * 2 in
+      let position = oi + 10 + j * 3 + (if j < 8 then 0 else 1) in
+      if from + 2 <= bytes-len digits && position + 2 <= bytes-len out then
+        let high = bytes-set out position (bytes-get digits from) in
+        let low = bytes-set out (position + 1) (bytes-get digits (from + 1)) in
+        dump-digits digits start n out oi (j + 1)
+      else ()
+    else ()
+
+  -- | Classify eight printable bytes in parallel, then handle an exact short tail.
+  dump-ascii :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Nat -> Unit
+  dump-ascii input start n out at j =
+    if j + 8 <= n && start + j + 8 <= bytes-len input && at + j + 8 <= bytes-len out then
+      let stored = bytes-write-le64 out (at + j) (dump-ascii8 (bytes-read-le64 input (start + j))) in
+      dump-ascii input start n out at (j + 8)
+    else if j < n && start + j < bytes-len input && at + j < bytes-len out then
+      let byte = bytes-get input (start + j) in
+      let stored = bytes-set out (at + j) (if byte >= 32 && byte <= 126 then byte else 46) in
+      dump-ascii input start n out at (j + 1)
+    else ()
+
+  -- | Place the address's most significant byte first before nibble encoding.
+  prim dump-swap32 :: U32 -> U32 where
+    llvm {
+      %word = call i32 @llvm.bswap.i32(i32 %0)
+      ret i32 %word
+    }
+
+  -- | Preserve printable ASCII in eight independent lanes and replace all other bytes with dots.
+  -- Lane-wise classification commutes with byte-order reversal, so this fragment is endian neutral.
+  prim dump-ascii8 :: U64 -> U64 where
+    llvm {
+      %word = or i64 %0, 0
+      %bytes = bitcast i64 %word to <8 x i8>
+      %low = icmp uge <8 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %high = icmp ule <8 x i8> %bytes, <i8 126, i8 126, i8 126, i8 126, i8 126, i8 126, i8 126, i8 126>
+      %printable = and <8 x i1> %low, %high
+      %ascii = select <8 x i1> %printable, <8 x i8> %bytes, <8 x i8> <i8 46, i8 46, i8 46, i8 46, i8 46, i8 46, i8 46, i8 46>
+      %result = bitcast <8 x i8> %ascii to i64
+      ret i64 %result
+    }
+
+
+  -- | Interleave spaces into the first eight bytes of four encoded pairs using SWAR masks.
+  -- Input and output words represent little-endian byte sequences independently of target order.
+  prim dump-columns-low :: U64 -> U64 where
+    llvm {
+      %pair0 = and i64 %0, 65535
+      %pair1 = and i64 %0, 4294901760
+      %middle = shl i64 %pair1, 8
+      %pair2 = and i64 %0, 281470681743360
+      %last = shl i64 %pair2, 16
+      %pairs01 = or i64 %pair0, %middle
+      %pairs012 = or i64 %pairs01, %last
+      %result = or i64 %pairs012, 35184374185984
+      ret i64 %result
+    }
+
+  -- | Complete the four-pair column block with a space, the final pair and a trailing space.
+  prim dump-columns-high :: U64 -> U32 where
+    llvm {
+      %shifted = lshr i64 %0, 48
+      %pair = trunc i64 %shifted to i32
+      %placed = shl i32 %pair, 8
+      %result = or i32 %placed, 536870944
+      ret i32 %result
+    }

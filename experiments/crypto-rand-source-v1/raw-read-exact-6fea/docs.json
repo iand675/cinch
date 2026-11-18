@@ -1,0 +1,101 @@
+{
+  "declarations": [
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 17,
+        "links": [],
+        "markdown": "Read exactly count bytes, preserving the advanced callback capability.\nZero invokes no callback. Invalid signed/oversized callback counts are named errors.",
+        "math": [],
+        "summary": "Read exactly count bytes, preserving the advanced callback capability. Zero invokes no callback. Invalid signed/oversized callback counts are named errors.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Effect.Random.Read.random-read-exact",
+      "kind": "value",
+      "name": "random-read-exact",
+      "parameters": [
+        {
+          "doc": "",
+          "name": "io",
+          "type": "Io r"
+        }
+      ],
+      "signature": "random-read-exact :: forall r. using (io :: Io r) => BufferSource r -> Nat ->{IO r} (Result BufferError Bytes, BufferSource r)",
+      "source": {
+        "line": 19
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 22,
+        "links": [],
+        "markdown": "Distinguish initial EOF from a final short prefix before the requested size.",
+        "math": [],
+        "summary": "Distinguish initial EOF from a final short prefix before the requested size.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Effect.Random.Read.ended",
+      "kind": "value",
+      "name": "ended",
+      "parameters": [],
+      "signature": "ended :: Nat -> Nat -> BufferError",
+      "source": {
+        "line": 23
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 26,
+        "links": [],
+        "markdown": "Snapshot accepted prefixes into the private destination and inspect status after progress.",
+        "math": [],
+        "summary": "Snapshot accepted prefixes into the private destination and inspect status after progress.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Effect.Random.Read.read",
+      "kind": "value",
+      "name": "read",
+      "parameters": [
+        {
+          "doc": "",
+          "name": "io",
+          "type": "Io r"
+        }
+      ],
+      "signature": "read :: forall r. using (io :: Io r) => BufferSource r -> Bytes -> Nat ->{IO r} (Result BufferError Bytes, BufferSource r)",
+      "source": {
+        "line": 27
+      },
+      "typeParameters": []
+    }
+  ],
+  "diagnostics": [],
+  "doc": {
+    "legacy": false,
+    "line": 1,
+    "links": [],
+    "markdown": "Exact reads from raw callback sources without losing simultaneous data/status.\nA full final prefix succeeds even when that callback also reports an error.\nShort failure retains the advanced source. A zero-progress nonterminal source\nis retried; a source that never progresses can therefore keep the call waiting.\nThese operations do not attest to source randomness or cryptographic quality.",
+    "math": [],
+    "summary": "Exact reads from raw callback sources without losing simultaneous data/status. A full final prefix succeeds even when that callback also reports an error. Short failure retains the advanced source. A zero-progress nonterminal source is retried; a source that never progresses can therefore keep the call waiting. These operations do not attest to source randomness or cryptographic quality.",
+    "tags": {},
+    "tests": []
+  },
+  "module": "Effect.Random.Read",
+  "orphans": [],
+  "schema": 1,
+  "source": "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/raw-read-exact-6fea/project/Effect.Random.Read.cinch",
+  "sourceSha256": "ea45364cfa809b208b06baf48b81e9ca35be36c69dac8134fb306d93548fe376"
+}

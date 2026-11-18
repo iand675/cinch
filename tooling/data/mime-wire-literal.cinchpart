@@ -1,0 +1,17 @@
+  -- | Sum bounded literal chunks before allocating one independent fixture value.
+  fixture-wire-size :: List Bytes -> Nat -> Nat
+  fixture-wire-size pieces count = case pieces of Nil -> count; Cons piece rest -> fixture-wire-size rest (count + bytes-len piece)
+
+  -- | Copy only proved complete chunks into the exactly sized fixture output.
+  fixture-wire-copy :: Bytes -> Nat -> List Bytes -> Unit
+  fixture-wire-copy output at pieces = case pieces of
+    Nil -> ()
+    Cons piece rest -> if at + bytes-len piece <= bytes-len output then
+      let copied = bytes-copy-range output piece at 0 (bytes-len piece) in
+      fixture-wire-copy output (at + bytes-len piece) rest
+      else ()
+
+  -- | Build a large arbitrary-byte fixture without a deeply nested source byte list.
+  fixture-wire :: List Bytes -> Bytes
+  fixture-wire pieces = let output = bytes-new (fixture-wire-size pieces 0) in
+    let copied = fixture-wire-copy output 0 pieces in output

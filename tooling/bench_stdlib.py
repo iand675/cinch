@@ -1,0 +1,652 @@
+#!/usr/bin/env python3
+"""Compile and measure public Cinch library operations outside compiler startup.
+
+Each process times only the operation loop with the runtime's monotonic clock.
+Inputs are prepared before timing and mutated between iterations; observable
+checksums keep results live. Reports include raw samples, input sizes, compiler
+and source identities, CPU information and toolchain versions. There are no
+machine-dependent pass/fail timing thresholds.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import shutil
+import statistics
+import subprocess
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+PRELUDE = ROOT / "compiler/prelude"
+WORKLOADS = (
+    "hex-encode", "hex-decode", "base32-encode", "base32-decode",
+    "base64-encode", "base64-decode", "adler32", "crc32", "crc32c",
+    "crc64", "fnv32a", "fnv64a", "binary", "varint",
+    "stream-copy-buffer", "stream-copy-discard", "stream-read-all",
+    "ascii85-encode", "ascii85-decode", "ascii85-stream-encode", "ascii85-stream-decode",
+    "utf16le-encode", "utf16le-decode", "utf16be-encode", "utf16be-decode",
+    "word-add64", "word-mul64", "word-div64", "word-bits64", "word-load", "word-div64-proven",
+    "fnv128", "fnv128a",
+    "hex-append-encode", "hex-append-decode", "hex-into-encode", "hex-into-decode",
+    "hex-dump", "hex-stream-encode", "hex-stream-decode", "hex-stream-dump",
+    "hex-bytes-encode", "hex-prefix-decode",
+    "ascii85-bytes-encode", "ascii85-into-encode", "ascii85-into-decode", "ascii85-prefix-decode",
+    "ascii85-controls-decode", "ascii85-controls-prefix-decode", "ascii85-offset-decode",
+    "fnv-state32", "fnv-state32a", "fnv-state64", "fnv-state64a", "fnv-state128", "fnv-state128a",
+    "fnv-roundtrip32", "fnv-roundtrip32a", "fnv-roundtrip64", "fnv-roundtrip64a", "fnv-roundtrip128", "fnv-roundtrip128a",
+    "fnv-stream32", "fnv-stream32a", "fnv-stream64", "fnv-stream64a", "fnv-stream128", "fnv-stream128a",
+    "adler32-state", "adler32-roundtrip", "adler32-stream", "adler32-stream4096",
+    "crc64-table", "crc64-state", "crc64-roundtrip", "crc64-stream", "crc64-stream4096", "crc64-table-build",
+    "sha256", "sha224", "sha256-state", "sha224-state", "sha256-roundtrip", "sha224-roundtrip",
+    "sha256-stream", "sha224-stream", "sha256-stream4096", "sha224-stream4096", "sha256-runtime",
+)
+
+SOURCE = r'''-- | Executable workload driver; output is elapsed_ns and an observable checksum.
+module Main where
+  import Text.Hex
+  import Text.Base32
+  import Text.Base64
+  import Text.Binary
+  import Text.Checksum
+  import Text.Adler32 as Adler
+  import Effect.Adler32
+  import Text.Crc64 as Crc
+  import Effect.Crc64
+  import Text.Sha256 as Sha
+  import Effect.Sha256
+  import Text.Fnv
+  import Text.Fnv.State
+  import Effect.Fnv
+  import Text.Ascii85
+  import Effect.Ascii85
+  import Effect.Hex
+  import Text.Utf16
+  import Data.Word
+  import Data.Bytes.Word
+  import Effect.Clock
+  import Effect.Process
+  import Effect.Stream
+
+  -- | Parse the decimal arguments supplied by the validated host harness.
+  decimal :: String -> Nat
+  decimal s = decimal-from (unpack s) 0
+  -- | Accumulate nonnegative decimal digits; malformed input yields zero.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from cs n = case cs of
+    Nil -> n
+    Cons c rest -> case digit-value c of
+      None -> 0
+      Some d -> decimal-from rest (n * 10 + d)
+
+  -- | Initialize deterministic bytes outside the measured interval.
+  fill :: Bytes -> Nat -> Unit
+  fill b i = if i < bytes-len b then
+    let stored = bytes-set b i (nat-rem (i * 37 + 11) 256) in fill b (i + 1)
+    else ()
+
+  -- | Interpret a complete U64 as a mathematical natural without truncating its top bit.
+  word-nat :: U64 -> Nat
+  word-nat n = u32-to-nat (wrapping-u64-to-u32 n) + 4294967296 * u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 n 32))
+
+  -- | Consume length and boundary bytes so the encoded/decoded result stays observable.
+  fingerprint :: Bytes -> Nat
+  fingerprint b = if 0 < bytes-len b then bytes-len b + bytes-get b 0 + bytes-get b (bytes-len b - 1) else 0
+
+  -- | Observe a selected output byte only when the interval exists.
+  sample-byte :: Bytes -> Nat -> Nat
+  sample-byte b offset = if offset < bytes-len b then bytes-get b offset else 0
+
+  -- | Include encoded input after the fixed address and spacing of a formatted row.
+  dump-fingerprint :: Bytes -> Nat
+  dump-fingerprint b = fingerprint b + sample-byte b 10 + sample-byte b 11 + sample-byte b 61
+
+  -- | Consume both halves of a word while keeping the checksum in the small-natural range.
+  word-fingerprint :: U64 -> Nat
+  word-fingerprint value = u32-to-nat (wrapping-u64-to-u32 (bit-xor-u64 value (wrapping-shr-u64 value 32)))
+
+  -- | Read one proved field; short benchmark buffers use zero without reading out of bounds.
+  input-word :: Bytes -> U64
+  input-word b = if 8 <= bytes-len b then bytes-read-le64 b 0 else 0
+
+  -- | Convert an ASCII workload buffer into text; all driver-generated bytes are valid UTF-8.
+  text :: Bytes -> String
+  text b = case string-from-bytes b of
+    None -> empty-string
+    Some s -> s
+
+  -- | Exercise one public operation and retain its result in the checksum.
+  operation :: forall r. using (io :: Io r) => U32 -> Bytes ->{IO r} Nat
+  operation mode b =
+    if eq-u32 mode __CODE_hex-encode__ then fingerprint (string-to-bytes (hex-encode b))
+    else if eq-u32 mode __CODE_hex-decode__ then case hex-decode (text b) of
+      Err _ -> 1000000000
+      Ok out -> fingerprint out
+    else if eq-u32 mode __CODE_base32-encode__ then fingerprint (string-to-bytes (base32-encode Base32Standard b))
+    else if eq-u32 mode __CODE_base32-decode__ then case base32-decode Base32Standard (text b) of
+      Err _ -> 1000000000
+      Ok out -> fingerprint out
+    else if eq-u32 mode __CODE_base64-encode__ then fingerprint (string-to-bytes (base64-encode b))
+    else if eq-u32 mode __CODE_base64-decode__ then case base64-decode (text b) of
+      Err _ -> 1000000000
+      Ok out -> fingerprint out
+    else if eq-u32 mode __CODE_adler32__ then u32-to-nat (adler32-sum b)
+    else if eq-u32 mode __CODE_crc32__ then u32-to-nat (crc32-sum b)
+    else if eq-u32 mode __CODE_crc32c__ then u32-to-nat (crc32-with crc32-castagnoli b)
+    else if eq-u32 mode __CODE_crc64__ then word-nat (crc64-sum crc64-ecma b)
+    else if eq-u32 mode __CODE_fnv32a__ then u32-to-nat (fnv32a b)
+    else if eq-u32 mode __CODE_fnv64a__ then word-nat (fnv64a b)
+    else if eq-u32 mode __CODE_binary__ then
+      if 8 <= bytes-len b then case binary-read-u64 BigEndian b 0 of
+        Err _ -> 1000000000
+        Ok n -> fingerprint (binary-u64 LittleEndian n)
+      else fingerprint (binary-u64 BigEndian 0)
+    else if eq-u32 mode __CODE_varint__ then
+      let n = if 0 < bytes-len b then bytes-get b 0 else 0 in
+      let encoded = binary-uvarint (wrapping-i64-to-u64 (nat-to-i64 n)) in
+      case binary-read-uvarint encoded 0 of
+        Err _ -> 1000000000
+        Ok (value, count) -> word-nat value + count
+    else if eq-u32 mode __CODE_stream-copy-buffer__ then
+      case stream-copy 4096 (reader-from-bytes b) writer-buffer of
+        (Err _, _) -> 1000000000
+        (Ok count, (_, sink)) -> case writer-bytes sink of
+          None -> 1000000000
+          Some out -> count + fingerprint out
+    else if eq-u32 mode __CODE_stream-copy-discard__ then
+      case stream-copy 4096 (reader-from-bytes b) writer-discard of
+        (Err _, _) -> 1000000000
+        (Ok count, _) -> count
+    else if eq-u32 mode __CODE_stream-read-all__ then
+      case stream-read-all 4096 (reader-from-bytes b) of
+        (Err _, _) -> 1000000000
+        (Ok out, _) -> fingerprint out
+    else if eq-u32 mode __CODE_ascii85-encode__ then fingerprint (string-to-bytes (ascii85-encode b))
+    else if eq-u32 mode __CODE_ascii85-decode__ then case ascii85-decode (text b) of
+      Err _ -> 1000000000
+      Ok out -> fingerprint out
+    else if eq-u32 mode __CODE_ascii85-stream-encode__ then
+      case ascii85-write (ascii85-writer writer-buffer) b of
+        (Err _, _) -> 1000000000
+        (Ok count, next) -> case ascii85-finish next of
+          (Err _, _) -> 1000000000
+          (Ok _, sink) -> case writer-bytes sink of
+            None -> 1000000000
+            Some out -> fingerprint out
+    else if eq-u32 mode __CODE_ascii85-stream-decode__ then
+      case stream-read-all 4096 (ascii85-reader (reader-from-bytes b)) of
+        (Err _, _) -> 1000000000
+        (Ok out, _) -> fingerprint out
+    else if eq-u32 mode __CODE_utf16le-encode__ then fingerprint (utf16-encode-bytes LittleEndian (text b))
+    else if eq-u32 mode __CODE_utf16be-encode__ then fingerprint (utf16-encode-bytes BigEndian (text b))
+    else if eq-u32 mode __CODE_utf16le-decode__ then case utf16-decode-bytes LittleEndian b of
+      Err _ -> 1000000000
+      Ok out -> fingerprint (string-to-bytes out)
+    else if eq-u32 mode __CODE_utf16be-decode__ then case utf16-decode-bytes BigEndian b of
+      Err _ -> 1000000000
+      Ok out -> fingerprint (string-to-bytes out)
+    else if eq-u32 mode __CODE_word-add64__ then
+      let value = input-word b in
+      case add-carry-u64 value 0x9e3779b97f4a7c15 (ne-u64 (bit-and-u64 value 1) 0) of
+        (sum, carry) -> word-fingerprint sum + (if carry then 1 else 0)
+    else if eq-u32 mode __CODE_word-mul64__ then
+      case mul-wide-u64 (input-word b) 0x9e3779b97f4a7c15 of
+        (high, low) -> word-fingerprint (bit-xor-u64 high low)
+    else if eq-u32 mode __CODE_word-div64__ then
+      let value = input-word b in
+      case div-wide-u64 (bit-and-u64 value 65535) value 0x100000001 of
+        Err error -> 1000000000
+        Ok (quotient, remainder) -> word-fingerprint (bit-xor-u64 quotient remainder)
+    else if eq-u32 mode __CODE_word-bits64__ then
+      let value = input-word b in
+      word-fingerprint (bit-xor-u64 (reverse-bits-u64 value) (rotate-signed-u64 (reverse-bytes-u64 value) (-13)))
+    else if eq-u32 mode __CODE_word-load__ then word-fingerprint (input-word b)
+    else if eq-u32 mode __CODE_word-div64-proven__ then
+      let value = input-word b in
+      let high = u16-to-u64 (wrapping-u64-to-u16 value) in
+      case div-wide-proven-u64 high value 0x100000001 of
+        (quotient, remainder) -> word-fingerprint (bit-xor-u64 quotient remainder)
+    else if eq-u32 mode __CODE_fnv128__ then wide-fingerprint (fnv128 b)
+    else if eq-u32 mode __CODE_fnv128a__ then wide-fingerprint (fnv128a b)
+    else if eq-u32 mode __CODE_hex-append-encode__ then
+      let out = hex-encode-append (bytes-from-u8s [1,2,3,4]) b in fingerprint out + sample-byte out 4 + sample-byte out 5
+    else if eq-u32 mode __CODE_hex-append-decode__ then case hex-decode-append (bytes-from-u8s [1,2,3,4]) b of
+      (out, None) -> fingerprint out + sample-byte out 4 + sample-byte out 5
+      _ -> 1000000000
+    else if eq-u32 mode __CODE_hex-into-encode__ then
+      let out = bytes-new (hex-encoded-length (bytes-len b) + 2) in
+      case hex-encode-into out 1 b of
+        Ok count -> count + fingerprint out + sample-byte out 1 + sample-byte out 2
+        Err error -> 1000000000
+    else if eq-u32 mode __CODE_hex-into-decode__ then
+      let out = bytes-new (hex-decoded-length (bytes-len b) + 2) in
+      case hex-decode-into out 1 b of
+        (count, None) -> count + fingerprint out + sample-byte out 1 + sample-byte out 2
+        _ -> 1000000000
+    else if eq-u32 mode __CODE_hex-dump__ then dump-fingerprint (string-to-bytes (hex-dump b))
+    else if eq-u32 mode __CODE_hex-stream-encode__ then case hex-write (hex-writer writer-buffer) b of
+      (Err error, _) -> 1000000000
+      (Ok count, writer) -> case writer-bytes (hex-writer-sink writer) of
+        None -> 1000000000
+        Some out -> fingerprint out
+    else if eq-u32 mode __CODE_hex-stream-decode__ then case stream-read-all 4096 (hex-reader (reader-from-bytes b)) of
+      (Err error, _) -> 1000000000
+      (Ok out, _) -> fingerprint out
+    else if eq-u32 mode __CODE_hex-stream-dump__ then case hex-dump-write (hex-dumper writer-buffer) b of
+      (Err error, _) -> 1000000000
+      (Ok count, dumper) -> case hex-dump-finish dumper of
+        (Err error, _) -> 1000000000
+        (Ok unit, finished) -> case writer-bytes (hex-dumper-sink finished) of
+          None -> 1000000000
+          Some out -> dump-fingerprint out
+    else if eq-u32 mode __CODE_hex-bytes-encode__ then fingerprint (hex-encode-bytes b)
+    else if eq-u32 mode __CODE_hex-prefix-decode__ then case hex-decode-prefix b of
+      (out, None) -> fingerprint out
+      _ -> 1000000000
+    else if eq-u32 mode __CODE_ascii85-bytes-encode__ then fingerprint (ascii85-encode-bytes b)
+    else if eq-u32 mode __CODE_ascii85-into-encode__ then
+      let out = bytes-new (ascii85-max-encoded-length (bytes-len b) + 2) in
+      case ascii85-encode-into out 1 b of
+        Err error -> 1000000000
+        Ok count -> count + fingerprint out + sample-byte out 1 + sample-byte out 2
+    else if eq-u32 mode __CODE_ascii85-into-decode__ then
+      let out = bytes-new (bytes-len b * 4 + 2) in
+      case ascii85-decode-into out 1 b True of
+        Err error -> 1000000000
+        Ok (count, used, None) -> count + used + fingerprint out + sample-byte out 1 + sample-byte out 2
+        _ -> 1000000000
+    else if eq-u32 mode __CODE_ascii85-prefix-decode__ || eq-u32 mode __CODE_ascii85-controls-prefix-decode__ then
+      case ascii85-decode-prefix b True of
+        (out, used, None) -> fingerprint out + used
+        _ -> 1000000000
+    else if eq-u32 mode __CODE_ascii85-controls-decode__ then case ascii85-decode (text b) of
+      Err error -> 1000000000
+      Ok out -> fingerprint out
+    else if eq-u32 mode __CODE_ascii85-offset-decode__ then ascii85-offset-fingerprint b (bytes-new 4) 0 0
+    else if ge-u32 mode __CODE_fnv-state32__ && le-u32 mode __CODE_fnv-stream128a__ then
+      let initial = fnv-mode-state mode in
+      if le-u32 mode __CODE_fnv-state128a__ then fingerprint (fnv-state-sum (fnv-state-update initial b))
+      else if le-u32 mode __CODE_fnv-roundtrip128a__ then
+        let saved = fnv-state-save (fnv-state-update initial b) in
+        case fnv-state-load initial saved of
+          Err error -> 1000000000
+          Ok loaded -> fingerprint saved + fingerprint (fnv-state-sum loaded)
+      else case fnv-copy 64 (reader-from-bytes b) (fnv-writer initial) of
+        (Ok count, (source, sink)) -> count + fingerprint (fnv-state-sum (fnv-writer-state sink))
+        other -> 1000000000
+    else if eq-u32 mode __CODE_adler32-state__ then fingerprint (Adler.adler32-state-sum (Adler.adler32-state-update Adler.adler32-state b))
+    else if eq-u32 mode __CODE_adler32-roundtrip__ then
+      let saved = Adler.adler32-state-save (Adler.adler32-state-update Adler.adler32-state b) in
+      case Adler.adler32-state-load saved of
+        Ok state -> fingerprint saved + fingerprint (Adler.adler32-state-sum state)
+        Err error -> 1000000000
+    else if eq-u32 mode __CODE_adler32-stream__ || eq-u32 mode __CODE_adler32-stream4096__ then
+      let chunk = if eq-u32 mode __CODE_adler32-stream4096__ then (4096 :: Nat) else 64 in
+      case adler32-copy chunk (reader-from-bytes b) Adler.adler32-state of
+        (Ok count, (source, state)) -> count + fingerprint (Adler.adler32-state-sum state)
+        other -> 1000000000
+    else 1000000000
+
+  -- | Select the same width and recurrence order for state, checkpoint and stream pipelines.
+  fnv-mode-state :: U32 -> FnvState
+  fnv-mode-state mode =
+    if eq-u32 mode __CODE_fnv-state32__ || eq-u32 mode __CODE_fnv-roundtrip32__ || eq-u32 mode __CODE_fnv-stream32__ then fnv32-state
+    else if eq-u32 mode __CODE_fnv-state32a__ || eq-u32 mode __CODE_fnv-roundtrip32a__ || eq-u32 mode __CODE_fnv-stream32a__ then fnv32a-state
+    else if eq-u32 mode __CODE_fnv-state64__ || eq-u32 mode __CODE_fnv-roundtrip64__ || eq-u32 mode __CODE_fnv-stream64__ then fnv64-state
+    else if eq-u32 mode __CODE_fnv-state64a__ || eq-u32 mode __CODE_fnv-roundtrip64a__ || eq-u32 mode __CODE_fnv-stream64a__ then fnv64a-state
+    else if eq-u32 mode __CODE_fnv-state128__ || eq-u32 mode __CODE_fnv-roundtrip128__ || eq-u32 mode __CODE_fnv-stream128__ then fnv128-state
+    else fnv128a-state
+
+  -- | Observe each small returned interval and advance through the same source owner by offset.
+  ascii85-offset-fingerprint :: Bytes -> Bytes -> Nat -> Nat -> Nat
+  ascii85-offset-fingerprint input out at total = case ascii85-decode-at out 0 input at True of
+    Err error -> 1000000000
+    Ok (n, used, None) ->
+      let chunk = if n > 0 && n <= bytes-len out then n + sample-byte out 0 + sample-byte out (n - 1) else 0 in
+      if at + used == bytes-len input then total + chunk + at + used
+      else if used > 0 then ascii85-offset-fingerprint input out (at + used) (total + chunk)
+      else 1000000000
+    _ -> 1000000000
+
+  -- | Fold every 32-bit lane of a wide hash into the bounded observable checksum.
+  wide-fingerprint :: (U64, U64) -> Nat
+  wide-fingerprint value = case value of (high, low) -> word-fingerprint (bit-xor-u64 high low)
+
+  -- | Select the workloads whose input represents text rather than arbitrary bytes.
+  utf16-mode :: String -> Bool
+  utf16-mode mode = mode == "utf16le-encode" || mode == "utf16le-decode" || mode == "utf16be-encode" || mode == "utf16be-decode"
+
+  -- | Prepare ASCII text outside timing so every iteration has valid scalar input.
+  ascii-input :: Bytes -> Nat -> Unit
+  ascii-input b i = if i < bytes-len b then
+    let stored = bytes-set b i (nat-rem (bytes-get b i) 128) in ascii-input b (i + 1)
+    else ()
+
+  -- | Select hexadecimal input preparation before the operation clock starts.
+  hex-decoding :: String -> Bool
+  hex-decoding mode = mode == "hex-decode" || mode == "hex-append-decode" || mode == "hex-into-decode" || mode == "hex-stream-decode" || mode == "hex-prefix-decode"
+
+  -- | Select complete and finite-destination ASCII85 decoding input before timing.
+  ascii85-decoding :: String -> Bool
+  ascii85-decoding mode = mode == "ascii85-decode" || mode == "ascii85-stream-decode" || mode == "ascii85-into-decode" || mode == "ascii85-prefix-decode" || mode == "ascii85-controls-decode" || mode == "ascii85-controls-prefix-decode" || mode == "ascii85-offset-decode"
+
+  -- | Prefix 4096 ignored control bytes to measure control-run scanning separately from ordinary groups.
+  ascii85-input :: String -> Bytes -> Bytes
+  ascii85-input mode input =
+    let encoded = ascii85-encode-bytes input in
+    if mode == "ascii85-controls-decode" || mode == "ascii85-controls-prefix-decode" then
+      let out = bytes-new (4096 + bytes-len encoded) in
+      let copied = bytes-copy-range out encoded 4096 0 (bytes-len encoded) in out
+    else encoded
+
+  -- | Prepare valid encoded inputs outside timing for decoding workloads.
+  prepare :: String -> Bytes -> Bytes
+  prepare mode b =
+    let normalized = if utf16-mode mode then ascii-input b 0 else () in
+    if hex-decoding mode then string-to-bytes (hex-encode b)
+    else if mode == "base32-decode" then string-to-bytes (base32-encode Base32Standard b)
+    else if mode == "base64-decode" then string-to-bytes (base64-encode b)
+    else if ascii85-decoding mode then ascii85-input mode b
+    else if mode == "utf16le-decode" then utf16-encode-bytes LittleEndian (text b)
+    else if mode == "utf16be-decode" then utf16-encode-bytes BigEndian (text b)
+    else b
+
+  -- | Change input each iteration to prevent invariant work from being hoisted.
+  change-byte :: U32 -> Nat -> InRange 0 255 Nat
+  change-byte mode iteration =
+    if eq-u32 mode __CODE_hex-decode__ || eq-u32 mode __CODE_hex-append-decode__ || eq-u32 mode __CODE_hex-into-decode__ || eq-u32 mode __CODE_hex-stream-decode__ || eq-u32 mode __CODE_hex-prefix-decode__ then 48 + nat-rem iteration 10
+    else if eq-u32 mode __CODE_base32-decode__ || eq-u32 mode __CODE_base64-decode__ then 65 + nat-rem iteration 26
+    else if eq-u32 mode __CODE_ascii85-decode__ || eq-u32 mode __CODE_ascii85-stream-decode__ || (ge-u32 mode __CODE_ascii85-into-decode__ && le-u32 mode __CODE_ascii85-offset-decode__) then 33 + nat-rem iteration 85
+    else if (ge-u32 mode __CODE_utf16le-encode__ && le-u32 mode __CODE_utf16be-decode__) then nat-rem iteration 128
+    else nat-rem iteration 256
+
+  -- | Mutate a proved byte position before each operation, including decoders.
+  change :: U32 -> Bytes -> Nat -> Unit
+  change mode b iteration =
+    if eq-u32 mode __CODE_ascii85-controls-decode__ || eq-u32 mode __CODE_ascii85-controls-prefix-decode__ then
+      (if 4096 < bytes-len b then bytes-set b 4096 (change-byte mode iteration) else ())
+    else if eq-u32 mode __CODE_utf16be-decode__ && 1 < bytes-len b then bytes-set b 1 (change-byte mode iteration)
+    else if 0 < bytes-len b then
+      bytes-set b 0 (change-byte mode iteration)
+    else ()
+
+  -- | Repeat measured operations while retaining an observable rolling checksum.
+  repeat :: forall r. using (io :: Io r) => U32 -> Bytes -> Nat -> Nat -> Nat ->{IO r} Nat
+  repeat mode b iterations i checksum =
+    if i < iterations then
+      let changed = change mode b i in
+      repeat mode b iterations (i + 1) (nat-rem (checksum + operation mode b) 1000000007)
+    else checksum
+
+  -- | Observe prepared-table checksum, checkpoint and stream APIs without timing table setup.
+  crc64-operation :: forall r. using (io :: Io r) => Crc.Crc64Table -> U32 -> Bytes ->{IO r} Nat
+  crc64-operation table mode b =
+    if eq-u32 mode __CODE_crc64-table__ then word-nat (Crc.crc64-table-sum table b)
+    else if eq-u32 mode __CODE_crc64-state__ then fingerprint (Crc.crc64-state-sum (Crc.crc64-state-update (Crc.crc64-state table) b))
+    else if eq-u32 mode __CODE_crc64-roundtrip__ then
+      let state = Crc.crc64-state-update (Crc.crc64-state table) b in
+      let saved = Crc.crc64-state-save state in case Crc.crc64-state-load table saved of
+        Err error -> 1000000000
+        Ok restored -> fingerprint saved + fingerprint (Crc.crc64-state-sum restored)
+    else if eq-u32 mode __CODE_crc64-stream__ || eq-u32 mode __CODE_crc64-stream4096__ then
+      let chunk = if eq-u32 mode __CODE_crc64-stream4096__ then (4096 :: Nat) else 64 in
+      case crc64-copy chunk (reader-from-bytes b) (Crc.crc64-state table) of
+        (Err error, handles) -> 1000000000
+        (Ok count, (source, state)) -> count + fingerprint (Crc.crc64-state-sum state)
+    else
+      let byte = if 0 < bytes-len b then bytes-get b 0 else 0 in
+      let poly = bit-xor-u64 Crc.crc64-ecma (wrapping-i64-to-u64 (nat-to-i64 byte)) in
+      case Crc.crc64-table-entry (Crc.crc64-table poly) 255 of
+        None -> 1000000000
+        Some word -> word-nat word
+
+  -- | Keep existing workload loops unchanged while passing a prepared table through CRC-64 samples.
+  crc64-repeat :: forall r. using (io :: Io r) => Crc.Crc64Table -> U32 -> Bytes -> Nat -> Nat -> Nat ->{IO r} Nat
+  crc64-repeat table mode b iterations i checksum =
+    if i < iterations then
+      let changed = change mode b i in
+      crc64-repeat table mode b iterations (i + 1) (nat-rem (checksum + crc64-operation table mode b) 1000000007)
+    else checksum
+
+  -- | Observe digest, checkpoint and stream APIs for both SHA-2 variants.
+  sha256-operation :: forall r. using (io :: Io r) => U32 -> Bytes ->{IO r} Nat
+  sha256-operation mode b =
+    if eq-u32 mode __CODE_sha256-runtime__ then fingerprint (sha256-bytes b)
+    else if eq-u32 mode __CODE_sha256__ then fingerprint (Sha.sha256-sum b)
+    else if eq-u32 mode __CODE_sha224__ then fingerprint (Sha.sha224-sum b)
+    else
+      let short = eq-u32 mode __CODE_sha224-state__ || eq-u32 mode __CODE_sha224-roundtrip__ || eq-u32 mode __CODE_sha224-stream__ || eq-u32 mode __CODE_sha224-stream4096__ in
+      let initial = if short then Sha.sha224-state else Sha.sha256-state in
+      if eq-u32 mode __CODE_sha256-state__ || eq-u32 mode __CODE_sha224-state__ then fingerprint (Sha.sha256-state-sum (Sha.sha256-state-update initial b))
+      else if eq-u32 mode __CODE_sha256-roundtrip__ || eq-u32 mode __CODE_sha224-roundtrip__ then
+        let state = Sha.sha256-state-update initial b in
+        let saved = Sha.sha256-state-save state in case Sha.sha256-state-load initial saved of
+          Err error -> 1000000000
+          Ok restored -> fingerprint saved + fingerprint (Sha.sha256-state-sum restored)
+      else
+        let chunk = if eq-u32 mode __CODE_sha256-stream4096__ || eq-u32 mode __CODE_sha224-stream4096__ then (4096 :: Nat) else 64 in
+        case sha256-copy chunk (reader-from-bytes b) initial of
+          (Err error, handles) -> 1000000000
+          (Ok count, (source, state)) -> count + fingerprint (Sha.sha256-state-sum state)
+
+  -- | Repeat digest samples without adding new arguments to existing measured loops.
+  sha256-repeat :: forall r. using (io :: Io r) => U32 -> Bytes -> Nat -> Nat -> Nat ->{IO r} Nat
+  sha256-repeat mode b iterations i checksum =
+    if i < iterations then
+      let changed = change mode b i in
+      sha256-repeat mode b iterations (i + 1) (nat-rem (checksum + sha256-operation mode b) 1000000007)
+    else checksum
+
+  -- | Time only the repeated workload, then print raw nanoseconds and checksum.
+  measure :: forall r. using (io :: Io r) => String -> Nat -> Nat ->{IO r} Int
+  measure mode size iterations =
+    let raw = bytes-new size in
+    let initialized = fill raw 0 in
+    let input = prepare mode raw in
+    let code = workload-code mode in
+    let table = Crc.crc64-table Crc.crc64-ecma in
+    let start = clock-monotonic-ns () in
+    let checksum = if ge-u32 code __CODE_sha256__ then sha256-repeat code input iterations 0 0 else if ge-u32 code __CODE_crc64-table__ then crc64-repeat table code input iterations 0 0 else repeat code input iterations 0 0 in
+    let end = clock-monotonic-ns () in
+    let elapsed = saturating-sub end start in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string elapsed) (string-concat " " (string-concat (nat-to-string checksum) "\n")))) in
+    0
+
+  -- | Read the three validated harness arguments and run exactly one sample.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case process-args () of
+      Err _ -> 2
+      Ok args -> case args of
+        Cons mode (Cons size (Cons iterations Nil)) -> measure mode (decimal size) (decimal iterations)
+        _ -> 2
+'''
+
+# Resolve names once before the timer. The measured dispatch uses an unboxed
+# code, so tiny word operations are not dominated by repeated text comparisons.
+resolver = ["  -- | Resolve a validated workload name outside the measured interval.",
+            "  workload-code :: String -> U32", "  workload-code mode ="]
+for code, name in enumerate(WORKLOADS):
+    SOURCE = SOURCE.replace(f"__CODE_{name}__", str(code))
+    resolver.append(f'    {"if" if code == 0 else "else if"} mode == "{name}" then {code}')
+resolver.append("    else 4294967295")
+SOURCE = SOURCE.replace("  -- | Time only the repeated workload", "\n".join(resolver) + "\n\n  -- | Time only the repeated workload")
+
+
+def source_closure(entry: str, overrides: dict[str, Path] | None = None) -> dict[str, Path]:
+    """Resolve source-distributed imports without duplicating embedded modules."""
+    overrides = overrides or {}
+    embedded = {m["name"] for m in json.loads((PRELUDE / "cinch-base.cinchpkg").read_text())["modules"]}
+    found: dict[str, Path] = {}
+
+    def visit(text: str) -> None:
+        for name in re.findall(r"^\s*import\s+([A-Z][\w.]*)", text, re.M):
+            if name in embedded or name in found:
+                continue
+            path = overrides.get(name, PRELUDE / (name.replace(".", "/") + ".cinch"))
+            if not path.exists():
+                raise ValueError(f"missing source dependency {name}")
+            found[name] = path
+            visit(path.read_text())
+
+    visit(entry)
+    unused = set(overrides) - set(found)
+    if unused:
+        raise ValueError(f"source overrides must name reachable source-distributed modules: {sorted(unused)}")
+    return found
+
+
+def digest(path: Path) -> str:
+    """Identify the exact compiler or library bytes used for a measurement."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def source_digest(paths: list[Path]) -> str:
+    """Hash sorted relative source names and contents, including uncommitted fixes."""
+    result = hashlib.sha256()
+    for path in sorted(paths):
+        result.update(str(path.relative_to(ROOT)).encode() + b"\0")
+        result.update(path.read_bytes())
+        result.update(b"\0")
+    return result.hexdigest()
+
+
+def run(args: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
+    """Run a bounded tool invocation and surface failures rather than partial results."""
+    result = subprocess.run(args, capture_output=True, text=True, timeout=300, **kwargs)
+    if result.returncode:
+        raise RuntimeError(f"command failed ({result.returncode}): {args}\n{result.stderr}")
+    return result
+
+
+def main() -> None:
+    """Build once, warm up independently, and retain every measured sample."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--compiler", type=Path, default=ROOT / "compiler/target/debug/cinch")
+    parser.add_argument("--source-override", action="append", default=[], metavar="MODULE=PATH", help="Use a retained source-distributed module for a matched baseline; record its path and bytes")
+    parser.add_argument("--opt-level", type=int, choices=range(4), default=2, help="Use this Clang level for both the executable and retained assembly")
+    parser.add_argument("--sizes", nargs="+", type=int, default=[32, 1024, 16384])
+    parser.add_argument("--iterations", type=int, default=32)
+    parser.add_argument("--samples", type=int, default=5)
+    parser.add_argument("--warmup", type=int, default=1)
+    parser.add_argument("--workloads", nargs="+", choices=WORKLOADS, default=list(WORKLOADS))
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--reference-go", type=Path, help="Also measure independent codec and word-operation reference pipelines with this SDK")
+    parser.add_argument("--cpu", type=int, help="Pin this run and its children to one allowed CPU on supported hosts")
+    parser.add_argument("--label", default="", help="Describe the measured source snapshot without replacing its hashes")
+    parser.add_argument("--artifacts", type=Path, help="Keep the compiled driver, LLVM and assembly for codegen investigation")
+    args = parser.parse_args()
+    if min(args.sizes) < 0 or min(args.iterations, args.samples) <= 0 or args.warmup < 0:
+        parser.error("sizes/warmup must be nonnegative and iterations/samples positive")
+    if args.cpu is not None:
+        if not hasattr(os, "sched_getaffinity") or args.cpu not in os.sched_getaffinity(0):
+            parser.error("--cpu must name an allowed CPU on a host with affinity support")
+        os.sched_setaffinity(0, {args.cpu})
+    compiler = args.compiler.resolve()
+    overrides = {}
+    for item in args.source_override:
+        name, separator, filename = item.partition("=")
+        if not separator or not re.fullmatch(r"[A-Z][\w.]*", name) or name in overrides:
+            parser.error("each source override must uniquely name MODULE=PATH")
+        path = Path(filename).resolve()
+        if not path.is_file() or not re.search(r"^\s*module\s+" + re.escape(name) + r"\s+where", path.read_text(), re.M):
+            parser.error(f"source override must declare module {name}: {path}")
+        overrides[name] = path
+    closure = source_closure(SOURCE, overrides)
+    report = {
+        "format": 1, "opt_level": args.opt_level, "label": args.label, "commit": run(["git", "rev-parse", "HEAD"], cwd=ROOT).stdout.strip(),
+        "compiler_sha256": digest(compiler),
+        "compiler_source_sha256": source_digest(list((ROOT / "compiler/src").rglob("*.rs")) + [ROOT / "compiler/Cargo.toml", ROOT / "compiler/Cargo.lock", ROOT / "compiler/build.rs"]),
+        "runtime_source_sha256": source_digest(list((ROOT / "compiler/runtime/src").rglob("*.*")) + [ROOT / "compiler/runtime/Cargo.toml"]),
+        "runner_sha256": digest(Path(__file__)),
+        "working_tree_dirty": bool(run(["git", "status", "--porcelain"], cwd=ROOT).stdout.strip()),
+        "driver_sha256": hashlib.sha256(SOURCE.encode()).hexdigest(),
+        "sources": {name: digest(path) for name, path in sorted(closure.items())},
+        "source_overrides": {name: {"path": str(path), "sha256": digest(path)} for name, path in sorted(overrides.items())},
+        "platform": platform.platform(), "machine": platform.machine(),
+        "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
+        "cpu": next((line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name")), platform.processor()) if Path("/proc/cpuinfo").exists() else platform.processor(),
+        "clang": run([os.environ.get("CINCH_CLANG", "clang"), "--version"]).stdout.splitlines()[0],
+        "timing": "runtime monotonic clock around operation loop; preparation, startup and output excluded",
+        "measurement": "public API pipeline; encoding includes conversion to observable bytes; text decoders include bytes-to-text conversion; stream operations include adapter construction",
+        "iterations": args.iterations, "warmup_processes": args.warmup, "results": [],
+    }
+    with tempfile.TemporaryDirectory(prefix="cinch-stdlib-bench-") as tmp:
+        work = Path(tmp)
+        # A concurrent development build must not replace the executable
+        # between identity capture and the actual measured compilation.
+        report["compiler_path"] = str(compiler)
+        frozen_compiler = work / "compiler"
+        shutil.copy2(compiler, frozen_compiler)
+        compiler = frozen_compiler
+        report["compiler_sha256"] = digest(compiler)
+        for name, path in closure.items():
+            (work / f"{name}.cinch").write_bytes(path.read_bytes())
+        (work / "Main.cinch").write_text(SOURCE)
+        executable = work / "bench"
+        run([str(compiler), "build", str(work / "Main.cinch"), "-o", str(executable), "--opt-level", str(args.opt_level)], cwd=work)
+        report["executable_sha256"] = digest(executable)
+        report["llvm_sha256"] = digest(executable.with_suffix(".ll"))
+        reference = None
+        reference_env = {**os.environ, "GOCACHE": "/tmp/cinch-go-benchmark-cache", "GOTELEMETRY": "off", "GOMAXPROCS": "1"}
+        if args.reference_go:
+            reference = work / "reference"
+            reference_source = ROOT / "tooling/bench_stdlib_reference.go"
+            run([str(args.reference_go.resolve()), "build", "-o", str(reference), str(reference_source)], cwd=ROOT, env=reference_env)
+            report["reference"] = {"sdk": run([str(args.reference_go.resolve()), "version"], env=reference_env).stdout.strip(),
+                                   "source_sha256": digest(reference_source), "executable_sha256": digest(reference),
+                                   "GOMAXPROCS": "1", "workloads": [name for name in WORKLOADS if name.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-", "adler32", "crc64", "sha256", "sha224"))],
+                                   "scope": "Equivalent public API results and observable checksums; allocation and immutable string semantics differ"}
+        if args.artifacts:
+            artifacts = args.artifacts.resolve()
+            artifacts.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(executable, artifacts / "bench")
+            (artifacts / "bench").chmod(0o755)
+            shutil.copyfile(executable.with_suffix(".ll"), artifacts / "bench.ll")
+            if reference:
+                shutil.copyfile(reference, artifacts / "reference")
+                (artifacts / "reference").chmod(0o755)
+            (artifacts / "Main.cinch").write_text(SOURCE)
+            run([os.environ.get("CINCH_CLANG", "clang"), f"-O{args.opt_level}", "-S", "-x", "ir", str(artifacts / "bench.ll"), "-o", str(artifacts / "bench.s")])
+            report["artifacts"] = str(artifacts)
+        for workload in args.workloads:
+            for size in args.sizes:
+                samples = []
+                checksums = []
+                command = [str(executable), workload, str(size), str(args.iterations)]
+                for index in range(args.warmup + args.samples):
+                    fields = run(command).stdout.split()
+                    if len(fields) != 2:
+                        raise ValueError(f"invalid benchmark output: {fields}")
+                    elapsed, checksum = map(int, fields)
+                    if index >= args.warmup:
+                        samples.append(elapsed)
+                        checksums.append(checksum)
+                if len(set(checksums)) != 1:
+                    raise ValueError(f"nondeterministic result for {workload}/{size}: {checksums}")
+                median = statistics.median(samples)
+                item = {"workload": workload, "raw_input_bytes": size, "samples_ns": samples,
+                        "checksum": checksums[0], "median_ns_per_operation": median / args.iterations,
+                        "raw_mib_per_second": (size * args.iterations * 1e9 / median / 1048576) if median and size and workload not in ("binary", "varint") and not workload.startswith("word-") else None}
+                report["results"].append(item)
+                if reference and workload.startswith(("hex-", "ascii85-", "utf16", "word-", "fnv128", "fnv-", "adler32", "crc64", "sha256", "sha224")):
+                    reference_samples = []
+                    for index in range(args.warmup + args.samples):
+                        elapsed, checksum = map(int, run([str(reference), workload, str(size), str(args.iterations)], env=reference_env).stdout.split())
+                        if checksum != checksums[0]:
+                            raise ValueError(f"reference checksum mismatch for {workload}/{size}: {checksum} != {checksums[0]}")
+                        if index >= args.warmup:
+                            reference_samples.append(elapsed)
+                    item["reference_samples_ns"] = reference_samples
+                    item["reference_median_ns_per_operation"] = statistics.median(reference_samples) / args.iterations
+                print(f"{workload:16} {size:6} bytes {item['median_ns_per_operation']:12.1f} ns/op", flush=True)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(report, indent=2) + "\n")
+
+
+if __name__ == "__main__":
+    main()

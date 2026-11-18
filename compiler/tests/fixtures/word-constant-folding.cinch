@@ -1,0 +1,71 @@
+-- | Compile-time and emitted machine operations preserve the same full-width scalar values.
+module Main where
+  import Data.Machine
+  import Data.Option
+
+  -- | Keep a scalar opaque to the source optimizer while preserving its exact emitted value.
+  prim emitted-word :: U64 -> U64 where
+    llvm {
+      %value = or i64 %0, 0
+      ret i64 %value
+    }
+
+  -- | Compare a checked unsigned result against an independently specified exact value.
+  some-word :: U64 -> Option U64 -> Bool
+  some-word expected result = case result of
+    Some actual -> eq-u64 actual expected
+    None -> False
+
+  -- | Observe a checked refusal without assuming a scalar representation or constructor encoding.
+  no-result :: forall a. Option a -> Bool
+  no-result result = case result of
+    Some actual -> False
+    None -> True
+
+  -- | Return the first failing assertion's one-based position, or zero after every assertion succeeds.
+  inspect :: List Bool -> Int -> Int
+  inspect values position = case values of
+    Nil -> 0
+    Cons value rest -> if value then inspect rest (position + 1) else position
+
+  -- | Exercise high-bit constants, overflow policies, full-width reversals and emitted controls.
+  checks :: List Bool
+  checks = [
+    eq-u64 (wrapping-shr-u64 18446744073709551615 1) 9223372036854775807,
+    eq-u64 (wrapping-shr-u64 (wrapping-sub-u64 (wrapping-shr-u64 18446744073709551615 1) 32) 3) 1152921504606846971,
+    eq-u64 (wrapping-shr-u64 (emitted-word 18446744073709551615) 1) 9223372036854775807,
+    some-word 9223372036854775807 (checked-shr-u64 18446744073709551615 1),
+    eq-u64 (saturating-add-u64 18446744073709551615 1) 18446744073709551615,
+    eq-u64 (saturating-mul-u64 18446744073709551615 18446744073709551615) 18446744073709551615,
+    eq-u64 (wrapping-mul-u64 18446744073709551615 18446744073709551615) 1,
+    eq-u64 (saturating-neg-u64 18446744073709551615) 0,
+    eq-u64 (saturating-neg-u64 0) 0,
+    eq-u8 (saturating-neg-u8 1) 0,
+    eq-u16 (saturating-neg-u16 65535) 0,
+    eq-u32 (saturating-neg-u32 4294967295) 0,
+    eq-usize (saturating-neg-usize 1) 0,
+    some-word 0 (checked-neg-u64 0),
+    no-result (checked-neg-u64 1),
+    no-result (checked-neg-u64 18446744073709551615),
+    no-result (checked-neg-u8 255),
+    no-result (checked-neg-u16 65535),
+    no-result (checked-neg-u32 4294967295),
+    no-result (checked-neg-usize 1),
+    some-word 9223372036854775807 (checked-div-u64 18446744073709551615 2),
+    some-word 1 (checked-rem-u64 18446744073709551615 2),
+    no-result (checked-rem-i64 (-9223372036854775808) (-1)),
+    no-result (checked-u64-to-i64 18446744073709551615),
+    eq-i64 (saturating-u64-to-i64 18446744073709551615) 9223372036854775807,
+    eq-u32 (wrapping-u64-to-u32 18446744073709551615) 4294967295,
+    gt-u64 18446744073709551615 9223372036854775807,
+    gt-u64 (emitted-word 18446744073709551615) 9223372036854775807,
+    eq-u64 (reverse-bits-u64 1) 9223372036854775808,
+    eq-u64 (reverse-bits-u64 (emitted-word 1)) 9223372036854775808,
+    eq-u64 (swap-bytes-u64 1) 72057594037927936,
+    eq-u64 (swap-bytes-u64 (emitted-word 1)) 72057594037927936,
+    eq-u64 (swap-bytes-u64 18446744073709551615) 18446744073709551615
+    ]
+
+  -- | Refuse any discrepancy between constant evaluation, emitted operations and exact expectations.
+  main :: Int
+  main = inspect checks 1

@@ -1,0 +1,72 @@
+{
+  "scope": "Parent integration of the isolated source candidate; no production selection or Native-family admission.",
+  "status": "Maintained Rust integration gate passed; isolated candidate remains unselected",
+  "import_commit": "aa8c4674",
+  "post_import_fix_commit": "c3c94793",
+  "import_manifest": "experiments/multipart-promotion-v1/integration-files.json",
+  "import_manifest_sha256": "3fefa28617efa1af5f362e47ffd3175cd8927abe0c9fea3db1d3507f14518554",
+  "compiler": {
+    "path": "build/stdlib-ascii-run-frozen/cinch",
+    "sha256": "f9b2c5704c6c2eb5ff0a3047ed7617c3ad2421d327ad84391669bbde3a8846c1",
+    "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf"
+  },
+  "canonical_documentation": {
+    "module_count": 2,
+    "declarations": 329,
+    "diagnostics": 0,
+    "orphans": 0,
+    "legacy_docs": 0,
+    "reference_language_mentions": 0,
+    "outputs": {
+      "build/multipart-parent-canonical-docs/Effect.Multipart.json": "afd3461f6eac47c15789be66f21dd3c62d69c02c93d65d6be0a368ff2377cd0d",
+      "build/multipart-parent-canonical-docs/Text.Multipart.json": "8d279961bf9efe1b767d5eb32802fd4854d448b2e5555a0d017bb15209897136"
+    }
+  },
+  "pending": [
+    "Full1128 candidate corpus",
+    "Current Native-family admission",
+    "Public pipeline performance review",
+    "Production selection"
+  ],
+  "parent_gate": {
+    "test_target": "lib_multipart_promotion",
+    "tests": 2,
+    "passed": 2,
+    "failed": 0,
+    "seconds": 48.96,
+    "initial_gate_seconds": 48.18,
+    "build_command": "/tmp/cinch-stdlib-root-cargo-gate.sh test --test lib_multipart_promotion --no-run",
+    "execution": "Exact Cargo-produced test executable, --test-threads=1 --nocapture, CPU3; qualified cold rlib rearchived between compilation and execution",
+    "executable_sha256": "e91713c55ec41ccfd0c29f18cd7f5c325bd128eb6d1d0bd441b6ef5e7bf07106",
+    "test_source_sha256": "e10921a2638bd0eef8e8673c4fdd09ca0d7946c90761c0b5e168d889b666f738",
+    "cargo_cli_sha256": "f9b2c5704c6c2eb5ff0a3047ed7617c3ad2421d327ad84391669bbde3a8846c1",
+    "actual_host_runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "source_phases": [
+      "Fresh candidate source admission",
+      "12 public +7 private genuine defining Region contracts",
+      "Live source/sink/storage factories, prefix errors, short writes and retained aliases"
+    ],
+    "memory_profiles": [
+      {
+        "heap": "32M",
+        "stack": "8M",
+        "poison": false,
+        "leaks": 0
+      },
+      {
+        "heap": "256M",
+        "stack": "8M",
+        "poison": true,
+        "leaks": 0
+      }
+    ],
+    "logs": {
+      "bootstrap/repros/multipart-parent-qualified/v1-build.log": "73c172786745778cab925d165f165fbe26c8bdc35dab30a5850974b61b5b7a08",
+      "bootstrap/repros/multipart-parent-qualified/v1-gate.log": "30ba538defbe065f37103cc6123f9ca1b0ba3be90dd9dd4a5d45a40f1499095c",
+      "bootstrap/repros/multipart-parent-qualified/v2-build.log": "6990e62cddfd3db943d47ae78850baf01483e9e919d3ab078e12b551cfd37b19",
+      "bootstrap/repros/multipart-parent-qualified/v2-gate.log": "e90f2e329a48820576dfd265d38f95b9f35e56794a0051c8f70c419e95f5a944"
+    },
+    "portable_reproduction": "cd compiler && cargo test --test lib_multipart_promotion -- --test-threads=1",
+    "failure_retention": "Python source failures keep generated caches plain; Rust assertion failures retain the entire generated project during unwinding"
+  }
+}

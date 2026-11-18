@@ -1,0 +1,24 @@
+{
+  "scope": "Explicit separate packed UUID candidate passes actual current Root SDK-free parent target; baseline production sources unchanged.",
+  "passed": 8,
+  "failed": 0,
+  "runtime_seconds": 21.39,
+  "selected_source": "experiments/uuid-packed-parser-v1/sources/Data.Uuid.cinch",
+  "source_sha256": "41c8c781da13ff21642870a9884619f0dcc62638d8be9c6a7d8f4ad9985408fb",
+  "compiler_sha256": "ad6e72f9cb4b946c7864b088062a2413974ca7b965153e1d7a413a97e0554e14",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "log": "experiments/uuid-packed-parser-v1/parent-release.log",
+  "log_sha256": "9a3443d59af3dc68f0408acad3d2b123d3a6edca5d43e66715ec31a39e20e35c",
+  "selection_hook_commit": "1bdd4e8b",
+  "candidate_commit": "e438a425",
+  "actual_portable_profiles": [
+    "wasm32",
+    "aarch64",
+    "powerpc64 big-endian"
+  ],
+  "pending": [
+    "Matched baseline/candidate public benchmark preflight/timing",
+    "Production selection and generated module reference",
+    "Full current Native family qualification"
+  ]
+}

@@ -1,0 +1,400 @@
+{
+  "scope": "Native lowering of compiler-generated strict partial aliases around nested argument witness scopes",
+  "full_standard_library_goal_complete": false,
+  "base_main_revision": "c12ed8685b54a23ccf62437d6d0527735bc1abff",
+  "runtime_ir_source_sha256": "6253b546d3fb635d19872b938b5fa5c7565572a73503817d2405ef4fbaa430a1",
+  "compiler_source_sha256": "f4ae2e6dcd47023824277b6631e2e0fc784eed6bf773af045f324bd32d65d39f",
+  "stage0_lock": {
+    "description": "ABI 10 Native seed: self-describing block headers, merged with main (through the no-reclaim switch), narrow C arguments extended; empty patch.",
+    "patch": "bootstrap/seed/stage0.patch",
+    "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "revision": "ab294c68b24fa093a84813e09e0b9f5f33667e7f",
+    "runtime_abi": 10,
+    "schema": 1,
+    "source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd"
+  },
+  "library_provider_lock": {
+    "description": "ABI 10 library producer: self-describing block headers, merged with main (through the no-reclaim switch), narrow C arguments extended.",
+    "revision": "ab294c68b24fa093a84813e09e0b9f5f33667e7f",
+    "runtime_abi": 10,
+    "schema": 1,
+    "source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd"
+  },
+  "native_fixed_point": {
+    "status": "passed",
+    "command": "python3 tooling/bootstrap.py check --no-pgo -j1",
+    "environment": {
+      "CARGO_BUILD_JOBS": "1",
+      "RUST_TEST_THREADS": "1",
+      "RUST_MIN_STACK": "67108864",
+      "CINCH_HEAP_LIMIT": "2G",
+      "cpu_affinity": [
+        1
+      ]
+    },
+    "stage2_stage3_executable_sha256": "4a14ad5dd79cff86a14deb513b1bb5f5e6e8e12a8866fd342b7d37d8915f526a",
+    "stage2_stage3_llvm_sha256": "fc1df11013bad42908aaa8e3d5c2b8fa476844f9ef53567a2c98a299b626f5f5",
+    "canonical_interface_count": 51,
+    "canonical_interface_set_sha256": "8362b85d1940da3f4c41d66a2066a129d7edcd781bc3eaebf629f7242b3ff6cf",
+    "interface_consumer": {
+      "compiler_sha256": "4a14ad5dd79cff86a14deb513b1bb5f5e6e8e12a8866fd342b7d37d8915f526a",
+      "manifest_sha256": "1e39d69e0d99c4e7f1d58e8829ac97690d2077f8c7d5fc4db496ec77aedbe7cc",
+      "source_sha256": "af5113475ded965ccd87d34f50c24125e6d2f902ca907734b78dc59a873055cc",
+      "status": "passed"
+    },
+    "changed_source": {
+      "compiler_sha256": "c140b2f1bef90d42a311e95006e5acf8e6a0360b516131d40c632d38139b0afb",
+      "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+      "source_sha256": "1ba90eff68d21568e5d385063c2c8c8210a534d6099abb3d5c29e5e928fce08b"
+    },
+    "changed_diagnostic": "bootstrap.check.changed-source:3:10: type mismatch: expected Int, found Bool\n",
+    "log": "stage0: verified cached seed\nstage0: fib smoke passed\nstage0: precedence smoke passed\nstage0: refusal smoke passed\nstage0: verified cached seed\nstage1: verified cached compiler\nstage1: fib smoke passed\nstage1: precedence smoke passed\nstage1: refusal smoke passed\nstage0: verified cached seed\nstage1: verified cached compiler\nstage2: built /workspace/dasl-stdlib-codegen/build/bootstrap/stage2/cinch\nstage2: fib smoke passed\nstage2: precedence smoke passed\nstage2: refusal smoke passed\nstage0: verified cached seed\nstage1: verified cached compiler\nstage2: verified cached compiler\nstage3: built /workspace/dasl-stdlib-codegen/build/bootstrap/stage3/cinch\nstage3: fib smoke passed\nstage3: precedence smoke passed\nstage3: refusal smoke passed\nbootstrap: self-built compiler checks its entry using emitted compiler interfaces\nstage2: built /workspace/dasl-stdlib-codegen/build/bootstrap/changed-source/stage2/cinch\nbootstrap: changed compiler source rebuilt and changed executable behavior\nbootstrap: stages 2 and 3 reached a fixed point\n"
+  },
+  "targeted_comparison": {
+    "description": "Identical nested checked-argument and strict-order programs through old/new staged emitters",
+    "sources": {
+      "nested": {
+        "path": "bootstrap/programs/Run.NestedArgumentTail.cinch",
+        "sha256": "ba4a0d6d02496c1bb68dc8a555cbfdacc6e4976c9fb8003f704f91baa3b03d48"
+      },
+      "short": {
+        "path": "bootstrap/programs/Run.NestedArgumentTailSmall.cinch",
+        "sha256": "b15d8172f3e74517b35517af375505ede72c426e965450fcb1a42ab3b6c8932e"
+      },
+      "order": {
+        "path": "bootstrap/programs/Run.ScopedArgumentOrder.cinch",
+        "sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91"
+      }
+    },
+    "compilers": {
+      "before": {
+        "path": "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/cinch",
+        "sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f"
+      },
+      "after": {
+        "path": "/workspace/dasl-stdlib-codegen/build/bootstrap/stage3/cinch",
+        "sha256": "4a14ad5dd79cff86a14deb513b1bb5f5e6e8e12a8866fd342b7d37d8915f526a"
+      }
+    },
+    "artifacts": [
+      {
+        "variant": "before",
+        "probe": "nested",
+        "llvm_sha256": "0fd5a9985d57837811e5e3ec7baf4c645ef4faa07c30c16d0eb89d6a4bdeddd0",
+        "executable_sha256": "e2f0062b7e759b79a8d85922445c2307c1b8194d0e02286a243fb71405d780b0",
+        "nested_tail_worker": false
+      },
+      {
+        "variant": "before",
+        "probe": "short",
+        "llvm_sha256": "5616eea11ec680bedff5e66dfe81c9974ea1ec46fc5fbd0c3dc8b1128e464781",
+        "executable_sha256": "358fe06624399bd5bc3d93fbe96168908621e2b81eb9d703840d2dd5b897c7fc",
+        "nested_tail_worker": false
+      },
+      {
+        "variant": "before",
+        "probe": "order",
+        "llvm_sha256": "3e1eda001477f56c6aee9e31ba242f36dc1a4581cacbc6906920b5c6e0d2b8ed",
+        "executable_sha256": "d7a281325f7b1a4fecb10fb06569412b277df00bc018e2735e18139cef55a7b7",
+        "nested_tail_worker": false
+      },
+      {
+        "variant": "after",
+        "probe": "nested",
+        "llvm_sha256": "78083d0d8f3998a9b749113ed172e8d1f1d08e26374073f5dc44fbd37e0dc67f",
+        "executable_sha256": "9a39c56eef92b11179f3fbadc964620ed26b825cea08f331615f5523423c8e4b",
+        "nested_tail_worker": true
+      },
+      {
+        "variant": "after",
+        "probe": "short",
+        "llvm_sha256": "4637c4234a77f4faf3f77933bc7fad66f1929ad644f095aef754fe456c62826f",
+        "executable_sha256": "8733c5ea74fb71fef8038960115a854d36dc78ca243abadb72772f6a43b1209b",
+        "nested_tail_worker": true
+      },
+      {
+        "variant": "after",
+        "probe": "order",
+        "llvm_sha256": "793fe264bad6a012cfef3ae498b263ad84b0e36c00c7587ba449dcd667dfc5f9",
+        "executable_sha256": "0cd016ef32546a6fbe884398febc9744a25f5be9744cf5142ef93405d107f8d2",
+        "nested_tail_worker": false
+      }
+    ],
+    "executions": [
+      {
+        "variant": "before",
+        "probe": "nested",
+        "debug": false,
+        "expected_exit": 73,
+        "actual_exit": 73,
+        "stderr": "cinch: exhausted: stack\n",
+        "stdout": ""
+      },
+      {
+        "variant": "before",
+        "probe": "short",
+        "debug": false,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=200 bytes=8498 peak=3138 header-blocks=193 header-bytes=8216 immortal=0 freed=193 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 200,
+          "bytes": 8498,
+          "peak": 3138,
+          "header-blocks": 193,
+          "header-bytes": 8216,
+          "immortal": 0,
+          "freed": 193,
+          "live": 0
+        }
+      },
+      {
+        "variant": "before",
+        "probe": "short",
+        "debug": true,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=200 bytes=8498 peak=8474 header-blocks=193 header-bytes=8216 immortal=0 freed=193 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 200,
+          "bytes": 8498,
+          "peak": 8474,
+          "header-blocks": 193,
+          "header-bytes": 8216,
+          "immortal": 0,
+          "freed": 193,
+          "live": 0
+        }
+      },
+      {
+        "variant": "before",
+        "probe": "order",
+        "debug": false,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=15 bytes=445 peak=291 header-blocks=6 header-bytes=192 immortal=0 freed=6 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 15,
+          "bytes": 445,
+          "peak": 291,
+          "header-blocks": 6,
+          "header-bytes": 192,
+          "immortal": 0,
+          "freed": 6,
+          "live": 0
+        }
+      },
+      {
+        "variant": "before",
+        "probe": "order",
+        "debug": true,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=15 bytes=445 peak=419 header-blocks=6 header-bytes=192 immortal=0 freed=6 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 15,
+          "bytes": 445,
+          "peak": 419,
+          "header-blocks": 6,
+          "header-bytes": 192,
+          "immortal": 0,
+          "freed": 6,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "nested",
+        "debug": false,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=327688 bytes=13697298 peak=65874 header-blocks=327681 header-bytes=13631512 immortal=0 freed=327681 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 327688,
+          "bytes": 13697298,
+          "peak": 65874,
+          "header-blocks": 327681,
+          "header-bytes": 13631512,
+          "immortal": 0,
+          "freed": 327681,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "nested",
+        "debug": true,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=327688 bytes=13697298 peak=13697274 header-blocks=327681 header-bytes=13631512 immortal=0 freed=327681 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 327688,
+          "bytes": 13697298,
+          "peak": 13697274,
+          "header-blocks": 327681,
+          "header-bytes": 13631512,
+          "immortal": 0,
+          "freed": 327681,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "short",
+        "debug": false,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=168 bytes=6962 peak=370 header-blocks=161 header-bytes=6680 immortal=0 freed=161 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 168,
+          "bytes": 6962,
+          "peak": 370,
+          "header-blocks": 161,
+          "header-bytes": 6680,
+          "immortal": 0,
+          "freed": 161,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "short",
+        "debug": true,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=168 bytes=6962 peak=6938 header-blocks=161 header-bytes=6680 immortal=0 freed=161 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 168,
+          "bytes": 6962,
+          "peak": 6938,
+          "header-blocks": 161,
+          "header-bytes": 6680,
+          "immortal": 0,
+          "freed": 161,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "order",
+        "debug": false,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=14 bytes=405 peak=291 header-blocks=5 header-bytes=152 immortal=0 freed=5 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 14,
+          "bytes": 405,
+          "peak": 291,
+          "header-blocks": 5,
+          "header-bytes": 152,
+          "immortal": 0,
+          "freed": 5,
+          "live": 0
+        }
+      },
+      {
+        "variant": "after",
+        "probe": "order",
+        "debug": true,
+        "expected_exit": 0,
+        "actual_exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=14 bytes=405 peak=379 header-blocks=5 header-bytes=152 immortal=0 freed=5 live=0\n",
+        "stdout": "",
+        "allocation_stats": {
+          "blocks": 14,
+          "bytes": 405,
+          "peak": 379,
+          "header-blocks": 5,
+          "header-bytes": 152,
+          "immortal": 0,
+          "freed": 5,
+          "live": 0
+        }
+      }
+    ],
+    "interfaces_sha256": "8e30fcd74596338abc64fd11a6bf2acbfcd3b214fe5ba92ad33d60e0c594a06e",
+    "objects_sha256": "55c8d35a6105a03be6693257399281c86d3c47d0598f79cbbd5db46d15e12c73",
+    "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+    "cpu_affinity": [
+      1
+    ],
+    "full_bootstrap_fixed_point_checked": false
+  },
+  "measurement_notes": [
+    "The same three sources and matched interface/object/runtime bytes are used by both emitters.",
+    "Equal-length executable names keep argv storage equal in complete-process allocation totals.",
+    "The ordinary short control allocates 32 fewer blocks and 1536 fewer bytes; no throughput claim is made.",
+    "Poisoned-free allocation totals are not ordinary live-space measurements."
+  ],
+  "remaining_validation": {
+    "rust_unit_tests": {
+      "passed": 302,
+      "seconds": 224.01
+    },
+    "preserved_targets": {
+      "prim": {
+        "passed": 29,
+        "seconds": 217.08
+      },
+      "prim_wide": {
+        "passed": 10,
+        "seconds": 62.41
+      },
+      "wide": {
+        "passed": 18,
+        "seconds": 69.59
+      }
+    },
+    "strict_application_followup": {
+      "simplify": {
+        "passed": 45,
+        "seconds": 0.01
+      },
+      "tail_calls": {
+        "passed": 11,
+        "seconds": 33.22
+      }
+    },
+    "integrated_library_targets": {
+      "lib_base32_encoding": {
+        "passed": 14,
+        "seconds": 168.21
+      },
+      "lib_base64_encoding": {
+        "passed": 12,
+        "seconds": 146.76
+      },
+      "lib_binary_layout": {
+        "passed": 13,
+        "seconds": 57.8
+      },
+      "lib_csv_record": {
+        "passed": 11,
+        "seconds": 54.49
+      },
+      "lib_html": {
+        "passed": 7,
+        "seconds": 31.08
+      },
+      "lib_path": {
+        "passed": 9,
+        "seconds": 36.97
+      },
+      "lib_url": {
+        "passed": 8,
+        "seconds": 29.88
+      }
+    },
+    "original_rust_returned_function_order_failure": "resolved by separate strict-application and saved-argument repairs; O0/O2 controls and Native controls pass",
+    "whole_stdlib_goal_complete": false
+  }
+}

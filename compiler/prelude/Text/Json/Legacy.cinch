@@ -1,0 +1,194 @@
+-- | Explicit bridges between dynamic JSON and the established Json-shaped codec family.
+-- Integer spellings become arbitrary-precision integers; fractional or exponent
+-- spellings become finite binary64 values. Exact-number spelling and typed null
+-- collection identity are intentionally projected by this explicit conversion.
+-- Malformed application text, invalid numbers and malformed legacy spines are
+-- refused instead of being silently repaired. Existing legacy APIs are unchanged.
+-- Opaque typed application payloads are projected through their encoding capability
+-- once, then decoded with exact number spellings before the established projection.
+module Text.Json.Legacy where
+  import Data.Json as Legacy
+  import Text.Codec (JsonCodec, encode-json, decode-json, JsonDecodeError, TypeMismatch, OutOfRange)
+  import Text.Json.Value
+  import Text.Json.Codec
+  import Text.Json.Dynamic
+  import Text.Show (int-to-string)
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export json-any-from-legacy, json-any-to-legacy, json-legacy-type
+
+  -- | Explicit continuations convert the established direct recursive spines without native recursion.
+  data FromFrame where
+    -- | The unvisited legacy array tail and reversed completed dynamic items.
+    FromArray :: Legacy.Json -> List JsonAny -> FromFrame
+    -- | The unvisited object tail, completed last-value map and current member name.
+    FromObject :: Legacy.Json -> JsonMap String JsonAny -> String -> FromFrame
+
+  -- | Resume conversion into a private well-formed dynamic container.
+  from-finish :: JsonAny -> List FromFrame -> Result JsonError JsonAny
+  from-finish value frames = case frames of
+    Nil -> Ok value
+    Cons frame rest -> case frame of
+      FromArray pending completed -> case pending of
+        Legacy.JArrEnd -> from-finish (json-any-array (reverse (Cons value completed))) rest
+        Legacy.JArr first tail -> from-node first (Cons (FromArray tail (Cons value completed)) rest)
+        other -> Err (JsonTargetError "legacy array tail is not an array spine")
+      FromObject pending completed name -> let next = json-map-set name value completed in
+        case pending of
+          Legacy.JObjEnd -> from-finish (json-any-object (map (\entry -> case entry of (key, child) -> (string-to-bytes key, child)) (json-map-entries next))) rest
+          Legacy.JObj key first tail -> from-node first (Cons (FromObject tail next key) rest)
+          other -> Err (JsonTargetError "legacy object tail is not an object spine")
+
+  -- | Convert one legacy node, preserving integer precision and every binary64 payload bit.
+  from-node :: Legacy.Json -> List FromFrame -> Result JsonError JsonAny
+  from-node value frames = case value of
+    Legacy.JNull -> from-finish json-any-null frames
+    Legacy.JBool present -> from-finish (json-any-bool present) frames
+    Legacy.JNum present -> from-finish (json-any-number (json-number-from-text (int-to-string present))) frames
+    Legacy.JFloat present -> from-finish (json-any-float64 present) frames
+    Legacy.JStr present -> from-finish (json-any-string present) frames
+    Legacy.JArrEnd -> from-finish (json-any-array Nil) frames
+    Legacy.JArr first rest -> from-node first (Cons (FromArray rest Nil) frames)
+    Legacy.JObjEnd -> from-finish (json-any-object Nil) frames
+    Legacy.JObj name first rest -> from-node first (Cons (FromObject rest (json-map-empty json-string-key) name) frames)
+
+  -- | Convert established Json-shaped values to owned dynamic values; later duplicate object names replace earlier values.
+  -- Nonfinite floating payloads remain present and are refused only if subsequently
+  -- marshaled by the strict dynamic descriptor. Malformed container tails are errors.
+  json-any-from-legacy :: Legacy.Json -> Result JsonError JsonAny
+  json-any-from-legacy value = from-node value Nil
+
+  -- | Explicit continuations retain completed established-family values during dynamic conversion.
+  data ToFrame where
+    -- | Remaining dynamic array elements and reversed completed legacy elements.
+    ToArray :: List JsonAny -> List Legacy.Json -> ToFrame
+    -- | Remaining exact-name entries, reversed completed entries and current scalar name.
+    ToObject :: List (Bytes, JsonAny) -> List (String, Legacy.Json) -> String -> ToFrame
+
+  -- | Construct an established array spine from reversed fully converted children.
+  legacy-array :: List Legacy.Json -> Legacy.Json -> Legacy.Json
+  legacy-array reversed tail = case reversed of Nil -> tail; Cons first rest -> legacy-array rest (Legacy.JArr first tail)
+
+  -- | Construct an established object spine from reversed fully converted members.
+  legacy-object :: List (String, Legacy.Json) -> Legacy.Json -> Legacy.Json
+  legacy-object reversed tail = case reversed of
+    Nil -> tail
+    Cons first rest -> case first of (name, value) -> legacy-object rest (Legacy.JObj name value tail)
+
+  -- | Resume conversion only after the current complete child has become representable.
+  to-finish :: Legacy.Json -> List ToFrame -> Result JsonError Legacy.Json
+  to-finish value frames = case frames of
+    Nil -> Ok value
+    Cons frame rest -> case frame of
+      ToArray pending completed -> case pending of
+        Nil -> to-finish (legacy-array (Cons value completed) Legacy.JArrEnd) rest
+        Cons first more -> to-node first (Cons (ToArray more (Cons value completed)) rest)
+      ToObject pending completed name -> let next = Cons (name, value) completed in
+        case pending of
+          Nil -> to-finish (legacy-object next Legacy.JObjEnd) rest
+          Cons first more -> case first of
+            (key, child) -> case string-from-bytes key of
+              None -> Err (JsonEncodingError 0 "legacy object names require valid UTF-8")
+              Some scalar -> to-node child (Cons (ToObject more next scalar) rest)
+
+  -- | Detect fractional/exponent spelling before selecting the established integer or floating variant.
+  number-is-integer :: Bytes -> Nat -> Bool
+  number-is-integer input at = if at < bytes-len input then let byte = bytes-get input at in
+    if byte == 46 || byte == 101 || byte == 69 then False else number-is-integer input (at + 1)
+    else True
+
+  -- | Accumulate grammar-validated integer digits with arbitrary precision and a constant native stack.
+  number-digits :: Bytes -> Nat -> Int -> Int
+  number-digits input at total = if at < bytes-len input then let byte = bytes-get input at in
+    if 48 <= byte && byte <= 57 then number-digits input (at + 1) (int-add (int-mul total 10) (nat-to-int (byte - 48))) else total
+    else total
+
+  -- | Project a valid exact number into the established integer/finite-floating distinction.
+  number-to-legacy :: JsonNumber -> Result JsonError Legacy.Json
+  number-to-legacy number = case json-number-check number of
+    Err error -> Err error
+    Ok checked -> let input = json-number-bytes checked in
+      if number-is-integer input 0 then
+        let negative = bytes-len input > 0 && bytes-get input 0 == 45 in
+        let value = number-digits input (if negative then 1 else 0) 0 in
+        Ok (Legacy.JNum (if negative then int-neg value else value))
+      else case json-number-float64 checked of Err error -> Err error; Ok value -> Ok (Legacy.JFloat value)
+
+  -- | Convert one dynamic node while checking every projection that the established representation cannot retain.
+  to-node :: JsonAny -> List ToFrame -> Result JsonError Legacy.Json
+  to-node value frames =
+    if json-any-container-is-null value then to-finish Legacy.JNull frames
+    else case json-any-kind value of
+      JsonNullKind -> to-finish Legacy.JNull frames
+      JsonBooleanKind -> case json-any-as-bool value of Some present -> to-finish (Legacy.JBool present) frames; None -> Err (JsonTargetError "dynamic boolean has no payload")
+      JsonNumberKind -> case json-any-as-number value of
+        Some present -> case number-to-legacy present of Err error -> Err error; Ok converted -> to-finish converted frames
+        None -> case json-any-as-float64 value of Some present -> to-finish (Legacy.JFloat present) frames; None -> Err (JsonTargetError "dynamic number has no payload")
+      JsonStringKind -> case json-any-as-bytes value of
+        None -> Err (JsonTargetError "dynamic string has no payload")
+        Some present -> case string-from-bytes present of None -> Err (JsonEncodingError 0 "legacy strings require valid UTF-8"); Some scalar -> to-finish (Legacy.JStr scalar) frames
+      JsonArrayKind -> case json-any-array-values value of
+        None -> Err (JsonTargetError "dynamic array has no elements")
+        Some values -> case values of Nil -> to-finish Legacy.JArrEnd frames; Cons first rest -> to-node first (Cons (ToArray rest Nil) frames)
+      JsonObjectKind -> case json-any-object-members value of
+        None -> Err (JsonTargetError "dynamic object has no members")
+        Some members -> case members of
+          Nil -> to-finish Legacy.JObjEnd frames
+          Cons first rest -> case first of
+            (name, child) -> case string-from-bytes name of None -> Err (JsonEncodingError 0 "legacy object names require valid UTF-8"); Some scalar -> to-node child (Cons (ToObject rest Nil scalar) frames)
+      other -> case json-any-typed-label value of
+        None -> Err (JsonTargetError "dynamic payload has no JSON representation")
+        Some label -> case json-marshal json-any-type value of
+          Err error -> Err error
+          Ok output -> case json-unmarshal-with json-any-type (json-read-options True False json-default-policies) output of
+            Err error -> Err error
+            Ok converted -> to-node converted frames
+
+  -- | Explicitly project dynamic values into the established Json shape with named representability refusals.
+  -- Integer precision and floating payload bits are retained. Exact fractional
+  -- spelling becomes a finite binary64 value; typed null collections become JNull.
+  json-any-to-legacy :: JsonAny -> Result JsonError Legacy.Json
+  json-any-to-legacy value = to-node value Nil
+
+  -- | Encode an existing JsonCodec capability through its explicit Json-shaped output.
+  legacy-encode :: forall a. using (codec :: JsonCodec a) => JsonWriteOptions -> a -> Result JsonError Bytes
+  legacy-encode options value = case json-any-from-legacy (encode-json value) of Err error -> Err error; Ok converted -> json-marshal-value json-any-type options converted
+
+  -- | Describe the actual source independently of an established codec's expected shape label.
+  legacy-source-description :: JsonValue -> String
+  legacy-source-description source = case json-value-kind source of
+    JsonNullKind -> "null"
+    JsonBooleanKind -> "boolean"
+    JsonNumberKind -> case json-value-number source of None -> "number"; Some number -> string-concat "number " (json-number-text number)
+    JsonStringKind -> "string"
+    JsonArrayKind -> "array"
+    JsonObjectKind -> "object"
+    other -> "invalid value"
+
+  -- | Decode an existing JsonCodec capability without discarding its mismatch/range distinction.
+  legacy-update :: forall a. using (codec :: JsonCodec a) => String -> JsonReadOptions -> JsonValue -> a -> JsonDecoded a
+  legacy-update label options source prior =
+    let exact-options = json-read-options True (json-read-reject-unknown options) (json-read-policies options) in
+    case json-decoded-result (json-update-value json-any-type exact-options source json-any-null) of
+      Err error -> json-decoded-with-error prior error
+      Ok value -> case json-any-to-legacy value of
+        Err error -> json-decoded-with-error prior error
+        Ok converted -> case decode-json converted of
+          Ok decoded -> json-decoded-ok decoded
+          Err cause -> case cause of
+            TypeMismatch expected -> json-decoded-with-error prior (JsonTypeCause label (legacy-source-description source) (json-value-end source) "" (JsonTypeError expected (legacy-source-description source) (json-value-end source) ""))
+            OutOfRange description -> json-decoded-with-error prior (JsonTypeCause label (legacy-source-description source) (json-value-end source) "" (JsonValueError label description))
+
+  -- | Adapt an existing Json-shaped codec using explicit labels, defaults and application omission classifiers.
+  -- This is an explicit capability adapter rather than a global change to either
+  -- codec family. Refused decoding retains the supplied prior application value.
+  json-legacy-type :: forall a. using (codec :: JsonCodec a) => String -> (Unit -> a) -> (a -> Bool) -> (a -> Bool) -> JsonType a
+  json-legacy-type label initial zero empty = json-structural-type label JsonInvalidKind initial zero empty legacy-encode (legacy-update label)

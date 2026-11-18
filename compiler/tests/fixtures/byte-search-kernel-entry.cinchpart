@@ -1,0 +1,9 @@
+  -- | Root all complete-word and scalar-fringe workers in actual portable object code.
+  main :: Int
+  main =
+    let raw = bytes-from-u8s [0,1,0,1,128,255,0,1,0] in
+    let key = repeated-byte 0 in let end = nat-to-i64 (bytes-len raw) in
+    let first = hold-input raw (index-forward (bytes-data raw) 0 end key) in
+    let last = hold-input raw (index-backward (bytes-data raw) end key) in
+    let count = hold-input raw (count-forward (bytes-data raw) 0 end key 0) in
+    if eq-i64 first 0 && eq-i64 last 8 && eq-i64 count 4 then 0 else 1

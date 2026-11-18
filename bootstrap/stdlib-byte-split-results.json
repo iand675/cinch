@@ -1,0 +1,240 @@
+{
+  "scope": "Initial source-distributed Data.Bytes.Split; no candidate selection or full strings/bytes coverage claim",
+  "module_source_sha256": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
+  "sdk_version": "go1.27.4",
+  "capability_mapping": {
+    "Split": "bytes-split / byte-view-split -> List ByteView retained aliases",
+    "SplitAfter": "bytes-split-after / byte-view-split-after -> List ByteView including separators",
+    "SplitN": "bytes-split-limit / byte-view-split-limit; None maps any negative/unlimited, Some Nat is concrete nonnegative maximum",
+    "SplitAfterN": "bytes-split-after-limit / byte-view-split-after-limit with the same explicit limit policy",
+    "SplitSeq": "bytes-split-seq / byte-view-split-seq -> persistent Producer ByteSplitState ByteView; explicit factory -> fresh byte-split-cursor maps shared single-use pull state",
+    "SplitAfterSeq": "bytes-split-after-seq / byte-view-split-after-seq with included delimiter aliases; same explicit cursor lifecycle",
+    "Lines": "bytes-lines / byte-view-lines -> concrete Producer; byte-view-lines-factory -> fresh cursor; LF included, CR preserved, trailingempty omitted"
+  },
+  "fixture": {
+    "path": "compiler/tests/fixtures/byte-split-vectors.json",
+    "sha256": "2bd33a2679dadc2d67f6a8cbe334dc67fa32d961073b985f1e8d0b059e94207e",
+    "rows": 8295,
+    "independent_sdk_and_python": true
+  },
+  "sequence_audit": {
+    "path": "compiler/tests/fixtures/byte-split-sequence-vectors.json",
+    "sha256": "5e6420300d85f1fca31e0d42dbcabd1bd238435dfc4c35bca78e9476aa19d19b",
+    "unsupported_repeat_invocation_is_observational_only": true,
+    "producer_contract": "Persistent explicit state is preserved; separate sequential cursor maps shared single-use pulls"
+  },
+  "functional": {
+    "rust_o0": {
+      "profiles": 1058,
+      "rows": 8295,
+      "owner_controls": 9,
+      "deep_fragments": 16384,
+      "zero_leaks": true,
+      "receipts": [
+        {
+          "path": "build/byte-split-full-rust-o0.json",
+          "sha256": "a80f703198f60623d9b4a39479907958b56aec569301f185e01034e525917549"
+        },
+        {
+          "path": "build/byte-split-runtime-controls-rust-o0.json",
+          "sha256": "8a8ba72d5370c9361b5d3107567c57d1b3bf90212908f181271bd2e796323e78"
+        }
+      ]
+    },
+    "rust_o2": {
+      "profiles": 1058,
+      "rows": 8295,
+      "owner_controls": 9,
+      "deep_fragments": 16384,
+      "zero_leaks": true,
+      "receipts": [
+        {
+          "path": "build/byte-split-full-rust-o2.json",
+          "sha256": "55a1e85debdc119e32b1f1ae6ddb07798716a8bcb729e815989a01f54e2b78a0"
+        }
+      ]
+    },
+    "native_o0": {
+      "profiles": 1058,
+      "rows": 8295,
+      "owner_controls": 9,
+      "deep_fragments": 16384,
+      "zero_leaks": true,
+      "receipts": [
+        {
+          "path": "build/byte-split-v4-original-native-o0.json",
+          "sha256": "4085c5956f90dece384651d829807b4ad4ca7a393d729a63721c29c6690c1c50"
+        },
+        {
+          "path": "build/byte-split-v4-initial-owners/report.json",
+          "sha256": "6bfa93bf1282997d0d2184eb43d87cfd4804584a8f523e367575b589de120e4e"
+        },
+        {
+          "path": "build/byte-split-v4-original-native-o0-deep.json",
+          "sha256": "94676934445fbc3543ac9cbaa894c1483278eddf1f127e54ba3f8acf82c9093d"
+        }
+      ]
+    },
+    "native_o2": {
+      "profiles": 1058,
+      "rows": 8295,
+      "owner_controls": 9,
+      "deep_fragments": 16384,
+      "zero_leaks": true,
+      "receipts": [
+        {
+          "path": "build/byte-split-v4-original-native-o2-rows/report.json",
+          "sha256": "4d02fbed1e14b52ac943949e41e0350136aaeb5c23ef2fa9c59efe3fc427ad9a"
+        },
+        {
+          "path": "build/byte-split-v4-original-native-o2-owners/report.json",
+          "sha256": "d3182e4e39a7d8eec80d46cac1e827893ae65c3edf264cb070e497a9d109c713"
+        },
+        {
+          "path": "build/byte-split-v4-original-native-o2-deep/report.json",
+          "sha256": "dae4d959d474717e00ab55a2b8e31556589e5f2a6156ce4048a99e0abaecf1bb"
+        }
+      ]
+    }
+  },
+  "total_functional_profiles": 4232,
+  "private_protocol": {
+    "profiles": 8,
+    "zero_leaks": true,
+    "receipts": [
+      {
+        "path": "build/byte-split-protocol-initial-rust-o0.json",
+        "sha256": "32398300affcf2cd9c8ff87b40c1020b6e4c1406be43a9812212fa2b7652d96e"
+      },
+      {
+        "path": "build/byte-split-protocol-initial-rust-o2.json",
+        "sha256": "665626ed8933e712dccb1566d6529f85cee5297dfe719ff0f49732ac041d4d5b"
+      },
+      {
+        "path": "build/byte-split-v4-original-native-o0-progress.json",
+        "sha256": "c3a706eade38d283b39299ec5c6ff4a8486ac53d0c4adfba1fbb99531e4fb94a"
+      },
+      {
+        "path": "build/byte-split-v4-original-native-o2-progress/report.json",
+        "sha256": "ef911474e5ef3070c31a63f3c76a41a48ce4377378451f82e0ae8ec93ddd59d2"
+      }
+    ],
+    "test_only_hook_sha256": "0aca9beb628219e74c15c8afa531b4a7c31c2999434e72cdaee2c8fb60766b88"
+  },
+  "limits": {
+    "normal_heap_bytes": 33554432,
+    "poison_heap_bytes": 268435456,
+    "program_stack_bytes": 8388608,
+    "compiler_main_stack_bytes": 67108864
+  },
+  "rust": {
+    "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+  },
+  "native": {
+    "compiler": {
+      "path": "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/cinch",
+      "sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f"
+    },
+    "compiler_host_runtime": {
+      "runtime_abi": 10,
+      "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+    },
+    "consumer_runtime": {
+      "runtime_abi": 10,
+      "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+    },
+    "interfaces": {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/base-interfaces.json",
+      "sha256": "f10d002f5d4d4be4fcfc08648306e8bbd368fcce579ec47c25b9a56cda321f0b"
+    },
+    "objects": {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/v4-legacy-2f077-pair/objects.json",
+      "sha256": "87aa9ec8c8ec6d2802638f00239277b0f76b2a07c3920afb14b4a1d47c072fbd"
+    },
+    "object": {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.o",
+      "sha256": "b02e2e0e19b3f09a69ee821a16b3c975ac28d443b4a10126acada470fa152214"
+    },
+    "metadata": {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/library.abi.json",
+      "sha256": "43133008ff1e8341e0a81872815826717c6189c2710983e27dbf23e791c4b6cd"
+    },
+    "runtime_archive": {
+      "path": "/workspace/dasl-stdlib-refined-mask/build/repaired-base-artifact-v4/libcinchruntime.a",
+      "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac"
+    }
+  },
+  "native_pair_sha256": "cb76fd09ca5ef0ad6cca30ee081948dd641807ef441729e71aac5e251fe9730d",
+  "full_family_adoption_claim": false,
+  "base_source_override": false,
+  "public_native_preflight": {
+    "profiles": 68,
+    "receipt": [
+      {
+        "path": "build/byte-split-v4-initial-public/report.json",
+        "sha256": "915deb71c472adea9a73cc84465552c213f03d81b9eb6087849ececea2e3d963"
+      }
+    ],
+    "driver_sha256": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573",
+    "performance_claim": false
+  },
+  "canonical_docs": {
+    "declarations": 46,
+    "diagnostics": 0,
+    "orphans": 0,
+    "receipt": [
+      {
+        "path": "build/byte-split-final-docs.json",
+        "sha256": "24f7b08a471b758aee43736d309029dcf3ae737c07ee1007c2b30d7fe3c4d59f"
+      }
+    ],
+    "all_six_complete_new_cinch_sources_checked": true
+  },
+  "portable": {
+    "status": "wasm/ARM completeobjects/host4 pass; parentcurrentAPI fullPPC passed",
+    "receipt": {
+      "path": "build/byte-split-portable.json",
+      "sha256": "7dcc9e60ce32c676ceef68ad1a42ca3e0080349c919d9e95831c70f02f495714"
+    },
+    "fixture_sha256": "8746d7057765c9cb07ab24e2bbe4781843165b4a0dc97fc1af21bfa72b36f5d4",
+    "view_sha256": "966efd5cff80d7bc922b07c6d718373318fe5ad2275eff12072b157e4de3da23",
+    "full_native_corpus_view_sha256": "2b7bfa4193a68d4b80b2cd4f42c4333b25e5592d9da8ccb76cf0e6a3549c3a14",
+    "objects": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu"
+    ],
+    "host_profiles": 4,
+    "actual_entrypoint_worker_reachability": true,
+    "not_extracted_kernels": true
+  },
+  "benchmark": {
+    "initial_rust_raw_samples": "benchmarks/stdlib/byte-split-initial-rust-timing.json",
+    "original_driver_sha256": "c511a74451fea8919b60d6102e03492cc95888c8289826d36354127609115c41",
+    "separate_native_driver_sha256": "3c00b06c42d3eb5025123d5b9a021d713f44945cd2d0ccbdc369391497fda573",
+    "native_timings": false,
+    "counter_and_byte_delimiter_candidates_selected": false
+  },
+  "preserved_failures": [
+    "bootstrap/stdlib-byte-split-literal-depth-host-stack.json",
+    "bootstrap/stdlib-byte-split-native-producer-demand.json",
+    "build/byte-split-v3-initial-owners/report.json",
+    "build/byte-split-portable/failed-layout.log",
+    "build/byte-split-portable/failed-named-root.log"
+  ],
+  "remaining": [
+    "Separate candidate Native qualification and measured selection; broad bytes/strings coverage remains open"
+  ],
+  "rust_cli_compiled_rc_debug": false,
+  "runtime_profile_note": "Normal/poison heap/quarantine andleaked0 runs valid; compiled per-op checkedRC is separate. Earlierpost-entry --rc-debug token was a programarg.",
+  "parent_checked_api_gate": {
+    "fix": "2ab93c5b",
+    "lib_byte_split": "9/9passed,56.72s",
+    "public_boxed_nat_regression_profiles": 32,
+    "actual_ppc_objects_passed": true,
+    "private_protocol_o0_o2_checked_rc_passed": true,
+    "evidence": "bootstrap/stdlib-byte-split-nat-cmp-debug.json"
+  }
+}

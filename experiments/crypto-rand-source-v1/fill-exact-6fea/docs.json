@@ -1,0 +1,130 @@
+{
+  "declarations": [
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 16,
+        "links": [],
+        "markdown": "Fill the destination from the system provider and return its exact length.\nProvider/allocation failures retain their runtime boundary. Empty requests\npreserve the existing provider check. The temporary owned draw is released.",
+        "math": [],
+        "summary": "Fill the destination from the system provider and return its exact length. Provider/allocation failures retain their runtime boundary. Empty requests preserve the existing provider check. The temporary owned draw is released.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Effect.Random.Buffer.random-fill",
+      "kind": "value",
+      "name": "random-fill",
+      "parameters": [
+        {
+          "doc": "",
+          "name": "io",
+          "type": "Io r"
+        }
+      ],
+      "signature": "random-fill :: forall r. using (io :: Io r) => Bytes ->{IO r} Result StreamError Nat",
+      "source": {
+        "line": 19
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 24,
+        "links": [],
+        "markdown": "Copy only after a successful exact read, returning the advanced continuation.\nThis operation does not copy partial failures into destination; the callback\nremains responsible for its own mutations. Empty reads invoke no callback.\nUniform cryptographic bytes remain the caller's duty.",
+        "math": [],
+        "summary": "Copy only after a successful exact read, returning the advanced continuation. This operation does not copy partial failures into destination; the callback remains responsible for its own mutations. Empty reads invoke no callback. Uniform cryptographic bytes remain the caller's duty.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Effect.Random.Buffer.random-fill-from",
+      "kind": "value",
+      "name": "random-fill-from",
+      "parameters": [
+        {
+          "doc": "",
+          "name": "io",
+          "type": "Io r"
+        }
+      ],
+      "signature": "random-fill-from :: forall r. using (io :: Io r) => ByteReader r -> Bytes ->{IO r} (Result StreamError Nat, ByteReader r)",
+      "source": {
+        "line": 28
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 33,
+        "links": [],
+        "markdown": "Fill after a complete raw-source draw, retaining its data/status-aware handle.\nPrivate prefix storage is discarded on failure. A final full prefix suppresses\nits simultaneous status. The callback remains responsible for its own mutations.",
+        "math": [],
+        "summary": "Fill after a complete raw-source draw, retaining its data/status-aware handle. Private prefix storage is discarded on failure. A final full prefix suppresses its simultaneous status. The callback remains responsible for its own mutations.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Effect.Random.Buffer.random-fill-buffer-from",
+      "kind": "value",
+      "name": "random-fill-buffer-from",
+      "parameters": [
+        {
+          "doc": "",
+          "name": "io",
+          "type": "Io r"
+        }
+      ],
+      "signature": "random-fill-buffer-from :: forall r. using (io :: Io r) => BufferSource r -> Bytes ->{IO r} (Result BufferError Nat, BufferSource r)",
+      "source": {
+        "line": 36
+      },
+      "typeParameters": []
+    },
+    {
+      "children": [],
+      "doc": {
+        "legacy": false,
+        "line": 45,
+        "links": [],
+        "markdown": "Prove the complete range before mutation, retaining structural source failures.",
+        "math": [],
+        "summary": "Prove the complete range before mutation, retaining structural source failures.",
+        "tags": {},
+        "tests": []
+      },
+      "fields": [],
+      "id": "Effect.Random.Buffer.copy-full",
+      "kind": "value",
+      "name": "copy-full",
+      "parameters": [],
+      "signature": "copy-full :: Bytes -> Bytes -> Result StreamError Nat",
+      "source": {
+        "line": 46
+      },
+      "typeParameters": []
+    }
+  ],
+  "diagnostics": [],
+  "doc": {
+    "legacy": false,
+    "line": 1,
+    "links": [],
+    "markdown": "Owned-buffer filling with an explicit cryptographic source capability.\nThe default always uses system entropy. Reader-based filling is explicit and\nhas only the quality of its supplied source; no mutable global source exists.",
+    "math": [],
+    "summary": "Owned-buffer filling with an explicit cryptographic source capability. The default always uses system entropy. Reader-based filling is explicit and has only the quality of its supplied source; no mutable global source exists.",
+    "tags": {},
+    "tests": []
+  },
+  "module": "Effect.Random.Buffer",
+  "orphans": [],
+  "schema": 1,
+  "source": "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/fill-exact-6fea/project/Effect.Random.Buffer.cinch",
+  "sourceSha256": "8818f29bfffbda334aab13df0f186f5b509c789585de35b419f90d254682a8b2"
+}

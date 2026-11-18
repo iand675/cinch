@@ -1,0 +1,181 @@
+-- | Byte-preserving hierarchical and opaque URL parsing with precise typed failures.
+-- Raw queries and opaque bodies are preserved without interpreting percent signs.
+-- Decoded user, host, path and fragment bytes retain non-UTF-8 data. HTTP and HTTPS
+-- authorities reject unbracketed multiple-colon hosts; other schemes retain the
+-- lexical final-port convention used by multi-host connection strings.
+module Text.Url.Parser where
+  import Text.Url.Codec
+  import Text.Url.Error
+  import Text.Url.Ip
+  import Text.Url.Model
+  import Text.Url.Scan
+  import Text.Url.Userinfo
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  export url-parse, url-parse-text, url-parse-request-uri, url-unmarshal-binary
+
+  -- | Construct a typed parse failure with copied offending interval bytes.
+  failure :: UrlFailureKind -> Bytes -> Nat -> Nat -> UrlFailure
+  failure kind input start end = url-failure kind start (url-slice input start end)
+
+  -- | Test one indexed byte without requiring callers to prove a physical bound.
+  at-is :: Bytes -> Nat -> Nat -> Bool
+  at-is input at byte = if at < bytes-len input then bytes-get input at == byte else False
+
+  -- | Recognize ASCII scheme letters.
+  letter :: Nat -> Bool
+  letter byte = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122)
+
+  -- | Find a valid scheme colon using an exact-load SIMD grammar traversal.
+  scheme-end :: Bytes -> Nat
+  scheme-end input = url-scheme-colon input
+
+  -- | Lowercase a bounded ASCII scheme into independently owned bytes.
+  lower-from :: Bytes -> Bytes -> Nat -> Bytes
+  lower-from input out at = if at < bytes-len input && at < bytes-len out then
+    let byte = bytes-get input at in let lower = if byte >= 65 && byte <= 90 then byte + 32 else byte in
+    if lower <= 255 then let written = bytes-set out at lower in lower-from input out (at + 1) else out else out
+
+  -- | Validate a decimal optional port without imposing a numeric range.
+  port-digits :: Bytes -> Nat -> Bool
+  port-digits input at = if at < bytes-len input then
+    let byte = bytes-get input at in byte >= 48 && byte <= 57 && port-digits input (at + 1) else True
+
+  -- | Validate an empty suffix or a colon followed by zero or more decimal digits.
+  valid-port :: Bytes -> Nat -> Bool
+  valid-port input at = at == bytes-len input || (at-is input at 58 && port-digits input (at + 1))
+
+  -- | Locate an exact percent-encoded zone introducer without interpreting other escapes.
+  zone-at :: Bytes -> Nat -> Nat
+  zone-at input start = let percent = url-find-byte input start (bytes-len input) 37 in
+    if percent + 2 < bytes-len input then
+      if at-is input (percent + 1) 50 && at-is input (percent + 2) 53 then percent else zone-at input (percent + 1)
+    else bytes-len input
+
+  -- | Decode an IPv6 body with the independently restricted zone policy.
+  decode-literal :: Bytes -> Result UrlFailure Bytes
+  decode-literal input = let zone = zone-at input 0 in
+    if zone == bytes-len input then url-unescape UrlHost input
+    else case url-unescape UrlHost (url-slice input 0 zone) of
+      Err error -> Err error
+      Ok address -> case url-unescape UrlZone (url-slice input zone (bytes-len input)) of
+        Err error -> Err (url-failure-shift zone error)
+        Ok suffix -> Ok (url-concat [address, suffix])
+
+  -- | Decode and validate a complete authority host with scheme-specific colon rules.
+  parse-host :: Bytes -> Bytes -> Result UrlFailure Bytes
+  parse-host scheme input =
+    let open = url-last-byte input 0 (bytes-len input) 91 in
+    if open < bytes-len input && open > 0 then Err (failure UrlInvalidIpLiteral input open (open + 1))
+    else if open == 0 && bytes-len input > 0 then
+      let close = url-last-byte input 0 (bytes-len input) 93 in
+      if close == bytes-len input then Err (failure UrlMissingBracket input 0 (bytes-len input))
+      else if not (valid-port input (close + 1)) then Err (failure UrlInvalidPort input (close + 1) (bytes-len input))
+      else case decode-literal (url-slice input 1 close) of
+        Err error -> Err (url-failure-shift 1 error)
+        Ok body -> if not (url-valid-ipv6 body) then Err (failure UrlInvalidIpLiteral input 1 close)
+          else case url-unescape UrlHost (url-slice input (close + 1) (bytes-len input)) of
+            Err error -> Err (url-failure-shift (close + 1) error)
+            Ok port -> Ok (url-concat [string-to-bytes "[", body, string-to-bytes "]", port])
+    else let first = url-find-byte input 0 (bytes-len input) 58 in
+      let colon = if scheme == string-to-bytes "http" || scheme == string-to-bytes "https" then first else url-last-byte input 0 (bytes-len input) 58 in
+      if not (valid-port input colon) then Err (failure UrlInvalidPort input colon (bytes-len input))
+      else url-unescape UrlHost input
+
+  -- | Return the first unsupported raw user-information byte using exact-load SIMD scanning.
+  invalid-user :: Bytes -> Nat -> Nat
+  invalid-user input at = url-find-invalid-user input at (bytes-len input)
+
+  -- | Decode a username and distinguish absent from present empty password.
+  parse-user :: Bytes -> Result UrlFailure UrlUserinfo
+  parse-user input = let invalid = invalid-user input 0 in
+    if invalid < bytes-len input then Err (failure UrlInvalidUserinfo input invalid (invalid + 1))
+    else let colon = url-find-byte input 0 (bytes-len input) 58 in
+      case url-unescape UrlUserPassword (url-slice input 0 colon) of
+        Err error -> Err error
+        Ok username -> if colon == bytes-len input then Ok (url-user username)
+          else case url-unescape UrlUserPassword (url-slice input (colon + 1) (bytes-len input)) of
+            Err error -> Err (url-failure-shift (colon + 1) error)
+            Ok password -> Ok (url-user-password username password)
+
+  -- | Validate the host first, then decode optional user information before the last at sign.
+  parse-authority :: Bytes -> Bytes -> Result UrlFailure (Option UrlUserinfo, Bytes)
+  parse-authority scheme input = let marker = url-last-byte input 0 (bytes-len input) 64 in
+    let host-start = if marker < bytes-len input then marker + 1 else 0 in
+    case parse-host scheme (url-slice input host-start (bytes-len input)) of
+      Err error -> Err (url-failure-shift host-start error)
+      Ok host -> if marker == bytes-len input then Ok (None, host)
+        else case parse-user (url-slice input 0 marker) of Err error -> Err error; Ok user -> Ok (Some user, host)
+
+  -- | Build a parsed field bundle and validate its escaped path before exposing a URL.
+  finish :: Bytes -> Bytes -> Bool -> Bool -> Option UrlUserinfo -> Bytes -> Bytes -> Result UrlFailure Url
+  finish scheme query force omit user host encoded =
+    let value = url-from-components (UrlParts scheme (bytes-new 0) user host (bytes-new 0) (bytes-new 0) query (bytes-new 0) (bytes-new 0) force omit) in
+    url-with-path encoded value
+
+  -- | Parse the hierarchical suffix after scheme and query splitting.
+  hierarchical :: Bytes -> Bytes -> Bool -> Bytes -> Bool -> Nat -> Result UrlFailure Url
+  hierarchical scheme query force rest request rest-offset =
+    let root = at-is rest 0 47 in
+    let authority = root && at-is rest 1 47 && (bytes-len scheme > 0 || (not request && not (at-is rest 2 47))) in
+    if not root && request then Err (failure UrlInvalidRequest rest 0 (bytes-len rest))
+    else if not root && url-find-byte rest 0 (url-find-byte rest 0 (bytes-len rest) 47) 58 < url-find-byte rest 0 (bytes-len rest) 47 then
+      Err (failure UrlPathColon rest 0 (url-find-byte rest 0 (bytes-len rest) 47))
+    else if authority then
+      let end = url-find-byte rest 2 (bytes-len rest) 47 in
+      case parse-authority scheme (url-slice rest 2 end) of
+        Err error -> Err (url-failure-shift (rest-offset + 2) error)
+        Ok parsed -> case parsed of
+          (user, host) -> case finish scheme query force False user host (url-slice rest end (bytes-len rest)) of
+            Err error -> Err (url-failure-shift (rest-offset + end) error)
+            Ok value -> Ok value
+    else case finish scheme query force (bytes-len scheme > 0 && root) None (bytes-new 0) rest of
+      Err error -> Err (url-failure-shift rest-offset error)
+      Ok value -> Ok value
+
+  -- | Interpret the fragment-free request/reference grammar before contextual error wrapping.
+  parse-base :: Bytes -> Bool -> Result UrlFailure Url
+  parse-base input request =
+    let control = url-find-control input 0 (bytes-len input) in
+    if control < bytes-len input then Err (failure UrlControlByte input control (control + 1))
+    else if bytes-len input == 0 && request then Err (failure UrlEmptyRequest input 0 0)
+    else if input == string-to-bytes "*" then Ok (url-from-components (UrlParts (bytes-new 0) (bytes-new 0) None (bytes-new 0) input (bytes-new 0) (bytes-new 0) (bytes-new 0) (bytes-new 0) False False))
+    else let colon = scheme-end input in
+      if colon == 0 && bytes-len input > 0 then Err (failure UrlMissingScheme input 0 1)
+      else let scheme-raw = url-slice input 0 (if colon < bytes-len input then colon else 0) in
+        let scheme = lower-from scheme-raw (bytes-new (bytes-len scheme-raw)) 0 in
+        let rest-start = if colon < bytes-len input then colon + 1 else 0 in
+        let question = url-find-byte input rest-start (bytes-len input) 63 in
+        let query = if question < bytes-len input then url-slice input (question + 1) (bytes-len input) else bytes-new 0 in
+        let force = question < bytes-len input && question + 1 == bytes-len input in
+        let rest = url-slice input rest-start question in
+        if bytes-len scheme > 0 && not (at-is rest 0 47) then
+          Ok (url-from-components (UrlParts scheme rest None (bytes-new 0) (bytes-new 0) (bytes-new 0) query (bytes-new 0) (bytes-new 0) force False))
+        else hierarchical scheme query force rest request rest-start
+
+  -- | Parse an arbitrary byte URL/reference; fragment failures retain full original input context.
+  url-parse :: Bytes -> Result (UrlError UrlFailure) Url
+  url-parse input = let hash = url-find-byte input 0 (bytes-len input) 35 in
+    let base = url-slice input 0 hash in case parse-base base False of
+      Err error -> Err (url-error "parse" base error False False)
+      Ok value -> if hash < bytes-len input then (case url-with-fragment (url-slice input (hash + 1) (bytes-len input)) value of
+        Err error -> Err (url-error "parse" input (url-failure-shift (hash + 1) error) False False)
+        Ok complete -> Ok complete)
+        else Ok value
+
+  -- | Parse a UTF-8 URL while retaining arbitrary percent-decoded field bytes.
+  url-parse-text :: String -> Result (UrlError UrlFailure) Url
+  url-parse-text input = url-parse (string-to-bytes input)
+
+  -- | Parse an absolute request URL, absolute path or asterisk without treating hash as a fragment delimiter.
+  url-parse-request-uri :: Bytes -> Result (UrlError UrlFailure) Url
+  url-parse-request-uri input = case parse-base input True of Err error -> Err (url-error "parse" input error False False); Ok value -> Ok value
+
+  -- | Decode the byte serialization by parsing a fresh immutable URL value.
+  url-unmarshal-binary :: Bytes -> Result (UrlError UrlFailure) Url
+  url-unmarshal-binary input = url-parse input

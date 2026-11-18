@@ -1,0 +1,88 @@
+{
+  "pinned_sdk": "go1.27.4",
+  "package": "encoding/pem",
+  "declaration_count": 7,
+  "package_status": "implemented; standalone full-package review passed; parent integration gates pending",
+  "validation_receipt": "pem-selected-evidence.json",
+  "performance_review": "pem-review.md",
+  "reference_provenance": {
+    "sdk_executable_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+    "package_source_sha256": "0964273ff5f31f5b91b6ab6ac7d089252f4465918656a2caeb7d832c39439639",
+    "oracle_source_sha256": "97050d93f81e79ea3d44451e1ecc2cccc1016dcbafec58968d8c4afe037f0d66",
+    "fixture_sha256": "ed88e0e274310bb49f22592b761b628c8aff6e52acd49aa0fc81bdaa96ff50cc"
+  },
+  "rows": [
+    {
+      "declaration": "func Decode([]uint8) (*Block, []uint8)",
+      "capabilities": [
+        "Text.Pem.pem-decode",
+        "Option PemBlock + fresh remainder Bytes",
+        "exact malformed candidate recovery and untouched original remainder on absence"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "func Encode(io.Writer, *Block) error",
+      "capabilities": [
+        "Effect.Pem.pem-write",
+        "Result PemError Unit + advanced ByteWriter",
+        "validate all keys before output; bounded payload chunks; positive short writes drained; failures retain continuation"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "func EncodeToMemory(*Block) []uint8",
+      "capabilities": [
+        "Text.Pem.pem-encode-bytes",
+        "Result PemError Bytes",
+        "fresh full encoding; colon-bearing key refusal returns no partial bytes"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "type Block struct",
+      "capabilities": [
+        "PemBlock / pem-block",
+        "opaque immutable owned byte metadata/payload; persistent updates preserve previous values"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "type Block struct, Bytes []uint8",
+      "capabilities": [
+        "pem-block-bytes",
+        "pem-with-bytes",
+        "fresh mutable observations and replacement snapshots; arbitrary payload bytes"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "type Block struct, Headers map[string]string",
+      "capabilities": [
+        "PemHeader / pem-header",
+        "pem-block-headers / pem-find-header",
+        "pem-with-header / pem-without-header / pem-with-headers",
+        "exact byte-key lookup, sorted unique observations, last-key-wins construction and persistent edits"
+      ],
+      "status": "implemented"
+    },
+    {
+      "declaration": "type Block struct, Type string",
+      "capabilities": [
+        "pem-block-type",
+        "pem-with-type",
+        "owned arbitrary Bytes label; invalid UTF8 is preserved rather than silently discarded"
+      ],
+      "status": "implemented"
+    }
+  ],
+  "policies": [
+    "Labels, header keys/values and payloads preserve arbitrary bytes; valid String conversion is optional outside this package.",
+    "Block/header storage is immutable and private. Mutable byte observations and decoded remainders are fresh. Persistent updates share only private immutable fields.",
+    "Headers use exact byte equality and lexical order, with the final duplicate value retained. Encoding writes exact Proc-Type first, then other keys in byte order.",
+    "Empty and absent header collections have one logical empty representation; blocks are non-null opaque values.",
+    "Decode uses first-END/final-BEGIN recovery, Unicode trimming only for header key/value edges, and loose standard padded Base64 after removing spaces/tabs.",
+    "Only colon-bearing header keys are refused by the encoder; arbitrary label/value bytes, including line breaks, are retained exactly.",
+    "Writer chunk boundaries are unspecified. The stream protocol drains positive short writes and rejects zero progress/impossible counts; borrowed sinks are neither flushed nor closed."
+  ]
+}

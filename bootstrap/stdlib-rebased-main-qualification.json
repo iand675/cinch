@@ -1,0 +1,96 @@
+{
+  "status": "qualified Rust66 compiler/runtime checkpoint; full standard-library surface remains in progress",
+  "source_checkpoint": "64b1a4980f43981bbd03df9559e5fe92538518c7",
+  "compiler_sha256": "bfacd9af23b3a6770da9ecfb55c12547bf38bcd530399fad82ab00022257e1a9",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "runtime_abi": 10,
+  "embedded_modules": 66,
+  "source_modules": 190,
+  "frozen_provenance": {
+    "path": "bootstrap/stdlib-rebased-main-frozen-provenance.json",
+    "sha256": "faa52ca9cd87d6cafe42476b5af974b76f76508bb0c39ebdf4e09dda7e96dfab"
+  },
+  "compiler_gates": "bootstrap/stdlib-rebase-compiler-results.json",
+  "documentation": {
+    "module_count": 190,
+    "value_exports": 4924,
+    "public_methods": 115,
+    "isolated_source_imports": 124,
+    "base_imports": 1,
+    "diagnostics": 0,
+    "orphans": 0,
+    "host": "x86_64-unknown-linux-gnu; Prim.Sys reference regenerated from selected Linux exports",
+    "source_manifest_sha256": "bcceda95308d939f9b64a6407c0b4edf738316dc77076dd54db4b79e83d4cb34"
+  },
+  "constant_time": {
+    "source_sha256": "f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7",
+    "current_frozen_functional_processes": 244,
+    "current_frozen_compiled_rc_debug": false,
+    "maintained_checked_rc_gate": "7 passed on the same Rust implementation before comment-only MVar documentation; recorded separately in compiler_gates",
+    "guard_observations": 267288,
+    "traversal_audit": {
+      "difference-blocks": {
+        "public_conditional_branches": 9,
+        "secret_conditional_branches": 0,
+        "secret_address_dependencies": 0
+      },
+      "difference-tail": {
+        "public_conditional_branches": 9,
+        "secret_conditional_branches": 0,
+        "secret_address_dependencies": 0
+      }
+    },
+    "scalar_audit": {
+      "constant-byte-equal": "straight-line SSA; no branch, call, or memory access",
+      "constant-i32-equal": "straight-line SSA; no branch, call, or memory access",
+      "constant-select": "straight-line SSA; no branch, call, or memory access",
+      "less-or-equal-word": "straight-line SSA; no branch, call, or memory access",
+      "select-word": "straight-line SSA; no branch, call, or memory access",
+      "select-byte": "straight-line SSA; no branch, call, or memory access",
+      "zero-word": "straight-line SSA; no branch, call, or memory access"
+    },
+    "actual_foreign_objects": [
+      {
+        "target": "wasm32-unknown-unknown",
+        "llvm_sha256": "692453a10e2d7160b8557cc001e0c3dc66aee7a659dd4304fedda80f77ef04cd",
+        "object_sha256": "8c85b98ed0d84a3fca5cf6e3d0c8ffa50c89e1c420772b6703200a705a33925e"
+      },
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "llvm_sha256": "ccbebbb76ae574987e82908e6d7ba6b389268c17e7f6fd60e208efeaef30778d",
+        "object_sha256": "9a784f99dd3d311e2f6d7e6a803c1334f7615e68219151beaf367b8ce8772810"
+      }
+    ],
+    "timing_report": "benchmarks/stdlib/constant-time-equality-rebased-main-results.json",
+    "timing_report_sha256": "cce57c8359ae41a24232ccae9b7a6429871dd2e31f3651668c9b67305ca8e43e",
+    "preflight_processes": 128,
+    "timing_intervals": 280,
+    "speedup_min": 1.3980775383673036,
+    "speedup_max": 7.396639450850547,
+    "scope": "Initial and selected implementations under one matched rebased compiler/runtime; not an isolated compiler-rebase comparison or hardware timing guarantee."
+  },
+  "artifacts": {
+    "bootstrap/repros/stdlib-rebase-gates/attributes.log": "d7914d76f0a6f6f5cac12b55caebf34add83c6658439ca4a079783665294841a",
+    "bootstrap/repros/stdlib-rebase-gates/boxed-natural.log": "b168e18470f482894ed5d358a69a5a7af6a4f055fb87aaf9106dab9d3340bbb8",
+    "bootstrap/repros/stdlib-rebase-gates/byte-split.log": "ec2159f58f9357aecea61f24dba38d05096c36f6c5ceb9d1b3ff9e8de4db0e69",
+    "bootstrap/repros/stdlib-rebase-gates/constant-time-functional.json": "7bcf1072dabe94a3debd9a7cbe3d7e8a74fff366dd3e188d5192684c0c67823d",
+    "bootstrap/repros/stdlib-rebase-gates/constant-time-machine.json": "bc69e3be72ed8ead28a471701352e478e0d70fc8fa177b3c55e3ff0be0736f7c",
+    "bootstrap/repros/stdlib-rebase-gates/constant-time.log": "f1db521752d3c69130d8033b8256c916c604f48788406149a79e98ec71c5a0a4",
+    "bootstrap/repros/stdlib-rebase-gates/constructor-region.log": "34d82ee3bce6cf017ec33c613cef992a5add60e320bfeedd0f2f5db48c6f19bf",
+    "bootstrap/repros/stdlib-rebase-gates/cross-region.log": "e18e8e3689586e08693420b768268df33864ee7b89a3f4c50567f7af9c004820",
+    "bootstrap/repros/stdlib-rebase-gates/docs190-generation.log": "98d2a8f8592d4a15356bf4a18b4f8d4f19b430e06e481994ffe4d6c5ce51f965",
+    "bootstrap/repros/stdlib-rebase-gates/docs190-validation.log": "a6fe79936bdbf5c9cee63737fdc95774b2d543c5876cdff39c323710fd486995",
+    "bootstrap/repros/stdlib-rebase-gates/documented-cli-build.log": "9e5f5f8233d29003464c459110ed0a6d9f4edb111e783593a573e16f5ea15ac6",
+    "bootstrap/repros/stdlib-rebase-gates/documented-mvar.log": "0e2c8ff6be5fce05f7e4a951379367b7fbdccc4e3eb5a63698a7cd84483154e9",
+    "bootstrap/repros/stdlib-rebase-gates/explicit-region.log": "562aab53416172a8f9fafac3d44a4314a6162417b6b53fb09f18eea489c4afcc",
+    "bootstrap/repros/stdlib-rebase-gates/interface-direct-path-error.log": "9ee5e2084e09c09180b56424daafe6f82966d9d6da040313499de6ab5c702ac5",
+    "bootstrap/repros/stdlib-rebase-gates/interface-region.log": "e2847099296f36d5cec53b7da4d79cd5c25ce262994bf7363a3dbf8ad531bd0a",
+    "bootstrap/repros/stdlib-rebase-gates/json-value.log": "21eb37e2f52c36422243c7a9c2db959b5dfa6f9438db6e66dd4a7eb066fa8929",
+    "bootstrap/repros/stdlib-rebase-gates/parallel-before-repair.log": "37f9a59dcc8579e56f0fcccbd7706d6bef4ee5215373a74719361d2499206826",
+    "bootstrap/repros/stdlib-rebase-gates/parallel-functional.log": "18e7d9d16f8b463486ad83f614b6552f71233662b0bf4ccd91607b0af7ec456f",
+    "bootstrap/repros/stdlib-rebase-gates/parallel-scaling.log": "5ee6cced0b12c8b433b58bb5226f505edce8c361176c56d0961f8b2c8a36a643",
+    "bootstrap/repros/stdlib-rebase-gates/rank-n.log": "123d6838f5b206bed1aa07b74cec27da6e3127963c8bdcd5a75ff2f6a20d07c8",
+    "bootstrap/repros/stdlib-rebase-gates/region-batch-disk-link-failure.log": "a95b0244722a4864c134dd7f49e0b7145803279de8f1c615f9373075d6472aae",
+    "bootstrap/repros/stdlib-rebase-gates/repaired-unit.log": "3f8e9554d90e2d36c2c90197addb85ff6d2d8139006eca3c59209857a522c95d"
+  }
+}

@@ -1,0 +1,61 @@
+-- | Exact byte-search fixture consumers with runtime sizes and temporary owners.
+module Main where
+  import Data.Bytes.Search as S
+  import Data.Bytes
+  import Data.Bool
+  import Data.String
+  import Data.Result
+  import Effect.Process
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  -- | Keep large input initialization out of compile-time evaluation.
+  prim runtime-word :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+  -- | Preserve bounded fixture lengths as opaque runtime naturals.
+  runtime-size :: Nat -> Nat
+  runtime-size n = if n <= 1048576 then u32-to-nat (runtime-word (wrapping-i64-to-u32 (nat-to-i64 n))) else 0
+  -- | Conjoin every complete runtime observation.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+  -- | Select independent raw byte patterns, including adjacent zero/one-difference lanes.
+  pattern-byte :: U8 -> U8 -> Nat -> InRange 0 255 Nat
+  pattern-byte mode needle i = if eq-u8 mode 0 then 0 else if eq-u8 mode 1 then 255
+    else if eq-u8 mode 2 then nat-rem (i * 37 + 11) 256
+    else if eq-u8 mode 3 then nat-rem i 2
+    else if nat-rem i 4 == 0 then u8-to-nat needle else u8-to-nat (bit-xor-u8 needle 1)
+  -- | Initialize one exact checked byte interval without another library constructor.
+  fill :: Bytes -> U8 -> U8 -> Nat -> Unit
+  fill raw mode needle i = if i < bytes-len raw then
+    let byte = pattern-byte mode needle i in let written = bytes-set raw i byte in
+    let next = i + 1 in fill raw mode needle next
+    else ()
+  -- | Compare a signed independent no-match sentinel with an exact optional public offset.
+  offset-is :: Option Nat -> I64 -> Bool
+  offset-is value expected = case value of
+    None -> eq-i64 expected (-1)
+    Some actual -> if 0 <= expected then actual == nat-from-i64 expected else False
+  -- | Compare all exact byte queries with independent results at one complete-block/fringe shape.
+  search-case :: U8 -> Nat -> U8 -> I64 -> I64 -> Nat -> Bool
+  search-case mode size needle first last count =
+    let n = runtime-size size in let raw = bytes-new n in let initialized = fill raw mode needle 0 in
+    offset-is (S.bytes-index-byte raw needle) first && offset-is (S.bytes-last-index-byte raw needle) last
+      && S.bytes-count-byte raw needle == count && S.bytes-contains-byte raw needle == (count > 0)
+  -- | Return a fresh temporary input whose caller never stores an additional owner handle.
+  temporary :: Nat -> Bytes
+  temporary size = let raw = bytes-new size in let initialized = fill raw 4 0 0 in raw
+  -- | Keep temporary owners through complete private scans and release them between calls.
+  owners-loop :: Nat -> Nat -> Bool
+  owners-loop left size = if left == 0 then True else
+    let first = S.bytes-index-byte (temporary size) 0 in
+    let last = S.bytes-last-index-byte (temporary size) 0 in
+    let count = S.bytes-count-byte (temporary size) 0 in
+    let ok = offset-is first 0 && offset-is last 16384 && count == 4097 in
+    if ok then let remaining = left - 1 in owners-loop remaining size else False
+  -- | Stress temporary backing owners at an eight-byte-block fringe under bounded heap and stack.
+  owners-case :: Unit -> Bool
+  owners-case unit = owners-loop (runtime-size 10) (runtime-size 16385)

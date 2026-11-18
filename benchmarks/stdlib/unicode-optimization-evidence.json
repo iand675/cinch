@@ -1,0 +1,3941 @@
+{
+  "scope": "Unicode344-declaration scalar/classification/casing/folding/catalog public performance and codegen review",
+  "selected_tables_sha256": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+  "baseline_tables_sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+  "non_class_declarations_source_byte_identical": [
+    "unicode-data-case-count",
+    "unicode-data-fold-count",
+    "unicode-data-table-count",
+    "unicode-data-table-info",
+    "unicode-data-table-info-route",
+    "unicode-data-table-info-page-a",
+    "unicode-data-table-info-page-b",
+    "unicode-data-table-info-page-c",
+    "unicode-data-table-info-page-d",
+    "unicode-data-table-info-page-e",
+    "unicode-data-table-descriptor",
+    "unicode-data-table-descriptor-route",
+    "unicode-data-table-descriptor-page-a",
+    "unicode-data-table-descriptor-page-b",
+    "unicode-data-table-descriptor-page-c",
+    "unicode-data-table-descriptor-page-d",
+    "unicode-data-table-descriptor-page-e",
+    "unicode-data-range-records",
+    "unicode-data-range-records-route",
+    "unicode-data-range-records-page-a",
+    "unicode-data-range-records-page-b",
+    "unicode-data-range-records-page-c",
+    "unicode-data-range-records-page-d",
+    "unicode-data-range-records-page-e",
+    "unicode-data-range-records-page-f",
+    "unicode-data-range-records-page-g",
+    "unicode-data-range-records-page-h",
+    "unicode-data-range-records-page-i",
+    "unicode-data-range-records-page-j",
+    "unicode-data-range-records-page-k",
+    "unicode-data-range-records-page-l",
+    "unicode-data-range-records-page-m",
+    "unicode-data-range-records-page-n",
+    "unicode-data-range-records-page-o",
+    "unicode-data-range-records-page-p",
+    "unicode-data-range-records-page-q",
+    "unicode-data-range-records-page-r",
+    "unicode-data-range-records-page-s",
+    "unicode-data-range-records-page-t",
+    "unicode-data-range-records-page-u",
+    "unicode-data-range-records-page-v",
+    "unicode-data-range-records-page-w",
+    "unicode-data-range-records-page-x",
+    "unicode-data-range-records-page-y",
+    "unicode-data-range-records-page-z",
+    "unicode-data-range-records-page-aa",
+    "unicode-data-range-records-page-ab",
+    "unicode-data-range-records-page-ac",
+    "unicode-data-range-records-page-ad",
+    "unicode-data-range-records-page-ae",
+    "unicode-data-range-records-page-af",
+    "unicode-data-range-records-page-ag",
+    "unicode-data-range-records-page-ah",
+    "unicode-data-range-records-page-ai",
+    "unicode-data-range-records-page-aj",
+    "unicode-data-range-records-page-ak",
+    "unicode-data-range-records-page-al",
+    "unicode-data-range-records-page-am",
+    "unicode-data-range-records-page-an",
+    "unicode-data-range-records-page-ao",
+    "unicode-data-range-records-page-ap",
+    "unicode-data-range-records-page-aq",
+    "unicode-data-range-records-page-ar",
+    "unicode-data-range-records-page-as",
+    "unicode-data-range-records-page-at",
+    "unicode-data-range-records-page-au",
+    "unicode-data-range-records-page-av",
+    "unicode-data-range-records-page-aw",
+    "unicode-data-range-records-page-ax",
+    "unicode-data-range-records-page-ay",
+    "unicode-data-range-records-page-az",
+    "unicode-data-range-records-page-ba",
+    "unicode-data-range-records-page-bb",
+    "unicode-data-range-records-page-bc",
+    "unicode-data-range-records-page-bd",
+    "unicode-data-range-records-page-be",
+    "unicode-data-range-records-page-bf",
+    "unicode-data-range-records-page-bg",
+    "unicode-data-range-records-page-bh",
+    "unicode-data-range-records-page-bi",
+    "unicode-data-range-records-page-bj",
+    "unicode-data-range-records-page-bk",
+    "unicode-data-range-records-page-bl",
+    "unicode-data-range-records-page-bm",
+    "unicode-data-range-records-page-bn",
+    "unicode-data-range-records-page-bo",
+    "unicode-data-range-records-page-bp",
+    "unicode-data-range-records-page-bq",
+    "unicode-data-range-records-page-br",
+    "unicode-data-range-records-page-bs",
+    "unicode-data-range-records-page-bt",
+    "unicode-data-range-records-page-bu",
+    "unicode-data-range-records-page-bv",
+    "unicode-data-range-records-page-bw",
+    "unicode-data-range-records-page-bx",
+    "unicode-data-range-records-page-by",
+    "unicode-data-range-records-page-bz",
+    "unicode-data-range-records-page-ca",
+    "unicode-data-range-records-page-cb",
+    "unicode-data-range-records-page-cc",
+    "unicode-data-range-records-page-cd",
+    "unicode-data-range-records-page-ce",
+    "unicode-data-range-records-page-cf",
+    "unicode-data-range-records-page-cg",
+    "unicode-data-range-records-page-ch",
+    "unicode-data-range-records-page-ci",
+    "unicode-data-range-records-page-cj",
+    "unicode-data-range-records-page-ck",
+    "unicode-data-range-records-page-cl",
+    "unicode-data-range-records-page-cm",
+    "unicode-data-range-records-page-cn",
+    "unicode-data-range-records-page-co",
+    "unicode-data-range-records-page-cp",
+    "unicode-data-range-records-page-cq",
+    "unicode-data-range-records-page-cr",
+    "unicode-data-range-records-page-cs",
+    "unicode-data-range-records-page-ct",
+    "unicode-data-range-records-page-cu",
+    "unicode-data-range-records-page-cv",
+    "unicode-data-range-records-page-cw",
+    "unicode-data-range-records-page-cx",
+    "unicode-data-range-records-page-cy",
+    "unicode-data-range-records-page-cz",
+    "unicode-data-range-records-page-da",
+    "unicode-data-range-records-page-db",
+    "unicode-data-range-records-page-dc",
+    "unicode-data-range-records-page-dd",
+    "unicode-data-range-records-page-de",
+    "unicode-data-range-records-page-df",
+    "unicode-data-range-records-page-dg",
+    "unicode-data-range-records-page-dh",
+    "unicode-data-range-records-page-di",
+    "unicode-data-range-records-page-dj",
+    "unicode-data-case-bounds",
+    "unicode-data-case-bounds-route",
+    "unicode-data-case-bounds-page-a",
+    "unicode-data-case-bounds-page-b",
+    "unicode-data-case-bounds-page-c",
+    "unicode-data-case-bounds-page-d",
+    "unicode-data-case-bounds-page-e",
+    "unicode-data-case-bounds-page-f",
+    "unicode-data-case-deltas",
+    "unicode-data-case-deltas-route",
+    "unicode-data-case-deltas-page-a",
+    "unicode-data-case-deltas-page-b",
+    "unicode-data-case-deltas-page-c",
+    "unicode-data-case-deltas-page-d",
+    "unicode-data-case-deltas-page-e",
+    "unicode-data-case-deltas-page-f",
+    "unicode-data-fold-orbit",
+    "unicode-data-fold-orbit-route",
+    "unicode-data-fold-orbit-page-a",
+    "unicode-data-fold-orbit-page-b",
+    "unicode-data-ascii-fold",
+    "unicode-data-ascii-fold-route",
+    "unicode-data-ascii-fold-page-a",
+    "unicode-data-ascii-fold-page-b",
+    "unicode-data-turkic-bounds",
+    "unicode-data-turkic-bounds-route",
+    "unicode-data-turkic-bounds-page-a",
+    "unicode-data-turkic-deltas",
+    "unicode-data-turkic-deltas-route",
+    "unicode-data-turkic-deltas-page-a"
+  ],
+  "factual_table_words_changed": false,
+  "private_word_operations": 6,
+  "preflights": [
+    {
+      "file": "build/unicode-bench-baseline-native-preflight.json",
+      "sha256": "ea39d77e1534ab980474f89d95e11bb9518beddd53092ead3ab451f7f67c91ce",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-bench-baseline-rust-preflight.json",
+      "sha256": "0df626f7ffe4bf0833d1958eb1cee928d3c0347cfe26f7bd861e8c2beb4e73c9",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-bench-table-local-bound-native-preflight.json",
+      "sha256": "398d43e94ae5b8fbdab07004c969160b275d51b2976a0cc35144defb3950132d",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-bench-table-local-bound-rust-preflight.json",
+      "sha256": "efbbc121ef28364d5ae5c86858f0522ffad21a6dc6fa397004b3af0634ea1b6f",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-bench-table-local-native-preflight.json",
+      "sha256": "af21f54ca6427bb7c798ff2c5864db99ee39c3dbec99eccefe577415b49dd99b",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-bench-table-local-rust-preflight.json",
+      "sha256": "05ee191e1a6ee9bd62d190da0f740f446ae4900399c791697ac812f0bd67464e",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-fixed-baseline-native-preflight.json",
+      "sha256": "9f1c6bbf921c6ec5ab107a852885439fb6269ac93efd9b991d4cc12d00670eb9",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-fixed-baseline-rust-preflight.json",
+      "sha256": "e3403fe27aaba08c876971b65feb5116de2894734ce1bc99eeff696bff133fca",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-fixed-class-local-native-preflight.json",
+      "sha256": "38bef7f5e145f6779fc420582f8ef0d153b1e4d1e51768122c04a706648b607d",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-fixed-class-local-rust-preflight.json",
+      "sha256": "2f03ee7d66752df8dd72105be6a545f943307331276177a474b9a770dc41c803",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-fixed-table-local-native-preflight.json",
+      "sha256": "9037e1daa60d4bcecd22c00873a85ea838d13efffd770910619a498e9c3fdc78",
+      "cases": 384
+    },
+    {
+      "file": "build/unicode-fixed-table-local-rust-preflight.json",
+      "sha256": "dba53d849770b368a12d3f0fba242239fff21dd364a4e363a85f47ede7c16121",
+      "cases": 384
+    }
+  ],
+  "measurements": [
+    {
+      "file": "benchmarks/stdlib/unicode-scans/unicode-bench-table-local-bound-rust-timings.json",
+      "sha256": "cbdfd50fe5e1d801f582f2f7ff077b1a4bf018b5d9696e7be3c07aee89312ba9",
+      "groups": 64
+    },
+    {
+      "file": "benchmarks/stdlib/unicode-scans/unicode-bench-baseline-native-timings.json",
+      "sha256": "0d52547b312d0a953a31a069df9ff21f60279f0aa69a3d862a1d82af1f825681",
+      "groups": 64
+    },
+    {
+      "file": "benchmarks/stdlib/unicode-scans/unicode-bench-baseline-rust-timings.json",
+      "sha256": "4e122dbc8e80a013f862a5651de6d502d13ded7ef0ca11d7724acc2bdc8c3e9c",
+      "groups": 64
+    },
+    {
+      "file": "benchmarks/stdlib/unicode-scans/unicode-bench-table-local-bound-native-timings.json",
+      "sha256": "9127be117612e1cb745e507993469d12db863ee2b1ad8db1eee64e57e64ef6af",
+      "groups": 64
+    },
+    {
+      "file": "benchmarks/stdlib/unicode-scans/unicode-fixed-paired.json",
+      "sha256": "9a5fc7b88850dc982a4f777730e679489ba29ac3e4551e4b2bea4e8a97a2ef7f",
+      "groups": 64
+    },
+    {
+      "file": "benchmarks/stdlib/unicode-scans/unicode-class-local-paired.json",
+      "sha256": "9d10b9db458dd35ed7f05ba02202c4a372739c97eba225956e75668bd7965329",
+      "groups": 64
+    }
+  ],
+  "timing_cpu": 0,
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+  "background": [
+    "initial256-row exploratory round: parentCPU3 integration/docs; other worker affinity cores, no other CPU0 job",
+    "corrected paired confirmation: no heavy RootCPU3 Cargo; BaseCPU1 full chain and CPU4 semantics/functional activity; Strings held CPU0 work",
+    "final class-only paired window: RootCPU3 small docs/import checks; other coordinated affinity-core activity; Strings held CPU0 work"
+  ],
+  "full_validation": [
+    {
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "sources": {
+        "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "47948d4eca202c15a43b031270c4b5b4fd54e983c28cd8459d4d846ace1c7285"
+      },
+      "executable_sha256": "f02d39613a09308c4d3a1e62f7761a36db297629341a15ad53981f2ec7034382",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-selected-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-selected-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 12.906775904993992,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "unicode-class-selected",
+      "full_report_sha256": "eddd160676846ad6b524a441dd5e6421bd81aaf9ed8f03878195a613d3f15aa5",
+      "memory_processes": 2177,
+      "normal_processes": 1,
+      "poisoned_processes": 2176,
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "native",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "sources": {
+        "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "47948d4eca202c15a43b031270c4b5b4fd54e983c28cd8459d4d846ace1c7285"
+      },
+      "executable_sha256": "ef890038b8a7a78d01ffdc76c61d6535b9052fa80fdba9961f43748a35f5337b",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-selected-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-selected-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-selected-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-selected-native/link-report.txt"
+      ],
+      "compile_seconds": 10.59317959100008,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "unicode-class-selected",
+      "full_report_sha256": "0f186110c7db0c9e63c09dab5f0697d832fbf5bc6186c156e70c419dbfc80649",
+      "memory_processes": 2177,
+      "normal_processes": 1,
+      "poisoned_processes": 2176,
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "sources": {
+        "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "96c28a198baf977d24d866f16acb636cc2e3d615ba259749a72de873ab2f826b"
+      },
+      "executable_sha256": "752c72a530f0c54028e44e253838d4f4c258ced1dd50e1c5c62128febb0e52c4",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-edges-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-edges-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 12.14135006799188,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "unicode-class-edges",
+      "full_report_sha256": "69a155c4face1bca54eb1c757a5b67bd75e030cbb5f94568fd2ca32aa1f66ef9",
+      "memory_processes": 2,
+      "normal_processes": 1,
+      "poisoned_processes": 1,
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "native",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "sources": {
+        "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "96c28a198baf977d24d866f16acb636cc2e3d615ba259749a72de873ab2f826b"
+      },
+      "executable_sha256": "a66cf443aa7c134f69cdf9d37b96c328d4cf1b07fcd9990b8e1e8216fcb01de5",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-edges-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-edges-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-edges-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-edges-native/link-report.txt"
+      ],
+      "compile_seconds": 10.424436300003435,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "unicode-class-edges",
+      "full_report_sha256": "f2ecafc092d6839a60eaf4b14efd26d8bc1cb790f9c44e26b1f3628338c8478e",
+      "memory_processes": 2,
+      "normal_processes": 1,
+      "poisoned_processes": 1,
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "sources": {
+        "Data.Unicode.cinch": "fba58333635e0995c1ae77eb1947275c7198a557147a95333f8ef52d981da2c0",
+        "Data.Unicode.Names.cinch": "443c125bc39c88c95a71b8d63b99fc470062d4c0a49d3aa9160bbce171b5fe50",
+        "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Unicode.Range.cinch": "36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Main.cinch": "b926ddeaff81ba1495204d52bd62e712c6645b0168e16c134a814d0b1f350988"
+      },
+      "executable_sha256": "63c5f8870e2164bfb62abdf560ef6e3898e1d4033f9be3325a368647521ca2e2",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-catalog-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-catalog-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 17.83738151100988,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "unicode-class-catalog",
+      "full_report_sha256": "87a73d8792fe16984c3e6842c7c08db677163895829b3894034d24cef590ea88",
+      "memory_processes": 2,
+      "normal_processes": 1,
+      "poisoned_processes": 1,
+      "all_zero_leaks": true
+    },
+    {
+      "frontend": "native",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "sources": {
+        "Data.Unicode.cinch": "fba58333635e0995c1ae77eb1947275c7198a557147a95333f8ef52d981da2c0",
+        "Data.Unicode.Names.cinch": "443c125bc39c88c95a71b8d63b99fc470062d4c0a49d3aa9160bbce171b5fe50",
+        "Data.Unicode.Tables.cinch": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+        "Data.Unicode.Range.cinch": "36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Data.Unicode.Kernel.cinch": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+        "Main.cinch": "b926ddeaff81ba1495204d52bd62e712c6645b0168e16c134a814d0b1f350988"
+      },
+      "executable_sha256": "c3401685c040c96ae96f0e868f66c60945fa490c232a43f32a8b67720ea1b1c2",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-catalog-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-catalog-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-catalog-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/unicode-class-catalog-native/link-report.txt"
+      ],
+      "compile_seconds": 20.54778875800548,
+      "cpu": 2,
+      "all_passed": true,
+      "kind": "unicode-class-catalog",
+      "full_report_sha256": "3be0979637450dfac56de1223514a99511a9055ef821c12d323223c34e429581",
+      "memory_processes": 2,
+      "normal_processes": 1,
+      "poisoned_processes": 1,
+      "all_zero_leaks": true
+    }
+  ],
+  "foreign_objects": {
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "kernel_source_sha256": "17a0d1e9bf8a95236123ef9877d56a6817c20d70b39702913387c83969cf3b57",
+    "cpu": 2,
+    "results": [
+      {
+        "target": "wasm32-unknown-unknown",
+        "commands": [
+          [
+            "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+            "emit-ir",
+            "/workspace/dasl-stdlib-unicode/build/unicode-class-objects/Main.cinch",
+            "--target",
+            "wasm32-unknown-unknown",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/unicode-class-objects/wasm32-unknown-unknown.ll"
+          ],
+          [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "-target",
+            "wasm32-unknown-unknown",
+            "-O2",
+            "-c",
+            "-x",
+            "ir",
+            "/workspace/dasl-stdlib-unicode/build/unicode-class-objects/wasm32-unknown-unknown.ll",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/unicode-class-objects/wasm32-unknown-unknown.o"
+          ]
+        ],
+        "llvm_sha256": "6e2b2583ea2c78df185833f949d87b5995db0ebddb2b491a556f792ef8151765",
+        "object_sha256": "13b738f4892033816737e2c1110b1990fc8d7c40b89f7df22bb2765d9118dac1",
+        "object_bytes": 2379
+      },
+      {
+        "target": "aarch64-unknown-linux-gnu",
+        "commands": [
+          [
+            "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+            "emit-ir",
+            "/workspace/dasl-stdlib-unicode/build/unicode-class-objects/Main.cinch",
+            "--target",
+            "aarch64-unknown-linux-gnu",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/unicode-class-objects/aarch64-unknown-linux-gnu.ll"
+          ],
+          [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "-target",
+            "aarch64-unknown-linux-gnu",
+            "-O2",
+            "-c",
+            "-x",
+            "ir",
+            "/workspace/dasl-stdlib-unicode/build/unicode-class-objects/aarch64-unknown-linux-gnu.ll",
+            "-o",
+            "/workspace/dasl-stdlib-unicode/build/unicode-class-objects/aarch64-unknown-linux-gnu.o"
+          ]
+        ],
+        "llvm_sha256": "239501d019017fa35f96417bf723504cffb660758ae12464d93f4e38e03d6ad9",
+        "object_sha256": "0c23e4789f8243361551d6d629aa41fbeb209881947265e8ab3810c4b9f0e2f2",
+        "object_bytes": 4584
+      }
+    ],
+    "all_passed": true,
+    "big_endian_gate": "Provided in lib_unicode_kernel Rust target; standalone CLI rejects the unsupported powerpc64 profile, so no fallback target is substituted."
+  },
+  "codegen": {
+    "rust": {
+      "baseline": {
+        "assembly_sha256": "4720d1eb2cd63b895890b7d25c8b97f598b07fc4c7f4af3061a203e8ea6406db",
+        "class_functions": 150,
+        "imported_machine_call_sites": 0,
+        "functions": [
+          {
+            "function": "Data.Unicode.Tables.class-search",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-route",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-i",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-j",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-k",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-l",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-m",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-n",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-o",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-p",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-q",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-r",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-s",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-t",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-u",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-v",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-w",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-x",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-y",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-z",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-aa",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ab",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ac",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ad",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ae",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-af",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ag",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ah",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ai",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-aj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ak",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-al",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-am",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-an",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ao",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ap",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-aq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ar",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-as",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-at",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-au",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-av",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-aw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ax",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ay",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-az",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ba",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bb",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-be",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bi",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bo",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-route",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-i",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-j",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-k",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-l",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-m",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-n",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-o",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-p",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-q",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-r",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-s",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-t",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-u",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-v",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-w",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-x",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-y",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-z",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-aa",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ab",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ac",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ad",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ae",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-af",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ag",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ah",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ai",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-aj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ak",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-al",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-am",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-an",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ao",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ap",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-aq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ar",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-as",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-at",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-au",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-av",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-aw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ax",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ay",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-az",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ba",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bb",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-be",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bi",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bo",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-br",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bs",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bt",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bu",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bv",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-route",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-a",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-b",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-c",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-d",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-e",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-f",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-g",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-h",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-i",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-j",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-k",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-l",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-m",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-n",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-o",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-p",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-route.shared0",
+            "imported_machine_calls": 0,
+            "calls": []
+          }
+        ]
+      },
+      "class-local": {
+        "assembly_sha256": "e6489f13ab7ab9d659274f8648e1b68b6a6da9558e9603c5f4263b4b0305cc55",
+        "class_functions": 150,
+        "imported_machine_call_sites": 0,
+        "functions": [
+          {
+            "function": "Data.Unicode.Tables.class-search",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-route",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-i",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-j",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-k",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-l",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-m",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-n",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-o",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-p",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-q",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-r",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-s",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-t",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-u",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-v",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-w",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-x",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-y",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-z",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-aa",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ab",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ac",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ad",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ae",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-af",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ag",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ah",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ai",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-aj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ak",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-al",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-am",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-an",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ao",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ap",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-aq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ar",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-as",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-at",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-au",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-av",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-aw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ax",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ay",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-az",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-ba",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bb",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-be",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bi",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bo",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-page-bp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-route",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-i",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-j",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-k",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-l",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-m",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-n",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-o",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-p",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-q",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-r",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-s",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-t",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-u",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-v",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-w",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-x",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-y",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-z",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-aa",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ab",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ac",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ad",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ae",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-af",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ag",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ah",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ai",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-aj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ak",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-al",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-am",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-an",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ao",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ap",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-aq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ar",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-as",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-at",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-au",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-av",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-aw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ax",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ay",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-az",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-ba",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bb",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-be",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bi",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bo",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-br",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bs",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bt",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bu",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bv",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-runs-page-bw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-route",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-a",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-b",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-c",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-d",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-e",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-f",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-g",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-h",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-i",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-j",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-k",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-l",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-m",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-n",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-o",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-metadata-page-p",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "Data.Unicode.Tables.unicode-data-class-directory-route.shared0",
+            "imported_machine_calls": 0,
+            "calls": []
+          }
+        ]
+      }
+    },
+    "native": {
+      "baseline": {
+        "assembly_sha256": "18ee3740b22df0786e5643a21f7c648dc60e02f2231380dc6689762dacd93ad9",
+        "class_functions": 166,
+        "imported_machine_call_sites": 174,
+        "functions": [
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass",
+            "imported_machine_calls": 12,
+            "calls": [
+              "\tcallq\t\"Data.Machine.le-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.wrapping-shr-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.bit-and-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.wrapping-shr-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.wrapping-shr-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.bit-and-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.wrapping-shr-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.wrapping-shr-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.wrapping-shr-u32\"@PLT"
+            ]
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata",
+            "imported_machine_calls": 2,
+            "calls": [
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.wrapping-shr-u32\"@PLT"
+            ]
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2droute",
+            "imported_machine_calls": 15,
+            "calls": [
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT"
+            ]
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2do",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2di",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2df",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2de",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2db",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2da",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns",
+            "imported_machine_calls": 2,
+            "calls": [
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.wrapping-shr-u32\"@PLT"
+            ]
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2droute",
+            "imported_machine_calls": 74,
+            "calls": [
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT"
+            ]
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbv",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbu",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbt",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbs",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbr",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbo",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbi",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbe",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbb",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dba",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daz",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2day",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dax",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dav",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dau",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dat",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2das",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dar",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dap",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dao",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dan",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dam",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dal",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dak",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dai",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dah",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dag",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dae",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dad",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dac",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dab",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daa",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dz",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dy",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dx",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dv",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2du",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dt",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2ds",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dr",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2do",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2di",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2df",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2de",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2db",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2da",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory",
+            "imported_machine_calls": 2,
+            "calls": [
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.wrapping-shr-u32\"@PLT"
+            ]
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2droute",
+            "imported_machine_calls": 67,
+            "calls": [
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT",
+              "\tcallq\t\"Data.Machine.lt-u32\"@PLT"
+            ]
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbo",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbi",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbe",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbb",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dba",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daz",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2day",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dax",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dav",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dau",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dat",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2das",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dar",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dap",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dao",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dan",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dam",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dal",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dak",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dai",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dah",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dag",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dae",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dad",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dac",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dab",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daa",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dz",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dy",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dx",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dv",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2du",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dt",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2ds",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dr",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2do",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2di",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2df",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2de",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2db",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2da",
+            "imported_machine_calls": 0,
+            "calls": []
+          }
+        ]
+      },
+      "class-local": {
+        "assembly_sha256": "b65e63d8386ba8c428260190c26289d43a15e7e79e90f2a61887c9d7e1c9b232",
+        "class_functions": 166,
+        "imported_machine_call_sites": 0,
+        "functions": [
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2droute",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2do",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2di",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2df",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2de",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2dc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2db",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2dmetadata$2dpage$2da",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2droute",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbv",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbu",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbt",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbs",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbr",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbo",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbi",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbe",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dbb",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dba",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daz",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2day",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dax",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dav",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dau",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dat",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2das",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dar",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dap",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dao",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dan",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dam",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dal",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dak",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dai",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dah",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dag",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dae",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dad",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dac",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dab",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2daa",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dz",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dy",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dx",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dv",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2du",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dt",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2ds",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dr",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2do",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2di",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2df",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2de",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2dc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2db",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2druns$2dpage$2da",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2droute",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbo",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbi",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbe",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dbb",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dba",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daz",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2day",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dax",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dav",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dau",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dat",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2das",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dar",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dap",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dao",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dan",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dam",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dal",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dak",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dai",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dah",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dag",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daf",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dae",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dad",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dac",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dab",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2daa",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dz",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dy",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dx",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dw",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dv",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2du",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dt",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2ds",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dr",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dq",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dp",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2do",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dn",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dm",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dl",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dk",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dj",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2di",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dh",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dg",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2df",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2de",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dd",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2dc",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2db",
+            "imported_machine_calls": 0,
+            "calls": []
+          },
+          {
+            "function": "cinch.typed.m.Data$2eUnicode$2eTables.unicode$2ddata$2dclass$2ddirectory$2dpage$2da",
+            "imported_machine_calls": 0,
+            "calls": []
+          }
+        ]
+      }
+    }
+  },
+  "canonical_table_declarations": 336,
+  "canonical_doc_diagnostics": 0,
+  "canonical_doc_orphans": 0,
+  "generator_unit_tests": 10,
+  "normal_heap": "32M",
+  "poisoned_heap": "256M",
+  "stack": "8M",
+  "references": "Actual pinned SDK go1.27.4 Unicode17.0.0. Scalar numeric APIs preserve invalid input observations; invalid selectors, fold cycles, custom ranges/rules and copied case observations are included.",
+  "limitations": [
+    "Returned case observations allocate typed objects; reference structs are direct values.",
+    "Catalog uses immutable comparison trees; reference public catalogs are hash maps.",
+    "Source-client Native epoch still has imported arithmetic/cast/Char operations outside the optimized classification graph.",
+    "One-codepoint queries use scalar readonly kernels; no forced SIMD.",
+    "Raw samples retain regressions and reference/harness noise; no universal speed claim.",
+    "Updated Rust target supplies big-endian object gate; parent Cargo integration required."
+  ],
+  "generator_reproduces_selected_exactly": true,
+  "candidate_manifest": {
+    "baseline_sha256": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "candidate_sha256": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
+    "factual_words_changed": false,
+    "pure_scalar_operations": 6,
+    "class_only": true
+  },
+  "candidate_generator_sha256": "45adfb46a8d348460e7d715bd1d07e150b7b123b006b5b69fd9d0c566bf93419"
+}

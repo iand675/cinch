@@ -1,0 +1,8 @@
+{
+  "description": "Existing kernel/source nominal interface regression independently reproduced before the effect-union patch",
+  "compiler_sha256": "37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da",
+  "compiler_source_checkpoint": "b03018f7",
+  "source_sha256": "69c1df1a7e8483859b5c76941f5e2a2d76ff35882c929638c12ec965796f18c1",
+  "exit": 101,
+  "stderr_sha256": "047195665a5fd70a229002796c19c3b5f469d8d9bec84bf66bd9275b6f45d60e"
+}

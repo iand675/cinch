@@ -1,0 +1,83 @@
+{
+  "description": "Closed pretyped/pre-escaped-path dynamic functional executables/LLVM only; all final selected clients and every source/reference/log/docs/compiler/provider/runtime/benchmark input retained in place",
+  "historical_receipts": [
+    "bootstrap/stdlib-json-dynamic-rust-v3-results.json",
+    "bootstrap/stdlib-json-dynamic-final-rust-v1-results.json",
+    "bootstrap/stdlib-json-dynamic-control-rust-v2-results.json"
+  ],
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-dynamic-pretyped-prepath-20261117.tar.gz",
+  "entries": [
+    {
+      "path": "build/json-dynamic-control-rust-v2/dynamic-control/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-control-rust-v2/dynamic-control/consumer",
+      "kind": "file",
+      "size": 7334768,
+      "mode": 448,
+      "sha256": "81c8e1bbf8e0270d8134b49949b5c10b831fb9c09429316f1c33b8771eb61666"
+    },
+    {
+      "path": "build/json-dynamic-control-rust-v2/dynamic-control/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-control-rust-v2/dynamic-control/consumer.ll",
+      "kind": "file",
+      "size": 8473063,
+      "mode": 384,
+      "sha256": "a85ea4e0acded72d6e2a4958260cfd19e6b457be093579bc1daf4a482b2aa1dd"
+    },
+    {
+      "path": "build/json-dynamic-final-rust-v1/dynamic/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-final-rust-v1/dynamic/consumer",
+      "kind": "file",
+      "size": 9134552,
+      "mode": 448,
+      "sha256": "ce623da217d3d4966e0d0ad204aae12824ea12d76d288d236ccf7420b34bf948"
+    },
+    {
+      "path": "build/json-dynamic-final-rust-v1/dynamic/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-final-rust-v1/dynamic/consumer.ll",
+      "kind": "file",
+      "size": 15329382,
+      "mode": 384,
+      "sha256": "30a808d2e94cd7151b7a8e430c8473266ae5c17fb4f13950342f969a0336d50d"
+    },
+    {
+      "path": "build/json-dynamic-final-rust-v1/dynamic-edge/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-final-rust-v1/dynamic-edge/consumer",
+      "kind": "file",
+      "size": 7301504,
+      "mode": 448,
+      "sha256": "9e1953051e76e50af53272f6054b6868e99b5469171130347bbd9038f44523bc"
+    },
+    {
+      "path": "build/json-dynamic-final-rust-v1/dynamic-edge/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-final-rust-v1/dynamic-edge/consumer.ll",
+      "kind": "file",
+      "size": 8489601,
+      "mode": 384,
+      "sha256": "5bb4879f840c87457f27d747c65ef805a54ee00d8267442ba5097e9625b9ce1b"
+    },
+    {
+      "path": "build/json-dynamic-rust-v3/dynamic/consumer",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-rust-v3/dynamic/consumer",
+      "kind": "file",
+      "size": 9134488,
+      "mode": 448,
+      "sha256": "81f96231b68d60e9cb3e11480dea52e44d662b7bf7884b71b7f48de970328e82"
+    },
+    {
+      "path": "build/json-dynamic-rust-v3/dynamic/consumer.ll",
+      "source": "/workspace/dasl-stdlib-json/build/json-dynamic-rust-v3/dynamic/consumer.ll",
+      "kind": "file",
+      "size": 15310707,
+      "mode": 384,
+      "sha256": "08edf67c4166203f804d424d108231bfc2ead348c8bdd70ee9b0c1ec79bb2fea"
+    }
+  ],
+  "original_file_bytes": 80508065,
+  "verified": true,
+  "originals_removed": true,
+  "archive_sha256": "e321775a703322b9fd7348273fe10c3c1a1ddc6779875ad3ec2ccf064bb857b8",
+  "archive_bytes": 17544033,
+  "decompressed_tar_sha256": "273cab188d05b9df788d52f926abdb4cd50582f6aa0ffe05aa27bd606af8fc82",
+  "decompressed_tar_bytes": 80527360,
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-dynamic-pretyped-prepath-20261117.tar.gz -C /workspace/dasl-stdlib-json"
+}

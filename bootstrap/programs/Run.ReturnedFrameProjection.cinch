@@ -1,0 +1,48 @@
+-- | A projected raw child keeps its identity after its allocating function returns.
+module Main where
+  import Data.Machine
+  import Data.Bytes
+
+  -- | A genuine sum value with one raw-payload alternative.
+  data Box where
+    -- | Retain a raw machine word.
+    Box :: I64 -> Box
+    -- | Keep the type distinct from an unboxed scalar wrapper.
+    Other :: Bytes -> Box
+
+  -- | Own a child whose projected value can have a separate lifetime.
+  data Holder where
+    -- | Store the child.
+    Holder :: Box -> Holder
+
+  -- | Return a child without consuming the parent.
+  #[inline(never)]
+  child :: Holder -> Box
+  child owner = case owner of Holder item -> item
+
+  -- | Observe a returned child in a separate function activation.
+  #[inline(never)]
+  value :: Box -> I64
+  value box = case box of Box raw -> raw; Other bytes -> 0
+
+  -- | Keep the getter non-tail before returning its independently owned result.
+  #[inline(never)]
+  produce :: I64 -> Box
+  produce raw =
+    let box = Box raw in
+    let owner = Holder box in
+    let result = child owner in
+    let scratch = bytes-new 1 in
+    if 0 < bytes-len scratch then
+      let changed = bytes-set scratch 0 1 in result
+    else result
+
+  -- | Perform another strict allocation before observing the projected value.
+  main :: Int
+  main =
+    let result = produce 17 in
+    let scratch = bytes-new 64 in
+    if 0 < bytes-len scratch then
+      let changed = bytes-set scratch 0 1 in
+      if bytes-get scratch 0 == 1 && eq-i64 (value result) 17 then 0 else 1
+    else 1

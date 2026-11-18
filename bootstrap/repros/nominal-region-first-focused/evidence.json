@@ -1,0 +1,13 @@
+{
+  "source_checkpoint": "d3ab8ad0",
+  "passed": 5,
+  "failed": 2,
+  "boundary": "Both positive producer-dependent cases stop at a fixture parser error: uppercase R is a constructor token, not a valid forall binder. Namespace refusal and lexical-scope cases pass.",
+  "resolution": "Use a lowercase explicit identity without widening the parser.",
+  "test_executable_sha256": "0dcf7a3c096f64abec485a775de0b64bf2e60f433c4b61a7e05a581d127c95ed",
+  "files": {
+    "gate.log": "6c0e985acb772bcfd07b61029b21cbe7819367f76b0efe733fed1f6fc5fc6d98",
+    "nominal-region-contracts.cinch": "e43297f77770e81ac69b406b1409fb4fcbb30380e113bd7463ebf5e745822534",
+    "interface_nominal_regions.rs": "0d4befb6e978212924fee1d45bd1cea11963ef9ef259388cc36d2addb645b63a"
+  }
+}

@@ -159,6 +159,7 @@ module Bootstrap.Kinds where
   binder-body kinds scope id carrier body = type-well-formed kinds scope carrier && (case add-bound-kind id (value-kind carrier) scope of
     Some bound -> type-well-formed kinds bound body
     None -> False)
+  -- | Recheck nominal and lexical authority, interpreting mutation labels only inside effect rows.
   type-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
   type-well-formed kinds scope ty = valid-type ty && (case ty of
     UCon name actual -> (case lookup-kind name kinds of Some expected -> kind-equal actual expected; None -> False)
@@ -184,7 +185,7 @@ module Bootstrap.Kinds where
     UIndexList element fields -> type-well-formed kinds scope element && type-well-formed kinds scope fields
     UIndexCall function args -> valid-type ty && type-well-formed kinds scope args
     UIndexMath op a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
-    URow labels -> type-well-formed kinds scope labels
+    URow labels -> row-labels-well-formed kinds scope labels
     URowJoin a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
     UTuple fields -> type-well-formed kinds scope fields
     UForall qs body -> type-well-formed kinds (bind-quant-scope (quants-list qs) scope) body
@@ -201,6 +202,25 @@ module Bootstrap.Kinds where
     URequire predicates body -> type-well-formed kinds scope predicates && type-well-formed kinds scope body
     UPropLit value -> True
     UEnd -> True)
+
+  -- | Check every closed row label without giving effect-only constructor kinds ordinary nominal authority.
+  row-labels-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
+  row-labels-well-formed kinds scope labels = case labels of
+    UEnd -> True
+    UArg first rest -> row-label-well-formed kinds scope first && row-labels-well-formed kinds scope rest
+    other -> False
+
+  -- | Admit the exact mutation effect under its registered ownership name and a scoped Region argument.
+  -- The same spelling remains a two-argument ownership constructor everywhere
+  -- outside a row. An annotation alone cannot register either interpretation.
+  row-label-well-formed :: List (String, Kind) -> TypeScope -> UType -> Bool
+  row-label-well-formed kinds scope label = case label of
+    UApp (UCon name actual) region -> if same name "Mut" then
+      kind-equal actual (KFun KRegion KEffect)
+        && kind-equal (type-kind region) KRegion && type-well-formed kinds scope region
+        && (case lookup-kind "Mut" kinds of Some declared -> kind-equal declared borrow-constructor-kind; None -> False)
+      else type-well-formed kinds scope label
+    other -> type-well-formed kinds scope label
   scheme-type-scope :: List (String, Kind) -> TypeScope -> List Quant -> Option TypeScope
   scheme-type-scope kinds scope qs = case qs of
     Nil -> Some scope

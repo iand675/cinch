@@ -1,0 +1,14 @@
+--- a/tooling/heap-benchmark.cinch
++++ b/tooling/heap-benchmark.cinch
+@@ -143,3 +143 @@
+-    let retained = heap-length heap + vec-length values + list-length input in
+-    let observed = nat-rem (checksum + retained) 1000000007 in
+-    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string observed) "\n")))) in 0
++    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string checksum) "\n")))) in 0
+--- a/tooling/bench_heap_reference.go
++++ b/tooling/bench_heap_reference.go
+@@ -96,3 +96 @@
+-	elapsed := time.Since(start).Nanoseconds()
+-	checksum = (checksum + uint64(q.Len()+len(input)+q.Len())) % 1000000007
+-	fmt.Printf("%d %d\n", elapsed, checksum)
++	fmt.Printf("%d %d\n", time.Since(start).Nanoseconds(), checksum)

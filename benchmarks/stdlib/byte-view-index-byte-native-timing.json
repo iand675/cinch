@@ -1,0 +1,725 @@
+{
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "driver_sha256": "beb6ffd8f7e344d442fbd9af5714d3a0562c77f089b63ddac44f17b553be0308",
+  "view_sha256": "966efd5cff80d7bc922b07c6d718373318fe5ad2275eff12072b157e4de3da23",
+  "dependencies": {
+    "Data.Bytes.View": "966efd5cff80d7bc922b07c6d718373318fe5ad2275eff12072b157e4de3da23",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Bytes.Utf8": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
+    "Text.Hex": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c"
+  },
+  "same_artifact_both_methods": true,
+  "scope": "changed current one-byte delimiter, public first-query or complete nonoverlapping-query pipeline; all per-query allocations and normal cleanup included, setup/digests/retained owners outside clocks",
+  "compiler_stack_bytes": 67108864,
+  "program_stack_bytes": 8388608,
+  "cpu": 0,
+  "results": [
+    {
+      "operation": "first",
+      "pattern": "dense",
+      "bytes": 128,
+      "iterations": 4000,
+      "checksum": 12332686000,
+      "input_sha256": "bba90a267a46d7df2dba783c3c2449bd215f6ba9d5caeadb5ee25609bd9ac680",
+      "retained_sha256": "730a08a0ffc77dd89dc2a9eb9a367beacb6401360acbabf7a3e600f10bdd1f12",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          5238945,
+          3920863,
+          2492074,
+          2499045,
+          2512235
+        ],
+        "byte": [
+          3241176,
+          3086874,
+          1605065,
+          1554758,
+          1733559
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          5281468
+        ],
+        "byte": [
+          3163602
+        ]
+      },
+      "median_ns": {
+        "pattern": 2512235,
+        "byte": 1733559
+      },
+      "pattern_over_byte": 1.449177674368164
+    },
+    {
+      "operation": "first",
+      "pattern": "dense",
+      "bytes": 4096,
+      "iterations": 512,
+      "checksum": 1578583808,
+      "input_sha256": "c166682904eb9bc5254bfc820acf32610d1380461d44cd9a0d19be99e9b90003",
+      "retained_sha256": "bc13885133cce361e0edaf6add440c4b43869882959797c4b69593468fb8453a",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          400425,
+          368967,
+          395467,
+          309358,
+          313183
+        ],
+        "byte": [
+          251069,
+          329127,
+          200623,
+          199992,
+          208775
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          344070
+        ],
+        "byte": [
+          200513
+        ]
+      },
+      "median_ns": {
+        "pattern": 368967,
+        "byte": 208775
+      },
+      "pattern_over_byte": 1.7672949347383546
+    },
+    {
+      "operation": "first",
+      "pattern": "dense",
+      "bytes": 65536,
+      "iterations": 64,
+      "checksum": 197322976,
+      "input_sha256": "9a2823a1810797929ec9c8c7a315750ee53eefc479736b80ab2996139a04022e",
+      "retained_sha256": "526ac5282dd836697989c6a12238df200d82cd06f4ff44d87d8b71b5823b80b7",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          42193,
+          43846,
+          42514,
+          42664,
+          43616
+        ],
+        "byte": [
+          30906,
+          29194,
+          28413,
+          28463,
+          28422
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          43285
+        ],
+        "byte": [
+          28333
+        ]
+      },
+      "median_ns": {
+        "pattern": 42664,
+        "byte": 28463
+      },
+      "pattern_over_byte": 1.498928433404771
+    },
+    {
+      "operation": "first",
+      "pattern": "sparse",
+      "bytes": 128,
+      "iterations": 4000,
+      "checksum": 16531150000,
+      "input_sha256": "afd9e24b1cb1e2f9649877b07401e35c8a05b5d5dd11f78a783ceebf94501521",
+      "retained_sha256": "b6602f661924f5cc817293a8a8313930183e5fcad5cb564e5fc8d77b16b21453",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          2459796,
+          2558245,
+          2801222,
+          2606808,
+          2443291
+        ],
+        "byte": [
+          1723704,
+          1510842,
+          1493907,
+          2137529,
+          1500426
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          2416551
+        ],
+        "byte": [
+          2249828
+        ]
+      },
+      "median_ns": {
+        "pattern": 2558245,
+        "byte": 1510842
+      },
+      "pattern_over_byte": 1.6932577992933742
+    },
+    {
+      "operation": "first",
+      "pattern": "sparse",
+      "bytes": 4096,
+      "iterations": 512,
+      "checksum": 68751976192,
+      "input_sha256": "2c9ccf695825a75b42d592c2c2fd19e778f5a91a1ba2273aef3899b2c9997285",
+      "retained_sha256": "fb32024e6cb49703e39c6107576a75b9b5f8cf9bec598fef0c4bacba6fa586a7",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          499254,
+          528498,
+          503341,
+          582930,
+          504181
+        ],
+        "byte": [
+          407826,
+          405863,
+          390350,
+          389238,
+          405653
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          520015
+        ],
+        "byte": [
+          388697
+        ]
+      },
+      "median_ns": {
+        "pattern": 504181,
+        "byte": 405653
+      },
+      "pattern_over_byte": 1.2428873939056286
+    },
+    {
+      "operation": "first",
+      "pattern": "sparse",
+      "bytes": 65536,
+      "iterations": 64,
+      "checksum": 137566878944,
+      "input_sha256": "48e4b76fde20275a7cb35205c47cd6211b229e0cefdf3bd8cd5178943b31cc30",
+      "retained_sha256": "2c5c0d61310c9770df1874a8316a7659f4a35640b90bc9cc3987caf80b651476",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          564653,
+          460175,
+          563071,
+          455809,
+          502739
+        ],
+        "byte": [
+          473606,
+          641339,
+          489981,
+          474557,
+          438713
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          466565
+        ],
+        "byte": [
+          452183
+        ]
+      },
+      "median_ns": {
+        "pattern": 502739,
+        "byte": 474557
+      },
+      "pattern_over_byte": 1.0593859114921917
+    },
+    {
+      "operation": "first",
+      "pattern": "missing",
+      "bytes": 128,
+      "iterations": 4000,
+      "checksum": 18446744073447357616,
+      "input_sha256": "6836cf13bac400e9105071cd6af47084dfacad4e5e302c94bfed24e013afb73e",
+      "retained_sha256": "246e7844e2c716913dba8b1562ea6fc592ffa984cf9786f4b5c796a89fdf720d",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          2318973,
+          3407097,
+          2614910,
+          2415209,
+          2621410
+        ],
+        "byte": [
+          1974102,
+          1789173,
+          1654670,
+          1516491,
+          1597904
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          2535801
+        ],
+        "byte": [
+          1562290
+        ]
+      },
+      "median_ns": {
+        "pattern": 2614910,
+        "byte": 1654670
+      },
+      "pattern_over_byte": 1.5803211516495737
+    },
+    {
+      "operation": "first",
+      "pattern": "missing",
+      "bytes": 4096,
+      "iterations": 512,
+      "checksum": 18446744073675990784,
+      "input_sha256": "c93eee2d0db02f10acc7460d9576e122dcf8cd53c4bf8dfcae1b3e74ebcfff5a",
+      "retained_sha256": "0f17bd6a7b4016244cafddc321951e125b003aa6ef11cbce3f1a98ae6171e7e9",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          686347,
+          492474,
+          617363,
+          486725,
+          556481
+        ],
+        "byte": [
+          384210,
+          382448,
+          452604,
+          401357,
+          380565
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          507747
+        ],
+        "byte": [
+          490060
+        ]
+      },
+      "median_ns": {
+        "pattern": 556481,
+        "byte": 384210
+      },
+      "pattern_over_byte": 1.448377189557794
+    },
+    {
+      "operation": "first",
+      "pattern": "missing",
+      "bytes": 65536,
+      "iterations": 64,
+      "checksum": 18446744073705356512,
+      "input_sha256": "bf718b6f653bebc184e1479f1935b8da974d701b893afcf49e701f3e2f9f9c5a",
+      "retained_sha256": "3aa1b9abb83c0c3ffe654b2e1d11e730b0b1dd3eda80749e655a8ab5b42abac1",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          486625,
+          468207,
+          651854,
+          756453,
+          451763
+        ],
+        "byte": [
+          477341,
+          437501,
+          435487,
+          488248,
+          530952
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          466225
+        ],
+        "byte": [
+          549951
+        ]
+      },
+      "median_ns": {
+        "pattern": 486625,
+        "byte": 477341
+      },
+      "pattern_over_byte": 1.0194494082846435
+    },
+    {
+      "operation": "pipeline",
+      "pattern": "dense",
+      "bytes": 128,
+      "iterations": 512,
+      "checksum": 6793030440998475520,
+      "input_sha256": "bba90a267a46d7df2dba783c3c2449bd215f6ba9d5caeadb5ee25609bd9ac680",
+      "retained_sha256": "730a08a0ffc77dd89dc2a9eb9a367beacb6401360acbabf7a3e600f10bdd1f12",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          812437,
+          842983,
+          868612,
+          1013301,
+          1171239
+        ],
+        "byte": [
+          611143,
+          684024,
+          710944,
+          584232,
+          630382
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          962654
+        ],
+        "byte": [
+          754931
+        ]
+      },
+      "median_ns": {
+        "pattern": 868612,
+        "byte": 630382
+      },
+      "pattern_over_byte": 1.3779137094650544
+    },
+    {
+      "operation": "pipeline",
+      "pattern": "dense",
+      "bytes": 4096,
+      "iterations": 32,
+      "checksum": 9564262014623350384,
+      "input_sha256": "c166682904eb9bc5254bfc820acf32610d1380461d44cd9a0d19be99e9b90003",
+      "retained_sha256": "bc13885133cce361e0edaf6add440c4b43869882959797c4b69593468fb8453a",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          1202456,
+          1376709,
+          1183738,
+          1048524,
+          1093602
+        ],
+        "byte": [
+          767079,
+          685906,
+          646867,
+          669621,
+          704214
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          1067522
+        ],
+        "byte": [
+          706157
+        ]
+      },
+      "median_ns": {
+        "pattern": 1183738,
+        "byte": 685906
+      },
+      "pattern_over_byte": 1.7258020778357384
+    },
+    {
+      "operation": "pipeline",
+      "pattern": "dense",
+      "bytes": 65536,
+      "iterations": 4,
+      "checksum": 8122935058513653966,
+      "input_sha256": "9a2823a1810797929ec9c8c7a315750ee53eefc479736b80ab2996139a04022e",
+      "retained_sha256": "526ac5282dd836697989c6a12238df200d82cd06f4ff44d87d8b71b5823b80b7",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          4213986,
+          4212023,
+          4854694,
+          2303880,
+          2250821
+        ],
+        "byte": [
+          2459595,
+          2469971,
+          1305252,
+          1458033,
+          1232392
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          2190519
+        ],
+        "byte": [
+          1349799
+        ]
+      },
+      "median_ns": {
+        "pattern": 4212023,
+        "byte": 1458033
+      },
+      "pattern_over_byte": 2.888839278672019
+    },
+    {
+      "operation": "pipeline",
+      "pattern": "sparse",
+      "bytes": 128,
+      "iterations": 512,
+      "checksum": 139908724329984,
+      "input_sha256": "afd9e24b1cb1e2f9649877b07401e35c8a05b5d5dd11f78a783ceebf94501521",
+      "retained_sha256": "b6602f661924f5cc817293a8a8313930183e5fcad5cb564e5fc8d77b16b21453",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          625265,
+          985198,
+          423540,
+          420766,
+          444612
+        ],
+        "byte": [
+          5504415,
+          458382,
+          329378,
+          339914,
+          311351
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          424781
+        ],
+        "byte": [
+          313363
+        ]
+      },
+      "median_ns": {
+        "pattern": 444612,
+        "byte": 339914
+      },
+      "pattern_over_byte": 1.3080132033396683
+    },
+    {
+      "operation": "pipeline",
+      "pattern": "sparse",
+      "bytes": 4096,
+      "iterations": 32,
+      "checksum": 281951850137824,
+      "input_sha256": "2c9ccf695825a75b42d592c2c2fd19e778f5a91a1ba2273aef3899b2c9997285",
+      "retained_sha256": "fb32024e6cb49703e39c6107576a75b9b5f8cf9bec598fef0c4bacba6fa586a7",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          45889,
+          43666,
+          43766,
+          44167,
+          62895
+        ],
+        "byte": [
+          36345,
+          36165,
+          36425,
+          54643,
+          36084
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          43976
+        ],
+        "byte": [
+          36315
+        ]
+      },
+      "median_ns": {
+        "pattern": 44167,
+        "byte": 36345
+      },
+      "pattern_over_byte": 1.2152152978401431
+    },
+    {
+      "operation": "pipeline",
+      "pattern": "sparse",
+      "bytes": 65536,
+      "iterations": 4,
+      "checksum": 564032797139228,
+      "input_sha256": "48e4b76fde20275a7cb35205c47cd6211b229e0cefdf3bd8cd5178943b31cc30",
+      "retained_sha256": "2c5c0d61310c9770df1874a8316a7659f4a35640b90bc9cc3987caf80b651476",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          58809,
+          55283,
+          38318,
+          34553,
+          34482
+        ],
+        "byte": [
+          55834,
+          53932,
+          33480,
+          32629,
+          32919
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          55484
+        ],
+        "byte": [
+          203628
+        ]
+      },
+      "median_ns": {
+        "pattern": 38318,
+        "byte": 33480
+      },
+      "pattern_over_byte": 1.1445041816009558
+    },
+    {
+      "operation": "pipeline",
+      "pattern": "missing",
+      "bytes": 128,
+      "iterations": 512,
+      "checksum": 4299122432,
+      "input_sha256": "6836cf13bac400e9105071cd6af47084dfacad4e5e302c94bfed24e013afb73e",
+      "retained_sha256": "246e7844e2c716913dba8b1562ea6fc592ffa984cf9786f4b5c796a89fdf720d",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          384921,
+          387486,
+          489830,
+          382288,
+          366494
+        ],
+        "byte": [
+          281635,
+          342688,
+          264600,
+          262687,
+          338452
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          366033
+        ],
+        "byte": [
+          263829
+        ]
+      },
+      "median_ns": {
+        "pattern": 384921,
+        "byte": 281635
+      },
+      "pattern_over_byte": 1.3667370887851298
+    },
+    {
+      "operation": "pipeline",
+      "pattern": "missing",
+      "bytes": 4096,
+      "iterations": 32,
+      "checksum": 8598193776,
+      "input_sha256": "c93eee2d0db02f10acc7460d9576e122dcf8cd53c4bf8dfcae1b3e74ebcfff5a",
+      "retained_sha256": "0f17bd6a7b4016244cafddc321951e125b003aa6ef11cbce3f1a98ae6171e7e9",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          39630,
+          40241,
+          42885,
+          40361,
+          41022
+        ],
+        "byte": [
+          32569,
+          34342,
+          32959,
+          34792,
+          32619
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          39840
+        ],
+        "byte": [
+          34542
+        ]
+      },
+      "median_ns": {
+        "pattern": 40361,
+        "byte": 32959
+      },
+      "pattern_over_byte": 1.2245820564944325
+    },
+    {
+      "operation": "pipeline",
+      "pattern": "missing",
+      "bytes": 65536,
+      "iterations": 4,
+      "checksum": 17196384462,
+      "input_sha256": "bf718b6f653bebc184e1479f1935b8da974d701b893afcf49e701f3e2f9f9c5a",
+      "retained_sha256": "3aa1b9abb83c0c3ffe654b2e1d11e730b0b1dd3eda80749e655a8ab5b42abac1",
+      "separator_hex": "3b",
+      "samples": {
+        "pattern": [
+          33411,
+          34652,
+          34182,
+          33550,
+          33170
+        ],
+        "byte": [
+          31878,
+          32028,
+          32749,
+          32059,
+          32029
+        ]
+      },
+      "excluded_warmup": {
+        "pattern": [
+          33741
+        ],
+        "byte": [
+          32338
+        ]
+      },
+      "median_ns": {
+        "pattern": 33550,
+        "byte": 32029
+      },
+      "pattern_over_byte": 1.047488213806238
+    }
+  ],
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "executable_sha256": "950a65a6ef52c18df50c9067be61c0a3e0bc84eb24501ff6e6dc7717fb22803c",
+  "llvm_sha256": "2acd6832bd27cffeadeec8fad3a9e6c71745a78da6193f84d41c15d933b27fd5"
+}

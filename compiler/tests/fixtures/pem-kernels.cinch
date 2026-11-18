@@ -1,0 +1,294 @@
+-- | Actual PEM byte kernels with checked caller-owned test buffers.
+module Main where
+  import Data.Bytes
+  import Data.Bool
+  import Data.Machine
+  import Data.Nat
+  import Data.String
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim before :: U64 -> U64 -> Bool where
+    llvm {
+      %yes = icmp ult i64 %0, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim plus :: U64 -> U64 -> U64 where
+    llvm {
+      %value = add i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim minus :: U64 -> U64 -> U64 where
+    llvm {
+      %value = sub i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim address :: I64 -> U64 -> I64 where
+    llvm {
+      %value = add i64 %0, %1
+      ret i64 %value
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim has-one :: I64 -> U8 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %byte = load i8, ptr %pointer, align 1
+      %yes = icmp eq i8 %byte, %1
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim has-sixteen :: I64 -> U8 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <16 x i8>, ptr %pointer, align 1
+      %first = insertelement <16 x i8> poison, i8 %1, i32 0
+      %splat = shufflevector <16 x i8> %first, <16 x i8> poison, <16 x i32> zeroinitializer
+      %equal = icmp eq <16 x i8> %bytes, %splat
+      %mask = bitcast <16 x i1> %equal to i16
+      %yes = icmp ne i16 %mask, 0
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim begin-token :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <8 x i8>, ptr %pointer, align 1
+      %equal = icmp eq <8 x i8> %bytes, <i8 45, i8 45, i8 45, i8 45, i8 45, i8 66, i8 69, i8 71>
+      %mask = bitcast <8 x i1> %equal to i8
+      %head = icmp eq i8 %mask, -1
+      %tailptr = getelementptr i8, ptr %pointer, i64 8
+      %tail = load <2 x i8>, ptr %tailptr, align 1
+      %taileq = icmp eq <2 x i8> %tail, <i8 73, i8 78>
+      %tailmask = bitcast <2 x i1> %taileq to i2
+      %middle = icmp eq i2 %tailmask, -1
+      %lastptr = getelementptr i8, ptr %pointer, i64 10
+      %last = load i8, ptr %lastptr, align 1
+      %space = icmp eq i8 %last, 32
+      %both = and i1 %head, %middle
+      %yes = and i1 %both, %space
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim end-token :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <8 x i8>, ptr %pointer, align 1
+      %equal = icmp eq <8 x i8> %bytes, <i8 10, i8 45, i8 45, i8 45, i8 45, i8 45, i8 69, i8 78>
+      %mask = bitcast <8 x i1> %equal to i8
+      %head = icmp eq i8 %mask, -1
+      %tailptr = getelementptr i8, ptr %pointer, i64 8
+      %tail = load <2 x i8>, ptr %tailptr, align 1
+      %taileq = icmp eq <2 x i8> %tail, <i8 68, i8 32>
+      %tailmask = bitcast <2 x i1> %taileq to i2
+      %suffix = icmp eq i2 %tailmask, -1
+      %yes = and i1 %head, %suffix
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim blank-sixteen :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <16 x i8>, ptr %pointer, align 1
+      %spaces = icmp eq <16 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %tabs = icmp eq <16 x i8> %bytes, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %equal = or <16 x i1> %spaces, %tabs
+      %mask = bitcast <16 x i1> %equal to i16
+      %yes = icmp ne i16 %mask, 0
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim blank-one :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %byte = load i8, ptr %pointer, align 1
+      %space = icmp eq i8 %byte, 32
+      %tab = icmp eq i8 %byte, 9
+      %yes = or i1 %space, %tab
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  hold :: forall a. Bytes -> a -> a
+  hold source result = case bytes-len source of _ -> result
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  natural :: U64 -> Nat
+  natural value = let low = wrapping-u64-to-u32 value in
+    let shifted = wrapping-shr-u64 value 32 in let high = wrapping-u64-to-u32 shifted in
+    u32-to-nat low + u32-to-nat high * 4294967296
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  find-machine :: I64 -> U64 -> U64 -> U8 -> U64
+  find-machine base at end wanted = if before at end then
+    let remaining = minus end at in let pointer = address base at in
+    if before remaining 16 then
+      if has-one pointer wanted then at else let next = plus at 1 in find-machine base next end wanted
+    else if has-sixteen pointer wanted then
+      if has-one pointer wanted then at else let next = plus at 1 in find-machine base next end wanted
+    else let next = plus at 16 in find-machine base next end wanted
+    else end
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  blank-machine :: I64 -> U64 -> U64 -> U64
+  blank-machine base at end = if before at end then
+    let remaining = minus end at in let pointer = address base at in
+    if before remaining 16 then
+      if blank-one pointer then at else let next = plus at 1 in blank-machine base next end
+    else if blank-sixteen pointer then
+      if blank-one pointer then at else let next = plus at 1 in blank-machine base next end
+    else let next = plus at 16 in blank-machine base next end
+    else end
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  prim proc-token :: I64 -> Bool where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %bytes = load <8 x i8>, ptr %pointer, align 1
+      %equal = icmp eq <8 x i8> %bytes, <i8 80, i8 114, i8 111, i8 99, i8 45, i8 84, i8 121, i8 112>
+      %mask = bitcast <8 x i1> %equal to i8
+      %head = icmp eq i8 %mask, -1
+      %lastptr = getelementptr i8, ptr %pointer, i64 8
+      %last = load i8, ptr %lastptr, align 1
+      %suffix = icmp eq i8 %last, 101
+      %yes = and i1 %head, %suffix
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  find-end-machine :: I64 -> U64 -> U64 -> U64
+  find-end-machine base at end = if before at end then
+    let found = find-machine base at end 45 in
+    if before found end then
+      if before 0 found then
+        let remaining = minus end found in
+        if before remaining 9 then end
+        else let line = minus found 1 in let pointer = address base line in
+          if end-token pointer then line else let next = plus found 1 in find-end-machine base next end
+      else let next = plus found 1 in find-end-machine base next end
+    else end
+    else end
+
+  -- | Actual maintained private arithmetic, exact source read or bounded scanner.
+  last-begin-machine :: I64 -> U64 -> U64 -> U64 -> U64
+  last-begin-machine base at end best = if before at end then
+    let found = find-machine base at end 45 in let remaining = minus end found in
+    if before remaining 11 then best
+    else let pointer = address base found in
+      let chosen = if begin-token pointer then found else best in
+      let next = plus found 1 in last-begin-machine base next end chosen
+    else best
+
+  -- | Check every byte substitution at every byte position of a complete marker.
+  marker-values :: Bytes -> Nat -> Nat -> Nat -> Bool -> Bool
+  marker-values source at original value begin = if value < 256 then
+    if at < bytes-len source && (if begin then bytes-len source == 11 else bytes-len source == 10) then let changed = bytes-set source at value in let base = bytes-data source in
+      let actual = hold source (if begin then begin-token base else end-token base) in
+      (if value == original then actual else not actual) && marker-values source at original (value + 1) begin
+    else False
+    else True
+
+  -- | Restore each marker position before moving to the next independent mutation lane.
+  marker-lanes :: Bytes -> Nat -> Bool -> Bool
+  marker-lanes source at begin = if at < bytes-len source then
+    let original = bytes-get source at in let checked = marker-values source at original 0 begin in
+    let restored = bytes-set source at original in checked && marker-lanes source (at + 1) begin
+    else True
+
+  -- | Keep wanted-byte parameters dynamic, including both high-bit boundary values.
+  wanted-byte :: U32 -> U8
+  wanted-byte index = case index of 0 -> 0; 1 -> 9; 2 -> 10; 3 -> 32; 4 -> 45; 5 -> 58; 6 -> 128; other -> 255
+
+  -- | Verify one-byte and sixteen-byte matches against independent known buffer contents.
+  wanted-values :: Bytes -> Nat -> U8 -> Nat -> Bool
+  wanted-values source lane wanted value = if value < 256 then
+    if bytes-len source >= 16 && lane < bytes-len source then let changed = bytes-set source lane value in
+      let base = bytes-data source in let wide = nat-to-i64 lane in let offset = wrapping-i64-to-u64 wide in
+      let pointer = address base offset in let single = hold source (has-one pointer wanted) in
+      let whole = hold source (has-sixteen base wanted) in let expected = u8-to-nat wanted in
+      (if value == expected then single else not single)
+        && (if expected == 0 || value == expected then whole else not whole)
+        && wanted-values source lane wanted (value + 1)
+    else False
+    else True
+
+  -- | Reset every mutated source lane before advancing across complete SIMD alignments.
+  wanted-lanes :: Bytes -> Nat -> U8 -> Bool
+  wanted-lanes source lane wanted = if lane < 16 then
+    let checked = wanted-values source lane wanted 0 in
+    if lane < bytes-len source then let restored = bytes-set source lane 0 in checked && wanted-lanes source (lane + 1) wanted else False
+    else True
+
+  -- | Check all lane/byte combinations for space/tab filtering independently of encoder behavior.
+  blank-values :: Bytes -> Nat -> Nat -> Bool
+  blank-values source lane value = if value < 256 then
+    if bytes-len source >= 16 && lane < bytes-len source then let changed = bytes-set source lane value in
+      let base = bytes-data source in let wide = nat-to-i64 lane in let offset = wrapping-i64-to-u64 wide in
+      let pointer = address base offset in let single = hold source (blank-one pointer) in
+      let whole = hold source (blank-sixteen base) in
+      (if value == 9 || value == 32 then single && whole else not single && not whole)
+        && blank-values source lane (value + 1)
+    else False
+    else True
+
+  -- | Restore every filtered lane and retain all sixteen vector positions.
+  blank-lanes :: Bytes -> Nat -> Bool
+  blank-lanes source lane = if lane < 16 then
+    let checked = blank-values source lane 0 in
+    if lane < bytes-len source then let restored = bytes-set source lane 0 in checked && blank-lanes source (lane + 1) else False
+    else True
+
+  -- | Traverse every requested byte class without a giant refined literal fixture.
+  wanted-all :: Bytes -> U32 -> Bool
+  wanted-all source index = if lt-u32 index 8 then let wanted = wanted-byte index in
+    wanted-lanes source 0 wanted && wanted-all source (wrapping-add-u32 index 1)
+    else True
+
+  -- | Check all byte substitutions in one exact priority-key lane with an explicit owner bound.
+  priority-values :: Bytes -> Nat -> Nat -> Nat -> Bool
+  priority-values source lane original value = if value < 256 then
+    if bytes-len source == 9 && lane < 9 then
+      let changed = bytes-set source lane value in let pointer = bytes-data source in
+      let actual = hold source (proc-token pointer) in
+      (if value == original then actual else not actual) && priority-values source lane original (value + 1)
+    else False
+    else True
+
+  -- | Restore every priority-key lane before advancing through the complete nine-byte token.
+  priority-lanes :: Bytes -> Nat -> Bool
+  priority-lanes source lane = if lane < bytes-len source then
+    let original = bytes-get source lane in let checked = priority-values source lane original 0 in
+    if lane < bytes-len source && original <= 255 then
+      let restored = bytes-set source lane original in checked && priority-lanes source (lane + 1)
+    else False
+    else True
+
+  -- | Check unsigned arithmetic and all exhaustive read-only marker/vector predicates.
+  main :: Int
+  main = let source = bytes-new 16 in
+    let sum = plus 18446744073709551615 1 in let difference = minus 18446744073709551615 18446744073709551615 in
+    let pointer = address 7 9 in
+    if eq-u64 sum 0 && eq-u64 difference 0 && eq-i64 pointer 16
+      && before 0 18446744073709551615 && not (before 18446744073709551615 0)
+      && marker-lanes (string-to-bytes "-----BEGIN ") 0 True
+      && marker-lanes (string-to-bytes "\n-----END ") 0 False
+      && priority-lanes (string-to-bytes "Proc-Type") 0
+      && wanted-all source 0 && blank-lanes source 0 then 0 else 1

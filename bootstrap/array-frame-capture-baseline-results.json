@@ -1,0 +1,58 @@
+{
+  "status": "preserved pre-repair baseline; no repaired-Rust claim",
+  "producer_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "artifact_directory": "build/array-capture-probes/set-direct",
+  "artifact_sha256": {
+    "Main.cinch": "c53ff1e6cbf20ee9cb28231da96d3e63237d8a1c7f4587f28f4625015628a3bd",
+    "Data.Array.cinch": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "default.ll": "37abf6f6e971c15a5896af0ae22474e8309c729dc50fe16610038ee7fb859e51",
+    "no-stack.ll": "4e2be8ec0debb4edb1449f20bea30f865d324fe821b33c74fa432deefbad4c51",
+    "default": "f5fc72a800830f7bd5d614b1b563df76bcb7466cdc567ccf2f88219ce09e1e95",
+    "no-stack": "b23d26c44ced6f7058a3b23dc7515723d33543fdb4940040f2ab18b28b083333",
+    "default.build.log": "48039da247e1a8a23378c1c14be1456d540d28a2c01409ef938236f17df7f996",
+    "no-stack.build.log": "48039da247e1a8a23378c1c14be1456d540d28a2c01409ef938236f17df7f996"
+  },
+  "runs": [
+    {
+      "variant": "default",
+      "poisoned_free": false,
+      "exit": 71,
+      "diagnostics": "cinchruntime: compiler bug: null or wrong-kind word or corrupt generated data\ncinch-backtrace: 2 frame(s)\n  #0  0x0000556fefb7b419 +0x556fefb7b419\n  #1  0x0000556fefb8551b +0x556fefb8551b\n",
+      "llvm_sha256": "37abf6f6e971c15a5896af0ae22474e8309c729dc50fe16610038ee7fb859e51"
+    },
+    {
+      "variant": "default",
+      "poisoned_free": true,
+      "exit": 71,
+      "diagnostics": "cinchruntime: compiler bug: null or wrong-kind word or corrupt generated data\ncinch-backtrace: 2 frame(s)\n  #0  0x000055b7e13a0419 +0x55b7e13a0419\n  #1  0x000055b7e13aa51b +0x55b7e13aa51b\n",
+      "llvm_sha256": "37abf6f6e971c15a5896af0ae22474e8309c729dc50fe16610038ee7fb859e51"
+    },
+    {
+      "variant": "no-stack",
+      "poisoned_free": false,
+      "exit": 0,
+      "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "llvm_sha256": "4e2be8ec0debb4edb1449f20bea30f865d324fe821b33c74fa432deefbad4c51"
+    },
+    {
+      "variant": "no-stack",
+      "poisoned_free": true,
+      "exit": 0,
+      "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "llvm_sha256": "4e2be8ec0debb4edb1449f20bea30f865d324fe821b33c74fa432deefbad4c51"
+    }
+  ],
+  "native_recursive_tree_runs": [
+    {
+      "exit": 0,
+      "poisoned_free": false,
+      "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "exit": 0,
+      "poisoned_free": true,
+      "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ]
+}

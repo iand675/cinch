@@ -1,0 +1,38 @@
+-- | Check version7 state, fractional carry and both rollback classes against independent clock sequences.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Uuid
+  import Text.Hex
+
+  -- | One sampled wall time, repeated generation count and final complete observation.
+  data ClockCase where
+    -- | Retain the last actual entropy bytes alongside the expected full identifier.
+    ClockCase :: Nat -> Nat -> String -> String -> ClockCase
+
+  -- | Advance all repeated timestamps without inventing or replacing the final supplied entropy.
+  repeat-step :: UuidV7State -> Nat -> Nat -> Bytes -> Result UuidError (UuidV7State, Uuid)
+  repeat-step state now count entropy =
+    if count > 1 then case uuid-v7-advance state now of
+      Err error -> Err error
+      Ok pair -> case pair of (next, tick) -> repeat-step next now (count - 1) entropy
+    else uuid-v7-step state now entropy
+
+  -- | Carry the actual sequence state between observations and identify the first differing timestamp/value.
+  run :: UuidV7State -> List ClockCase -> Int -> Int
+  run state rows index = case rows of
+    Nil -> 0
+    Cons row rest -> case row of
+      ClockCase now count encoded canonical -> case hex-decode encoded of
+        Err error -> index
+        Ok entropy -> case repeat-step state now count entropy of
+          Err error -> index
+          Ok pair -> case pair of (next, value) -> if uuid-format value == canonical then run next rest (index + 1) else index
+
+  -- | Independent clock and output observations; random bytes came from the reference's real secure provider.
+  rows :: List ClockCase
+  rows = @CASES@
+
+  -- | Execute one complete ordering history, including repeated-time fraction overflow and backward clocks.
+  main :: Int
+  main = run uuid-v7-initial rows 1

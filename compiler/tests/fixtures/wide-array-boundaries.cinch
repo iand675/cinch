@@ -1,0 +1,120 @@
+-- | Exercise wide values at immutable, tensor and mutable-vector boundaries.
+module Main where
+  import Data.Array
+  import Data.Columnar
+  import Data.Tensor
+  import Data.Mutable.Vec
+  import Data.Wide
+
+  -- | Compare an optional unsigned wide element with its complete bit pattern.
+  has-u :: Option U128 -> U128 -> Bool
+  has-u value expected = case value of
+    None -> False
+    Some actual -> eq-u128 actual expected
+
+  -- | Compare an optional signed wide element with its complete bit pattern.
+  has-i :: Option I128 -> I128 -> Bool
+  has-i value expected = case value of
+    None -> False
+    Some actual -> eq-i128 actual expected
+
+  -- | Recognize an absent value without observing an element payload.
+  absent :: forall a. Option a -> Bool
+  absent value = case value of
+    None -> True
+    Some actual -> False
+
+  -- | Retain aliases across persistent updates and copy complete wide lists.
+  unsigned-arrays :: Unit -> Bool
+  unsigned-arrays unit =
+    let xs = array-from-list (Cons max-bound-u128 (Cons 18446744073709551616 Nil)) in
+    let empty = array-from-list (Nil :: List U128) in
+    case array-set xs 1 170141183460469231731687303715884105728 of
+      None -> False
+      Some changed -> case array-slice changed 1 1 of
+        None -> False
+        Some sliced ->
+          let joined = array-append sliced xs in
+          has-u (array-get xs 1) 18446744073709551616
+          && has-u (array-get changed 1) 170141183460469231731687303715884105728
+          && has-u (array-get joined 0) 170141183460469231731687303715884105728
+          && has-u (array-get joined 1) max-bound-u128
+          && array-length empty == 0
+          && absent (array-get empty 0)
+          && absent (array-set xs 2 max-bound-u128)
+          && absent (array-get xs 2)
+          && has-u (array-get (array-replicate 3 max-bound-u128) 2) max-bound-u128
+          && array-length (array-replicate 0 max-bound-u128) == 0
+
+  -- | Preserve signed high limbs through replication, persistent update and tensors.
+  signed-tensors :: Unit -> Bool
+  signed-tensors unit =
+    let xs = array-from-list (Cons min-bound-i128 (Cons min-bound-i128 Nil)) in
+    case tensor-reshape (array-from-list (Cons 2 Nil)) xs of
+      None -> False
+      Some original -> case tensor-set original (array-from-list (Cons 1 Nil)) max-bound-i128 of
+        None -> False
+        Some changed ->
+          has-i (tensor-get original (array-from-list (Cons 1 Nil))) min-bound-i128
+          && has-i (tensor-get changed (array-from-list (Cons 1 Nil))) max-bound-i128
+          && has-i (array-get (tensor-data changed) 1) max-bound-i128
+          && array-length (tensor-shape changed) == 1
+          && absent (tensor-get original (array-from-list (Cons 2 Nil)))
+          && absent (tensor-set original (array-from-list (Cons 2 Nil)) 0)
+
+  -- | A wide column leaf returns a source-layout Some and preserves its array.
+  column-leaf :: Unit -> Bool
+  column-leaf unit =
+    let leaf = columnar-column (array-replicate 2 max-bound-u128) in
+    case columnar-array leaf of
+      None -> False
+      Some values -> has-u (columnar-get leaf 1) max-bound-u128
+        && has-u (array-get values 0) max-bound-u128
+        && absent (columnar-get leaf 2)
+        && columnar-rows leaf == 2
+        && columnar-columns leaf == 1
+
+  -- | Already boxed tuple elements keep their inline wide fields across a row zip.
+  tuple-columns :: Unit -> Bool
+  tuple-columns unit =
+    let pairs = array-from-list (Cons (max-bound-u128, min-bound-i128) Nil) in
+    let leaf = columnar-column pairs in
+    if absent (columnar-left leaf) && absent (columnar-right leaf) then
+      case columnar-zip leaf (columnar-column (array-replicate 1 True)) of
+        None -> False
+        Some table -> case columnar-get table 0 of
+          None -> False
+          Some ((unsigned, signed), flag) -> flag
+            && eq-u128 unsigned max-bound-u128 && eq-i128 signed min-bound-i128
+    else False
+
+  -- | Freeze and thaw copy boxes; subsequent mutations cannot change either alias.
+  vector-copies :: forall r. Unit ->{Mut r} Bool
+  vector-copies unit =
+    let source = array-from-list (Cons max-bound-u128 (Cons 18446744073709551616 Nil)) in
+    let vector = vec-from-array source in
+    let frozen = vec-freeze vector in
+    let changed = vec-set vector 0 170141183460469231731687303715884105728 in
+    let thawed = vec-from-array frozen in
+    let cleared = vec-clear vector in
+    let observed = vec-get thawed 0 in
+    changed && has-u observed max-bound-u128
+      && has-u (array-get frozen 0) max-bound-u128
+      && has-u (array-get source 0) max-bound-u128
+      && has-u (array-get frozen 1) 18446744073709551616
+
+  -- | Signed vector copies preserve both the sign bit and the remaining high limb.
+  signed-vector :: forall r. Unit ->{Mut r} Bool
+  signed-vector unit =
+    let source = array-replicate 2 min-bound-i128 in
+    let vector = vec-from-array source in
+    let frozen = vec-freeze vector in
+    let changed = vec-set vector 0 max-bound-i128 in
+    let actual = vec-get vector 0 in
+    changed && has-i actual max-bound-i128
+      && has-i (array-get frozen 0) min-bound-i128
+      && has-i (array-get source 0) min-bound-i128
+
+  -- | Name the first failed boundary through a stable process exit code.
+  main :: Unit ->{Mut r} Int
+  main unit = if unsigned-arrays () then (if signed-tensors () then (if column-leaf () then (if tuple-columns () then (if vector-copies () then (if signed-vector () then 0 else 6) else 5) else 4) else 3) else 2) else 1

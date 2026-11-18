@@ -45,6 +45,10 @@
 //!
 //! Like the array and cell intrinsics, each is a unit specialized by class
 //! vector, so the element class is never recovered from a type's spelling.
+//! A wide element keeps its i128 boundary and is boxed into one owned object
+//! word in storage. Reads duplicate then unbox that word, takes move and unbox
+//! it, and writes transfer a fresh box. The existing object-format bulk paths
+//! therefore preserve the same ownership and hole semantics for wide payloads.
 use crate::core::Class;
 use crate::types::{Scalar, Ty};
 

@@ -1,0 +1,885 @@
+-- | Configurable CSV records with immutable reader continuations and byte-accurate positions.
+-- Delimiters and comments are Unicode scalars. CRLF becomes LF inside records,
+-- blank physical lines and configured comment lines are skipped. Byte records
+-- preserve arbitrary field bytes; text records validate UTF-8. Both interfaces
+-- preserve completed fields alongside parse errors.
+-- Open-prefix readers distinguish a complete row from input that may continue.
+module Text.Csv.Record where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export CsvFieldPolicy, CsvAnyFields, CsvInferFields, CsvExactFields
+  export CsvOptions, csv-options, csv-default-options, csv-options-delimiter, csv-options-field-policy
+  export csv-options-comment, csv-options-lazy-quotes, csv-options-trim-leading-space
+  export CsvConfigError, CsvInvalidDelimiter, CsvInvalidComment, CsvDelimiterCommentCollision, csv-config-error-message
+  export CsvRecord, csv-record-fields, csv-record-field-position, csv-record-start-line
+  export CsvByteRecord, csv-byte-record-fields, csv-byte-record-field-position, csv-byte-record-start-line, csv-byte-record-text
+  export CsvRecordError, CsvBareQuote, CsvQuote, CsvUnclosedQuote, CsvFieldCount, CsvFieldEncoding
+  export csv-record-error-start-line, csv-record-error-line, csv-record-error-column, csv-record-error-message
+  export CsvRead, CsvEnd, CsvNeedInput, CsvReadRecord
+  export CsvByteRead, CsvByteEnd, CsvByteNeedInput, CsvReadByteRecord
+  export CsvByteReader, csv-byte-reader, csv-byte-reader-at, csv-byte-reader-read, csv-byte-reader-read-all
+  export csv-byte-reader-input-offset, csv-byte-reader-next-line, csv-byte-reader-options
+  export csv-reader-configure, csv-byte-reader-configure
+  export CsvReader, csv-record-reader, csv-record-reader-at, csv-reader-read, csv-reader-read-all
+  export csv-reader-input-offset, csv-reader-next-line, csv-reader-options
+  export csv-render-record, csv-render-records, csv-render-byte-record, csv-render-byte-records
+
+  -- | A row's field-count rule, independent of text quoting and separators.
+  data CsvFieldPolicy where
+    -- | Accept each row's field count independently.
+    CsvAnyFields :: CsvFieldPolicy
+    -- | Infer a positive count from the first row and require that count afterward.
+    CsvInferFields :: CsvFieldPolicy
+    -- | Require the specified count while still returning the mismatching row.
+    CsvExactFields :: Nat -> CsvFieldPolicy
+
+  -- | A validated immutable CSV dialect and parsing policy.
+  data CsvOptions where
+    -- | Private delimiter, optional comment, field policy, lazy-quote and leading-space flags.
+    Options :: Char -> Option Char -> CsvFieldPolicy -> Bool -> Bool -> CsvOptions
+
+  -- | Invalid delimiter/comment configuration is rejected before reading or writing.
+  data CsvConfigError where
+    -- | Delimiters cannot be NUL, quote, CR, LF or the replacement scalar.
+    CsvInvalidDelimiter :: CsvConfigError
+    -- | Comment markers follow the delimiter's scalar restrictions.
+    CsvInvalidComment :: CsvConfigError
+    -- | Delimiter and comment marker must differ.
+    CsvDelimiterCommentCollision :: CsvConfigError
+
+  -- | Render a configuration diagnostic without accessing input or output storage.
+  csv-config-error-message :: CsvConfigError -> String
+  csv-config-error-message error = case error of
+    CsvInvalidDelimiter -> "invalid CSV delimiter"
+    CsvInvalidComment -> "invalid CSV comment marker"
+    CsvDelimiterCommentCollision -> "CSV delimiter and comment marker must differ"
+
+  -- | Recognize a legal scalar delimiter or comment marker.
+  valid-marker :: Char -> Bool
+  valid-marker marker = let n = char-code marker in n /= 0 && n /= 34 && n /= 10 && n /= 13 && n /= 65533
+
+  -- | Validate delimiter/comment scalars and choose the row's field/quote policies.
+  csv-options :: Char -> Option Char -> CsvFieldPolicy -> Bool -> Bool -> Result CsvConfigError CsvOptions
+  csv-options delimiter comment fields lazy trim =
+    if not (valid-marker delimiter) then Err CsvInvalidDelimiter
+    else case comment of
+      None -> Ok (Options delimiter comment fields lazy trim)
+      Some marker -> if not (valid-marker marker) then Err CsvInvalidComment
+        else if char-code marker == char-code delimiter then Err CsvDelimiterCommentCollision
+        else Ok (Options delimiter comment fields lazy trim)
+
+  -- | Comma-separated records with inferred field count, strict quotes and no space trimming or comments.
+  csv-default-options :: CsvOptions
+  csv-default-options = Options ',' None CsvInferFields False False
+
+  -- | Observe the validated delimiter scalar.
+  csv-options-delimiter :: CsvOptions -> Char
+  csv-options-delimiter options = case options of Options delimiter comment fields lazy trim -> delimiter
+
+  -- | Observe the current field-count rule, including an inferred count after reading.
+  csv-options-field-policy :: CsvOptions -> CsvFieldPolicy
+  csv-options-field-policy options = case options of Options delimiter comment fields lazy trim -> fields
+
+  -- | Observe the optional comment marker, which is recognized only at physical column one.
+  csv-options-comment :: CsvOptions -> Option Char
+  csv-options-comment options = case options of Options delimiter comment fields lazy trim -> comment
+
+  -- | Whether quotation marks inside unquoted fields or non-escaped quoted fields are accepted literally.
+  csv-options-lazy-quotes :: CsvOptions -> Bool
+  csv-options-lazy-quotes options = case options of Options delimiter comment fields lazy trim -> lazy
+
+  -- | Whether leading Unicode White_Space is removed before deciding each field's quoted form.
+  csv-options-trim-leading-space :: CsvOptions -> Bool
+  csv-options-trim-leading-space options = case options of Options delimiter comment fields lazy trim -> trim
+
+  -- | A row's immutable fields, original starting line and one-based byte positions.
+  data CsvRecord where
+    -- | Private fields and matching field-start positions in source order.
+    Record :: List String -> Nat -> List (Nat, Nat) -> CsvRecord
+
+  -- | Immutable arbitrary-byte fields with the same original source positions as text records.
+  data CsvByteRecord where
+    -- | Private independently owned field buffers and their one-based byte positions.
+    ByteRecord :: List Bytes -> Nat -> List (Nat, Nat) -> CsvByteRecord
+
+  -- | Return independent copies of every field, preserving invalid UTF-8 and embedded NUL bytes.
+  csv-byte-record-fields :: CsvByteRecord -> List Bytes
+  csv-byte-record-fields row = case row of ByteRecord fields line positions -> copy-field-list fields
+
+  -- | Copy field buffers before exposing mutable byte storage to a caller.
+  copy-field-list :: List Bytes -> List Bytes
+  copy-field-list fields = copy-fields-from fields Nil
+
+  -- | Tail-recursively snapshot fields in their original order.
+  copy-fields-from :: List Bytes -> List Bytes -> List Bytes
+  copy-fields-from fields copied = case fields of
+    Nil -> reverse copied
+    Cons first rest -> copy-fields-from rest (Cons (part first 0 (bytes-len first)) copied)
+
+  -- | Observe the starting physical line without decoding a field's bytes.
+  csv-byte-record-start-line :: CsvByteRecord -> Nat
+  csv-byte-record-start-line row = case row of ByteRecord fields line positions -> line
+
+  -- | Safely observe the one-based physical line and byte column of a zero-based raw field index.
+  csv-byte-record-field-position :: CsvByteRecord -> Nat -> Option (Nat, Nat)
+  csv-byte-record-field-position row index = case row of ByteRecord fields line positions -> position-at positions index
+
+  -- | Observe all fields, including completed fields returned with a later parse error.
+  csv-record-fields :: CsvRecord -> List String
+  csv-record-fields row = case row of Record fields line positions -> fields
+
+  -- | The one-based physical line where the row began, before any multiline quoted field.
+  csv-record-start-line :: CsvRecord -> Nat
+  csv-record-start-line row = case row of Record fields line positions -> line
+
+  -- | Safely observe a field's one-based physical line and byte column by zero-based field index.
+  csv-record-field-position :: CsvRecord -> Nat -> Option (Nat, Nat)
+  csv-record-field-position row index = case row of Record fields line positions -> position-at positions index
+
+  -- | Find a position without exposing a partial list-indexing operation.
+  position-at :: List (Nat, Nat) -> Nat -> Option (Nat, Nat)
+  position-at positions index = case positions of
+    Nil -> None
+    Cons first rest -> if index == 0 then Some first else position-at rest (index - 1)
+
+  -- | CSV row errors retain original one-based physical lines and byte columns.
+  data CsvRecordError where
+    -- | Record start line, error line and column of a quote inside an unquoted field.
+    CsvBareQuote :: Nat -> Nat -> Nat -> CsvRecordError
+    -- | Record start line, error line and column of a non-escaped closing quote.
+    CsvQuote :: Nat -> Nat -> Nat -> CsvRecordError
+    -- | Record start line and the line/column reached before a quoted field could close.
+    CsvUnclosedQuote :: Nat -> Nat -> Nat -> CsvRecordError
+    -- | Record start line, error line/column, expected count and actual count.
+    CsvFieldCount :: Nat -> Nat -> Nat -> Nat -> Nat -> CsvRecordError
+    -- | Record start line, invalid field's starting line/column and its zero-based field index.
+    CsvFieldEncoding :: Nat -> Nat -> Nat -> Nat -> CsvRecordError
+
+  -- | Starting physical line of the row associated with an error.
+  csv-record-error-start-line :: CsvRecordError -> Nat
+  csv-record-error-start-line error = case error of
+    CsvBareQuote start line column -> start
+    CsvQuote start line column -> start
+    CsvUnclosedQuote start line column -> start
+    CsvFieldCount start line column expected actual -> start
+    CsvFieldEncoding start line column index -> start
+
+  -- | Physical line containing the error, which can differ from its row's starting line.
+  csv-record-error-line :: CsvRecordError -> Nat
+  csv-record-error-line error = case error of
+    CsvBareQuote start line column -> line
+    CsvQuote start line column -> line
+    CsvUnclosedQuote start line column -> line
+    CsvFieldCount start line column expected actual -> line
+    CsvFieldEncoding start line column index -> line
+
+  -- | One-based original byte column containing the error.
+  csv-record-error-column :: CsvRecordError -> Nat
+  csv-record-error-column error = case error of
+    CsvBareQuote start line column -> column
+    CsvQuote start line column -> column
+    CsvUnclosedQuote start line column -> column
+    CsvFieldCount start line column expected actual -> column
+    CsvFieldEncoding start line column index -> column
+
+  -- | Render a stable semantic diagnostic; structured accessors retain the full source position.
+  csv-record-error-message :: CsvRecordError -> String
+  csv-record-error-message error = case error of
+    CsvBareQuote start line column -> "bare quote in an unquoted CSV field"
+    CsvQuote start line column -> "non-escaped quote in a quoted CSV field"
+    CsvUnclosedQuote start line column -> "unterminated quoted CSV field"
+    CsvFieldCount start line column expected actual -> string-concat "CSV row requires " (string-concat (nat-to-string expected) (string-concat " fields; received " (nat-to-string actual)))
+    CsvFieldEncoding start line column index -> string-concat "CSV field is not valid UTF-8 at index " (nat-to-string index)
+
+  -- | Convert raw fields to immutable text, preserving the valid field prefix on an encoding error.
+  -- A failed conversion points at the offending field's original start and leaves the byte record unchanged.
+  csv-byte-record-text :: CsvByteRecord -> (CsvRecord, Option CsvRecordError)
+  csv-byte-record-text row = case row of
+    ByteRecord fields start positions -> case text-fields-from fields 0 Nil of
+      (converted, None) -> (Record converted start positions, None)
+      (converted, Some index) ->
+        let retained = position-prefix positions index Nil in
+        case position-at positions index of
+          None -> (Record converted start retained, Some (CsvFieldEncoding start start 1 index))
+          Some pair -> case pair of (line, column) -> (Record converted start retained, Some (CsvFieldEncoding start line column index))
+
+  -- | Tail-recursively validate and convert field buffers, stopping at the first invalid UTF-8 field.
+  text-fields-from :: List Bytes -> Nat -> List String -> (List String, Option Nat)
+  text-fields-from fields index converted = case fields of
+    Nil -> (reverse converted, None)
+    Cons first rest -> case string-from-bytes first of
+      None -> (reverse converted, Some index)
+      Some text -> text-fields-from rest (index + 1) (Cons text converted)
+
+  -- | Retain only positions corresponding to a successfully converted text prefix.
+  position-prefix :: List (Nat, Nat) -> Nat -> List (Nat, Nat) -> List (Nat, Nat)
+  position-prefix positions remaining copied = if remaining == 0 then reverse copied else case positions of
+    Nil -> reverse copied
+    Cons first rest -> position-prefix rest (remaining - 1) (Cons first copied)
+
+  -- | One reader step distinguishes EOF, an unfinished open prefix and a row with optional error.
+  data CsvRead where
+    -- | Closed input has no more records.
+    CsvEnd :: CsvRead
+    -- | An open prefix needs more input; the returned reader stops before the unfinished row.
+    CsvNeedInput :: CsvRead
+    -- | A complete or partial row, with an optional quote or field-count error.
+    CsvReadRecord :: CsvRecord -> Option CsvRecordError -> CsvRead
+
+  -- | A lossless byte reader step retains completed arbitrary-byte fields and parse errors together.
+  data CsvByteRead where
+    -- | Closed byte input has no more records.
+    CsvByteEnd :: CsvByteRead
+    -- | An open byte prefix may continue and needs more source input.
+    CsvByteNeedInput :: CsvByteRead
+    -- | A complete or partial byte record with an optional quote or field-count error.
+    CsvReadByteRecord :: CsvByteRecord -> Option CsvRecordError -> CsvByteRead
+
+  -- | Immutable in-memory reader with an original byte/line origin and explicit EOF policy.
+  data CsvReader where
+    -- | Private options, copied UTF-8 bytes, relative cursor, next physical line, byte origin and closed flag.
+    Reader :: CsvOptions -> Bytes -> Nat -> Nat -> Nat -> Bool -> CsvReader
+
+  -- | An immutable lossless byte-input reader that cannot be mistaken for a validated text reader.
+  data CsvByteReader where
+    -- | Private common parser state, kept opaque across the text/byte input boundary.
+    RawReader :: CsvReader -> CsvByteReader
+
+  -- | Begin lossless reading of arbitrary CSV bytes, snapshotting the caller's mutable buffer.
+  csv-byte-reader :: CsvOptions -> Bytes -> CsvByteReader
+  csv-byte-reader options input = csv-byte-reader-at options input 0 1 True
+
+  -- | Begin reading an arbitrary byte prefix with an original byte/line origin and explicit EOF status.
+  csv-byte-reader-at :: CsvOptions -> Bytes -> Nat -> Nat -> Bool -> CsvByteReader
+  csv-byte-reader-at options input origin line closed = RawReader (Reader options (part input 0 (bytes-len input)) 0 line origin closed)
+
+  -- | Observe the original input offset after the last consumed raw physical line.
+  csv-byte-reader-input-offset :: CsvByteReader -> Nat
+  csv-byte-reader-input-offset reader = case reader of RawReader state -> csv-reader-input-offset state
+
+  -- | Observe the next physical line in an immutable byte-reader continuation.
+  csv-byte-reader-next-line :: CsvByteReader -> Nat
+  csv-byte-reader-next-line reader = case reader of RawReader state -> csv-reader-next-line state
+
+  -- | Observe validated options and the field count inferred by prior byte records.
+  csv-byte-reader-options :: CsvByteReader -> CsvOptions
+  csv-byte-reader-options reader = case reader of RawReader state -> csv-reader-options state
+
+  -- | Begin reading a complete immutable UTF-8 document at byte zero and physical line one.
+  csv-record-reader :: CsvOptions -> String -> CsvReader
+  csv-record-reader options text = csv-record-reader-at options text 0 1 True
+
+  -- | Read a UTF-8 prefix with an original byte origin and first physical line.
+  -- A false closed flag returns CsvNeedInput when the last row may continue.
+  -- This permits stream adapters to retain one unfinished row rather than a whole source.
+  csv-record-reader-at :: CsvOptions -> String -> Nat -> Nat -> Bool -> CsvReader
+  csv-record-reader-at options text origin line closed = Reader options (string-to-bytes text) 0 line origin closed
+
+  -- | Original input byte offset immediately after the last consumed physical line.
+  csv-reader-input-offset :: CsvReader -> Nat
+  csv-reader-input-offset reader = case reader of Reader options input cursor line origin closed -> origin + cursor
+
+  -- | Physical line number that the next read will begin with.
+  csv-reader-next-line :: CsvReader -> Nat
+  csv-reader-next-line reader = case reader of Reader options input cursor line origin closed -> line
+
+  -- | Observe the current options, including any field count learned from a previous row.
+  csv-reader-options :: CsvReader -> CsvOptions
+  csv-reader-options reader = case reader of Reader options input cursor line origin closed -> options
+
+  -- | Select validated policies for the next record while preserving the input cursor and original positions.
+  -- Retaining the previous reader preserves its previous policies and continuation.
+  csv-reader-configure :: CsvReader -> CsvOptions -> CsvReader
+  csv-reader-configure reader selected = case reader of Reader options input cursor line origin closed -> Reader selected input cursor line origin closed
+
+  -- | Reconfigure the next lossless byte record without discarding unread bytes or changing an earlier reader.
+  csv-byte-reader-configure :: CsvByteReader -> CsvOptions -> CsvByteReader
+  csv-byte-reader-configure reader selected = case reader of RawReader state -> RawReader (csv-reader-configure state selected)
+
+  -- | Private normalized physical line, raw ending cursor and one-based line number.
+  data PhysicalLine where
+    -- | CRLF-normalized bytes, cursor after raw input and physical line number.
+    Line :: Bytes -> Nat -> Nat -> PhysicalLine
+
+  -- | Snapshot an exactly bounded source interval into independent byte storage.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start n = if start + n <= bytes-len input then
+    let out = bytes-new n in let copied = bytes-copy-range out input 0 start n in out
+    else bytes-new 0
+
+  -- | Test eight bytes for a requested byte using portable SIMD lanes.
+  prim contains-byte8 :: U64 -> U8 -> U8 where
+    llvm {
+      %word = bitcast i64 %0 to <8 x i8>
+      %one = insertelement <8 x i8> zeroinitializer, i8 %1, i32 0
+      %wanted = shufflevector <8 x i8> %one, <8 x i8> zeroinitializer, <8 x i32> zeroinitializer
+      %same = icmp eq <8 x i8> %word, %wanted
+      %mask = bitcast <8 x i1> %same to i8
+      ret i8 %mask
+    }
+
+  -- | Test exactly sixteen caller-proved bytes for a requested byte without exposing a raw pointer publicly.
+  prim scan-match16 :: I64 -> U8 -> U8 where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %word = load <16 x i8>, ptr %pointer, align 1
+      %one = insertelement <16 x i8> zeroinitializer, i8 %1, i32 0
+      %wanted = shufflevector <16 x i8> %one, <16 x i8> zeroinitializer, <16 x i32> zeroinitializer
+      %same = icmp eq <16 x i8> %word, %wanted
+      %bits = bitcast <16 x i1> %same to i16
+      %any = icmp ne i16 %bits, 0
+      %out = zext i1 %any to i8
+      ret i8 %out
+    }
+
+  -- | Test sixteen proved bytes for delimiter lead, quote, LF and a selected extra byte.
+  prim scan-special16 :: I64 -> U8 -> U8 -> U8 where
+    unsafe llvm {
+      %pointer = inttoptr i64 %0 to ptr
+      %word = load <16 x i8>, ptr %pointer, align 1
+      %one = insertelement <16 x i8> zeroinitializer, i8 %1, i32 0
+      %first = shufflevector <16 x i8> %one, <16 x i8> zeroinitializer, <16 x i32> zeroinitializer
+      %two = insertelement <16 x i8> zeroinitializer, i8 %2, i32 0
+      %extra = shufflevector <16 x i8> %two, <16 x i8> zeroinitializer, <16 x i32> zeroinitializer
+      %a = icmp eq <16 x i8> %word, %first
+      %b = icmp eq <16 x i8> %word, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %c = icmp eq <16 x i8> %word, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
+      %d = icmp eq <16 x i8> %word, %extra
+      %ab = or <16 x i1> %a, %b
+      %cd = or <16 x i1> %c, %d
+      %all = or <16 x i1> %ab, %cd
+      %bits = bitcast <16 x i1> %all to i16
+      %any = icmp ne i16 %bits, 0
+      %out = zext i1 %any to i8
+      ret i8 %out
+    }
+
+  -- | Retain an input owner until a complete private machine-counter traversal returns.
+  hold-scan :: Bytes -> U64 -> U64
+  hold-scan input value = case bytes-len input of _ -> value
+
+  -- | Skip complete sixteen-byte match-free intervals using only machine counters inside the hot loop.
+  skip-match-blocks :: I64 -> U64 -> U8 -> U64 -> U64
+  skip-match-blocks address remaining wanted skipped =
+    if ge-u64 remaining 16 && eq-u8 (scan-match16 address wanted) 0 then
+      skip-match-blocks (wrapping-add-i64 address 16) (wrapping-sub-u64 remaining 16) wanted (wrapping-add-u64 skipped 16)
+    else skipped
+
+  -- | Skip complete special-byte-free intervals without natural-number or ownership work in each iteration.
+  skip-special-blocks :: I64 -> U64 -> U8 -> U8 -> U64 -> U64
+  skip-special-blocks address remaining first extra skipped =
+    if ge-u64 remaining 16 && eq-u8 (scan-special16 address first extra) 0 then
+      skip-special-blocks (wrapping-add-i64 address 16) (wrapping-sub-u64 remaining 16) first extra (wrapping-add-u64 skipped 16)
+    else skipped
+
+  -- | Convert a machine distance exactly through unsigned halves without a signed refinement contract.
+  scan-distance :: U64 -> Nat
+  scan-distance value =
+    let low = u32-to-nat (wrapping-u64-to-u32 value) in
+    let high = wrapping-u64-to-u32 (wrapping-shr-u64 value 32) in
+    if eq-u32 high 0 then low else u32-to-nat high * 4294967296 + low
+
+  -- | Establish a private match traversal's exact interval and retain its backing owner once around the loop.
+  bulk-match :: Bytes -> Nat -> U8 -> Nat
+  bulk-match input at wanted = if at <= bytes-len input then
+    let remaining = bytes-len input - at in
+    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
+    let skipped = hold-scan input (skip-match-blocks address (wrapping-i64-to-u64 (nat-to-i64 remaining)) wanted 0) in
+    let n = scan-distance skipped in if n <= remaining then n else 0
+    else 0
+
+  -- | Establish a private delimiter/quote traversal's interval and return its checked byte distance.
+  bulk-special :: Bytes -> Nat -> U8 -> U8 -> Nat
+  bulk-special input at first extra = if at <= bytes-len input then
+    let remaining = bytes-len input - at in
+    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
+    let skipped = hold-scan input (skip-special-blocks address (wrapping-i64-to-u64 (nat-to-i64 remaining)) first extra 0) in
+    let n = scan-distance skipped in if n <= remaining then n else 0
+    else 0
+
+  -- | Seek an exact byte, skipping eight-byte intervals proven to contain no match.
+  seek-byte :: Bytes -> (at :: Nat) -> InRange 0 255 Nat -> refined (at <= out) Nat
+  seek-byte input at wanted =
+    if bytes-len input < 128 then seek-byte-small input at wanted else seek-byte-large input at wanted
+
+  -- | Preserve the original short-buffer loop without allocating or entering bulk traversal setup.
+  seek-byte-small :: Bytes -> (at :: Nat) -> InRange 0 255 Nat -> refined (at <= out) Nat
+  seek-byte-small input at wanted =
+    if at + 8 <= bytes-len input && eq-u8 (contains-byte8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 wanted))) 0 then seek-byte-small input (at + 8) wanted
+    else if at < bytes-len input then if bytes-get input at == wanted then at else seek-byte-small input (at + 1) wanted
+    else at
+
+
+  -- | Traverse large buffers using retained owners and machine-counter SIMD spans.
+  seek-byte-large :: Bytes -> (at :: Nat) -> InRange 0 255 Nat -> refined (at <= out) Nat
+  seek-byte-large input at wanted =
+    if at + 8 <= bytes-len input && eq-u8 (contains-byte8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 wanted))) 0 then
+      let next = at + 8 in
+      let skipped = bulk-match input next (wrapping-i64-to-u8 (nat-to-i64 wanted)) in
+      let begin = next + skipped in
+      seek-byte-fringe input begin wanted
+    else seek-byte-fringe input at wanted
+
+  -- | Inspect only the first potentially matching block or final short tail after a bulk traversal.
+  seek-byte-fringe :: Bytes -> (at :: Nat) -> InRange 0 255 Nat -> refined (at <= out) Nat
+  seek-byte-fringe input at wanted =
+    if at < bytes-len input then if bytes-get input at == wanted then at else seek-byte-fringe input (at + 1) wanted
+    else at
+
+  -- | Read one physical line, normalize CRLF, and drop a lone CR immediately before EOF.
+  physical-line :: Bytes -> Nat -> Nat -> Option PhysicalLine
+  physical-line input start line = if start < bytes-len input then
+    let found = seek-byte input start 10 in
+    if found < bytes-len input then
+      let end = found + 1 in
+      if found > start && bytes-get input (found - 1) == 13 then
+        let n = found - start in let out = bytes-new n in
+        let copied = bytes-copy-range out input 0 start (n - 1) in
+        let newline = bytes-set out (n - 1) 10 in Some (Line out end line)
+      else Some (Line (part input start (end - start)) end line)
+    else let n = bytes-len input - start in
+      if n > 0 && bytes-get input (bytes-len input - 1) == 13 then Some (Line (part input start (n - 1)) (bytes-len input) line)
+      else Some (Line (part input start n) (bytes-len input) line)
+    else None
+
+  -- | Whether a normalized line has a complete physical LF terminator.
+  line-terminated :: Bytes -> Bool
+  line-terminated input = let n = bytes-len input in n > 0 && bytes-get input (n - 1) == 10
+
+  -- | Recognize Unicode White_Space scalars used by the optional leading-space policy.
+  space-scalar :: Nat -> Bool
+  space-scalar n = (n >= 9 && n <= 13) || n == 32 || n == 133 || n == 160 || n == 5760 || (n >= 8192 && n <= 8202) || n == 8232 || n == 8233 || n == 8239 || n == 8287 || n == 12288
+
+  -- | Skip leading Unicode whitespace while leaving the physical newline as the empty field's position.
+  trim-start :: Bytes -> Nat -> Nat
+  trim-start input at = if at < bytes-len input then
+    if bytes-get input at == 10 then at
+    else case utf8-at input at of
+      None -> at
+      Some pair -> case pair of (scalar, width) -> if space-scalar (char-code scalar) then trim-start input (at + width) else at
+    else at
+
+  -- | Test the complete delimiter scalar at a known source byte position.
+  at-delimiter :: Bytes -> Nat -> Char -> Bool
+  at-delimiter input at delimiter = case utf8-at input at of
+    None -> False
+    Some pair -> case pair of (scalar, width) -> char-code scalar == char-code delimiter
+
+  -- | First UTF-8 byte of a validated delimiter, used only to skip impossible ASCII blocks.
+  delimiter-first :: Char -> InRange 0 255 Nat
+  delimiter-first delimiter =
+    let code = char-code delimiter in
+    u8-to-nat (scalar-first (wrapping-i64-to-u32 (nat-to-i64 code)))
+
+  -- | Derive a scalar's leading UTF-8 byte without allocating a temporary string and byte buffer.
+  prim scalar-first :: U32 -> U8 where
+    llvm {
+      %small = icmp ult i32 %0, 128
+      %medium = icmp ult i32 %0, 2048
+      %large = icmp ult i32 %0, 65536
+      %s6 = lshr i32 %0, 6
+      %a = or i32 %s6, 192
+      %s12 = lshr i32 %0, 12
+      %b = or i32 %s12, 224
+      %s18 = lshr i32 %0, 18
+      %c = or i32 %s18, 240
+      %bc = select i1 %large, i32 %b, i32 %c
+      %abc = select i1 %medium, i32 %a, i32 %bc
+      %value = select i1 %small, i32 %0, i32 %abc
+      %out = trunc i32 %value to i8
+      ret i8 %out
+    }
+
+  -- | Test a full block for quote, LF or the delimiter's first UTF-8 byte before scalar inspection.
+  prim special8 :: U64 -> U8 -> U8 where
+    llvm {
+      %word = bitcast i64 %0 to <8 x i8>
+      %one = insertelement <8 x i8> zeroinitializer, i8 %1, i32 0
+      %delimiter = shufflevector <8 x i8> %one, <8 x i8> zeroinitializer, <8 x i32> zeroinitializer
+      %a = icmp eq <8 x i8> %word, %delimiter
+      %b = icmp eq <8 x i8> %word, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %c = icmp eq <8 x i8> %word, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
+      %ab = or <8 x i1> %a, %b
+      %all = or <8 x i1> %ab, %c
+      %mask = bitcast <8 x i1> %all to i8
+      ret i8 %mask
+    }
+
+  -- | Private end-of-field classification returned with its original byte position.
+  data FieldEnd where
+    -- | A delimiter begins at the returned position.
+    DelimiterEnd :: Nat -> FieldEnd
+    -- | A physical newline or EOF ends an unquoted field.
+    RecordEnd :: Nat -> FieldEnd
+    -- | A strict unquoted field contains an illegal quote at this position.
+    BareEnd :: Nat -> FieldEnd
+
+  -- | Scan an unquoted field using SIMD skips and exact scalar delimiter/quote decisions.
+  plain-end :: Bytes -> Nat -> Char -> InRange 0 255 Nat -> Bool -> FieldEnd
+  plain-end input at delimiter first lazy =
+    if bytes-len input < 128 then plain-end-small input at delimiter first lazy else plain-end-large input at delimiter first lazy
+
+  -- | Preserve the original short-buffer loop without allocating or entering bulk traversal setup.
+  plain-end-small :: Bytes -> Nat -> Char -> InRange 0 255 Nat -> Bool -> FieldEnd
+  plain-end-small input at delimiter first lazy =
+    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 then plain-end-small input (at + 8) delimiter first lazy
+    else if at >= bytes-len input then RecordEnd at
+    else let byte = bytes-get input at in
+      if byte == 10 then RecordEnd at
+      else if not lazy && byte == 34 then BareEnd at
+      else if byte == first && at-delimiter input at delimiter then DelimiterEnd at
+      else plain-end-small input (at + 1) delimiter first lazy
+
+
+  -- | Traverse large buffers using retained owners and machine-counter SIMD spans.
+  plain-end-large :: Bytes -> Nat -> Char -> InRange 0 255 Nat -> Bool -> FieldEnd
+  plain-end-large input at delimiter first lazy =
+    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 then
+      let next = at + 8 in
+      plain-fringe input (next + bulk-special input next (wrapping-i64-to-u8 (nat-to-i64 first)) 34) 16 delimiter first lazy
+    else plain-fringe input at 8 delimiter first lazy
+
+  -- | Inspect one potentially special block, restarting bulk traversal only after a false delimiter lead or lazy quote.
+  plain-fringe :: Bytes -> Nat -> Nat -> Char -> InRange 0 255 Nat -> Bool -> FieldEnd
+  plain-fringe input at remaining delimiter first lazy =
+    if at >= bytes-len input then RecordEnd at
+    else if remaining == 0 then plain-end input at delimiter first lazy
+    else let byte = bytes-get input at in
+      if byte == 10 then RecordEnd at
+      else if not lazy && byte == 34 then BareEnd at
+      else if byte == first && at-delimiter input at delimiter then DelimiterEnd at
+      else plain-fringe input (at + 1) (remaining - 1) delimiter first lazy
+
+  -- | Sum byte lengths without traversing or concatenating the pieces' contents.
+  pieces-length :: List Bytes -> Nat
+  pieces-length pieces = pieces-total pieces 0
+
+  -- | Tail-recursively sum byte sizes without retaining a call frame for each fragment.
+  pieces-total :: List Bytes -> Nat -> Nat
+  pieces-total pieces total = case pieces of Nil -> total; Cons first rest -> pieces-total rest (total + bytes-len first)
+
+  -- | Copy ordered field pieces into one exact final buffer.
+  copy-pieces :: List Bytes -> Bytes -> Nat -> Unit
+  copy-pieces pieces out at = case pieces of
+    Nil -> ()
+    Cons first rest -> if at + bytes-len first <= bytes-len out then
+      let copied = bytes-copy-range out first at 0 (bytes-len first) in copy-pieces rest out (at + bytes-len first)
+      else ()
+
+  -- | Join reversed quoted-field pieces once, preserving normalized newlines and escaped quotes.
+  pieces-buffer :: List Bytes -> Bytes
+  pieces-buffer reversed = let ordered = reverse reversed in let out = bytes-new (pieces-length ordered) in
+    let copied = copy-pieces ordered out 0 in out
+
+  -- | Private parse result retaining the final physical line and completed-field metadata.
+  data Parsed where
+    -- | Finished fields/positions, optional error and the last consumed physical line.
+    ParsedRecord :: List Bytes -> List (Nat, Nat) -> Option CsvRecordError -> PhysicalLine -> Parsed
+    -- | The final field may continue after the supplied open prefix.
+    ParsedNeedInput :: Parsed
+
+  -- | Parse fields on a normalized physical line with an immutable document cursor.
+  parse-fields :: CsvOptions -> Bytes -> Bool -> Nat -> PhysicalLine -> Nat -> List Bytes -> List (Nat, Nat) -> Parsed
+  parse-fields options input closed start current at fields positions = case options of
+    Options delimiter comment policy lazy trim -> case current of
+      Line bytes next line ->
+        let begin = if trim then trim-start bytes at else at in
+        if begin < bytes-len bytes && bytes-get bytes begin == 34 then
+          parse-quoted options input closed start current (begin + 1) (line, begin + 1) Nil fields positions
+        else case plain-end bytes begin delimiter (delimiter-first delimiter) lazy of
+          BareEnd bad -> ParsedRecord (reverse fields) (reverse positions) (Some (CsvBareQuote start line (bad + 1))) current
+          RecordEnd end -> ParsedRecord (reverse (Cons (part bytes begin (saturating-sub end begin)) fields)) (reverse (Cons (line, begin + 1) positions)) None current
+          DelimiterEnd end -> parse-fields options input closed start current (end + utf8-encode-width (char-code delimiter)) (Cons (part bytes begin (saturating-sub end begin)) fields) (Cons (line, begin + 1) positions)
+
+  -- | Parse a quoted field across normalized lines, recognizing escaped quotes and lazy literal quotes.
+  parse-quoted :: CsvOptions -> Bytes -> Bool -> Nat -> PhysicalLine -> Nat -> (Nat, Nat) -> List Bytes -> List Bytes -> List (Nat, Nat) -> Parsed
+  parse-quoted options input closed start current at field-position pieces fields positions = case options of
+    Options delimiter comment policy lazy trim -> case current of
+      Line bytes next line ->
+        let quote = seek-byte bytes at 34 in
+        let before = part bytes at (quote - at) in let accumulated = Cons before pieces in
+        if quote < bytes-len bytes then
+          let after = quote + 1 in
+          if after < bytes-len bytes && bytes-get bytes after == 34 then
+            parse-quoted options input closed start current (after + 1) field-position (Cons (bytes-from-list [34]) accumulated) fields positions
+          else if at-delimiter bytes after delimiter then
+            parse-fields options input closed start current (after + utf8-encode-width (char-code delimiter)) (Cons (pieces-buffer accumulated) fields) (Cons field-position positions)
+          else if after == bytes-len bytes || (after + 1 == bytes-len bytes && bytes-get bytes after == 10) then
+            ParsedRecord (reverse (Cons (pieces-buffer accumulated) fields)) (reverse (Cons field-position positions)) None current
+          else if lazy then parse-quoted options input closed start current after field-position (Cons (bytes-from-list [34]) accumulated) fields positions
+          else ParsedRecord (reverse fields) (reverse positions) (Some (CsvQuote start line (quote + 1))) current
+        else case physical-line input next (line + 1) of
+          Some following -> case following of
+            Line following-bytes following-end following-line ->
+              if not closed && not (line-terminated following-bytes) then ParsedNeedInput
+              else parse-quoted options input closed start following 0 field-position accumulated fields positions
+          None -> if not closed then ParsedNeedInput
+            else if lazy then ParsedRecord (reverse (Cons (pieces-buffer accumulated) fields)) (reverse (Cons field-position positions)) None current
+            else ParsedRecord (reverse fields) (reverse positions) (Some (CsvUnclosedQuote start line (bytes-len bytes + 1))) current
+
+  -- | Skip a physical comment only when its marker is the very first scalar, before whitespace trimming.
+  comment-line :: CsvOptions -> Bytes -> Bool
+  comment-line options input = case options of
+    Options delimiter comment policy lazy trim -> case comment of
+      None -> False
+      Some marker -> at-delimiter input 0 marker
+
+  -- | Apply or infer a field count after quote validation, preserving a more precise quote error.
+  finish-row :: CsvOptions -> Nat -> List Bytes -> List (Nat, Nat) -> Option CsvRecordError -> PhysicalLine -> (CsvByteRead, CsvOptions)
+  finish-row options start fields positions error current = case options of
+    Options delimiter comment policy lazy trim ->
+      let actual = list-length fields in
+      case policy of
+        CsvAnyFields -> (CsvReadByteRecord (ByteRecord fields start positions) error, options)
+        CsvInferFields -> (CsvReadByteRecord (ByteRecord fields start positions) error, if actual > 0 then Options delimiter comment (CsvExactFields actual) lazy trim else options)
+        CsvExactFields expected -> case error of
+          Some failure -> (CsvReadByteRecord (ByteRecord fields start positions) error, options)
+          None -> (CsvReadByteRecord (ByteRecord fields start positions) (if actual == expected then None else Some (CsvFieldCount start start 1 expected actual)), options)
+
+  -- | Read the next row, skipping blank/comment lines and retaining partial records on errors.
+  -- Failed records advance through the physical line that exposed the error, permitting later reads.
+  reader-read-bytes :: CsvReader -> (CsvByteRead, CsvReader)
+  reader-read-bytes reader = case reader of
+    Reader options input cursor line origin closed -> case physical-line input cursor line of
+      None -> (if closed then CsvByteEnd else CsvByteNeedInput, reader)
+      Some current -> case current of
+        Line bytes next number ->
+          if not closed && not (line-terminated bytes) then (CsvByteNeedInput, reader)
+          else if bytes-len bytes == 0 || (bytes-len bytes == 1 && bytes-get bytes 0 == 10) || comment-line options bytes then
+            reader-read-bytes (Reader options input next (line + 1) origin closed)
+          else case parse-fields options input closed line current 0 Nil Nil of
+            ParsedNeedInput -> (CsvByteNeedInput, reader)
+            ParsedRecord fields positions error last -> case last of
+              Line last-bytes end last-line -> case finish-row options line fields positions error last of
+                (result, updated) -> (result, Reader updated input end (last-line + 1) origin closed)
+
+  -- | Read the next validated text record with completed-field progress and an advanced reader.
+  -- Input originated as immutable UTF-8 text; byte fields are converted after common CSV parsing.
+  csv-reader-read :: CsvReader -> (CsvRead, CsvReader)
+  csv-reader-read reader = case reader-read-bytes reader of
+    (CsvByteEnd, next) -> (CsvEnd, next)
+    (CsvByteNeedInput, next) -> (CsvNeedInput, next)
+    (CsvReadByteRecord raw parse-error, next) -> case csv-byte-record-text raw of
+      (row, None) -> (CsvReadRecord row parse-error, next)
+      (row, Some encoding-error) -> (CsvReadRecord row (Some encoding-error), next)
+
+  -- | Read the next lossless byte record, retaining complete fields beside later quote/count errors.
+  csv-byte-reader-read :: CsvByteReader -> (CsvByteRead, CsvByteReader)
+  csv-byte-reader-read reader = case reader of
+    RawReader state -> case reader-read-bytes state of
+      (result, next) -> (result, RawReader next)
+
+  -- | Read all remaining byte records atomically, preserving arbitrary field bytes on success.
+  csv-byte-reader-read-all :: CsvByteReader -> Result CsvRecordError (List CsvByteRecord)
+  csv-byte-reader-read-all reader = read-all-bytes-from reader Nil
+
+  -- | Tail-recursively collect lossless byte records without converting their fields to text.
+  read-all-bytes-from :: CsvByteReader -> List CsvByteRecord -> Result CsvRecordError (List CsvByteRecord)
+  read-all-bytes-from reader rows = case csv-byte-reader-read reader of
+    (CsvByteEnd, next) -> Ok (reverse rows)
+    (CsvByteNeedInput, next) -> let line = csv-byte-reader-next-line next in Err (CsvUnclosedQuote line line 1)
+    (CsvReadByteRecord row (Some error), next) -> Err error
+    (CsvReadByteRecord row None, next) -> read-all-bytes-from next (Cons row rows)
+
+  -- | Read the remaining records atomically, returning the first parse error without a partial document.
+  -- An open unfinished prefix returns the same unfinished-quote error vocabulary at its next line.
+  csv-reader-read-all :: CsvReader -> Result CsvRecordError (List CsvRecord)
+  csv-reader-read-all reader = read-all-from reader Nil
+
+  -- | Tail-recursive whole-document collection preserving row and field metadata.
+  read-all-from :: CsvReader -> List CsvRecord -> Result CsvRecordError (List CsvRecord)
+  read-all-from reader records = case csv-reader-read reader of
+    (CsvEnd, next) -> Ok (reverse records)
+    (CsvNeedInput, next) -> let line = csv-reader-next-line next in Err (CsvUnclosedQuote line line 1)
+    (CsvReadRecord row (Some error), next) -> Err error
+    (CsvReadRecord row None, next) -> read-all-from next (Cons row records)
+
+  -- | Skip ordinary eight-byte spans, then test exact delimiter, quote, CR or LF scalars.
+  field-special :: Bytes -> Nat -> Char -> InRange 0 255 Nat -> Bool
+  field-special input at delimiter first =
+    if bytes-len input < 128 then field-special-small input at delimiter first else field-special-large input at delimiter first
+
+  -- | Preserve the original short-buffer loop without allocating or entering bulk traversal setup.
+  field-special-small :: Bytes -> Nat -> Char -> InRange 0 255 Nat -> Bool
+  field-special-small input at delimiter first =
+    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 && eq-u8 (contains-byte8 (bytes-read-le64 input at) 13) 0 then field-special-small input (at + 8) delimiter first
+    else if at < bytes-len input then
+      let byte = bytes-get input at in
+      byte == 34 || byte == 13 || byte == 10 || (byte == first && at-delimiter input at delimiter) || field-special-small input (at + 1) delimiter first
+    else False
+
+
+  -- | Traverse large buffers using retained owners and machine-counter SIMD spans.
+  field-special-large :: Bytes -> Nat -> Char -> InRange 0 255 Nat -> Bool
+  field-special-large input at delimiter first =
+    if at + 8 <= bytes-len input && eq-u8 (special8 (bytes-read-le64 input at) (wrapping-i64-to-u8 (nat-to-i64 first))) 0 && eq-u8 (contains-byte8 (bytes-read-le64 input at) 13) 0 then
+      let next = at + 8 in field-special-fringe input (next + bulk-special input next (wrapping-i64-to-u8 (nat-to-i64 first)) 13) 16 delimiter first
+    else field-special-fringe input at 8 delimiter first
+
+  -- | Confirm exact Unicode delimiters and special bytes only in the first potentially matching block.
+  field-special-fringe :: Bytes -> Nat -> Nat -> Char -> InRange 0 255 Nat -> Bool
+  field-special-fringe input at remaining delimiter first =
+    if remaining == 0 then field-special input at delimiter first
+    else if at < bytes-len input then
+      let byte = bytes-get input at in
+      byte == 34 || byte == 13 || byte == 10 || (byte == first && at-delimiter input at delimiter) || field-special-fringe input (at + 1) (remaining - 1) delimiter first
+    else False
+
+  -- | Test raw field quoting without requiring the field to be valid UTF-8.
+  raw-needs-quotes :: Char -> InRange 0 255 Nat -> Bytes -> Bool
+  raw-needs-quotes delimiter first field =
+    let n = bytes-len field in
+    if n == 0 then False
+    else if n == 2 && bytes-get field 0 == 92 && bytes-get field 1 == 46 then True
+    else let leading = case utf8-at field 0 of None -> False; Some pair -> case pair of (scalar, width) -> space-scalar (char-code scalar) in
+      leading || field-special field 0 delimiter first
+
+  -- | Detect bytes needing escaped output; ordinary complete spans can be copied unchanged.
+  quoted-ordinary8 :: U64 -> Bool
+  quoted-ordinary8 word = eq-u8 (contains-byte8 word 34) 0 && eq-u8 (contains-byte8 word 13) 0 && eq-u8 (contains-byte8 word 10) 0
+
+  -- | Compute the exact escaped byte count with SIMD skips and defined CR/LF transformations.
+  quoted-size :: Bytes -> Nat -> Bool -> Nat -> Nat
+  quoted-size field at crlf total =
+    if bytes-len field < 128 then quoted-size-small field at crlf total else quoted-size-large field at crlf total
+
+  -- | Preserve the original short-buffer loop without allocating or entering bulk traversal setup.
+  quoted-size-small :: Bytes -> Nat -> Bool -> Nat -> Nat
+  quoted-size-small field at crlf total =
+    if at + 8 <= bytes-len field && quoted-ordinary8 (bytes-read-le64 field at) then quoted-size-small field (at + 8) crlf (total + 8)
+    else if at < bytes-len field then
+      let byte = bytes-get field at in
+      let extra = if byte == 34 || (byte == 10 && crlf) then (2 :: Nat) else if byte == 13 && crlf then 0 else 1 in
+      quoted-size-small field (at + 1) crlf (total + extra)
+    else total
+
+
+  -- | Traverse large buffers using retained owners and machine-counter SIMD spans.
+  quoted-size-large :: Bytes -> Nat -> Bool -> Nat -> Nat
+  quoted-size-large field at crlf total =
+    if at + 8 <= bytes-len field && quoted-ordinary8 (bytes-read-le64 field at) then
+      let n = 8 + bulk-special field (at + 8) 34 13 in quoted-size-large field (at + n) crlf (total + n)
+    else if at < bytes-len field then
+      let byte = bytes-get field at in
+      let extra = if byte == 34 || (byte == 10 && crlf) then (2 :: Nat) else if byte == 13 && crlf then 0 else 1 in
+      quoted-size-large field (at + 1) crlf (total + extra)
+    else total
+
+  -- | Write an exactly sized quoted payload, copying complete ordinary spans and escaping only special bytes.
+  write-quoted :: Bytes -> Nat -> Bytes -> Nat -> Bool -> Unit
+  write-quoted field at out oi crlf =
+    if bytes-len field < 128 then write-quoted-small field at out oi crlf else write-quoted-large field at out oi crlf
+
+  -- | Preserve the original short-buffer loop without allocating or entering bulk traversal setup.
+  write-quoted-small :: Bytes -> Nat -> Bytes -> Nat -> Bool -> Unit
+  write-quoted-small field at out oi crlf =
+    if at + 8 <= bytes-len field && oi + 8 <= bytes-len out && quoted-ordinary8 (bytes-read-le64 field at) then
+      let copied = bytes-copy-range out field oi at 8 in write-quoted-small field (at + 8) out (oi + 8) crlf
+    else if at < bytes-len field then
+      let byte = bytes-get field at in
+      if byte == 13 && crlf then write-quoted-small field (at + 1) out oi crlf
+      else if byte == 34 || (byte == 10 && crlf) then
+        if oi + 2 <= bytes-len out then
+          let first = bytes-set out oi (if byte == 34 then 34 else 13) in
+          let last = bytes-set out (oi + 1) (if byte == 34 then 34 else 10) in
+          write-quoted-small field (at + 1) out (oi + 2) crlf
+        else ()
+      else if oi < bytes-len out then
+        let copied = bytes-set out oi byte in write-quoted-small field (at + 1) out (oi + 1) crlf
+      else ()
+    else ()
+
+
+  -- | Traverse large buffers using retained owners and machine-counter SIMD spans.
+  write-quoted-large :: Bytes -> Nat -> Bytes -> Nat -> Bool -> Unit
+  write-quoted-large field at out oi crlf =
+    if at + 8 <= bytes-len field && oi + 8 <= bytes-len out && quoted-ordinary8 (bytes-read-le64 field at) then
+      let n = 8 + bulk-special field (at + 8) 34 13 in
+      if oi + n <= bytes-len out && at + n <= bytes-len field then
+        let copied = bytes-copy-range out field oi at n in write-quoted-large field (at + n) out (oi + n) crlf
+      else ()
+    else if at < bytes-len field then
+      let byte = bytes-get field at in
+      if byte == 13 && crlf then write-quoted-large field (at + 1) out oi crlf
+      else if byte == 34 || (byte == 10 && crlf) then
+        if oi + 2 <= bytes-len out then
+          let first = bytes-set out oi (if byte == 34 then 34 else 13) in
+          let last = bytes-set out (oi + 1) (if byte == 34 then 34 else 10) in
+          write-quoted-large field (at + 1) out (oi + 2) crlf
+        else ()
+      else if oi < bytes-len out then
+        let copied = bytes-set out oi byte in write-quoted-large field (at + 1) out (oi + 1) crlf
+      else ()
+    else ()
+
+  -- | Produce one encoded field piece; unchanged fields are borrowed read-only until final assembly.
+  raw-field-piece :: Char -> InRange 0 255 Nat -> Bool -> Bytes -> Bytes
+  raw-field-piece delimiter first crlf field = if raw-needs-quotes delimiter first field then
+    let size = quoted-size field 0 crlf 0 in let out = bytes-new (size + 2) in
+    let opening = bytes-set out 0 34 in
+    let content = write-quoted field 0 out 1 crlf in
+    let closing = bytes-set out (size + 1) 34 in out
+    else field
+
+  -- | Build record pieces in a tail loop, preserving raw field bytes and delimiter order.
+  raw-record-pieces :: Char -> InRange 0 255 Nat -> Bool -> Bytes -> Bytes -> List Bytes -> Bool -> List Bytes -> List Bytes
+  raw-record-pieces delimiter first crlf separator newline fields initial pieces = case fields of
+    Nil -> reverse (Cons newline pieces)
+    Cons field rest ->
+      let before = if initial then pieces else Cons separator pieces in
+      raw-record-pieces delimiter first crlf separator newline rest False (Cons (raw-field-piece delimiter first crlf field) before)
+
+  -- | Render arbitrary byte fields with minimal quoting and an explicit LF or CRLF terminator.
+  -- Invalid UTF-8 and embedded NUL bytes are preserved; quoted CR is omitted and LF becomes CRLF when selected.
+  csv-render-byte-record :: CsvOptions -> Bool -> List Bytes -> Bytes
+  csv-render-byte-record options crlf fields =
+    let delimiter = csv-options-delimiter options in
+    let separator = string-to-bytes (pack [delimiter]) in
+    let newline = string-to-bytes (if crlf then "\r\n" else "\n") in
+    let pieces = raw-record-pieces delimiter (delimiter-first delimiter) crlf separator newline fields True Nil in
+    let out = bytes-new (pieces-length pieces) in let copied = copy-pieces pieces out 0 in out
+
+  -- | Render independent raw records before one final exact concatenation.
+  raw-rendered-rows :: CsvOptions -> Bool -> List (List Bytes) -> List Bytes -> List Bytes
+  raw-rendered-rows options crlf rows rendered = case rows of
+    Nil -> reverse rendered
+    Cons first rest -> raw-rendered-rows options crlf rest (Cons (csv-render-byte-record options crlf first) rendered)
+
+  -- | Render multiple arbitrary-byte records in order without requiring UTF-8 text conversion.
+  csv-render-byte-records :: CsvOptions -> Bool -> List (List Bytes) -> Bytes
+  csv-render-byte-records options crlf rows =
+    let pieces = raw-rendered-rows options crlf rows Nil in
+    let out = bytes-new (pieces-length pieces) in let copied = copy-pieces pieces out 0 in out
+
+  -- | Copy immutable text fields to private byte pieces before common CSV rendering.
+  text-field-bytes :: List String -> List Bytes -> List Bytes
+  text-field-bytes fields pieces = case fields of
+    Nil -> reverse pieces
+    Cons first rest -> text-field-bytes rest (Cons (string-to-bytes first) pieces)
+
+  -- | Render one immutable text record with the same minimal quoting and newline policy as byte records.
+  csv-render-record :: CsvOptions -> Bool -> List String -> String
+  csv-render-record options crlf fields = case string-from-bytes (csv-render-byte-record options crlf (text-field-bytes fields Nil)) of
+    Some text -> text
+    None -> empty-string
+
+  -- | Render complete UTF-8 text records before concatenating their immutable output pieces.
+  text-rendered-rows :: CsvOptions -> Bool -> List (List String) -> List String -> List String
+  text-rendered-rows options crlf rows rendered = case rows of
+    Nil -> reverse rendered
+    Cons first rest -> text-rendered-rows options crlf rest (Cons (csv-render-record options crlf first) rendered)
+
+  -- | Render text records in order with a consistent delimiter and LF/CRLF policy.
+  csv-render-records :: CsvOptions -> Bool -> List (List String) -> String
+  csv-render-records options crlf rows = string-concat-all (text-rendered-rows options crlf rows Nil)
+

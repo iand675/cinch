@@ -1,0 +1,1690 @@
+{
+  "artifact": {
+    "llvm_sha256": "03abe457336017cadb959e3f64dfba2d97103407d51b3633c81d6d98e04bd572",
+    "object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+    "path": "build/current-base-artifact-o-closure-r2/provider.json",
+    "producer": {
+      "builder_script_sha256": "9110fe3326a2b0af9d6adf26d4c0fd0df11c33328bb0d87bde885bec2d27d9f5",
+      "commands": [
+        {
+          "command": [
+            "cargo",
+            "build",
+            "--locked",
+            "--release",
+            "--bin",
+            "cinch",
+            "--target-dir",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-cargo"
+          ],
+          "cwd": "/workspace/dasl-stdlib-base-construction/compiler",
+          "log": "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/compiler-build.log"
+        },
+        {
+          "command": [
+            "cargo",
+            "build",
+            "--locked",
+            "--release",
+            "--manifest-path",
+            "/workspace/dasl-stdlib-base-construction/compiler/runtime/Cargo.toml",
+            "--target-dir",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-cargo/runtime"
+          ],
+          "cwd": "/workspace/dasl-stdlib-base-construction/compiler",
+          "log": "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/runtime-build.log"
+        },
+        {
+          "command": [
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/cinch",
+            "emit-object",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library/CinchBaseObject.cinch",
+            "--object-roots",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/roots.json",
+            "--opt-level",
+            "2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o"
+          ],
+          "cwd": "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library",
+          "log": "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/object-build.log"
+        }
+      ],
+      "compiler_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+      "mode": "fresh-embedded",
+      "source_sha256": "92f5cd23a9e9e40f921c163a7304af9e9cf1351084a6223db66b718b90d00155"
+    },
+    "runtime": {
+      "runtime_abi": 10,
+      "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "source_sha256": "a24aaffa8ad5dd8ae49b6ddba8e56aaf56bb9852b316be3667003b1fd5db16a8"
+    },
+    "sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+    "sources": {
+      "compiler_source_sha256": "92f5cd23a9e9e40f921c163a7304af9e9cf1351084a6223db66b718b90d00155",
+      "provider_receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+      "source_shadow_used": false,
+      "string_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+      "string_source_hash": "9736755187434316968"
+    }
+  },
+  "client_gates": {
+    "base-final-native-o0": {
+      "abi_probes": [
+        {
+          "command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/concrete-string/Main.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/concrete-string/probe.ll"
+          ],
+          "compile_exit": 0,
+          "diagnostics": "",
+          "entry_sha256": "a269a999cde4770cc6a63e5233820bf319b3290d92e5c89da9f9896cdba791b0",
+          "executable_sha256": "e7b76d5dae04f2a5c090378ab5615e832f72421588c5dcce0a3a88a1a40c9bf7",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/concrete-string/probe.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/concrete-string/probe",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "1f8d09412acc28d06cbea86fcbb3602f484b53056717212a7ad4ea9c49a96415",
+          "name": "concrete-string",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/list-string-O/Main.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/list-string-O/probe.ll"
+          ],
+          "compile_exit": 0,
+          "diagnostics": "",
+          "entry_sha256": "99694a0b84fe45137acca3e657588480961165d008a2e699e1c01fbba51bf535",
+          "executable_sha256": "041a3165a032127fc2963e1c09f6435d12dcfa9596425d045042b0664f1431d9",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/list-string-O/probe.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/list-string-O/probe",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "dd4f2038cd219848416cbabb0d3d53fe59f0a91a04f1539d249452d1e78db206",
+          "name": "list-string-O",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ],
+          "status": "passed"
+        }
+      ],
+      "base_object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+      "compiler_sha256": "35eb9980373fa424087df6b3fda762dd956e2f651180d4804c5b1e702de13a32",
+      "consumer_opt_level": 0,
+      "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+      "path": "build/base-final-native-o0.json",
+      "results": [
+        {
+          "cases": 297,
+          "compile_command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/repeats/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/repeats/consumer.ll"
+          ],
+          "entry_sha256": "fc0a78c1867aec0f9ee91c24b49315e903e3393542e9f5a45a2dea00fc303a05",
+          "executable_sha256": "65a211081a7e3dae0e42b8c38e6b62c1575d0b877ed78ea9fea38682a8ccf9bd",
+          "group": "repeats",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/repeats/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/repeats/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "5fb2e8fa3c67e0b5feda62ceb7d0c3afd12902db29425fa6c772da75b3d4213a",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 101,
+          "compile_command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/concats/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/concats/consumer.ll"
+          ],
+          "entry_sha256": "d413ef8d9888c8d22a19804449f4b86df727faa317df6d06fda0c372dc07e68e",
+          "executable_sha256": "a93b88b81db09656bbd5bb2d592f2a6d4c66e0a1ce8af9eba8f71771db0c46e7",
+          "group": "concats",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/concats/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/concats/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "ad66ad439f430a89c1744059c7ff27a629cbc07bed288c4874fef5df5eb20f5e",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 2,
+          "compile_command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/regression/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/regression/consumer.ll"
+          ],
+          "entry_sha256": "2c4fc0cfee4750ec0b8860a4644b4fdbcca3a86d35ab957e506cf49c05e23740",
+          "executable_sha256": "5fafa469db4da42a8c0f1b40b09e649d2750ce2c3780cf5cb1a279fc8fc29253",
+          "group": "regression",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/regression/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/regression/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "5e6cb33411c7a129ec665ee329579286d05d5c1fcfc3ea4ac6dcb1829fb93a9b",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 1,
+          "compile_command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/owners/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/owners/consumer.ll"
+          ],
+          "entry_sha256": "c462108cbef258f0294d10e33a4c18d52546b1730e9dd5a9035898c0ab2e06df",
+          "executable_sha256": "039cde8d6cd7b6b260ab0e3dd2eedd91fdd47b77f572f8616be83599bf4df3f1",
+          "group": "owners",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/owners/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o0/owners/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "ae5b21a8dac6d28d9e074c46ce0b17d9c2ea4f50e57e672e26001cdb32c71a02",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        }
+      ],
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "sha256": "06843241321ddfa8504ead025a60cae3f7df8ce66c5db82742a8b9b982a72ab7",
+      "source_shadow_used": false,
+      "status": "passed"
+    },
+    "base-final-native-o2": {
+      "abi_probes": [
+        {
+          "command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/concrete-string/Main.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/concrete-string/probe.ll"
+          ],
+          "compile_exit": 0,
+          "diagnostics": "",
+          "entry_sha256": "a269a999cde4770cc6a63e5233820bf319b3290d92e5c89da9f9896cdba791b0",
+          "executable_sha256": "75d3f38bf3656d51e4ac6e5b342bb2af091e3583506956183d01e36fd2d510aa",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/concrete-string/probe.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/concrete-string/probe",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "1f8d09412acc28d06cbea86fcbb3602f484b53056717212a7ad4ea9c49a96415",
+          "name": "concrete-string",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/list-string-O/Main.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/list-string-O/probe.ll"
+          ],
+          "compile_exit": 0,
+          "diagnostics": "",
+          "entry_sha256": "99694a0b84fe45137acca3e657588480961165d008a2e699e1c01fbba51bf535",
+          "executable_sha256": "00412ab1c3413d8a8359b449bf4dda426aead6a411e2f8d6a6b5b243b07c62c3",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/list-string-O/probe.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/list-string-O/probe",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "dd4f2038cd219848416cbabb0d3d53fe59f0a91a04f1539d249452d1e78db206",
+          "name": "list-string-O",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ],
+          "status": "passed"
+        }
+      ],
+      "base_object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+      "compiler_sha256": "35eb9980373fa424087df6b3fda762dd956e2f651180d4804c5b1e702de13a32",
+      "consumer_opt_level": 2,
+      "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+      "path": "build/base-final-native-o2.json",
+      "results": [
+        {
+          "cases": 297,
+          "compile_command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/repeats/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/repeats/consumer.ll"
+          ],
+          "entry_sha256": "fc0a78c1867aec0f9ee91c24b49315e903e3393542e9f5a45a2dea00fc303a05",
+          "executable_sha256": "57722f069c05b3c017f815be1526121522e29dc1aa6dc05a2469bb1f034387e6",
+          "group": "repeats",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/repeats/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/repeats/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "5fb2e8fa3c67e0b5feda62ceb7d0c3afd12902db29425fa6c772da75b3d4213a",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 101,
+          "compile_command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/concats/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/concats/consumer.ll"
+          ],
+          "entry_sha256": "d413ef8d9888c8d22a19804449f4b86df727faa317df6d06fda0c372dc07e68e",
+          "executable_sha256": "efb469bcf4c97699b5204818954134e9a25a0c7aa3b378f75ebe88c506c79522",
+          "group": "concats",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/concats/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/concats/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "ad66ad439f430a89c1744059c7ff27a629cbc07bed288c4874fef5df5eb20f5e",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 2,
+          "compile_command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/regression/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/regression/consumer.ll"
+          ],
+          "entry_sha256": "2c4fc0cfee4750ec0b8860a4644b4fdbcca3a86d35ab957e506cf49c05e23740",
+          "executable_sha256": "8244100c36e49050860c543db779a99c5a1ba1672f86428ddb8c8b1ce4eedd4f",
+          "group": "regression",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/regression/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/regression/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "5e6cb33411c7a129ec665ee329579286d05d5c1fcfc3ea4ac6dcb1829fb93a9b",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 1,
+          "compile_command": [
+            "/workspace/dasl-stdlib-base-construction/build/bootstrap/stage3/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/owners/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/owners/consumer.ll"
+          ],
+          "entry_sha256": "c462108cbef258f0294d10e33a4c18d52546b1730e9dd5a9035898c0ab2e06df",
+          "executable_sha256": "cec8abf6aee48c5cc9e061c719f2297bdcb84b12a1e8415ca36f2ec7d9b1550f",
+          "group": "owners",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/owners/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-final-native-o2/owners/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "ae5b21a8dac6d28d9e074c46ce0b17d9c2ea4f50e57e672e26001cdb32c71a02",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        }
+      ],
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "sha256": "a784fc1d75bd1a9ded903809c31729337ee4516b355375bffaf6c4add51d1954",
+      "source_shadow_used": false,
+      "status": "passed"
+    },
+    "base-fresh-embedded-o0": {
+      "compiler_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+      "epoch": "fresh-embedded",
+      "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+      "native_base_validation_claimed": false,
+      "opt_level": 0,
+      "path": "build/base-fresh-embedded-o0.json",
+      "results": [
+        {
+          "cases": 297,
+          "entry_sha256": "316353e6dbcb2ec20e1837306b2adb4a71a1846402dad233e365d707a80cb3f4",
+          "epoch_receipt": {
+            "interface_sha256": "f4c5d5936ffd97af5f84ca6a539e54f9f9ff4868201e1e53e9ecfcb9d0741fb4",
+            "module_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+            "source_hash": "9736755187434316968"
+          },
+          "executable_sha256": "f7d5909a53f36361f1ac9984b79982ce86a33f1e4ed10e33fc2d241f1a86e328",
+          "group": "repeats",
+          "llvm_sha256": "60552d8785a439fb90fe37925ef789996005d7d52b423431a25979ebbf012324",
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ],
+          "tail_receipt": {
+            "concat-copy": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 0,
+              "recursive_calls": []
+            },
+            "concat-size": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 0,
+              "recursive_calls": []
+            },
+            "repeat-double": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            }
+          }
+        },
+        {
+          "cases": 101,
+          "entry_sha256": "0f25a4e7513d534340f3eb65b0894f04b741ae62ef2d2e006a74922c4f023914",
+          "epoch_receipt": {
+            "interface_sha256": "f4c5d5936ffd97af5f84ca6a539e54f9f9ff4868201e1e53e9ecfcb9d0741fb4",
+            "module_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+            "source_hash": "9736755187434316968"
+          },
+          "executable_sha256": "f4c9ed3d6322e7ffb082b5004d447f8a925e63c9bb0e4df070b3028e0d969a91",
+          "group": "concats",
+          "llvm_sha256": "bf7e7225c61d9c030eb84f01aa4aa2e442b449c2234219d4e89857426f5b9d8d",
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ],
+          "tail_receipt": {
+            "concat-copy": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "concat-size": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "repeat-double": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 0,
+              "recursive_calls": []
+            }
+          }
+        },
+        {
+          "cases": 2,
+          "entry_sha256": "b304eddc152a2fd2bf6947f96abef63f31af6405c849cd1a5ed0e9d08bf75fc6",
+          "epoch_receipt": {
+            "interface_sha256": "f4c5d5936ffd97af5f84ca6a539e54f9f9ff4868201e1e53e9ecfcb9d0741fb4",
+            "module_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+            "source_hash": "9736755187434316968"
+          },
+          "executable_sha256": "18971a5894cf62b092c94002edf7a02683e612142ae9b9ff1cd28397993ba402",
+          "group": "regression",
+          "llvm_sha256": "f80dc380711addfbbfcb9f4adc2e1b46a6763399e465535d0654fa6083af069c",
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ],
+          "tail_receipt": {
+            "concat-copy": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "concat-size": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "repeat-double": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            }
+          }
+        },
+        {
+          "cases": 1,
+          "entry_sha256": "878b444853ce85ca6bf177316ed0579e0ec107ba50b82bfc0bbf0aa758c0dda6",
+          "epoch_receipt": {
+            "interface_sha256": "f4c5d5936ffd97af5f84ca6a539e54f9f9ff4868201e1e53e9ecfcb9d0741fb4",
+            "module_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+            "source_hash": "9736755187434316968"
+          },
+          "executable_sha256": "fc483095c9598a22a217adf91cd10699df1e547a6af92f9942e0b766ab25550d",
+          "group": "owners",
+          "llvm_sha256": "679e54c2b7266a7c0b3d1f8cfc5f4c238608331d38f510efc715a081f5905e7e",
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ],
+          "tail_receipt": {
+            "concat-copy": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "concat-size": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "repeat-double": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            }
+          }
+        }
+      ],
+      "sha256": "d83a10c91d7482edaa084bacfde5beec23a827b7b6b5644908df27dc157a2004",
+      "string_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e"
+    },
+    "base-fresh-embedded-o2": {
+      "compiler_sha256": "ae9c3f812404bd43020346ee4b7464ebf906fe4263932d011d99b8fd9301334a",
+      "epoch": "fresh-embedded",
+      "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+      "native_base_validation_claimed": false,
+      "opt_level": 2,
+      "path": "build/base-fresh-embedded-o2.json",
+      "results": [
+        {
+          "cases": 297,
+          "entry_sha256": "316353e6dbcb2ec20e1837306b2adb4a71a1846402dad233e365d707a80cb3f4",
+          "epoch_receipt": {
+            "interface_sha256": "f4c5d5936ffd97af5f84ca6a539e54f9f9ff4868201e1e53e9ecfcb9d0741fb4",
+            "module_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+            "source_hash": "9736755187434316968"
+          },
+          "executable_sha256": "46badf0444a380bd4463e12c2bb91562cefe2b688d16ec6326ef71a81427f8dc",
+          "group": "repeats",
+          "llvm_sha256": "60552d8785a439fb90fe37925ef789996005d7d52b423431a25979ebbf012324",
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ],
+          "tail_receipt": {
+            "concat-copy": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 0,
+              "recursive_calls": []
+            },
+            "concat-size": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 0,
+              "recursive_calls": []
+            },
+            "repeat-double": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            }
+          }
+        },
+        {
+          "cases": 101,
+          "entry_sha256": "0f25a4e7513d534340f3eb65b0894f04b741ae62ef2d2e006a74922c4f023914",
+          "epoch_receipt": {
+            "interface_sha256": "f4c5d5936ffd97af5f84ca6a539e54f9f9ff4868201e1e53e9ecfcb9d0741fb4",
+            "module_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+            "source_hash": "9736755187434316968"
+          },
+          "executable_sha256": "792b802bbf823e708f5ef20a1949d94a1c87b63d020c9ec30574d2ca38758017",
+          "group": "concats",
+          "llvm_sha256": "bf7e7225c61d9c030eb84f01aa4aa2e442b449c2234219d4e89857426f5b9d8d",
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ],
+          "tail_receipt": {
+            "concat-copy": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "concat-size": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "repeat-double": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 0,
+              "recursive_calls": []
+            }
+          }
+        },
+        {
+          "cases": 2,
+          "entry_sha256": "b304eddc152a2fd2bf6947f96abef63f31af6405c849cd1a5ed0e9d08bf75fc6",
+          "epoch_receipt": {
+            "interface_sha256": "f4c5d5936ffd97af5f84ca6a539e54f9f9ff4868201e1e53e9ecfcb9d0741fb4",
+            "module_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+            "source_hash": "9736755187434316968"
+          },
+          "executable_sha256": "46ca3fca1b0f8e5f1ec578c1c86d4b9a846ed416c6488e027e56bc30046ee7b0",
+          "group": "regression",
+          "llvm_sha256": "f80dc380711addfbbfcb9f4adc2e1b46a6763399e465535d0654fa6083af069c",
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ],
+          "tail_receipt": {
+            "concat-copy": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "concat-size": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "repeat-double": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            }
+          }
+        },
+        {
+          "cases": 1,
+          "entry_sha256": "878b444853ce85ca6bf177316ed0579e0ec107ba50b82bfc0bbf0aa758c0dda6",
+          "epoch_receipt": {
+            "interface_sha256": "f4c5d5936ffd97af5f84ca6a539e54f9f9ff4868201e1e53e9ecfcb9d0741fb4",
+            "module_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+            "source_hash": "9736755187434316968"
+          },
+          "executable_sha256": "4217abca47fcf8e6566991aac218fbcbdfa3d230bfdd14807b4816e19d3ba662",
+          "group": "owners",
+          "llvm_sha256": "679e54c2b7266a7c0b3d1f8cfc5f4c238608331d38f510efc715a081f5905e7e",
+          "ownership": [
+            {
+              "debug": false,
+              "zero_leaks": true
+            },
+            {
+              "debug": true,
+              "zero_leaks": true
+            }
+          ],
+          "tail_receipt": {
+            "concat-copy": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "concat-size": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            },
+            "repeat-double": {
+              "all_observed_recursive_calls_tail": true,
+              "emitted_workers": 1,
+              "recursive_calls": []
+            }
+          }
+        }
+      ],
+      "sha256": "ecd1483b463c94146b67fc3a4c2cbe3353dc52f86959c606ff7a2ff41af66ff4",
+      "string_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e"
+    },
+    "base-fresh-native-o0-r4": {
+      "abi_probes": [
+        {
+          "command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/concrete-string/Main.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/concrete-string/probe.ll"
+          ],
+          "compile_exit": 0,
+          "diagnostics": "",
+          "executable_sha256": "e7b76d5dae04f2a5c090378ab5615e832f72421588c5dcce0a3a88a1a40c9bf7",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/concrete-string/probe.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/concrete-string/probe",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "name": "concrete-string",
+          "status": "passed",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/list-string-O/Main.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/list-string-O/probe.ll"
+          ],
+          "compile_exit": 0,
+          "diagnostics": "",
+          "executable_sha256": "736239f2fb2dad86aa4c456449182d4554df22341a5797cb63f3d1fcffa9e658",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/list-string-O/probe.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/list-string-O/probe",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "name": "list-string-O",
+          "status": "passed",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "base_object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "consumer_opt_level": 0,
+      "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+      "path": "build/base-fresh-native-o0-r4.json",
+      "results": [
+        {
+          "cases": 297,
+          "compile_command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/repeats/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/repeats/consumer.ll"
+          ],
+          "entry_sha256": "fc0a78c1867aec0f9ee91c24b49315e903e3393542e9f5a45a2dea00fc303a05",
+          "executable_sha256": "65a211081a7e3dae0e42b8c38e6b62c1575d0b877ed78ea9fea38682a8ccf9bd",
+          "group": "repeats",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/repeats/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/repeats/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "5fb2e8fa3c67e0b5feda62ceb7d0c3afd12902db29425fa6c772da75b3d4213a",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 101,
+          "compile_command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/concats/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/concats/consumer.ll"
+          ],
+          "entry_sha256": "d413ef8d9888c8d22a19804449f4b86df727faa317df6d06fda0c372dc07e68e",
+          "executable_sha256": "a93b88b81db09656bbd5bb2d592f2a6d4c66e0a1ce8af9eba8f71771db0c46e7",
+          "group": "concats",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/concats/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/concats/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "ad66ad439f430a89c1744059c7ff27a629cbc07bed288c4874fef5df5eb20f5e",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 2,
+          "compile_command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/regression/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/regression/consumer.ll"
+          ],
+          "entry_sha256": "2c4fc0cfee4750ec0b8860a4644b4fdbcca3a86d35ab957e506cf49c05e23740",
+          "executable_sha256": "5fafa469db4da42a8c0f1b40b09e649d2750ce2c3780cf5cb1a279fc8fc29253",
+          "group": "regression",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/regression/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/regression/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "5e6cb33411c7a129ec665ee329579286d05d5c1fcfc3ea4ac6dcb1829fb93a9b",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 1,
+          "compile_command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/owners/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/owners/consumer.ll"
+          ],
+          "entry_sha256": "c462108cbef258f0294d10e33a4c18d52546b1730e9dd5a9035898c0ab2e06df",
+          "executable_sha256": "039cde8d6cd7b6b260ab0e3dd2eedd91fdd47b77f572f8616be83599bf4df3f1",
+          "group": "owners",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/owners/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O0",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o0-r4/owners/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "ae5b21a8dac6d28d9e074c46ce0b17d9c2ea4f50e57e672e26001cdb32c71a02",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        }
+      ],
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "sha256": "ccb71c148a6e7733ab543461f6569f1d08573f332ec795b5662d665eb208e023",
+      "source_shadow_used": false,
+      "status": "passed"
+    },
+    "base-fresh-native-o2": {
+      "abi_probes": [
+        {
+          "command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/concrete-string/Main.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/concrete-string/probe.ll"
+          ],
+          "compile_exit": 0,
+          "diagnostics": "",
+          "executable_sha256": "75d3f38bf3656d51e4ac6e5b342bb2af091e3583506956183d01e36fd2d510aa",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/concrete-string/probe.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/concrete-string/probe",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "name": "concrete-string",
+          "status": "passed",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/list-string-O/Main.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/list-string-O/probe.ll"
+          ],
+          "compile_exit": 0,
+          "diagnostics": "",
+          "executable_sha256": "dc38db8e3451b33687eda227ff82b2919466f31e0a6096e285d1ce12af4f88d5",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/list-string-O/probe.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/list-string-O/probe",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "name": "list-string-O",
+          "status": "passed",
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "base_object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "consumer_opt_level": 2,
+      "fixture_sha256": "3b4656c91ea15b8ddc5403240c5fc82e277c2a42332a974b16e626dc558b7504",
+      "path": "build/base-fresh-native-o2.json",
+      "results": [
+        {
+          "cases": 297,
+          "compile_command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/repeats/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/repeats/consumer.ll"
+          ],
+          "entry_sha256": "fc0a78c1867aec0f9ee91c24b49315e903e3393542e9f5a45a2dea00fc303a05",
+          "executable_sha256": "57722f069c05b3c017f815be1526121522e29dc1aa6dc05a2469bb1f034387e6",
+          "group": "repeats",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/repeats/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/repeats/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "5fb2e8fa3c67e0b5feda62ceb7d0c3afd12902db29425fa6c772da75b3d4213a",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 101,
+          "compile_command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/concats/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/concats/consumer.ll"
+          ],
+          "entry_sha256": "d413ef8d9888c8d22a19804449f4b86df727faa317df6d06fda0c372dc07e68e",
+          "executable_sha256": "efb469bcf4c97699b5204818954134e9a25a0c7aa3b378f75ebe88c506c79522",
+          "group": "concats",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/concats/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/concats/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "ad66ad439f430a89c1744059c7ff27a629cbc07bed288c4874fef5df5eb20f5e",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 2,
+          "compile_command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/regression/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/regression/consumer.ll"
+          ],
+          "entry_sha256": "2c4fc0cfee4750ec0b8860a4644b4fdbcca3a86d35ab957e506cf49c05e23740",
+          "executable_sha256": "8244100c36e49050860c543db779a99c5a1ba1672f86428ddb8c8b1ce4eedd4f",
+          "group": "regression",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/regression/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/regression/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "5e6cb33411c7a129ec665ee329579286d05d5c1fcfc3ea4ac6dcb1829fb93a9b",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        },
+        {
+          "cases": 1,
+          "compile_command": [
+            "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/cinch",
+            "--emit-ir-with-interfaces",
+            "--rc-debug",
+            "--interfaces",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/interfaces.json",
+            "--objects",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/objects.json",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/owners/Bundle.cinch",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/owners/consumer.ll"
+          ],
+          "entry_sha256": "c462108cbef258f0294d10e33a4c18d52546b1730e9dd5a9035898c0ab2e06df",
+          "executable_sha256": "cec8abf6aee48c5cc9e061c719f2297bdcb84b12a1e8415ca36f2ec7d9b1550f",
+          "group": "owners",
+          "link_command": [
+            "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/owners/consumer.ll",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/library.o",
+            "/workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/libcinchruntime.a",
+            "-O2",
+            "-o",
+            "/workspace/dasl-stdlib-base-construction/build/base-fresh-native-o2/owners/consumer",
+            "-ldl",
+            "-lpthread",
+            "-lm"
+          ],
+          "llvm_sha256": "ae5b21a8dac6d28d9e074c46ce0b17d9c2ea4f50e57e672e26001cdb32c71a02",
+          "runs": [
+            {
+              "debug": false,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            },
+            {
+              "debug": true,
+              "exit": 0,
+              "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+              "stdout": ""
+            }
+          ]
+        }
+      ],
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "sha256": "c4dbc57604617b0ff32599e1965ad8333efb50007230f07b931905c6a6b5a9d5",
+      "source_shadow_used": false,
+      "status": "passed"
+    }
+  },
+  "coverage": {
+    "actual_counts": {
+      "dictionaries": 154,
+      "method_families": 25,
+      "units": 2925
+    },
+    "current_interface_sha256": "f4c5d5936ffd97af5f84ca6a539e54f9f9ff4868201e1e53e9ecfcb9d0741fb4",
+    "current_string_source_hash": "9736755187434316968",
+    "demand_counts": {
+      "dictionaries": 51,
+      "methods": 34,
+      "units": 226
+    },
+    "is_empty_variants": [
+      {
+        "arity": 1,
+        "closure_entry": "Data.List.is-empty@O.object-closure",
+        "lent": [
+          true
+        ],
+        "lent_entry": "Data.List.is-empty@O#tail",
+        "lent_width": 1,
+        "params": [
+          "O"
+        ],
+        "result": "R",
+        "symbol": "Data.List.is-empty@O"
+      },
+      {
+        "arity": 1,
+        "closure_entry": "Data.List.is-empty@R.object-closure",
+        "lent": [
+          true
+        ],
+        "lent_entry": "Data.List.is-empty@R#tail",
+        "lent_width": 1,
+        "params": [
+          "O"
+        ],
+        "result": "R",
+        "symbol": "Data.List.is-empty@R"
+      },
+      {
+        "arity": 1,
+        "closure_entry": "Data.List.is-empty@T.object-closure",
+        "lent": [
+          true
+        ],
+        "lent_entry": "Data.List.is-empty@T#tail",
+        "lent_width": 1,
+        "params": [
+          "O"
+        ],
+        "result": "R",
+        "symbol": "Data.List.is-empty@T"
+      }
+    ],
+    "new_constructor_workers_emitted": {
+      "concat-copy": true,
+      "concat-size": true,
+      "repeat-double": true
+    },
+    "pinned_interface_sha256": "1ee8df6d67072d2999df93a9c0c5319c3f1fbe728c9d95abcf91f3d00ae37bb0",
+    "pinned_string_source_hash": "4799612602969635343",
+    "receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+    "removed_constructor_workers_absent": {
+      "concat-from": true,
+      "repeat-from": true
+    },
+    "specialization_scope": "all explicitly requested concrete roots, not arbitrary generic combinations",
+    "status": "passed",
+    "string_abi_equal_pinned": true,
+    "string_public_exports_equal_pinned": true
+  },
+  "description": "Fresh embedded and explicit Native base family for phase-1 immutable String construction",
+  "documentation": {
+    "canonical_changed_declarations": 5,
+    "diagnostics": 0,
+    "extract": {
+      "path": "build/current-base-string-docs.json",
+      "sha256": "cd942520e610b6b635760da541c6189525da3f62e202a805f88aa5ae38692650"
+    },
+    "orphans": 0
+  },
+  "frozen_snapshot": {
+    "adapter_probe_status": "passed",
+    "compiler_sha256": "35eb9980373fa424087df6b3fda762dd956e2f651180d4804c5b1e702de13a32",
+    "original_full_gate_receipt_sha256": "feff1d0575b9c9404b69ddb66e6c8aefee18398ccf7ae76f0936450342305217",
+    "original_provider_receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9",
+    "path": "build/current-base-stage3-frozen",
+    "relocated_provider_receipt_sha256": "ff5f7abd61e667953b87d01a4ce060360035d91d976e20cf4e54ab8bbe77d4f5",
+    "relocation": "interface manifest paths only; original compiler/object/LLVM/runtime/source/checked-interface bytes unchanged",
+    "snapshot_sha256": "ec334496aee8c93d9281ddd74a7905e27db0ca809e5c4113281d345faa70499d"
+  },
+  "full_stdlib_goal_complete": false,
+  "implementation_commit": "32d16d4432b30d4e1b84d06d39aa89b97761aea9",
+  "independent_parent_checked_rc_api_gate": {
+    "compiler_sha256": "9050032982e36ae549689f0b35c448b8b91a05333c80eda09c16ce1c0b8deda7",
+    "description": "Separate parent compiler/source epoch; not an execution of this lane Cargo test binary.",
+    "duration_seconds": 25.72,
+    "fixture_commit": "e7505291415fd549b44c453f5861eeb21a5b72f7",
+    "fixture_source_sha256": "ac68396a73d90e95039c37c96566af7ebb9822f3232b4000923bdfc70c6e5afe",
+    "log_path": "build/parent-string-independent-poison-gate.log",
+    "log_sha256": "8d2e36c5685cbf1203ad0c26a0880132eb570999367c301e93fdf73625501feb",
+    "ordinary_process_scope": "all 399, optimized 29, and embedded 2; each complete corpus in one 32M process",
+    "passed_tests": 4,
+    "poison_process_scope": "one independent observation per 256M process, including the 100-iteration owner control",
+    "runtime_profiles": 433,
+    "stack": "8M",
+    "status": "passed",
+    "string_source_sha256": "54ae8a339b996756323d8f5598287ca3abdfe8ce5e291cd62e71fdf975bd3b0e",
+    "test_binary": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/456cf5bf1c0cb7a6/out/lib_string_construction-456cf5bf1c0cb7a6",
+    "test_binary_sha256": "5c3716e811879dec88e535b9545383f96474ce5f2b6841b744974389094161ad"
+  },
+  "limits": [
+    "Generic coverage is the explicit requested concrete root inventory, not arbitrary representation combinations.",
+    "Seed and Stage1 reuse is an unchanged certified bootstrap bridge and does not test new String.",
+    "Bootstrap pins remain unchanged; the selected fresh provider is explicit.",
+    "This compiler-source epoch excludes the later Collections inference work."
+  ],
+  "native_full_gate": {
+    "canonical_equal_interface_count": 51,
+    "changed_source": {
+      "compiler_sha256": "5655bbaae3ef526c3d4f2f58ce6156b4701d3bfb15e9d41afd16e9ce56421024",
+      "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+      "source_sha256": "5772ec034574fc33b52acad040f4fe9fd25c55ba690d8d1089c271d0db918de3"
+    },
+    "command": "taskset -c 1 python3 tooling/bootstrap.py check --no-pgo -j1 --library-artifact /workspace/dasl-stdlib-base-construction/build/current-base-artifact-o-closure-r2/provider.json",
+    "fixed_point_checked": true,
+    "interface_consumer": {
+      "compiler_sha256": "35eb9980373fa424087df6b3fda762dd956e2f651180d4804c5b1e702de13a32",
+      "manifest_sha256": "84c1011385cc88ffdf364e1be364eea90cd781c03cd32555d494adf797cffacf",
+      "source_sha256": "af5113475ded965ccd87d34f50c24125e6d2f902ca907734b78dc59a873055cc",
+      "status": "passed"
+    },
+    "llvm_sha256": "d470b0819814caadd1034c670ae9711df42b3488f2330cb371b2724330904073",
+    "log": {
+      "path": "build/current-base-full-check.log",
+      "sha256": "e2b4716e143564830f082dea9e04642d9ca337899faefd0c2d2a7ff524604243"
+    },
+    "reused_seed_bridge": {
+      "compiler_source_sha256": "0b11df4d99214db032d633e91d084af0afb52117ba9cffa5ebc8b4669695d579",
+      "description": "unchanged certified Char seed/stage1 bridge copied by explicit parent authorization; not a claim of new String or latest Rust stack guard in these phases",
+      "required_runtime_hash_before_reuse": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "seed": {
+        "description": "ABI 10 Native seed: self-describing block headers, merged with main (through the no-reclaim switch), narrow C arguments extended; empty patch.",
+        "patch": "bootstrap/seed/stage0.patch",
+        "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "revision": "ab294c68b24fa093a84813e09e0b9f5f33667e7f",
+        "runtime_abi": 10,
+        "schema": 1,
+        "source_sha256": "c559c794935bbbf52d60118abd95c7207621ab1059c7e4695f40d99e8f0dfabd"
+      },
+      "seed_runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "seed_snapshot": "fc9fa8f2bb83081f1e4be5e4d6873a7dba6f855c12b9905e3244d1c8e0e7b01a",
+      "source": "/workspace/dasl-stdlib-char-contract/build/bootstrap",
+      "stage0_sha256": "ce4a68ee6a283199ce8ff6b1f53bb21f34e8c0ea6816d7de9fff295c98127a3a",
+      "stage1_sha256": "319c6a2944b295f665ed0a75cc94995718a1004bddafa4aca0470cd1cb3baac0",
+      "stage2_stage3_provider": {
+        "fixed_point_checked": true,
+        "kind": "current-base-artifact",
+        "object_sha256": "645a3d0e2feae9b4b92ecc98117f31abcb53be0bb25ae6bce06d165938f1178d",
+        "receipt_sha256": "e70250a59eb9c37a0cc2d87d5b55b0cd5d60d7ab3aaac3f64cdfb9fce0e52ab9"
+      }
+    },
+    "seed_preflight": {
+      "compiler_source_sha256": "0b11df4d99214db032d633e91d084af0afb52117ba9cffa5ebc8b4669695d579",
+      "reused_bridge": true,
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "status": "passed"
+    },
+    "stage_records": {
+      "stage2": {
+        "compiler_source_sha256": "0b11df4d99214db032d633e91d084af0afb52117ba9cffa5ebc8b4669695d579",
+        "executable_sha256": "35eb9980373fa424087df6b3fda762dd956e2f651180d4804c5b1e702de13a32",
+        "receipt": {
+          "path": "build/bootstrap/stage2/stage.json",
+          "sha256": "38807509f17762958ead3998cdf0df7b8f96cdf44d09d81abdbcac7e5abca8db"
+        }
+      },
+      "stage3": {
+        "compiler_source_sha256": "0b11df4d99214db032d633e91d084af0afb52117ba9cffa5ebc8b4669695d579",
+        "executable_sha256": "35eb9980373fa424087df6b3fda762dd956e2f651180d4804c5b1e702de13a32",
+        "receipt": {
+          "path": "build/bootstrap/stage3/stage.json",
+          "sha256": "78b710ff79577d805cb4f762209f80289c1825c0337c783a7452c0398ae2da78"
+        }
+      }
+    }
+  },
+  "schema": 1,
+  "scope": "repeat/concat only; no later pack, byte-conversion or search work",
+  "status": "passed",
+  "tooling_tests": {
+    "current_artifact_admission": {
+      "log": {
+        "path": "build/base-artifact-tooling/admission.log",
+        "sha256": "60939a8e96c56e090a741c01920af67dce44ba51abbd75a8b8a664490b1abfb7"
+      },
+      "passed": 15
+    },
+    "preserved_bootstrap": {
+      "log": {
+        "path": "build/base-artifact-tooling/bootstrap-regressions.log",
+        "sha256": "bbfb76f4b2b295a2c269c8476e42511fe352766b72f65a352f3da3122f1971e9"
+      },
+      "passed": 38
+    }
+  }
+}

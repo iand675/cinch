@@ -1,0 +1,39 @@
+-- | Root every immutable identifier adapter in an actual portable object from dynamic public input.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Uuid
+  import Data.Bytes
+  import Data.String
+  import Data.Hash
+  import Data.Ordering
+  import Effect.Process
+
+  -- | Observe complete values from every result branch without hiding an unreachable adapter.
+  selected :: Uuid -> Result UuidError Uuid -> Uuid
+  selected fallback result = case result of Ok value -> value; Err error -> fallback
+
+  -- | Keep parse, buffer, trusted, render, append, ordering and supplied-generation adapters reachable.
+  exercise :: forall (r :: Region). using (io :: Io r) => String ->{IO r} Int
+  exercise text =
+    let input = string-to-bytes text in
+    let first = selected uuid-nil (uuid-parse text) in
+    let second = selected uuid-max (uuid-parse-bytes input) in
+    let raw = selected (uuid-from-words 0 0) (uuid-from-bytes input) in
+    let trusted = case uuid-validate-text text of Ok checked -> uuid-required checked; Err error -> raw in
+    let receiver = case uuid-unmarshal-text first input of (value, error) -> value in
+    let random = selected first (uuid-v4-from-random input) in
+    let timed = case uuid-v7-step uuid-v7-initial (bytes-len input) input of Err error -> second; Ok pair -> (case pair of (next, value) -> value) in
+    let advanced = case uuid-v7-advance uuid-v7-initial (bytes-len input) of Err error -> timed; Ok pair -> (case pair of (state, tick) -> selected timed (uuid-v7-from-tick tick input)) in
+    let prefix = case uuid-append-text input receiver of Ok bytes -> bytes; Err error -> uuid-to-bytes trusted in
+    let a = ioWrite (uuid-marshal-text advanced) in
+    let b = ioWrite (string-to-bytes (uuid-format random)) in
+    let c = ioWrite prefix in
+    let d = ioWrite (uuid-to-bytes second) in
+    let digest = hash trusted in
+    let ordered = case uuid-compare first second of LT -> True; EQ -> uuid-equal first second; GT -> True in
+    if ordered && digest >= 0 then 0 else 1
+
+  -- | Preserve dynamic input so actual SIMD, endian and packed comparison bodies survive reachability analysis.
+  main :: forall (r :: Region). Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of Err error -> exercise ""; Ok args -> case args of Nil -> exercise ""; Cons text rest -> exercise text

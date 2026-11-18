@@ -1,0 +1,100 @@
+{
+  "description": "Interleaved exact baseline/revised copy worker/reference timing; only the selected CPU is reserved.",
+  "cpu_affinity": [
+    0
+  ],
+  "completed_utc": "2026-11-16T15:44:32.607709+00:00",
+  "background": "Parent CPU3 JSON gate; Base CPU1 mutable-family work; separate-CPU functional validation may overlap. Shared memory/caches are not isolated.",
+  "frontends": {
+    "rust": {
+      "elements": 16384,
+      "iterations": 16,
+      "samples": 5,
+      "excluded_warmup": 1,
+      "rotating_order": [
+        "baseline",
+        "optimized",
+        "reference"
+      ],
+      "checksum": 4594938917940491376,
+      "samples_ns": {
+        "baseline": [
+          303802647,
+          317184049,
+          352164579,
+          275162158,
+          269636149
+        ],
+        "optimized": [
+          191049149,
+          219132363,
+          265205357,
+          192914056,
+          202895525
+        ],
+        "reference": [
+          104104243,
+          86927328,
+          88610017,
+          83453880,
+          66378027
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "baseline": 18987665.4375,
+        "optimized": 12680970.3125,
+        "reference": 5432958.0
+      },
+      "executable_sha256": {
+        "baseline": "81e7f3f153aaa7c918cca083450c5f48840617738b5cfbb046d0a40083975253",
+        "optimized": "ddcb5ab94a8485d7d6b3e92ae0d91f0bfd92be7dcb6b94e140a48ae4af3440e1",
+        "reference": "c375cffcdf4aefaaa08c6e1cbab49da5ee34bc9f190fbdba9be8ff3329e72897"
+      }
+    },
+    "native": {
+      "elements": 16384,
+      "iterations": 16,
+      "samples": 5,
+      "excluded_warmup": 1,
+      "rotating_order": [
+        "baseline",
+        "optimized",
+        "reference"
+      ],
+      "checksum": 4594938917940491376,
+      "samples_ns": {
+        "baseline": [
+          901714975,
+          862533641,
+          927607001,
+          907456225,
+          811263740
+        ],
+        "optimized": [
+          776390925,
+          771419192,
+          659518606,
+          821551647,
+          707951004
+        ],
+        "reference": [
+          81834086,
+          91578215,
+          105086733,
+          107075933,
+          79315801
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "baseline": 56357185.9375,
+        "optimized": 48213699.5,
+        "reference": 5723638.4375
+      },
+      "executable_sha256": {
+        "baseline": "91f603e36efe23bf68d3462b7a15101d36c24f1e76feb2c04bf0039ff4d30ccc",
+        "optimized": "1330a31192a7b9844d8c81c7714cd504434e738a8d19556f781202777a318e44",
+        "reference": "c375cffcdf4aefaaa08c6e1cbab49da5ee34bc9f190fbdba9be8ff3329e72897"
+      }
+    }
+  }
+}

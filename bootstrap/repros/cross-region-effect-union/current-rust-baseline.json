@@ -1,0 +1,1 @@
+{"compiler_sha256":"37dc1ed7f5d6571fc65275802025a7be92b904b6455300c87856e4dbec1de4da","source_checkpoint":"b03018f7","command":"cinch check VarProbe.cinch","observation":"The second read is rejected as distinct rigid regions s and r, despite both being declared in the effect row."}

@@ -1,0 +1,3 @@
+# Preserve genuine source-check artifacts locally; publish exact artifact identities.
+/*/store/
+/*/project/build/

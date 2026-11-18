@@ -77,7 +77,7 @@ module Text.Toml where
   import Data.Result
   import Data.Bool
   import Data.Machine
-  import Text.Scan
+  import Text.Scan (string-join as scan-string-join)
   import Text.Show
 
   import Algebra.Semigroup
@@ -1143,8 +1143,9 @@ module Text.Toml where
     JObjEnd -> Ok empty-string
     _ -> Err (TomlNotRepresentable "the document root must be a table")
 
+  -- | Separate rendered document lines with a single line feed.
   join-lines :: List String -> String
-  join-lines ls = string-join "\n" ls
+  join-lines ls = scan-string-join "\n" ls
 
   emit-entries :: List String -> Json -> Result TomlError (List String)
   emit-entries path v = case v of

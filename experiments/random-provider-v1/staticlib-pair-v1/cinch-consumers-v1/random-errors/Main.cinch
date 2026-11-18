@@ -1,0 +1,45 @@
+
+module Main where
+
+  import Data.Nat
+  import Data.Result
+  import Effect.Random
+  import Relation.Eq
+  import Relation.Ord
+
+  -- The weight of one check: 0 when it passed, `w` when it failed.
+  weight :: Nat -> Int -> Int
+  weight r w = case r == 0 of
+    True -> 0
+    False -> w
+
+  -- A zero bound is the named `EmptyBound` (never a fault: the process
+  -- reaching the sum at all is part of the evidence here).
+  zero-bound :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  zero-bound u = case random-nat-below 0 of
+    Err EmptyBound -> 0
+    Err EmptyRange -> 1
+    Ok v -> 1
+
+  -- An empty range is the named `EmptyRange`.
+  empty-range :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  empty-range u = case random-nat-in-range 3 3 of
+    Err EmptyRange -> 0
+    Err EmptyBound -> 1
+    Ok v -> 1
+
+  -- An inverted range is the same named `EmptyRange` (there is one empty
+  -- range, however it was spelled, and `hi - lo` is never formed below
+  -- the guard).
+  inverted-range :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  inverted-range u = case random-nat-in-range 9 2 of
+    Err EmptyRange -> 0
+    Err EmptyBound -> 1
+    Ok v -> 1
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let c1 = weight (zero-bound ()) 1 in
+    let c2 = weight (empty-range ()) 2 in
+    let c3 = weight (inverted-range ()) 4 in
+    c1 + c2 + c3

@@ -386,11 +386,14 @@ module Main where
         .collect();
     assert_eq!(reported.len(), 1, "expected one report, got {diags:?}");
     assert!(!reported[0].informational, "the drop report is a warning");
-    // All weights of the decision point are dropped: none reach LLVM.
+    // Inspect this decision point, not unrelated weighted prelude functions.
     let ir = cinch::codegen::emit(&program).expect("emit");
+    let body = ir.split("\ndefine ")
+        .find(|definition| definition.lines().next().is_some_and(|header| header.contains("@\"Main.partial\"(")))
+        .expect("Main.partial is emitted");
     assert!(
-        !ir.contains("branch_weights"),
-        "partial annotation must drop ALL weights of the decision point:\n{ir}"
+        !body.contains("!prof"),
+        "partial annotation must drop ALL weights of the decision point:\n{body}"
     );
 }
 
@@ -532,6 +535,39 @@ module Main where
 
 // ------------------------------------------------------------- inline (section 5)
 
+/// Resolve attributes on the named definition rather than accepting a hint
+/// contributed by an unrelated intrinsic wrapper in the same module.
+fn definition_attributes<'a>(ir: &'a str, name: &str) -> &'a str {
+    let marker = format!("@\"{name}\"(");
+    let header = ir.lines().find(|line| line.starts_with("define ") && line.contains(&marker)).unwrap();
+    let group = header.split_whitespace().find(|word| word.starts_with('#')).unwrap();
+    let prefix = format!("attributes {group} = ");
+    ir.lines().find_map(|line| line.strip_prefix(&prefix)).unwrap()
+}
+
+/// An opaque foreign implementation may call back through the current unit.
+#[test]
+fn opaque_callbacks_prevent_norecurse_on_direct_and_transitive_callers() {
+    let ir = ir_of("opaque-reentry", r#"-- | Keep reentry possible across an opaque foreign boundary.
+module Main where
+  import Data.Machine
+  -- | The foreign implementation may call an exported entry before returning.
+  foreign import ccall "opaque_reentry" callback :: forall r. I64 ->{IO r} I64
+  -- | Preserve a direct caller independently of source inlining heuristics.
+  #[noinline]
+  forward :: forall r. I64 ->{IO r} I64
+  forward value = callback value
+  -- | An ordinary caller inherits the same possible callback path.
+  main :: Unit ->{IO r} Int
+  main unit = let observed = forward 0 in 0
+"#);
+    for name in ["Main.callback", "Main.forward", "Main.main"] {
+        assert!(!definition_attributes(&ir, name).contains("norecurse"), "{name}: opaque reentry was excluded\n{ir}");
+    }
+}
+
+/// User hints remain attached to each requested function even when primitive
+/// wrappers independently use the same LLVM attribute vocabulary.
 #[test]
 fn inline_hints_reach_llvm() {
     let ir = ir_of(
@@ -562,17 +598,33 @@ module Main where
   main = if a 1 == 1 then 0 else 1
 "#,
     );
-    assert!(ir.contains("inlinehint"), "{ir}");
-    assert!(ir.contains("alwaysinline"), "{ir}");
+    assert!(definition_attributes(&ir, "Main.a").contains("inlinehint"), "{ir}");
+    assert!(definition_attributes(&ir, "Main.b").contains("alwaysinline"), "{ir}");
     // The group carries the hint alongside the unit's LLVM contract
     // attributes (the contract surface), so the check is the hint's
     // presence in the attribute vocabulary.
-    assert!(ir.contains("noinline"), "{ir}");
+    assert!(definition_attributes(&ir, "Main.c").contains("noinline"), "{ir}");
+    assert!(definition_attributes(&ir, "Main.d").contains("noinline"), "{ir}");
     // `#[noinline]` and `#[inline(never)]` are the same hint: both
     // definitions take the `noinline` attribute group.
     assert!(ir.contains("@\"Main.c\"(i64 %p0) #"), "{ir}");
     assert!(ir.contains("@\"Main.d\"(i64 %p0) #"), "{ir}");
-    assert!(ir.contains("cold"), "{ir}");
+    assert!(definition_attributes(&ir, "Main.e").contains("cold"), "{ir}");
+}
+
+/// Tagged arithmetic and byte wrappers expose their fast paths to LLVM;
+/// unrelated allocating operations retain the ordinary inlining policy.
+#[test]
+fn tagged_primitive_wrappers_expose_their_fast_paths() {
+    let ir = ir_of("tagged-primitive-inline", r#"
+module Main where
+  main :: Int
+  main = if nat-from-i64 0 + 1 == 1 then 0 else 1
+"#);
+    for name in ["natAdd", "natSub", "natCmp", "natFromI64", "natToI64", "bytesLen", "bytesGet", "bytesSet", "bytesCopy"] {
+        assert!(definition_attributes(&ir, &format!("cinch.runtime.{name}")).contains("alwaysinline"), "{name}");
+    }
+    assert!(!definition_attributes(&ir, "cinch.runtime.bytesNew").contains("alwaysinline"));
 }
 
 #[test]
@@ -675,6 +727,8 @@ module Main where
     );
 }
 
+/// Keep each rejected borrow local so an unrelated escaping-region error
+/// cannot mask the packed-field alignment check; copying the value still runs.
 #[test]
 fn packed_field_borrow_is_rejected_and_copy_works() {
     expect_err(
@@ -686,8 +740,13 @@ module Main where
     a :: U8
     b :: U32
 
-  borrowB :: forall region. R -> Ref region U32
-  borrowB r = borrow r.b
+  -- | Consume a scalar reference within the caller's scope.
+  useRef :: forall region. Ref region U32 -> U32
+  useRef value = copyOut value
+
+  -- | Attempt a locally scoped borrow of the packed field.
+  borrowB :: R -> U32
+  borrowB r = useRef (borrow r.b)
 
   main :: Int
   main = 0
@@ -703,8 +762,13 @@ module Main where
     a :: U8
     b :: U32
 
-  mutBorrowB :: forall region. R -> Mut region U32
-  mutBorrowB r = mutBorrow r.b
+  -- | Consume a scalar mutable reference within the caller's scope.
+  useMut :: forall region. Mut region U32 -> U32
+  useMut value = copyOut value
+
+  -- | Attempt a locally scoped mutable borrow of the packed field.
+  mutBorrowB :: R -> U32
+  mutBorrowB r = useMut (mutBorrow r.b)
 
   main :: Int
   main = 0

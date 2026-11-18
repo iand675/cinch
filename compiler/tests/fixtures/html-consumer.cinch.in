@@ -1,0 +1,127 @@
+-- | Independent HTML byte/text corpus and retained-buffer consumer.
+module Main where
+  import Text.Html
+  import Text.Hex
+  import Text.Fnv
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Keep large deterministic corpus setup in the executable rather than the checker.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %value = or i32 %0, 0
+      ret i32 %value
+    }
+
+  -- | Read independently generated hexadecimal bytes without relying on HTML conversion.
+  input :: String -> Bytes
+  input text = case hex-decode text of Ok bytes -> bytes; Err error -> bytes-new 0
+
+  -- | Compare complete buffers, including unchanged arbitrary non-UTF-8 bytes.
+  same :: Bytes -> Bytes -> Bool
+  same first last = eq-i64 (bytes-compare first last) 0
+
+  -- | Find a NUL field delimiter in the bounded static fixture stream.
+  field-end :: Bytes -> Nat -> Nat
+  field-end bytes i = if i < bytes-len bytes then
+    if bytes-get bytes i == 0 then i else field-end bytes (i + 1)
+    else i
+
+  -- | Copy one ASCII fixture field and preserve the advanced original position.
+  field :: Bytes -> Nat -> (String, Nat)
+  field bytes start = let end = field-end bytes start in
+    if start <= end && end <= bytes-len bytes then
+      let out = bytes-new (end - start) in let copied = bytes-copy-range out bytes 0 start (end - start) in
+      case string-from-bytes out of Some text -> (text, end + 1); None -> ("", end + 1)
+    else ("", end + 1)
+
+  -- | Text convenience functions preserve the byte API's results whenever input is valid UTF-8.
+  text-case :: Bytes -> Bytes -> Bytes -> Bool
+  text-case raw escaped unescaped = case string-from-bytes raw of
+    None -> True
+    Some text -> case string-from-bytes escaped of
+      None -> False
+      Some expected-escaped -> case string-from-bytes unescaped of
+        None -> False
+        Some expected-unescaped -> html-escape text == expected-escaped && html-unescape text == expected-unescaped
+
+  -- | Check both complete byte results, exact sizing, valid text and the escaping round trip.
+  row-case :: String -> String -> String -> Bool
+  row-case raw-hex escaped-hex unescaped-hex =
+    let raw = input raw-hex in let escaped = input escaped-hex in let unescaped = input unescaped-hex in
+    same (html-escape-bytes raw) escaped && html-escaped-length raw == bytes-len escaped
+      && same (html-unescape-bytes raw) unescaped
+      && same (html-unescape-bytes escaped) raw
+      && text-case raw escaped unescaped
+
+  -- | Return zero on success or the first failing fixture's original stream offset plus one.
+  rows-from :: Bytes -> Nat -> Nat
+  rows-from bytes start = if start >= bytes-len bytes then 0 else case field bytes start of
+    (raw, second) -> case field bytes second of
+      (escaped, third) -> case field bytes third of
+        (unescaped, next) -> if row-case raw escaped unescaped then rows-from bytes next else start + 1
+
+  -- | Select one independently specified corpus byte without HTML conversion.
+  corpus-byte :: Nat -> Nat -> Bytes -> Nat
+  corpus-byte i mode pattern =
+    if mode == 0 then 97
+    else if mode == 4 then if i == 0 then 38 else if i == 1 then 35 else 57
+    else if mode == 5 then if i == 0 then 38 else if i == 1 then 35 else if i == 2 then 120 else 70
+    else if mode == 3 then u8-to-nat (wrapping-i64-to-u8 (nat-to-i64 (nat-rem (i * 37 + 11) 256)))
+    else
+      let at = if mode == 2 then nat-rem i 34 else nat-rem i 5 in
+      if at < bytes-len pattern then bytes-get pattern at else 0
+
+  -- | Fill ASCII, dense escapes, dense references or a complete byte permutation independently.
+  fill-corpus :: Bytes -> Nat -> Nat -> Bytes -> Unit
+  fill-corpus out i mode pattern = if i < bytes-len out then
+    let byte = corpus-byte i mode pattern in
+    if byte <= 255 then
+      let written = bytes-set out i byte in fill-corpus out (i + 1) mode pattern
+    else ()
+    else ()
+
+  -- | Create one bounded runtime input without exposing its construction to constant evaluation.
+  corpus :: Nat -> Nat -> Bytes
+  corpus size mode = if size <= 65536 then
+    let n = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 size))) in
+    let out = bytes-new n in
+    let pattern = string-to-bytes (if mode == 2 then "&amp;&#x1F600;&NotEqualTilde;not&a" else "<>&\"'") in
+    let filled = fill-corpus out 0 mode pattern in out
+    else bytes-new 0
+
+  -- | Observe every large input and output byte using independent recorded FNV-1a fingerprints.
+  long-case :: Nat -> Nat -> U64 -> Nat -> U64 -> Nat -> U64 -> Bool
+  long-case size mode original-hash escaped-size escaped-hash unescaped-size unescaped-hash =
+    let raw = corpus size mode in let escaped = html-escape-bytes raw in let unescaped = html-unescape-bytes raw in
+    eq-u64 (fnv64a raw) original-hash && bytes-len escaped == escaped-size && eq-u64 (fnv64a escaped) escaped-hash
+      && bytes-len unescaped == unescaped-size && eq-u64 (fnv64a unescaped) unescaped-hash
+      && html-escaped-length raw == escaped-size && same (html-unescape-bytes escaped) raw
+
+  -- | Conjoin independently evaluated bounded fixture cases.
+  all :: List Bool -> Bool
+  all cases = case cases of Nil -> True; Cons first rest -> first && all rest
+
+  -- | Return independent byte buffers even when no conversion is needed or a reference expands.
+  aliases :: Unit -> Bool
+  aliases unit =
+    let plain = string-to-bytes "plain" in let entity = string-to-bytes "&nLt;" in
+    if bytes-len plain > 0 && bytes-len entity > 0 then
+      let escaped = html-escape-bytes plain in let unescaped = html-unescape-bytes plain in
+      let changed = bytes-set plain 0 88 in
+      let expanded = html-unescape-bytes entity in let changed-entity = bytes-set entity 0 88 in
+      same escaped (string-to-bytes "plain") && same unescaped (string-to-bytes "plain") && same expanded (string-to-bytes "≪⃒")
+    else False
+
+  -- | Exercise all reference rows with a runtime initial cursor and the long public pipelines.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let encoded = string-to-bytes __ROWS__ in
+    let position = rows-from encoded (u32-to-nat (runtime-size 0)) in
+    let large = all [__LONG__] in
+    if position == 0 && large && aliases () then 0
+    else let printed = ioWrite (string-to-bytes (string-concat "HTML fixture failure at field offset " (string-concat (nat-to-string position) "\n"))) in 1

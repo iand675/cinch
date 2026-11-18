@@ -1,0 +1,118 @@
+-- | Retaining array operations must keep managed constructor arguments beyond their call frames.
+module Main where
+  import Data.Array
+  import Data.Tensor
+  import Data.Nat
+  import Data.Bytes
+  import Data.Machine
+  import Data.Option
+
+  -- | A managed value whose byte owner exposes premature frame release.
+  data Box where
+    -- | Retain a heap-owned payload in a nonrecursive constructor.
+    Stored :: Bytes -> Box
+    -- | Keep constructor discrimination explicit without recursive array types.
+    Missing :: Box
+
+  -- | A raw-payload constructor for the preserved safe read-only frame control.
+  data RawBox where
+    -- | Keep one machine scalar without a managed payload.
+    RawBox :: U64 -> RawBox
+
+  -- | Initialize a nonempty managed owner before constructing its wrapper.
+  buffer :: Nat -> Bytes
+  buffer value = let bytes = bytes-new 64 in
+    let initialized = if value <= 255 then bytes-set bytes 0 value else () in bytes
+
+  -- | Read an owned payload after the wrapper's allocating activation can have returned.
+  boxed-byte :: Box -> Nat
+  boxed-byte box = case box of
+    Stored bytes -> if bytes-len bytes > 0 then bytes-get bytes 0 else 0
+    Missing -> 0
+
+  -- | Check the whole stored constructor through the actual generic array getter.
+  stored-at :: Array Box -> Nat -> Nat -> Bool
+  stored-at array index expected = case array-get array index of None -> False; Some box -> boxed-byte box == expected
+
+  -- | Preserve the ordinary helper boundary for transitive capture inference.
+  #[inline(never)]
+  put-first :: Array Box -> Box -> Option (Array Box)
+  put-first array value = array-set array 0 value
+
+  -- | Preserve a second ordinary forwarding boundary beyond the primitive wrapper.
+  #[inline(never)]
+  put-forwarded :: Array Box -> Box -> Option (Array Box)
+  put-forwarded array value = put-first array value
+
+  -- | Preserve a separate forwarding path into a retaining replication primitive.
+  #[inline(never)]
+  replicate-forwarded :: Box -> Array Box
+  replicate-forwarded value = array-replicate 3 value
+
+  -- | Store a fresh managed constructor directly into a persistent array result.
+  set-direct :: Unit -> Bool
+  set-direct unit = let array = array-from-list [Stored (buffer 17)] in
+    case array-set array 0 (Stored (buffer 23)) of None -> False; Some changed -> stored-at changed 0 23
+
+  -- | The same ownership transfer stays safe through two source-defined helpers.
+  set-forwarded :: Unit -> Bool
+  set-forwarded unit = let array = array-from-list [Stored (buffer 17)] in
+    case put-forwarded array (Stored (buffer 23)) of None -> False; Some changed -> stored-at changed 0 23
+
+  -- | Replication retains its element argument after the primitive has returned.
+  replicate-direct :: Unit -> Bool
+  replicate-direct unit = let array = array-replicate 3 (Stored (buffer 29)) in stored-at array 0 29 && stored-at array 2 29
+
+  -- | A source helper cannot turn a retaining replication into a frame-safe borrow.
+  replicate-indirect :: Unit -> Bool
+  replicate-indirect unit = let array = replicate-forwarded (Stored (buffer 29)) in stored-at array 0 29 && stored-at array 2 29
+
+  -- | Preserve an ordinary helper boundary into a retaining tensor update.
+  #[inline(never)]
+  tensor-put :: Tensor Box -> Box -> Option (Tensor Box)
+  tensor-put tensor value = tensor-set tensor (array-from-list [0]) value
+
+  -- | Preserve a second tensor forwarding boundary for transitive capture analysis.
+  #[inline(never)]
+  tensor-forwarded :: Tensor Box -> Box -> Option (Tensor Box)
+  tensor-forwarded tensor value = tensor-put tensor value
+
+  -- | Observe the replacement value through the actual tensor getter.
+  tensor-stored :: Tensor Box -> Nat -> Bool
+  tensor-stored tensor expected = case tensor-get tensor (array-from-list [0]) of None -> False; Some box -> boxed-byte box == expected
+
+  -- | Store a fresh managed constructor in the copied tensor's data array.
+  tensor-direct :: Unit -> Bool
+  tensor-direct unit = case tensor-reshape (array-from-list [1]) (array-from-list [Stored (buffer 17)]) of
+    None -> False
+    Some original -> case tensor-set original (array-from-list [0]) (Stored (buffer 41)) of
+      None -> False
+      Some changed -> tensor-stored changed 41
+
+  -- | Tensor capture remains visible through two ordinary forwarding helpers.
+  tensor-indirect :: Unit -> Bool
+  tensor-indirect unit = case tensor-reshape (array-from-list [1]) (array-from-list [Stored (buffer 17)]) of
+    None -> False
+    Some original -> case tensor-forwarded original (Stored (buffer 41)) of
+      None -> False
+      Some changed -> tensor-stored changed 41
+
+  -- | A noncapturing source reader remains eligible to borrow a frame-local managed wrapper.
+  #[inline(never)]
+  managed-reader :: Box -> Nat
+  managed-reader box = boxed-byte box
+
+  -- | Preserve safe managed payload release after the read-only callee finishes.
+  #[inline(never)]
+  read-managed :: Unit -> Bool
+  read-managed unit = managed-reader (Stored (buffer 31)) == 31
+
+  -- | A noncapturing scalar reader preserves raw constructor frame allocation.
+  #[inline(never)]
+  raw-reader :: RawBox -> U64
+  raw-reader box = case box of RawBox value -> value
+
+  -- | Keep the raw read-only control independent from managed array storage.
+  #[inline(never)]
+  read-raw :: Unit -> Bool
+  read-raw unit = eq-u64 (raw-reader (RawBox 37)) 37

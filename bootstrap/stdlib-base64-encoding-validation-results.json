@@ -1,0 +1,268 @@
+{
+  "description": "Configurable Base64 byte encodings, persistent continuations and explicit stream adapters, with SIMD quanta and scalar decoder-field traversal.",
+  "full_stdlib_goal_complete": false,
+  "package_review_status": "complete",
+  "reference_package": "encoding/base64",
+  "reference_declarations": 24,
+  "source_sha256": {
+    "compiler/prelude/Text/Base64/Encoding.cinch": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "compiler/prelude/Effect/Base64.cinch": "4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231",
+    "compiler/tests/lib_base64_encoding.rs": "28c48e668750b1f704b6834156c7cbb373cb459440b5635810540b8a7b41f95c",
+    "compiler/tests/fixtures/base64-encoding-consumer.cinch": "d68648b2fd825afdee309643bd20db3b3e8d88810a064aefcc42fc666a0bb9ff",
+    "compiler/tests/fixtures/base64-encoding-vectors.json": "b340b3f671b85c65b88bf672209c23d80042bbf4722b9decb77e49f1b7aa7b0b",
+    "tooling/generate_base64_kernels.py": "42e6d6ed52821baa496d5d16bdbc2b7f3edeb779cb8f227266f80f8e98ff86aa",
+    "tooling/go_base64_encoding_vectors.go": "1df31f6f95a0ed3b61eb91947ed84ccfcf710bc003b833a5df3d27826ab6f4c0",
+    "tooling/validate_base64_encoding.py": "c93fad622e32a8fae4d7eb344aeade180f140c41813d4a81dac3543a35fbf792",
+    "tooling/tests/test_generate_base64_kernels.py": "cd81be5e90fafe36b7d3106774297b91037ad2e310bec354b4a806d40220b374",
+    "tooling/bench_base64_encoding.py": "ddc9a7947a6d6da18279c7331b0818b0c706e8cea8fb83a1c92d3cef436c8641",
+    "tooling/bench_base64_encoding_reference.go": "d00cb23f0cf5ca3897348229d2614bb3781e53bb49fe689d2de41106bcfe3ce9"
+  },
+  "compilers": {
+    "rust_frozen_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "native_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "native_wrapper_sha256": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+    "rust_implementation_source_sha256": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+    "runtime_implementation_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+    "implementation_unchanged_from_lane_base": "75d6a0cd",
+    "existing_compiler_gate_evidence": "stdlib-prim-wide-validation-results.json"
+  },
+  "tests": {
+    "rust_o2_cli_groups": 22,
+    "native_stage3_groups": 22,
+    "ordinary_heap": "32M",
+    "separate_poison_quarantine_heap": "256M",
+    "stack": "8M",
+    "zero_leaks_all_modes": true,
+    "fixture_rows": {
+      "construct": 6,
+      "malformed": 1125,
+      "schemes": 9,
+      "strict": 32,
+      "valid": 333
+    },
+    "all_encoder_splits_through_input_bytes": 32,
+    "all_decoder_splits_through_encoded_bytes": 32,
+    "selected_larger_splits_through_input_bytes": 257,
+    "largest_whole_buffer_bytes": 65536,
+    "one_byte_source_input_bytes": 65536,
+    "reference_fixture_reproducible": true,
+    "strengthened_strict_and_constructor_group": {
+      "rust": {
+        "description": "Offline configurable Base64 wire, malformed-input, ownership and streaming validation",
+        "frontend": "rust",
+        "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+        "fixture_sha256": "b340b3f671b85c65b88bf672209c23d80042bbf4722b9decb77e49f1b7aa7b0b",
+        "consumer_helpers_sha256": "d68648b2fd825afdee309643bd20db3b3e8d88810a064aefcc42fc666a0bb9ff",
+        "projector_sha256": "c93fad622e32a8fae4d7eb344aeade180f140c41813d4a81dac3543a35fbf792",
+        "source_sha256": {
+          "compiler/prelude/Text/Base64/Encoding.cinch": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+          "compiler/prelude/Effect/Base64.cinch": "4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231",
+          "compiler/prelude/Effect/Stream.cinch": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+          "compiler/prelude/Text/Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+          "compiler/prelude/Data/Bytes/Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "cases": [
+          {
+            "name": "strict",
+            "ordinary_heap": "32M",
+            "poisoned_heap": "256M",
+            "stack": "8M",
+            "zero_leaks": true
+          }
+        ]
+      },
+      "native": {
+        "description": "Offline configurable Base64 wire, malformed-input, ownership and streaming validation",
+        "frontend": "native",
+        "compiler_sha256": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+        "fixture_sha256": "b340b3f671b85c65b88bf672209c23d80042bbf4722b9decb77e49f1b7aa7b0b",
+        "consumer_helpers_sha256": "d68648b2fd825afdee309643bd20db3b3e8d88810a064aefcc42fc666a0bb9ff",
+        "projector_sha256": "c93fad622e32a8fae4d7eb344aeade180f140c41813d4a81dac3543a35fbf792",
+        "source_sha256": {
+          "compiler/prelude/Text/Base64/Encoding.cinch": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+          "compiler/prelude/Effect/Base64.cinch": "4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231",
+          "compiler/prelude/Effect/Stream.cinch": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+          "compiler/prelude/Text/Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+          "compiler/prelude/Data/Bytes/Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+        },
+        "cases": [
+          {
+            "name": "strict",
+            "ordinary_heap": "32M",
+            "poisoned_heap": "256M",
+            "stack": "8M",
+            "zero_leaks": true
+          }
+        ]
+      }
+    },
+    "all_other_projected_consumers_byte_identical": true,
+    "default_rust_o0_standard_cases": 37,
+    "default_o0_zero_leaks_both_modes": true,
+    "generator_and_projection_unit_tests": 3,
+    "generated_suffix_current": true,
+    "integration_rust_target": "lib_base64_encoding",
+    "integration_rust_target_run_in_agent_lane": false,
+    "integration_rust_target_delegated_to_parent": true,
+    "foreign_object_targets_compiled_in_agent_lane": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu"
+    ],
+    "big_endian_object_case_provided_in_rust_target": true,
+    "foreign_execution": false,
+    "integration_rust_target_parent_passed": 12,
+    "integration_rust_target_parent_seconds": 94.8,
+    "foreign_object_targets_compiled_in_parent_target": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "powerpc64-unknown-linux-gnu big endian"
+    ],
+    "final_integrated_target": {
+      "passed": 12,
+      "seconds": 146.76,
+      "compiler_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f"
+    }
+  },
+  "documentation": [
+    {
+      "module": "Text.Base64.Encoding",
+      "documented_declarations": 69,
+      "diagnostics": 0,
+      "orphans": 0
+    },
+    {
+      "module": "Effect.Base64",
+      "documented_declarations": 13,
+      "diagnostics": 0,
+      "orphans": 0
+    }
+  ],
+  "benchmark": {
+    "rows": 32,
+    "reference_checksums_all_match": true,
+    "report": "../benchmarks/stdlib/base64-encoding-O2-2026-11-16.json",
+    "before_report": "../benchmarks/stdlib/base64-before-fields-O2-2026-11-16.json",
+    "paired_report": "../benchmarks/stdlib/interleaved-base64-fields-O2-2026-11-16.json",
+    "final_space_report": "../benchmarks/stdlib/base64-encoding-space-2026-11-16.json",
+    "equal_path_space_report": "../benchmarks/stdlib/base64-fields-space-2026-11-16.json",
+    "baseline_patch": "../benchmarks/stdlib/base64-decoder-state-baseline.patch",
+    "baseline_patch_reconstructs_measured_hash": true,
+    "paired_64k_before_over_after": {
+      "standard_decode": 1.8893363915360302,
+      "custom_decode": 1.8365215467422764
+    },
+    "paired_32_byte_before_over_after": {
+      "standard_decode": 1.7352523776238589,
+      "custom_decode": 1.7789812150956168
+    },
+    "control_max_difference_percent": 3.8,
+    "equal_path_standard_64k_process_allocations": {
+      "before": {
+        "blocks": 11076,
+        "bytes": 1227802,
+        "peak": 219087
+      },
+      "after": {
+        "blocks": 147,
+        "bytes": 353482,
+        "peak": 219087
+      }
+    },
+    "encode_allocation_control_identical": true,
+    "hardware_or_allocation_parity_claimed": false
+  },
+  "codegen_inspection": {
+    "Text.Base64.Encoding.encode-word": {
+      "assembly_sha256": "5f33e5fd0d039a5d4dcb7c6e57346e1d43c4b53ce63cc2122374896640b3746c",
+      "packed_shift_shuffle_instructions": 6,
+      "calls": [
+        "cinch_bytes_data@PLT",
+        "cinch_bytes_len@PLT"
+      ]
+    },
+    "Text.Base64.Encoding.decode-word": {
+      "assembly_sha256": "b14d100ea4d9ecd72e607811469001aa37aed97b51db82c3d3b15a9e8eee8fd6",
+      "packed_shift_shuffle_instructions": 10,
+      "calls": [
+        "cinch_bytes_data@PLT",
+        "cinch_bytes_len@PLT"
+      ]
+    },
+    "Text.Base64.Encoding.decode-fields#cc": {
+      "assembly_sha256": "28e6df06b21131385c07cd7d8d7a30af6587bc5d60dfd53f359471cc60d9452c",
+      "packed_shift_shuffle_instructions": 30,
+      "calls": [
+        "\"Data.Bytes.Word.bytes-write-le32\"@PLT",
+        "\"Text.Base64.Encoding.decode-word\"@PLT",
+        "\"Text.Base64.Encoding.is-padding\"@PLT",
+        "\"Text.Base64.Encoding.valid-bits\"@PLT",
+        "Text.Base64.Encoding.store@PLT",
+        "Text.Base64.Encoding.value@PLT",
+        "cinch.rc.drop.tobj",
+        "cinch.rc.dup.tobj",
+        "cinch_alloc_ctor@PLT",
+        "cinch_bytes_data@PLT",
+        "cinch_bytes_get@PLT",
+        "cinch_bytes_len@PLT",
+        "cinch_drop_mt@PLT",
+        "cinch_drop_slow@PLT",
+        "cinch_dup_mt@PLT",
+        "cinch_frame_release@PLT",
+        "cinch_free@PLT",
+        "cinch_nat_add@PLT",
+        "cinch_nat_cmp@PLT",
+        "cinch_nat_mul@PLT",
+        "cinch_nat_sub@PLT",
+        "cinch_nat_to_i64@PLT"
+      ]
+    },
+    "Text.Base64.Encoding.encode-buffer": {
+      "assembly_sha256": "dc5b8d2f8b4fba1fd9de5b14d772e66540610d4a8611ae3e0dd376535d68700f",
+      "packed_shift_shuffle_instructions": 6,
+      "calls": [
+        "\"Data.Bytes.Word.bytes-write-le64\"@PLT",
+        "\"Text.Base64.Encoding.encode-word\"@PLT",
+        "\"Text.Base64.Encoding.pad-output\"@PLT",
+        "Text.Base64.Encoding.collect@PLT",
+        "Text.Base64.Encoding.store@PLT",
+        "cinch_bytes_data@PLT",
+        "cinch_bytes_len@PLT",
+        "cinch_drop_mt@PLT",
+        "cinch_drop_slow@PLT",
+        "cinch_dup_mt@PLT",
+        "cinch_frame_release@PLT",
+        "cinch_free@PLT",
+        "cinch_nat_add@PLT",
+        "cinch_nat_cmp@PLT",
+        "cinch_nat_div@PLT",
+        "cinch_nat_mul@PLT",
+        "cinch_nat_sub@PLT",
+        "cinch_nat_to_i64@PLT"
+      ]
+    }
+  },
+  "capability_mapping": {
+    "Encoding/NewEncoding": "Opaque Base64Encoding; validated copied custom alphabets and inverse maps, returning Base64ConfigError",
+    "StdEncoding/URLEncoding/RawStdEncoding/RawURLEncoding": "Four immutable public configurations",
+    "StdPadding/NoPadding (value and ideal-integer records)": "Some 61 from the standard padding getter and None for no padding; raw public configurations provide common no-padding policies",
+    "WithPadding/Strict": "Checked persistent base64-with-padding and base64-strict sharing immutable private tables",
+    "EncodedLen/DecodedLen": "Exact encoded length and conservative decoded byte capacity bound",
+    "Encode/EncodeToString/AppendEncode": "Fresh exact bytes, optional UTF-8 text, copied-prefix append and checked offset destination writes",
+    "Decode/DecodeString/AppendDecode": "Whole-buffer atomic convenience plus progress-preserving byte/text, append and checked offset destination decoding",
+    "CorruptInputError/Error": "Named original-byte failures with message and offset accessors; precise module-owned offset policy",
+    "NewEncoder/Write/Close": "Inspectable Base64Writer, accepted-byte writes, explicit finish and advanced-sink retrieval on success/failure",
+    "NewDecoder/Read": "Bounded decoding reader with owned surplus cursor, inert zero reads and sticky delayed failures"
+  },
+  "deliberate_api_policies": [
+    "Original-byte errors include ignored CR/LF; strict-bit errors point at the final alphabet symbol, and missing padding points at the first unfinished symbol. Incidental reference newline/pad offsets and wording are not copied.",
+    "Cinch text is UTF-8, so exact custom output becomes Option String; byte APIs preserve every alphabet/padding byte.",
+    "None is the no-padding policy; invalid negative padding values other than this policy are unrepresentable. Some values above255, CR/LF and alphabet collisions return named errors.",
+    "Caller-buffer decoding checks its full maximum capacity bound before mutation even when padding/newlines would make the actual decoded result shorter."
+  ],
+  "limitations": [
+    "Foreign kernel object compilation does not establish foreign runtime execution.",
+    "Output still uses checked word/byte helpers; generated encode/decode SIMD math is inlined, but public loops remain slower than the independent reference pipelines.",
+    "Immutable chunk, append and result ownership differs from mutable reference buffers.",
+    "The Native nested-final-argument fingerprint lowering issue is avoided by explicit local sequencing; the general Native runtime-IR repair is integrated and validated in a separately identified bootstrap epoch."
+  ]
+}

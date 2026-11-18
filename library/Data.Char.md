@@ -60,7 +60,7 @@ a wrapped scalar.
 
 ## `char-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-to-u32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">Char</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">1114111</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-to-u32</span> :: ((<span class="tok-variable">c</span> :: <span class="tok-constructor">Char</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">1114111</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">c</span>)) <span class="tok-constructor">U32</span>))</code></pre>
 
 Primitive types specification, section 6: Char values are Unicode
 scalar values, in code point order. `u32-to-char` rejects surrogates

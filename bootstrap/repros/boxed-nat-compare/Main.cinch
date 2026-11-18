@@ -1,0 +1,22 @@
+-- | Compare independently allocated mathematical naturals.
+module Main where
+  import Data.Bytes
+  import Data.Nat
+  import Effect.Process
+  -- | Observe equality and both orderings around immediate and multi-limb boundaries.
+  ordered :: Nat -> Nat -> Bool
+  ordered base size =
+    let value = nat-add base size in
+    let next = nat-add value 1 in
+    nat-cmp (nat-add base size) value == 0
+      && nat-cmp (nat-add base size) next < 0
+      && nat-cmp (nat-add next 1) value > 0
+  -- | Runtime inputs prevent constant folding from replacing the comparisons.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons input Nil) ->
+      let size = bytes-len (string-to-bytes input) in
+      if ordered 9223372036854775807 size
+        && ordered 18446744073709551616000000000000000000000000000000000000000000000000000000000000 size
+      then 0 else 1
+    other -> 2

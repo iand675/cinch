@@ -1,0 +1,20 @@
+{
+  "scope": "Actual pre-repair generated code; callbacks consume captured references while frame duplication is a no-op. Repeated callback source is corrected independently of the preserved first invalid fixture.",
+  "before_source_commit": "cf8cfb90",
+  "single_fold_exit": 71,
+  "repeated_optimized_exit": -11,
+  "repair": "Require heap-owned closure arguments for consuming parallel callbacks and reject private frame eligibility through duplicated or applied borrowed arguments; retain public ARC conventions.",
+  "additional_codegen_repair": "Opaque external calls may reenter through callbacks, so direct and transitive callers cannot claim norecurse.",
+  "runtime_change": false,
+  "files": {
+    "run-one.log": "e5a25f2f957522e296bb35c8437b21f725bb3af5ac8d3690f65fd81410d9b8c5",
+    "Main.cinch": "84f585fc0070b85647f3f72a293dfe1840e47b0c408d525adf4bbb4c4fa48ca6",
+    "before.ll": "f71776fe3be57c120cee2459a4eecca576b58eae9b38dff8254d9090601773fd",
+    "repeated/attempt1.cinchpart": "e52c0d975fbdca71f2f6f5b541d9e85a3799716df044a3340f2a6ed96788094d",
+    "repeated/Main.cinch": "24ebdf37bc21d2b9d83a8929823449e57443ef2bc2c7534ceefc1884a530ff09",
+    "repeated/link.log": "300239de84af5d11933e2788b3723857486675ee32b5167f6b1802d398d6f984",
+    "repeated/run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "repeated/before.ll": "b42b386f7cd57e4f031cea70ecac606cbf0b4a88a50112f319f8b7f6e641d89d",
+    "repeated/attempt1-emit.log": "c4a83d34d55ce92f0a42086b0df7c32a1e1f6e9d960d34e1a2e14e2a94a78ba1"
+  }
+}

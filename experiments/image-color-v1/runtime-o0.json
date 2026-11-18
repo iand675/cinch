@@ -1,0 +1,86 @@
+{
+  "scope": "Relink exact accepted public color IR at another backend optimization without re-emission.",
+  "accepted_report": "/workspace/dasl-stdlib-multipart/build/image-color/runtime-3dae-o2-v1/report.json",
+  "accepted_report_sha256": "d28fdffb8fb31aa75bc8f02a74cb92edad5f4cdf8350a5654f3771381feb189e",
+  "compiler": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/cinch",
+  "compiler_sha256": "3dae97d0f4033147262b1d2fc0fe0a74cb163c3641ea7acf29fd1454b40191f8",
+  "runtime": "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/libcinchruntime.a",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "source_sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+  "consumer_sha256": "b0f104d68d8d0e132f1dc7b026c65ad56cf63741e9a2490969b6383d610fc27f",
+  "vectors_sha256": "0a7932a4b6d0cf1bd7f29e04077df3c834745b84c6ddd16946f0693d088ce5b6",
+  "checked_ir_sha256": "274dc383447855991cf55ed4fbcce6f0a37b662589bb15b98790940eb6cb4f12",
+  "fixture_object_sha256": "7c346532ff65b278c34c84a6d907040c1bf78642a05e2085d80160a72cb4075b",
+  "opt": 0,
+  "compiler_reemission": false,
+  "cpu_affinity": [
+    1
+  ],
+  "compiler_host_stack_bytes": 67108864,
+  "runner_sha256": "ec5d516be79d9d916c76f538d2182f89ddd4b9b338b75246310290609f2662d0",
+  "initial_free_bytes": 882515968,
+  "resource_policy": {
+    "initial_mib": 350,
+    "reserve_mib": 250,
+    "unit_mib": 30
+  },
+  "commands": [
+    {
+      "command": [
+        "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "-O0",
+        "--target=x86_64-unknown-linux-gnu",
+        "/workspace/dasl-stdlib-multipart/build/image-color/runtime-3dae-o2-v1/consumer.ll",
+        "/workspace/dasl-stdlib-multipart/build/image-color/runtime-3dae-o2-v1/fixture.o",
+        "/workspace/dasl-stdlib-io/build/stdlib-json-release-frozen/libcinchruntime.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/dasl-stdlib-multipart/build/image-color/runtime-3dae-o0-v1/consumer"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "/usr/bin/ld: /tmp/consumer-360a15.o: warning: relocation against `Main.live-owner.lam93.tapp' in read-only section `.text'\n/usr/bin/ld: warning: creating DT_TEXTREL in a PIE\n",
+      "seconds": 0.5530057249998208
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/runtime-3dae-o0-v1/consumer"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "seconds": 0.020149671006947756
+    },
+    {
+      "command": [
+        "/workspace/dasl-stdlib-multipart/build/image-color/runtime-3dae-o0-v1/consumer"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "seconds": 0.024530401977244765
+    }
+  ],
+  "profiles": [
+    {
+      "poison": "0",
+      "heap": "32M",
+      "stack": "8M",
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "poison": "1",
+      "heap": "256M",
+      "stack": "8M",
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "executable_sha256": "8a026ae596be49398966e570c0c7d8559d8603368eb17026f7913b0b2103a1b2",
+  "status": "passed",
+  "final_free_bytes": 875900928,
+  "output_bytes": 6613280
+}

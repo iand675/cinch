@@ -15,20 +15,21 @@
 //! the count pass already treats as one owned reference. The allocation is
 //! frame-eligible when:
 //!
-//! 1. every reference to the binder is one of the four a frame block
-//!    admits: the scrutinee of a `case` (a borrowed read), a `Drop` or
+//! 1. every reference to the binder is a borrowed read, a `Drop` or
 //!    `Release` that ends it, a pass to a callee's owned parameter the
-//!    callee consumes, or a store into a field of a block that is itself
-//!    frame-bound. Anything else escapes the activation: a returned value,
+//!    callee consumes, or a field store classified by rule 2 below.
+//!    Anything else escapes the activation: a returned value,
 //!    a field of a heap block, a call argument whose callee may keep it, an
 //!    argument of a call in tail position, a `spawn` argument, a jump
 //!    argument, a projection's container, a closure environment slot, or a
 //!    `RefSet`/`BoxInit`/`LazyInit` store;
-//! 2. the binder is `Dup`ped only when its payload holds no counted word. A
-//!    second reference would outlive the payload's release, and a frame
-//!    block has no count to make one reference's drop a no-op; with
-//!    nothing counted in the payload there is nothing for either release to
-//!    do, so the two references cannot disagree;
+//! 2. a block with counted payload is not `Dup`ped: a second reference
+//!    could outlive its payload's release. Nested blocks stay on the heap
+//!    regardless of payload class. A field accessor can produce an alias
+//!    that outlives either the parent or its allocating activation, even
+//!    when the child's binder has no explicit `Dup` or return. The scan
+//!    does not yet propagate these aliases across owners. Blocks with no
+//!    counted payload still admit direct duplication;
 //! 3. the constructor's layout is a regular one (a `repr(C)`,
 //!    `repr(packed)` or `repr(transparent)` block stores its fields at
 //!    recorded offsets, which this lowering does not reproduce);
@@ -53,10 +54,16 @@
 //! Rule 1 is what the ownership lattice gives us for free: after
 //! `crate::rc::insert` every owned binder is consumed exactly once on every
 //! path, so "every reference is a read or one of the transfers above" is
-//! also "the reference never leaves the activation". The two transfers that
-//! are not a read widen the rule to a callee's frame and to a nested frame
-//! block, and each needs one fact about a place the pass cannot see:
+//! also "the reference never leaves the activation" for direct references.
+//! The transfers additionally need facts beyond the ARC calling convention:
 //!
+//! - Borrowing permits a primitive to retain or return an alias. Private
+//!   frame-safe modes therefore mask typed retaining primitive operands,
+//!   reject opaque imported lending metadata, and propagate capture through
+//!   ordinary Core callers to a shrinking fixed point. Public ARC modes
+//!   remain unchanged. A proven read-only tail-forwarding helper may read
+//!   a caller's frame, while the allocating unit still cannot tail-transfer
+//!   a value from its own frame.
 //! - A pass to a callee's owned parameter is admissible only when the
 //!   callee consumes the parameter ([`Facts::consumed`]: every reference to
 //!   it there is a read or a death, and nothing stores it, returns it or
@@ -64,12 +71,11 @@
 //!   the same path its own drop takes. A parameter the callee forwards to
 //!   another unit is not consumed by this rule, so forwarding is refused
 //!   (one pass over the program, no fixpoint over summaries).
-//! - A store into a field of another frame-bound block is admissible only
-//!   when that block is itself frame-bound, which means the decision is a
-//!   fixpoint: each round's frame binders make the stores into them
-//!   admissible in the next. The result grows monotonically, so it
-//!   terminates, and the frame limit is applied as a final shrink so it
-//!   cannot oscillate ([`decide`]).
+//! The scan retains nested-store classification and the frame-set fixpoint
+//! for its census. Those stores currently fail rule 2: a parent being
+//! frame-bound does not prove that an indirectly projected child stays in
+//! the activation. The frame limit is applied as a final shrink of the
+//! decision so it cannot oscillate ([`decide`]).
 //!
 //! # What the lowering relies on
 //!
@@ -82,9 +88,9 @@
 //! `cinch_frame_release` walks the block's map when a drop arrives from a
 //! place the unit cannot see (a callee's owned parameter, or a parent
 //! frame block's release). Either way the header is marked released first,
-//! so a second path into the same block does nothing: that marker is what
-//! lets a frame block be a payload field of another frame block and what
-//! makes a callee's drop of a frame argument safe.
+//! so a second release path into the same block does nothing. That marker
+//! does not keep a separately projected child alive; the planner therefore
+//! refuses nested placements while retaining safe consuming-callee drops.
 //!
 //! # Inspectability
 //!
@@ -93,7 +99,7 @@
 //! the artifact manifest). `--dump-core` prints `@frame(slots, bytes)` on a
 //! unit and marks each frame allocation's node with `@frame(f<slot>)`.
 
-use crate::core::{Core, FnDef, GlobalId, LocalId, Program};
+use crate::core::{Core, FnDef, GlobalId, LocalId, PrimOp, Program};
 use crate::repr::Class;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -132,6 +138,8 @@ impl Default for Options {
 /// `consume` (a callee's consumed owned parameter), `store` (a store into
 /// a frame-bound block), `none` (neither, the rule before
 /// design/stack-allocation.md section 7.3).
+/// Store classification remains available for diagnostics; the independent
+/// field-alias lifetime guard currently refuses nested frame placement.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Widen {
     #[default]
@@ -158,7 +166,8 @@ impl Widen {
         matches!(self, Widen::All | Widen::Consume)
     }
 
-    /// Whether a store into a frame-bound block is admissible.
+    /// Whether to classify a store into a frame-bound block separately.
+    /// Eligibility still requires the independent field-alias lifetime rule.
     fn stores(self) -> bool {
         matches!(self, Widen::All | Widen::Store)
     }
@@ -252,9 +261,9 @@ pub enum Refusal {
     /// the collector left), so there is no `Drop` for the payload release
     /// to hang on.
     Uncounted,
-    /// The binder is `Dup`ped and its payload holds a counted word: a
-    /// second reference needs a second release of that word, which a frame
-    /// block has no count to make a no-op.
+    /// The binder is `Dup`ped with counted payload, or stored inside
+    /// another frame block. A projected field can acquire an independent
+    /// lifetime, including one beyond the allocating activation.
     Duplicated,
     /// The payload is above the block limit and nothing else refuses it.
     Size,
@@ -668,10 +677,10 @@ struct Facts {
     ctors: HashMap<String, (Vec<Class>, usize, bool)>,
     /// Each unit's runtime parameter classes (`UnitRepr::params`).
     params: HashMap<String, Vec<Class>>,
-    /// The borrow inference's modes (`Program::borrowed`): `true` where the
-    /// caller only lends the argument.
+    /// Private frame-safe parameter facts derived from ARC borrowing plus
+    /// actual noncapture evidence; never published as an ABI convention.
     borrowed: BTreeMap<String, Vec<bool>>,
-    /// The primitive units' borrowed parameters (`Program::lent`).
+    /// Private primitive frame-safe modes: ARC lending alone permits retain.
     lent: BTreeMap<String, Vec<bool>>,
     /// Per unit, which of its parameters it consumes: every reference to
     /// the parameter inside the unit is a read or a death, none is
@@ -712,16 +721,85 @@ impl Facts {
             // fixpoint over the call graph (module docs).
             consumed: HashMap::new(),
         }
+        .with_frame_safety(p, widen)
         .with_summaries(p, widen)
     }
 
-    /// [`Facts::of`]'s second step: fill [`Facts::consumed`] from every
+    /// Separate ARC lending from frame noncapture, then propagate capture
+    /// through ordinary forwarding functions without changing any public mode.
+    fn with_frame_safety(mut self, p: &Program, widen: Widen) -> Facts {
+        let mut primitives = BTreeMap::new();
+        let mut primitive_globals = BTreeMap::new();
+        for f in &p.fns {
+            if let Some(op) = f.prim {
+                primitive_globals.insert(f.id.0.clone(), op);
+                primitives.insert(op.symbol(), op);
+            }
+            collect_frame_primitives(&f.body, &mut primitives);
+        }
+        let opaque: BTreeSet<&str> = p.foreigns.values().filter(|plan| !plan.export)
+            .map(|plan| plan.unit.as_str()).collect();
+        let units: Vec<&FnDef> = p.fns.iter()
+            .filter(|f| frame_body_available(f, &opaque, &p.lent_entries)).collect();
+        let index: HashMap<&str, usize> = units.iter().enumerate().map(|(i, f)| (f.id.0.as_str(), i)).collect();
+        // A Core::Prim symbol proves only that direct primitive's modes.
+        // It cannot authenticate an opaque Global with the same spelling.
+        self.borrowed.retain(|name, _| index.contains_key(name.as_str()) || primitive_globals.contains_key(name));
+        self.lent.retain(|name, _| primitives.contains_key(name));
+        for (modes_by_name, authority) in [(&mut self.borrowed, &primitive_globals), (&mut self.lent, &primitives)] {
+          for (name, modes) in modes_by_name {
+            if let Some(op) = authority.get(name) {
+                for (position, mode) in modes.iter_mut().enumerate() {
+                    *mode &= !primitive_requires_heap_argument(*op, position);
+                }
+            }
+          }
+        }
+        let mut callers: HashMap<String, Vec<usize>> = HashMap::new();
+        for (i, f) in units.iter().enumerate() {
+            let mut called = BTreeSet::new();
+            collect_frame_callees(&f.body, &mut called);
+            for callee in called { callers.entry(callee).or_default().push(i); }
+        }
+        let mut queue: Vec<usize> = (0..units.len()).rev().collect();
+        let mut queued = vec![true; units.len()];
+        while let Some(i) = queue.pop() {
+            queued[i] = false;
+            let f = units[i];
+            let Some(current) = self.borrowed.get(&f.id.0).filter(|modes| modes.iter().any(|mode| *mode)) else { continue };
+            let next = {
+                let mut scan = Scan::with_frames(&self, BTreeSet::new(), widen);
+                // These are a caller's objects, not allocations in this
+                // callee's own frame. Tail forwarding into an established
+                // noncapturing callee is therefore safe; returning the
+                // parameter itself still escapes through Role::Return.
+                scan.go(&f.body, Role::Return, None, false);
+                current.iter().enumerate().map(|(position, mode)| *mode
+                    && position < f.arity()
+                    // An ARC loan may create temporary owned aliases or
+                    // invoke a closure through consuming apply. A frame
+                    // marker cannot provide those additional references.
+                    && scan.uses.get(&position).is_none_or(|uses| uses.escapes() == 0
+                        && uses.duplicated == 0 && uses.applied == 0)).collect::<Vec<_>>()
+            };
+            if &next == current { continue; }
+            self.borrowed.insert(f.id.0.clone(), next);
+            for &caller in callers.get(&f.id.0).into_iter().flatten() {
+                if !queued[caller] { queued[caller] = true; queue.push(caller); }
+            }
+        }
+        self
+    }
+
+    /// [`Facts::of`]'s consuming-parameter step: fill [`Facts::consumed`] from every
     /// unit's body.
     fn with_summaries(mut self, p: &Program, widen: Widen) -> Facts {
         let mut consumed = HashMap::with_capacity(p.fns.len());
+        let opaque: BTreeSet<&str> = p.foreigns.values().filter(|plan| !plan.export)
+            .map(|plan| plan.unit.as_str()).collect();
         for f in &p.fns {
-            if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
-                // A unit whose body is not Core has no references to read.
+            if !frame_body_available(f, &opaque, &p.lent_entries) {
+                // An opaque implementation's cleanup stub is not its body.
                 continue;
             }
             consumed.insert(f.id.0.clone(), self.summary(f, widen));
@@ -744,6 +822,76 @@ impl Facts {
             })
             .collect()
     }
+}
+
+/// Whether a function has an actual local Core body that can prove either
+/// borrowed noncapture or owned consumption, rather than an imported cleanup stub.
+fn frame_body_available(
+    f: &FnDef,
+    foreign_imports: &BTreeSet<&str>,
+    lent_entries: &BTreeMap<String, crate::core::LentEntry>,
+) -> bool {
+    f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body
+        && !foreign_imports.contains(f.id.0.as_str())
+        && !matches!(lent_entries.get(&f.id.0), Some(crate::core::LentEntry::Imported { .. }))
+}
+
+/// Whether a typed primitive needs a heap owner despite borrowing its argument.
+/// Retention, escaping addresses, and callback invocation through a consuming
+/// apply stub all need reference duplication that a frame marker cannot supply.
+fn primitive_requires_heap_argument(op: PrimOp, position: usize) -> bool {
+    use crate::arrays::ArrayOp;
+    match op {
+        PrimOp::Array { op, .. } => match op {
+            ArrayOp::Replicate => position == 1,
+            // The persistent element is retained; the optimizer's unique
+            // array update may also return its input array identity.
+            ArrayOp::Set => position == 0 || position == 2,
+            ArrayOp::TensorSet => position == 2,
+            ArrayOp::Reshape | ArrayOp::Zip => position < 2,
+            ArrayOp::Column => position == 0,
+            // These operations read/copy element owners or return child
+            // owners, but never retain the argument container itself.
+            ArrayOp::FromList | ArrayOp::Len | ArrayOp::Get | ArrayOp::Slice
+            | ArrayOp::Append | ArrayOp::Shape | ArrayOp::Data | ArrayOp::TensorGet
+            | ArrayOp::Rows | ArrayOp::Columns | ArrayOp::Row | ArrayOp::Left
+            | ArrayOp::Right | ArrayOp::Leaf => false,
+        },
+        PrimOp::Stm { op, .. } => matches!(op, crate::stm::StmOp::CellNew
+            | crate::stm::StmOp::CellCast | crate::stm::StmOp::CellAddr) && position == 0,
+        PrimOp::Slots { op: crate::slots::SlotOp::Write, .. } => position == 2,
+        PrimOp::Delay | PrimOp::Bytes(crate::core::BytesOp::Data) => position == 0,
+        PrimOp::Conc(crate::core::ConcOp::Spawn) => true,
+        // The runtime lends the caller's closure but duplicates an owned
+        // reference for each consuming apply invocation. Frame duplication
+        // is a no-op, so its captures would be released while the caller
+        // still owns the closure (and before a repeated callback invocation).
+        PrimOp::Par { op, .. } => match op {
+            crate::core::ParOp::Workers => false,
+            crate::core::ParOp::Both => position < 2,
+            crate::core::ParOp::Tabulate => position == 1,
+            crate::core::ParOp::MapArray => position == 0,
+        },
+        _ => false,
+    }
+}
+
+/// Recover primitive authority from actual typed operations, not imported
+/// lending metadata or a function's spelling.
+fn collect_frame_primitives(body: &Core, out: &mut BTreeMap<String, PrimOp>) {
+    if let Core::Prim(op) = body { out.insert(op.symbol(), *op); }
+    // The generic child iterator deliberately excludes application heads.
+    if let Core::App(head, _) = body { collect_frame_primitives(head, out); }
+    for child in crate::core::child_slots_imm(body) { collect_frame_primitives(child, out); }
+}
+
+/// Build the dependency worklist for transitive ordinary-function capture.
+fn collect_frame_callees(body: &Core, out: &mut BTreeSet<String>) {
+    if let Core::App(head, _) = body {
+        if let Core::Global(unit, _) = &**head { out.insert(unit.0.clone()); }
+        collect_frame_callees(head, out);
+    }
+    for child in crate::core::child_slots_imm(body) { collect_frame_callees(child, out); }
 }
 
 /// Whether a word of class `c` is counted (the class pass's rule).
@@ -873,12 +1021,13 @@ fn unit(f: &FnDef, facts: &Facts, opts: &Options, report: &mut Report) -> (Plan,
 /// The rule's fixpoint for one unit: the binders that take a frame slot,
 /// with the scan they were decided under.
 ///
-/// A store into a block is admissible only when that block is itself
-/// frame-bound, so the store rule makes the decision a fixpoint: start with
+/// Nested-store classification depends on that block being itself
+/// frame-bound, so the scan retains a fixpoint: start with
 /// no frame binder and repeat, each round taking the candidates the last
 /// round's frame set makes eligible. Adding a frame binder can only turn a
-/// store from an escape into a consumption, so the set grows and the
-/// iteration terminates.
+/// store from a heap escape into a nested store. The independent alias rule
+/// currently refuses either placement, but retaining the classification
+/// keeps the census accurate. The set grows and the iteration terminates.
 ///
 /// The frame limit is *not* part of that iteration: it would make the
 /// decision non-monotone (an earlier slot can push a later one over the
@@ -971,13 +1120,12 @@ fn eligible(x: usize, cand: &Cand, scan: &Scan<'_>) -> Result<(), Refusal> {
         return Err(Refusal::Size);
     }
     let u = scan.uses.get(&x).cloned().unwrap_or_default();
-    // A second reference is harmless only when the payload holds nothing to
-    // release: a frame block's dup writes no count (the `RC_FRAME` header
-    // is never counted) and its drop frees nothing, so two references
-    // cannot disagree about a payload that has no owned word in it. With a
-    // counted word, the release of one reference would leave the other
-    // reading dropped children, and no count can tell them apart.
-    if u.duplicated > 0 && !site.fields.is_empty() {
+    // Direct duplication needs no extra payload lifetime when there is
+    // nothing counted to release. A nested child needs a stronger proof:
+    // an accessor can return it beyond its parent's allocating activation,
+    // where even raw fields would refer to expired frame storage. The scan
+    // does not relate that returned field alias to this binder yet.
+    if u.stored > 0 || (u.duplicated > 0 && !site.fields.is_empty()) {
         return Err(Refusal::Duplicated);
     }
     if let Some(why) = u.first() {
@@ -1577,8 +1725,8 @@ fn class_index(why: Refusal) -> usize {
     Refusal::ALL.iter().position(|r| *r == why).expect("every class is in ALL")
 }
 
-/// The parameter modes of a saturated call's head, when the program's
-/// borrow inference gave it any (`true` borrowed).
+/// The frame-safe modes of a saturated call's head, after typed primitive
+/// retain checks and transitive noncapture analysis (`true` safe to lend a frame).
 fn callee_modes<'f>(facts: &'f Facts, head: &Core) -> Option<&'f Vec<bool>> {
     match head {
         Core::Global(g, _) => facts.borrowed.get(&g.0),
@@ -1627,9 +1775,10 @@ fn verify(program: &Program, opts: &Options) {
             // no counted word to release twice (the rule `eligible` states),
             // and some path must release the payload.
             assert!(
-                (u.duplicated == 0 || site.fields.is_empty()) && u.escapes() == 0,
-                "compiler bug: {unit}: frame binder {x} escapes ({} dups, {} escapes, {} counted fields)",
+                u.stored == 0 && (u.duplicated == 0 || site.fields.is_empty()) && u.escapes() == 0,
+                "compiler bug: {unit}: frame binder {x} escapes ({} dups, {} nested stores, {} escapes, {} counted fields)",
                 u.duplicated,
+                u.stored,
                 u.escapes(),
                 site.fields.len()
             );
@@ -1639,4 +1788,185 @@ fn verify(program: &Program, opts: &Options) {
             );
         }
     }
+}
+
+/// Frame-safety regressions distinguish retained borrows from published ARC modes.
+#[cfg(test)]
+mod frame_capture_tests {
+    use super::*;
+    use crate::core::{FnHints, FnMeta, UnitRepr};
+
+    /// Construct an analyzed Core function with counted parameters.
+    fn unit(name: &str, parameters: Vec<Class>, body: Core) -> FnDef {
+        FnDef { id: GlobalId(name.into()), params: (0..parameters.len()).map(|i| format!("p{i}")).collect(),
+            body, prim: None, ctor: None, hints: FnHints::default(), meta: FnMeta::default(),
+            repr: UnitRepr { params: parameters, ..UnitRepr::default() } }
+    }
+
+    /// Keep every public mode table separate from the private facts under test.
+    fn program(fns: Vec<FnDef>) -> Program {
+        Program::from_functions(fns)
+    }
+
+    /// Call one ordinary function with the same borrowed parameter.
+    fn forward(name: &str) -> Core {
+        Core::App(Box::new(Core::Global(GlobalId(name.into()), vec![])), vec![Core::Var(LocalId(0))])
+    }
+
+    /// Query a missing or explicitly false frame mode uniformly.
+    fn frame_safe(facts: &Facts, name: &str, position: usize) -> bool {
+        facts.borrowed.get(name).and_then(|modes| modes.get(position)).copied().unwrap_or(false)
+    }
+
+    /// Audit retained whole-argument identities, values and raw addresses against typed primitive contracts.
+    #[test]
+    fn retaining_primitive_operands_are_not_frame_noncapture_evidence() {
+        use crate::arrays::ArrayOp;
+        let array = |op| PrimOp::Array { op, classes: [Class::Obj; 2], packed: None };
+        for (op, positions) in [(ArrayOp::Replicate, vec![1]), (ArrayOp::Set, vec![0, 2]),
+            (ArrayOp::TensorSet, vec![2]), (ArrayOp::Reshape, vec![0, 1]),
+            (ArrayOp::Column, vec![0]), (ArrayOp::Zip, vec![0, 1])] {
+            for position in positions { assert!(primitive_requires_heap_argument(array(op), position)); }
+        }
+        for op in [ArrayOp::FromList, ArrayOp::Get, ArrayOp::Len, ArrayOp::Append, ArrayOp::Slice] {
+            assert!(!primitive_requires_heap_argument(array(op), 0));
+        }
+        for op in [crate::stm::StmOp::CellNew, crate::stm::StmOp::CellCast, crate::stm::StmOp::CellAddr] {
+            assert!(primitive_requires_heap_argument(PrimOp::Stm { op, classes: [Class::Obj; 2] }, 0));
+        }
+        assert!(primitive_requires_heap_argument(PrimOp::Slots { op: crate::slots::SlotOp::Write, classes: [Class::Obj; 2] }, 2));
+        assert!(primitive_requires_heap_argument(PrimOp::Delay, 0));
+        assert!(primitive_requires_heap_argument(PrimOp::Bytes(crate::core::BytesOp::Data), 0));
+        assert!(!primitive_requires_heap_argument(PrimOp::Bytes(crate::core::BytesOp::Len), 0));
+    }
+
+    /// Capturing typed primitives taint direct callers and every ordinary forwarding layer.
+    #[test]
+    fn frame_capture_propagates_through_ordinary_helpers_without_changing_arc_abi() {
+        let op = PrimOp::Array { op: crate::arrays::ArrayOp::Replicate, classes: [Class::Obj; 2], packed: None };
+        let direct = unit("Direct", vec![Class::Obj], Core::App(Box::new(Core::Prim(op)),
+            vec![Core::ConstBig { nat: true, digits: "3".into() }, Core::Var(LocalId(0))]));
+        let mut p = program(vec![unit("Second", vec![Class::Obj], forward("First")),
+            unit("First", vec![Class::Obj], forward("Direct")), direct]);
+        for name in ["Direct", "First", "Second"] { p.borrowed.insert(name.into(), vec![true]); }
+        p.lent.insert(op.symbol(), vec![true, true]);
+        let original = p.borrowed.clone(); let original_lent = p.lent.clone();
+        let facts = Facts::of(&p, Widen::All);
+        for name in ["Direct", "First", "Second"] { assert!(!frame_safe(&facts, name, 0)); }
+        assert_eq!(facts.lent[&op.symbol()], vec![true, false]);
+        assert_eq!(p.borrowed, original); assert_eq!(p.lent, original_lent);
+    }
+
+    /// Source forwarding cannot hide consuming closure application behind an ARC loan.
+    #[test]
+    fn borrowed_apply_and_forwarding_require_a_heap_closure_owner() {
+        let apply = unit("Apply", vec![Class::Obj], Core::App(
+            Box::new(Core::Var(LocalId(0))), vec![Core::Unit],
+        ));
+        let mut p = program(vec![unit("Forward", vec![Class::Obj], forward("Apply")), apply]);
+        for name in ["Apply", "Forward"] { p.borrowed.insert(name.into(), vec![true]); }
+        let original = p.borrowed.clone();
+        let facts = Facts::of(&p, Widen::default());
+        assert!(!frame_safe(&facts, "Apply", 0));
+        assert!(!frame_safe(&facts, "Forward", 0));
+        assert_eq!(p.borrowed, original, "private frame eligibility must not change the public ARC convention");
+    }
+
+    /// A Global primitive wrapper needs the same typed capture mask as a direct Core primitive.
+    #[test]
+    fn global_primitive_wrappers_cannot_hide_retained_arguments() {
+        let op = PrimOp::Array { op: crate::arrays::ArrayOp::Replicate, classes: [Class::Obj; 2], packed: None };
+        let mut wrapper = unit("Primitive.wrapper", vec![Class::TObj, Class::Obj], Core::Unit);
+        wrapper.prim = Some(op);
+        let caller = unit("Caller", vec![Class::Obj], Core::App(Box::new(Core::Global(wrapper.id.clone(), vec![])),
+            vec![Core::ConstBig { nat: true, digits: "3".into() }, Core::Var(LocalId(0))]));
+        let mut p = program(vec![caller, wrapper]);
+        p.borrowed.insert("Primitive.wrapper".into(), vec![true, true]);
+        p.borrowed.insert("Caller".into(), vec![true]);
+        let facts = Facts::of(&p, Widen::All);
+        assert!(!frame_safe(&facts, "Primitive.wrapper", 1));
+        assert!(!frame_safe(&facts, "Caller", 0));
+    }
+
+    /// Opaque imported ABI lending is not authority, while proven read-only tail forwarding remains safe.
+    #[test]
+    fn opaque_lent_metadata_is_refused_and_actual_readers_remain_frame_safe() {
+        let read = PrimOp::Bytes(crate::core::BytesOp::Len);
+        let reader = unit("Reader", vec![Class::Obj], Core::App(Box::new(Core::Prim(read)), vec![Core::Var(LocalId(0))]));
+        let mut opaque = unit("Opaque", vec![Class::Obj], Core::Unit); opaque.meta.prim_body = true;
+        let mut p = program(vec![unit("ReadForward", vec![Class::Obj], forward("Reader")), reader,
+            unit("ExternalForward", vec![Class::Obj], forward("External")),
+            unit("ImportedForward", vec![Class::Obj], forward("Imported")),
+            unit("Imported", vec![Class::Obj], Core::Unit),
+            unit("OpaqueForward", vec![Class::Obj], forward("Opaque")), opaque]);
+        p.lent_entries.insert("Imported".into(), crate::core::LentEntry::Imported { width: 1 });
+        for name in ["Reader", "ReadForward", "External", "ExternalForward", "Opaque", "OpaqueForward", "Imported", "ImportedForward"] {
+            p.borrowed.insert(name.into(), vec![true]);
+        }
+        p.lent.insert(read.symbol(), vec![true]);
+        let facts = Facts::of(&p, Widen::All);
+        for name in ["Reader", "ReadForward"] { assert!(frame_safe(&facts, name, 0)); }
+        for name in ["External", "ExternalForward", "Opaque", "OpaqueForward", "Imported", "ImportedForward"] { assert!(!frame_safe(&facts, name, 0)); }
+        assert!(p.borrowed["External"][0]);
+    }
+    /// An unrelated typed primitive cannot authenticate an imported Global with its canonical spelling.
+    #[test]
+    fn direct_primitive_symbols_do_not_authenticate_opaque_global_names() {
+        let read = PrimOp::Bytes(crate::core::BytesOp::Len);
+        for imported in [false, true] {
+            let name = read.symbol();
+            let mut opaque = unit(&name, vec![Class::Obj], Core::Unit);
+            opaque.meta.prim_body = !imported;
+            let direct = unit("DirectReader", vec![Class::Obj],
+                Core::App(Box::new(Core::Prim(read)), vec![Core::Var(LocalId(0))]));
+            let mut p = program(vec![opaque, direct,
+                unit("GlobalCaller", vec![Class::Obj], forward(&name))]);
+            if imported {
+                p.lent_entries.insert(name.clone(), crate::core::LentEntry::Imported { width: 1 });
+            }
+            for unit in [&name[..], "DirectReader", "GlobalCaller"] {
+                p.borrowed.insert(unit.into(), vec![true]);
+            }
+            p.lent.insert(name.clone(), vec![true]);
+            let facts = Facts::of(&p, Widen::All);
+            assert!(facts.lent[&name][0]);
+            assert!(frame_safe(&facts, "DirectReader", 0));
+            assert!(!frame_safe(&facts, &name, 0));
+            assert!(!frame_safe(&facts, "GlobalCaller", 0));
+            assert!(p.borrowed[&name][0]);
+        }
+    }
+
+    /// Imported cleanup stubs cannot re-admit a frame through owned-consuming summaries.
+    #[test]
+    fn opaque_cleanup_stubs_supply_neither_borrowed_nor_consumed_frame_authority() {
+        use crate::core::{AbiClass, AbiParam, ForeignPlan};
+        let cleanup = || Core::Drop(LocalId(0), Class::Obj, Box::new(Core::Unit));
+        let mut p = program(vec![unit("ImportedDestroy", vec![Class::Obj], cleanup()),
+            unit("ForeignDestroy", vec![Class::Obj], cleanup()),
+            unit("ActualDestructor", vec![Class::Obj], cleanup())]);
+        p.lent_entries.insert("ImportedDestroy".into(), crate::core::LentEntry::Imported { width: 1 });
+        let parameter = AbiParam { ty: "Bytes".into(), class: AbiClass::Ptr, role: "borrowed".into(),
+            allocator: String::new(), nullable: false, width: 8, align: 8, signed: false,
+            pointee_align: 0, by_value: false, tag: 0, fields: vec![], leaves: vec![] };
+        let result = AbiParam { ty: "Unit".into(), class: AbiClass::Unit, ..parameter.clone() };
+        p.foreigns.insert("foreign_destroy".into(), ForeignPlan {
+            symbol: "foreign_destroy".into(), export: false, unit: "ForeignDestroy".into(),
+            convention: "ccall".into(), params: vec![parameter], result, deallocator: String::new(),
+            canon: None, blocking: false });
+        for name in ["ImportedDestroy", "ForeignDestroy"] {
+            p.borrowed.insert(name.into(), vec![true]);
+        }
+        p.borrowed.insert("ActualDestructor".into(), vec![false]);
+        let facts = Facts::of(&p, Widen::All);
+        for name in ["ImportedDestroy", "ForeignDestroy"] {
+            let head = Core::Global(GlobalId(name.into()), vec![]);
+            assert!(!frame_safe(&facts, name, 0));
+            assert!(callee_consumes(&facts, &head).is_none());
+        }
+        assert_eq!(facts.consumed["ActualDestructor"], vec![true]);
+        assert!(p.borrowed["ImportedDestroy"][0]);
+        assert!(p.borrowed["ForeignDestroy"][0]);
+    }
+
 }

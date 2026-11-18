@@ -297,6 +297,9 @@ fn emit_module(
     prune: bool,
     shared: bool,
 ) -> Result<EmittedObject> {
+    // Inspection emission can receive checked Core without ownership
+    // planning. Keep the same strict stages before its wide edges too.
+    let program: &Program = &crate::applications::with_boundaries(program);
     // The wide edges (`crate::wide`): already inserted when reference
     // counting ran, inserted here when it did not.
     let program: &Program = &crate::wide::with_edges(program);
@@ -321,9 +324,12 @@ fn emit_module(
     // The internal convention is a target property (`tail_conv`): where
     // LLVM's `tailcc` exists, the units whose tail calls are guaranteed run
     // under it ([`tail_units`]) and the rest keep the C convention;
-    // elsewhere (WebAssembly, whose backend has only the C convention, and
-    // 32-bit targets) the C convention and its widened tail workers stay.
-    let tail_conv = profile.word_size == 64 && profile.arch != "wasm32";
+    // The convention is supported by the x86-64 and AArch64 backends;
+    // word size alone does not establish support. In particular, PowerPC64
+    // refuses required tailcc calls with stack arguments. Other targets
+    // retain the C convention and its widened tail workers.
+    let tail_conv = profile.word_size == 64
+        && matches!(profile.arch.as_str(), "x86_64" | "aarch64");
     let mut reg = Registry::build(program, (profile.word_size / 8) as usize, tail_conv)?;
     // An apply stub's prefix data holds the tail twin's address as an
     // absolute integer, and Mach-O cannot encode an absolute address in a
@@ -482,7 +488,10 @@ fn emit_module(
         "declare i64 @cinch_nat_mul(i64, i64)",
         "declare i64 @cinch_nat_div(i64, i64)",
         "declare i64 @cinch_nat_rem(i64, i64)",
-        "declare i64 @cinch_nat_cmp(i64, i64) readnone nounwind willreturn",
+        // Boxed naturals require header and limb reads. Claiming readnone
+        // permits LLVM to move the comparison after its final owner release.
+        // Keep memory effects conservative, as for the other boxed readers.
+        "declare i64 @cinch_nat_cmp(i64, i64) nounwind willreturn",
         "declare i64 @cinch_nat_from_decimal(ptr, i64)",
         "declare i64 @cinch_int_from_i64(i64)",
         "declare i64 @cinch_int_to_i64(i64)",
@@ -994,6 +1003,13 @@ fn emit_module(
             group,
             if private(&u.name) {
                 Some("internal")
+            } else if profile.arch == "powerpc64" && !object && !shared {
+                // Whole-program definitions bind within this executable.
+                // ELFv1 must know that a required C-convention tail call
+                // keeps the current TOC; a preemptable symbol cannot give
+                // that guarantee. Relocatable/public object linkage and
+                // shared-library export handling remain separate.
+                Some("dso_local")
             } else {
                 (object && primitive).then_some("linkonce_odr")
             },
@@ -1826,6 +1842,18 @@ impl Registry {
                 reg.narrow_sigs.insert(op.symbol(), sig);
             }
         }
+        // Inline primitive wrappers keep their canonical word ABI except at
+        // declared wide positions. The fragment's i128 values cross those
+        // boundaries directly; closure frames use the ordinary wide boxing path.
+        for plan in &p.prims {
+            let cross = |t: &PrimAbiTy| {
+                if matches!(t, PrimAbiTy::Int { bits: 128, .. }) { Cross::WIDE } else { Cross::WORD }
+            };
+            let sig = NarrowSig { params: plan.args.iter().map(cross).collect(), ret: cross(&plan.res) };
+            if sig.is_wide() {
+                reg.narrow_sigs.insert(plan.unit.clone(), sig);
+            }
+        }
         // A foreign import's wrapper takes and gives a `__int128` as the
         // `i128` it is in every wide position.
         for (name, plan) in &p.foreigns {
@@ -2025,9 +2053,10 @@ impl Registry {
     /// in a fixed order, each constructor's map its field classes or its
     /// boundary plan's words.
     fn lay_out_constructors(&mut self, p: &Program) -> Result<()> {
+        // Whole declarations were checked before reachability pruning. Live
+        // representation copies still have to match that exact inventory.
+        check_builtin_constructors(p)?;
         let mut types: BTreeMap<String, BTreeMap<usize, (String, Vec<Class>)>> = BTreeMap::new();
-        // The built prelude types' payload words per tag, across copies.
-        let mut built: BTreeMap<&str, BTreeMap<usize, u64>> = BTreeMap::new();
         for f in &p.fns {
             let Some((tag, fields)) = f.ctor else {
                 continue;
@@ -2049,14 +2078,6 @@ impl Registry {
                 // index family's): never counted.
                 None => vec![Class::Raw; fields],
             };
-            if let Some(d) = f.repr.data.as_deref() {
-                if let Some((name, _)) = BUILT_TYPES.iter().find(|(k, _)| *k == d) {
-                    // Fields, not words: `Some@W`'s one field is two words,
-                    // and the blocks the primitives build follow the same
-                    // field layout.
-                    built.entry(name).or_default().insert(tag, fields as u64);
-                }
-            }
             if types
                 .entry(key.clone())
                 .or_default()
@@ -2068,23 +2089,14 @@ impl Registry {
                 ));
             }
         }
-        for (key, words) in BUILT_TYPES {
-            if let Some(got) = built.get(key) {
-                let got: Vec<u64> = (0..got.keys().next_back().map_or(0, |t| t + 1))
-                    .map(|t| got.get(&t).copied().unwrap_or(0))
-                    .collect();
-                if got != words {
-                    return err(format!(
-                        "the prelude type {key} has payload words {got:?} per constructor; code generation builds it as {words:?}"
-                    ));
-                }
-            }
-        }
         // Every constructor describes itself by its tag and the counted
         // mask of its fields (design/self-describing-blocks.md).
         for ctors in types.values() {
             for (tag, (unit, map)) in ctors {
-                let desc = self.descs.borrow_mut().describe(block::KIND_CTOR, *tag as u64, map);
+                let desc = self
+                    .descs
+                    .borrow_mut()
+                    .describe(block::KIND_CTOR, *tag as u64, map);
                 self.ctor_descs.insert(unit.clone(), desc);
             }
         }
@@ -2244,13 +2256,14 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
         }
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Eval => vec![Class::Obj],
         // The parallel units' parameters: two closures, or the callback and
-        // the count / input array. The element classes are immediates in
+        // the count / input array, or a participant count alone. The element classes are immediates in
         // the body, not parameters.
         PrimOp::Par { op, .. } => match op {
             crate::core::ParOp::Both | crate::core::ParOp::MapArray => {
                 vec![Class::Obj, Class::Obj]
             }
             crate::core::ParOp::Tabulate => vec![Class::TObj, Class::Obj],
+            crate::core::ParOp::Workers => vec![Class::TObj],
         },
         PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
         PrimOp::Conc(IoRead | IoSleep) => vec![Class::Raw, Class::TObj],
@@ -2389,16 +2402,131 @@ fn unit_param_classes(p: &Program, reg: &Registry) -> HashMap<String, Vec<Class>
 /// The prelude types the code generator builds without a constructor unit
 /// in hand: the `Option` results of primitives, the `Result` outcomes of
 /// the platform and task units, and the `Ordering` of comparisons. Each
-/// row is the data type and its constructors' payload words in tag order,
-/// exactly the prelude's declarations (`prelude/Data/Core.cinch`,
+/// row is the data type and its constructor identities and runtime field
+/// counts in tag order, exactly the prelude's declarations (`prelude/Data/Core.cinch`,
 /// `prelude/Data/Ordering.cinch`). Those blocks take anonymous shapes
 /// (`Layouts::shape_desc`) with the same tags, so a program that declares
 /// the types otherwise is refused rather than miscompiled.
-const BUILT_TYPES: [(&str, &[u64]); 3] = [
-    (crate::known::OPTION, &[0, 1]),
-    (crate::known::RESULT, &[1, 1]),
-    (crate::known::ORDERING, &[0, 0, 0]),
+/// A wide scalar remains one field even though it occupies two payload words.
+const BUILT_TYPES: [(&str, &[(&str, usize)]); 3] = [
+    (
+        crate::known::OPTION,
+        &[("Data.Core.None", 0), ("Data.Core.Some", 1)],
+    ),
+    (
+        crate::known::RESULT,
+        &[("Data.Core.Err", 1), ("Data.Core.Ok", 1)],
+    ),
+    (
+        crate::known::ORDERING,
+        &[
+            (crate::known::ORDERING_LT, 0),
+            (crate::known::ORDERING_EQ, 0),
+            (crate::known::ORDERING_GT, 0),
+        ],
+    ),
 ];
+
+/// Read an actual built-in constructor unit, refusing impostor names, nominal
+/// identities, tags or callable arities before using any layout information.
+fn builtin_constructor(f: &FnDef) -> Result<Option<(String, (String, usize, usize))>> {
+    let Some((tag, fields)) = f.ctor else {
+        return Ok(None);
+    };
+    let base = crate::repr::base_unit(&f.id.0);
+    let schema = BUILT_TYPES
+        .iter()
+        .find(|(data, _)| Some(*data) == f.repr.data.as_deref())
+        .or_else(|| {
+            BUILT_TYPES.iter().find(|(_, constructors)| {
+                constructors.iter().any(|(name, _)| *name == base.as_ref())
+            })
+        });
+    let Some((data, constructors)) = schema else {
+        return Ok(None);
+    };
+    if f.repr.data.as_deref() != Some(*data) {
+        return err(format!(
+            "prelude constructor {base} must belong to {data}, not {:?}",
+            f.repr.data
+        ));
+    }
+    let Some((expected_name, _)) = constructors.get(tag) else {
+        return err(format!(
+            "the prelude type {data} has unexpected constructor {base} of tag {tag}"
+        ));
+    };
+    if base.as_ref() != *expected_name {
+        return err(format!(
+            "the prelude type {data} needs constructor {expected_name} at tag {tag}, not {base}"
+        ));
+    }
+    if f.params.len() != fields {
+        return err(format!("prelude constructor {base} has callable arity {}, but its checked layout has {fields} fields", f.params.len()));
+    }
+    Ok(Some((
+        base.into_owned(),
+        ((*data).to_string(), tag, fields),
+    )))
+}
+
+/// Validate the complete original inventory, including zero-field tags. Each
+/// retained entry comes from an actual checked constructor unit; missing tags
+/// are refused rather than filled from the expected runtime ABI.
+pub(crate) fn check_full_builtin_constructors(
+    fns: &[FnDef],
+) -> Result<crate::core::BuiltinConstructorInventory> {
+    let mut inventory = crate::core::BuiltinConstructorInventory::new();
+    let mut shapes: BTreeMap<String, BTreeMap<usize, usize>> = BTreeMap::new();
+    for f in fns {
+        let Some((base, (data, tag, fields))) = builtin_constructor(f)? else {
+            continue;
+        };
+        if let Some(previous) = shapes.entry(data.clone()).or_default().insert(tag, fields) {
+            if previous != fields {
+                return err(format!("the prelude type {data} has conflicting field counts {previous} and {fields} for tag {tag}"));
+            }
+        }
+        inventory.insert(base, (data, tag, fields));
+    }
+    for (data, constructors) in BUILT_TYPES {
+        if let Some(got) = shapes.get(data) {
+            let words: Vec<usize> = constructors.iter().map(|(_, fields)| *fields).collect();
+            let complete = got.len() == constructors.len()
+                && (0..constructors.len()).all(|tag| got.contains_key(&tag));
+            let observed: Vec<Option<usize>> = (0..got.keys().next_back().map_or(0, |tag| tag + 1))
+                .map(|tag| got.get(&tag).copied())
+                .collect();
+            if !complete || observed.iter().copied().ne(words.iter().copied().map(Some)) {
+                return err(format!("the prelude type {data} has payload words {observed:?} per constructor; code generation builds it as {words:?} (complete constructor inventory required)"));
+            }
+        }
+    }
+    Ok(inventory)
+}
+
+/// Check every live constructor against its program's original validated
+/// inventory. Uncertified hand-built Core must still supply the complete
+/// inventory; a missing constructor is never presumed to have been pruned.
+pub(crate) fn check_builtin_constructors(
+    p: &Program,
+) -> Result<crate::core::BuiltinConstructorInventory> {
+    let Some(inventory) = p.checked_builtin_constructors() else {
+        return check_full_builtin_constructors(&p.fns);
+    };
+    for f in &p.fns {
+        let Some((base, actual)) = builtin_constructor(f)? else {
+            continue;
+        };
+        if inventory.get(&base) != Some(&actual) {
+            return err(format!(
+                "prelude constructor {} differs from its original checked inventory: {actual:?}",
+                f.id.0
+            ));
+        }
+    }
+    Ok(inventory.clone())
+}
 
 /// The prelude tags of the built types.
 const TAG_NONE: u64 = 0;
@@ -2880,7 +3008,7 @@ struct UnitClass {
     /// through it.
     externs: bool,
     /// `norecurse`: the unit is in no cycle of the call graph and reaches
-    /// no indirect application. Computed from the same `scan.callees`
+    /// no indirect application or opaque callback-capable call. Computed from the same `scan.callees`
     /// edges the other classes follow, by finding the strongly connected
     /// components once.
     ///
@@ -3021,6 +3149,9 @@ fn classify_callee(sym: &str, units: &HashSet<String>, extra: Option<&str>) -> C
 /// carry no boundary signature.
 fn prim_sig(op: PrimOp) -> Option<(Vec<crate::types::Ty>, crate::types::Ty)> {
     use PrimOp::*;
+    if matches!(op, Par { op: crate::core::ParOp::Workers, .. }) {
+        return Some(op.sig());
+    }
     if matches!(op, Delay | Force | ApplyErased | Eval | Conc(_) | PrimOp::Par { .. }) {
         return None;
     }
@@ -3368,7 +3499,7 @@ fn body_never_returns(text: &str) -> bool {
 
 /// The units that may call themselves back, for `norecurse`.
 ///
-/// Two edge kinds make a unit recursive, and both have to be followed:
+/// Direct cycles and unknown callback edges both prevent a nonrecursion claim:
 ///
 /// * a direct call to a unit that reaches it back (a cycle of the call
 ///   graph), which is the strongly connected component test, and
@@ -3379,6 +3510,9 @@ fn body_never_returns(text: &str) -> bool {
 ///   words at the result through `__apply`. A unit that reaches an
 ///   indirect call therefore may re-enter itself with nothing in the edge
 ///   set saying so.
+/// * An opaque external call can also invoke the current unit through an
+///   apply stub or exported entry. Its implementation is unavailable, so
+///   absence from the local direct-call graph is not nonrecursion evidence.
 ///
 /// The answer is the transitive closure of both, computed once. Every
 /// other class in [`UnitClass`] is a "must hold everywhere" property and
@@ -3386,8 +3520,8 @@ fn body_never_returns(text: &str) -> bool {
 /// happen anywhere" property, so a cycle (or an invisible edge) anywhere
 /// below the unit is what makes it false.
 fn recursive_units(units: &[EmittedUnit]) -> HashSet<String> {
-    // The direct edges, restricted to units this module defines: a call
-    // to a symbol outside the set cannot reach back into it.
+    // Follow local edges explicitly; opaque external edges seed the
+    // callback-capable set below rather than disappearing from the proof.
     let defined: HashSet<&str> = units.iter().map(|u| u.name.as_str()).collect();
     let edges: HashMap<&str, Vec<&str>> = units
         .iter()
@@ -3405,7 +3539,7 @@ fn recursive_units(units: &[EmittedUnit]) -> HashSet<String> {
         .collect();
     let indirect: HashSet<&str> = units
         .iter()
-        .filter(|u| u.scan.indirect)
+        .filter(|u| u.scan.indirect || u.scan.externs)
         .map(|u| u.name.as_str())
         .collect();
     // A unit is recursive when it reaches itself, or when it reaches a
@@ -3436,7 +3570,7 @@ fn recursive_units(units: &[EmittedUnit]) -> HashSet<String> {
                 stack.extend(next.iter().copied());
             }
         }
-        if recursive {
+        if recursive || indirect.contains(start) {
             out.insert(u.name.clone());
         }
     }
@@ -4195,6 +4329,14 @@ fn build_unit(
     match &body {
         UnitBody::Prim(op) => {
             if matches!(op, PrimOp::MVar { .. }) { lang.pure = false; }
+            // Expose tagged immediate paths to the caller's constant/range
+            // simplification. Ownership fallbacks otherwise inflate LLVM's
+            // generic inlining cost for these bounded wrapper operations.
+            if matches!(op,
+                PrimOp::Nat(crate::core::NatOp::Add | crate::core::NatOp::Sub | crate::core::NatOp::Cmp | crate::core::NatOp::Div | crate::core::NatOp::Rem | crate::core::NatOp::FromI64 | crate::core::NatOp::ToI64)
+                | PrimOp::Bytes(BytesOp::Len | BytesOp::Get | BytesOp::Set | BytesOp::Copy)) {
+                hints.inline = Some(crate::core::InlineHint::Always);
+            }
             // A primitive that returns `Option` or `Ordering` boxes its
             // results as the prelude ADTs do: zero-field constructors are
             // static blocks whose headers carry their layout ids (`None`;
@@ -4645,7 +4787,7 @@ impl NarrowSig {
         if !op.touches_wide() {
             return None;
         }
-        if matches!(op, PrimOp::MVar { .. }) {
+        if matches!(op, PrimOp::MVar { .. } | PrimOp::Slots { .. } | PrimOp::Array { packed: None, .. }) {
             let cross = |c| if c == Class::Wide { Cross::WIDE } else { Cross::WORD };
             return Some(NarrowSig { params: prim_param_classes(op).into_iter().map(cross).collect(),
                 ret: cross(prim_result_class(op).unwrap_or(Class::Raw)) });
@@ -5915,6 +6057,19 @@ fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op:
         mvar_codegen::emit(b, reg, name, op, mvar_op, classes);
         return Ok(());
     }
+    if let Slots { op: slot_op, classes } = op {
+        slots_codegen::emit(b, reg, slot_op, classes);
+        return Ok(());
+    }
+    if let Array { op: array_op, classes, packed: None } = op {
+        // A columnar zip synthesizes tuple fields inside the word-only
+        // runtime. It needs a layout-aware bridge before a field may be wide.
+        if array_op == crate::arrays::ArrayOp::Zip {
+            return err("`columnarZip` with an I128/U128 tuple field is not lowered yet: the columnar runtime requires a wide tuple layout bridge");
+        }
+        arrays_codegen::emit_generic_wide(b, reg, name, op, array_op, classes);
+        return Ok(());
+    }
     // `Usize`/`Isize` take the target's width (a conversion's other end).
     let op = op.resolve_widths(cx.usize_bits);
     let not_yet = |what: &str| {
@@ -6358,6 +6513,277 @@ fn rt_call(b: &mut Builder, f: &str, args: &[String]) -> String {
     r
 }
 
+/// Decode an immediate natural locally; heap naturals retain the runtime's
+/// range checks. Narrow targets decode at pointer width, matching the ABI.
+fn nat_to_i64_word(b: &mut Builder, word: &str) -> String {
+    let tag = b.reg();
+    b.line(&format!("{tag} = and i64 {word}, 1"));
+    let immediate = b.reg();
+    b.line(&format!("{immediate} = icmp ne i64 {tag}, 0"));
+    let (fast_l, slow_l, done_l) = (b.label(), b.label(), b.label());
+    b.line(&format!(
+        "br i1 {immediate}, label %{fast_l}, label %{slow_l}"
+    ));
+    b.start(&fast_l);
+    let narrow = b.to_size(word.to_string());
+    let decoded = b.reg();
+    b.line(&format!("{decoded} = lshr {} {narrow}, 1", b.size_ty()));
+    let fast = if b.pointer_bytes == 4 {
+        let wide = b.reg();
+        b.line(&format!("{wide} = zext i32 {decoded} to i64"));
+        wide
+    } else {
+        decoded
+    };
+    b.line(&format!("br label %{done_l}"));
+    b.start(&slow_l);
+    let slow = rt_call(b, "cinch_nat_to_i64", &[format!("i64 {word}")]);
+    b.line(&format!("br label %{done_l}"));
+    b.start(&done_l);
+    let result = b.reg();
+    b.line(&format!(
+        "{result} = phi i64 [ {fast}, %{fast_l} ], [ {slow}, %{slow_l} ]"
+    ));
+    result
+}
+
+/// Encode a nonnegative machine value directly when its proven bound fits
+/// the target's immediate payload. Otherwise retain the runtime fallback
+/// for large values and invalid negative inputs, including hand-built Core.
+fn nat_from_i64_word(b: &mut Builder, value: &str, known_upper: Option<u64>) -> String {
+    let fits = known_upper.is_some_and(|upper| upper <= nat_immediate_max(b.pointer_bytes));
+    let labels = if fits {
+        None
+    } else {
+        let immediate = b.reg();
+        b.line(&format!(
+            "{immediate} = icmp ule i64 {value}, {}",
+            nat_immediate_max(b.pointer_bytes)
+        ));
+        let labels = (b.label(), b.label(), b.label());
+        b.line(&format!(
+            "br i1 {immediate}, label %{}, label %{}",
+            labels.0, labels.1
+        ));
+        b.start(&labels.0);
+        Some(labels)
+    };
+    let shifted = b.reg();
+    b.line(&format!("{shifted} = shl i64 {value}, 1"));
+    let fast = b.reg();
+    b.line(&format!("{fast} = or i64 {shifted}, 1"));
+    if let Some((fast_l, slow_l, done_l)) = labels {
+        b.line(&format!("br label %{done_l}"));
+        b.start(&slow_l);
+        let slow = rt_call(b, "cinch_nat_from_i64", &[format!("i64 {value}")]);
+        b.line(&format!("br label %{done_l}"));
+        b.start(&done_l);
+        let result = b.reg();
+        b.line(&format!(
+            "{result} = phi i64 [ {fast}, %{fast_l} ], [ {slow}, %{slow_l} ]"
+        ));
+        result
+    } else {
+        fast
+    }
+}
+
+/// Divide or reduce immediate naturals without crossing the runtime boundary.
+/// A zero divisor, heap operand or out-of-width immediate keeps the original
+/// checked runtime path. Both results fit the input immediate range, including
+/// on 32-bit targets, so their tagged representation needs no allocation.
+fn nat_divrem_word(b: &mut Builder, operation: crate::core::NatOp) -> String {
+    debug_assert!(matches!(
+        operation,
+        crate::core::NatOp::Div | crate::core::NatOp::Rem
+    ));
+    let both = b.reg();
+    b.line(&format!("{both} = and i64 %p0, %p1"));
+    let tag = b.reg();
+    b.line(&format!("{tag} = and i64 {both}, 1"));
+    let tagged = b.reg();
+    b.line(&format!("{tagged} = icmp ne i64 {tag}, 0"));
+    let nonzero = b.reg();
+    b.line(&format!("{nonzero} = icmp ne i64 %p1, 1"));
+    let mut valid = b.reg();
+    b.line(&format!("{valid} = and i1 {tagged}, {nonzero}"));
+    if b.pointer_bytes < 8 {
+        let maximum = (nat_immediate_max(b.pointer_bytes) << 1) | 1;
+        for operand in ["%p0", "%p1"] {
+            let fits = b.reg();
+            b.line(&format!("{fits} = icmp ule i64 {operand}, {maximum}"));
+            let next = b.reg();
+            b.line(&format!("{next} = and i1 {valid}, {fits}"));
+            valid = next;
+        }
+    }
+    let (fast_l, slow_l, done_l) = (b.label(), b.label(), b.label());
+    b.line(&format!("br i1 {valid}, label %{fast_l}, label %{slow_l}"));
+    b.start(&fast_l);
+    let left = b.reg();
+    b.line(&format!("{left} = lshr i64 %p0, 1"));
+    let right = b.reg();
+    b.line(&format!("{right} = lshr i64 %p1, 1"));
+    let value = b.reg();
+    let opcode = if operation == crate::core::NatOp::Div {
+        "udiv"
+    } else {
+        "urem"
+    };
+    b.line(&format!("{value} = {opcode} i64 {left}, {right}"));
+    let shifted = b.reg();
+    b.line(&format!("{shifted} = shl i64 {value}, 1"));
+    let fast = b.reg();
+    b.line(&format!("{fast} = or i64 {shifted}, 1"));
+    b.line(&format!("br label %{done_l}"));
+    b.start(&slow_l);
+    let slow = rt_call(
+        b,
+        operation.extern_name(),
+        &["i64 %p0".into(), "i64 %p1".into()],
+    );
+    b.line(&format!("br label %{done_l}"));
+    b.start(&done_l);
+    let result = b.reg();
+    b.line(&format!(
+        "{result} = phi i64 [ {fast}, %{fast_l} ], [ {slow}, %{slow_l} ]"
+    ));
+    result
+}
+
+/// Read or update a validated byte-buffer payload directly. Null/wrong-kind
+/// buffers, read-only writes, invalid indices and invalid byte values retain
+/// the runtime's checked fault path. The ABI layout is an i64 length followed
+/// by a target-width data pointer; header reads match the runtime's atomics.
+fn bytes_access_word(b: &mut Builder, op: BytesOp) -> String {
+    let index = matches!(op, BytesOp::Get | BytesOp::Set).then(|| nat_to_i64_word(b, "%p1"));
+    let value = (op == BytesOp::Set).then(|| nat_to_i64_word(b, "%p2"));
+    let (header_l, payload_l, slow_l, done_l) = (b.label(), b.label(), b.label(), b.label());
+    let null = b.reg();
+    b.line(&format!("{null} = icmp eq i64 %p0, 0"));
+    b.line(&format!("br i1 {null}, label %{slow_l}, label %{header_l}"));
+    b.start(&header_l);
+    let payload = b.reg();
+    b.line(&format!("{payload} = inttoptr i64 %p0 to ptr"));
+    let header_ptr = b.reg();
+    b.line(&format!(
+        "{header_ptr} = getelementptr i8, ptr {payload}, i64 -8"
+    ));
+    let header = header_load(b, &header_ptr);
+    let shifted = b.reg();
+    b.line(&format!(
+        "{shifted} = lshr i64 {header}, {}",
+        block::KIND_SHIFT
+    ));
+    let kind = b.reg();
+    b.line(&format!(
+        "{kind} = and i64 {shifted}, {}",
+        (1u64 << block::KIND_BITS) - 1
+    ));
+    let heap = b.reg();
+    b.line(&format!(
+        "{heap} = icmp eq i64 {kind}, {}",
+        block::KIND_BYTES
+    ));
+    let valid = if op == BytesOp::Set {
+        heap
+    } else {
+        let readonly = b.reg();
+        b.line(&format!(
+            "{readonly} = icmp eq i64 {kind}, {}",
+            block::KIND_BYTES_STATIC
+        ));
+        let either = b.reg();
+        b.line(&format!("{either} = or i1 {heap}, {readonly}"));
+        either
+    };
+    b.line(&format!(
+        "br i1 {valid}, label %{payload_l}, label %{slow_l}"
+    ));
+    b.start(&payload_l);
+    let len = b.reg();
+    b.line(&format!("{len} = load i64, ptr {payload}, align 8"));
+    let mut fast_exit = payload_l;
+    if let Some(index) = &index {
+        let inside = b.reg();
+        b.line(&format!("{inside} = icmp ult i64 {index}, {len}"));
+        let valid = if let Some(value) = &value {
+            let byte = b.reg();
+            b.line(&format!("{byte} = icmp ule i64 {value}, 255"));
+            let both = b.reg();
+            b.line(&format!("{both} = and i1 {inside}, {byte}"));
+            both
+        } else {
+            inside
+        };
+        let access_l = b.label();
+        b.line(&format!(
+            "br i1 {valid}, label %{access_l}, label %{slow_l}"
+        ));
+        b.start(&access_l);
+        fast_exit = access_l;
+    }
+    let fast = if op == BytesOp::Len {
+        len
+    } else {
+        let data_at = b.reg();
+        b.line(&format!(
+            "{data_at} = getelementptr i8, ptr {payload}, i64 8"
+        ));
+        let data = b.reg();
+        b.line(&format!(
+            "{data} = load ptr, ptr {data_at}, align {}",
+            b.pointer_bytes
+        ));
+        if let Some(index) = &index {
+            let at = b.reg();
+            b.line(&format!("{at} = getelementptr i8, ptr {data}, i64 {index}"));
+            if let Some(value) = &value {
+                let byte = b.reg();
+                b.line(&format!("{byte} = trunc i64 {value} to i8"));
+                b.line(&format!("store i8 {byte}, ptr {at}, align 1"));
+                "0".to_string()
+            } else {
+                let byte = b.reg();
+                b.line(&format!("{byte} = load i8, ptr {at}, align 1"));
+                let frozen = b.reg();
+                b.line(&format!("{frozen} = freeze i8 {byte}"));
+                let wide = b.reg();
+                b.line(&format!("{wide} = zext i8 {frozen} to i64"));
+                wide
+            }
+        } else {
+            let word = b.reg();
+            b.line(&format!("{word} = ptrtoint ptr {data} to i64"));
+            let empty = b.reg();
+            b.line(&format!("{empty} = icmp eq i64 {len}, 0"));
+            let selected = b.reg();
+            // The runtime exposes the empty slice's nonnull dangling address.
+            b.line(&format!(
+                "{selected} = select i1 {empty}, i64 1, i64 {word}"
+            ));
+            selected
+        }
+    };
+    b.line(&format!("br label %{done_l}"));
+    b.start(&slow_l);
+    let mut args = vec!["i64 %p0".to_string()];
+    if let Some(index) = &index {
+        args.push(format!("i64 {index}"));
+    }
+    if let Some(value) = &value {
+        args.push(format!("i64 {value}"));
+    }
+    let slow = rt_call(b, op.extern_name(), &args);
+    b.line(&format!("br label %{done_l}"));
+    b.start(&done_l);
+    let result = b.reg();
+    b.line(&format!(
+        "{result} = phi i64 [ {fast}, %{fast_exit} ], [ {slow}, %{slow_l} ]"
+    ));
+    result
+}
+
 /// The count field shifted to the top of the word: the count's sign is
 /// the word's, and a count of `n` reads as `n << RC_TOP_SHIFT`, so one
 /// signed compare separates the plain, atomic and immortal cases.
@@ -6732,7 +7158,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                                 fast_exit = ok.clone();
                             } else {
                                 let carry = b.reg();
-                                b.line(&format!("{carry} = icmp ugt i64 {sum}, {}", nat_immediate_max(b.pointer_bytes)));
+                                b.line(&format!(
+                                    "{carry} = icmp ugt i64 {sum}, {}",
+                                    nat_immediate_max(b.pointer_bytes)
+                                ));
                                 let ok = b.label();
                                 b.line(&format!("br i1 {carry}, label %{slow_l}, label %{ok}"));
                                 b.line(&format!("{ok}:"));
@@ -6768,12 +7197,24 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     b.line(&format!("br label %{done_l}"));
                     b.line(&format!("{done_l}:"));
                     let phi = b.reg();
-                    b.line(&format!("{phi} = phi i64 [ {out}, %{fast_exit} ], [ {slow}, %{slow_l} ]"));
+                    b.line(&format!(
+                        "{phi} = phi i64 [ {out}, %{fast_exit} ], [ {slow}, %{slow_l} ]"
+                    ));
                     ret(b, &phi);
                 }
-                // A conversion is one runtime call whatever the width,
-                // and the bignum operations have no immediate form to
-                // take (a product overflows the payload at once).
+                crate::core::NatOp::Div | crate::core::NatOp::Rem => {
+                    let result = nat_divrem_word(b, n);
+                    ret(b, &result);
+                }
+                crate::core::NatOp::FromI64 => {
+                    let r = nat_from_i64_word(b, "%p0", None);
+                    ret(b, &r);
+                }
+                crate::core::NatOp::ToI64 => {
+                    let r = nat_to_i64_word(b, "%p0");
+                    ret(b, &r);
+                }
+                // The remaining operations retain their runtime paths.
                 _ => {
                     let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
                     let r = rt_call(b, n.extern_name(), &args);
@@ -6889,8 +7330,8 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
         }
         Bytes(k) => {
             // The `Bytes` externs take machine counts, indices and byte
-            // values; the intrinsic units convert `Nat` words through
-            // `cinch_nat_to_i64` and results back through `cinch_nat_from_i64`.
+            // values; immediate `Nat` words convert locally, with runtime
+            // fallbacks for heap naturals and invalid Core inputs.
             // Every index is below a buffer length (its obligation) and
             // every byte value below 256 (its type), so those conversions
             // never leave `i64` range; a length goes through
@@ -6904,34 +7345,27 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     ret(b, &r);
                 }
                 BytesOp::Len => {
-                    let l = rt_call(b, k.extern_name(), &args);
-                    let r = rt_call(b, "cinch_nat_from_i64", &[format!("i64 {l}")]);
+                    let l = bytes_access_word(b, k);
+                    let r = nat_from_i64_word(b, &l, Some(i64::MAX as u64));
                     ret(b, &r);
                 }
                 BytesOp::Get => {
-                    let i = rt_call(b, "cinch_nat_to_i64", &[args[1].clone()]);
-                    let v = rt_call(b, k.extern_name(), &[args[0].clone(), format!("i64 {i}")]);
+                    let v = bytes_access_word(b, k);
                     // `Bytes` data is untrusted (foreign spans wrap into
                     // buffers): the byte freezes before it can branch
                     // or compare (the plan note's poison containment).
                     let v = freeze_word(b, &v);
-                    let r = rt_call(b, "cinch_nat_from_i64", &[format!("i64 {v}")]);
+                    let r = nat_from_i64_word(b, &v, Some(255));
                     ret(b, &r);
                 }
                 BytesOp::Set => {
-                    let i = rt_call(b, "cinch_nat_to_i64", &[args[1].clone()]);
-                    let v = rt_call(b, "cinch_nat_to_i64", &[args[2].clone()]);
-                    let _ = rt_call(
-                        b,
-                        k.extern_name(),
-                        &[args[0].clone(), format!("i64 {i}"), format!("i64 {v}")],
-                    );
+                    let _ = bytes_access_word(b, k);
                     ret(b, "0");
                 }
                 BytesOp::Copy => {
-                    let di = rt_call(b, "cinch_nat_to_i64", &[args[2].clone()]);
-                    let si = rt_call(b, "cinch_nat_to_i64", &[args[3].clone()]);
-                    let n = rt_call(b, "cinch_nat_to_i64", &[args[4].clone()]);
+                    let di = nat_to_i64_word(b, "%p2");
+                    let si = nat_to_i64_word(b, "%p3");
+                    let n = nat_to_i64_word(b, "%p4");
                     let _ = rt_call(
                         b,
                         k.extern_name(),
@@ -6950,7 +7384,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     // `Bytes` becomes something the kernel can be handed.
                     // Nothing to box and nothing to freeze, because the
                     // value is used as a pointer, never as a branch.
-                    let p = rt_call(b, k.extern_name(), &args);
+                    let p = bytes_access_word(b, k);
                     ret(b, &p);
                 }
                 BytesOp::Compare => {
@@ -7259,6 +7693,11 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             // Every class here is an immediate baked into the body.
             use crate::core::ParOp::*;
             match par_op {
+                Workers => {
+                    let n = rt_call(b, "cinch_nat_to_len", &["i64 %p0".to_string()]);
+                    let _ = rt_call(b, &task_rt(cx, "par_set_workers"), &[format!("i64 {n}")]);
+                    ret(b, "0");
+                }
                 Both => {
                     // `out[0]`, `out[1]` are owned result words; the pair
                     // takes the two component classes' exact pointer map, so
@@ -7528,13 +7967,20 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             }
             ArithMode::Checked => {
                 let bad = b.reg();
-                b.line(&format!("{bad} = icmp eq i64 %p0, {}", min_word(ty)));
+                if ty.is_signed() {
+                    b.line(&format!("{bad} = icmp eq i64 %p0, {}", min_word(ty)));
+                } else {
+                    // Only zero has a representable unsigned additive inverse.
+                    b.line(&format!("{bad} = icmp ne i64 %p0, 0"));
+                }
                 ret_option(b, reg, op, name, &bad, |b| {
                     let r = b.reg();
                     b.line(&format!("{r} = sub i64 0, %p0"));
                     canon(b, ty, &r)
                 });
             }
+            // Every unsigned mathematical negation clamps to zero.
+            ArithMode::Saturating if !ty.is_signed() => ret(b, "0"),
             ArithMode::Saturating => {
                 let is_min = b.reg();
                 b.line(&format!("{is_min} = icmp eq i64 %p0, {}", min_word(ty)));
@@ -7953,6 +8399,23 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
     }
 }
 
+/// Test value preservation across an integer conversion, including signedness.
+/// A canonical-word round trip alone cannot distinguish a negative signed
+/// value from the same high-bit unsigned encoding at a 64-bit boundary.
+fn integer_conversion_fits(b: &mut Builder, from: Scalar, to: Scalar, canonical: &str) -> String {
+    let same = b.reg();
+    b.line(&format!("{same} = icmp eq i64 {canonical}, %p0"));
+    if from.is_signed() == to.is_signed() {
+        same
+    } else {
+        let nonnegative = b.reg();
+        b.line(&format!("{nonnegative} = icmp sge i64 %p0, 0"));
+        let fits = b.reg();
+        b.line(&format!("{fits} = and i1 {same}, {nonnegative}"));
+        fits
+    }
+}
+
 /// Conversions (primitive types specification, section 7): every result is
 /// canonicalized to the target's word form.
 fn conv_body(
@@ -7976,14 +8439,14 @@ fn conv_body(
             }
             ConvMode::Checked => {
                 let c = canon(b, to, "%p0");
+                let fits = integer_conversion_fits(b, from, to, &c);
                 let bad = b.reg();
-                b.line(&format!("{bad} = icmp ne i64 {c}, %p0"));
+                b.line(&format!("{bad} = xor i1 {fits}, true"));
                 ret_option(b, reg, op, name, &bad, |_| c.clone());
             }
             ConvMode::Saturating => {
                 let c = canon(b, to, "%p0");
-                let fits = b.reg();
-                b.line(&format!("{fits} = icmp eq i64 {c}, %p0"));
+                let fits = integer_conversion_fits(b, from, to, &c);
                 // Not fitting means below the target's minimum (a negative
                 // value into an unsigned target) or above its maximum.
                 let low = if from.is_signed() {
@@ -11805,23 +12268,136 @@ mod tests {
 
     fn main_prog(mut fns: Vec<FnDef>, body: Core) -> Program {
         fns.push(thunk("program.main", body));
-        Program {
-            total_bodies: crate::total::CheckedGraph::empty(),
-            rewrites: Vec::new(),
-            fns,
-            instances: vec![],
-            main: Some(gid("program.main")),
-            plans: Default::default(),
-            foreigns: Default::default(),
-            prims: Vec::new(),
-            laws: Vec::new(),
-            lent: Default::default(),
-            frame: Default::default(),
-            stack: Default::default(),
-            borrowed: Default::default(),
-            lent_entries: Default::default(),
-            private_modules: Vec::new(),
-            inline: Default::default(),
+        let mut program = Program::from_functions(fns);
+        program.main = Some(gid("program.main"));
+        program
+    }
+
+    /// Actual constructor metadata for a hand-built copy of a runtime ABI type.
+    fn builtin_ctor(unit: &str, data: &str, tag: usize, fields: usize) -> FnDef {
+        let mut constructor = ctor_fn(unit, &[], tag, fields);
+        constructor.params = (0..fields).map(|i| format!("field{i}")).collect();
+        constructor.repr.data = Some(data.to_string());
+        constructor.repr.fields = vec![Class::Raw; fields];
+        constructor.repr.params = constructor.repr.fields.clone();
+        constructor.repr.result = Some(Class::Obj);
+        constructor
+    }
+
+    /// Construct the complete real Option inventory before any pruning.
+    fn option_inventory() -> Program {
+        Program::from_functions(vec![
+            builtin_ctor("Data.Core.None", crate::known::OPTION, 0, 0),
+            builtin_ctor("Data.Core.Some", crate::known::OPTION, 1, 1),
+        ])
+    }
+
+    /// A certified checked program may lose constructor bodies to reachability,
+    /// but independent hand-built Core cannot inherit that missing-tag authority.
+    #[test]
+    fn builtin_inventory_distinguishes_pruning_from_incomplete_untrusted_core() {
+        let mut checked = option_inventory();
+        checked.certify_builtin_constructors().unwrap();
+        checked.fns.retain(|unit| unit.id.0 == "Data.Core.None");
+        Registry::build(&checked, 8, true).unwrap();
+        let dump = crate::coretext::print(
+            &checked,
+            crate::coretext::Stage::Lowered,
+            &crate::core::TargetProfile::native(),
+            &"0".repeat(64),
+        );
+        assert!(dump.contains("@ctor(0, 0, Data.Core.Option)"));
+        assert!(!dump.contains("checked_builtin_constructors"));
+        crate::coretext::verify(&dump).expect("a valid pruned lowered dump still verifies");
+        assert!(crate::coretext::diff(&dump, &dump).is_none());
+        let independent = Program::from_functions(checked.fns.clone());
+        let error = Registry::build(&independent, 8, true).err().unwrap();
+        assert!(
+            error
+                .message
+                .contains("complete constructor inventory required"),
+            "{error}"
+        );
+        let mut missing_zero_tag = option_inventory();
+        missing_zero_tag
+            .fns
+            .retain(|unit| unit.id.0 == "Data.Core.Some");
+        assert!(check_builtin_constructors(&missing_zero_tag).is_err());
+    }
+
+    /// A malformed dead Some must fail before driving can prune its evidence.
+    #[test]
+    fn builtin_inventory_rejects_malformed_some_before_pruning() {
+        let mut program = option_inventory();
+        program.fns[1] = builtin_ctor("Data.Core.Some", crate::known::OPTION, 1, 2);
+        program.fns.push(thunk("Main.main", n(0)));
+        program.main = Some(gid("Main.main"));
+        let error = crate::core::optimize(&program, &crate::core::TargetProfile::native())
+            .err()
+            .unwrap();
+        assert!(error.message.contains(crate::known::OPTION), "{error}");
+        assert!(
+            error
+                .message
+                .contains("complete constructor inventory required"),
+            "{error}"
+        );
+        assert!(program.fns.iter().any(|unit| unit.id.0 == "Data.Core.Some"));
+    }
+
+    /// Valid declaration provenance never excuses a later counterfeit name,
+    /// nominal type, tag, field count or callable arity in a live constructor.
+    #[test]
+    fn builtin_inventory_checks_live_constructor_consistency() {
+        let mut checked = option_inventory();
+        checked.certify_builtin_constructors().unwrap();
+        for variant in 0..5 {
+            let mut changed = checked.clone();
+            let some = &mut changed.fns[1];
+            match variant {
+                0 => some.id.0 = "Data.Core.Impostor".into(),
+                1 => some.repr.data = Some("Main.Impostor".into()),
+                2 => some.ctor = Some((0, 1)),
+                3 => *some = builtin_ctor("Data.Core.Some", crate::known::OPTION, 1, 2),
+                4 => some.params.clear(),
+                _ => unreachable!(),
+            }
+            assert!(
+                Registry::build(&changed, 8, true).is_err(),
+                "variant {variant}"
+            );
+        }
+        let mut representation_copy = checked.clone();
+        representation_copy.fns[1].id.0.push_str("@W");
+        representation_copy.fns[1].repr.fields = vec![Class::Wide];
+        representation_copy.fns[1].repr.params = vec![Class::Wide];
+        Registry::build(&representation_copy, 8, true).unwrap();
+    }
+
+    /// All three anonymous runtime ABI families retain their complete inventory
+    /// guard, including a missing zero-field constructor and a wrong field count.
+    #[test]
+    fn builtin_inventory_rejects_fake_option_result_and_ordering_shapes() {
+        for (data, constructors) in BUILT_TYPES {
+            let good: Vec<FnDef> = constructors
+                .iter()
+                .enumerate()
+                .map(|(tag, (unit, fields))| builtin_ctor(unit, data, tag, *fields))
+                .collect();
+            check_builtin_constructors(&Program::from_functions(good.clone())).unwrap();
+            let mut missing = good.clone();
+            missing.pop();
+            assert!(
+                check_builtin_constructors(&Program::from_functions(missing)).is_err(),
+                "{data}"
+            );
+            let mut wrong = good;
+            let tag = wrong.len() - 1;
+            wrong[tag] = builtin_ctor(constructors[tag].0, data, tag, constructors[tag].1 + 1);
+            assert!(
+                check_builtin_constructors(&Program::from_functions(wrong)).is_err(),
+                "{data}"
+            );
         }
     }
 
@@ -13308,6 +13884,58 @@ int main(void) {{
         );
     }
 
+    /// Quotients and remainders agree across immediate boundaries and heap operands.
+    #[test]
+    fn nat_divrem_preserves_immediates_and_heap_results() {
+        let cases = [
+            ("0", "1", "0", "0"),
+            ("17", "5", "3", "2"),
+            ("9223372036854775807", "3", "3074457345618258602", "1"),
+            ("9223372036854775808", "3", "3074457345618258602", "2"),
+            ("9223372036854775815", "9223372036854775809", "1", "6"),
+            ("17", "9223372036854775808", "0", "17"),
+            (
+                "1000000000000000000000000000000",
+                "100000000000000000000",
+                "10000000000",
+                "0",
+            ),
+        ];
+        for (left, right, quotient, remainder) in cases {
+            for (operation, expected) in [(NatOp::Div, quotient), (NatOp::Rem, remainder)] {
+                let value = app(p(PrimOp::Nat(operation)), vec![cnat(left), cnat(right)]);
+                let comparison = app(p(PrimOp::Nat(NatOp::Cmp)), vec![value, cnat(expected)]);
+                let equal = app(p(cmp(CmpOp::Eq)), vec![comparison, n(0)]);
+                assert_eq!(run("nat_divrem_boundary", &main_prog(vec![], equal)), 1);
+            }
+        }
+    }
+
+    /// Both zero-divisor operations must preserve the runtime's checked fault.
+    #[test]
+    fn nat_divrem_zero_divisor_retains_runtime_faults() {
+        for operation in [NatOp::Div, NatOp::Rem] {
+            for left in ["17", "9223372036854775808"] {
+                let value = app(p(PrimOp::Nat(operation)), vec![cnat(left), cnat("0")]);
+                assert_eq!(run("nat_divrem_zero", &main_prog(vec![], value)), 71);
+            }
+        }
+    }
+
+    /// Narrow-target fast paths only encode values that fit that target's tag payload.
+    #[test]
+    fn nat_divrem_ir_respects_pointer_width() {
+        for pointer_bytes in [4, 8] {
+            let mut b = Builder::new();
+            b.pointer_bytes = pointer_bytes;
+            nat_divrem_word(&mut b, NatOp::Rem);
+            assert!(b.code.contains("@cinch_nat_rem"));
+            assert!(b.code.contains("urem i64"));
+            assert!(b.code.contains("icmp ne i64 %p1, 1"));
+            assert_eq!(b.code.contains("4294967295"), pointer_bytes == 4);
+        }
+    }
+
     #[test]
     fn nat_arith_and_cmp_round_trip() {
         // natToI64 (natMul (natAdd 2 3) 4) = 20; natCmp 3 5 is -1.
@@ -13315,6 +13943,59 @@ int main(void) {{
         let scaled = app(p(PrimOp::Nat(NatOp::Mul)), vec![sum, cnat("4")]);
         let body = app(p(PrimOp::Nat(NatOp::ToI64)), vec![scaled]);
         assert_eq!(run("nat_arith_round_trip", &main_prog(vec![], body)), 20);
+    }
+
+    /// Conversion fast paths preserve every immediate boundary, including
+    /// the all-ones tagged representation of the largest signed word.
+    #[test]
+    fn nat_machine_conversions_preserve_boundaries() {
+        for value in [0, 255, 2147483647, 2147483648, i64::MAX] {
+            let natural = app(p(PrimOp::Nat(NatOp::FromI64)), vec![n(value)]);
+            let raw = app(p(PrimOp::Nat(NatOp::ToI64)), vec![natural]);
+            let equal = app(p(cmp(CmpOp::Eq)), vec![raw, n(value)]);
+            assert_eq!(run("nat_conversion_boundary", &main_prog(vec![], equal)), 1);
+        }
+    }
+
+    /// Hand-built Core still reaches the defined fault path on either
+    /// conversion's invalid inputs instead of wrapping into an immediate.
+    #[test]
+    fn nat_machine_conversions_retain_faults() {
+        let negative = app(p(PrimOp::Nat(NatOp::FromI64)), vec![n(-1)]);
+        assert_eq!(run("nat_from_negative", &main_prog(vec![], negative)), 71);
+        let overflow = app(
+            p(PrimOp::Nat(NatOp::ToI64)),
+            vec![cnat("9223372036854775808")],
+        );
+        assert_eq!(run("nat_to_overflow", &main_prog(vec![], overflow)), 71);
+    }
+
+    /// Narrow targets decode pointer-width payloads and retain allocation
+    /// fallbacks above their smaller immediate range; bytes always fit.
+    #[test]
+    fn nat_conversion_ir_respects_pointer_width() {
+        for pointer_bytes in [4, 8] {
+            let mut b = Builder::new();
+            b.pointer_bytes = pointer_bytes;
+            nat_to_i64_word(&mut b, "%p0");
+            assert!(b.code.contains("@cinch_nat_to_i64"));
+            if pointer_bytes == 4 {
+                assert!(b.code.contains("trunc i64 %p0 to i32"));
+                assert!(b.code.contains("lshr i32"));
+                assert!(b.code.contains("zext i32"));
+            } else {
+                assert!(b.code.contains("lshr i64 %p0, 1"));
+            }
+            let mut b = Builder::new();
+            b.pointer_bytes = pointer_bytes;
+            nat_from_i64_word(&mut b, "%p0", Some(i64::MAX as u64));
+            assert_eq!(b.code.contains("@cinch_nat_from_i64"), pointer_bytes == 4);
+            let mut b = Builder::new();
+            b.pointer_bytes = pointer_bytes;
+            nat_from_i64_word(&mut b, "%p0", Some(255));
+            assert!(!b.code.contains("call"));
+            assert!(b.code.contains("shl i64 %p0, 1"));
+        }
     }
 
     #[test]
@@ -13367,6 +14048,49 @@ int main(void) {{
             )),
         );
         assert_eq!(run("bytes_set_bad_value", &main_prog(vec![], set_bad)), 71);
+    }
+
+    /// Direct byte access accepts read-only constants for reads, retains their
+    /// mutation fault, and preserves the runtime's empty-slice address contract.
+    #[test]
+    fn bytes_direct_access_preserves_readonly_and_empty_contracts() {
+        // A String's private backing is static; ConstBytes instead creates
+        // a fresh mutable copy and cannot exercise the read-only branch.
+        let backing = |bytes| Core::Proj(
+            Box::new(Core::ConstString { ctor: gid("Test.StrBuf"), bytes }),
+            crate::core::ProjField::slot(0, Class::Obj),
+        );
+        let string_ctor = || ctor_fn("Test.StrBuf", &["bytes"], 0, 1);
+        let get = app(
+            p(PrimOp::Nat(NatOp::ToI64)),
+            vec![app(
+                p(PrimOp::Bytes(BytesOp::Get)),
+                vec![backing(vec![0, 255]), cnat("1")],
+            )],
+        );
+        assert_eq!(run("bytes_readonly_get", &main_prog(vec![string_ctor()], get)), 255);
+        let write = app(
+            p(PrimOp::Bytes(BytesOp::Set)),
+            vec![backing(vec![7]), cnat("0"), cnat("1")],
+        );
+        assert_eq!(run("bytes_readonly_write", &main_prog(vec![string_ctor()], write)), 71);
+        for bytes in [
+            backing(vec![]),
+            app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("0")]),
+        ] {
+            let data = app(p(PrimOp::Bytes(BytesOp::Data)), vec![bytes]);
+            let equal = app(p(cmp(CmpOp::Eq)), vec![data, n(1)]);
+            assert_eq!(run("bytes_empty_pointer", &main_prog(vec![string_ctor()], equal)), 1);
+        }
+    }
+
+    /// Corrupt buffer kinds and null handles must reach the existing fault path.
+    #[test]
+    fn bytes_direct_access_retains_kind_and_null_faults() {
+        for bytes in [n(0), cnat("18446744073709551616")] {
+            let len = app(p(PrimOp::Bytes(BytesOp::Len)), vec![bytes]);
+            assert_eq!(run("bytes_invalid_handle", &main_prog(vec![], len)), 71);
+        }
     }
 
     #[test]
@@ -14816,6 +15540,7 @@ fn prim_wrapper_unit(
         ));
     }
     let mut b = Builder::new();
+    let narrow = reg.narrow_sigs.get(name);
     let mut args: Vec<String> = Vec::new();
     for (i, t) in plan.args.iter().enumerate() {
         let v = prim_arg_bridge(&mut b, t, &format!("%p{i}"));
@@ -14829,13 +15554,15 @@ fn prim_wrapper_unit(
         args.join(", ")
     ));
     let r = prim_res_bridge(&mut b, &plan.res, &v);
-    ret(&mut b, &r);
+    let ret_cross = narrow.map_or(Cross::WORD, |s| s.ret);
+    let result = ret_cross.narrow(&mut b, &r);
+    b.line(&format!("ret {} {result}", ret_cross.ty()));
     let scan = scan_body(&format!("{}{}", b.allocas, b.code), reg.unit_symbols(), Some(impl_name.as_str()));
     Ok(EmittedUnit {
         name: name.clone(),
         hints: f.hints.clone(),
         globals: String::new(),
-        header: fn_header(name, plan.arity, None, &vec![true; plan.arity], None),
+        header: fn_header(name, plan.arity, None, &vec![true; plan.arity], narrow),
         allocas: b.allocas,
         code: b.code,
         stub: stub_def(reg, name, plan.arity),
@@ -14851,11 +15578,11 @@ fn prim_wrapper_unit(
     })
 }
 
-/// The canonical word to one fragment parameter.
+/// The canonical slot to one fragment parameter; wide slots already contain i128.
 fn prim_arg_bridge(b: &mut Builder, t: &PrimAbiTy, word: &str) -> String {
     match t {
         PrimAbiTy::Int { bits, .. } => {
-            if *bits == 64 {
+            if *bits == 64 || *bits == 128 {
                 word.to_string()
             } else {
                 let r = b.reg();
@@ -14878,12 +15605,12 @@ fn prim_arg_bridge(b: &mut Builder, t: &PrimAbiTy, word: &str) -> String {
     }
 }
 
-/// The fragment's result to the canonical word (the declared type's
-/// word form: sign-extended signed widths, zero-extended unsigned).
+/// The fragment's result to its canonical slot: sign-extended signed widths,
+/// zero-extended unsigned widths, and raw i128 for either wide scalar.
 fn prim_res_bridge(b: &mut Builder, t: &PrimAbiTy, v: &str) -> String {
     match t {
         PrimAbiTy::Int { bits, signed } => {
-            if *bits == 64 {
+            if *bits == 64 || *bits == 128 {
                 v.to_string()
             } else {
                 let r = b.reg();

@@ -1,0 +1,88 @@
+-- | Time observable public comparison and selection loops over runtime inputs.
+module Main where
+  import Data.Compare
+  import Data.Machine
+  import Data.Ordering
+  import Data.String
+  import Data.Char
+  import Data.Int
+  import Data.Nat
+  import Text.Show
+  import Effect.Clock
+  import Effect.Process
+  import Effect.Io
+
+  -- | Parse a nonnegative decimal harness argument outside the measured interval.
+  decimal :: String -> Nat
+  decimal s = decimal-from (unpack s) 0
+  -- | Consume validated decimal digits; malformed input becomes zero.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from cs n = case cs of
+    Nil -> n
+    Cons c rest -> case digit-value c of
+      None -> 0
+      Some d -> decimal-from rest (n * 10 + d)
+
+  -- | Turn a public comparison result into the signed reference checksum.
+  code :: Ordering -> I64
+  code x = case x of LT -> -1; EQ -> 0; GT -> 1
+
+  -- | Construct a quiet NaN without relying on literal parsing or global float equality.
+  prim fixture-nan :: I64 -> F64 where
+    llvm {
+      %r = bitcast i64 9221120237041090560 to double
+      ret double %r
+    }
+
+  -- | Select runtime string operands from a fixed UTF-8 corpus.
+  string-at :: I64 -> String
+  string-at i = if eq-i64 i 0 then "" else if eq-i64 i 1 then "alpha" else if eq-i64 i 2 then "alpine" else if eq-i64 i 3 then "é" else "雪"
+
+  -- | Advance one deterministic phase without allocating a checked remainder result.
+  advance :: I64 -> I64 -> I64
+  advance x limit = if eq-i64 x limit then 0 else wrapping-add-i64 x 1
+
+  -- | Observe runtime operands through the same public comparison and selection APIs.
+  operation :: U32 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64
+  operation mode x y phase17 phase5 phase3 =
+    if eq-u32 mode 0 then wrapping-add-i64 (code (compare x y)) (if less x y then 3 else 0)
+    else if eq-u32 mode 1 then
+      let a = if eq-i64 phase17 0 then fixture-nan phase17 else i64-to-f64 x in
+      let b = i64-to-f64 y in
+      wrapping-add-i64 (code (compare a b)) (if less a b then 3 else 0)
+    else if eq-u32 mode 2 then first-non-default (Cons (0 :: I64) (Cons 0 (Cons x (Cons y Nil))))
+    else
+      let a = string-at phase5 in
+      let b = string-at phase3 in
+      wrapping-add-i64 (code (compare a b)) (if less a b then 3 else 0)
+
+  -- | Advance bounded operand phases and retain the observable output checksum.
+  repeat :: U32 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64
+  repeat mode remaining x y phase17 phase5 phase3 acc =
+    if gt-i64 remaining 0 then
+      let nextX = if eq-i64 x 128 then (-128 :: I64) else wrapping-add-i64 x 1 in
+      let nextY = if eq-i64 y 96 then (-96 :: I64) else wrapping-add-i64 y 1 in
+      repeat mode (wrapping-sub-i64 remaining 1) nextX nextY (advance phase17 16) (advance phase5 4) (advance phase3 2) (wrapping-add-i64 acc (operation mode x y phase17 phase5 phase3))
+    else acc
+
+  -- | Time a complete public API loop, excluding parsing and printed output.
+  measure :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Int
+  measure mode count =
+    if count <= 9223372036854775807 then
+      let n = nat-to-i64 count in
+      let modeCode = if mode == "integer" then (0 :: U32) else if mode == "float" then 1 else if mode == "choice" then 2 else 3 in
+      let start = clock-monotonic-ns () in
+      let result = repeat modeCode n (-128 :: I64) (-96 :: I64) 0 0 0 0 in
+      let end = clock-monotonic-ns () in
+      let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (int-to-string (int-from-i64 result)) "\n")))) in
+      0
+    else 2
+
+  -- | Read the selected workload and runtime iteration count from the harness.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case process-args () of
+      Err _ -> 2
+      Ok args -> case args of
+        Cons mode (Cons count Nil) -> measure mode (decimal count)
+        _ -> 2

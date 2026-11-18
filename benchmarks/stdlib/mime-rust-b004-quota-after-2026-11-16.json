@@ -1,0 +1,6 @@
+{
+  "/sys/fs/cgroup/cpu.max": "400000 100000\n",
+  "/sys/fs/cgroup/cpu.stat": "usage_usec 126780257132\nuser_usec 119727501162\nsystem_usec 7052755969\nnice_usec 481860771\nnr_periods 808269\nnr_throttled 41834\nthrottled_usec 1756273269\nnr_bursts 0\nburst_usec 0\n",
+  "/sys/fs/cgroup/cpuset.cpus.effective": "0-4\n",
+  "/proc/loadavg": "0.06 0.49 0.84 1/397 607543\n"
+}

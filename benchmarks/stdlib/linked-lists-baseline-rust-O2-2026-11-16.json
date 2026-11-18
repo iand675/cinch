@@ -1,0 +1,436 @@
+{
+  "description": "Complete mutable linked-list pipelines with exact ordered output checksums; ownership, snapshots and allocation representations differ",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "checkout_compiler_source_sha256_not_binary_provenance": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+  "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+  "driver_sha256": "39067d5eaf222f2037ea302f3b92e1cf3289a1fe2e3d8a13bbc5cd03433afb28",
+  "sources": {
+    "Data.Mutable.LinkedList": "3cc4ffeaacad2f063a0ba111fbde267c21a61ca8394de14ecb336be5abe60ec3",
+    "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7"
+  },
+  "opt_level": 2,
+  "rc_debug_capability": true,
+  "executable_sha256": "81e7f3f153aaa7c918cca083450c5f48840617738b5cfbb046d0a40083975253",
+  "llvm_sha256": "85d3183b58e66e04a1027001f49e16c61386f5ad0a7e653c19b733c70fc0067c",
+  "assembly_sha256": "3c539af745cfb739308e659d1a07b15dcf4a0ae049d62eeccef011cde71e16ac",
+  "reference_source_sha256": "1c695a92ca974f79aa27915c90d4461b9eed8e63171af429b6bf5f42d24e58d8",
+  "reference_executable_sha256": "c375cffcdf4aefaaa08c6e1cbab49da5ee34bc9f190fbdba9be8ff3329e72897",
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "artifacts": "/workspace/dasl-stdlib-collections/build/linked-list-bench-rust",
+  "results": [
+    {
+      "workload": "append-drain",
+      "elements": 32,
+      "checksum": 7983963943904062088,
+      "samples_ns": {
+        "cinch": [
+          528324,
+          173721,
+          195524,
+          336486,
+          309044
+        ],
+        "reference": [
+          20320,
+          20911,
+          19049,
+          77737,
+          62114
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 19315.25,
+        "reference": 1306.9375
+      }
+    },
+    {
+      "workload": "append-drain",
+      "elements": 1024,
+      "checksum": 3933020961821620520,
+      "samples_ns": {
+        "cinch": [
+          9300493,
+          6092861,
+          7162619,
+          6397729,
+          10828791
+        ],
+        "reference": [
+          1290821,
+          1241627,
+          1218202,
+          1021466,
+          1289829
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 447663.6875,
+        "reference": 77601.6875
+      }
+    },
+    {
+      "workload": "append-drain",
+      "elements": 16384,
+      "checksum": 4787499544352525608,
+      "samples_ns": {
+        "cinch": [
+          156962004,
+          156910106,
+          154151569,
+          157336567,
+          158358313
+        ],
+        "reference": [
+          33672307,
+          31441954,
+          34836898,
+          29887507,
+          33814946
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 9810125.25,
+        "reference": 2104519.1875
+      }
+    },
+    {
+      "workload": "prepend-drain",
+      "elements": 32,
+      "checksum": 7983963943904062088,
+      "samples_ns": {
+        "cinch": [
+          310117,
+          311420,
+          309006,
+          311911,
+          338941
+        ],
+        "reference": [
+          61552,
+          30436,
+          62845,
+          99190,
+          60651
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 19463.75,
+        "reference": 3847.0
+      }
+    },
+    {
+      "workload": "prepend-drain",
+      "elements": 1024,
+      "checksum": 3933020961821620520,
+      "samples_ns": {
+        "cinch": [
+          9802765,
+          9822775,
+          9982256,
+          9644557,
+          9845199
+        ],
+        "reference": [
+          1267431,
+          1373763,
+          1415345,
+          870362,
+          836232
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 613923.4375,
+        "reference": 79214.4375
+      }
+    },
+    {
+      "workload": "prepend-drain",
+      "elements": 16384,
+      "checksum": 4787499544352525608,
+      "samples_ns": {
+        "cinch": [
+          128899633,
+          158632248,
+          159053153,
+          155267499,
+          155486413
+        ],
+        "reference": [
+          35887357,
+          38705748,
+          31031755,
+          26769125,
+          33968083
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 9717900.8125,
+        "reference": 2123005.1875
+      }
+    },
+    {
+      "workload": "move-front",
+      "elements": 32,
+      "checksum": 6149379935145435960,
+      "samples_ns": {
+        "cinch": [
+          104017,
+          100221,
+          101724,
+          99310,
+          100302
+        ],
+        "reference": [
+          5578,
+          6009,
+          5608,
+          43415,
+          5498
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 6268.875,
+        "reference": 350.5
+      }
+    },
+    {
+      "workload": "move-front",
+      "elements": 1024,
+      "checksum": 7603091436204223448,
+      "samples_ns": {
+        "cinch": [
+          3136160,
+          3176421,
+          3132104,
+          3228539,
+          3126335
+        ],
+        "reference": [
+          258180,
+          273252,
+          268144,
+          270257,
+          277378
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 196010.0,
+        "reference": 16891.0625
+      }
+    },
+    {
+      "workload": "move-front",
+      "elements": 16384,
+      "checksum": 3870747305167994840,
+      "samples_ns": {
+        "cinch": [
+          44271813,
+          50748883,
+          50320677,
+          47859114,
+          48325938
+        ],
+        "reference": [
+          4166383,
+          4210531,
+          4117871,
+          4586753,
+          4448780
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 3020371.125,
+        "reference": 263158.1875
+      }
+    },
+    {
+      "workload": "remove-reuse",
+      "elements": 32,
+      "checksum": 7983963943904062088,
+      "samples_ns": {
+        "cinch": [
+          348556,
+          306142,
+          301394,
+          279100,
+          305841
+        ],
+        "reference": [
+          25378,
+          56205,
+          59710,
+          25379,
+          57357
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 19115.0625,
+        "reference": 3512.8125
+      }
+    },
+    {
+      "workload": "remove-reuse",
+      "elements": 1024,
+      "checksum": 3933020961821620520,
+      "samples_ns": {
+        "cinch": [
+          10541452,
+          9387851,
+          11175173,
+          8983755,
+          8092148
+        ],
+        "reference": [
+          1103145,
+          787271,
+          912429,
+          1713651,
+          1121102
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 586740.6875,
+        "reference": 68946.5625
+      }
+    },
+    {
+      "workload": "remove-reuse",
+      "elements": 16384,
+      "checksum": 4787499544352525608,
+      "samples_ns": {
+        "cinch": [
+          152796166,
+          124156453,
+          153766853,
+          156051309,
+          148368460
+        ],
+        "reference": [
+          31984306,
+          21692770,
+          21247744,
+          29088075,
+          29240453
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 9549760.375,
+        "reference": 1818004.6875
+      }
+    },
+    {
+      "workload": "self-copy",
+      "elements": 32,
+      "checksum": 2967702107006759120,
+      "samples_ns": {
+        "cinch": [
+          885438,
+          889324,
+          860962,
+          865449,
+          830897
+        ],
+        "reference": [
+          148793,
+          154041,
+          162684,
+          151487,
+          147261
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 54090.5625,
+        "reference": 9467.9375
+      }
+    },
+    {
+      "workload": "self-copy",
+      "elements": 1024,
+      "checksum": 4285202698410967152,
+      "samples_ns": {
+        "cinch": [
+          26052315,
+          25124263,
+          27000213,
+          27668655,
+          22633728
+        ],
+        "reference": [
+          4711718,
+          5454411,
+          4474341,
+          5318198,
+          4784918
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 1628269.6875,
+        "reference": 299057.375
+      }
+    },
+    {
+      "workload": "self-copy",
+      "elements": 16384,
+      "checksum": 4594938917940491376,
+      "samples_ns": {
+        "cinch": [
+          442454626,
+          419578089,
+          433916339,
+          405664149,
+          409541053
+        ],
+        "reference": [
+          267473246,
+          143974213,
+          115317916,
+          137574147,
+          117328862
+        ]
+      },
+      "median_ns_per_pipeline": {
+        "cinch": 26223630.5625,
+        "reference": 8598384.1875
+      }
+    }
+  ],
+  "frontend": "rust",
+  "compiler_host_stack": "64M",
+  "source_snapshots": "/workspace/dasl-stdlib-collections/build/linked-list-bench-rust/sources",
+  "frozen_compiler_provenance": {
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
+    "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
+    "source_sha256": {
+      "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+      "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+      "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+      "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+    }
+  },
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+  "timing_started_utc": "2026-11-16T15:06:57.373874+00:00",
+  "background_note": "Only the selected CPU is reserved for this timing window. Compiler/validation work may overlap on other assigned CPUs; shared memory and caches are not isolated.",
+  "background_process_snapshot": [
+    "   5498   4  0.3 lib_go_stdlib-4",
+    "  52739   1  0.2 cinch",
+    "  54309   1  0.0 cinch",
+    "  54865   3  0.0 python3",
+    "  54867   4  0.1 clang",
+    "  54869   2  0.1 clang",
+    "  65199   4  0.0 rustc",
+    "  87650   2  0.0 python3",
+    " 133432   2  0.0 rustc",
+    " 140904   2  0.1 rustc",
+    " 181166   1  0.5 cinch",
+    " 221699   3  0.4 rustc",
+    " 294162   1  2.8 python3",
+    " 305892   1 98.9 cinch"
+  ],
+  "cpu_affinity": [
+    0
+  ],
+  "iterations": 16,
+  "samples": 5,
+  "timing": "runtime monotonic clock around operation loop; startup, configuration and preparation excluded"
+}

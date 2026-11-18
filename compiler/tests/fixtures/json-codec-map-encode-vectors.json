@@ -1,0 +1,207 @@
+{
+  "map_encoding": [
+    {
+      "entries": [
+        {
+          "key_hex": "62",
+          "value": 1
+        },
+        {
+          "key_hex": "61",
+          "value": 2
+        },
+        {
+          "key_hex": "7a",
+          "value": 3
+        }
+      ],
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "null": false,
+      "output_hex": "7b2261223a322c2262223a312c227a223a337d"
+    },
+    {
+      "entries": [
+        {
+          "key_hex": "c3a9",
+          "value": 1
+        },
+        {
+          "key_hex": "e6bca2",
+          "value": 2
+        },
+        {
+          "key_hex": "f09f9880",
+          "value": 3
+        },
+        {
+          "key_hex": "ff",
+          "value": 4
+        },
+        {
+          "key_hex": "c0af",
+          "value": 5
+        },
+        {
+          "key_hex": "eda080",
+          "value": 6
+        }
+      ],
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "null": false,
+      "output_hex": "7b22c3a9223a312c22e6bca2223a322c22efbfbd223a342c22efbfbdefbfbd223a352c22efbfbdefbfbdefbfbd223a362c22f09f9880223a337d"
+    },
+    {
+      "entries": [
+        {
+          "key_hex": "7a",
+          "value": 1
+        },
+        {
+          "key_hex": "80",
+          "value": 2
+        }
+      ],
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "null": false,
+      "output_hex": "7b227a223a312c22efbfbd223a327d"
+    },
+    {
+      "entries": [
+        {
+          "key_hex": "c3a9",
+          "value": 1
+        },
+        {
+          "key_hex": "efbfbd",
+          "value": 2
+        },
+        {
+          "key_hex": "e6bca2",
+          "value": 3
+        }
+      ],
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "null": false,
+      "output_hex": "7b22c3a9223a312c22e6bca2223a332c22efbfbd223a327d"
+    },
+    {
+      "entries": [
+        {
+          "key_hex": "",
+          "value": 1
+        },
+        {
+          "key_hex": "22",
+          "value": 2
+        },
+        {
+          "key_hex": "5c",
+          "value": 3
+        },
+        {
+          "key_hex": "0a",
+          "value": 4
+        },
+        {
+          "key_hex": "00",
+          "value": 5
+        },
+        {
+          "key_hex": "3c3e26",
+          "value": 6
+        },
+        {
+          "key_hex": "e280a8e280a9",
+          "value": 7
+        }
+      ],
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "null": false,
+      "output_hex": "7b22223a312c225c7530303030223a352c225c6e223a342c225c22223a322c225c75303033635c75303033655c7530303236223a362c225c5c223a332c225c75323032385c7532303239223a377d"
+    },
+    {
+      "entries": [
+        {
+          "key_hex": "6161616161616161616161616161617a",
+          "value": 1
+        },
+        {
+          "key_hex": "6161616161616161616161616161616161",
+          "value": 2
+        },
+        {
+          "key_hex": "6161616161616161616161616161616161",
+          "value": 3
+        },
+        {
+          "key_hex": "61616161616161616161616161616161616161616161616161616161616161",
+          "value": 4
+        },
+        {
+          "key_hex": "6161616161616161616161616161616161616161616161616161616161616161",
+          "value": 5
+        },
+        {
+          "key_hex": "616161616161616161616161616161616161616161616161616161616161616161",
+          "value": 6
+        }
+      ],
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "null": false,
+      "output_hex": "7b226161616161616161616161616161616161223a332c2261616161616161616161616161616161616161616161616161616161616161223a342c226161616161616161616161616161616161616161616161616161616161616161223a352c22616161616161616161616161616161616161616161616161616161616161616161223a362c226161616161616161616161616161617a223a317d"
+    },
+    {
+      "entries": [
+        {
+          "key_hex": "72656a656374",
+          "value": 1
+        }
+      ],
+      "error": {
+        "kind": "custom",
+        "offset": 0,
+        "type": "*main.rawMapKey",
+        "text": "json: error calling MarshalText for type *main.rawMapKey: key rejected",
+        "cause": "key rejected"
+      },
+      "null": false,
+      "output_hex": ""
+    },
+    {
+      "entries": [],
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "null": false,
+      "output_hex": "7b7d"
+    },
+    {
+      "entries": [],
+      "error": {
+        "kind": "",
+        "offset": 0
+      },
+      "null": true,
+      "output_hex": "6e756c6c"
+    }
+  ]
+}

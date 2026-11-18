@@ -1,0 +1,171 @@
+{
+  "description": "Offline configurable Base64 wire, malformed-input, ownership and streaming validation",
+  "frontend": "rust",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "fixture_sha256": "b340b3f671b85c65b88bf672209c23d80042bbf4722b9decb77e49f1b7aa7b0b",
+  "consumer_helpers_sha256": "d68648b2fd825afdee309643bd20db3b3e8d88810a064aefcc42fc666a0bb9ff",
+  "projector_sha256": "613eebdae482de40a4a67de7127db62b4b0305486e41590a8bddbeb193bc2ee7",
+  "source_sha256": {
+    "compiler/prelude/Text/Base64/Encoding.cinch": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "compiler/prelude/Effect/Base64.cinch": "4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231",
+    "compiler/prelude/Effect/Stream.cinch": "00147b63b5474fa7e499f5190cd1238d7e041fe40d7a8f66501a2ebda4e85d33",
+    "compiler/prelude/Text/Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "compiler/prelude/Data/Bytes/Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8"
+  },
+  "cases": [
+    {
+      "name": "valid-0",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "valid-1",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "valid-2",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "valid-3",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "valid-4",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "valid-5",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "valid-6",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "valid-7",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "valid-8",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "malformed-0",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "malformed-1",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "malformed-2",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "malformed-3",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "malformed-4",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "malformed-5",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "malformed-6",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "malformed-7",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "malformed-8",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "strict",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "buffers",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "streams",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    },
+    {
+      "name": "long-stream",
+      "ordinary_heap": "32M",
+      "poisoned_heap": "256M",
+      "stack": "8M",
+      "zero_leaks": true
+    }
+  ]
+}

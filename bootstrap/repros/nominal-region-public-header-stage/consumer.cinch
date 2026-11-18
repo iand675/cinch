@@ -1,0 +1,6 @@
+-- | A mismatched header must be rejected.
+module Main where
+  import RegionFacade
+  -- | Retain the claimed identity without executing it.
+  safe :: forall (s :: Region) a. Handle s a -> Handle s a
+  safe value = value

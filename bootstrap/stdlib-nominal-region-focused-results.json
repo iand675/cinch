@@ -1,0 +1,62 @@
+{
+  "scope": "Actual integrated focused target: explicit Region headers/private contracts/reexports; lexical-role isolation;9 namespace refusals;7 source-absent consumers; public-header mutation refused at kind elaboration4; private nominal contradiction refused by loader90.",
+  "passed": 7,
+  "elapsed_seconds": 272.31,
+  "production_compiler_changes": "c31cde9d plus d3ab8ad0; subsequent changes correct only fixture syntax and distinguish actual refusal stages.",
+  "full_unit_gate": "339 passed before subsequent Wide Slots codegen repair",
+  "files": {
+    "producer.cinch": "9a6208a9e8a92e4978c21cf0cea5448b0ff3b13ba291312a6fa8fa6a8a2feaaa",
+    "focused-gate.log": "478cfe49c3bf568388e937c286c4206cce7d567561b7b1d909987e1f5666ab48",
+    "interface_nominal_regions.rs": "3aec854a32f085eaf50e4b661da278a66cbcb5a709167c354d9ae54dbeafec6e"
+  },
+  "followup_gates": [
+    {
+      "gate": "full-lib",
+      "passed": 339,
+      "log": "bootstrap/repros/nominal-region-qualified/full-lib.log",
+      "sha256": "2bac623842af3afa496a86522bc9872ca70e5bcd2b06250ec3c1831fbdf1f092"
+    },
+    {
+      "gate": "interface_kinds",
+      "passed": 7,
+      "log": "bootstrap/repros/nominal-region-qualified/interface_kinds.log",
+      "sha256": "9cb8de8d8c9f48f14db7705d6010fb986d2b0b906cdb3e6e020bd7ca0126e744"
+    },
+    {
+      "gate": "rank_n",
+      "passed": 24,
+      "log": "bootstrap/repros/nominal-region-qualified/rank_n.log",
+      "sha256": "5021ae42dc1da100e1cb0b0952b8410735aa28de5c46f0d7c0be1246567296fe"
+    },
+    {
+      "gate": "explicit_region_quantifiers",
+      "passed": 13,
+      "log": "bootstrap/repros/nominal-region-qualified/explicit_region_quantifiers.log",
+      "sha256": "eebf6cd2f7840cf19df9b7604947e54879fb80d9f71c792c027c8f330bd7e50a"
+    },
+    {
+      "gate": "constructor_region_fields",
+      "passed": 6,
+      "log": "bootstrap/repros/nominal-region-qualified/constructor_region_fields.log",
+      "sha256": "0ad1aeccb53c7d0b95921ac8c622ee032e62518cc2e19a937d065b80804b4a85"
+    },
+    {
+      "gate": "interface_region_effects",
+      "passed": 6,
+      "log": "bootstrap/repros/nominal-region-qualified/interface_region_effects.log",
+      "sha256": "192e250cfc706c18af7645c8655f2867c5949f923e847c91fd3968301ece70b0"
+    },
+    {
+      "gate": "cross_region_effect_union",
+      "passed": 8,
+      "log": "bootstrap/repros/nominal-region-qualified/cross_region_effect_union.log",
+      "sha256": "d5e7bbeb1752913f329af6969041db2549f0f660af1fae744b64a13ed683fc3a"
+    }
+  ],
+  "aggregate_import_check": {
+    "source_distributed": 124,
+    "embedded": 66,
+    "exit": 0,
+    "scope": "Aggregate compatibility; earlier isolated-source checks remain separate"
+  }
+}

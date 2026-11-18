@@ -1,0 +1,1555 @@
+{
+  "description": "Chosen circular-sequence implementation: complete independent mutation traces, managed aliases/owners and paired SIMD; private extraction experiment reverted after no repeatable gain",
+  "distinct_reference_actions": 768,
+  "kernel_input_triples": 49,
+  "kernel_assertions": 49,
+  "normal_heap": "32M",
+  "poisoned_heap": "256M",
+  "runtime_stack": "8M",
+  "frontends": {
+    "rust": {
+      "status": "passed",
+      "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+      "sources": {
+        "Data.Mutable.Ring": "9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25",
+        "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7",
+        "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee"
+      },
+      "reports": {
+        "build/ring-rust-chosen-validation-results.json": "567f661b2e19304d25d403c1dc07f8623f813970e27690ecbc724322bb8e2db4"
+      },
+      "normal_processes": 10,
+      "poisoned_processes": 33,
+      "compiler_scope": "preserved repaired RustCLI",
+      "suites": [
+        {
+          "suite": "trace-0",
+          "consumer_sha256": "ceb118abc702cf2d7088ea7acebe0de590f5b008dbdb4aa845ce6c6b40cca710",
+          "executable_sha256": "2fa6e122fd319ee16926bb38b863c390b6a1aa3314eb2aaae0f6b59b41c4de90",
+          "llvm_sha256": "fca4648e90ceabbf0884e3edeaf5b781bd4606f4ba855db73f4b865a5dabddb0",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=204337 bytes=4572149 peak=28773 header-blocks=204305 header-bytes=4571832 immortal=0 freed=204305 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=204337 bytes=4572149 peak=4572085 header-blocks=204305 header-bytes=4571832 immortal=0 freed=204305 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-1",
+          "consumer_sha256": "feb220530cc22f7eef6799e9325ecc09675563a38b4e97f89c7a199442389bd1",
+          "executable_sha256": "0e9fd3d7c7685e19e2c7461fa48dc50809e39232fe5e0b72dc52d2e61ac81805",
+          "llvm_sha256": "b377f29f370d98dac7537a2ab0756ef013cf9fbd1c3f0c69b5b9f65f913866c3",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=297952 bytes=6667732 peak=39068 header-blocks=297907 header-bytes=6667384 immortal=0 freed=297907 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=297952 bytes=6667732 peak=6667644 header-blocks=297907 header-bytes=6667384 immortal=0 freed=297907 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-2",
+          "consumer_sha256": "cc4bb0ff989d16b5fab0c750e471ca205821c04bc17afb55f2d499a4b7dcc338",
+          "executable_sha256": "0eba1168993822eb4bdad80c12320cef72680c3267b75772d69a3254e316a9e0",
+          "llvm_sha256": "be3a9ff1cdc178d8efb74216c8d14333581e35c4f40b4fe0fbff6f7b36930b1a",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=97291 bytes=2175001 peak=27489 header-blocks=97249 header-bytes=2174656 immortal=0 freed=97249 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=97291 bytes=2175001 peak=2174913 header-blocks=97249 header-bytes=2174656 immortal=0 freed=97249 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-3",
+          "consumer_sha256": "3d6378fef06ed7ccb2d67410e8f7a0f0fe16a0bde33ec8c02ae67d0187faa3c2",
+          "executable_sha256": "21c73833d1b106f7720696e0140c281efcccd8a5a4b6a55d96c0847184a38ff3",
+          "llvm_sha256": "c87f54a027b5aa44bf8610577a7d450192ea424bdd7cb6f8e49e4f2fd4c31aec",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=101383 bytes=2265809 peak=26969 header-blocks=101341 header-bytes=2265464 immortal=0 freed=101341 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=101383 bytes=2265809 peak=2265721 header-blocks=101341 header-bytes=2265464 immortal=0 freed=101341 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-4",
+          "consumer_sha256": "bc2e3d78d939081101518400b2ed45ff602d7ade5f71790d420b92ebf95315a3",
+          "executable_sha256": "57781ae774d4dd36e2d81cfeb4bda3a264c3b8557dfa27762f97bd6d90788cb1",
+          "llvm_sha256": "addab4a92e1602bd8710f1674c2ba44a4d7de7317732283df0304f29a316f2da",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=180669 bytes=4038100 peak=29384 header-blocks=180635 header-bytes=4037784 immortal=0 freed=180635 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=180669 bytes=4038100 peak=4038040 header-blocks=180635 header-bytes=4037784 immortal=0 freed=180635 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-5",
+          "consumer_sha256": "05e1ab72af89d1c9f5034a0340b4e5cf3ee2e28fed7d7a63412310da6be6f31b",
+          "executable_sha256": "61683f08d888d8b96da4b41c40d3eb8997121ecea661ba927c28fc40ee0f6a83",
+          "llvm_sha256": "5074588c5b5cd4db649ed350d5a039cac070f568c14801b749410a1d12fae476",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=222785 bytes=4983334 peak=25906 header-blocks=222759 header-bytes=4983032 immortal=0 freed=222759 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=222785 bytes=4983334 peak=4983282 header-blocks=222759 header-bytes=4983032 immortal=0 freed=222759 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-6",
+          "consumer_sha256": "ad27f462b12a76e7d8f5e01c82787cc41c9b54d1e5e8d463dae24728757b0128",
+          "executable_sha256": "5f44a3f1863ce4eba45c6e41f0363f27f1b487d213b3c26b71ee9f57e0a7074b",
+          "llvm_sha256": "ceb1510f042579990fe3f8a68ffc1b760d3444403ee5558914764e976d3190ee",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3927862 bytes=87949228 peak=48144 header-blocks=3927830 header-bytes=87948920 immortal=0 freed=3927830 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3927862 bytes=87949228 peak=87949176 header-blocks=3927830 header-bytes=87948920 immortal=0 freed=3927830 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-7",
+          "consumer_sha256": "32a158e0013a3782f13aa292897833665f26e7d8ae295e591806e67720fee214",
+          "executable_sha256": "fedc8b9791e03ea6d29a58fb25204421c55d47fb7525dfc74cebd18d1c8b7996",
+          "llvm_sha256": "fb1b9207d26323357f2a86464eda0438ce288d98966f205621c55ec60718a633",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=31908574 bytes=714686668 peak=71680 header-blocks=31908540 header-bytes=714686352 immortal=0 freed=31908540 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "window-7",
+          "consumer_sha256": "d419d1c16590e268bae5f85a9d23a0b2a2355b2d0a729e6809591049e80e04c2",
+          "executable_sha256": "d9b3cae89922308b3f75b7b5b81f787599e07cbad9905e51644e94b7ec72c05f",
+          "llvm_sha256": "38c05eb51bb80a3a2dd752920cc51d104a09bbdfb4b6d0c9076e167dbaf244c7",
+          "runs": [
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "0",
+                "4"
+              ],
+              "exhaustive_observation_window": [
+                0,
+                4
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1325957 bytes=29723087 peak=29723051 header-blocks=1325940 header-bytes=29722760 immortal=0 freed=1325940 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "4",
+                "8"
+              ],
+              "exhaustive_observation_window": [
+                4,
+                8
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1326048 bytes=29725240 peak=29725204 header-blocks=1326030 header-bytes=29724912 immortal=0 freed=1326030 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "8",
+                "12"
+              ],
+              "exhaustive_observation_window": [
+                8,
+                12
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1326226 bytes=29729131 peak=29729093 header-blocks=1326208 header-bytes=29728800 immortal=0 freed=1326208 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "12",
+                "16"
+              ],
+              "exhaustive_observation_window": [
+                12,
+                16
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1326243 bytes=29729470 peak=29729430 header-blocks=1326225 header-bytes=29729136 immortal=0 freed=1326225 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "16",
+                "20"
+              ],
+              "exhaustive_observation_window": [
+                16,
+                20
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1326485 bytes=29735032 peak=29734992 header-blocks=1326465 header-bytes=29734696 immortal=0 freed=1326465 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "20",
+                "24"
+              ],
+              "exhaustive_observation_window": [
+                20,
+                24
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1326547 bytes=29736360 peak=29736320 header-blocks=1326527 header-bytes=29736024 immortal=0 freed=1326527 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "24",
+                "28"
+              ],
+              "exhaustive_observation_window": [
+                24,
+                28
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1327643 bytes=29761161 peak=29761121 header-blocks=1327622 header-bytes=29760824 immortal=0 freed=1327622 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "28",
+                "32"
+              ],
+              "exhaustive_observation_window": [
+                28,
+                32
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1327997 bytes=29769009 peak=29768969 header-blocks=1327976 header-bytes=29768672 immortal=0 freed=1327976 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "32",
+                "36"
+              ],
+              "exhaustive_observation_window": [
+                32,
+                36
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1328161 bytes=29772907 peak=29772867 header-blocks=1328138 header-bytes=29772568 immortal=0 freed=1328138 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "36",
+                "40"
+              ],
+              "exhaustive_observation_window": [
+                36,
+                40
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1328385 bytes=29777827 peak=29777787 header-blocks=1328362 header-bytes=29777488 immortal=0 freed=1328362 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "40",
+                "44"
+              ],
+              "exhaustive_observation_window": [
+                40,
+                44
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1328445 bytes=29779252 peak=29779212 header-blocks=1328421 header-bytes=29778912 immortal=0 freed=1328421 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "44",
+                "48"
+              ],
+              "exhaustive_observation_window": [
+                44,
+                48
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1328659 bytes=29784041 peak=29783997 header-blocks=1328633 header-bytes=29783696 immortal=0 freed=1328633 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "48",
+                "52"
+              ],
+              "exhaustive_observation_window": [
+                48,
+                52
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1328924 bytes=29790001 peak=29789957 header-blocks=1328898 header-bytes=29789656 immortal=0 freed=1328898 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "52",
+                "56"
+              ],
+              "exhaustive_observation_window": [
+                52,
+                56
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1330402 bytes=29823467 peak=29823423 header-blocks=1330374 header-bytes=29823120 immortal=0 freed=1330374 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "56",
+                "60"
+              ],
+              "exhaustive_observation_window": [
+                56,
+                60
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1330614 bytes=29828119 peak=29828071 header-blocks=1330585 header-bytes=29827768 immortal=0 freed=1330585 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "60",
+                "64"
+              ],
+              "exhaustive_observation_window": [
+                60,
+                64
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1331134 bytes=29840073 peak=29840025 header-blocks=1331103 header-bytes=29839720 immortal=0 freed=1331103 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "64",
+                "68"
+              ],
+              "exhaustive_observation_window": [
+                64,
+                68
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1331856 bytes=29856201 peak=29856145 header-blocks=1331823 header-bytes=29855840 immortal=0 freed=1331823 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "68",
+                "72"
+              ],
+              "exhaustive_observation_window": [
+                68,
+                72
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1332720 bytes=29875898 peak=29875842 header-blocks=1332686 header-bytes=29875536 immortal=0 freed=1332686 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "72",
+                "76"
+              ],
+              "exhaustive_observation_window": [
+                72,
+                76
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1334848 bytes=29923590 peak=29923530 header-blocks=1334813 header-bytes=29923224 immortal=0 freed=1334813 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "76",
+                "80"
+              ],
+              "exhaustive_observation_window": [
+                76,
+                80
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1336855 bytes=29968755 peak=29968691 header-blocks=1336818 header-bytes=29968384 immortal=0 freed=1336818 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "80",
+                "84"
+              ],
+              "exhaustive_observation_window": [
+                80,
+                84
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1343542 bytes=30118904 peak=30118836 header-blocks=1343503 header-bytes=30118528 immortal=0 freed=1343503 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "84",
+                "88"
+              ],
+              "exhaustive_observation_window": [
+                84,
+                88
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1341174 bytes=30065856 peak=30065788 header-blocks=1341135 header-bytes=30065480 immortal=0 freed=1341135 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "88",
+                "92"
+              ],
+              "exhaustive_observation_window": [
+                88,
+                92
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1341585 bytes=30075145 peak=30075077 header-blocks=1341545 header-bytes=30074768 immortal=0 freed=1341545 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "92",
+                "96"
+              ],
+              "exhaustive_observation_window": [
+                92,
+                96
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=1344153 bytes=30133001 peak=30132933 header-blocks=1344113 header-bytes=30132624 immortal=0 freed=1344113 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "control",
+          "consumer_sha256": "4c1563bb26c28d3bb269f662cf6a084ebc11b0e8de2d4f15cb96aaa1f826b93f",
+          "executable_sha256": "4cfa6c5e32bd14f9f1970e62b3ddaa2aa3a7431f66dd85f9dd42f71420975beb",
+          "llvm_sha256": "876257d988e14bc95a93879ae1ac4ddbd259c246ad537d333718fa80ac8c78a2",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=537 bytes=15182 peak=2783 header-blocks=484 header-bytes=14072 immortal=0 freed=484 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=537 bytes=15182 peak=14503 header-blocks=484 header-bytes=14072 immortal=0 freed=484 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "offset-kernel",
+          "consumer_sha256": "ab8ff449f73c0de4a28c061a06f63f9242df937555ff831daec774f98861b689",
+          "executable_sha256": "6335d7f57f623c097d804205144c107bcaae2d098add3ef04bb89eeefcf603c7",
+          "llvm_sha256": "777f8930841e533875d70109d1ce81b4d9f3606dde582b5c9583814760c4dfdf",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6 bytes=267 peak=243 header-blocks=0 header-bytes=0 immortal=0 freed=0 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6 bytes=267 peak=243 header-blocks=0 header-bytes=0 immortal=0 freed=0 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "description": "Rust sealed finite-Array admission and transitive frame-noncapture repair snapshot",
+        "compiler_sha256": "b004049baa8e2614dd35f5484811bbf2cd24b137923a8e3bc36bf08c9c53fc93",
+        "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+        "production_revision": "0a1f6283",
+        "new_native_scalar_intrinsics_included": false,
+        "string_epoch": "phase1 repeat/concatenation, not combined e5 provider",
+        "gates": [
+          {
+            "log": "/tmp/cinch-frame-capture-six-final-parent-gate.log",
+            "sha256": "7fd3c1c6512d32b3db7a97ab09ba662738cdcdb63677d0b09a4f3f0a9e252ff6",
+            "passed": 6,
+            "seconds": 0.0
+          },
+          {
+            "log": "/tmp/cinch-frame-array-capture-runtime-parent-gate.log",
+            "sha256": "7a8ae1d680fbc2076d19a6ab526ad0f6a2faff5f6dd9c7151dc4125ca06c7682",
+            "passed": 1,
+            "seconds": 14.09
+          },
+          {
+            "log": "/tmp/cinch-frame-recursive-array-runtime-parent-gate.log",
+            "sha256": "36d92d799e38acbc520e596fc057b3a48e227e0787b85ac3309cc14c239eb129",
+            "passed": 1,
+            "seconds": 3.83
+          },
+          {
+            "log": "/tmp/cinch-frame-capture-preserved-stack-parent-gate.log",
+            "sha256": "8eb811fd0c66746a2467a68b95b1866269ce6aef3ad1da796ffa5f4336beda75",
+            "passed": 22,
+            "seconds": 116.27
+          }
+        ],
+        "total_passed": 30,
+        "caveats": [
+          "Native positivity and full merged self-built family remain separately gated.",
+          "Rust CLI links its compile-time runtime directory by default; standalone validators must verify or explicitly select this retained matching archive.",
+          "Broader complete Rust library and Source Native authority gate are pending after this focused snapshot."
+        ]
+      }
+    },
+    "native": {
+      "status": "passed",
+      "compiler_sha256": "3935f510e71b0abcde92eb62f07fdfa990b4149fcf750276d59d7db49f7ce359",
+      "sources": {
+        "Data.Mutable.Ring": "9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25",
+        "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7",
+        "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+        "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee"
+      },
+      "reports": {
+        "build/ring-native-validation-results.json": "a880cba25f041d091945ffc56ece771d06d7b3ff9bb8e633d9cb134de44143fd",
+        "build/ring-native-traces-0-1-results.json": "c59fd46ae1d4a330fd51fdbaa3d84a10660477c7793cc284c2ca137356801503",
+        "build/ring-native-traces-2-3-results.json": "df8063aca0fb9badce532233068ce6f7bb7da890d6ebc9526410f38a6e2f23b6",
+        "build/ring-native-traces-4-7-results.json": "05f12f25bdbfaad3813a2b24cb89a1fdae5d4f7f0ae6b5da23950595fa4f4290",
+        "build/ring-native-trace-7-complete-results.json": "e5607415345b268151d46774b9a91fd5d488ad60f4aad9317a65a05305753cc2"
+      },
+      "normal_processes": 10,
+      "poisoned_processes": 33,
+      "compiler_scope": "Rust-produced experimental Native645; no self-built/fixed-point family claim",
+      "suites": [
+        {
+          "suite": "control",
+          "consumer_sha256": "4c1563bb26c28d3bb269f662cf6a084ebc11b0e8de2d4f15cb96aaa1f826b93f",
+          "executable_sha256": "ea69578a2f3019c078120c9d173ce5661a6e979a779c9ad0f487e725df9b4b6e",
+          "llvm_sha256": "a4f737289bf2fffc33858d71ae126b4064bd4e26cc3b50ec29ef8cc0dd48d93e",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=846 bytes=22849 peak=4036 header-blocks=795 header-bytes=21776 immortal=0 freed=795 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=846 bytes=22849 peak=22404 header-blocks=795 header-bytes=21776 immortal=0 freed=795 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-0",
+          "consumer_sha256": "ceb118abc702cf2d7088ea7acebe0de590f5b008dbdb4aa845ce6c6b40cca710",
+          "executable_sha256": "c79404a468a1335b22724763618a4e51bac23ad89125e9d1a45a498271305bcf",
+          "llvm_sha256": "4fdcdec2ebf9a2182588aa6eb0d3b84f82d811f9b483902ab9a70836c2bfe9b1",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=518172 bytes=12773952 peak=29032 header-blocks=518140 header-bytes=12773640 immortal=0 freed=518140 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=518172 bytes=12773952 peak=12773888 header-blocks=518140 header-bytes=12773640 immortal=0 freed=518140 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-1",
+          "consumer_sha256": "feb220530cc22f7eef6799e9325ecc09675563a38b4e97f89c7a199442389bd1",
+          "executable_sha256": "daed4c10b39864c9f75c353f23144f3dd299610b07e36745d4190851cab2cbfc",
+          "llvm_sha256": "34cf5af56d952cbf87c30fcd21566f02105a0b39b8280b62deeecabd2ab7341b",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=754870 bytes=18602719 peak=39231 header-blocks=754825 header-bytes=18602376 immortal=0 freed=754825 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=754870 bytes=18602719 peak=18602631 header-blocks=754825 header-bytes=18602376 immortal=0 freed=754825 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "offset-kernel",
+          "consumer_sha256": "ab8ff449f73c0de4a28c061a06f63f9242df937555ff831daec774f98861b689",
+          "executable_sha256": "70b12663444ac93bdeb81405ea8dc2a3ea38093a5bc26fbe352a63b42d0dac08",
+          "llvm_sha256": "9ef85887391dbe6bc7a8669ce93b5671608e8543b534d5844f51b97e71ca6276",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6 bytes=262 peak=238 header-blocks=0 header-bytes=0 immortal=0 freed=0 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=6 bytes=262 peak=238 header-blocks=0 header-bytes=0 immortal=0 freed=0 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-2",
+          "consumer_sha256": "cc4bb0ff989d16b5fab0c750e471ca205821c04bc17afb55f2d499a4b7dcc338",
+          "executable_sha256": "01bfafafda45d533002a81bce9fdeeabf95d54026e0d5152773c45f52310b844",
+          "llvm_sha256": "f7af49a290b5c84244ed50acda3cc8103917428b744a2daedc7cd5b3944f34d6",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=259093 bytes=6389332 peak=27764 header-blocks=259051 header-bytes=6388992 immortal=0 freed=259051 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=259093 bytes=6389332 peak=6389244 header-blocks=259051 header-bytes=6388992 immortal=0 freed=259051 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-3",
+          "consumer_sha256": "3d6378fef06ed7ccb2d67410e8f7a0f0fe16a0bde33ec8c02ae67d0187faa3c2",
+          "executable_sha256": "a25b7aa2247468285d5973f7e6965251e9b13b0481a00f2eb36b122950732006",
+          "llvm_sha256": "a222bc72ba922508183ea9c427bcf84fe7d7d4986f7ece4e8c9b892ccc603579",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=269375 bytes=6640716 peak=27132 header-blocks=269333 header-bytes=6640376 immortal=0 freed=269333 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=269375 bytes=6640716 peak=6640628 header-blocks=269333 header-bytes=6640376 immortal=0 freed=269333 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-4",
+          "consumer_sha256": "bc2e3d78d939081101518400b2ed45ff602d7ade5f71790d420b92ebf95315a3",
+          "executable_sha256": "d9f700150f32cbcb5de1fb176bbdbd47d699ffc382d6a33b4ada7fe2fa48422a",
+          "llvm_sha256": "a246065f1dddb2cb3f954ed702623f7fce8e731409f6a2faa5556e5c0ff80377",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=468842 bytes=11544751 peak=29627 header-blocks=468808 header-bytes=11544440 immortal=0 freed=468808 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=468842 bytes=11544751 peak=11544691 header-blocks=468808 header-bytes=11544440 immortal=0 freed=468808 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-5",
+          "consumer_sha256": "05e1ab72af89d1c9f5034a0340b4e5cf3ee2e28fed7d7a63412310da6be6f31b",
+          "executable_sha256": "dfacaecd70755c3950d5550e6c9a357c40e7f9168b079f60d84b97299da8e40d",
+          "llvm_sha256": "3119338ff64e31b7bb58db3c5c315cca2670f970e6dc38863cdd21ba5f63b5ba",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=564084 bytes=13900049 peak=26181 header-blocks=564058 header-bytes=13899752 immortal=0 freed=564058 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=564084 bytes=13900049 peak=13899997 header-blocks=564058 header-bytes=13899752 immortal=0 freed=564058 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-6",
+          "consumer_sha256": "ad27f462b12a76e7d8f5e01c82787cc41c9b54d1e5e8d463dae24728757b0128",
+          "executable_sha256": "b71b83ddee925819ae0e4f0cf09835c84d48c2fb79b6d970213e94a1afb26e06",
+          "llvm_sha256": "115861f4357a0d869d50f52e4a18d73a403f732defc68ae98c77b729e7b66f87",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=9531698 bytes=235007175 peak=48419 header-blocks=9531666 header-bytes=235006872 immortal=0 freed=9531666 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=9531698 bytes=235007175 peak=235007123 header-blocks=9531666 header-bytes=235006872 immortal=0 freed=9531666 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "trace-7",
+          "consumer_sha256": "32a158e0013a3782f13aa292897833665f26e7d8ae295e591806e67720fee214",
+          "executable_sha256": "5c77430593dd2ff763cd72b2582935ae5475250a16049e6cdd7ec12f25687db6",
+          "llvm_sha256": "fb7a7d48bb6f25618c7f0dce4aa53150076cb04b689941bb984ef37fba0c20c8",
+          "runs": [
+            {
+              "poisoned_free": false,
+              "heap": "32M",
+              "stack": "8M",
+              "arguments": [],
+              "exhaustive_observation_window": null,
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=76771633 bytes=1893488709 peak=71921 header-blocks=76771599 header-bytes=1893488392 immortal=0 freed=76771599 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        },
+        {
+          "suite": "window-7",
+          "consumer_sha256": "d419d1c16590e268bae5f85a9d23a0b2a2355b2d0a729e6809591049e80e04c2",
+          "executable_sha256": "8484b0c8dc2bde771ed27d020d63f8bfdd929edecbc5200ed47c927dc36cb422",
+          "llvm_sha256": "6c69f4e48f3c63800530705986a0e1e50ac07126791f87d23a06ddd53e2b01d7",
+          "runs": [
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "0",
+                "4"
+              ],
+              "exhaustive_observation_window": [
+                0,
+                4
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3188313 bytes=78665568 peak=78665534 header-blocks=3188296 header-bytes=78665240 immortal=0 freed=3188296 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "4",
+                "8"
+              ],
+              "exhaustive_observation_window": [
+                4,
+                8
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3188505 bytes=78670497 peak=78670463 header-blocks=3188487 header-bytes=78670168 immortal=0 freed=3188487 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "8",
+                "12"
+              ],
+              "exhaustive_observation_window": [
+                8,
+                12
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3188974 bytes=78682020 peak=78681985 header-blocks=3188956 header-bytes=78681688 immortal=0 freed=3188956 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "12",
+                "16"
+              ],
+              "exhaustive_observation_window": [
+                12,
+                16
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3188983 bytes=78682263 peak=78682227 header-blocks=3188965 header-bytes=78681928 immortal=0 freed=3188965 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "16",
+                "20"
+              ],
+              "exhaustive_observation_window": [
+                16,
+                20
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3189626 bytes=78698369 peak=78698333 header-blocks=3189606 header-bytes=78698032 immortal=0 freed=3189606 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "20",
+                "24"
+              ],
+              "exhaustive_observation_window": [
+                20,
+                24
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3189794 bytes=78702601 peak=78702565 header-blocks=3189774 header-bytes=78702264 immortal=0 freed=3189774 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "24",
+                "28"
+              ],
+              "exhaustive_observation_window": [
+                24,
+                28
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3192572 bytes=78771602 peak=78771566 header-blocks=3192551 header-bytes=78771264 immortal=0 freed=3192551 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "28",
+                "32"
+              ],
+              "exhaustive_observation_window": [
+                28,
+                32
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3193472 bytes=78793810 peak=78793774 header-blocks=3193451 header-bytes=78793472 immortal=0 freed=3193451 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "32",
+                "36"
+              ],
+              "exhaustive_observation_window": [
+                32,
+                36
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3193896 bytes=78804692 peak=78804656 header-blocks=3193873 header-bytes=78804352 immortal=0 freed=3193873 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "36",
+                "40"
+              ],
+              "exhaustive_observation_window": [
+                36,
+                40
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3194544 bytes=78820772 peak=78820736 header-blocks=3194521 header-bytes=78820432 immortal=0 freed=3194521 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "40",
+                "44"
+              ],
+              "exhaustive_observation_window": [
+                40,
+                44
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3194693 bytes=78824725 peak=78824689 header-blocks=3194669 header-bytes=78824384 immortal=0 freed=3194669 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "44",
+                "48"
+              ],
+              "exhaustive_observation_window": [
+                44,
+                48
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3195322 bytes=78840490 peak=78840450 header-blocks=3195296 header-bytes=78840144 immortal=0 freed=3195296 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "48",
+                "52"
+              ],
+              "exhaustive_observation_window": [
+                48,
+                52
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3195962 bytes=78856450 peak=78856410 header-blocks=3195936 header-bytes=78856104 immortal=0 freed=3195936 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "52",
+                "56"
+              ],
+              "exhaustive_observation_window": [
+                52,
+                56
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3199743 bytes=78950084 peak=78950044 header-blocks=3199715 header-bytes=78949736 immortal=0 freed=3199715 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "56",
+                "60"
+              ],
+              "exhaustive_observation_window": [
+                56,
+                60
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3200293 bytes=78963688 peak=78963644 header-blocks=3200264 header-bytes=78963336 immortal=0 freed=3200264 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "60",
+                "64"
+              ],
+              "exhaustive_observation_window": [
+                60,
+                64
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3201642 bytes=78997386 peak=78997342 header-blocks=3201611 header-bytes=78997032 immortal=0 freed=3201611 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "64",
+                "68"
+              ],
+              "exhaustive_observation_window": [
+                64,
+                68
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3203463 bytes=79042354 peak=79042302 header-blocks=3203430 header-bytes=79041992 immortal=0 freed=3203430 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "68",
+                "72"
+              ],
+              "exhaustive_observation_window": [
+                68,
+                72
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3205563 bytes=79094579 peak=79094527 header-blocks=3205529 header-bytes=79094216 immortal=0 freed=3205529 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "72",
+                "76"
+              ],
+              "exhaustive_observation_window": [
+                72,
+                76
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3210833 bytes=79224527 peak=79224471 header-blocks=3210798 header-bytes=79224160 immortal=0 freed=3210798 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "76",
+                "80"
+              ],
+              "exhaustive_observation_window": [
+                76,
+                80
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3215674 bytes=79344420 peak=79344360 header-blocks=3215637 header-bytes=79344048 immortal=0 freed=3215637 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "80",
+                "84"
+              ],
+              "exhaustive_observation_window": [
+                80,
+                84
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3232258 bytes=79753577 peak=79753513 header-blocks=3232219 header-bytes=79753200 immortal=0 freed=3232219 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "84",
+                "88"
+              ],
+              "exhaustive_observation_window": [
+                84,
+                88
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3226586 bytes=79613753 peak=79613689 header-blocks=3226547 header-bytes=79613376 immortal=0 freed=3226547 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "88",
+                "92"
+              ],
+              "exhaustive_observation_window": [
+                88,
+                92
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3227655 bytes=79640314 peak=79640250 header-blocks=3227615 header-bytes=79639936 immortal=0 freed=3227615 live=0\n",
+              "live": 0,
+              "leaked": 0
+            },
+            {
+              "poisoned_free": true,
+              "heap": "256M",
+              "stack": "8M",
+              "arguments": [
+                "92",
+                "96"
+              ],
+              "exhaustive_observation_window": [
+                92,
+                96
+              ],
+              "exit": 0,
+              "stdout": "",
+              "diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\ncinch-alloc: blocks=3233809 bytes=79792562 peak=79792498 header-blocks=3233769 header-bytes=79792184 immortal=0 freed=3233769 live=0\n",
+              "live": 0,
+              "leaked": 0
+            }
+          ]
+        }
+      ],
+      "native_compiler_sha256": "645c518560ae5565e9713446e96140d1f8adb0fbccce05a0e37b3f72e7c5e17d",
+      "interfaces_sha256": "e2140bc97b9f30a3739c1a142f0d22c290a02602bcc66ff7342f408cf6d18a67",
+      "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+      "objects_sha256": "093de5610d22ab5c145b8c060f704fb7f4b0fd29e1a9f8de3806d0277bf88d13"
+    }
+  }
+}

@@ -1,0 +1,69 @@
+-- | Exact-width odd candidate shaping, independent of any primality claim.
+-- These functions do not test primality and must not be used as a prime generator.
+-- The input is copied before top-bit and parity changes, preserving caller ownership.
+module Data.Prime.Candidate where
+  import Data.Core
+  import Data.Nat
+  import Data.Nat.Bytes
+  import Data.Bytes
+  import Data.Machine
+  import Data.Result
+
+  export PrimeCandidateError, PrimeCandidateSmallBits, PrimeCandidateWrongLength
+  export prime-candidate-from-bytes
+
+  -- | A size refusal before any candidate value is produced.
+  data PrimeCandidateError where
+    -- | A prime candidate needs at least two significant bits.
+    PrimeCandidateSmallBits :: PrimeCandidateError
+    -- | Input must have exactly ceil(bits/8) bytes.
+    PrimeCandidateWrongLength :: PrimeCandidateError
+
+  -- | Combine bounded top-byte masks and forced bits in a single byte operation.
+  prim shape-byte :: U8 -> U8 -> U8 -> U8 where
+    llvm {
+      %masked = and i8 %0, %1
+      %result = or i8 %masked, %2
+      ret i8 %result
+    }
+
+  -- | Force one fixed bit without changing the other byte bits.
+  prim set-bit :: U8 -> U8 -> U8 where
+    llvm {
+      %result = or i8 %0, %1
+      ret i8 %result
+    }
+
+  -- | Convert a proved byte-valued natural to its exact machine byte.
+  byte :: using (value <= 255) => (value :: Nat) -> U8
+  byte value = wrapping-i64-to-u8 (nat-to-i64 value)
+
+  -- | Form a small power used only for one-byte candidate masks.
+  power-two :: Nat -> Nat
+  power-two exponent = if exponent == 0 then 1 else 2 * power-two (exponent - 1)
+
+  -- | Shape exact bit length, both highest bits and odd parity without predicting entropy.
+  -- The returned natural is a candidate only, even when it happens to be prime.
+  prime-candidate-from-bytes :: Nat -> Bytes -> Result PrimeCandidateError Nat
+  prime-candidate-from-bytes bits input =
+    if bits < 2 then Err PrimeCandidateSmallBits
+    else if bytes-len input /= nat-div (bits + 7) 8 then Err PrimeCandidateWrongLength
+    else
+      let output = bytes-new (bytes-len input) in
+      let copied = bytes-copy-range output input 0 0 (bytes-len input) in
+      let remainder = nat-rem bits 8 in
+      let top = if remainder == 0 then 8 else remainder in
+      if 0 < bytes-len output && top >= 1 && top <= 8 then
+        let mask = saturating-sub (power-two top) 1 in
+        if mask <= 255 then
+          let raw = byte (bytes-get output 0) in
+          let forced = if top >= 2 then 3 * power-two (top - 2) else 1 in
+          if forced <= 255 then
+            let first = bytes-set output 0 (u8-to-nat (shape-byte raw (byte mask) (byte forced))) in
+            let second = if top == 1 && 1 < bytes-len output then bytes-set output 1 (u8-to-nat (set-bit (byte (bytes-get output 1)) 128)) else () in
+            let last = bytes-len output - 1 in
+            let odd = bytes-set output last (u8-to-nat (set-bit (byte (bytes-get output last)) 1)) in
+            Ok (nat-from-bytes-be output)
+          else Err PrimeCandidateWrongLength
+        else Err PrimeCandidateWrongLength
+      else Err PrimeCandidateWrongLength

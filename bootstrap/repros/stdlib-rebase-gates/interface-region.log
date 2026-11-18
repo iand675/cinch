@@ -1,0 +1,11 @@
+
+running 6 tests
+test common::external_frontend::profile_tests::a_foreign_triple_must_match_its_own_profile_including_the_name ... ok
+test common::external_frontend::profile_tests::a_native_request_is_accepted_for_the_hosts_own_triple ... ok
+test common::external_frontend::profile_tests::a_profile_that_does_not_reclaim_asks_for_the_word ... ok
+test owned_mutation_spelling_is_not_exported_as_a_kernel_effect ... ok
+test resolved_contracts_keep_region_binders_and_closed_kernel_effects ... ok
+test scope_and_task_contracts_preserve_kernel_and_source_type_owners ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.55s
+

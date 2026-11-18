@@ -1,0 +1,492 @@
+{
+  "description": "Public owned and callback-backed heap pipelines with exact complete-result checksums; scalar representation and allocation costs differ",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "checkout_compiler_source_sha256_not_binary_provenance": "a3ab6c603aa142043f665cfdc07a885f0d93bf98f963c7111b9b60b0b981f845",
+  "runtime_source_sha256": "8f702eaca91d09a5dbba6ca58b8e7fd7fcf55cef6bd5761cee2082da772aa31f",
+  "driver_sha256": "680681af3b8b46c321764c29091ed34184044af75b73d442aa5eb5bfbfd4264e",
+  "sources": {
+    "Data.Mutable.Heap": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
+    "Data.Mutable.HeapView": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c",
+    "Data.Mutable.Vec": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7"
+  },
+  "opt_level": 2,
+  "rc_debug_capability": true,
+  "executable_sha256": "29220602318e1aa5be8b4ec3c5b7b237c9835ade88b8620935e9ffddc21c6fbc",
+  "llvm_sha256": "7523e481e88707effbe8da9cb40cf37c22663c1db98501d4017cbddea1d457a3",
+  "assembly_sha256": "b59a3776a850ac727173babe2d948e3a518c08d54de2f23122eb7f9fc217dcb8",
+  "reference_source_sha256": "f6eb406dc905babde96e119482dd6649779f19498d8eb454a591d66338f39014",
+  "reference_executable_sha256": "dc03adbe6c302125e13d30c330aabf30f3896a374b79c26070b7515647514903",
+  "reference_sdk": "go version go1.27.4 linux/amd64",
+  "artifacts": "/workspace/dasl-stdlib-collections/build/heap-bench",
+  "results": [
+    {
+      "workload": "owned-init-drain",
+      "elements": 32,
+      "checksum": 692608929,
+      "samples_ns": {
+        "cinch": [
+          142164,
+          203026,
+          139801,
+          139881,
+          164267
+        ],
+        "reference": [
+          19529,
+          19780,
+          17877,
+          19179,
+          17907
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 8885.25,
+        "reference": 1198.6875
+      }
+    },
+    {
+      "workload": "owned-init-drain",
+      "elements": 1024,
+      "checksum": 409573521,
+      "samples_ns": {
+        "cinch": [
+          8034428,
+          8933571,
+          7978323,
+          7877801,
+          7985473
+        ],
+        "reference": [
+          1835373,
+          1720660,
+          1745919,
+          2001554,
+          2075124
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 499092.0625,
+        "reference": 114710.8125
+      }
+    },
+    {
+      "workload": "owned-init-drain",
+      "elements": 16384,
+      "checksum": 994368656,
+      "samples_ns": {
+        "cinch": [
+          181146363,
+          226962150,
+          228625570,
+          177849349,
+          208655667
+        ],
+        "reference": [
+          40374139,
+          40683506,
+          40885098,
+          40741022,
+          41479073
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 13040979.1875,
+        "reference": 2546313.875
+      }
+    },
+    {
+      "workload": "view-init-drain",
+      "elements": 32,
+      "checksum": 692608929,
+      "samples_ns": {
+        "cinch": [
+          450319,
+          509217,
+          489798,
+          548657,
+          404239
+        ],
+        "reference": [
+          24887,
+          26309,
+          77526,
+          65849,
+          67282
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 30612.375,
+        "reference": 4115.5625
+      }
+    },
+    {
+      "workload": "view-init-drain",
+      "elements": 1024,
+      "checksum": 409573521,
+      "samples_ns": {
+        "cinch": [
+          33773018,
+          25753002,
+          18856759,
+          18454272,
+          18253579
+        ],
+        "reference": [
+          3511992,
+          1870609,
+          1620332,
+          2102929,
+          1790068
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 1178547.4375,
+        "reference": 116913.0625
+      }
+    },
+    {
+      "workload": "view-init-drain",
+      "elements": 16384,
+      "checksum": 994368656,
+      "samples_ns": {
+        "cinch": [
+          524183476,
+          482952649,
+          491770722,
+          465755530,
+          423585363
+        ],
+        "reference": [
+          39602273,
+          42186788,
+          42290564,
+          38371839,
+          38103931
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 30184540.5625,
+        "reference": 2475142.0625
+      }
+    },
+    {
+      "workload": "owned-push-drain",
+      "elements": 32,
+      "checksum": 692608929,
+      "samples_ns": {
+        "cinch": [
+          140248,
+          136322,
+          136553,
+          151915,
+          135761
+        ],
+        "reference": [
+          26299,
+          27931,
+          28883,
+          56274,
+          59869
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 8534.5625,
+        "reference": 1805.1875
+      }
+    },
+    {
+      "workload": "owned-push-drain",
+      "elements": 1024,
+      "checksum": 409573521,
+      "samples_ns": {
+        "cinch": [
+          8184503,
+          7887782,
+          8289118,
+          8120148,
+          7954171
+        ],
+        "reference": [
+          2322395,
+          2460701,
+          2493560,
+          2654529,
+          2313181
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 507509.25,
+        "reference": 153793.8125
+      }
+    },
+    {
+      "workload": "owned-push-drain",
+      "elements": 16384,
+      "checksum": 994368656,
+      "samples_ns": {
+        "cinch": [
+          173367579,
+          197870892,
+          177392941,
+          173003228,
+          176085460
+        ],
+        "reference": [
+          43752141,
+          46215977,
+          44657934,
+          44756692,
+          43011392
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 11005341.25,
+        "reference": 2791120.875
+      }
+    },
+    {
+      "workload": "view-push-drain",
+      "elements": 32,
+      "checksum": 692608929,
+      "samples_ns": {
+        "cinch": [
+          262029,
+          278613,
+          256420,
+          356119,
+          257242
+        ],
+        "reference": [
+          50895,
+          54020,
+          25948,
+          27561,
+          26109
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 16376.8125,
+        "reference": 1722.5625
+      }
+    },
+    {
+      "workload": "view-push-drain",
+      "elements": 1024,
+      "checksum": 409573521,
+      "samples_ns": {
+        "cinch": [
+          19163531,
+          18324427,
+          18084530,
+          18807693,
+          18558514
+        ],
+        "reference": [
+          2406080,
+          3055924,
+          2273443,
+          2521591,
+          2773855
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 1159907.125,
+        "reference": 157599.4375
+      }
+    },
+    {
+      "workload": "view-push-drain",
+      "elements": 16384,
+      "checksum": 994368656,
+      "samples_ns": {
+        "cinch": [
+          447739348,
+          497520629,
+          512831247,
+          432096853,
+          436984999
+        ],
+        "reference": [
+          43571153,
+          46693645,
+          49177260,
+          42720798,
+          44111293
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 27983709.25,
+        "reference": 2756955.8125
+      }
+    },
+    {
+      "workload": "owned-root-replace",
+      "elements": 32,
+      "checksum": 83709,
+      "samples_ns": {
+        "cinch": [
+          35224,
+          8803,
+          8773,
+          8734,
+          8813
+        ],
+        "reference": [
+          711,
+          1192,
+          671,
+          892,
+          731
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 550.1875,
+        "reference": 45.6875
+      }
+    },
+    {
+      "workload": "owned-root-replace",
+      "elements": 1024,
+      "checksum": 83709,
+      "samples_ns": {
+        "cinch": [
+          34993,
+          34873,
+          35023,
+          35113,
+          35003
+        ],
+        "reference": [
+          681,
+          841,
+          731,
+          941,
+          691
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2187.6875,
+        "reference": 45.6875
+      }
+    },
+    {
+      "workload": "owned-root-replace",
+      "elements": 16384,
+      "checksum": 13070,
+      "samples_ns": {
+        "cinch": [
+          403808,
+          604957,
+          471180,
+          404540,
+          435687
+        ],
+        "reference": [
+          1603,
+          1793,
+          1623,
+          1782,
+          1472
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 27230.4375,
+        "reference": 101.4375
+      }
+    },
+    {
+      "workload": "view-root-fix",
+      "elements": 32,
+      "checksum": 83709,
+      "samples_ns": {
+        "cinch": [
+          11617,
+          11137,
+          11678,
+          11157,
+          11307
+        ],
+        "reference": [
+          671,
+          1052,
+          721,
+          841,
+          751
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 706.6875,
+        "reference": 46.9375
+      }
+    },
+    {
+      "workload": "view-root-fix",
+      "elements": 1024,
+      "checksum": 83709,
+      "samples_ns": {
+        "cinch": [
+          38738,
+          41052,
+          97456,
+          34321,
+          45589
+        ],
+        "reference": [
+          711,
+          881,
+          681,
+          1031,
+          921
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 2565.75,
+        "reference": 55.0625
+      }
+    },
+    {
+      "workload": "view-root-fix",
+      "elements": 16384,
+      "checksum": 13070,
+      "samples_ns": {
+        "cinch": [
+          572533,
+          413683,
+          486653,
+          455146,
+          412071
+        ],
+        "reference": [
+          1873,
+          1923,
+          1542,
+          1912,
+          1573
+        ]
+      },
+      "median_ns_per_operation": {
+        "cinch": 28446.625,
+        "reference": 117.0625
+      }
+    }
+  ],
+  "source_snapshots": "/workspace/dasl-stdlib-collections/build/heap-bench/sources",
+  "frozen_compiler_provenance": {
+    "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "compiler_source_sha256": "b0588051ca4355ce54dd9dadfe9514fd1e292afdba8ed8b4a1cad1d7d24ad1f5",
+    "base_commit": "d44916e596beb3f42935b1c85e6c6fa96ca26cea",
+    "source_sha256": {
+      "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+      "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+      "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+      "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+    }
+  },
+  "clang": "Debian clang version 20.1.8 (++20250809043815+87f0227cb601-1~exp1~20250809163919.3)",
+  "cpu_affinity": [
+    4
+  ],
+  "iterations": 16,
+  "samples": 5,
+  "timing": "runtime monotonic clock around operation loop; startup, configuration and preparation excluded"
+}

@@ -1,0 +1,90 @@
+-- | Public UTF-8 pipelines with runtime inputs, observable results and monotonic timing.
+module Main where
+  import Data.Bytes.Utf8
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String hiding (utf8-encode-into)
+  import Effect.Clock
+  import Effect.Process
+
+  -- | Parse nonnegative decimal arguments supplied by the validated host harness.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Fold decimal digits, mapping malformed harness arguments to zero.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons char rest -> case digit-value char of
+      None -> 0
+      Some digit -> decimal-from rest (value * 10 + digit)
+
+  -- | Fill a bounded runtime buffer with a deterministic eight-byte pattern.
+  fill :: Bytes -> Nat -> Bytes -> Unit
+  fill out i pattern = if i < bytes-len out && bytes-len pattern > 0 then
+    let at = nat-rem i 8 in
+    if at < bytes-len pattern then
+      let written = bytes-set out i (bytes-get pattern at) in fill out (i + 1) pattern
+    else ()
+    else ()
+
+  -- | Sample only existing bytes so the output length and several positions stay observable.
+  sample :: Bytes -> Nat -> Nat
+  sample bytes i = if i < bytes-len bytes then bytes-get bytes i else 0
+
+  -- | Observe an API's complete output allocation without another full traversal.
+  fingerprint :: Bytes -> Nat
+  fingerprint bytes = bytes-len bytes + sample bytes 0 + sample bytes (nat-div (bytes-len bytes) 2) + sample bytes (saturating-sub (bytes-len bytes) 1)
+
+  -- | Copy a complete buffer for an unrelated allocation/copy control.
+  copy-buffer :: Bytes -> Bytes
+  copy-buffer input = let out = bytes-new (bytes-len input) in
+    let copied = bytes-copy-range out input 0 0 (bytes-len input) in out
+
+  -- | Measure public count, validity, grouped/per-byte repair or the allocation/copy control.
+  operation :: U32 -> Bytes -> Bytes -> Nat
+  operation mode input replacement = if eq-u32 mode 0 then utf8-count input
+    else if eq-u32 mode 1 then (if utf8-valid input then 1 else 0)
+    else if eq-u32 mode 2 then fingerprint (utf8-repair input replacement)
+    else if eq-u32 mode 3 then fingerprint (utf8-repair-each input replacement)
+    else fingerprint (copy-buffer input)
+
+  -- | Mutate one ASCII byte between iterations so every public conversion consumes live input.
+  change :: Bytes -> Nat -> Unit
+  change input i = if bytes-len input > 0 then bytes-set input 0 (if nat-rem i 2 == 0 then 97 else 98) else ()
+
+  -- | Accumulate bounded observable results through the timed loop.
+  repeat :: U32 -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat
+  repeat mode input replacement iterations i checksum = if i < iterations then
+    let changed = change input i in repeat mode input replacement iterations (i + 1) (nat-rem (checksum + operation mode input replacement) 1000000007)
+    else checksum
+
+  -- | Resolve validated names once before entering the operation loop.
+  mode-code :: String -> U32
+  mode-code mode = if mode == "count" then 0 else if mode == "valid" then 1
+    else if mode == "repair" then 2 else if mode == "repair-each" then 3 else 4
+
+  -- | Prepare input outside the timer, then print elapsed nanoseconds and its checksum.
+  measure :: forall r. using (io :: Io r) => String -> Nat -> Nat -> Nat ->{IO r} Int
+  measure mode size iterations pattern =
+    let input = bytes-new size in
+    let alphabet = if pattern == 0 then bytes-from-list [97,98,99,100,101,102,103,104] else if pattern == 1 then bytes-from-list [97,195,169,206,163,226,130,172] else bytes-from-list [97,255,128,0,192,240,128,191] in
+    let filled = fill input 0 alphabet in let code = mode-code mode in
+    let replacement = bytes-from-list [239,191,189] in
+    let start = clock-monotonic-ns () in let checksum = repeat code input replacement iterations 0 0 in let end = clock-monotonic-ns () in
+    let elapsed = saturating-sub end start in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string elapsed) (string-concat " " (string-concat (nat-to-string checksum) "\n")))) in 0
+
+  -- | Read one validated mode, size, iteration count and corpus pattern from the host harness.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Err error -> 2
+    Ok args -> case args of
+      Cons mode (Cons size (Cons iterations (Cons pattern Nil))) -> measure mode (decimal size) (decimal iterations) (decimal pattern)
+      Cons mode (Cons size (Cons iterations Nil)) -> measure mode (decimal size) (decimal iterations) 0
+      other -> 2

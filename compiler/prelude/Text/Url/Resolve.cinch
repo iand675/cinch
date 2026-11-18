@@ -1,0 +1,135 @@
+-- | Byte-preserving reference resolution and lexical URL path joining.
+-- Resolution preserves repeated separators and encoded dot bytes. Joining cleans
+-- separators and literal dot segments; elements are already escaped URL paths.
+module Text.Url.Resolve where
+  import Text.Url.Error
+  import Text.Url.Model
+  import Text.Url.Parser
+  import Text.Url.Scan
+  import Text.Url.Userinfo
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  export url-resolve-reference, url-parse-reference, url-join-path, url-join-path-checked, url-join
+
+  -- | Test a structural leading slash without reading empty bytes.
+  absolute-path :: Bytes -> Bool
+  absolute-path input = if bytes-len input > 0 then bytes-get input 0 == 47 else False
+
+  -- | Test a retained trailing separator without reading empty bytes.
+  trailing-slash :: Bytes -> Bool
+  trailing-slash input = if bytes-len input > 0 then bytes-get input (bytes-len input - 1) == 47 else False
+
+  -- | Remove the most recent output segment, clamping traversal to the root.
+  parent-used :: Bytes -> Nat -> Nat
+  parent-used out used = if used >= 1 && used <= bytes-len out then
+    let slash = url-last-byte out 1 used 47 in if slash < used then slash else 1 else 1
+
+  -- | Finish a normalized root-prefixed path while removing only its artificial first slash.
+  finish-path :: Bytes -> Nat -> Bool -> Bytes
+  finish-path out used dot = if used <= bytes-len out then
+    let n = if dot && used < bytes-len out then used + 1 else used in
+    let marked = if dot && used < bytes-len out then let written = bytes-set out used 47 in out else out in
+    let start = if n > 1 && bytes-len marked > 1 then (if bytes-get marked 1 == 47 then (1 :: Nat) else 0) else 0 in
+    url-slice marked start n else bytes-new 0
+
+  -- | Resolve dot segments into a checked buffer, optionally collapsing empty components for joining.
+  normalize-from :: Bytes -> Nat -> Bytes -> Nat -> Bool -> Bool -> Bytes
+  normalize-from input start out used first clean =
+    let end = url-find-byte input start (bytes-len input) 47 in
+    let width = saturating-sub end start in
+    let dot = if start < bytes-len input then width == 1 && bytes-get input start == 46 else False in
+    let parent = if start + 1 < bytes-len input then width == 2 && bytes-get input start == 46 && bytes-get input (start + 1) == 46 else False in
+    if dot || (clean && width == 0) then
+      if end < bytes-len input then normalize-from input (end + 1) out used (if clean then first else False) clean
+      else finish-path out used (dot && not clean)
+    else if parent then let next = parent-used out used in
+      if end < bytes-len input then normalize-from input (end + 1) out next (next == 1) clean
+      else finish-path out next (not clean)
+    else let prefix = if first then (0 :: Nat) else 1 in
+      if start + width <= bytes-len input && used + prefix + width <= bytes-len out then
+        let marked = if prefix == 1 && used < bytes-len out then bytes-set out used 47 else () in
+        let copied = bytes-copy-range out input (used + prefix) start width in
+        let next = used + prefix + width in
+        if end < bytes-len input then normalize-from input (end + 1) out next False clean
+        else finish-path out next False
+      else bytes-new 0
+
+  -- | Normalize one complete encoded path with an exact root-prefixed work buffer.
+  normalize :: Bytes -> Bool -> Bytes
+  normalize input clean = if bytes-len input == 0 then bytes-new 0 else
+    let out = bytes-new (bytes-len input + 2) in let written = bytes-set out 0 47 in normalize-from input 0 out 1 True clean
+
+  -- | Combine a base directory and reference before removing literal dot segments.
+  resolve-path :: Bytes -> Bytes -> Bytes
+  resolve-path base reference =
+    let full = (if bytes-len reference == 0 then base else if absolute-path reference then reference else
+      let slash = url-last-byte base 0 (bytes-len base) 47 in
+      let prefix = if slash < bytes-len base then url-slice base 0 (slash + 1) else bytes-new 0 in
+      url-concat [prefix, reference]) in
+    normalize full False
+
+  -- | Apply a known valid encoded path, retaining the input only for an unreachable invalid escape.
+  valid-path :: Bytes -> Url -> Url
+  valid-path encoded value = case url-with-path encoded value of Ok updated -> updated; Err failure -> value
+
+  -- | Resolve an already parsed reference against a base with independent immutable result ownership.
+  url-resolve-reference :: Url -> Url -> Url
+  url-resolve-reference base reference = case url-components base of
+    UrlParts bs bo bu bh bp bf bq brp brf bforce bomit -> case url-components reference of
+      UrlParts rs ro ru rh rp rf rq rrp rrf rforce romit ->
+        let scheme = if bytes-len rs == 0 then bs else rs in
+        let user-present = case ru of None -> False; Some info -> True in
+        let raw = url-from-components (UrlParts scheme ro ru rh rp rf rq rrp rrf rforce romit) in
+        if bytes-len rs > 0 || bytes-len rh > 0 || user-present then valid-path (resolve-path (url-escaped-path reference) (bytes-new 0)) raw
+        else if bytes-len ro > 0 then url-from-components (UrlParts scheme ro None (bytes-new 0) (bytes-new 0) rf rq rrp rrf rforce romit)
+        else let inherit-query = bytes-len rp == 0 && not rforce && bytes-len rq == 0 in
+          let query = if inherit-query then bq else rq in
+          let inherit-fragment = inherit-query && bytes-len rf == 0 in
+          let fragment = if inherit-fragment then bf else rf in
+          let rawfragment = if inherit-fragment then brf else rrf in
+          if bytes-len rp == 0 && bytes-len bo > 0 then
+            url-from-components (UrlParts scheme bo None (bytes-new 0) (bytes-new 0) fragment query rrp rawfragment rforce romit)
+          else let combined = url-from-components (UrlParts scheme ro bu bh rp fragment query rrp rawfragment rforce romit) in
+            valid-path (resolve-path (url-escaped-path base) (url-escaped-path reference)) combined
+
+  -- | Parse and resolve reference bytes, retaining a typed parse failure and its exact input.
+  url-parse-reference :: Url -> Bytes -> Result (UrlError UrlFailure) Url
+  url-parse-reference base input = case url-parse input of Err error -> Err error; Ok reference -> Ok (url-resolve-reference base reference)
+
+  -- | Join byte chunks with a structural slash, retaining a final empty component.
+  join-chunks :: List Bytes -> List Bytes -> List Bytes
+  join-chunks parts reversed = case parts of
+    Nil -> reverse reversed
+    Cons part rest -> case reversed of Nil -> join-chunks rest (Cons part Nil); Cons previous tail -> join-chunks rest (Cons part (Cons (string-to-bytes "/") reversed))
+
+  -- | Read the final joining element, falling back to the existing escaped path.
+  final-part :: Bytes -> List Bytes -> Bytes
+  final-part previous parts = case parts of Nil -> previous; Cons part rest -> final-part part rest
+
+  -- | Join escaped path elements with lexical separator/dot cleaning and report malformed escapes.
+  -- Traversal above the root is clamped; the base path's absolute/relative form is preserved.
+  url-join-path-checked :: Url -> List Bytes -> Result UrlFailure Url
+  url-join-path-checked value elements =
+    let base = url-escaped-path value in let rooted = absolute-path base in
+    let first = if rooted then base else url-concat [string-to-bytes "/", base] in
+    let full = url-concat (join-chunks (Cons first elements) Nil) in
+    let cleaned = normalize full True in
+    let relative = if not rooted && bytes-len cleaned > 0 then url-slice cleaned 1 (bytes-len cleaned) else cleaned in
+    let last = final-part first elements in
+    let path = if trailing-slash last && not (trailing-slash relative) then url-concat [relative, string-to-bytes "/"] else relative in
+    url-with-path path value
+
+  -- | Join escaped paths; malformed percent escapes retain the original immutable URL value.
+  url-join-path :: Url -> List Bytes -> Url
+  url-join-path value elements = case url-join-path-checked value elements of Ok result -> result; Err failure -> url-clone value
+
+  -- | Parse a base and join escaped elements, wrapping join failures with the original base bytes.
+  url-join :: Bytes -> List Bytes -> Result (UrlError UrlFailure) Url
+  url-join input elements = case url-parse input of
+    Err error -> Err error
+    Ok value -> case url-join-path-checked value elements of Err failure -> Err (url-error "join" input failure False False); Ok result -> Ok result

@@ -1,0 +1,10 @@
+{
+  "scope": "Mirror Root review after verified additive import aa8c4674. The upstream integration-files.json remains frozen import evidence, not a claim that later override bytes equal the imported version.",
+  "root_review": "Archive only successful source-check caches; failed builds and diagnostic files must remain plain.",
+  "file": "tooling/check_multipart_live_effects.py",
+  "imported_sha256": "bfdf4c294a96f215aa2adeef5febdfe6e6104d1c3f5984114cc9993b8eff4db6",
+  "corrected_sha256": "b94386aeb11b4a3ce44133d35e7c89eef409a27bb32c45786d9a254b7fc20639",
+  "integration_manifest_commit": "aa8c4674",
+  "successful_source_or_runtime_behavior_changed": false,
+  "revalidation": "Python compilation and branch inspection; no successful source/runtime corpus repeated for this failure-retention-only correction."
+}

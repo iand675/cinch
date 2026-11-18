@@ -1,0 +1,114 @@
+{
+  "description": "Integrated compiler and stdlib checkpoint on restored upstream pins; whole standard-library goal remains open",
+  "full_stdlib_goal_complete": false,
+  "latest_main_ancestor": "c12ed8685b54a23ccf62437d6d0527735bc1abff",
+  "compiler": {
+    "description": "Integrated strict application and saved partial argument ordering repairs, with proof-only character interface metadata",
+    "revision": "b2330cd1fdbb186f8c57c38c51a8d964b1d303d2",
+    "binary_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f",
+    "source_sha256": {
+      "compiler/src/applications.rs": "79533ff28891729f30a0262f567be89208790d2d6eca8d1a181fee4b1264056f",
+      "compiler/src/rc.rs": "07a47fd8e1a6a0966e18a848b967c8becd3ce899ff7732db148a76d473a36a53",
+      "compiler/src/simplify.rs": "7ed4d352bb6798b371cafb90e7177a6d3580564ad38c8aa5faac4422a0a1492b",
+      "compiler/src/codegen.rs": "0cbf28cb8e927082ab58fc416063b60f3e5f88e85518f551d8be57276960654c",
+      "compiler/src/check_interface.rs": "7014ea0911c699d644133afacb12939e5f3e28bdbff9332fa8484353173da59d",
+      "compiler/src/lib.rs": "9bb86850b8b58005552e886ccfb0b15e313206f740b6b2a2aff9aee4407d25ca"
+    },
+    "rust_host_runtime_archive": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+    "rust_host_runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "compiler_unit_tests": {
+      "passed": 302,
+      "seconds": 224.01
+    },
+    "remaining_targeted_gate": "completed:489 targeted checks"
+  },
+  "targeted_rust_gates": {
+    "lib": {
+      "passed": 302,
+      "seconds": 224.01
+    },
+    "lib_base32_encoding": {
+      "passed": 14,
+      "seconds": 168.21
+    },
+    "lib_base64_encoding": {
+      "passed": 12,
+      "seconds": 146.76
+    },
+    "lib_binary_layout": {
+      "passed": 13,
+      "seconds": 57.8
+    },
+    "lib_csv_record": {
+      "passed": 11,
+      "seconds": 54.49
+    },
+    "lib_html": {
+      "passed": 7,
+      "seconds": 31.08
+    },
+    "lib_path": {
+      "passed": 9,
+      "seconds": 36.97
+    },
+    "lib_url": {
+      "passed": 8,
+      "seconds": 29.88
+    },
+    "prim": {
+      "passed": 29,
+      "seconds": 217.08
+    },
+    "prim_wide": {
+      "passed": 10,
+      "seconds": 62.41
+    },
+    "simplify": {
+      "passed": 45,
+      "seconds": 0.01
+    },
+    "tail_calls": {
+      "passed": 11,
+      "seconds": 33.22
+    },
+    "wide": {
+      "passed": 18,
+      "seconds": 69.59
+    }
+  },
+  "targeted_rust_pass_count": 489,
+  "logs": {
+    "/tmp/cinch-stdlib-integrated-rust-gate.log": "b87cb6f555bdf3ae1d1c6582e7da55d33647674f332af8db0934d1ec7c57edda",
+    "/tmp/cinch-stdlib-integrated-rust-gate-remaining.log": "2368546735304c00c92d5b7796ad7c4447b921d05808b06e43a7d427f3c5772a"
+  },
+  "initial_integration_harness_correction": "Binary fixture projects initially omitted source-distributed imports; complete dependency copying fixed the harness, then all 13 checks passed. No binary library implementation changed.",
+  "character_interface_gate": {
+    "description": "Parent Rust exporter and compiled Native consumer test target for proof-only character readings",
+    "source_revision_at_compilation": "57af3367",
+    "command": "source /workspace/.tools/cinch-env.sh; CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=67108864 taskset -c 3 cargo test --test interface_machine_contracts",
+    "passed": 6,
+    "semantic_tests": 3,
+    "shared_profile_tests": 3,
+    "seconds": 400.93,
+    "log_path": "/tmp/cinch-character-contracts-parent-rust.log",
+    "log_sha256": "8529a8ed5b932b84fbbdab587c6a825d29908f1bc3993a571bfba8e31f339371",
+    "test_binary_path": "/workspace/dasl-stdlib-io/compiler/target/debug/build/cinch/9e3a8c13671dafaa/out/interface_machine_contracts-9e3a8c13671dafaa",
+    "test_binary_sha256": "7636b3e08272e0441ee9810779e2c1c7dcf3c93a84bf5ebc6240e535bbbd9336",
+    "subsequent_rust_saved_partial_normalization_not_in_this_test_binary": true
+  },
+  "native_validation": "Per-package frozen Native corpus/ownership reports plus separate scoped-argument and character-contract fixed-point receipts; no full Native historical suite claim",
+  "documentation": {
+    "source_modules": 160,
+    "diagnostics": 0,
+    "orphan_docs": 0,
+    "manifest": "website/src/data/library-sources.json",
+    "foreign_execution_claimed": false
+  },
+  "tool_unit_tests": 14,
+  "reviewed_package_counts": {
+    "complete": 15,
+    "partial": 54,
+    "unreviewed": 111
+  },
+  "known_followup": "A faster rejected CSV writer variant exposes a preexisting nested frame lifetime bug under stack allocation; isolated compiler fix remains a separate task. Source construction and mutable collection/compiler improvements remain separate checkpoints."
+}

@@ -10,7 +10,7 @@
 //! exactly the shape the toolkit produces in `Data.Path.path-to-string`.
 
 use cinch::core::{
-    CAlt, CPat, Class, Core, FnDef, FnHints, FnMeta, GlobalId, InstanceDef, LocalId, Program,
+    CAlt, CPat, Class, Core, FnDef, FnHints, FnMeta, GlobalId, LocalId, Program,
     SimplifyReport, TargetProfile, UnitRepr,
 };
 use cinch::simplify::{simplify, SimplifyOptions};
@@ -39,24 +39,7 @@ fn ctor_unit(name: &str, tag: usize, fields: usize) -> FnDef {
 }
 
 fn program(fns: Vec<FnDef>) -> Program {
-    Program {
-        total_bodies: cinch::total::CheckedGraph::empty(),
-        fns,
-        instances: Vec::<InstanceDef>::new(),
-        main: None,
-        rewrites: vec![],
-        plans: Default::default(),
-        foreigns: Default::default(),
-        prims: vec![],
-        laws: vec![],
-        lent: Default::default(),
-        frame: Default::default(),
-        stack: Default::default(),
-        borrowed: Default::default(),
-        lent_entries: Default::default(),
-        private_modules: Vec::new(),
-        inline: Default::default(),
-    }
+    Program::from_functions(fns)
 }
 
 /// `path-to-string p = case p of Path s -> s`: the body the toolkit copies.
@@ -80,11 +63,10 @@ fn call_callee(arg: Core) -> Core {
 
 /// The threshold model, deliberately. These tests pin the *copy* machinery
 /// (fresh binder ids, simultaneous parameter substitution, a copy that the
-/// ownership verifier accepts) on shapes the benefit model refuses by its
-/// own rule: a decision-bearing body copied to more than one site where the
-/// scrutinee does not fold. That refusal is the benefit model's correct
-/// answer, and it is pinned in `tests/simplify.rs`; here the copy is what is
-/// under test, so the model that admits it is the one selected.
+/// ownership verifier accepts), independently of the benefit model's size
+/// and fold policy. The benefit model also admits a single-arm field
+/// projector now; its broader decision refusals remain pinned separately
+/// in `tests/simplify.rs`.
 fn options() -> SimplifyOptions {
     SimplifyOptions {
         max_iterations: 1,
@@ -154,6 +136,155 @@ fn case_bearing_copy_at_three_sites_verifies() {
     let p = cinch::rc::insert_closed(p, &TargetProfile::native())
         .unwrap_or_else(|e| panic!("the copies' ownership: {e}"));
     assert!(!p.fns.is_empty());
+}
+
+/// Unknown owned products at several sites expose their field reads under
+/// the default model, and the ordinary ownership pass balances every copy.
+#[test]
+fn benefit_field_projector_copies_at_unknown_sites_and_preserves_ownership() {
+    let p = program(vec![
+        ctor_unit("Data.Path.Path", 0, 1),
+        case_bearing_callee(),
+        unit(
+            "Main.two",
+            vec![Class::Obj, Class::Obj],
+            Core::Let(
+                LocalId(2),
+                Class::Obj,
+                Box::new(call_callee(Core::Var(LocalId(0)))),
+                Box::new(call_callee(Core::Var(LocalId(1)))),
+            ),
+        ),
+    ]);
+    let opts = SimplifyOptions { max_iterations: 1, ..SimplifyOptions::default() };
+    let (p, report) = run(p, &opts);
+    assert_eq!(report.inlined, 2, "both unknown product arguments take the field read");
+    assert_eq!(report.benefit.refused_fold, 0);
+    let body = &p.fns[2].body;
+    assert!(!format!("{body:?}").contains("path-to-string"), "a projector call survived: {body:?}");
+    cinch::rc::insert_closed(p, &TargetProfile::native())
+        .expect("both owned field reads retain their live payload and release unused owners");
+}
+
+/// Even an unused computed argument stays before the field read, in its
+/// original left-to-right position; inlining does not turn a read into a
+/// deferred computation or erase it.
+#[test]
+fn benefit_field_projector_keeps_computed_argument_order() {
+    let mut projector = case_bearing_callee();
+    projector.params.push("ignored".into());
+    projector.repr.params.push(Class::Raw);
+    projector.body = Core::Case {
+        scrut: Box::new(Core::Var(LocalId(0))),
+        alts: vec![CAlt::new(
+            CPat::Con { tag: 0, fields: vec![LocalId(2)], classes: vec![] },
+            Core::Var(LocalId(2)),
+        )],
+    };
+    let call = || Core::App(
+        Box::new(Core::Global(gid("Data.Path.path-to-string"), vec![])),
+        vec![
+            Core::BoxGet(Box::new(Core::Var(LocalId(0))), Class::Obj),
+            Core::BoxGet(Box::new(Core::Var(LocalId(1))), Class::Raw),
+        ],
+    );
+    let p = program(vec![
+        ctor_unit("Data.Path.Path", 0, 1),
+        projector,
+        unit(
+            "Main.reads",
+            vec![Class::Obj, Class::Obj],
+            Core::Let(LocalId(2), Class::Obj, Box::new(call()), Box::new(call())),
+        ),
+    ]);
+    let opts = SimplifyOptions { max_iterations: 1, ..SimplifyOptions::default() };
+    let (p, report) = run(p, &opts);
+    assert_eq!(report.inlined, 2);
+    let Core::Let(_, _, first, _) = &p.fns[2].body else { panic!("the first result stays at its original site") };
+    let Core::Let(owner, Class::Obj, value, rest) = &**first else { panic!("bind the first computed argument: {first:?}") };
+    assert!(matches!(&**value, Core::BoxGet(inner, Class::Obj) if matches!(&**inner, Core::Var(LocalId(0)))));
+    let Core::Let(_, Class::Raw, value, rest) = &**rest else { panic!("bind even the unused second argument") };
+    assert!(matches!(&**value, Core::BoxGet(inner, Class::Raw) if matches!(&**inner, Core::Var(LocalId(1)))));
+    assert!(matches!(&**rest, Core::Case { scrut, .. } if matches!(&**scrut, Core::Var(local) if local == owner)));
+    cinch::rc::insert_closed(p, &TargetProfile::native())
+        .expect("strict cell observations and owned selected fields verify after the copies");
+}
+
+/// Keep a failed runtime qualification intact even when a driver thread panics.
+struct ProjectorQualification(Option<tempfile::TempDir>);
+
+impl ProjectorQualification {
+    /// Borrow the project without transferring cleanup responsibility.
+    fn path(&self) -> &std::path::Path {
+        self.0.as_ref().unwrap().path()
+    }
+
+    /// Retain a completed failed command's exact inputs and generated artifacts.
+    fn keep(mut self) -> std::path::PathBuf {
+        self.0.take().unwrap().keep()
+    }
+}
+
+impl Drop for ProjectorQualification {
+    /// Preserve the project during any failed assertion or driver-thread unwind.
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            if let Some(directory) = self.0.take() {
+                eprintln!("retained failed projector qualification: {}", directory.keep().display());
+            }
+        }
+    }
+}
+
+/// Actual byte owners and boxed naturals survive their product's lifetime,
+/// and strict unused byte-write arguments remain observable at O0 and O2.
+#[test]
+fn benefit_field_projector_owned_payloads_execute_with_checked_rc() {
+    for optimized in [false, true] {
+        let directory = ProjectorQualification(Some(tempfile::tempdir().expect("owned projector project")));
+        let entry = directory.path().join("Main.cinch");
+        std::fs::write(&entry, include_str!("fixtures/inline-field-projector-owned.cinch"))
+            .expect("owned projector source");
+        let executable = directory.path().join("consumer");
+        let output = executable.clone();
+        let profile = TargetProfile { reclaim: true, rc_debug: true, ..TargetProfile::native() };
+        let compiled = std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(move || cinch::driver::driver_with_profile_opts(
+                cinch::driver::Mode::Build,
+                cinch::check::StageMode::Refresh,
+                &entry,
+                Some(&output),
+                &profile,
+                &cinch::driver::DriverOptions { opt_level: Some(if optimized { 2 } else { 0 }), ..Default::default() },
+            ))
+            .expect("driver thread")
+            .join()
+            .expect("owned projector driver did not panic");
+        if let Err(error) = compiled {
+            let retained = directory.keep();
+            panic!("owned projector compile failed: {error:?}; retained {}", retained.display());
+        }
+        for poison in [false, true] {
+            let result = std::process::Command::new(&executable)
+                .env("CINCH_RC_DEBUG", if poison { "1" } else { "0" })
+                .env("CINCH_HEAP_LIMIT", if poison { "256M" } else { "32M" })
+                .env("CINCH_STACK_SIZE", "8M")
+                .env("CINCH_LEAK_CHECK", "1")
+                .output()
+                .expect("owned projector process");
+            if result.status.code() != Some(0)
+                || !String::from_utf8_lossy(&result.stderr).contains("leaked=0")
+                || !result.stdout.is_empty()
+            {
+                std::fs::write(directory.path().join(format!("run-{poison}.stdout")), &result.stdout).unwrap();
+                std::fs::write(directory.path().join(format!("run-{poison}.stderr")), &result.stderr).unwrap();
+                let retained = directory.keep();
+                panic!("owned projector O{} poison={poison}: {:?}; retained {}",
+                    if optimized { 2 } else { 0 }, result.status, retained.display());
+            }
+        }
+    }
 }
 
 /// The parameters are substituted simultaneously, through fresh ids, so an

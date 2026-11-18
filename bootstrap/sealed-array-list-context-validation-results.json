@@ -1,0 +1,58 @@
+{
+  "description": "Preserve the recursive-container positivity oracle while giving the source-only checker an explicit List declaration.",
+  "cause": "Original source referenced List without declaring/importing it; the in-process checker has no implicit Data.Core prelude, unlike the base-manifest CLI baseline.",
+  "compiler_sha256": "645c518560ae5565e9713446e96140d1f8adb0fbccce05a0e37b3f72e7c5e17d",
+  "before_after_empty_context": [
+    {
+      "name": "missing-list-alone",
+      "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: List Arena -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+      "exit": 4,
+      "diagnostics": "bootstrap.check:6:13: unknown type constructor or unbound type variable: List\nbootstrap.check:6:13: type constructor is applied to too many arguments\n",
+      "runtime_diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "declared-list-alone",
+      "source": "-- | Exercise one sealed finite-payload typing contract.\nmodule Main where\n  -- | Declare the actual recursive container whose variance remains unestablished.\n  data List a where\n    -- | End a finite sequence.\n    LocalNil :: List a\n    -- | Retain one value and a direct positive recursive tail.\n    LocalCons :: a -> List a -> List a\n  -- | A recursive fixture with the exact candidate payload position.\n  data Arena where\n    -- | Carry the candidate field without changing its recursive type.\n    Pool :: List Arena -> Arena\n  -- | Keep the fixture executable independent from its unused type declarations.\n  main :: Int\n  main = 0\n",
+      "exit": 4,
+      "diagnostics": "bootstrap.check:12:13: recursive field is negative or needs nested positivity evidence\n",
+      "runtime_diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "corrected_base_context": [
+    {
+      "name": "nested-list-preserved",
+      "source_sha256": "843eb1fa1d6b65db58b5d58be63d0c83e576946e5427c49214c973a1cd05f8e4",
+      "exit": 4,
+      "diagnostics": "bootstrap.check:12:13: recursive field is negative or needs nested positivity evidence\n",
+      "runtime_diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "array-nested-list-preserved",
+      "source_sha256": "a24b226cb944888222de1baa0351999e4c06b047944be795cc3e89fc3621d150",
+      "exit": 4,
+      "diagnostics": "bootstrap.check:12:13: recursive field is negative or needs nested positivity evidence\n",
+      "runtime_diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ],
+  "corrected_all20_empty_context": "bootstrap/sealed-array-cli-empty-context-validation-results.json",
+  "oracle_changed": false,
+  "compiler_changed": false,
+  "preserved_old586_same_empty_context": [
+    {
+      "name": "missing-list-alone",
+      "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+      "source_sha256": "22aeedbdf68d27e8fa19c6a7e9f7968721b61024f2c0ca80f724283d3ba3f62a",
+      "exit": 4,
+      "diagnostics": "bootstrap.check:6:13: unknown type constructor or unbound type variable: List\nbootstrap.check:6:13: type constructor is applied to too many arguments\n",
+      "runtime_diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    },
+    {
+      "name": "declared-list-alone",
+      "compiler_sha256": "58676dec9c2d2f6c4f5307a7106e1b94b6806ede88113f46d665d7e55955ad8f",
+      "source_sha256": "4b8b8cf55cbf63048e6ea30b16e5e2a66dbe25817c00cfd6ef4939eda21b6dce",
+      "exit": 4,
+      "diagnostics": "bootstrap.check:12:13: recursive field is negative or needs nested positivity evidence\n",
+      "runtime_diagnostics": "cinch-leak: live=0 immortal=0 leaked=0\n"
+    }
+  ]
+}

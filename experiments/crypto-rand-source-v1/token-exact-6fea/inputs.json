@@ -1,0 +1,34 @@
+{
+  "candidate_module": "Text.Token",
+  "candidate_epoch": "token-exact-6fea",
+  "source_revision": "6fea5bb39f51722a8ee79537b36fab8f20f7caba",
+  "dependency_revision": "f30db1451460d4571273637218233f589f984230",
+  "sources": [
+    {
+      "module": "Text.Token",
+      "origin": "6fea5bb39f51722a8ee79537b36fab8f20f7caba",
+      "path": "experiments/crypto-rand-surface-v1/proposed/Text.Token.cinch",
+      "sha256": "694407e678c002b966fc4ab46b1977d4ff2a362f1a81dc16dbc5223e40a000ce",
+      "bytes": 4302
+    },
+    {
+      "module": "Data.Bytes.Word",
+      "origin": "f30db1451460d4571273637218233f589f984230",
+      "path": "compiler/prelude/Data/Bytes/Word.cinch",
+      "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+      "bytes": 4243
+    }
+  ],
+  "embedded_imports": [
+    "Data.Bytes",
+    "Data.Machine",
+    "Data.Nat",
+    "Data.Option",
+    "Data.String"
+  ],
+  "builtin_Data_Bytes_authority": true,
+  "builtin_Data_Core_authority": true,
+  "compiler": "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+  "compiler_sha256": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "scope": "source check and canonical documentation extraction only; no IR/link/runtime/timing"
+}

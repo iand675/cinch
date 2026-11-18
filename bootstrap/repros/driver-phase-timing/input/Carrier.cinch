@@ -1,0 +1,14 @@
+-- | Expose an explicit Region contract for diagnostic transparency checks.
+module Carrier where
+  import Data.Core
+  export Carrier, WrapCarrier, unwrap
+
+  -- | A payload whose region parameter has an explicit defining role.
+  data Carrier (r :: Region) a where
+    -- | Retain a payload without adding a runtime region field.
+    WrapCarrier :: a -> Carrier r a
+
+  -- | Recover the payload while preserving the region's defining authority.
+  unwrap :: forall (r :: Region) a. Carrier r a -> a
+  unwrap value = case value of
+    WrapCarrier payload -> payload

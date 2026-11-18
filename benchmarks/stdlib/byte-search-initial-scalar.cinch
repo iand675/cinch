@@ -1,0 +1,144 @@
+-- | Exact raw-byte searching with bounded machine loops and broad-word classification.
+-- Complete eight-byte blocks use private straight-line SWAR kernels. Scalar
+-- fringes read only their available bytes. Public results are zero-based byte
+-- offsets; every byte value, including malformed UTF-8, is compared exactly.
+-- Backing owners remain live around complete private traversals.
+module Data.Bytes.Search where
+
+  import Data.Bytes
+  import Data.Bool
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  export bytes-index-byte, bytes-last-index-byte, bytes-contains-byte, bytes-count-byte
+
+  -- | Keep one backing owner alive until the complete private traversal has returned.
+  hold-input :: forall a. Bytes -> a -> a
+  hold-input owner value = case bytes-len owner of _ -> value
+
+  -- | Repeat one exact byte in every lane of a private packed word.
+  prim repeated-byte :: U8 -> U64 where
+    llvm {
+      %byte = zext i8 %0 to i64
+      %value = mul i64 %byte, 72340172838076673
+      ret i64 %value
+    }
+
+  -- | Load exactly eight proved available bytes in low-address-first numeric order.
+  prim load-word :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %value = load i64, ptr %at, align 1
+      ret i64 %value
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %at, align 1
+      %value = call i64 @llvm.bswap.i64(i64 %word)
+      ret i64 %value
+    } when endian big
+
+  -- | Load exactly one proved available scalar-fringe byte as a zero-extended word.
+  prim load-byte :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %byte = load i8, ptr %at, align 1
+      %value = zext i8 %byte to i64
+      ret i64 %value
+    }
+
+  -- | Mark exactly one high bit per matching byte, with no cross-lane borrow false positives.
+  -- Masked lane sums stay below 256, so their additions cannot carry into another byte.
+  prim matching-lanes :: U64 -> U64 -> U64 where
+    llvm {
+      %different = xor i64 %0, %1
+      %low = and i64 %different, 9187201950435737471
+      %sum = add i64 %low, 9187201950435737471
+      %nonzero = or i64 %sum, %different
+      %complement = xor i64 %nonzero, -1
+      %value = and i64 %complement, -9187201950435737472
+      ret i64 %value
+    }
+
+  -- | Return the first marked byte lane, or the defined eight-lane sentinel for an empty mask.
+  first-lane :: U64 -> I64
+  first-lane mask = let bits = u32-to-i64 (trailing-zeros-u64 mask) in wrapping-shr-i64 bits 3
+
+  -- | Return the last marked byte lane, or negative one for an empty mask.
+  last-lane :: U64 -> I64
+  last-lane mask = if eq-u64 mask 0 then -1 else
+    let bits = u32-to-i64 (leading-zeros-u64 mask) in let position = wrapping-sub-i64 63 bits in
+    wrapping-shr-i64 position 3
+
+  -- | Count exact marked byte lanes through the machine population-count intrinsic.
+  lane-count :: U64 -> I64
+  lane-count mask = u32-to-i64 (count-ones-u64 mask)
+
+  -- | Search all bytes through the equivalent checked-length scalar worker.
+  index-forward :: I64 -> I64 -> I64 -> U64 -> I64
+  index-forward base at end repeated = let byte = bit-and-u64 repeated 255 in index-forward-tail base at end byte
+
+  -- | Read only remaining scalar bytes after the complete forward words.
+  index-forward-tail :: I64 -> I64 -> I64 -> U64 -> I64
+  index-forward-tail base at end byte = if lt-i64 at end then
+    let value = load-byte base at in if eq-u64 value byte then at
+    else let next = wrapping-add-i64 at 1 in index-forward-tail base next end byte
+    else -1
+
+  -- | Search all suffix bytes through the equivalent checked-length scalar worker.
+  index-backward :: I64 -> I64 -> U64 -> I64
+  index-backward base end repeated = let byte = bit-and-u64 repeated 255 in index-backward-tail base end byte
+
+  -- | Read only the leading scalar fringe while searching backward.
+  index-backward-tail :: I64 -> I64 -> U64 -> I64
+  index-backward-tail base end byte = if gt-i64 end 0 then
+    let previous = wrapping-sub-i64 end 1 in let value = load-byte base previous in
+    if eq-u64 value byte then previous else index-backward-tail base previous byte
+    else -1
+
+  -- | Count all bytes through the equivalent checked-length scalar worker.
+  count-forward :: I64 -> I64 -> I64 -> U64 -> I64 -> I64
+  count-forward base at end repeated total = let byte = bit-and-u64 repeated 255 in count-tail base at end byte total
+
+  -- | Count only available scalar-fringe bytes without a broad read past the end.
+  count-tail :: I64 -> I64 -> I64 -> U64 -> I64 -> I64
+  count-tail base at end byte total = if lt-i64 at end then
+    let value = load-byte base at in let next-total = if eq-u64 value byte then wrapping-add-i64 total 1 else total in
+    let next = wrapping-add-i64 at 1 in count-tail base next end byte next-total
+    else total
+
+  -- | Convert a private signed search sentinel into an optional exact public byte offset.
+  found-offset :: I64 -> Option Nat
+  found-offset value = if 0 <= value then Some (nat-from-i64 value) else None
+
+  -- | Find the first exact byte value, returning no offset when the input contains no match.
+  bytes-index-byte :: Bytes -> U8 -> Option Nat
+  bytes-index-byte input byte =
+    let repeated = repeated-byte byte in let end = nat-to-i64 (bytes-len input) in
+    let found = hold-input input (index-forward (bytes-data input) 0 end repeated) in
+    found-offset found
+
+  -- | Find the last exact byte value without decoding or changing the input.
+  bytes-last-index-byte :: Bytes -> U8 -> Option Nat
+  bytes-last-index-byte input byte =
+    let repeated = repeated-byte byte in let end = nat-to-i64 (bytes-len input) in
+    let found = hold-input input (index-backward (bytes-data input) end repeated) in
+    found-offset found
+
+  -- | Test whether any exact byte value occurs, including zero and high-bit byte values.
+  bytes-contains-byte :: Bytes -> U8 -> Bool
+  bytes-contains-byte input byte =
+    let repeated = repeated-byte byte in let end = nat-to-i64 (bytes-len input) in
+    let found = hold-input input (index-forward (bytes-data input) 0 end repeated) in
+    ge-i64 found 0
+
+  -- | Count every exact matching byte using eight-lane masks and a bounded scalar fringe.
+  bytes-count-byte :: Bytes -> U8 -> Nat
+  bytes-count-byte input byte =
+    let repeated = repeated-byte byte in let end = nat-to-i64 (bytes-len input) in
+    let count = hold-input input (count-forward (bytes-data input) 0 end repeated 0) in
+    if 0 <= count then nat-from-i64 count else 0

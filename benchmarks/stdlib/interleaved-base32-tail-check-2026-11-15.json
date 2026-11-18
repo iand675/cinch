@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "measurement": "Alternating retained executables; suffix traversal is the only library source difference",
+  "cpu_affinity": [
+    0
+  ],
+  "iterations": 32,
+  "binaries": {
+    "conversion-fast-paths": {
+      "path": "build/benchmarks/conversion-fast-paths/bench",
+      "sha256": "b83e4a47885590f5272458cab8c343e22d6e7090ecdfc4365b41901e25a98b1c"
+    },
+    "base32-tail": {
+      "path": "build/benchmarks/base32-tail/bench",
+      "sha256": "fd33bf20033dde9411312f8250381edadc0ad658a450b177fe3cba373d40f46e"
+    }
+  },
+  "results": [
+    {
+      "workload": "base32-decode",
+      "raw_input_bytes": 32,
+      "samples_ns": {
+        "conversion-fast-paths": [
+          534002,
+          566510,
+          665997,
+          613970,
+          652887
+        ],
+        "base32-tail": [
+          245654,
+          298202,
+          239434,
+          279324,
+          255488
+        ]
+      },
+      "checksum": 8128
+    },
+    {
+      "workload": "base32-decode",
+      "raw_input_bytes": 1024,
+      "samples_ns": {
+        "conversion-fast-paths": [
+          14310585,
+          8551941,
+          8419936,
+          8436931,
+          8373508
+        ],
+        "base32-tail": [
+          3890696,
+          2406636,
+          2400597,
+          2421077,
+          2388940
+        ]
+      },
+      "checksum": 42944
+    },
+    {
+      "workload": "base32-decode",
+      "raw_input_bytes": 16384,
+      "samples_ns": {
+        "conversion-fast-paths": [
+          134668436,
+          136405239,
+          137384611,
+          137241741,
+          139826054
+        ],
+        "base32-tail": [
+          39116371,
+          38609179,
+          37996211,
+          38649591,
+          38109760
+        ]
+      },
+      "checksum": 534464
+    }
+  ]
+}

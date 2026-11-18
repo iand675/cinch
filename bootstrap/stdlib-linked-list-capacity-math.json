@@ -1,0 +1,27 @@
+{
+  "description": "Independent integer allocation-layout expectations; no large memory allocation or 32-bit target runtime claim",
+  "targets": [
+    {
+      "pointer_bits": 32,
+      "signed_layout_max": 2147483647,
+      "array_metadata_bytes": 16,
+      "maximum_header_bytes": 16,
+      "bytes_per_slot": 8,
+      "maximum_slots": 268435451,
+      "largest_allocation_bytes": 2147483640,
+      "first_illegal_slots": 268435452,
+      "first_illegal_allocation_bytes": 2147483648
+    },
+    {
+      "pointer_bits": 64,
+      "signed_layout_max": 9223372036854775807,
+      "array_metadata_bytes": 16,
+      "maximum_header_bytes": 16,
+      "bytes_per_slot": 8,
+      "maximum_slots": 1152921504606846971,
+      "largest_allocation_bytes": 9223372036854775800,
+      "first_illegal_slots": 1152921504606846972,
+      "first_illegal_allocation_bytes": 9223372036854775808
+    }
+  ]
+}

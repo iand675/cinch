@@ -1,0 +1,222 @@
+-- | Offline configurable Base64 byte, ownership and stream consumers.
+module Main where
+  import Text.Base64.Encoding
+  import Effect.Base64
+  import Effect.Stream
+  import Text.Hex
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  -- | Observe every byte, independently of the codec's packing operations.
+  fingerprint :: Bytes -> Nat -> U64 -> U64
+  fingerprint bytes at value = if at < bytes-len bytes then
+    let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get bytes at)) in
+    let mixed = bit-xor-u64 value byte in
+    let next = wrapping-mul-u64 mixed 1099511628211 in
+    let following = at + 1 in fingerprint bytes following next
+    else value
+  -- | Parse independently recorded literal bytes.
+  hex :: String -> Bytes
+  hex text = case hex-decode text of Ok bytes -> bytes; Err error -> bytes-new 0
+  -- | Compare complete buffers without depending on a codec round trip alone.
+  same :: Bytes -> Bytes -> Bool
+  same first last = eq-i64 (bytes-compare first last) 0
+  -- | Keep fixture construction at runtime while retaining an exact bounded length.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %result = or i32 %0, 0
+      ret i32 %result
+    }
+  -- | Build full-byte fixture input independently of encoding output.
+  corpus :: Nat -> Bytes
+  corpus n = if n <= 65536 then
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 n))) in
+    let out = bytes-new size in let filled = fill out 0 in out
+    else bytes-new 0
+  -- | Fill a deterministic full-byte permutation.
+  fill :: Bytes -> Nat -> Unit
+  fill out at = if at < bytes-len out then
+    let written = bytes-set out at (nat-rem (at * 37 + 11) 256) in fill out (at + 1)
+    else ()
+  -- | Copy a checked source interval for independent feed calls.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input at n = if at + n <= bytes-len input then
+    let out = bytes-new n in let copied = bytes-copy-range out input 0 at n in out
+    else bytes-new 0
+  -- | Join observable feed results into independent storage.
+  join :: Bytes -> Bytes -> Bytes
+  join first last = let n = bytes-len first in let out = bytes-new (n + bytes-len last) in
+    let a = bytes-copy-range out first 0 0 n in let b = bytes-copy-range out last n 0 (bytes-len last) in out
+  -- | Select a validated custom configuration from independently recorded bytes.
+  custom :: String -> Option Nat -> Bool -> Base64Encoding
+  custom alphabet padding strict = case base64-encoding (hex alphabet) of
+    Err error -> base64-standard-encoding
+    Ok initial -> case base64-with-padding initial padding of
+      Err error -> base64-standard-encoding
+      Ok selected -> if strict then base64-strict selected else selected
+  -- | Conjoin a finite runtime fixture batch.
+  all :: List Bool -> Bool
+  all values = case values of Nil -> True; Cons first rest -> first && all rest
+  -- | Recognize an absent decoding error without requiring an equality instance.
+  no-error :: Option Base64InputError -> Bool
+  no-error error = case error of None -> True; Some failure -> False
+  -- | Exercise every requested encoder split and retained continuation independently.
+  encode-splits :: Base64Encoding -> Bytes -> Bytes -> List Nat -> Bool
+  encode-splits encoding input expected points = case points of
+    Nil -> True
+    Cons at rest -> if at <= bytes-len input then
+      case base64-encoder-feed (base64-encoder encoding) (part input 0 at) of
+        (first, state) -> case base64-encoder-feed state (part input at (bytes-len input - at)) of
+          (last, final) -> same (join first (join last (base64-encoder-finish final))) expected
+            && encode-splits encoding input expected rest
+      else False
+  -- | Exercise every requested decoder split without treating empty intermediate output as EOF.
+  decode-splits :: Base64Encoding -> Bytes -> Bytes -> List Nat -> Bool
+  decode-splits encoding input expected points = case points of
+    Nil -> True
+    Cons at rest -> if at <= bytes-len input then
+      case base64-decoder-feed (base64-decoder encoding) (part input 0 at) of
+        (first, state) -> case base64-decoder-feed state (part input at (bytes-len input - at)) of
+          (last, final) -> case base64-decoder-finish final of
+            (tail, error) -> no-error error && same (join first (join last tail)) expected
+              && decode-splits encoding input expected rest
+      else False
+  -- | Verify complete golden wires, every-byte fingerprints, lengths, prefixes and feed boundaries.
+  valid :: Base64Encoding -> Nat -> String -> U64 -> Nat -> Nat -> List Nat -> List Nat -> Bool
+  valid encoding n expected hash length bound enc-points dec-points =
+    let input = corpus n in let encoded = base64-encode-bytes encoding input in
+    base64-encoded-length encoding n == length && bytes-len encoded == length
+      && base64-decoded-length encoding length == bound
+      && eq-u64 (fingerprint encoded 0 14695981039346656037) hash
+      && (if n <= 257 then same encoded (hex expected) else True)
+      && (case base64-decode-prefix encoding encoded of (out, error) -> no-error error && same out input)
+      && same (base64-encode-append encoding (hex "aabbcc") input) (join (hex "aabbcc") encoded)
+      && (case base64-decode-append encoding (hex "aabbcc") encoded of (out, error) -> no-error error && same out (join (hex "aabbcc") input))
+      && encode-splits encoding input encoded enc-points && decode-splits encoding encoded input dec-points
+  -- | Verify completed malformed-input output and acceptance independently of diagnostic wording.
+  malformed :: Base64Encoding -> String -> String -> Bool -> Bool
+  malformed encoding input expected failed = case base64-decode-prefix encoding (hex input) of
+    (out, error) -> same out (hex expected) && (if failed then not (no-error error) else no-error error)
+  -- | Count every byte outside a destination interval as unchanged.
+  sentinels :: Bytes -> Nat -> Nat -> Nat -> Bool
+  sentinels out start n at = if at < bytes-len out then
+    (if at < start || at >= start + n then bytes-get out at == 204 else True) && sentinels out start n (at + 1)
+    else True
+  -- | Initialize a caller buffer with a recognizable byte outside the written interval.
+  sentinel-fill :: Bytes -> Nat -> Unit
+  sentinel-fill out at = if at < bytes-len out then let written = bytes-set out at 204 in sentinel-fill out (at + 1) else ()
+  -- | Check offset stores, short-range precedence and same-buffer decoding overlap.
+  buffers :: Unit -> Bool
+  buffers unit =
+    let input = string-to-bytes "foobar!" in let expected = base64-encode-bytes base64-standard-encoding input in
+    let destination = bytes-new (bytes-len expected + 5) in let filled = sentinel-fill destination 0 in
+    let encoded = case base64-encode-into base64-standard-encoding destination 2 input of
+          Ok n -> n == bytes-len expected && same (part destination 2 n) expected && sentinels destination 2 n 0
+          Err error -> False in
+    let short = bytes-new 3 in let marked = sentinel-fill short 0 in
+    let refused = case base64-encode-into base64-standard-encoding short 0 input of Err (Base64ShortDestination required available) -> required == 12 && available == 3 && sentinels short 0 0 0; other -> False in
+    let overlap = string-to-bytes "Zm9vYmFy" in
+    let decoded = case base64-decode-into base64-standard-encoding overlap 1 overlap of (6, None) -> same overlap (string-to-bytes "Zfoobary"); other -> False in
+    let out = bytes-new 10 in let marked-out = sentinel-fill out 0 in
+    let partial = case base64-decode-into base64-standard-encoding out 2 (string-to-bytes "Zm9v!AAA") of
+          (3, Some (InvalidBase64Byte at byte)) -> at == 4 && byte == 33 && same (part out 2 3) (string-to-bytes "foo") && sentinels out 2 3 0
+          other -> False in encoded && refused && decoded && partial
+  -- | Retained custom alphabets, returned alphabet copies and partial encoder input never alias callers.
+  aliases :: Unit -> Bool
+  aliases unit = let alphabet = string-to-bytes "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" in
+    case base64-encoding alphabet of
+      Err error -> False
+      Ok encoding ->
+        let changed = if 0 < bytes-len alphabet then bytes-set alphabet 0 33 else () in
+        let exposed = base64-encoding-alphabet encoding in let changed-copy = if 1 <= bytes-len exposed then bytes-set exposed 0 33 else () in
+        let initial = base64-encode-bytes encoding (hex "000000000000") in
+        let source = bytes-new 1 in let first-byte = bytes-set source 0 102 in
+        case base64-encoder-feed (base64-encoder encoding) source of
+          (empty, state) -> let mutated = bytes-set source 0 33 in
+            same initial (string-to-bytes "AAAAAAAA") && same (base64-encoder-finish state) (string-to-bytes "Zg==")
+              && (case base64-decoder-feed (base64-decoder encoding) (string-to-bytes "Z") of
+                (out, decoder) -> case base64-decoder-feed decoder (string-to-bytes "g==") of
+                  (decoded, final) -> same decoded (string-to-bytes "f") && no-error (base64-decoder-error final))
+  -- | Strict failures identify the final noncanonical alphabet symbol using original byte offsets.
+  precise-errors :: Unit -> Bool
+  precise-errors unit =
+    (case base64-decode-prefix (base64-strict base64-standard-encoding) (string-to-bytes "Z\r\nh==") of
+      (out, Some (InvalidBase64TrailingBits at)) -> bytes-len out == 0 && at == 3
+      other -> False)
+    && (case base64-decode-prefix base64-standard-encoding (string-to-bytes "Zm9v\r\n!") of
+      (out, Some (InvalidBase64Byte at byte)) -> same out (string-to-bytes "foo") && at == 6 && byte == 33
+      other -> False)
+    && (case base64-decode-prefix base64-standard-encoding (string-to-bytes "Zm9vZg=") of
+      (out, Some (TruncatedBase64Quantum at)) -> same out (string-to-bytes "foo") && at == 4
+      other -> False)
+  -- | Validate constructor failure order and padding policy without exceptions.
+  configuration-errors :: Unit -> Bool
+  configuration-errors unit =
+    (case base64-encoding (bytes-new 63) of Err (Base64AlphabetLength 63) -> True; other -> False)
+    && (case base64-encoding (bytes-new 64) of Err (Base64AlphabetDuplicate 1) -> True; other -> False)
+    && (case base64-with-padding base64-standard-encoding (Some 10) of Err (Base64PaddingValue 10) -> True; other -> False)
+    && (case base64-with-padding base64-standard-encoding (Some 256) of Err (Base64PaddingValue 256) -> True; other -> False)
+    && (case base64-with-padding base64-standard-encoding (Some 65) of Err (Base64PaddingCollision 65) -> True; other -> False)
+    && (case base64-with-padding base64-standard-encoding None of Ok encoding -> base64-encoded-length encoding 1 == 2; other -> False)
+  -- | Exact byte encodings become text only when their complete output is valid UTF-8.
+  text-conversion :: Unit -> Bool
+  text-conversion unit =
+    (case base64-encode-text base64-standard-encoding (string-to-bytes "f") of Some text -> text == "Zg=="; None -> False)
+    && (case base64-encode-text (configuration 6) (string-to-bytes "f") of None -> True; Some text -> False)
+  -- | A short writer validates one output byte at a time and accepts a final marker only at the expected end.
+  checking-writer :: forall r. using (io :: Io r) => Bytes -> Nat -> ByteWriter r
+  checking-writer expected at = stream-writer (\input ->
+    if bytes-len input == 0 then (Ok 0, checking-writer expected at)
+    else if at < bytes-len expected then
+      if bytes-get input 0 == bytes-get expected at then (Ok 1, checking-writer expected (at + 1))
+      else (Err (StreamShortWrite 1 0), checking-writer expected at)
+    else if bytes-get input 0 == 33 then (Ok 1, writer-discard)
+    else (Err (StreamShortWrite 1 0), checking-writer expected at))
+  -- | Exercise explicit writer finishing through arbitrary three-byte boundaries and odd short writes.
+  writer-case :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  writer-case unit = let expected = string-to-bytes "Zm9vYmFyIQ==" in
+    case base64-write (base64-writer base64-standard-encoding (checking-writer expected 0)) (string-to-bytes "fo") of
+      (Ok 2, first) -> case base64-write first (string-to-bytes "obar!") of
+        (Ok 5, next) -> case base64-finish next of
+          (Ok done, sink) -> case stream-write sink (string-to-bytes "!") of (Ok 1, final) -> True; other -> False
+          other -> False
+        other -> False
+      other -> False
+  -- | Preserve an advanced sink after its first failure.
+  failing-writer :: forall r. using (io :: Io r) => ByteWriter r
+  failing-writer = stream-writer (\input -> (Err (StreamClosed "fixture"), writer-buffer))
+  -- | A failed writer remains sticky and returns its advanced sink on finish.
+  failed-write :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  failed-write unit = case base64-write (base64-writer base64-standard-encoding failing-writer) (string-to-bytes "foo") of
+    (Err (StreamClosed message), next) -> case base64-write next (string-to-bytes "bar") of
+      (Err (StreamClosed message), failed) -> case base64-finish failed of
+        (Err (StreamClosed message), sink) -> case stream-write sink (string-to-bytes "!") of (Ok 1, advanced) -> (case writer-bytes advanced of Some out -> same out (string-to-bytes "!"); None -> False); other -> False
+        other -> False
+      other -> False
+    other -> False
+  -- | Complete decoded bytes are returned before a later invalid byte, and errors remain sticky across zero reads.
+  reader-case :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  reader-case unit = case stream-read (base64-reader base64-standard-encoding (reader-from-string "Zm9vYmFy!")) 1 of
+    (Ok first, next) -> same first (string-to-bytes "f") && (case stream-read-exact next 5 of
+      (Ok rest, last) -> same rest (string-to-bytes "oobar") && (case stream-read last 1 of
+        (Err (StreamEncodingError name at message), failed) -> name == "base64" && at == 8 && (case stream-read failed 0 of
+          (Ok empty, stable) -> bytes-len empty == 0 && (case stream-read stable 1 of (Err (StreamEncodingError kind pos text), final) -> kind == name && pos == at; other -> False)
+          other -> False)
+        other -> False)
+      other -> False)
+    other -> False
+  -- | Produce source chunks one byte at a time without interpreting an empty intermediate decoded feed as EOF.
+  one-byte-reader :: forall r. using (io :: Io r) => Bytes -> Nat -> ByteReader r
+  one-byte-reader input at = stream-reader (\n -> if n == 0 then (Ok (bytes-new 0), one-byte-reader input at)
+    else if at < bytes-len input then (Ok (part input at 1), one-byte-reader input (at + 1))
+    else (Ok (bytes-new 0), one-byte-reader input at))
+  -- | Large one-byte sources remain bounded and release their pending buffers.
+  long-stream :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  long-stream unit = let input = corpus 65536 in let encoded = base64-encode-bytes base64-standard-encoding input in
+    case stream-read-all 4096 (base64-reader base64-standard-encoding (one-byte-reader encoded 0)) of
+      (Ok out, next) -> same out input
+      other -> False

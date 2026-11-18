@@ -336,9 +336,8 @@ fn a_frame_block_releases_its_counted_payload_and_leaks_nothing() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// A block stored in another block: admissible only when the holder is
-/// itself frame-bound (`CINCH_STACK_WIDEN=store`), because only then does the
-/// holder's own release drop the stored reference.
+/// A counted-payload child remains heap allocated even when its holder
+/// fits in the frame: an accessor may retain the child independently.
 const NATIVE_STORE: &str = r#"
 module Main where
   import Data.List
@@ -363,7 +362,7 @@ module Main where
 "#;
 
 #[test]
-fn a_block_stored_in_a_frame_block_takes_a_slot() {
+fn a_counted_payload_stored_in_a_frame_block_stays_on_the_heap() {
     let dir = dir("store");
     let entry = source(&dir, NATIVE_STORE);
     let output = cinch(
@@ -385,15 +384,15 @@ fn a_block_stored_in_a_frame_block_takes_a_slot() {
         String::from_utf8_lossy(&output.stderr)
     );
     let dump = std::fs::read_to_string(dir.join("lowered.core")).expect("lowered.core");
-    // Two slots: the box, and the holder that stores it (16 + 32 bytes).
+    // The holder takes one slot; the counted-payload box keeps its own
+    // heap count so a field alias can survive the holder's release.
     let start = dump.find("unit Main.local").expect("Main.local in the dump");
     let unit = &dump[start..start + dump[start..].find("\nend").expect("unit end")];
-    assert!(unit.contains("@frame(2 slots, 48 bytes)"), "the nested store took no slot:\n{unit}");
-    assert!(unit.contains("@frame(f0)") && unit.contains("@frame(f1)"), "{unit}");
+    assert!(unit.contains("@frame(1 slot, 32 bytes)"), "the counted child was nested in the frame:\n{unit}");
+    assert!(unit.contains("@frame(f0)") && !unit.contains("@frame(f1)"), "{unit}");
     let stack = stack_of(&dir);
-    assert!(slots(&stack) >= 2, "{stack}");
-    // Released exactly once, at the holder's death: the payload's box is
-    // released through its own frame block, whose list is the counted word.
+    assert!(slots(&stack) >= 1, "{stack}");
+    // The holder releases its owned heap child, which releases the list.
     let exe = dir.join("prog");
     let output = cinch(&dir, &["build", "Main.cinch", "-o", exe.to_str().expect("path")]);
     assert!(output.status.success(), "build failed: {}", String::from_utf8_lossy(&output.stderr));
@@ -410,6 +409,107 @@ fn a_block_stored_in_a_frame_block_takes_a_slot() {
             stderr.contains("cinch-leak: live=0 immortal=0 leaked=0"),
             "the nested frame block's payload leaked (debug {debug}): {stderr}"
         );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A raw child needs an independent heap lifetime too: another accessor
+/// could return it beyond its parent's allocating activation.
+#[test]
+fn an_uncounted_payload_stored_in_a_frame_block_keeps_a_heap_counter() {
+    let src = r#"
+-- | Exercise nested frame storage without an independently released payload.
+module Main where
+  import Data.Machine
+  -- | Store one raw machine word.
+  data Box where
+    -- | Construct the raw payload.
+    Box :: I64 -> Box
+  -- | Own the raw-payload box.
+  data Holder where
+    -- | Construct the outer owner.
+    Holder :: Box -> I64 -> Holder
+  -- | Inspect both owners within their allocating activation.
+  #[inline(never)]
+  local :: Int
+  local = let box = Box 7 in let holder = Holder box 0 in
+    case holder of Holder inner _ -> case inner of Box value -> if eq-i64 value 7 then 7 else 0
+  -- | Return the observed word.
+  main :: Int
+  main = local
+"#;
+    let dir = dir("raw-nested-store");
+    let entry = source(&dir, src);
+    let output = cinch(&dir, &[
+        "core", "emit", "--max-simplifier-iterations", "0", "--no-inline",
+        "-o", "lowered.core", entry.to_str().expect("entry"),
+    ]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let dump = std::fs::read_to_string(dir.join("lowered.core")).expect("Core");
+    let start = dump.find("unit Main.local").expect("Main.local");
+    let local = &dump[start..start + dump[start..].find("\nend").expect("unit end")];
+    assert!(local.contains("@frame(1 slot, 32 bytes)"), "{local}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A borrowed accessor may return an owned field independently of its
+/// parent. A counted frame child cannot survive that parent's release.
+#[test]
+fn borrowed_field_results_keep_nested_payload_alive_after_parent_release() {
+    let dir = dir("nested-payload-lifetime");
+    source(&dir, include_str!("../../bootstrap/programs/Run.NestedFramePayload.cinch"));
+    for (variant, flags) in [("default", Vec::<&str>::new()), ("no-stack", vec!["--no-stack-alloc"])] {
+        let exe = dir.join(variant);
+        let mut args = vec!["build", "Main.cinch", "-o", exe.to_str().expect("executable"), "--opt-level", "2", "--rc-debug"];
+        args.extend(flags);
+        let output = cinch(&dir, &args);
+        assert!(output.status.success(), "{variant}: {}", String::from_utf8_lossy(&output.stderr));
+        for (debug, heap) in [("0", "32M"), ("1", "256M")] {
+            let result = Command::new(&exe)
+                .env("CINCH_HEAP_LIMIT", heap).env("CINCH_STACK_SIZE", "8M")
+                .env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", debug)
+                .output().expect("run nested payload regression");
+            assert_eq!(result.status.code(), Some(0), "{variant}, debug {debug}: {}", String::from_utf8_lossy(&result.stderr));
+            assert!(String::from_utf8_lossy(&result.stderr).contains("cinch-leak: live=0 immortal=0 leaked=0"));
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A raw field projection can leave its allocating activation. Its child
+/// must not retain an address into that activation, even without payload drops.
+#[test]
+fn projected_raw_results_outlive_their_allocating_activation() {
+    let dir = dir("returned-field-lifetime");
+    source(&dir, include_str!("../../bootstrap/programs/Run.ReturnedFrameProjection.cinch"));
+    let output = cinch(&dir, &[
+        "core", "emit", "--max-simplifier-iterations", "0", "--no-inline",
+        "-o", "lowered.core", "Main.cinch",
+    ]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let dump = std::fs::read_to_string(dir.join("lowered.core")).expect("Core");
+    let start = dump.find("unit Main.produce").expect("producer");
+    let producer = &dump[start..start + dump[start..].find("\nend").expect("producer end")];
+    assert!(producer.contains("@frame(1 slot, 16 bytes)"), "{producer}");
+    let child = producer.lines().find(|line| line.contains("ctor Main.Box ")).expect("child allocation");
+    assert!(!child.contains("@frame("), "returned child cannot use producer frame storage: {producer}");
+    for optimization in ["0", "2"] {
+        for (variant, flags) in [("default", Vec::<&str>::new()), ("no-stack", vec!["--no-stack-alloc"])] {
+            let exe = dir.join(format!("{variant}-O{optimization}"));
+            let mut args = vec!["build", "Main.cinch", "-o", exe.to_str().expect("executable"),
+                "--opt-level", optimization, "--rc-debug", "--max-simplifier-iterations", "0", "--no-inline"];
+            args.extend(flags);
+            let output = cinch(&dir, &args);
+            assert!(output.status.success(), "{variant}, O{optimization}: {}", String::from_utf8_lossy(&output.stderr));
+            for (debug, heap) in [("0", "32M"), ("1", "256M")] {
+                let result = Command::new(&exe)
+                    .env("CINCH_HEAP_LIMIT", heap).env("CINCH_STACK_SIZE", "8M")
+                    .env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", debug)
+                    .output().expect("run returned field regression");
+                assert_eq!(result.status.code(), Some(0), "{variant}, O{optimization}, debug {debug}: {}", String::from_utf8_lossy(&result.stderr));
+                assert!(String::from_utf8_lossy(&result.stderr).contains("cinch-leak: live=0 immortal=0 leaked=0"));
+            }
+        }
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -527,7 +627,7 @@ fn the_lowered_dump_marks_the_frame_decision_and_verifies() {
 // scrutinee read into a `Drop` rather than a `Dup`.
 
 use cinch::core::{
-    CAlt, CBranch, CPat, Core, FnDef, FnHints, FnMeta, GlobalId, InstanceDef, LocalId, Program,
+    CAlt, CBranch, CPat, Core, FnDef, FnHints, FnMeta, GlobalId, LocalId, Program,
     UnitRepr,
 };
 
@@ -556,24 +656,7 @@ fn test_ctor(name: &str, tag: usize, fields: Vec<cinch::repr::Class>) -> FnDef {
 }
 
 fn test_program(fns: Vec<FnDef>) -> Program {
-    Program {
-        total_bodies: cinch::total::CheckedGraph::empty(),
-        fns,
-        instances: Vec::<InstanceDef>::new(),
-        main: None,
-        rewrites: vec![],
-        plans: Default::default(),
-        foreigns: Default::default(),
-        prims: vec![],
-        laws: vec![],
-        lent: Default::default(),
-        frame: Default::default(),
-        stack: Default::default(),
-        borrowed: Default::default(),
-        lent_entries: Default::default(),
-        private_modules: Vec::new(),
-        inline: Default::default(),
-    }
+    Program::from_functions(fns)
 }
 
 /// `let x = Ctor bool in dup x (let a = case x of C y -> 1 in drop x a)`: one

@@ -1,0 +1,44 @@
+-- | Execute nominal runtime identities with distinct payload representations.
+module Main where
+  import Data.Bytes
+  import Data.Machine
+  import Data.Wide
+  import Data.Mutable.Var
+  -- | Retain a mutable cell while erasing its runtime identity from value arguments.
+  data Box (r :: Region) a where
+    -- | Own the cell without storing a representation argument for its identity.
+    Boxed :: Var r a -> Box r a
+  -- | Allocate a cell under the explicitly bound runtime identity.
+  wrap :: forall (r :: Region) a. a ->{Mut r} Box r a
+  wrap value = Boxed (var-new value)
+  -- | Exchange payload ownership through the nominal constructor.
+  exchange :: forall (r :: Region) a. Box r a -> a ->{Mut r} a
+  exchange boxed value = case boxed of Boxed cell -> var-swap cell value
+  -- | Acquire the current payload through the same erased identity.
+  observe :: forall (r :: Region) a. Box r a ->{Mut r} a
+  observe boxed = case boxed of Boxed cell -> var-read cell
+  -- | Fix the immediate payload representation independently from numeric defaulting.
+  machine-box :: forall (r :: Region). I64 ->{Mut r} Box r I64
+  machine-box value = wrap value
+  -- | Fix a two-word payload representation independently from numeric defaulting.
+  wide-box :: forall (r :: Region). U128 ->{Mut r} Box r U128
+  wide-box value = wrap value
+  -- | Observe moved managed owners and both scalar widths before releasing every cell.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in
+    let original = bytes-new 31 in
+    let replacement = bytes-new 47 in
+    let managed = wrap original in
+    let previous = exchange managed replacement in
+    let current = observe managed in
+    let immediate = machine-box 42 in
+    let old-immediate = exchange immediate 43 in
+    let wide = wide-box 340282366920938463463374607431768211450 in
+    let old-wide = exchange wide 340282366920938463463374607431768211451 in
+    if bytes-len previous /= 31 then 11
+    else if bytes-len current /= 47 then 12
+    else if old-immediate /= 42 then 13
+    else if observe immediate /= 43 then 14
+    else if old-wide /= 340282366920938463463374607431768211450 then 15
+    else if observe wide /= 340282366920938463463374607431768211451 then 16
+    else 0

@@ -1,0 +1,6 @@
+{
+  "compiler_sha256": "9dcdf0f2ed2aac1248d5ae3439ab7d4e556a2d1d8456a33297ae03b5e4efd2ee",
+  "source_sha256": "f2eda4f715229e7df83c1f70817613ce8212cc6bdf95e69394bd6f26f47f172a",
+  "diagnostic_sha256": "505fd087d2219b0390c6549582e5b3d472a69bbacfd818026bf67f843edd8645",
+  "scope": "Kernel Io arguments were first recorded as proper types before conversion to runtime identities. The fix suppresses that incorrect note only for the actual kernel capability and keeps variable-only identity checks."
+}

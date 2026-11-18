@@ -1,0 +1,10 @@
+{
+  "scope": "Cross-check captured color observations with independent unbounded scalar arithmetic.",
+  "vectors_sha256": "0a7932a4b6d0cf1bd7f29e04077df3c834745b84c6ddd16946f0693d088ce5b6",
+  "runner_sha256": "bfe688be501059154040c34151849cd56161f91b0be5ff3a68035f47b5b05de1",
+  "sdk": "go1.27.4",
+  "independent_exact_observations": 22857,
+  "source_colors": 1808,
+  "all_passed": true,
+  "limits": "Independent scalar reference validation only; no Cinch runtime or kernel claim."
+}

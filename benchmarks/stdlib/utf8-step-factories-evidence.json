@@ -1,0 +1,98 @@
+{
+  "scope": "Additive safe scalar/end step constructors; legacy decoder/scanner bodies unchanged from9f690bcb",
+  "api": [
+    "utf8-scalar-step :: Char -> Utf8Step",
+    "utf8-end-step :: Unit -> Utf8Step"
+  ],
+  "canonical_declarations": 72,
+  "canonical_doc_diagnostics": 0,
+  "canonical_doc_orphans": 0,
+  "reports": [
+    {
+      "frontend": "rust",
+      "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "sources": {
+        "Data.Bytes.Utf8.cinch": "6c73d599aef05a9854c78a02b6dcd26e6f40dda24ac95dba6dc07d13d7c1cdb6",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "741d9fb971588872128b1bee73116417b341527cb65057f2f803c46ad6bf654d"
+      },
+      "executable_sha256": "03f36c6f9468051b5090b1ebb46d645666834109735f7e47447f6b4dcff5446b",
+      "compile_command": [
+        "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+        "build",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-rust/project/Main.cinch",
+        "-o",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-rust/consumer",
+        "--opt-level",
+        "2",
+        "--rc-debug"
+      ],
+      "compile_seconds": 4.826897974999156,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "seconds": 0.0017791310092434287,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0012903549941256642,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true,
+      "full_report_sha256": "162c79e94735fd36bd7f104d698056ba4db61e20e90c9b70b807b252fc5fddd9"
+    },
+    {
+      "frontend": "native",
+      "compiler_sha256": "9e2a64e0e519fc908f17cd7329b72be90f1161513084bfe2e5e3ebbd4a846f90",
+      "runtime_sha256": "12945b719660f1fe3a9b450c7da03161da0b93498d7a504bcb2b9e069de5bf90",
+      "sources": {
+        "Data.Bytes.Utf8.cinch": "6c73d599aef05a9854c78a02b6dcd26e6f40dda24ac95dba6dc07d13d7c1cdb6",
+        "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+        "Main.cinch": "741d9fb971588872128b1bee73116417b341527cb65057f2f803c46ad6bf654d"
+      },
+      "executable_sha256": "5f45696503a9b9e5cbdae314c43c32f523ee02f6302b02a6e801be063c2a7fd0",
+      "compile_command": [
+        "python3",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/frontend.py",
+        "--compile-only",
+        "--interfaces",
+        "/workspace/dasl-stdlib-char-contract/build/character-contract-stage3-frozen/base-interfaces.json",
+        "--rc-debug",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-native/bundle.cinch",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-native/consumer.ll",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-native/consumer",
+        "/workspace/dasl-stdlib-unicode/build/utf8-factories-final-native/link-report.txt"
+      ],
+      "compile_seconds": 10.222091439005453,
+      "runs": [
+        {
+          "poisoned": false,
+          "heap": "32M",
+          "stack": "8M",
+          "seconds": 0.0032434989989269525,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        },
+        {
+          "poisoned": true,
+          "heap": "256M",
+          "stack": "8M",
+          "seconds": 0.0021573709964286536,
+          "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+        }
+      ],
+      "all_passed": true,
+      "full_report_sha256": "80c2781631fe5762ce22848e2cff368285777157498218ade37726da88652b8e"
+    }
+  ],
+  "normal_heap": "32M",
+  "poisoned_heap": "256M",
+  "stack": "8M",
+  "pending": "Text.Utf8 facade awaits import-free String helper checkpoint and fresh combined provider gate"
+}

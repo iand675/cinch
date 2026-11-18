@@ -1,0 +1,429 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "compiler_path": "/workspace/dasl-stdlib-io/build/prim-wide-frozen/cinch",
+  "compiler_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+  "compile_flags": [
+    "--opt-level",
+    "0",
+    "--rc-debug"
+  ],
+  "run_environment": {
+    "CINCH_HEAP_LIMIT": "32M",
+    "CINCH_STACK_SIZE": "8M",
+    "CINCH_LEAK_CHECK": "1",
+    "CINCH_RC_DEBUG": "1"
+  },
+  "baseline": [
+    {
+      "case": "direct",
+      "exit_code": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "1486302d0741cb8b63f600080e66d0e342b47c5f6dd0ec875083ec0080b3c3c9"
+    },
+    {
+      "case": "returned",
+      "exit_code": 1,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "5cff5f2490407f5f57230f1187d666488a8836977036c485f941bf521941981b"
+    },
+    {
+      "case": "shared",
+      "exit_code": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "1fe5d654aff7dbb337e79d3abdd49913d8d0d499e27f285ddbe833119577fe59"
+    },
+    {
+      "case": "all",
+      "exit_code": 1,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91"
+    },
+    {
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "case": "returned-observed775-cell4",
+      "source_sha256": "adddb99dd772cb019130aee27323b87471ad0b0e911cf19393b8bc619ecc2dda"
+    },
+    {
+      "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+      "exit": 13,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "case": "dynamic-boundaries"
+    }
+  ],
+  "first_patch": {
+    "compiler": "/workspace/dasl-stdlib-io/build/rust-order-stage1-frozen/cinch",
+    "compiler_sha256": "f81761c729b69a0aca8aabaecd6d1f94fee66e46c71621c99f1c451b825809ba",
+    "rows": [
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "0",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "0",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "2",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "2",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "0",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "0",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "2",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "2",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    "compiler_provenance": {
+      "description": "First strict-application-boundary compiler snapshot; subsequent unit-fixture syntax repair is separate",
+      "commit": "7a98e284b27592a934958381121a37c7a98820d2",
+      "binary_sha256": "f81761c729b69a0aca8aabaecd6d1f94fee66e46c71621c99f1c451b825809ba",
+      "sources": {
+        "compiler/src/applications.rs": "11eb11f438c441f435e61381cdbdc30b096aaa796c2c46ebdd93b8f797e8de88",
+        "compiler/src/rc.rs": "07a47fd8e1a6a0966e18a848b967c8becd3ce899ff7732db148a76d473a36a53",
+        "compiler/src/codegen.rs": "db888f3a031577f720dd2ba23510bbbe2fa9ca693563a7d0ce18d318d9a4cb9b",
+        "compiler/src/lib.rs": "9bb86850b8b58005552e886ccfb0b15e313206f740b6b2a2aff9aee4407d25ca",
+        "bootstrap/programs/Run.ReturnedArgumentOrder.cinch": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "bootstrap/programs/Run.ScopedArgumentOrder.cinch": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91"
+      },
+      "tail_calls": {
+        "passed": 10,
+        "seconds": 49.42
+      },
+      "applications_unit_tests": {
+        "passed": 4,
+        "failed": 1,
+        "cause": "test fixture data declaration syntax; production compiler builds and runtime regression target passes"
+      }
+    }
+  },
+  "native_control": {
+    "wrapper": "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/frontend.py",
+    "wrapper_sha256": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+    "rows": [
+      {
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ]
+  },
+  "saved_prefix_baseline": [
+    {
+      "case": "saved-prefix-O2",
+      "exit": 1,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "77ff9ddf674495717fc0ea04c71ae2ad9a1d5804350290c210d32790c68d8b3e",
+      "opt_level": "2",
+      "flags": []
+    },
+    {
+      "case": "saved-prefix-no-saturate-O2",
+      "exit": 0,
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "source_sha256": "77ff9ddf674495717fc0ea04c71ae2ad9a1d5804350290c210d32790c68d8b3e",
+      "opt_level": "2",
+      "flags": [
+        "--no-saturate-partial"
+      ]
+    }
+  ],
+  "saved_prefix_final_fixture_baseline": {
+    "case": "saved-final-O2",
+    "source_sha256": "6c70847240c8a56a619b264c875bc4c8b16708ed9e58cb4a600ad50bb2198b38",
+    "exit": 3,
+    "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+    "heap": "32M",
+    "stack": "8M",
+    "opt_level": "2"
+  },
+  "runtime_archives": {
+    "rust_host_default": {
+      "path": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+      "sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "mtime_utc": "2026-11-15T19:14:38.025339625Z",
+      "frozen_copy": "/workspace/dasl-stdlib-rust-order/build/rust-order-runtime-frozen/libcinchruntime.a"
+    },
+    "native_provider": {
+      "path": "/workspace/dasl-stdlib-io/build/bootstrap/library-provider/4d80b86fac573a2dfefdb6a7a9c0970a979a28b31ad1b77553b8ff7dbbb897ea/libcinchruntime.a",
+      "sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141"
+    }
+  },
+  "final_patch": {
+    "compiler": "/workspace/dasl-stdlib-io/build/rust-strict-order-final-frozen/cinch",
+    "compiler_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f",
+    "runtime_archive": "/workspace/dasl-stdlib-rust-order/build/rust-order-runtime-frozen/libcinchruntime.a",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "rows": [
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "0",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "0",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "2",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ScopedArgumentOrder",
+        "source_sha256": "2edb5896cbbc0f1cc6c3da4cd93f570c349fdf58c0d7b4794f8f023400e1ba91",
+        "opt_level": "2",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "0",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "0",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "2",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.ReturnedArgumentOrder",
+        "source_sha256": "48d04ebeac042c604ffe9017e07dfa03f024438ac33e8733097f12ce0b03a92e",
+        "opt_level": "2",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.SavedPartialOrder",
+        "source_sha256": "6c70847240c8a56a619b264c875bc4c8b16708ed9e58cb4a600ad50bb2198b38",
+        "opt_level": "0",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.SavedPartialOrder",
+        "source_sha256": "6c70847240c8a56a619b264c875bc4c8b16708ed9e58cb4a600ad50bb2198b38",
+        "opt_level": "0",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.SavedPartialOrder",
+        "source_sha256": "6c70847240c8a56a619b264c875bc4c8b16708ed9e58cb4a600ad50bb2198b38",
+        "opt_level": "2",
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "fixture": "Run.SavedPartialOrder",
+        "source_sha256": "6c70847240c8a56a619b264c875bc4c8b16708ed9e58cb4a600ad50bb2198b38",
+        "opt_level": "2",
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ],
+    "compiler_provenance": {
+      "description": "Integrated strict application and saved partial argument ordering repairs, with proof-only character interface metadata",
+      "revision": "b2330cd1fdbb186f8c57c38c51a8d964b1d303d2",
+      "binary_sha256": "16f2f4bf883d2e5358c3d09b2e97d0d3c43f2c6c1996da296eef922c9395d98f",
+      "source_sha256": {
+        "compiler/src/applications.rs": "79533ff28891729f30a0262f567be89208790d2d6eca8d1a181fee4b1264056f",
+        "compiler/src/rc.rs": "07a47fd8e1a6a0966e18a848b967c8becd3ce899ff7732db148a76d473a36a53",
+        "compiler/src/simplify.rs": "7ed4d352bb6798b371cafb90e7177a6d3580564ad38c8aa5faac4422a0a1492b",
+        "compiler/src/codegen.rs": "0cbf28cb8e927082ab58fc416063b60f3e5f88e85518f551d8be57276960654c",
+        "compiler/src/check_interface.rs": "7014ea0911c699d644133afacb12939e5f3e28bdbff9332fa8484353173da59d",
+        "compiler/src/lib.rs": "9bb86850b8b58005552e886ccfb0b15e313206f740b6b2a2aff9aee4407d25ca"
+      },
+      "rust_host_runtime_archive": "/workspace/dasl-stdlib-io/compiler/runtime/target/release/libcinchruntime.a",
+      "rust_host_runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "compiler_unit_tests": {
+        "passed": 302,
+        "seconds": 224.01
+      },
+      "remaining_targeted_gate": "running in /tmp/cinch-stdlib-integrated-rust-gate.log"
+    }
+  },
+  "native_saved_control": {
+    "wrapper": "/workspace/dasl-stdlib-io/build/stdlib-qualified-tail-stage3-frozen/frontend.py",
+    "wrapper_sha256": "aebbaa1218b5e1d7fd05495da235843d046841bb6496aba6666573736e9126b2",
+    "source_sha256": "6c70847240c8a56a619b264c875bc4c8b16708ed9e58cb4a600ad50bb2198b38",
+    "rows": [
+      {
+        "heap": "32M",
+        "stack": "8M",
+        "rc_debug": "0",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      },
+      {
+        "heap": "256M",
+        "stack": "8M",
+        "rc_debug": "1",
+        "exit": 0,
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n"
+      }
+    ]
+  },
+  "coordinated_unit_gate": {
+    "passed": 302,
+    "failed": 0,
+    "seconds": 224.01,
+    "reported_by": "parent integrated batch at b233"
+  },
+  "coordinated_final_gate": {
+    "passed": 489,
+    "failed": 0,
+    "targets": {
+      "unit": 302,
+      "base32": 14,
+      "base64": 12,
+      "binary": 13,
+      "csv": 11,
+      "html": 7,
+      "path": 9,
+      "url": 8,
+      "prim": 29,
+      "prim_wide": 10,
+      "simplify": 45,
+      "tail_calls": 11,
+      "wide": 18
+    },
+    "reported_by": "parent b233 integrated epoch",
+    "logs": {
+      "cinch-stdlib-integrated-rust-gate.log": {
+        "sha256": "b87cb6f555bdf3ae1d1c6582e7da55d33647674f332af8db0934d1ec7c57edda",
+        "retained_path": "/workspace/dasl-stdlib-rust-order/build/rust-order-final/cinch-stdlib-integrated-rust-gate.log"
+      },
+      "cinch-stdlib-integrated-rust-gate-remaining.log": {
+        "sha256": "2368546735304c00c92d5b7796ad7c4447b921d05808b06e43a7d427f3c5772a",
+        "retained_path": "/workspace/dasl-stdlib-rust-order/build/rust-order-final/cinch-stdlib-integrated-rust-gate-remaining.log"
+      }
+    }
+  }
+}

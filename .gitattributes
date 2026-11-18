@@ -1,0 +1,14 @@
+# Preserve exact compiler/test output bytes, including diagnostic spacing.
+bootstrap/repros/nominal-region-*/**/*.log -whitespace
+bootstrap/repros/wide-slots-*/**/*.log -whitespace
+bootstrap/repros/wide-arrays-*/**/*.log -whitespace
+bootstrap/repros/wide-array-*/**/*.log -whitespace
+bootstrap/repros/array-fixture-*/**/*.log -whitespace
+bootstrap/repros/byte-ascii-parent-gate/*.log -whitespace
+bootstrap/repros/multipart-parent-qualified/*.log -whitespace
+bootstrap/repros/driver-phase-timing/*.log -whitespace
+bootstrap/repros/current-release-qualified/*.log -whitespace
+bootstrap/repros/byte-fields-parent-qualified/*.log -whitespace
+bootstrap/repros/uuid-parent-qualified/*.log -whitespace
+bootstrap/repros/json-parent-v2-failures/*.log -whitespace
+bootstrap/repros/json-parent-qualified/*.log -whitespace

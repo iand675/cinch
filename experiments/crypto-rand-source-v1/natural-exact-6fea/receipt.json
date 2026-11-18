@@ -1,0 +1,65 @@
+{
+  "module": "Data.Nat.Bytes",
+  "epoch": "natural-exact-6fea",
+  "environment_overrides": {
+    "LD_LIBRARY_PATH": "/workspace/.tools/llvm/usr/lib/x86_64-linux-gnu",
+    "CINCH_STORE": "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/natural-exact-6fea/store",
+    "TMPDIR": "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/natural-exact-6fea/scratch",
+    "RUST_MIN_STACK": "67108864"
+  },
+  "initial_free_bytes": 347815936,
+  "minimum_free_bytes": 342818816,
+  "peak_unit_bytes": 4676698,
+  "commands": [
+    {
+      "argv": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+        "doc",
+        "extract",
+        "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/natural-exact-6fea/project/Data.Nat.Bytes.cinch",
+        "--out",
+        "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/natural-exact-6fea/docs.json"
+      ],
+      "exit_code": 0,
+      "stdout": "command-0.stdout",
+      "stderr": "command-0.stderr"
+    },
+    {
+      "argv": [
+        "taskset",
+        "-c",
+        "4",
+        "/workspace/dasl-stdlib-io/build/stdlib-entropy-docs-producer-frozen/cinch",
+        "check",
+        "/workspace/dasl-stdlib-entropy/experiments/crypto-rand-source-v1/natural-exact-6fea/project/Data.Nat.Bytes.cinch",
+        "--rebuild"
+      ],
+      "exit_code": 0,
+      "stdout": "command-1.stdout",
+      "stderr": "command-1.stderr"
+    }
+  ],
+  "guard_violation": null,
+  "runtime_executed": false,
+  "IR_emitted": false,
+  "elapsed_seconds_not_benchmark": 1.0257029559870716,
+  "final_free_bytes": 342818816,
+  "final_unit_bytes_before_receipt": 4676698,
+  "compiler_sha256_after": "ffb5d39c42d0446a912b6027ebbe88bd825f5c6d91065aeb8a2048526c4999b9",
+  "doc_top_level_keys": [
+    "declarations",
+    "diagnostics",
+    "doc",
+    "module",
+    "orphans",
+    "schema",
+    "source",
+    "sourceSha256"
+  ],
+  "doc_diagnostics": [],
+  "doc_orphans": [],
+  "source_passed": true
+}

@@ -1,0 +1,173 @@
+-- | Hexadecimal encoding writers, decoding readers and formatted dump sinks.
+-- Every operation returns its advanced continuation, including after failure.
+-- Decoder errors are delayed until completed output has been read; a final
+-- unpaired digit is StreamUnexpectedEnd. All stream failures are sticky.
+-- Dump sinks buffer a partial sixteen-byte row until explicitly finished.
+-- No adapter closes or flushes its underlying descriptor or sink.
+module Effect.Hex where
+
+  import Effect.Stream
+  import Text.Hex
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export HexWriter, hex-writer, hex-write, hex-writer-sink, hex-encoding-writer
+  export hex-reader
+  export HexDumper, hex-dumper, hex-dump-write, hex-dump-finish, hex-dumper-sink
+
+  -- | An explicitly advanced hexadecimal encoding sink with sticky failure state.
+  data HexWriter r where
+    -- | Private active sink. Hexadecimal encoding retains no unfinished input.
+    EncodingSink :: ByteWriter r -> HexWriter r
+    -- | Private terminal failure and the sink after its accepted output prefix.
+    EncodingFailed :: StreamError -> ByteWriter r -> HexWriter r
+
+  -- | Begin writing lowercase hexadecimal bytes to a sink. No final flush is required.
+  hex-writer :: forall r. ByteWriter r -> HexWriter r
+  hex-writer sink = EncodingSink sink
+
+  -- | Inspect the advanced underlying sink, including after a failed encoded write.
+  hex-writer-sink :: forall r. HexWriter r -> ByteWriter r
+  hex-writer-sink writer = case writer of
+    EncodingSink sink -> sink
+    EncodingFailed error sink -> sink
+
+  -- | Write all encoded output, retrying short writes, and report accepted input bytes.
+  -- On error the returned writer preserves the advanced sink and will not replay output.
+  hex-write :: forall r. using (io :: Io r) => HexWriter r -> Bytes ->{IO r} (Result StreamError Nat, HexWriter r)
+  hex-write writer input = case writer of
+    EncodingFailed error sink -> (Err error, writer)
+    EncodingSink sink -> case stream-write-all sink (hex-encode-bytes input) of
+      (Err error, advanced) -> (Err error, EncodingFailed error advanced)
+      (Ok count, advanced) -> (Ok (bytes-len input), EncodingSink advanced)
+
+  -- | Expose an encoding sink through the generic byte-writer protocol for composition.
+  -- Use the explicit HexWriter interface when the advanced underlying sink must be inspected.
+  hex-encoding-writer :: forall r. using (io :: Io r) => ByteWriter r -> ByteWriter r
+  hex-encoding-writer sink = encoding-adapter (hex-writer sink)
+
+  -- | Carry encoding state through a generic writer callback without losing failures.
+  encoding-adapter :: forall r. using (io :: Io r) => HexWriter r -> ByteWriter r
+  encoding-adapter writer = stream-writer (\input -> case hex-write writer input of
+    (result, next) -> (result, encoding-adapter next))
+
+  -- | Snapshot a checked interval so returned chunks cannot mutate retained private data.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start end = if start <= end && end <= bytes-len input then
+    let out = bytes-new (end - start) in
+    let copied = bytes-copy-range out input 0 start (end - start) in out
+    else bytes-new 0
+
+  -- | Join an unfinished digit or dump row to fresh input without retaining mutable aliases.
+  join :: Bytes -> Bytes -> Bytes
+  join first last =
+    let n = bytes-len first in
+    let out = bytes-new (n + bytes-len last) in
+    let a = bytes-copy-range out first 0 0 n in
+    let b = bytes-copy-range out last n 0 (bytes-len last) in out
+
+  -- | Preserve an underlying or decoding failure across every later positive read.
+  failed-reader :: forall r. using (io :: Io r) => StreamError -> ByteReader r
+  failed-reader error = stream-reader (\n -> (Err error, failed-reader error))
+
+  -- | Translate a local codec error to the stream's original byte position and failure vocabulary.
+  decoder-error :: Nat -> HexError -> StreamError
+  decoder-error base error = case error of
+    InvalidHexByte position byte -> StreamEncodingError "hex" (base + position) (hex-error-message (InvalidHexByte (base + position) byte))
+    OddHexLength -> StreamUnexpectedEnd 2 1
+    HexShortDestination required available -> StreamInvalidCount required available
+
+  -- | Decode a source in bounded 4096-byte input chunks, accepting either hexadecimal case.
+  -- Completed bytes precede any error. Zero reads do not advance the source; an unmatched
+  -- final digit reports StreamUnexpectedEnd 2 1. Invalid offsets count original input bytes.
+  hex-reader :: forall r. using (io :: Io r) => ByteReader r -> ByteReader r
+  hex-reader source = decoding-reader source (bytes-new 0) (bytes-new 0) 0 0 None
+
+  -- | Retain one unfinished digit, an output buffer and cursor, and a delayed terminal error.
+  -- Only returned intervals are copied; unread surplus is not recopied on each small read.
+  decoding-reader :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Bytes -> Nat -> Nat -> Option StreamError -> ByteReader r
+  decoding-reader source tail pending cursor offset failure = stream-reader (\n -> read-decoded source tail pending cursor offset failure n)
+
+  -- | Drain completed output before a delayed error or a bounded fetch of more source bytes.
+  read-decoded :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Bytes -> Nat -> Nat -> Option StreamError -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  read-decoded source tail pending cursor offset failure n =
+    if n == 0 then (Ok (bytes-new 0), decoding-reader source tail pending cursor offset failure)
+    else if cursor < bytes-len pending then
+      let left = bytes-len pending - cursor in
+      let take = if n < left then n else left in
+      (Ok (part pending cursor (cursor + take)), decoding-reader source tail pending (cursor + take) offset failure)
+    else case failure of
+      Some error -> (Err error, failed-reader error)
+      None -> case stream-read source 4096 of
+        (Err error, advanced) -> (Err error, failed-reader error)
+        (Ok input, advanced) ->
+          if bytes-len input == 0 then
+            if bytes-len tail == 0 then (Ok (bytes-new 0), reader-from-bytes (bytes-new 0))
+            else let error = StreamUnexpectedEnd 2 1 in (Err error, failed-reader error)
+          else
+            let combined = if bytes-len tail == 0 then input else join tail input in
+            let base = saturating-sub offset (bytes-len tail) in
+            let next-offset = offset + bytes-len input in
+            case hex-decode-prefix combined of
+              (out, None) -> read-decoded advanced (bytes-new 0) out 0 next-offset None n
+              (out, Some OddHexLength) ->
+                let rest = if 0 < bytes-len combined then part combined (bytes-len combined - 1) (bytes-len combined) else bytes-new 0 in
+                read-decoded advanced rest out 0 next-offset None n
+              (out, Some error) -> read-decoded advanced (bytes-new 0) out 0 next-offset (Some (decoder-error base error)) n
+
+  -- | A formatted dump continuation with at most fifteen pending input bytes.
+  data HexDumper r where
+    -- | Private unfinished row, next row's wrapping 32-bit offset, and advanced sink.
+    DumpingSink :: Bytes -> U32 -> ByteWriter r -> HexDumper r
+    -- | Private terminal output failure, retained until the handle is discarded.
+    DumpFailed :: StreamError -> ByteWriter r -> HexDumper r
+    -- | Private finished state; finishing again succeeds without writing.
+    DumpFinished :: ByteWriter r -> HexDumper r
+
+  -- | Begin a hexadecimal dump whose first row starts at offset zero.
+  hex-dumper :: forall r. ByteWriter r -> HexDumper r
+  hex-dumper sink = DumpingSink (bytes-new 0) 0 sink
+
+  -- | Inspect output already accepted by the underlying dump sink, including after errors or finish.
+  hex-dumper-sink :: forall r. HexDumper r -> ByteWriter r
+  hex-dumper-sink dumper = case dumper of
+    DumpingSink pending offset sink -> sink
+    DumpFailed error sink -> sink
+    DumpFinished sink -> sink
+
+  -- | Emit completed rows and snapshot the unfinished tail. Report accepted input bytes on success.
+  -- Finished handles reject writes with StreamClosed; output failures preserve their advanced sink.
+  hex-dump-write :: forall r. using (io :: Io r) => HexDumper r -> Bytes ->{IO r} (Result StreamError Nat, HexDumper r)
+  hex-dump-write dumper input = case dumper of
+    DumpFailed error sink -> (Err error, dumper)
+    DumpFinished sink -> (Err (StreamClosed "hex-dump"), dumper)
+    DumpingSink pending offset sink ->
+      let combined = join pending input in
+      let complete = nat-div (bytes-len combined) 16 * 16 in
+      let rows = part combined 0 complete in
+      let rest = part combined complete (bytes-len combined) in
+      case stream-write-all sink (hex-dump-bytes offset rows) of
+        (Err error, advanced) -> (Err error, DumpFailed error advanced)
+        (Ok count, advanced) ->
+          let next = wrapping-add-u32 offset (count-word complete) in
+          (Ok (bytes-len input), DumpingSink rest next advanced)
+
+  -- | Reduce a consumed byte count before conversion to the wrapping 32-bit row address.
+  count-word :: Nat -> U32
+  count-word n =
+    let wrapped = nat-rem n 4294967296 in
+    if wrapped <= 4294967295 then wrapping-i64-to-u32 (nat-to-i64 wrapped) else 0
+
+  -- | Flush the final partial row and retain a finished handle. This operation is idempotent.
+  -- It does not flush or close the underlying sink; inspect that sink separately when needed.
+  hex-dump-finish :: forall r. using (io :: Io r) => HexDumper r ->{IO r} (Result StreamError Unit, HexDumper r)
+  hex-dump-finish dumper = case dumper of
+    DumpFailed error sink -> (Err error, dumper)
+    DumpFinished sink -> (Ok (), dumper)
+    DumpingSink pending offset sink -> case stream-write-all sink (hex-dump-bytes offset pending) of
+      (Err error, advanced) -> (Err error, DumpFailed error advanced)
+      (Ok count, advanced) -> (Ok (), DumpFinished advanced)

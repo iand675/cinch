@@ -957,11 +957,13 @@ impl ConcOp {
 ///
 /// The callbacks are borrowed: the caller keeps them alive across the call
 /// and drops them afterwards, and the runtime duplicates one reference per
-/// invocation. The checker installs the three as compiler-known values with
+/// invocation. The checker installs the callback forms as compiler-known values with
 /// their capture and effect obligations (`install_parallel_api`), because
 /// their callbacks are read literally at the call site.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ParOp {
+    /// `parWorkers n`: set the runtime participant budget without changing results.
+    Workers,
     /// `parBoth f g`: both branches, joined into the pair.
     Both,
     /// `parTabulate n f`: index `i` is one unit of work.
@@ -979,16 +981,18 @@ impl ParOp {
             ParOp::Both => "parBoth",
             ParOp::Tabulate => "parTabulate",
             ParOp::MapArray => "parMapArray",
+            ParOp::Workers => "parWorkers",
         }
     }
 
     /// How many element classes the unit is parameterized by: the pair's
     /// two component classes for `parBoth`, and the result array's element
-    /// class for the other two.
+    /// class for the array forms. Participant configuration has no payload class.
     pub fn class_count(self) -> usize {
         match self {
             ParOp::Both => 2,
             ParOp::Tabulate | ParOp::MapArray => 1,
+            ParOp::Workers => 0,
         }
     }
 }
@@ -1397,9 +1401,11 @@ impl PrimOp {
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
             | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | ApplyErased | NotBool | Eval => 1,
             Conc(k) => k.arity(),
-            // Two runtime words each (`n` and the callback, two callbacks,
+            // The participant hint takes one count; callback forms take two
+            // runtime words each (`n` and the callback, two callbacks,
             // or the callback and the input array). The element classes are
             // immediates in the body, not parameters.
+            Par { op: ParOp::Workers, .. } => 1,
             Par { .. } => 2,
             _ => 2,
         }
@@ -1568,7 +1574,8 @@ impl PrimOp {
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),
             Conc(_) => unreachable!("concurrency and runtime I/O builtins are not foreign imports"),
-            Par { .. } => unreachable!("the parallel builtins are not foreign imports"),
+            Par { op: ParOp::Workers, .. } => (vec![Ty::Nat], Ty::Unit),
+            Par { .. } => unreachable!("the parallel callback builtins are not foreign imports"),
             Conv { from, to, mode } => {
                 let res = if mode == ConvMode::Checked { opt(prim(to)) } else { prim(to) };
                 (vec![prim(from)], res)
@@ -3345,6 +3352,11 @@ pub struct InstanceDef {
 
 #[derive(Clone, Debug)]
 pub struct Program {
+    /// Original checked built-in constructor identities, nominal types, tags
+    /// and runtime field counts. Only validation of this program's complete
+    /// inventory can create it; independent program assembly cannot transplant
+    /// a certificate from a different checked program.
+    checked_builtin_constructors: Option<BuiltinConstructorInventory>,
     /// Typed, acyclic primitive body descriptions captured from actual checked
     /// definitions. Not admitted by schema-7 interfaces.
     pub total_bodies: crate::total::CheckedGraph,
@@ -3399,8 +3411,9 @@ pub struct Program {
     /// (`crate::rc::borrow_modes`), `true` where the caller only lends the
     /// argument. Empty for an open program, whose units other artifacts
     /// call and which therefore keeps every parameter owned. `crate::stack`
-    /// reads it: a lent reference is one the callee never stores or
-    /// returns, so it cannot outlive the caller's activation.
+    /// derives separate frame-noncapture facts from it: an ARC-borrowed
+    /// primitive may retain or return an alias, so this convention alone
+    /// never proves that a caller's frame allocation is safe.
     pub borrowed: std::collections::BTreeMap<String, Vec<bool>>,
     /// The units of an open program whose lent convention lives in a
     /// worker rather than at their own symbol (`crate::rc::insert_open`):
@@ -3429,11 +3442,51 @@ pub enum LentEntry {
 }
 
 impl Program {
+    /// Assemble untrusted Core function units with empty auxiliary metadata.
+    /// Built-in constructor layouts remain uncertified until the complete
+    /// inventory is validated; emission never infers missing constructors.
+    pub fn from_functions(fns: Vec<FnDef>) -> Program {
+        Program {
+            checked_builtin_constructors: None,
+            total_bodies: crate::total::CheckedGraph::empty(),
+            fns,
+            instances: Vec::new(),
+            main: None,
+            rewrites: Vec::new(),
+            plans: Default::default(),
+            foreigns: Default::default(),
+            prims: Vec::new(),
+            laws: Vec::new(),
+            lent: Default::default(),
+            frame: Default::default(),
+            stack: Default::default(),
+            inline: Default::default(),
+            borrowed: Default::default(),
+            lent_entries: Default::default(),
+            private_modules: Vec::new(),
+        }
+    }
+
+    /// Validate this independently assembled program's complete built-in
+    /// constructor inventory before any specialization or reachability pruning.
+    pub(crate) fn certify_builtin_constructors(&mut self) -> Result<()> {
+        self.checked_builtin_constructors =
+            Some(crate::codegen::check_full_builtin_constructors(&self.fns)?);
+        Ok(())
+    }
+
+    /// Borrow the original validated inventory for surviving-unit consistency
+    /// checks. The certificate stays private to this program and its transforms.
+    pub(crate) fn checked_builtin_constructors(&self) -> Option<&BuiltinConstructorInventory> {
+        self.checked_builtin_constructors.as_ref()
+    }
+
     /// Every non-unit field copied, with no functions and no dictionaries.
     /// A pass that rebuilds both lists from scratch takes this instead of
     /// cloning units it will only discard.
     pub fn skeleton(&self) -> Program {
         Program {
+            checked_builtin_constructors: self.checked_builtin_constructors.clone(),
             total_bodies: self.total_bodies.clone(),
             fns: Vec::new(),
             instances: Vec::new(),
@@ -3453,6 +3506,11 @@ impl Program {
         }
     }
 }
+
+/// Base constructor unit to its original nominal type, tag and runtime field
+/// count. This inventory records checked declarations, never inferred payloads.
+pub(crate) type BuiltinConstructorInventory =
+    std::collections::BTreeMap<String, (String, usize, usize)>;
 
 /// A checked rewrite rule. `pattern` is the elaborated form of the rule's
 /// `match` term, whose occurrences of the pattern variables (the rule's
@@ -5896,7 +5954,8 @@ fn prim_touches_wide(op: PrimOp) -> bool {
         | FClass { ty, .. }
         | TotalOrder { ty } => ty.is_wide(),
         Conv { from, to, .. } => from.is_wide() || to.is_wide(),
-        Array { packed, .. } => packed.is_some_and(Scalar::is_wide),
+        Array { classes, packed, .. } => packed.is_some_and(Scalar::is_wide)
+            || packed.is_none() && classes.contains(&Class::Wide),
         Nat(NatOp::FromU128 | NatOp::ToU128) | Int(IntOp::FromI128 | IntOp::ToI128) => true,
         _ => false,
     }
@@ -5957,6 +6016,18 @@ fn trunc_word(v: i128, s: Scalar) -> i64 {
         } else {
             t as i64
         }
+    }
+}
+
+/// Interpret a stored word using its scalar's width and signedness.
+/// Unsigned 64-bit values retain their high bit when widened for folding.
+/// Wide operations are refused before this helper; pointer widths are resolved first.
+fn scalar_value(word: i64, scalar: Scalar) -> i128 {
+    let (bits, signed) = scalar_bits(scalar);
+    if signed {
+        trunc_word(word as i128, scalar) as i128
+    } else {
+        (word as u64 as i128) & ((1i128 << bits) - 1)
     }
 }
 
@@ -6047,19 +6118,26 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
         .collect();
     match op {
         PrimOp::Arith { ty, op: aop, mode } => {
-            let (x, y) = (words[0] as i128, words[1] as i128);
-            let raw = match aop {
-                ArithOp::Add => x + y,
-                ArithOp::Sub => x - y,
-                ArithOp::Mul => x * y,
+            let (x, y) = (scalar_value(words[0], ty), scalar_value(words[1], ty));
+            let exact = match aop {
+                ArithOp::Add => x.checked_add(y),
+                ArithOp::Sub => x.checked_sub(y),
+                ArithOp::Mul => x.checked_mul(y),
             };
+            // Only a positive unsigned product can exceed i128 here.
+            // Its low word still wraps exactly; checked and saturating
+            // operations must retain the positive overflow information.
+            let raw = exact.unwrap_or_else(|| x.wrapping_mul(y));
             Some(Core::Int(match mode {
                 ArithMode::Wrapping => trunc_word(raw, ty),
-                ArithMode::Saturating => trunc_word(raw.clamp(scalar_min(ty), scalar_max(ty)), ty),
+                ArithMode::Saturating => trunc_word(
+                    exact.map_or(scalar_max(ty), |value| value.clamp(scalar_min(ty), scalar_max(ty))),
+                    ty,
+                ),
                 ArithMode::Checked => {
                     return opt_value(
                         ctors,
-                        if raw < scalar_min(ty) || raw > scalar_max(ty) {
+                        if exact.is_none() || raw < scalar_min(ty) || raw > scalar_max(ty) {
                             None
                         } else {
                             Some(Core::Int(trunc_word(raw, ty)))
@@ -6069,7 +6147,7 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
             }))
         }
         PrimOp::Neg { ty, mode } => {
-            let raw = -(words[0] as i128);
+            let raw = -scalar_value(words[0], ty);
             Some(Core::Int(match mode {
                 ArithMode::Wrapping => trunc_word(raw, ty),
                 ArithMode::Saturating => trunc_word(raw.clamp(scalar_min(ty), scalar_max(ty)), ty),
@@ -6086,20 +6164,19 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
             }))
         }
         PrimOp::CheckedDiv { ty } | PrimOp::CheckedRem { ty } => {
-            let (x, y) = (words[0] as i128, words[1] as i128);
-            if y == 0 {
+            let (x, y) = (scalar_value(words[0], ty), scalar_value(words[1], ty));
+            let (_, signed) = scalar_bits(ty);
+            if y == 0 || (signed && x == scalar_min(ty) && y == -1) {
                 return opt_value(ctors, None);
             }
-            let (bits, signed) = scalar_bits(ty);
-            let _ = bits;
             let q = if matches!(op, PrimOp::CheckedDiv { .. }) { x / y } else { x % y };
-            if signed && q < scalar_min(ty) || q > scalar_max(ty) {
+            if q < scalar_min(ty) || q > scalar_max(ty) {
                 return opt_value(ctors, None);
             }
             opt_value(ctors, Some(Core::Int(trunc_word(q, ty))))
         }
         PrimOp::Shift { ty, op: sop, checked } => {
-            let (x, sh) = (words[0] as i128, words[1] as u32);
+            let (x, sh) = (scalar_value(words[0], ty), words[1] as u32);
             let (bits, _) = scalar_bits(ty);
             if checked {
                 return opt_value(
@@ -6158,19 +6235,17 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
                         pat.trailing_zeros()
                     }
                 }
-                BitScanOp::ReverseBits => (pat.reverse_bits() >> (64 - bits)) as u32,
-                BitScanOp::SwapBytes => ((pat.swap_bytes() >> (64 - bits)) & mask) as u32,
-            };
-            let v = match bop {
-                BitScanOp::ReverseBits | BitScanOp::SwapBytes => {
-                    return Some(Core::Int(trunc_word(v as i128, ty)))
+                BitScanOp::ReverseBits => {
+                    return Some(Core::Int(trunc_word((pat.reverse_bits() >> (64 - bits)) as i128, ty)))
                 }
-                _ => v,
+                BitScanOp::SwapBytes => {
+                    return Some(Core::Int(trunc_word(((pat.swap_bytes() >> (64 - bits)) & mask) as i128, ty)))
+                }
             };
             Some(Core::Int(v as i64))
         }
-        PrimOp::Cmp { op: cop, .. } => {
-            let (x, y) = (words[0], words[1]);
+        PrimOp::Cmp { op: cop, ty } => {
+            let (x, y) = (scalar_value(words[0], ty), scalar_value(words[1], ty));
             let b = match cop {
                 CmpOp::Eq => x == y,
                 CmpOp::Ne => x != y,
@@ -6288,11 +6363,7 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
             {
                 return None;
             }
-            let x = words[0] as i128;
-            let (from_bits, from_signed) = scalar_bits(from);
-            let _ = from_bits;
-            let xv = if from_signed { x } else { x & ((1i128 << 63) - 1) };
-            let raw = xv;
+            let raw = scalar_value(words[0], from);
             Some(Core::Int(match mode {
                 ConvMode::Total => trunc_word(raw, to),
                 ConvMode::Wrapping => trunc_word(raw, to),
@@ -6396,6 +6467,8 @@ struct OptCx {
     /// primitives and the fault path).
     pure: HashMap<String, bool>,
     ctors: FoldCtors,
+    /// Resolve pointer-sized primitives against the compilation target before folding.
+    usize_bits: u32,
     /// Units that must residualize: replaceable dispatch boundaries
     /// retain their selection ability (platform proofs and SIMD
     /// specification section 7).
@@ -7326,7 +7399,7 @@ impl<'a> Driver<'a> {
                     none: self.cx.ctors.none.clone(),
                     some: self.cx.ctors.some.clone(),
                 };
-                if let Some(v) = fold_prim(*op, args, &ctors) {
+                if let Some(v) = fold_prim(op.resolve_widths(self.cx.usize_bits), args, &ctors) {
                     if !self.spend_fuel() {
                         return;
                     }
@@ -7783,9 +7856,12 @@ pub fn for_each_class(e: &Core, f: &mut impl FnMut(Class)) {
 
 impl PrimOp {
     /// Whether the operation's signature mentions a wide scalar anywhere,
-    /// including inside an `Option` result (`design/wide-scalars.md`).
+    /// including generic cell/slot payloads and `Option` results (`design/wide-scalars.md`).
     pub fn touches_wide(self) -> bool {
         if let PrimOp::MVar { classes, .. } = self { return classes[0] == Class::Wide; }
+        if let PrimOp::Slots { op, classes } = self {
+            return op != crate::slots::SlotOp::FoldNat && classes[0] == Class::Wide;
+        }
         prim_touches_wide(self)
     }
 }
@@ -8177,6 +8253,9 @@ fn verify_residual(orig: &FnDef, body: &Core) -> Result<(), String> {
 /// sections 2-5 and 8-9). Returns the residual program and the compiler
 /// report; the residual's contract identity is the generic form's.
 pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, OptReport)> {
+    // Public hand-built Core enters without checker provenance. Validate it
+    // before driving can erase a malformed, unreferenced constructor.
+    let checked_builtin_constructors = crate::codegen::check_builtin_constructors(program)?;
     let pure = build_purity(program);
     let mut defs: HashMap<String, FnDef> = HashMap::new();
     let mut def_sizes: HashMap<String, usize> = HashMap::new();
@@ -8197,11 +8276,13 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
     let cx = OptCx {
         pure,
         ctors: FoldCtors { none: ctor_none, some: ctor_some },
+        usize_bits: profile.word_size,
         opaque: std::collections::HashSet::new(),
         measure: profile.measure,
         fuel: profile.fuel,
     };
     let mut out = program.skeleton();
+    out.checked_builtin_constructors = Some(checked_builtin_constructors);
     out.instances = program.instances.clone();
     let mut report = OptReport::default();
     let mut new_fns: Vec<FnDef> = Vec::new();
@@ -8399,14 +8480,23 @@ const SHARE_MAX_PARAMS: usize = 24;
 /// each unit on its own.
 pub fn share_repeated_subterms(program: &mut Program) {
     let mut taken: std::collections::HashSet<String> = program.fns.iter().map(|f| f.id.0.clone()).collect();
+    let mut wide_results: HashMap<String, usize> = program.fns.iter()
+        .filter(|f| f.repr.result == Some(Class::Wide))
+        .map(|f| (f.id.0.clone(), f.arity()))
+        .collect();
     // Shared units are appended and visited in turn: a shared body can
     // hold repeats of its own.
     let mut index = 0;
     while index < program.fns.len() {
         let f = &program.fns[index];
         if f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body && f.repr.tparams == 0 {
-            if let Some((body, shared)) = share_in_unit(f, &mut taken) {
+            if let Some((body, shared)) = share_in_unit(f, &mut taken, &wide_results) {
                 program.fns[index].body = body;
+                for unit in &shared {
+                    if unit.repr.result == Some(Class::Wide) {
+                        wide_results.insert(unit.id.0.clone(), unit.arity());
+                    }
+                }
                 program.fns.extend(shared);
             }
         }
@@ -8427,7 +8517,7 @@ struct ShareNode {
     shareable: bool,
 }
 
-fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>) -> Option<(Core, Vec<FnDef>)> {
+fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>, wide_results: &HashMap<String, usize>) -> Option<(Core, Vec<FnDef>)> {
     let mut classes: HashMap<usize, Class> = HashMap::new();
     for (i, c) in f.repr.params.iter().enumerate() {
         classes.insert(i, *c);
@@ -8488,6 +8578,9 @@ fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>) -> Op
                     break candidate;
                 }
             };
+            // A wide result must retain its carrier across the extracted call:
+            // a word return would allocate boxes and break recursive tail calls.
+            let result = share_returns_wide(refs[rep], &classes, wide_results).then_some(Class::Wide);
             let mut body = refs[rep].clone();
             share_rename(&mut body, &free);
             shared.push(FnDef {
@@ -8498,7 +8591,7 @@ fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>) -> Op
                 ctor: None,
                 hints: FnHints::default(),
                 meta: FnMeta { pure: f.meta.pure, ..FnMeta::default() },
-                repr: UnitRepr { params: param_classes, ..UnitRepr::default() },
+                repr: UnitRepr { params: param_classes, result, ..UnitRepr::default() },
             });
             for (p, args) in std::iter::once((rep, free)).chain(others) {
                 covered[p..p + nodes[p].size].iter_mut().for_each(|c| *c = true);
@@ -8516,6 +8609,28 @@ fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>) -> Op
     let mut pre = 0;
     share_rewrite(&mut body, &mut pre, &nodes, &mut plan);
     Some((body, shared))
+}
+
+/// Whether every returned path is an unboxed wide scalar. Unknown result
+/// shapes keep the existing word convention; only proved-wide paths specialize.
+fn share_returns_wide(e: &Core, classes: &HashMap<usize, Class>, units: &HashMap<String, usize>) -> bool {
+    let wide = |body: &Core| share_returns_wide(body, classes, units);
+    match e {
+        Core::Wide(_) => true,
+        Core::Var(local) => classes.get(&local.0) == Some(&Class::Wide),
+        Core::Proj(_, field) => field.class == Class::Wide,
+        Core::Let(_, _, _, body) | Core::Dup(_, _, body) | Core::Drop(_, _, body)
+            | Core::Release { body, .. } => wide(body),
+        Core::If(_, yes, no) => wide(&yes.body) && wide(&no.body),
+        Core::Case { alts, .. } => !alts.is_empty() && alts.iter().all(|alt| wide(&alt.body)),
+        Core::App(head, args) => match &**head {
+            Core::Global(unit, _) => units.get(&unit.0) == Some(&args.len()),
+            Core::Prim(op) if op.touches_wide() && op.arity() == args.len() => matches!(op.sig().1, crate::types::Ty::Prim(s) if s.is_wide()),
+            _ => false,
+        },
+        Core::Global(unit, _) => units.get(&unit.0) == Some(&0),
+        _ => false,
+    }
 }
 
 /// A term's operands in preorder: an application's head, then
@@ -8833,6 +8948,220 @@ fn share_rewrite(e: &mut Core, pre: &mut usize, nodes: &[ShareNode], plan: &mut 
 }
 
 #[cfg(test)]
+mod word_folding_tests {
+    use super::*;
+
+    /// Fold raw scalar operands with explicit test-only Option identities.
+    fn folded(op: PrimOp, values: &[i64]) -> Core {
+        let args = values.iter().copied().map(Core::Int).collect::<Vec<_>>();
+        fold_prim(op, &args, &FoldCtors {
+            none: Some(GlobalId("Fold.None".into())),
+            some: Some(GlobalId("Fold.Some".into())),
+        }).expect("constant scalar operation")
+    }
+
+    /// Observe a raw folded result without involving a runtime implementation.
+    fn word(op: PrimOp, values: &[i64]) -> i64 {
+        match folded(op, values) {
+            Core::Int(value) => value,
+            other => panic!("expected word from {op:?}, got {other:?}"),
+        }
+    }
+
+    /// Observe both successful and refused checked scalar results.
+    fn checked(op: PrimOp, values: &[i64]) -> Option<i64> {
+        match folded(op, values) {
+            Core::App(head, args) => match (head.as_ref(), args.as_slice()) {
+                (Core::Ctor(id, _), []) if id.0 == "Fold.None" => None,
+                (Core::Ctor(id, _), [Core::Int(value)]) if id.0 == "Fold.Some" => Some(*value),
+                other => panic!("invalid checked result: {other:?}"),
+            },
+            other => panic!("expected checked result: {other:?}"),
+        }
+    }
+
+    /// High-bit unsigned operands obey logical shifts and each declared width's count policy.
+    #[test]
+    fn unsigned_shifts_preserve_high_bits_at_every_width() {
+        for (ty, bits, mask) in [
+            (Scalar::U8, 8, u8::MAX as u64),
+            (Scalar::U16, 16, u16::MAX as u64),
+            (Scalar::U32, 32, u32::MAX as u64),
+            (Scalar::U64, 64, u64::MAX),
+        ] {
+            for value in [0, 1, mask / 2, mask / 2 + 1, mask - 1, mask] {
+                for count in [0, 1, bits - 1, bits, bits + 1, 127, u32::MAX] {
+                    let args = [value as i64, count as i64];
+                    for (op, expected) in [
+                        (ShiftOp::Shr, value >> (count % bits)),
+                        (ShiftOp::Shl, value.wrapping_shl(count % bits) & mask),
+                    ] {
+                        assert_eq!(word(PrimOp::Shift { ty, op, checked: false }, &args), expected as i64,
+                            "{ty:?} {op:?}, {value:#x}, {count}");
+                        assert_eq!(checked(PrimOp::Shift { ty, op, checked: true }, &args),
+                            (count < bits).then_some(expected as i64));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Signed right shifts keep their sign and wrapping counts remain width-relative.
+    #[test]
+    fn signed_shifts_match_fixed_width_scalar_operations() {
+        macro_rules! cases {
+            ($ty:ty, $scalar:expr) => {
+                for value in [<$ty>::MIN, -1, 0, 1, <$ty>::MAX] {
+                    for count in [0, 1, <$ty>::BITS - 1, <$ty>::BITS, <$ty>::BITS + 1, u32::MAX] {
+                        for (op, expected) in [
+                            (ShiftOp::Shr, value.wrapping_shr(count)),
+                            (ShiftOp::Shl, value.wrapping_shl(count)),
+                        ] {
+                            let args = [value as i64, count as i64];
+                            assert_eq!(word(PrimOp::Shift { ty: $scalar, op, checked: false }, &args), expected as i64);
+                            assert_eq!(checked(PrimOp::Shift { ty: $scalar, op, checked: true }, &args),
+                                (count < <$ty>::BITS).then_some(expected as i64));
+                        }
+                    }
+                }
+            };
+        }
+        cases!(i8, Scalar::I8);
+        cases!(i16, Scalar::I16);
+        cases!(i32, Scalar::I32);
+        cases!(i64, Scalar::I64);
+    }
+
+    /// Unsigned arithmetic retains positive overflow even when the product exceeds i128.
+    #[test]
+    fn unsigned_arithmetic_matches_checked_saturating_and_wrapping_results() {
+        let values = [0u64, 1, 2, u64::MAX / 2, u64::MAX / 2 + 1, u64::MAX - 1, u64::MAX];
+        for x in values {
+            for y in values {
+                for (op, wrap, sat, check) in [
+                    (ArithOp::Add, x.wrapping_add(y), x.saturating_add(y), x.checked_add(y)),
+                    (ArithOp::Sub, x.wrapping_sub(y), x.saturating_sub(y), x.checked_sub(y)),
+                    (ArithOp::Mul, x.wrapping_mul(y), x.saturating_mul(y), x.checked_mul(y)),
+                ] {
+                    let args = [x as i64, y as i64];
+                    assert_eq!(word(PrimOp::Arith { ty: Scalar::U64, op, mode: ArithMode::Wrapping }, &args), wrap as i64);
+                    assert_eq!(word(PrimOp::Arith { ty: Scalar::U64, op, mode: ArithMode::Saturating }, &args), sat as i64);
+                    assert_eq!(checked(PrimOp::Arith { ty: Scalar::U64, op, mode: ArithMode::Checked }, &args), check.map(|v| v as i64));
+                }
+            }
+            assert_eq!(word(PrimOp::Neg { ty: Scalar::U64, mode: ArithMode::Saturating }, &[x as i64]), 0);
+            assert_eq!(word(PrimOp::Neg { ty: Scalar::U64, mode: ArithMode::Wrapping }, &[x as i64]), x.wrapping_neg() as i64);
+            assert_eq!(checked(PrimOp::Neg { ty: Scalar::U64, mode: ArithMode::Checked }, &[x as i64]), x.checked_neg().map(|v| v as i64));
+        }
+    }
+
+    /// Signed boundaries retain their independent overflow and negation behavior.
+    #[test]
+    fn signed_arithmetic_preserves_overflow_boundaries() {
+        for x in [i64::MIN, i64::MIN + 1, -1, 0, 1, i64::MAX] {
+            for y in [i64::MIN, -1, 0, 1, i64::MAX] {
+                for (op, wrap, sat, check) in [
+                    (ArithOp::Add, x.wrapping_add(y), x.saturating_add(y), x.checked_add(y)),
+                    (ArithOp::Sub, x.wrapping_sub(y), x.saturating_sub(y), x.checked_sub(y)),
+                    (ArithOp::Mul, x.wrapping_mul(y), x.saturating_mul(y), x.checked_mul(y)),
+                ] {
+                    assert_eq!(word(PrimOp::Arith { ty: Scalar::I64, op, mode: ArithMode::Wrapping }, &[x, y]), wrap);
+                    assert_eq!(word(PrimOp::Arith { ty: Scalar::I64, op, mode: ArithMode::Saturating }, &[x, y]), sat);
+                    assert_eq!(checked(PrimOp::Arith { ty: Scalar::I64, op, mode: ArithMode::Checked }, &[x, y]), check);
+                }
+            }
+            assert_eq!(word(PrimOp::Neg { ty: Scalar::I64, mode: ArithMode::Saturating }, &[x]), x.saturating_neg());
+            assert_eq!(checked(PrimOp::Neg { ty: Scalar::I64, mode: ArithMode::Checked }, &[x]), x.checked_neg());
+        }
+    }
+
+    /// Quotients and remainders share zero and signed minimum/-one refusals.
+    #[test]
+    fn division_and_remainders_use_scalar_signedness() {
+        for x in [0u64, 1, 2, 1 << 63, u64::MAX] {
+            for y in [0u64, 1, 2, 1 << 63, u64::MAX] {
+                assert_eq!(checked(PrimOp::CheckedDiv { ty: Scalar::U64 }, &[x as i64, y as i64]), x.checked_div(y).map(|v| v as i64));
+                assert_eq!(checked(PrimOp::CheckedRem { ty: Scalar::U64 }, &[x as i64, y as i64]), x.checked_rem(y).map(|v| v as i64));
+            }
+        }
+        for x in [i64::MIN, -1, 0, 1, i64::MAX] {
+            for y in [i64::MIN, -1, 0, 1, i64::MAX] {
+                assert_eq!(checked(PrimOp::CheckedDiv { ty: Scalar::I64 }, &[x, y]), x.checked_div(y));
+                assert_eq!(checked(PrimOp::CheckedRem { ty: Scalar::I64 }, &[x, y]), x.checked_rem(y));
+            }
+        }
+    }
+
+    /// Unsigned comparisons order the complete word rather than its signed storage encoding.
+    #[test]
+    fn unsigned_comparisons_keep_the_top_bit() {
+        for x in [0u64, 1, i64::MAX as u64, 1 << 63, u64::MAX] {
+            for y in [0u64, 1, i64::MAX as u64, 1 << 63, u64::MAX] {
+                for (op, expected) in [(CmpOp::Eq, x == y), (CmpOp::Ne, x != y),
+                    (CmpOp::Lt, x < y), (CmpOp::Le, x <= y), (CmpOp::Gt, x > y), (CmpOp::Ge, x >= y)] {
+                    assert!(matches!(folded(PrimOp::Cmp { ty: Scalar::U64, op }, &[x as i64, y as i64]), Core::Bool(actual) if actual == expected));
+                }
+            }
+        }
+    }
+
+    /// Conversions preserve high unsigned bits and apply the destination's explicit overflow policy.
+    #[test]
+    fn conversions_keep_unsigned_magnitude_before_applying_policy() {
+        for x in [0u64, 1, i64::MAX as u64, 1 << 63, u64::MAX] {
+            let args = [x as i64];
+            assert_eq!(word(PrimOp::Conv { from: Scalar::U64, to: Scalar::U64, mode: ConvMode::Total }, &args), x as i64);
+            assert_eq!(word(PrimOp::Conv { from: Scalar::U64, to: Scalar::I64, mode: ConvMode::Wrapping }, &args), x as i64);
+            assert_eq!(word(PrimOp::Conv { from: Scalar::U64, to: Scalar::I64, mode: ConvMode::Saturating }, &args), x.min(i64::MAX as u64) as i64);
+            assert_eq!(checked(PrimOp::Conv { from: Scalar::U64, to: Scalar::I64, mode: ConvMode::Checked }, &args), i64::try_from(x).ok());
+            assert_eq!(word(PrimOp::Conv { from: Scalar::U64, to: Scalar::U32, mode: ConvMode::Wrapping }, &args), x as u32 as i64);
+            assert_eq!(checked(PrimOp::Conv { from: Scalar::U64, to: Scalar::U32, mode: ConvMode::Checked }, &args), u32::try_from(x).ok().map(i64::from));
+        }
+        for x in [i64::MIN, -1, 0, 1, i64::MAX] {
+            assert_eq!(word(PrimOp::Conv { from: Scalar::I64, to: Scalar::U64, mode: ConvMode::Saturating }, &[x]), x.max(0));
+            assert_eq!(checked(PrimOp::Conv { from: Scalar::I64, to: Scalar::U64, mode: ConvMode::Checked }, &[x]), u64::try_from(x).ok().map(|v| v as i64));
+        }
+    }
+
+    /// Reversal returns every output bit even when the result occupies more than 32 bits.
+    #[test]
+    fn bit_and_byte_reversal_preserve_full_width_results() {
+        macro_rules! cases {
+            ($ty:ty, $scalar:expr) => {
+                for value in [0, 1, <$ty>::MAX / 2, <$ty>::MAX / 2 + 1, <$ty>::MAX] {
+                    assert_eq!(word(PrimOp::BitScan { ty: $scalar, op: BitScanOp::ReverseBits }, &[value as i64]), value.reverse_bits() as i64);
+                    assert_eq!(word(PrimOp::BitScan { ty: $scalar, op: BitScanOp::SwapBytes }, &[value as i64]), value.swap_bytes() as i64);
+                }
+            };
+        }
+        cases!(u8, Scalar::U8);
+        cases!(u16, Scalar::U16);
+        cases!(u32, Scalar::U32);
+        cases!(u64, Scalar::U64);
+    }
+
+    /// The optimizer resolves abstract pointer words against each target before evaluating constants.
+    #[test]
+    fn pointer_width_folding_follows_the_compilation_target() {
+        let source = Program::from_functions(vec![FnDef {
+            id: GlobalId("Fold.pointer".into()), params: vec![],
+            body: Core::App(Box::new(Core::Prim(PrimOp::Shift {
+                ty: Scalar::Usize, op: ShiftOp::Shr, checked: false,
+            })), vec![Core::Int(-1), Core::Int(1)]),
+            prim: None, ctor: None, hints: FnHints::default(),
+            meta: FnMeta { pure: true, ..FnMeta::default() },
+            repr: UnitRepr::default(),
+        }]);
+        for (bits, expected) in [(32, 2147483647), (64, 9223372036854775807)] {
+            let mut profile = TargetProfile::native();
+            profile.word_size = bits;
+            let (result, _) = optimize(&source, &profile).unwrap();
+            assert!(matches!(result.fns[0].body, Core::Int(actual) if actual == expected));
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -8867,6 +9196,7 @@ mod tests {
             });
         }
         let mut program = Program {
+            checked_builtin_constructors: None,
             total_bodies: crate::total::CheckedGraph::empty(),
             fns, instances: vec![], main: None, rewrites: vec![],
             plans: Default::default(), foreigns: Default::default(),
@@ -8924,6 +9254,7 @@ mod tests {
             repr: UnitRepr { params: vec![Class::Obj], ..UnitRepr::default() },
         };
         let mut program = Program {
+            checked_builtin_constructors: None,
             total_bodies: crate::total::CheckedGraph::empty(),
             fns: vec![unit], instances: vec![], main: None, rewrites: vec![],
             plans: Default::default(), foreigns: Default::default(),

@@ -1,0 +1,70 @@
+-- | Preserve immutable ownership, checked extraction and explicit generator refusal boundaries.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Machine
+  import Data.Bytes
+  import Data.Uuid
+  import Data.Hash
+
+  -- | Require a complete formatted result for a supplied-entropy construction.
+  matches :: String -> Result UuidError Uuid -> Bool
+  matches text result = case result of Ok value -> uuid-format value == text; Err error -> False
+
+  -- | Reject every byte length around16 without truncation or padding.
+  lengths :: Nat -> Bool
+  lengths count =
+    if count < 33 then
+      let correct = case uuid-from-bytes (bytes-new count) of Ok value -> count == 16; Err error -> not (count == 16) in
+      correct && lengths (count + 1)
+    else True
+
+  -- | A value copied from input bytes survives subsequent writes to both input and output buffers.
+  owners :: Unit -> Bool
+  owners unit =
+    let input = bytes-new 16 in
+    case uuid-from-bytes input of
+      Err error -> False
+      Ok value ->
+        let changed = bytes-set input 0 255 in
+        let output = uuid-to-bytes value in
+        if bytes-len output == 16 then
+          let edited = bytes-set output 15 255 in uuid-equal value uuid-nil
+        else False
+
+  -- | Mask only RFC version/variant bits for both all-zero and all-one entropy patterns.
+  version4 :: Unit -> Bool
+  version4 unit =
+    let zero = bytes-new 16 in
+    let one = uuid-to-bytes uuid-max in
+    matches "00000000-0000-4000-8000-000000000000" (uuid-v4-from-random zero) && matches "ffffffff-ffff-4fff-bfff-ffffffffffff" (uuid-v4-from-random one)
+
+  -- | Invalid input cannot obtain a trusted extraction witness.
+  trusted :: Unit -> Bool
+  trusted unit =
+    let accepted = case uuid-validate-text "00000000-0000-0000-0000-000000000000" of Ok checked -> uuid-equal (uuid-required checked) uuid-nil; Err error -> False in
+    let refused = case uuid-validate-text "invalid" of Err error -> True; Ok checked -> False in accepted && refused
+
+  -- | Refuse unrepresentable time, malformed entropy and logical-clock exhaustion without wrapping.
+  clock-errors :: Unit -> Bool
+  clock-errors unit =
+    let entropy = bytes-new 8 in
+    let outside = case uuid-v7-step uuid-v7-initial 281474976710656000000 entropy of Err UuidClockOutOfRange -> True; other -> False in
+    let bad-entropy = case uuid-v7-step uuid-v7-initial 0 (bytes-new 7) of Err (UuidInvalidLength length) -> length == 7; other -> False in
+    let bad-tick = case uuid-v7-from-tick 18446744073709551615 entropy of Err UuidClockOutOfRange -> True; other -> False in
+    case uuid-v7-step uuid-v7-initial 281474976710655999999 entropy of
+      Err error -> False
+      Ok pair -> case pair of
+        (state, value) ->
+          let exhausted = case uuid-v7-step state 281474976710655999999 entropy of Err UuidClockExhausted -> True; other -> False in
+          let recovered = case uuid-v7-step state 0 entropy of Ok result -> (case result of (next, restored) -> uuid-format restored == "00000000-0000-7000-8000-000000000000"); Err error -> False in
+          outside && bad-entropy && bad-tick && exhausted && recovered
+
+  -- | Check sentinels and arbitrary bit patterns without imposing generation-time version restrictions.
+  sentinels :: Unit -> Bool
+  sentinels unit =
+    hash uuid-nil == hash (uuid-from-words 0 0) && hash uuid-max == hash (uuid-from-words 18446744073709551615 18446744073709551615) && uuid-format uuid-nil == "00000000-0000-0000-0000-000000000000" && uuid-format uuid-max == "ffffffff-ffff-ffff-ffff-ffffffffffff" && uuid-equal (uuid-from-words 0 0) uuid-nil
+
+  -- | Return the first failed independent boundary contract.
+  main :: Int
+  main = if not (lengths 0) then 1 else if not (owners ()) then 2 else if not (version4 ()) then 3 else if not (trusted ()) then 4 else if not (clock-errors ()) then 5 else if not (sentinels ()) then 6 else 0

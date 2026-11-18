@@ -1,0 +1,60 @@
+{
+  "status": "finalcompat-current-source1494-qualified",
+  "source_candidate_commit": "5bf2e4b2bc8cd17629362119ce73f91073715e0e",
+  "production_changes_in_this_receipt_commit": false,
+  "selected_sources": {
+    "compiler/prelude/Text/Json/Value.cinch": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+    "compiler/prelude/Text/Json/Codec.cinch": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3"
+  },
+  "required_inherited_Dynamic_sha256": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93",
+  "proof": "bootstrap/stdlib-json-final-compat-stage-checkpoint.json",
+  "proof_sha256": "c71fba61f1fb29610e4a4dc4b8a3cab365432ca1e824b2f26cdb41f74704562c",
+  "docs_receipt": "bootstrap/stdlib-json-read-field-docs-v1.json",
+  "docs_receipt_sha256": "b54596744ac1ad3122bb98173e072ecb5a46b87157286cea5679b4f4b18b94b7",
+  "canonical_declarations": 857,
+  "reference_rows": 1494,
+  "extra_retained_rows": 1,
+  "owner_groups": 4,
+  "bounded_memory_processes": 14,
+  "runtime_receipts": {
+    "methods": "bootstrap/stdlib-json-error-methods-rust-v7-results.json",
+    "updates": "bootstrap/stdlib-json-error-updates-rust-v2-results.json",
+    "pointer": "bootstrap/stdlib-json-error-pointer-final-rust-v3-results.json",
+    "owner": "bootstrap/stdlib-json-error-owner-final-rust-v3-results.json",
+    "bool": "bootstrap/stdlib-json-error-bool-final-rust-v3-results.json",
+    "string": "bootstrap/stdlib-json-error-string-final-rust-v3-results.json",
+    "integer": "bootstrap/stdlib-json-error-integer-final-rust-v3-results.json"
+  },
+  "archive_indices": {
+    "methods": "bootstrap/stdlib-json-error-methods-rust-v7-functional-archive.json",
+    "updates": "bootstrap/stdlib-json-error-updates-rust-v2-functional-archive.json",
+    "pointer": "bootstrap/stdlib-json-error-pointer-final-rust-v3-functional-archive.json",
+    "owner": "bootstrap/stdlib-json-error-owner-final-rust-v3-functional-archive.json",
+    "bool": "bootstrap/stdlib-json-error-bool-final-rust-v3-functional-archive.json",
+    "string": "bootstrap/stdlib-json-error-string-final-rust-v3-functional-archive.json",
+    "integer": "bootstrap/stdlib-json-error-integer-final-rust-v3-functional-archive.json"
+  },
+  "qualified_dependency_context": {
+    "Data.Array": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+    "Data.Bytes.Word": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Data.Unicode.Tables": "c01b9c48376c11b264557bbe071ea699246c5096bc2603b33672e7f5e17ea23c",
+    "Data.Unicode.Kernel": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
+    "Text.Json.Binary32": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
+    "Text.Json.Value": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+    "Text.Base64.Encoding": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
+    "Text.Json.Codec": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3"
+  },
+  "Root_handling": "Metadata-only import; do not replace Root Source/dependencies. Root independently qualified the selected Value/Codec plus Dynamic81d via full33 release PASS134.95s and maintained focused6 PASS; Root owns its final compiler/runtime/buildID. Standalone receipts preserve exact855/c4 epoch.",
+  "maintained_test_file_sha256": "3fdf089e96d2def40721cd284d2dfdb16027b1d272f8cb05718a0657afc3bf91",
+  "harness_note": "Mirrors already-parent-qualified maintained focused6 test after existing33; no oracle/test logic change. No local Cargo invocation.",
+  "previous_epochs": "e4d1494/c1214808, finalcompatfocused5bf, four failed method epochs and Root parentv2 projects remain immutable and separate. Original1494vectors unchanged; all12 SDKpanic nil-type observations retained honestly.",
+  "remaining": [
+    "Mandatory false-policy malformed-syntax partial updates in new separate source/oracle epoch",
+    "Remaining nullable/interface/key and method error corners",
+    "Bounded Effect.Json/public source-sink pipelines/original IO causes",
+    "Native qualification/performance/final92reconciliation"
+  ],
+  "Native_family_claim": false,
+  "performance_claim": null,
+  "full92_complete": false
+}

@@ -110,6 +110,12 @@ pub(crate) const EINVAL: i64 = 22;
 /// `unsigned int` on Linux, `unsigned long` on Darwin.
 pub(crate) type Key = back::Key;
 
+/// Return the main executable's Mach-O slide through the platform boundary.
+#[cfg(target_os = "macos")]
+pub(crate) fn main_image_slide() -> usize {
+    back::main_image_slide()
+}
+
 // ---------------------------------------------------------------------------
 // Handles and bytes
 // ---------------------------------------------------------------------------
@@ -126,6 +132,13 @@ pub(crate) fn write(fd: i64, buf: &[u8]) -> (i64, i64) {
 /// retry, for the same reason as `write`.
 pub(crate) fn read(fd: i64, buf: &mut [u8]) -> (i64, i64) {
     back::read(fd, buf)
+}
+
+/// Draw cryptographic bytes from the initialized Linux kernel generator.
+/// One blocking syscall, with no retries: the count, or `-1` and errno.
+#[cfg(target_os = "linux")]
+pub(crate) fn getrandom(buf: &mut [u8]) -> (i64, i64) {
+    back::getrandom(buf)
 }
 
 /// Close `fd`: 0, or `-1` and the error number.

@@ -1,0 +1,699 @@
+{
+  "scope": "Static assembly call sites, not dynamic counts. Exact selected public benchmark artifacts; no compiler flags or library dependency sources changed.",
+  "frontends": {
+    "rust": {
+      "Text.Base64.Encoding.encode-buffer": {
+        "assembly_text_bytes": 81405,
+        "static_call_sites": {
+          "cinch_nat_add@PLT": 9,
+          "cinch_bytes_len@PLT": 8,
+          "cinch_nat_cmp@PLT": 4,
+          "cinch_drop_slow@PLT": 27,
+          "cinch_frame_release@PLT": 26,
+          "cinch_drop_mt@PLT": 26,
+          "cinch_nat_to_i64@PLT": 2,
+          "cinch_bytes_data@PLT": 3,
+          "cinch_dup_mt@PLT": 8,
+          "\"Data.Bytes.Word.bytes-write-le64\"@PLT": 1,
+          "cinch_nat_sub@PLT": 1,
+          "cinch_nat_mul@PLT": 2,
+          "cinch_nat_div@PLT": 2,
+          "Text.Base64.Encoding.collect@PLT": 1,
+          "\"Text.Base64.Encoding.encode-word\"@PLT": 1,
+          "Text.Base64.Encoding.store@PLT": 1,
+          "cinch_free@PLT": 2,
+          "\"Text.Base64.Encoding.pad-output\"@PLT": 1
+        },
+        "imported_data_call_sites": {
+          "\"Data.Bytes.Word.bytes-write-le64\"@PLT": 1
+        },
+        "stack_adjustments": [
+          "subq\t$56, %rsp",
+          "addq\t$56, %rsp"
+        ]
+      },
+      "Text.Base64.Encoding.decode-fields#cc": {
+        "assembly_text_bytes": 198988,
+        "static_call_sites": {
+          "cinch_drop_slow@PLT": 49,
+          "cinch_frame_release@PLT": 49,
+          "cinch_drop_mt@PLT": 49,
+          "cinch_bytes_len@PLT": 6,
+          "cinch_nat_cmp@PLT": 22,
+          "cinch_dup_mt@PLT": 21,
+          "cinch_nat_to_i64@PLT": 4,
+          "cinch_bytes_get@PLT": 1,
+          "cinch_nat_add@PLT": 16,
+          "cinch_bytes_data@PLT": 1,
+          "\"Text.Base64.Encoding.decode-word\"@PLT": 1,
+          "Text.Base64.Encoding.value@PLT": 1,
+          "\"Text.Base64.Encoding.is-padding\"@PLT": 2,
+          "cinch_free@PLT": 1,
+          "cinch_nat_mul@PLT": 1,
+          "\"Data.Bytes.Word.bytes-write-le32\"@PLT": 2,
+          "Text.Base64.Encoding.store@PLT": 4,
+          "\"Text.Base64.Encoding.valid-bits\"@PLT": 2,
+          "cinch_nat_sub@PLT": 1,
+          "cinch_alloc_ctor@PLT": 9,
+          "cinch.rc.drop.tobj": 4,
+          "cinch.rc.dup.tobj": 2
+        },
+        "imported_data_call_sites": {
+          "\"Data.Bytes.Word.bytes-write-le32\"@PLT": 2
+        },
+        "stack_adjustments": [
+          "subq\t$184, %rsp",
+          "addq\t$184, %rsp"
+        ]
+      },
+      "Text.Base64.Encoding.decode-fields": {
+        "assembly_text_bytes": 822,
+        "static_call_sites": {
+          "\"Text.Base64.Encoding.decode-fields#cc\"@PLT": 1,
+          "cinch_alloc_ctor@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$56, %rsp",
+          "addq\t$56, %rsp"
+        ]
+      },
+      "Text.Pem.find-end-machine#cc": {
+        "assembly_text_bytes": 2738,
+        "static_call_sites": {
+          "\"Text.Pem.find-end-machine.shared0#cc\"@PLT": 1,
+          "\"Text.Pem.find-machine#cc\"@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$16, %rsp",
+          "subq\t$8, %rsp",
+          "addq\t$16, %rsp",
+          "addq\t$16, %rsp"
+        ]
+      },
+      "Text.Pem.find-end-machine": {
+        "assembly_text_bytes": 237,
+        "static_call_sites": {
+          "\"Text.Pem.find-end-machine#cc\"@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$16, %rsp",
+          "addq\t$8, %rsp"
+        ]
+      },
+      "Text.Pem.last-begin-machine": {
+        "assembly_text_bytes": 13282,
+        "static_call_sites": {
+          "\"Text.Pem.last-begin-machine.shared0#cc\"@PLT": 1,
+          "\"Text.Pem.find-machine.shared0#cc\"@PLT": 2
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$8, %rsp",
+          "subq\t$8, %rsp",
+          "addq\t$8, %rsp"
+        ]
+      },
+      "Text.Pem.blank-machine#cc": {
+        "assembly_text_bytes": 2870,
+        "static_call_sites": {},
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      "Text.Pem.blank-machine": {
+        "assembly_text_bytes": 2929,
+        "static_call_sites": {
+          "\"Text.Pem.blank-machine.shared0#cc\"@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$16, %rsp",
+          "addq\t$16, %rsp",
+          "addq\t$8, %rsp"
+        ]
+      },
+      "Text.Pem.proc-type": {
+        "assembly_text_bytes": 3012,
+        "static_call_sites": {
+          "cinch_bytes_len@PLT": 3,
+          "cinch_bytes_data@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      "Text.Pem.put-lines": {
+        "assembly_text_bytes": 39317,
+        "static_call_sites": {
+          "cinch_bytes_len@PLT": 4,
+          "cinch_nat_cmp@PLT": 6,
+          "cinch_dup_mt@PLT": 2,
+          "cinch_drop_slow@PLT": 11,
+          "cinch_frame_release@PLT": 10,
+          "cinch_drop_mt@PLT": 10,
+          "cinch_nat_sub@PLT": 1,
+          "cinch_nat_add@PLT": 4,
+          "cinch_nat_to_i64@PLT": 3,
+          "cinch_bytes_copy@PLT": 1,
+          "Text.Pem.byte@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$56, %rsp",
+          "addq\t$56, %rsp"
+        ]
+      },
+      "Text.Pem.put-body": {
+        "assembly_text_bytes": 109604,
+        "static_call_sites": {
+          "cinch_bytes_len@PLT": 11,
+          "cinch_nat_cmp@PLT": 10,
+          "cinch_dup_mt@PLT": 7,
+          "cinch_drop_slow@PLT": 29,
+          "cinch_frame_release@PLT": 29,
+          "cinch_drop_mt@PLT": 28,
+          "cinch_nat_sub@PLT": 2,
+          "cinch_nat_add@PLT": 8,
+          "cinch_nat_to_len@PLT": 7,
+          "cinch_bytes_new@PLT": 7,
+          "cinch.runtime.bytesNew@PLT": 2,
+          "cinch_nat_to_i64@PLT": 3,
+          "cinch_bytes_copy@PLT": 3,
+          "cinch_alloc_ctor@PLT": 6,
+          "cinch_free@PLT": 1,
+          "cinch_nat_mul@PLT": 3,
+          "cinch_nat_div@PLT": 2,
+          "\"Text.Base64.Encoding.encode-buffer\"@PLT": 1,
+          "Text.Pem.byte@PLT": 1,
+          "\"Text.Pem.put-lines\"@PLT": 2,
+          "Text.Pem.part@PLT": 1,
+          "\"Text.Base64.Encoding.base64-encode-bytes\"@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$72, %rsp",
+          "addq\t$72, %rsp"
+        ]
+      },
+      "Text.Pem.write-body#cc": {
+        "assembly_text_bytes": 91615,
+        "static_call_sites": {
+          "cinch_bytes_len@PLT": 10,
+          "cinch_nat_cmp@PLT": 5,
+          "cinch_dup_mt@PLT": 5,
+          "cinch_drop_slow@PLT": 26,
+          "cinch_frame_release@PLT": 26,
+          "cinch_drop_mt@PLT": 25,
+          "cinch_nat_sub@PLT": 1,
+          "cinch_nat_add@PLT": 7,
+          "cinch_nat_to_len@PLT": 5,
+          "cinch_bytes_new@PLT": 5,
+          "cinch.runtime.bytesNew@PLT": 3,
+          "cinch_nat_to_i64@PLT": 2,
+          "cinch_bytes_copy@PLT": 2,
+          "cinch_alloc_ctor@PLT": 6,
+          "cinch_free@PLT": 1,
+          "cinch_nat_mul@PLT": 3,
+          "cinch_nat_div@PLT": 3,
+          "\"Text.Base64.Encoding.encode-buffer\"@PLT": 1,
+          "Text.Pem.byte@PLT": 1,
+          "\"Text.Pem.put-lines\"@PLT": 1,
+          "\"Text.Pem.send#cc\"@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$72, %rsp",
+          "addq\t$72, %rsp"
+        ]
+      },
+      "Text.Pem.write-body": {
+        "assembly_text_bytes": 601,
+        "static_call_sites": {
+          "\"Text.Pem.write-body#cc\"@PLT": 1,
+          "cinch_alloc_ctor@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "addq\t$8, %rsp"
+        ]
+      },
+      "Text.Pem.find-end-machine.shared0#cc": {
+        "assembly_text_bytes": 7167,
+        "static_call_sites": {},
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      "Text.Pem.find-end-machine.shared0": {
+        "assembly_text_bytes": 253,
+        "static_call_sites": {
+          "\"Text.Pem.find-end-machine.shared0#cc\"@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$16, %rsp",
+          "addq\t$8, %rsp"
+        ]
+      },
+      "Text.Pem.find-end-machine.shared1#cc": {
+        "assembly_text_bytes": 3496,
+        "static_call_sites": {
+          "\"Text.Pem.find-machine.shared0#cc\"@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$16, %rsp",
+          "subq\t$8, %rsp",
+          "addq\t$16, %rsp",
+          "addq\t$16, %rsp"
+        ]
+      },
+      "Text.Pem.find-end-machine.shared1": {
+        "assembly_text_bytes": 253,
+        "static_call_sites": {
+          "\"Text.Pem.find-end-machine.shared1#cc\"@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$16, %rsp",
+          "addq\t$8, %rsp"
+        ]
+      },
+      "Text.Pem.last-begin-machine.shared0#cc": {
+        "assembly_text_bytes": 7171,
+        "static_call_sites": {},
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      "Text.Pem.last-begin-machine.shared0": {
+        "assembly_text_bytes": 257,
+        "static_call_sites": {
+          "\"Text.Pem.last-begin-machine.shared0#cc\"@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$16, %rsp",
+          "addq\t$8, %rsp"
+        ]
+      },
+      "Text.Pem.blank-machine.shared0#cc": {
+        "assembly_text_bytes": 9752,
+        "static_call_sites": {},
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      "Text.Pem.blank-machine.shared0": {
+        "assembly_text_bytes": 247,
+        "static_call_sites": {
+          "\"Text.Pem.blank-machine.shared0#cc\"@PLT": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": [
+          "subq\t$16, %rsp",
+          "addq\t$8, %rsp"
+        ]
+      }
+    },
+    "native": {
+      "cinch.typed.m.Text.Base64.Encoding.decode-fields": {
+        "assembly_text_bytes": 261,
+        "static_call_sites": {},
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      ".Lcinch.typed.m.Text.Base64.Encoding.decode-fields#tail": {
+        "assembly_text_bytes": 490378,
+        "static_call_sites": {
+          "cinch_dup_mt@PLT": 189,
+          "cinch_bytes_len@PLT": 5,
+          "cinch_nat_from_i64@PLT": 5,
+          "cinch_drop_slow@PLT": 223,
+          "cinch_drop_mt@PLT": 225,
+          "\"Data.Nat.Ord_Nat.>=\"@PLT": 3,
+          "\"Data.Nat.Eq_Nat.==\"@PLT": 9,
+          "Data.Bool.not@PLT": 1,
+          "\"Data.Nat.Add_Nat.+\"@PLT": 17,
+          "\"Data.Nat.Ord_Nat.<=\"@PLT": 5,
+          "cinch.typed.m.Data$2eBytes$2eWord.bytes$2dread$2dle64@PLT": 1,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.decode$2dword@PLT": 1,
+          "\"Data.Machine.wrapping-shr-u64\"@PLT": 2,
+          "\"Data.Machine.eq-u64\"@PLT": 1,
+          "\"Data.Nat.Ord_Nat.<\"@PLT": 1,
+          "\"Data.Bytes.bytes-get\"@PLT": 2,
+          "\"Data.Nat.Ord_Nat.>\"@PLT": 1,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.value@PLT": 1,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.is$2dpadding@PLT": 2,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.valid$2dbits@PLT": 3,
+          "\"Data.Nat.saturating-sub\"@PLT": 1,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.store@PLT": 4,
+          "\"Data.Machine.wrapping-u64-to-u32\"@PLT": 1,
+          "cinch.typed.m.Data$2eBytes$2eWord.bytes$2dwrite$2dle32@PLT": 1,
+          "\"Data.Nat.nat-to-i64\"@PLT": 2,
+          "\"Data.Machine.wrapping-i64-to-u64\"@PLT": 1,
+          "\"Data.Nat.Mul_Nat.*\"@PLT": 1,
+          "\"Data.Machine.wrapping-i64-to-u32\"@PLT": 1,
+          "\"Data.Machine.wrapping-shl-u64\"@PLT": 1,
+          "\"Data.Machine.bit-or-u64\"@PLT": 1,
+          "cinch_alloc_ctor@PLT": 28
+        },
+        "imported_data_call_sites": {
+          "\"Data.Nat.Ord_Nat.>=\"@PLT": 3,
+          "\"Data.Nat.Eq_Nat.==\"@PLT": 9,
+          "\"Data.Nat.Add_Nat.+\"@PLT": 17,
+          "\"Data.Nat.Ord_Nat.<=\"@PLT": 5,
+          "\"Data.Machine.wrapping-shr-u64\"@PLT": 2,
+          "\"Data.Machine.eq-u64\"@PLT": 1,
+          "\"Data.Nat.Ord_Nat.<\"@PLT": 1,
+          "\"Data.Bytes.bytes-get\"@PLT": 2,
+          "\"Data.Nat.Ord_Nat.>\"@PLT": 1,
+          "\"Data.Nat.saturating-sub\"@PLT": 1,
+          "\"Data.Machine.wrapping-u64-to-u32\"@PLT": 1,
+          "\"Data.Nat.nat-to-i64\"@PLT": 2,
+          "\"Data.Machine.wrapping-i64-to-u64\"@PLT": 1,
+          "\"Data.Nat.Mul_Nat.*\"@PLT": 1,
+          "\"Data.Machine.wrapping-i64-to-u32\"@PLT": 1,
+          "\"Data.Machine.wrapping-shl-u64\"@PLT": 1,
+          "\"Data.Machine.bit-or-u64\"@PLT": 1
+        },
+        "stack_adjustments": [
+          "subq\t$168, %rsp",
+          "addq\t$168, %rsp"
+        ]
+      },
+      "cinch.typed.m.Text.Pem.blank-machine": {
+        "assembly_text_bytes": 2148,
+        "static_call_sites": {},
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      "cinch.typed.m.Text.Pem.last-begin-machine": {
+        "assembly_text_bytes": 2427,
+        "static_call_sites": {},
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      "cinch.typed.m.Text.Pem.find-end-machine": {
+        "assembly_text_bytes": 3190,
+        "static_call_sites": {},
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      "cinch.typed.m.Text.Pem.write-body": {
+        "assembly_text_bytes": 211,
+        "static_call_sites": {},
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      ".Lcinch.typed.m.Text.Pem.write-body#tail": {
+        "assembly_text_bytes": 53461,
+        "static_call_sites": {
+          "cinch_dup_mt@PLT": 26,
+          "cinch_bytes_len@PLT": 3,
+          "cinch_nat_from_i64@PLT": 3,
+          "\"Data.Nat.Ord_Nat.<\"@PLT": 4,
+          "cinch_drop_slow@PLT": 31,
+          "cinch_drop_mt@PLT": 31,
+          "cinch_alloc_ctor@PLT": 6,
+          "\"Data.Nat.Sub_Nat.-\"@PLT": 1,
+          "cinch.typed.m.Text$2ePem.part@PLT": 1,
+          "\"Data.Bytes.bytes-new\"@PLT": 2,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.base64$2dencode$2dbytes@PLT": 1,
+          "\"Data.Bytes.bytes-new.object-closure\"@PLT": 1,
+          "\"Data.Nat.Add_Nat.+\"@PLT": 3,
+          "\"Data.Nat.nat-div\"@PLT": 1,
+          "*(%rbx)": 1,
+          "cinch.typed.m.Text$2ePem.put$2dlines@PLT": 1,
+          "cinch.typed.m.Text$2ePem.send@PLT": 1
+        },
+        "imported_data_call_sites": {
+          "\"Data.Nat.Ord_Nat.<\"@PLT": 4,
+          "\"Data.Nat.Sub_Nat.-\"@PLT": 1,
+          "\"Data.Bytes.bytes-new\"@PLT": 2,
+          "\"Data.Bytes.bytes-new.object-closure\"@PLT": 1,
+          "\"Data.Nat.Add_Nat.+\"@PLT": 3,
+          "\"Data.Nat.nat-div\"@PLT": 1
+        },
+        "stack_adjustments": [
+          "subq\t$152, %rsp"
+        ]
+      },
+      "cinch.typed.m.Text.Pem.put-lines": {
+        "assembly_text_bytes": 56005,
+        "static_call_sites": {
+          "cinch_dup_mt@PLT": 27,
+          "cinch_bytes_len@PLT": 4,
+          "cinch_nat_from_i64@PLT": 4,
+          "\"Data.Nat.Ord_Nat.<\"@PLT": 4,
+          "cinch_drop_slow@PLT": 20,
+          "cinch_drop_mt@PLT": 20,
+          "\"Data.Nat.Sub_Nat.-\"@PLT": 1,
+          "\"Data.Nat.Add_Nat.+\"@PLT": 4,
+          "\"Data.Nat.Ord_Nat.<=\"@PLT": 3,
+          "\"Data.Bytes.bytes-copy-range\"@PLT": 1,
+          "cinch.typed.m.Text$2ePem.byte@PLT": 1
+        },
+        "imported_data_call_sites": {
+          "\"Data.Nat.Ord_Nat.<\"@PLT": 4,
+          "\"Data.Nat.Sub_Nat.-\"@PLT": 1,
+          "\"Data.Nat.Add_Nat.+\"@PLT": 4,
+          "\"Data.Nat.Ord_Nat.<=\"@PLT": 3,
+          "\"Data.Bytes.bytes-copy-range\"@PLT": 1
+        },
+        "stack_adjustments": [
+          "subq\t$56, %rsp",
+          "addq\t$56, %rsp"
+        ]
+      },
+      "cinch.typed.m.Text.Base64.Encoding.encode-buffer": {
+        "assembly_text_bytes": 345,
+        "static_call_sites": {
+          "\".Lcinch.typed.m.Text$2eBase64$2eEncoding.encode$2dbuffer#tail\"": 1
+        },
+        "imported_data_call_sites": {},
+        "stack_adjustments": []
+      },
+      ".Lcinch.typed.m.Text.Base64.Encoding.encode-buffer#tail": {
+        "assembly_text_bytes": 57197,
+        "static_call_sites": {
+          "cinch_dup_mt@PLT": 36,
+          "\"Data.Nat.Add_Nat.+\"@PLT": 10,
+          "cinch_bytes_len@PLT": 4,
+          "cinch_nat_from_i64@PLT": 4,
+          "cinch_drop_slow@PLT": 27,
+          "cinch_drop_mt@PLT": 27,
+          "\"Data.Nat.Ord_Nat.<=\"@PLT": 2,
+          "\"Data.Machine.u32-to-u64.object-closure\"@PLT": 1,
+          "\"Data.Nat.Ord_Nat.<\"@PLT": 2,
+          "cinch.typed.m.Data$2eBytes$2eWord.bytes$2dread$2dle32@PLT": 2,
+          "*(%rbx)": 1,
+          "\"Data.Machine.wrapping-shr-u32\"@PLT": 1,
+          "\"Data.Machine.u32-to-u64\"@PLT": 1,
+          "\"Data.Machine.wrapping-shl-u64\"@PLT": 1,
+          "\"Data.Machine.bit-or-u64\"@PLT": 1,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.encode$2dword@PLT": 3,
+          "cinch.typed.m.Data$2eBytes$2eWord.bytes$2dwrite$2dle64@PLT": 2,
+          "\"Data.Nat.Sub_Nat.-\"@PLT": 1,
+          "\"Data.Nat.Mul_Nat.*\"@PLT": 2,
+          "\"Data.Nat.nat-div\"@PLT": 2,
+          "\".Lcinch.typed.m.Text$2eBase64$2eEncoding.collect#tail\"": 1,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.store@PLT": 1,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.base64$2dencoding$2dpadding@PLT": 1,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.pad$2doutput@PLT": 1
+        },
+        "imported_data_call_sites": {
+          "\"Data.Nat.Add_Nat.+\"@PLT": 10,
+          "\"Data.Nat.Ord_Nat.<=\"@PLT": 2,
+          "\"Data.Machine.u32-to-u64.object-closure\"@PLT": 1,
+          "\"Data.Nat.Ord_Nat.<\"@PLT": 2,
+          "\"Data.Machine.wrapping-shr-u32\"@PLT": 1,
+          "\"Data.Machine.u32-to-u64\"@PLT": 1,
+          "\"Data.Machine.wrapping-shl-u64\"@PLT": 1,
+          "\"Data.Machine.bit-or-u64\"@PLT": 1,
+          "\"Data.Nat.Sub_Nat.-\"@PLT": 1,
+          "\"Data.Nat.Mul_Nat.*\"@PLT": 2,
+          "\"Data.Nat.nat-div\"@PLT": 2
+        },
+        "stack_adjustments": [
+          "subq\t$88, %rsp"
+        ]
+      },
+      "cinch.typed.m.Text.Pem.proc-type": {
+        "assembly_text_bytes": 5929,
+        "static_call_sites": {
+          "cinch_dup_mt@PLT": 4,
+          "cinch_bytes_len@PLT": 1,
+          "cinch_nat_from_i64@PLT": 1,
+          "\"Data.Nat.Eq_Nat.==\"@PLT": 2,
+          "\"Data.Bytes.bytes-data\"@PLT": 2,
+          "cinch_drop_slow@PLT": 3,
+          "cinch_drop_mt@PLT": 3,
+          "cinch.typed.m.Text$2ePem.hold.r0@PLT": 1
+        },
+        "imported_data_call_sites": {
+          "\"Data.Nat.Eq_Nat.==\"@PLT": 2,
+          "\"Data.Bytes.bytes-data\"@PLT": 2
+        },
+        "stack_adjustments": [
+          "addq\t$8, %rsp"
+        ]
+      },
+      "cinch.typed.m.Text.Pem.put-body": {
+        "assembly_text_bytes": 43904,
+        "static_call_sites": {
+          "cinch_dup_mt@PLT": 19,
+          "cinch_bytes_len@PLT": 2,
+          "cinch_nat_from_i64@PLT": 2,
+          "\"Data.Nat.Ord_Nat.<\"@PLT": 4,
+          "cinch_drop_slow@PLT": 15,
+          "cinch_drop_mt@PLT": 15,
+          "\"Data.Nat.Sub_Nat.-\"@PLT": 1,
+          "cinch.typed.m.Text$2ePem.part@PLT": 1,
+          "\"Data.Bytes.bytes-new\"@PLT": 2,
+          "cinch_alloc_ctor@PLT": 2,
+          "cinch.typed.m.Text$2eBase64$2eEncoding.base64$2dencode$2dbytes@PLT": 1,
+          "cinch.typed.m.Text$2ePem.put$2dlines@PLT": 1,
+          "\"Data.Nat.Add_Nat.+\"@PLT": 1
+        },
+        "imported_data_call_sites": {
+          "\"Data.Nat.Ord_Nat.<\"@PLT": 4,
+          "\"Data.Nat.Sub_Nat.-\"@PLT": 1,
+          "\"Data.Bytes.bytes-new\"@PLT": 2,
+          "\"Data.Nat.Add_Nat.+\"@PLT": 1
+        },
+        "stack_adjustments": [
+          "subq\t$72, %rsp",
+          "addq\t$72, %rsp"
+        ]
+      }
+    }
+  },
+  "rust_unchanged_base64_instructions": {
+    "Text.Base64.Encoding.base64-standard-encoding": true,
+    "Text.Base64.Encoding.encode-word": true,
+    "Text.Base64.Encoding.decode-word": true,
+    "Text.Base64.Encoding.pad-output": true,
+    "Text.Base64.Encoding.encode-buffer": true,
+    "Text.Base64.Encoding.is-padding": true,
+    "Text.Base64.Encoding.valid-bits": true,
+    "Text.Base64.Encoding.decode-fields#cc": true,
+    "Text.Base64.Encoding.decode-fields": true,
+    "Text.Base64.Encoding.base64-decoder-finish#cc": true,
+    "Text.Base64.Encoding.base64-decoder-finish": true,
+    "Text.Base64.Encoding.base64-decode-prefix#cc": true,
+    "Text.Base64.Encoding.base64-decode-prefix": true,
+    "Text.Base64.Encoding.base64-decode-bytes": true,
+    "Text.Base64.Encoding.encode-values.llvm": true,
+    "Text.Base64.Encoding.encode-values": true,
+    "Text.Base64.Encoding.map-fixed.llvm": true,
+    "Text.Base64.Encoding.map-fixed": true,
+    "Text.Base64.Encoding.classify-fixed.llvm": true,
+    "Text.Base64.Encoding.classify-fixed": true,
+    "Text.Base64.Encoding.decode-values.llvm": true,
+    "Text.Base64.Encoding.decode-values": true,
+    "Text.Base64.Encoding.lookup-eight.llvm": true,
+    "Text.Base64.Encoding.lookup-eight": true
+  },
+  "rust_copy_control_identical_instructions": true,
+  "source_declarations": {
+    "changed": [
+      "find-end",
+      "last-begin",
+      "proc-type",
+      "put-body",
+      "write-body"
+    ],
+    "removed": [
+      "begins"
+    ],
+    "added": [
+      "find-end-machine",
+      "last-begin-machine",
+      "proc-token",
+      "put-lines"
+    ],
+    "unchanged": {
+      "pem-error-message": "0b26eb813f58ac8cd74682fc24dade86652ef47d5c09e27bb939759766002a78",
+      "part": "100e76e8a0300884b26e8574bc16445ef97f7bec1c0e96c524d148bb558ff5b2",
+      "clone": "ec9110a17b5472672b6e0e4e15cdb01c6faa2435aa32b382e70ab4fe499bae58",
+      "pem-header": "ed0068dba5b845148d1fca9f191235b6aa58138d2e832e3089c7674845969033",
+      "pem-header-key": "42bc1cbfc8b11724a5a473b576a909124793a9076acd2e385055a5042d7d0689",
+      "pem-header-value": "a7f44c870d9687a7343c8f489160020026780202585dcbe86d72855e077682a8",
+      "insert-header": "d2f220a7aa2b791cb8f70e58a921ff41e4a60d46f035310c339005df390e83c4",
+      "insert-header-from": "c6554c76d274e9156cade59f8a8ce040f42d2f7711e636334e2162b312dfeb86",
+      "reverse-headers": "f868c48f4a2f4f11a19b8ab6f6818c0e7055c18e44aa72bbd152d9ad4109d17b",
+      "header-count": "b1f3571ff8ec21d11d50659ffa3b6537e051e06d64f3016a07df5b11e43e40b5",
+      "split-headers": "21104042cdf9b017b139427bcdcdadc9b4af356088714c4ad6ab29eb257fe8cf",
+      "merge-headers": "758199e97fbe16b64846325e6206ed77931e24326a728953f012be22aec28178",
+      "sort-headers": "a3b70c017b9b015add584242e7ca5fe84e17405ac0b98957e3ca6e2ee615d233",
+      "skip-equal": "5edbb746436c6d05b0516052b2f6e1b18082ef8c67a276dfdbdab601d478b472",
+      "unique-headers": "7b3782da3ab25d004ef4866ed280493719a2ade2c6ae2342c03c65bcea08ea2d",
+      "canonical-reversed": "6f8c1a7e9c6bab139ed632fd2bf73b45b4bd59d0dee84b99df77e50a5f5065cb",
+      "collect-headers": "e4709aa2d128d913e01875180b66a19cdb56860a4aed08e67ed783ea959d555f",
+      "pem-block": "ca8053a0e16066c487b3c508698ddec51cc5a380dfb68178649d496f903508b9",
+      "pem-block-type": "7e2642039d176a3ca958e3160986daf86629b894af8c993f5bd14de3603ea577",
+      "pem-block-bytes": "0de8f7f08de317fd7a1d142f920fc80071d8ce5d1d258551d187333f24052bee",
+      "pem-block-headers": "feaab1cfe578b234d76986d3e9ae67e9f9c50695841c5515d66420ce9e9de998",
+      "pem-find-header": "3d4f019846dcb6194c4fb07b4bf37a1d7c048fd8099b7237a8d9d1306c5cae09",
+      "find-header": "1004cd856cc6e276ca445e1f4079e817d632c195e4965f49ea97d088045bfa82",
+      "pem-with-header": "aa934a5689d9a89252be1f3dcfdb1c9dbdfb4b08dcd7ba173420abf59e0a15ec",
+      "pem-without-header": "1c672b3eaebe1cdbfc4035121cff5000a82c4fc7f1292292c0b19a598389794b",
+      "drop-header": "10aca13abe1c5f10264517fb6e2ac2b047b59171253c753caca54bb1a740c8ce",
+      "drop-header-from": "09ab9348413447b0e484ae5cf77ac0194a0722b713a0948111fc4fab01ec4194",
+      "pem-with-headers": "3695cbee8c6dd7dbacefa89d5720a737dc1481da729d81818538d4fdd5920d08",
+      "pem-with-type": "21a4156884181a58b1ffe7131b0897a03b44ea4d84165ae1f7059d3a9acf3896",
+      "pem-with-bytes": "da8f41f21283bc57f8ffb65c6a729e80491060969070522a74c82f3f2f0c7a6e",
+      "hold": "a63009a28eaef3ecddb02577afd1eee27b4b3a9ae6fbde9a76f816e9b4b2bac0",
+      "natural": "0af4faef6e6327f247bec6e94685f252611b741b4636cc900ce9708168275434",
+      "before": "6a137063551abc71984e12035b0b9c19de5823be91a10b62297a9b29e5d0a528",
+      "plus": "915ad627442cf9b2f2c270ab3389a6230bd02d26b33dbb87f23956ca49220232",
+      "minus": "3aab5ad6b3a40f2cd5e7792a5bcc6652fffe82b9daee8a7f553ab27cb3ab628a",
+      "address": "cba06a5e4f01312658e9701e7140ae58ae431a87a7aca47abf52b2dd45344ffb",
+      "has-one": "c854370abc004d169c41183b879c7b87784fe1594a53a8d395c5db2c75a9e931",
+      "has-sixteen": "7d2a873c81f864aa2d7b7e0a69386a81b675fefb86f4faabd5bd823a8d323c94",
+      "find-machine": "8f21f0fe26e6b1f896f2cb75831a1ea4f5edeceb871de2075b22f575c75b229c",
+      "find-byte": "ce327a7b472e23c89cfbb3f4dabcf875548fc70155378375f958da7f2bbe475b",
+      "begin-token": "c367a5baae056a7c3de29e984b63bab7fdb9ffa2b2b10ea59255b8dedbbc16dc",
+      "end-token": "033e5aedf29ee2954767e298476498a546aef7e286d5383e8c5c245af7aa5a11",
+      "trim-line": "d25f13fd5d83313113d7434503375f1055dbbfbc796fce02a5cc79326e04fe58",
+      "line": "a7defdbd0c5b2ec6a72c07ca305c019de80632d4152238a02e8d910d615c39f5",
+      "dashes": "e7b74fe00aad444a6b61f9ed6e81355643a1879ab931bd22322c8eee05faee5e",
+      "same-span": "2fa9debeb41a6b0cb6c52c4af433cc3b3073af93a71c7ec24c895f7be220897e",
+      "trim-left": "8608c3877b57d4dcc7b3091dbbe5ae65dc4a1d035e3fbd4959f3488cf6aa04e8",
+      "trim-right": "e79b1fada1be7b8ddc6884508ffcdf7a01cecf364ae6979304f54f26a78044ec",
+      "trimmed": "5c02143be48ba4cc7cebbefc1ce905b79ca2529111cd1d0573319ff32bd0525c",
+      "blank-sixteen": "827f3e4509aa3bbc495c4cd3cf383be67457ab87b931ffcab316df42e1376821",
+      "blank-one": "09fb7dbb1468147b4b8a6b3e2b60002ece79e8abd0ed3c9f6b2fe80860dece06",
+      "blank-machine": "de9edc5248b805f9e02936cde339a100f602598ee26bd7ea16b6b05c7314611f",
+      "next-blank": "cee5c30656aa45c339d70857c8278ceec5489008f1afe72826ee6c35cad4b14d",
+      "filtered-size": "8878d51c7a3b7abf75a88cb75bd92e1be775d5ddf320d64863b9d9cea259ae93",
+      "filtered-copy": "5a3da2cd37196ac628f042354685a47fa651dc15842b9ef40102a8010ad70a95",
+      "filtered": "89f4fec8c20a8d683c3a8294e843ac385af7b7be055d6943b05ec51670c5db3c",
+      "rejected": "4d351addde005c6a78672eeb1a961c5cb90ab5e93c4f52c121b6c88d34a5ed89",
+      "finish-candidate": "20aa6c661ab0a5679080d9cf096d4c0196aa7ed2cc48e0875e30b8aa33dc2106",
+      "read-headers": "26c917786422373bc70724e6e54578afcce2e4b524567521707d8b21c9094778",
+      "candidate": "860ae338fd39539f0dc1172d53f89e476c637ab628797bd9b60be073f68dc2f9",
+      "type-line": "c2717b31037a1ada94d1b01d3c4438dca7d830865a651e68e050d20fffe18406",
+      "decode-from": "8f0b937cf3b724f24af3f1c6d7817fca16ac86bb693715de6382c0ba43f0d00c",
+      "pem-decode": "9c7beb4ac13368c05fbdf9f326eaf5a4c00240dca959e1b1c8f3d0639923c92e",
+      "invalid-header": "3f66869adac20552c1a9b0fed8d08b2e4f0c31d8b968cc760fa79eba0aed5637",
+      "proc-header": "5848725db213083fc08c9c48f26e9dce10034019b9101b8bb0fb2d6945b1c9c6",
+      "headers-size": "0764f4178ad5e4323e5023e1dfec4437d9e9cfe982bb31600c6c2a24124daddb",
+      "headers-size-from": "3a090149132c685e0832b203d1f182c88a1310c28fd6f1da1bbfe375f9919961",
+      "put": "4d77bda82aee305c8956d48bfe58c8f0625102f21a7bdea28b98d3a8138bcf3c",
+      "byte": "55431f46594083722202a2154ef862b752cb0e9eb5b4886ff7660d6c145aa63c",
+      "put-header": "03c766346fbcc171f2a6a57c51e7d564d482c394a09778d5d886ef04f9155e9b",
+      "put-ordinary": "f14b91629da3b4ec9654f68066437e7ed13b1b46f015f96477105dbf0ba5870c",
+      "put-headers": "18c6516aa673b9d0da99cefdf118c85e3cf3c923b8abb216fbb610a9d72f4430",
+      "body-size": "a5f0366891db73890bbbb15375b1f50e40530df1183f845090802a46f561e8bb",
+      "pem-encode-bytes": "aa10eb204c34eb4120d1249a380f71f7c0dad5e281de92d8dfb7d8706856f855",
+      "send": "d7e88bc7237a1f56bacf47d186fe9bae6f42ead990e27d9b873772325bc4b711",
+      "header-bytes": "c58d08dfcf16fb9bf9e1b56e897f4891053bac4a0aed19ae1425b5ae73b6c9f4",
+      "write-ordinary": "e49b1a38b862a753e48e5f4c005bd9f9e7cd5e73a71281b1a0704fe0d00bcfd5",
+      "write-headers": "aa508b2630aa072f93895e565aa3b2554f449fe129179389e0de21c47b3c690e",
+      "write-header-tail": "678778eef21308cc9a8c9dfd98ad48a47cfe3c57be1399c1173d698fe6cb91be",
+      "boundary": "3f31e016601c9faeb75468bcde739bf75c139046af87ef3b81e98a29b4283568",
+      "pem-write": "b627ef42d4a0a9e431709f8bc2f525cc163e93ee385b4d8ecb052f559662a943"
+    }
+  },
+  "selected_source_sha256": "9478c3c41a71436180df02c7ac175c309f790f39d131440895f0a81c7f733efd"
+}

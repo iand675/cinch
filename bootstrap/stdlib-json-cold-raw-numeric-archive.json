@@ -1,0 +1,20 @@
+{
+  "description": "Closed RawNumber and published numeric/binary functional client executables/LLVM only; all source/reference/log/docs/compiler/provider/runtime/benchmark inputs retained in place",
+  "checkpoint_commits": [
+    "b17de763",
+    "145376f1750e094ed01571d63e2b2575672d278c"
+  ],
+  "archive": "/workspace/dasl-stdlib-json/build/json-cold-rawb17de763-numeric14537-20261116.tar.gz",
+  "original_file_bytes": 362614042,
+  "archive_sha256": "c76cd828920b53394620250a75dc341fd6623f4c4d31a33fbb8cbfa1572a4cb3",
+  "archive_bytes": 88270799,
+  "decompressed_tar_sha256": "10ad786b1f4ea5c750493741af4bbc3036c5a008fe863bc8e27d9f47cf15b84f",
+  "decompressed_tar_bytes": 362711040,
+  "verified": true,
+  "originals_removed": true,
+  "restore_command": "tar -xzf /workspace/dasl-stdlib-json/build/json-cold-rawb17de763-numeric14537-20261116.tar.gz -C /workspace/dasl-stdlib-json",
+  "index": "bootstrap/stdlib-json-cold-raw-numeric-archive-index.json",
+  "index_sha256": "6e1745fd7b7f28aafbeaa4d52e08f287264e0180357d0a6fe1f3d7de74288650",
+  "entries": 50,
+  "source_preservation": "Only the listed closed consumer executables and consumer.ll files were unlinked. All Cinch/reference/config/log source files, docs, fixtures, probes, frozen compilers/providers/runtimes and benchmark inputs remain in place; exact removed bytes are recoverable from the fully verified archive."
+}

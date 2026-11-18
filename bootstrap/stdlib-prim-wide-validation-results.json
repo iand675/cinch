@@ -1,0 +1,65 @@
+{
+  "description": "Rust inline LLVM 128-bit primitive ABI support for private SIMD pair results; existing word-only code generation is byte-identical. Full stdlib goal remains open.",
+  "full_stdlib_goal_complete": false,
+  "source_sha256": {
+    "compiler/src/check_decls.rs": "40e9e18436bc8445f3f73c57f2d00e2e9043c39f45a8dc9bb996684ca8da4af2",
+    "compiler/src/codegen.rs": "7f1bb4d677f67e5a036ac6f0fc248e4b6aaaddd079f7ce5c016cbd1cc463b7d4",
+    "compiler/tests/prim_wide.rs": "f4225b6804fffd40fdbc5abb89d2af91f8520599926c7b5df18990e988fcda31",
+    "design/inline-target-ir.md": "055295ca0eafd634f8621914c65e360fc7eff64e2b139f0d1ef0a783ae235375"
+  },
+  "compilers": {
+    "rust_sha256": "f2d5ae4c84e8b69b1cfc7edab79c937f15e1ccaab53f9f27f1d95d926b7e451e",
+    "previous_rust_sha256": "2953cb0246737ee110c139fbff4a8968c2da7de271da4b55aff7d94f63c94e84",
+    "native_stage3_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f"
+  },
+  "tests": {
+    "rust_unit": 297,
+    "rust_existing_prim": 29,
+    "rust_existing_wide": 18,
+    "rust_new_prim_wide": 10,
+    "shared_profile_tests_in_new_target": 3,
+    "native_stage3_selected_cases": [
+      "wide_inline_primitives_keep_unsigned_high_and_low_bits",
+      "wide_inline_primitives_preserve_mixed_signed_narrow_and_float_arguments",
+      "wide_inline_primitives_keep_memory_effect_containment"
+    ],
+    "foreign_rust_object_targets": [
+      "wasm32-unknown-unknown",
+      "aarch64-unknown-linux-gnu",
+      "powerpc64-unknown-linux-gnu"
+    ],
+    "foreign_execution": false,
+    "normal_heap": "32M",
+    "stack": "8M",
+    "separate_poisoned_free_quarantine": "256M",
+    "zero_runtime_leaks": true
+  },
+  "bootstrap": {
+    "status": "passed pinned-seed fixed-point gate; working Rust compiler is tested separately, not substituted for the pinned seed",
+    "stage2_compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "stage3_compiler_sha256": "04be01917c3021d0ba40992a7e87d0c9fc3eb657ee3f3dbaa8218889a0cfbd5f",
+    "stage2_llvm_sha256": "659de07f7e61a40d90a69fdf09b690857d75f50971a437b3444a83123a51640b",
+    "stage3_llvm_sha256": "659de07f7e61a40d90a69fdf09b690857d75f50971a437b3444a83123a51640b",
+    "interface_only_entry_check": true,
+    "changed_source_behavior_probe": true,
+    "bootstrap_sources_changed": false
+  },
+  "codegen_controls": {
+    "benchmark_report": "../benchmarks/stdlib/prim-wide-controls-O2-2026-11-16.json",
+    "rows": 8,
+    "all_independent_reference_checksums_matched": true,
+    "driver_llvm_before_sha256": "92512bcae40e34e6c88a6c3f325eb409d81e70eb0bfc76df383762f506e7b076",
+    "driver_llvm_after_sha256": "92512bcae40e34e6c88a6c3f325eb409d81e70eb0bfc76df383762f506e7b076",
+    "driver_assembly_before_sha256": "578dd37d12c44bad540d06f1c4be07ee117aeef723d966813c9e9f50a8478a6e",
+    "driver_assembly_after_sha256": "578dd37d12c44bad540d06f1c4be07ee117aeef723d966813c9e9f50a8478a6e",
+    "llvm_byte_identical": true,
+    "assembly_byte_identical": true,
+    "performance_claim": "No speedup claimed for existing word-only operations; this admits previously rejected wide inline LLVM signatures."
+  },
+  "remaining_limits": [
+    "Self-built backend wide closures and wide tail groups retain their existing documented restrictions; their positive tests explicitly select Rust.",
+    "Self-built backend public wide primitive object entries still require a uniform-word wrapper. CRC-64 uses private wide helpers.",
+    "The preserved 106-target native comparison was not rerun; previous unchanged-source baseline evidence remains in stdlib-qualified-call-preserved-target-results.json."
+  ],
+  "rebased_origin_main": "aea37603811b486188a47778df47bdf64b1b502f"
+}

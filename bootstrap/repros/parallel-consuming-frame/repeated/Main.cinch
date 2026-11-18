@@ -1,0 +1,19 @@
+-- | Exercise repeated callbacks with a separately allocated list owner.
+module Main where
+  import Data.Array
+  import Data.List
+  import Data.Nat
+  -- | Keep construction outside the callback and prevent static list expansion.
+  #[noinline]
+  descending :: Nat -> List Nat
+  descending count = if count > 0 then Cons (count - 1) (descending (count - 1)) else Nil
+  -- | Read the captured owner on each callback invocation.
+  sum-nats :: List Nat -> Nat
+  sum-nats values = case values of
+    Nil -> 0
+    Cons first rest -> first + sum-nats rest
+  -- | Observe all callback outputs after the runtime has completed its work.
+  main :: Int
+  main = let captured = descending 512 in
+    let output = parTabulate 64 (\index -> sum-nats captured + index) in
+    if nat-to-int (sum-nats (array-to-list output)) == 8374240 then 0 else 1

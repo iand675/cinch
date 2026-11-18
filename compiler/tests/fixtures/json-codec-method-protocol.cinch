@@ -1,0 +1,132 @@
+-- | Independent method precedence and returned-error continuation retain typed application updates.
+module Main where
+  import Text.Json.Codec
+  import Text.Json.Value
+  import Data.Machine
+
+  -- | Keep input and application values opaque to frontend evaluation.
+  prim runtime-size :: U32 -> U32 where
+    llvm {
+      %result = or i32 %0, 0
+      ret i32 %result
+    }
+
+  -- | Copy a runtime-sized complete source before applying a descriptor.
+  input :: String -> Bytes
+  input text =
+    let original = string-to-bytes text in
+    let size = u32-to-nat (runtime-size (wrapping-i64-to-u32 (nat-to-i64 (bytes-len original)))) in
+    let output = bytes-new size in
+    if bytes-len original <= bytes-len output then let copied = bytes-copy-range output original 0 0 (bytes-len original) in output else bytes-new 0
+
+  -- | Compare complete output bytes.
+  same :: Bytes -> String -> Bool
+  same bytes expected = eq-i64 (bytes-compare bytes (string-to-bytes expected)) 0
+
+  -- | Observe a successful encoding with exact bytes.
+  encoded :: Result JsonError Bytes -> String -> Bool
+  encoded result expected = case result of Err error -> False; Ok bytes -> same bytes expected
+
+  -- | Increment a checked test callback counter.
+  note :: Bytes -> Nat -> Unit
+  note counter at =
+    if at < bytes-len counter then
+      let count = bytes-get counter at in
+      if count < 255 then bytes-set counter at (count + 1) else ()
+    else ()
+
+  -- | Inspect one callback count after requiring the complete test buffer.
+  count-is :: Bytes -> Nat -> Nat -> Bool
+  count-is counter at expected = if at < bytes-len counter then bytes-get counter at == expected else False
+
+  -- | A structured application refusal used unchanged by read methods.
+  refusal :: JsonError
+  refusal = JsonValueError "Application" "method-refusal"
+
+  -- | Recognize the original structured cause rather than matching a rendered wrapper.
+  original-refusal :: JsonError -> Bool
+  original-refusal error = case json-error-returned error of None -> False; Some cause -> case cause of JsonValueError label message -> label == "Application" && message == "method-refusal"; other -> False
+
+  -- | JSON wins over text independently in both directions, including on null input.
+  precedence :: Unit -> Bool
+  precedence unit =
+    let counter = bytes-new 4 in
+    let methods = json-methods
+          (Some (False, (\options value -> let counted = note counter 0 in Ok (string-to-bytes "\"json\""))))
+          (Some (False, (\options value -> let counted = note counter 1 in Ok (string-to-bytes "text"))))
+          (Some (\options source prior -> let counted = note counter 2 in json-decoded-ok True))
+          (Some (\options bytes prior -> let counted = note counter 3 in json-decoded-ok False)) in
+    let descriptor = json-type-with-methods json-bool-type methods in
+    let output = json-marshal descriptor False in
+    let decoded = json-update descriptor (input "null") False in
+    encoded output "\"json\"" && json-decoded-value decoded
+      && count-is counter 0 1 && count-is counter 1 0 && count-is counter 2 1 && count-is counter 3 0
+
+  -- | An ineligible addressable JSON method falls back to an eligible value text method.
+  receiver-fallback :: Unit -> Bool
+  receiver-fallback unit =
+    let methods = json-methods (Some (True, (\options value -> Ok (string-to-bytes "\"json\"")))) (Some (False, (\options value -> Ok (string-to-bytes "text")))) None None in
+    let descriptor = json-type-with-methods json-bool-type methods in
+    encoded (json-marshal descriptor False) "\"text\"" && encoded (json-marshal (json-nullable-type descriptor) (Some False)) "\"json\""
+
+  -- | Construct a method that reports a refusal after producing an advanced value.
+  read-method :: Bytes -> JsonType Bool
+  read-method counter = json-type-with-methods json-bool-type (json-methods None None (Some (\options source prior -> let counted = note counter 0 in json-decoded-failure True refusal)) None)
+
+  -- | Established reporting keeps a returned cause and permits continuation despite a method's refusal.
+  returned-read :: Unit -> Bool
+  returned-read unit =
+    let counter = bytes-new 1 in
+    let decoded = json-update (read-method counter) (input "\"error\"") False in
+    json-decoded-value decoded && not (json-decoded-fatal decoded) && count-is counter 0 1
+      && (case json-decoded-error decoded of None -> False; Some error -> original-refusal error && json-error-path error == "")
+
+  -- | Disabled reporting retains exact source kind, source token and original method cause.
+  stopped-read :: Unit -> Bool
+  stopped-read unit =
+    let counter = bytes-new 1 in
+    let options = json-read-options False False (json-policies [json-continue-after-type-errors False]) in
+    let decoded = json-update-with (read-method counter) options (input "\"error\"") False in
+    json-decoded-value decoded && json-decoded-fatal decoded && count-is counter 0 1
+      && (case json-decoded-error decoded of None -> False; Some error -> original-refusal error && (case json-error-semantic error of None -> False; Some info -> eq-u8 (json-semantic-kind-byte info) 34 && same (json-semantic-bytes info) "\"error\"" && bytes-len (json-semantic-reported-bytes info) == 0 && json-semantic-offset info == 0))
+
+  -- | A native application value exposes independent fields without reflected layout.
+  data Partial where
+    -- | First integral field, method-backed bool and final integral field.
+    Partial :: I64 -> Bool -> I64 -> Partial
+
+  -- | One explicit application record makes later first-error continuation observable.
+  partial-type :: Bytes -> JsonType Partial
+  partial-type counter = json-record-type "Partial" (\unit -> (Partial 0 False 0)) (\value -> False)
+    [json-field "first" json-int64-type (\value -> case value of Partial first middle last -> first) (\next prior -> case prior of Partial first middle last -> (Partial next middle last)),
+     json-field "value" (read-method counter) (\value -> case value of Partial first middle last -> middle) (\next prior -> case prior of Partial first middle last -> (Partial first next last)),
+     json-field "last" json-int64-type (\value -> case value of Partial first middle last -> last) (\next prior -> case prior of Partial first middle last -> (Partial first middle next))]
+
+  -- | An earlier mismatch survives a later method error while the final field still advances.
+  first-error-continues :: Unit -> Bool
+  first-error-continues unit =
+    let counter = bytes-new 1 in
+    let decoded = json-update (partial-type counter) (input "{\"first\":\"bad\",\"value\":\"error\",\"last\":2}") (Partial 7 False 9) in
+    (case json-decoded-value decoded of Partial first middle last -> eq-i64 first 7 && middle && eq-i64 last 2)
+      && count-is counter 0 1 && not (json-decoded-fatal decoded)
+      && (case json-decoded-error decoded of None -> False; Some error -> json-error-path error == "first" && (case json-error-returned error of None -> True; Some cause -> False))
+
+  -- | A containing record prepends an escaped semantic pointer while preserving the original token offset.
+  semantic-pointer :: Unit -> Bool
+  semantic-pointer unit =
+    let counter = bytes-new 1 in
+    let descriptor = json-record-type "Escaped" (\unit -> False) not [json-field "a/b~" (read-method counter) (\value -> value) (\next prior -> next)] in
+    let options = json-read-options False False (json-policies [json-continue-after-type-errors False]) in
+    let decoded = json-update-with descriptor options (input "{\"a/b~\":\"error\"}") False in
+    case json-decoded-error decoded of None -> False; Some error -> original-refusal error && (case json-error-semantic error of None -> False; Some info -> json-semantic-pointer info == "/a~1b~0" && json-semantic-offset info == 8 && same (json-semantic-bytes info) "\"error\"")
+
+  -- | Established marshal wrapping retains the original cause, while disabled reporting identifies an unspecified output kind.
+  write-refusal :: Unit -> Bool
+  write-refusal unit =
+    let descriptor = json-type-with-methods json-bool-type (json-methods (Some (False, (\options value -> Err refusal))) None None None) in
+    (case json-marshal descriptor False of Ok bytes -> False; Err error -> original-refusal error && (case error of JsonCustomError label cause -> label == "Bool"; other -> False))
+      && (case json-marshal-with descriptor (json-write-options True False "" "" (json-policies [json-continue-after-type-errors False])) False of Ok bytes -> False; Err error -> case json-error-semantic error of None -> False; Some info -> eq-u8 (json-semantic-kind-byte info) 0 && json-semantic-offset info == 0)
+
+  -- | Report the first protocol group failure with an explicit nonzero exit.
+  main :: Int
+  main = if not (precedence ()) then 1 else if not (receiver-fallback ()) then 2 else if not (returned-read ()) then 3 else if not (stopped-read ()) then 4 else if not (first-error-continues ()) then 5 else if not (semantic-pointer ()) then 6 else if not (write-refusal ()) then 7 else 0

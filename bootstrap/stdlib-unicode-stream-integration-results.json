@@ -1,0 +1,59 @@
+{
+  "description": "Parent integration of Unicode classification codegen and bounded short-write streaming",
+  "source_commits": [
+    "6d5225a9",
+    "e56f596d"
+  ],
+  "targets": {
+    "lib_stream": {
+      "passed": 11,
+      "seconds": 43.37,
+      "test_binary_sha256": "9d4fb24f3decdfe1c40983ff56fb363a1b26c8f6c427a3dbb3b23d81a0b3bfaa"
+    },
+    "lib_unicode_catalog": {
+      "passed": 5,
+      "seconds": 12.41,
+      "test_binary_sha256": "49513b02de6adbf747c1bdb27157f0eb74fa2c2eda0c7abeada3e5e0040ddc76"
+    },
+    "lib_unicode_kernel": {
+      "passed": 6,
+      "seconds": 21.77,
+      "test_binary_sha256": "7ead819bb683f5708e991343db850cfdb630f88b1da8619a7839bbae826f60fe"
+    }
+  },
+  "total_passed": 22,
+  "log_sha256": "49f35adbe57301516e026ba082bc0c4d3217c686d1c836e051bfb89c1fb0702f",
+  "documentation": {
+    "modules": 173,
+    "diagnostics": 0,
+    "orphans": 0,
+    "source_drift_check": "passed",
+    "checked_snapshot_includes": [
+      "Unicode classification optimization",
+      "Effect.Stream short writes",
+      "Data.Bytes.Utf8 spans",
+      "Text.Json.Codec typed checkpoint"
+    ],
+    "host_noise": "Prim.Sys host-dependent page and manifest value count retained from prior reviewed source snapshot"
+  },
+  "inventory": {
+    "public_packages": 180,
+    "complete": 19,
+    "partial": 50,
+    "unreviewed": 111
+  },
+  "evidence": [
+    "benchmarks/stdlib/unicode-optimization-evidence.json",
+    "bootstrap/stdlib-stream-write-all-evidence.json"
+  ],
+  "limits": {
+    "normal_heap": "32M",
+    "poisoned_heap": "256M",
+    "stack": "8M"
+  },
+  "limitations": [
+    "The separate typed JSON and UTF8-span parent Cargo targets are recorded in their own subsequent gate.",
+    "Full standard library initiative remains open; package completion describes reviewed functional coverage, not performance parity.",
+    "Native validation belongs to the separately identified source checkpoint receipts."
+  ]
+}

@@ -1,0 +1,315 @@
+-- | Immutable strided Unicode range tables with exact indexed observations.
+-- Numeric membership includes surrogate code points; scalar construction and
+-- UTF-8 validity remain separate operations. Built-in queries read the compact
+-- class database without copying a table. Custom tables validate ordered bounds,
+-- nonzero strides and Latin-1 metadata before creating private owned storage.
+module Data.Unicode.Range where
+  import Data.Unicode.Tables
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  export UnicodeRange16, MkUnicodeRange16, unicode-range16-low, unicode-range16-high, unicode-range16-stride
+  export UnicodeRange32, MkUnicodeRange32, unicode-range32-low, unicode-range32-high, unicode-range32-stride
+  export UnicodeRangeTable, unicode-range-table, unicode-range-table-with-offset, unicode-range-table-clone
+  export unicode-range16-count, unicode-range32-count, unicode-latin-offset, unicode-range16-at, unicode-range32-at
+  export unicode-range-contains, unicode-range-contains-code, unicode-in, unicode-in-code, unicode-is-one-of, unicode-is-one-of-code
+  export UnicodeRangeError, UnicodeRangeInvalidBounds, UnicodeRangeZeroStride, UnicodeRangeInvalidOrder, UnicodeRangeInvalidLatinOffset, UnicodeRangeTooManyRecords
+  export unicode-range-error-index, unicode-range-error-is-wide, unicode-builtin-range-table
+
+  -- | An inclusive 16-bit strided code-point interval, which may include surrogates.
+  data UnicodeRange16 where
+    -- | Observable raw fields; a custom table validates nonzero stride and ordering.
+    MkUnicodeRange16 :: U16 -> U16 -> U16 -> UnicodeRange16
+
+  -- | An inclusive supplementary-plane strided code-point interval.
+  data UnicodeRange32 where
+    -- | Observable raw fields; a custom table validates the Unicode domain and ordering.
+    MkUnicodeRange32 :: U32 -> U32 -> U32 -> UnicodeRange32
+
+  -- | The lower inclusive 16-bit bound.
+  unicode-range16-low :: UnicodeRange16 -> U16
+  unicode-range16-low span = case span of MkUnicodeRange16 low high stride -> low
+
+  -- | The upper inclusive 16-bit bound, whether or not the stride lands on it.
+  unicode-range16-high :: UnicodeRange16 -> U16
+  unicode-range16-high span = case span of MkUnicodeRange16 low high stride -> high
+
+  -- | The exact original 16-bit stride.
+  unicode-range16-stride :: UnicodeRange16 -> U16
+  unicode-range16-stride span = case span of MkUnicodeRange16 low high stride -> stride
+
+  -- | The lower inclusive supplementary-plane bound.
+  unicode-range32-low :: UnicodeRange32 -> U32
+  unicode-range32-low span = case span of MkUnicodeRange32 low high stride -> low
+
+  -- | The upper inclusive supplementary-plane bound, whether or not the stride lands on it.
+  unicode-range32-high :: UnicodeRange32 -> U32
+  unicode-range32-high span = case span of MkUnicodeRange32 low high stride -> high
+
+  -- | The exact original 32-bit stride, including values larger than the Unicode domain.
+  unicode-range32-stride :: UnicodeRange32 -> U32
+  unicode-range32-stride span = case span of MkUnicodeRange32 low high stride -> stride
+
+  -- | A precise invalid custom interval or metadata observation.
+  data UnicodeRangeError where
+    -- | A reversed or out-of-domain interval; the flag identifies the 32-bit half.
+    UnicodeRangeInvalidBounds :: Bool -> Nat -> UnicodeRangeError
+    -- | A zero stride; the flag identifies the 32-bit half.
+    UnicodeRangeZeroStride :: Bool -> Nat -> UnicodeRangeError
+    -- | An overlapping or out-of-order interval; the flag identifies the 32-bit half.
+    UnicodeRangeInvalidOrder :: Bool -> Nat -> UnicodeRangeError
+    -- | A supplied Latin-1 prefix count differs from the validated interval metadata.
+    UnicodeRangeInvalidLatinOffset :: I32 -> UnicodeRangeError
+    -- | More records than the complete Unicode domain can contain.
+    UnicodeRangeTooManyRecords :: Bool -> Nat -> UnicodeRangeError
+
+  -- | Observe the zero-based invalid interval index; metadata-only failures return zero.
+  unicode-range-error-index :: UnicodeRangeError -> Nat
+  unicode-range-error-index error = case error of
+    UnicodeRangeInvalidBounds wide index -> index
+    UnicodeRangeZeroStride wide index -> index
+    UnicodeRangeInvalidOrder wide index -> index
+    UnicodeRangeInvalidLatinOffset supplied -> 0
+    UnicodeRangeTooManyRecords wide index -> index
+
+  -- | Identify an invalid interval in the supplementary-plane half; metadata-only failures return false.
+  unicode-range-error-is-wide :: UnicodeRangeError -> Bool
+  unicode-range-error-is-wide error = case error of
+    UnicodeRangeInvalidBounds wide index -> wide
+    UnicodeRangeZeroStride wide index -> wide
+    UnicodeRangeInvalidOrder wide index -> wide
+    UnicodeRangeInvalidLatinOffset supplied -> False
+    UnicodeRangeTooManyRecords wide index -> wide
+
+  -- | An immutable built-in table or private copied custom interval storage.
+  data UnicodeRangeTable where
+    -- | A checked numeric identity into immutable versioned source data.
+    BuiltinTable :: U32 -> UnicodeRangeTable
+    -- | Private little-endian triples, separate half counts and validated Latin-1 prefix count.
+    OwnedTable :: Bytes -> Nat -> Nat -> Nat -> UnicodeRangeTable
+
+  -- | Select one immutable built-in identity, rejecting out-of-range internal identifiers.
+  unicode-builtin-range-table :: U32 -> Option UnicodeRangeTable
+  unicode-builtin-range-table index = if lt-u32 index unicode-data-table-count then Some (BuiltinTable index) else None
+
+  -- | Retain an independent immutable table value without copying private storage.
+  unicode-range-table-clone :: UnicodeRangeTable -> UnicodeRangeTable
+  unicode-range-table-clone table = table
+
+  -- | Observe the original number of 16-bit records without materializing the table.
+  unicode-range16-count :: UnicodeRangeTable -> Nat
+  unicode-range16-count table = case table of
+    BuiltinTable index -> u32-to-nat (wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 (unicode-data-table-info index) 32) 1023))
+    OwnedTable bytes small wide latin -> small
+
+  -- | Observe the original number of supplementary-plane records without materializing them.
+  unicode-range32-count :: UnicodeRangeTable -> Nat
+  unicode-range32-count table = case table of
+    BuiltinTable index -> u32-to-nat (wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 (unicode-data-table-info index) 42) 1023))
+    OwnedTable bytes small wide latin -> wide
+
+  -- | Observe the exact original built-in Latin offset, or the calculated custom prefix count.
+  unicode-latin-offset :: UnicodeRangeTable -> Nat
+  unicode-latin-offset table = case table of
+    BuiltinTable index -> u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 (unicode-data-table-info index) 52))
+    OwnedTable bytes small wide latin -> latin
+
+  -- | Validate 16-bit intervals and count the complete Latin-1 prefix with bounded traversal stack.
+  validate-small :: List UnicodeRange16 -> Bool -> U32 -> Nat -> Nat -> Result UnicodeRangeError (Nat, Nat)
+  validate-small spans previous last index latin = case spans of
+    Nil -> Ok (index, latin)
+    Cons span rest -> case span of
+      MkUnicodeRange16 lo hi step ->
+        let low = u16-to-u32 lo in let high = u16-to-u32 hi in
+        if gt-u32 low high then Err (UnicodeRangeInvalidBounds False index)
+        else if eq-u16 step 0 then Err (UnicodeRangeZeroStride False index)
+        else if previous && le-u32 low last then Err (UnicodeRangeInvalidOrder False index)
+        else if index >= 1114112 then Err (UnicodeRangeTooManyRecords False index)
+        else validate-small rest True high (index + 1) (if le-u32 high 255 then latin + 1 else latin)
+
+  -- | Validate supplementary-plane intervals with explicit domain and stride checks.
+  validate-wide :: List UnicodeRange32 -> Bool -> U32 -> Nat -> Result UnicodeRangeError Nat
+  validate-wide spans previous last index = case spans of
+    Nil -> Ok index
+    Cons span rest -> case span of
+      MkUnicodeRange32 low high stride ->
+        if gt-u32 low high || lt-u32 low 65536 || gt-u32 high 1114111 then Err (UnicodeRangeInvalidBounds True index)
+        else if eq-u32 stride 0 then Err (UnicodeRangeZeroStride True index)
+        else if previous && le-u32 low last then Err (UnicodeRangeInvalidOrder True index)
+        else if index >= 1114112 then Err (UnicodeRangeTooManyRecords True index)
+        else validate-wide rest True high (index + 1)
+
+  -- | Store one validated interval with three checked little-endian word writes.
+  write-triple :: Bytes -> Nat -> U32 -> U32 -> U32 -> Unit
+  write-triple out at low high stride = if at + 12 <= bytes-len out then
+    let a = bytes-write-le32 out at low in let b = bytes-write-le32 out (at + 4) high in
+    bytes-write-le32 out (at + 8) stride else ()
+
+  -- | Serialize immutable 16-bit interval observations into private 32-bit slots.
+  write-small :: List UnicodeRange16 -> Bytes -> Nat -> Unit
+  write-small spans out at = case spans of
+    Nil -> ()
+    Cons span rest -> case span of
+      MkUnicodeRange16 low high stride ->
+        let written = write-triple out at (u16-to-u32 low) (u16-to-u32 high) (u16-to-u32 stride) in
+        write-small rest out (at + 12)
+
+  -- | Serialize supplementary-plane interval observations after the complete 16-bit half.
+  write-wide :: List UnicodeRange32 -> Bytes -> Nat -> Unit
+  write-wide spans out at = case spans of
+    Nil -> ()
+    Cons span rest -> case span of
+      MkUnicodeRange32 low high stride ->
+        let written = write-triple out at low high stride in write-wide rest out (at + 12)
+
+  -- | Finish a completely validated custom table without retaining mutable caller storage.
+  own-table :: List UnicodeRange16 -> List UnicodeRange32 -> Nat -> Nat -> Nat -> UnicodeRangeTable
+  own-table small wide n16 n32 latin = let out = bytes-new ((n16 + n32) * 12) in
+    let a = write-small small out 0 in let b = write-wide wide out (n16 * 12) in OwnedTable out n16 n32 latin
+
+  -- | Validate both halves before exposing any allocated private table storage.
+  validate-table :: List UnicodeRange16 -> List UnicodeRange32 -> Result UnicodeRangeError (Nat, Nat, Nat)
+  validate-table small wide = case validate-small small False 0 0 0 of
+    Err error -> Err error
+    Ok counts -> case counts of
+      (n16, latin) -> case validate-wide wide False 0 0 of
+        Err error -> Err error
+        Ok n32 -> if n16 + n32 <= 1114112 then Ok (n16, n32, latin) else Err (UnicodeRangeTooManyRecords True n32)
+
+  -- | Construct a validated custom code-point table, including legitimate surrogate intervals.
+  unicode-range-table :: List UnicodeRange16 -> List UnicodeRange32 -> Result UnicodeRangeError UnicodeRangeTable
+  unicode-range-table small wide = case validate-table small wide of
+    Err error -> Err error
+    Ok counts -> case counts of (n16, n32, latin) -> Ok (own-table small wide n16 n32 latin)
+
+  -- | Construct a custom table only when the explicit Latin prefix matches its validated metadata.
+  unicode-range-table-with-offset :: I32 -> List UnicodeRange16 -> List UnicodeRange32 -> Result UnicodeRangeError UnicodeRangeTable
+  unicode-range-table-with-offset offset small wide = case validate-table small wide of
+    Err error -> Err error
+    Ok counts -> case counts of
+      (n16, n32, latin) -> if ge-i32 offset 0 && u32-to-nat (wrapping-i32-to-u32 offset) == latin then Ok (own-table small wide n16 n32 latin)
+        else Err (UnicodeRangeInvalidLatinOffset offset)
+
+  -- | Read one complete private custom triple into immutable scalar observations.
+  custom-triple :: Bytes -> Nat -> Option (U32, U32, U32)
+  custom-triple bytes index = let at = index * 12 in if at + 12 <= bytes-len bytes then
+    let low = bytes-read-le32 bytes at in let high = bytes-read-le32 bytes (at + 4) in
+    let stride = bytes-read-le32 bytes (at + 8) in Some (low, high, stride)
+    else None
+
+  -- | Decode a preserved compact built-in interval without allocating or copying a table.
+  builtin-triple :: U32 -> U32 -> (U32, U32, U32)
+  builtin-triple table index =
+    let info = unicode-data-table-info table in let start = wrapping-u64-to-u32 info in
+    let word = unicode-data-range-records (wrapping-add-u32 start index) in
+    (wrapping-u64-to-u32 (bit-and-u64 word 2097151), wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 word 21) 2097151), wrapping-u64-to-u32 (wrapping-shr-u64 word 42))
+
+  -- | Observe a 16-bit record by zero-based index; invalid indices return None.
+  unicode-range16-at :: UnicodeRangeTable -> Nat -> Option UnicodeRange16
+  unicode-range16-at table index = if index < unicode-range16-count table && index <= 1114112 then
+    let triple = case table of BuiltinTable id -> Some (builtin-triple id (wrapping-i64-to-u32 (nat-to-i64 index))); OwnedTable bytes n16 n32 latin -> custom-triple bytes index in
+    case triple of None -> None; Some fields -> case fields of (low, high, stride) -> Some (MkUnicodeRange16 (wrapping-u32-to-u16 low) (wrapping-u32-to-u16 high) (wrapping-u32-to-u16 stride))
+    else None
+
+  -- | Observe a supplementary-plane record by zero-based index; invalid indices return None.
+  unicode-range32-at :: UnicodeRangeTable -> Nat -> Option UnicodeRange32
+  unicode-range32-at table index = if index < unicode-range32-count table && index <= 1114112 then
+    let at = unicode-range16-count table + index in
+    let triple = case table of BuiltinTable id -> (if at <= 1114112 then Some (builtin-triple id (wrapping-i64-to-u32 (nat-to-i64 at))) else None); OwnedTable bytes n16 n32 latin -> custom-triple bytes at in
+    case triple of None -> None; Some fields -> case fields of (low, high, stride) -> Some (MkUnicodeRange32 low high stride)
+    else None
+
+  -- | Read one exact little-endian field from a proved private complete interval record.
+  prim load-range-word :: I64 -> U32 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %value = load i32, ptr %p, align 1
+      ret i32 %value
+    } when endian little
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %value = load i32, ptr %p, align 1
+      %result = call i32 @llvm.bswap.i32(i32 %value)
+      ret i32 %result
+    } when endian big
+
+  -- | Test a bounded strided interval with a sanitized divisor even for malformed private inputs.
+  prim strided-member :: U32 -> U32 -> U32 -> U32 -> Bool where
+    llvm {
+      %stride-valid = icmp ne i32 %3, 0
+      %stride = select i1 %stride-valid, i32 %3, i32 1
+      %delta = sub i32 %0, %1
+      %remainder = urem i32 %delta, %stride
+      %landed = icmp eq i32 %remainder, 0
+      %lower = icmp uge i32 %0, %1
+      %upper = icmp ule i32 %0, %2
+      %bounded = and i1 %lower, %upper
+      %admitted = and i1 %bounded, %stride-valid
+      %yes = and i1 %admitted, %landed
+      %result = zext i1 %yes to i8
+      ret i8 %result
+    }
+
+  -- | Search complete private interval records using only machine indices and exact field loads.
+  custom-member :: I64 -> U64 -> U64 -> U32 -> Bool
+  custom-member base low high cp = if lt-u64 low high then
+    let middle = wrapping-shr-u64 (wrapping-add-u64 low high) 1 in
+    let offset = wrapping-mul-u64 middle 12 in let address = wrapping-add-i64 base (wrapping-u64-to-i64 offset) in
+    let lower = load-range-word address in let high-address = wrapping-add-i64 address 4 in let upper = load-range-word high-address in
+    if lt-u32 cp lower then custom-member base low middle cp
+    else if gt-u32 cp upper then custom-member base (wrapping-add-u64 middle 1) high cp
+    else let stride-address = wrapping-add-i64 address 8 in let stride = load-range-word stride-address in strided-member cp lower upper stride
+    else False
+
+  -- | Retain private interval storage until its raw machine search has completed.
+  hold-table :: forall a. Bytes -> a -> a
+  hold-table bytes value = case bytes-len bytes of _ -> value
+
+  -- | Test a built-in category/script/property descriptor directly against the complete class word.
+  builtin-member :: U32 -> U32 -> Bool
+  builtin-member table cp =
+    let descriptor = unicode-data-table-descriptor table in let kind = wrapping-shr-u64 descriptor 60 in
+    let word = unicode-data-class cp in
+    if eq-u64 kind 0 then
+      let category = wrapping-u64-to-u32 (bit-and-u64 word 31) in
+      ne-u64 (bit-and-u64 (wrapping-shr-u64 descriptor category) 1) 0
+    else if eq-u64 kind 1 then eq-u64 (bit-and-u64 (wrapping-shr-u64 word 5) 255) (bit-and-u64 descriptor 255)
+    else let shift = wrapping-u64-to-u32 (bit-and-u64 descriptor 255) in ne-u64 (bit-and-u64 (wrapping-shr-u64 word shift) 1) 0
+
+  -- | Test numeric membership, including surrogates and excluding negative or out-of-domain values.
+  unicode-range-contains-code :: UnicodeRangeTable -> I32 -> Bool
+  unicode-range-contains-code table cp = if ge-i32 cp 0 && le-i32 cp 1114111 then
+    let raw = wrapping-i32-to-u32 cp in (case table of
+      BuiltinTable index -> builtin-member index raw
+      OwnedTable bytes small wide latin -> let count = small + wide in
+        if count <= 1114112 && count * 12 <= bytes-len bytes then
+          let n = wrapping-i64-to-u64 (nat-to-i64 count) in hold-table bytes (custom-member (bytes-data bytes) 0 n raw)
+        else False)
+    else False
+
+  -- | Test the membership of one valid scalar without copying or exposing a backing table.
+  unicode-range-contains :: UnicodeRangeTable -> Char -> Bool
+  unicode-range-contains table cp = unicode-range-contains-code table (wrapping-u32-to-i32 (char-to-u32 cp))
+
+  -- | Test numeric membership in any supplied immutable table, retaining invalid-input policy.
+  unicode-in-code :: I32 -> List UnicodeRangeTable -> Bool
+  unicode-in-code cp tables = case tables of Nil -> False; Cons table rest -> if unicode-range-contains-code table cp then True else unicode-in-code cp rest
+
+  -- | Test scalar membership in any supplied immutable table.
+  unicode-in :: Char -> List UnicodeRangeTable -> Bool
+  unicode-in cp tables = unicode-in-code (wrapping-u32-to-i32 (char-to-u32 cp)) tables
+
+  -- | Test a table list before a numeric code point, with the same union semantics as unicode-in-code.
+  unicode-is-one-of-code :: List UnicodeRangeTable -> I32 -> Bool
+  unicode-is-one-of-code tables cp = unicode-in-code cp tables
+
+  -- | Test a table list before a scalar, with the same union semantics as unicode-in.
+  unicode-is-one-of :: List UnicodeRangeTable -> Char -> Bool
+  unicode-is-one-of tables cp = unicode-in cp tables
