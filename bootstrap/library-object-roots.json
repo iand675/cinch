@@ -1302,6 +1302,22 @@
     {
       "classes": "OO",
       "symbol": "Data.Producer.prod-take"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.List.replicate"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.Map.map-insert"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.Map.map-lookup"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Data.Producer.prod-fold"
     }
   ]
 }
