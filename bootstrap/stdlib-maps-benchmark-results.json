@@ -1,0 +1,505 @@
+{
+  "kind": "public-map-benchmark-preflight",
+  "package_complete": false,
+  "timing_measured": true,
+  "compiler_sha256": "fa3ea3c9be1b74be455cb18ce0f084ef31aafb82e39ccc8fd660f653719531d2",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "opt_level": 2,
+  "generated_rc_debug": false,
+  "cpu_affinity": [
+    2
+  ],
+  "iterations": 8,
+  "sizes": [
+    0,
+    1,
+    31,
+    256,
+    4096
+  ],
+  "workloads": [
+    "construct-overwrite-query-delete-walk",
+    "complete-traversal",
+    "immediate-stop"
+  ],
+  "completed_zero_leak_processes": 60,
+  "preflight_report": "build/maps-public-benchmark-fa3-v2/preflight.json",
+  "preflight_report_sha256": "1abbff2e8ab2c32b374dc02746971399a8d3b18bdc273d160803f07c33ea7eff",
+  "contract": "Identical Nat inputs without callback mutation; HashTable traversal materializes its public value snapshot, MutableMap captures stable identities. No equivalence under callback mutation is claimed.",
+  "timing": "Runtime monotonic interval includes complete pipeline; prepared map construction excluded for scan workloads; process teardown excluded. Normal generated RC only. Allocation counters run only in preflight and include startup/preparation/teardown.",
+  "builds": {
+    "hash-table": {
+      "compiler_sha256": "fa3ea3c9be1b74be455cb18ce0f084ef31aafb82e39ccc8fd660f653719531d2",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "7768f97974965545a9c503f9148cea79ec2a4cdba5277c20dc8cd29544553404",
+      "sources": {
+        "Data.Mutable.Map": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+        "Data.Mutable.HashTable": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+        "Data.Mutable.LinkedList": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
+        "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+      },
+      "executable_sha256": "d49f4a7426469e173ae5b4c76cbf6bcc5235750dc924641c3ee204462ccb2fd4",
+      "llvm_sha256": "15c34bba5476ff8ac81e412db08d12b17a939ee013668ac2e894d930a9f3e0ed",
+      "assembly_sha256": "83e43590215b8aca5fc16acc2a7d0979205b4c8acd8a3fba23a21782329beb7c"
+    },
+    "stable-map": {
+      "compiler_sha256": "fa3ea3c9be1b74be455cb18ce0f084ef31aafb82e39ccc8fd660f653719531d2",
+      "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+      "consumer_sha256": "776593d60a72066ab575f51ac925969392b9aedc577db2312f4d2b7831fe8b6f",
+      "sources": {
+        "Data.Mutable.Map": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+        "Data.Mutable.HashTable": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+        "Data.Mutable.LinkedList": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
+        "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+      },
+      "executable_sha256": "61d6da38f6513b6b60a1c82877621cb472487d378ddf14015b113b7654f19b04",
+      "llvm_sha256": "34f52d4d5aef15dad0e3817e2ee07ace1ce3408eba9cd2e77fa8929290a2f8b2",
+      "assembly_sha256": "27692dc1a89d6ef22f3803027c6cbf9358be7c0a7047e925db19e631186d66f3"
+    }
+  },
+  "normal_allocation_profiles": [
+    {
+      "workload": "construct-overwrite-query-delete-walk",
+      "size": 0,
+      "expected": 0,
+      "variants": {
+        "hash-table": {
+          "blocks": 179,
+          "bytes": 6519,
+          "peak": 1296,
+          "header_blocks": 155
+        },
+        "stable-map": {
+          "blocks": 304,
+          "bytes": 9977,
+          "peak": 1764,
+          "header_blocks": 262
+        }
+      }
+    },
+    {
+      "workload": "construct-overwrite-query-delete-walk",
+      "size": 1,
+      "expected": 116,
+      "variants": {
+        "hash-table": {
+          "blocks": 199,
+          "bytes": 6867,
+          "peak": 1298,
+          "header_blocks": 175
+        },
+        "stable-map": {
+          "blocks": 516,
+          "bytes": 15317,
+          "peak": 1892,
+          "header_blocks": 474
+        }
+      }
+    },
+    {
+      "workload": "construct-overwrite-query-delete-walk",
+      "size": 31,
+      "expected": 756296,
+      "variants": {
+        "hash-table": {
+          "blocks": 1267,
+          "bytes": 54936,
+          "peak": 2777,
+          "header_blocks": 1243
+        },
+        "stable-map": {
+          "blocks": 6170,
+          "bytes": 183750,
+          "peak": 9397,
+          "header_blocks": 6128
+        }
+      }
+    },
+    {
+      "workload": "construct-overwrite-query-delete-walk",
+      "size": 256,
+      "expected": 53384704,
+      "variants": {
+        "hash-table": {
+          "blocks": 8575,
+          "bytes": 403483,
+          "peak": 16266,
+          "header_blocks": 8551
+        },
+        "stable-map": {
+          "blocks": 47670,
+          "bytes": 1432073,
+          "peak": 63982,
+          "header_blocks": 47628
+        }
+      }
+    },
+    {
+      "workload": "construct-overwrite-query-delete-walk",
+      "size": 4096,
+      "expected": 13688725504,
+      "variants": {
+        "hash-table": {
+          "blocks": 131597,
+          "bytes": 6305868,
+          "peak": 246667,
+          "header_blocks": 131573
+        },
+        "stable-map": {
+          "blocks": 754388,
+          "bytes": 22694906,
+          "peak": 1000943,
+          "header_blocks": 754346
+        }
+      }
+    },
+    {
+      "workload": "complete-traversal",
+      "size": 0,
+      "expected": 0,
+      "variants": {
+        "hash-table": {
+          "blocks": 129,
+          "bytes": 3979,
+          "peak": 1295,
+          "header_blocks": 105
+        },
+        "stable-map": {
+          "blocks": 142,
+          "bytes": 4349,
+          "peak": 1295,
+          "header_blocks": 116
+        }
+      }
+    },
+    {
+      "workload": "complete-traversal",
+      "size": 1,
+      "expected": 185,
+      "variants": {
+        "hash-table": {
+          "blocks": 181,
+          "bytes": 5735,
+          "peak": 1297,
+          "header_blocks": 157
+        },
+        "stable-map": {
+          "blocks": 254,
+          "bytes": 7613,
+          "peak": 1386,
+          "header_blocks": 228
+        }
+      }
+    },
+    {
+      "workload": "complete-traversal",
+      "size": 31,
+      "expected": 500995,
+      "variants": {
+        "hash-table": {
+          "blocks": 1407,
+          "bytes": 54496,
+          "peak": 3233,
+          "header_blocks": 1383
+        },
+        "stable-map": {
+          "blocks": 1511,
+          "bytes": 58770,
+          "peak": 9339,
+          "header_blocks": 1485
+        }
+      }
+    },
+    {
+      "workload": "complete-traversal",
+      "size": 256,
+      "expected": 35009020,
+      "variants": {
+        "hash-table": {
+          "blocks": 10415,
+          "bytes": 416523,
+          "peak": 22098,
+          "header_blocks": 10391
+        },
+        "stable-map": {
+          "blocks": 10747,
+          "bytes": 438853,
+          "peak": 69596,
+          "header_blocks": 10721
+        }
+      }
+    },
+    {
+      "workload": "complete-traversal",
+      "size": 4096,
+      "expected": 8990691580,
+      "variants": {
+        "hash-table": {
+          "blocks": 164043,
+          "bytes": 6591982,
+          "peak": 344659,
+          "header_blocks": 164019
+        },
+        "stable-map": {
+          "blocks": 168219,
+          "bytes": 6921608,
+          "peak": 1098717,
+          "header_blocks": 168193
+        }
+      }
+    },
+    {
+      "workload": "immediate-stop",
+      "size": 0,
+      "expected": 0,
+      "variants": {
+        "hash-table": {
+          "blocks": 129,
+          "bytes": 3915,
+          "peak": 1295,
+          "header_blocks": 105
+        },
+        "stable-map": {
+          "blocks": 144,
+          "bytes": 4329,
+          "peak": 1296,
+          "header_blocks": 118
+        }
+      }
+    },
+    {
+      "workload": "immediate-stop",
+      "size": 1,
+      "expected": 101,
+      "variants": {
+        "hash-table": {
+          "blocks": 181,
+          "bytes": 5607,
+          "peak": 1297,
+          "header_blocks": 157
+        },
+        "stable-map": {
+          "blocks": 254,
+          "bytes": 7485,
+          "peak": 1378,
+          "header_blocks": 228
+        }
+      }
+    },
+    {
+      "workload": "immediate-stop",
+      "size": 31,
+      "expected": 455,
+      "variants": {
+        "hash-table": {
+          "blocks": 1161,
+          "bytes": 40790,
+          "peak": 3225,
+          "header_blocks": 1137
+        },
+        "stable-map": {
+          "blocks": 1265,
+          "bytes": 45064,
+          "peak": 9331,
+          "header_blocks": 1239
+        }
+      }
+    },
+    {
+      "workload": "immediate-stop",
+      "size": 256,
+      "expected": 2480,
+      "variants": {
+        "hash-table": {
+          "blocks": 8383,
+          "bytes": 302291,
+          "peak": 22090,
+          "header_blocks": 8359
+        },
+        "stable-map": {
+          "blocks": 8715,
+          "bytes": 324621,
+          "peak": 69588,
+          "header_blocks": 8689
+        }
+      }
+    },
+    {
+      "workload": "immediate-stop",
+      "size": 4096,
+      "expected": 37040,
+      "variants": {
+        "hash-table": {
+          "blocks": 131289,
+          "bytes": 4757384,
+          "peak": 344651,
+          "header_blocks": 131265
+        },
+        "stable-map": {
+          "blocks": 135465,
+          "bytes": 5087010,
+          "peak": 1098709,
+          "header_blocks": 135439
+        }
+      }
+    }
+  ],
+  "measurement_report": "build/maps-public-benchmark-fa3-v2/measure.json",
+  "measurement_sha256": "613f3b2253f0976d71dccf1ca94524703808ada7408a984bff049c4f725d0f38",
+  "measurement_cpu_affinity": [
+    0
+  ],
+  "measurement_processes": 180,
+  "warmups_per_variant": 1,
+  "samples_per_variant": 5,
+  "allocation_counters_during_timing": false,
+  "shared_cpu_max": "400000 100000",
+  "global_cgroup_delta": {
+    "usage_usec": 668443,
+    "user_usec": 496931,
+    "system_usec": 171513,
+    "nice_usec": 0,
+    "nr_periods": 8,
+    "nr_throttled": 0,
+    "throttled_usec": 0,
+    "nr_bursts": 0,
+    "burst_usec": 0
+  },
+  "medians": [
+    {
+      "workload": "construct-overwrite-query-delete-walk",
+      "size": 0,
+      "expected": 0,
+      "median_ns": {
+        "hash-table": 6500,
+        "stable-map": 9836
+      }
+    },
+    {
+      "workload": "construct-overwrite-query-delete-walk",
+      "size": 1,
+      "expected": 116,
+      "median_ns": {
+        "hash-table": 9004,
+        "stable-map": 24007
+      }
+    },
+    {
+      "workload": "construct-overwrite-query-delete-walk",
+      "size": 31,
+      "expected": 756296,
+      "median_ns": {
+        "hash-table": 68085,
+        "stable-map": 242806
+      }
+    },
+    {
+      "workload": "construct-overwrite-query-delete-walk",
+      "size": 256,
+      "expected": 53384704,
+      "median_ns": {
+        "hash-table": 537173,
+        "stable-map": 1915418
+      }
+    },
+    {
+      "workload": "construct-overwrite-query-delete-walk",
+      "size": 4096,
+      "expected": 13688725504,
+      "median_ns": {
+        "hash-table": 6937951,
+        "stable-map": 30675204
+      }
+    },
+    {
+      "workload": "complete-traversal",
+      "size": 0,
+      "expected": 0,
+      "median_ns": {
+        "hash-table": 5258,
+        "stable-map": 4667
+      }
+    },
+    {
+      "workload": "complete-traversal",
+      "size": 1,
+      "expected": 185,
+      "median_ns": {
+        "hash-table": 8272,
+        "stable-map": 10987
+      }
+    },
+    {
+      "workload": "complete-traversal",
+      "size": 31,
+      "expected": 500995,
+      "median_ns": {
+        "hash-table": 37538,
+        "stable-map": 40863
+      }
+    },
+    {
+      "workload": "complete-traversal",
+      "size": 256,
+      "expected": 35009020,
+      "median_ns": {
+        "hash-table": 247383,
+        "stable-map": 256607
+      }
+    },
+    {
+      "workload": "complete-traversal",
+      "size": 4096,
+      "expected": 8990691580,
+      "median_ns": {
+        "hash-table": 3924492,
+        "stable-map": 4537041
+      }
+    },
+    {
+      "workload": "immediate-stop",
+      "size": 0,
+      "expected": 0,
+      "median_ns": {
+        "hash-table": 5729,
+        "stable-map": 4887
+      }
+    },
+    {
+      "workload": "immediate-stop",
+      "size": 1,
+      "expected": 101,
+      "median_ns": {
+        "hash-table": 8594,
+        "stable-map": 10497
+      }
+    },
+    {
+      "workload": "immediate-stop",
+      "size": 31,
+      "expected": 455,
+      "median_ns": {
+        "hash-table": 33602,
+        "stable-map": 29456
+      }
+    },
+    {
+      "workload": "immediate-stop",
+      "size": 256,
+      "expected": 2480,
+      "median_ns": {
+        "hash-table": 247925,
+        "stable-map": 165186
+      }
+    },
+    {
+      "workload": "immediate-stop",
+      "size": 4096,
+      "expected": 37040,
+      "median_ns": {
+        "hash-table": 3722618,
+        "stable-map": 2885681
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+-- | Preserve IO and mutation effects through pair sources and live value callbacks.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Bytes (bytes-new)
+  import Data.Mutable.Map
+  import Data.Mutable.Var
+
+  -- | Supply ordered bindings while retaining both source and consumer effects.
+  input-pairs :: forall r. using (io :: Io r) => (Nat -> Nat ->{Mut r, IO r} Bool) ->{Mut r, IO r} Unit
+  input-pairs yield =
+    let written = ioWrite (bytes-new 0) in
+    if yield 1 10 then
+      if yield 2 20 then let replaced = yield 1 30 in () else ()
+    else ()
+
+  -- | Observe each value through IO and update a region-scoped callback counter.
+  count-value :: forall r. using (io :: Io r) => Var r Nat -> Nat ->{Mut r, IO r} Bool
+  count-value calls value =
+    let written = ioWrite (bytes-new 0) in
+    let before = var-read calls in
+    let counted = var-write calls (before + value) in True
+
+  -- | Compare corresponding values with an effectful predicate whose calls are observable.
+  compare-value :: forall r. using (io :: Io r) => Var r Nat -> Nat -> Nat ->{Mut r, IO r} Bool
+  compare-value calls first second =
+    let written = ioWrite (bytes-new 0) in
+    let before = var-read calls in
+    let counted = var-write calls (before + 1) in first == second
+
+  -- | Keep IO in both the producing source and consuming callbacks without a stored effect constructor.
+  exercise :: forall r. using (io :: Io r) => Unit ->{Mut r, IO r} Int
+  exercise unit = case mutable-map-collect input-pairs of
+    Err error -> 1
+    Ok map ->
+      let sum = var-new (0 :: Nat) in
+      let exhausted = mutable-map-values map (count-value sum) in
+      case mutable-map-clone map of
+        Err error -> 2
+        Ok copy ->
+          let comparisons = var-new (0 :: Nat) in
+          let equal = mutable-map-equal-by (compare-value comparisons) map copy in
+          if exhausted && equal && var-read sum == 50 && var-read comparisons == 2 && mutable-map-size map == 2 then 0 else 3
+
+  -- | Create the actual IO capability while preserving the entry's complete effect row.
+  main :: forall r. Unit ->{Mut r, IO r} Int
+  main unit = with (io = newIO ()) in exercise unit

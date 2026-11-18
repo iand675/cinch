@@ -1,0 +1,985 @@
+{
+  "format": 1,
+  "kind": "static-operation-audit",
+  "basis": "bfb4cb57113016a6cb054fd5c460b6cea6fcf60d",
+  "reference_package": "maps",
+  "reference_sdk": "go1.27.4",
+  "reference_source_hashes": {
+    "VERSION": "28ff77ac2178f2faca8a4f535e60b1738e397c9086b3ecfc18c9955abe75634a",
+    "src/maps/maps.go": "0f69acac135baa8b644e2479e514835b4d991bcc894916c2e34b8739a171fce2",
+    "src/maps/iter.go": "a803b5b1b09aa2dcedf90db32270f9cec310bc7cf8f141f87c2e6567db0c4208",
+    "src/iter/iter.go": "e868b6ef54b1c4f437444e10bc455479dfc6e936540e738016a3447bd244f249",
+    "doc/go_spec.html": "a249c493e0ad58ccfeac8081426d5b0e77f92b9761b95548f85c9e4d23d0a753",
+    "src/internal/runtime/maps/map.go": "db25c2600bef3dc809cb4d0a09d31a93867a104ea234ec2b085cb6c1ec60197d"
+  },
+  "reference_declarations": [
+    "func All[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0) iter.Seq2[$1, $2]",
+    "func Clone[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0) $0",
+    "func Collect[$0 comparable, $1 interface{}](iter.Seq2[$0, $1]) map[$0]$1",
+    "func Copy[$0 interface{ ~map[$2]$3 }, $1 interface{ ~map[$2]$3 }, $2 comparable, $3 interface{}]($0, $1)",
+    "func DeleteFunc[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0, func($1, $2) bool)",
+    "func EqualFunc[$0 interface{ ~map[$2]$3 }, $1 interface{ ~map[$2]$4 }, $2 comparable, $3 interface{}, $4 interface{}]($0, $1, func($3, $4) bool) bool",
+    "func Equal[$0 interface{ ~map[$2]$3 }, $1 interface{ ~map[$2]$3 }, $2 comparable, $3 comparable]($0, $1) bool",
+    "func Insert[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0, iter.Seq2[$1, $2])",
+    "func Keys[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0) iter.Seq[$1]",
+    "func Values[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0) iter.Seq[$2]"
+  ],
+  "reference_count": 10,
+  "package_status": "partial",
+  "implementation_changes": false,
+  "compiler_or_runtime_gates_run": false,
+  "modules": [
+    {
+      "module": "Data.Map",
+      "path": "compiler/prelude/Data/Map.cinch",
+      "sha256": "0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32",
+      "exports": [
+        "Map",
+        "Tip",
+        "Bin",
+        "map-insert",
+        "map-lookup",
+        "map-from-pairs",
+        "map-empty",
+        "map-delete",
+        "map-union",
+        "map-union-with",
+        "map-keys",
+        "map-values",
+        "map-to-list",
+        "map-size",
+        "map-is-empty",
+        "map-map",
+        "map-filter",
+        "map-fold"
+      ],
+      "value_signatures": {
+        "map-insert": {
+          "line": 28,
+          "type": "forall k v. using (ord :: Ord k) => k -> v -> Map k v -> Map k v"
+        },
+        "map-lookup": {
+          "line": 36,
+          "type": "forall k v. using (ord :: Ord k) => k -> Map k v -> Option v"
+        },
+        "map-from-pairs": {
+          "line": 44,
+          "type": "forall k v. using (ord :: Ord k) => List (k, v) -> Map k v"
+        },
+        "map-empty": {
+          "line": 53,
+          "type": "forall k v. Map k v"
+        },
+        "map-delete": {
+          "line": 60,
+          "type": "forall k v. using (ord :: Ord k) => k -> Map k v -> Map k v"
+        },
+        "map-union": {
+          "line": 84,
+          "type": "forall k v. using (ord :: Ord k) => Map k v -> Map k v -> Map k v"
+        },
+        "map-union-with": {
+          "line": 90,
+          "type": "forall k v. using (ord :: Ord k) => (v -> v -> v) -> Map k v -> Map k v -> Map k v"
+        },
+        "map-to-list": {
+          "line": 110,
+          "type": "forall k v. Map k v -> List (k, v)"
+        },
+        "map-keys": {
+          "line": 119,
+          "type": "forall k v. Map k v -> List k"
+        },
+        "map-values": {
+          "line": 129,
+          "type": "forall k v. Map k v -> List v"
+        },
+        "map-size": {
+          "line": 139,
+          "type": "forall k v. Map k v -> Nat"
+        },
+        "map-is-empty": {
+          "line": 149,
+          "type": "forall k v. Map k v -> Bool"
+        },
+        "map-map": {
+          "line": 156,
+          "type": "forall k v w. (v -> w) -> Map k v -> Map k w"
+        },
+        "map-filter": {
+          "line": 165,
+          "type": "forall k v. (k -> v -> Bool) -> Map k v -> Map k v"
+        },
+        "map-fold": {
+          "line": 176,
+          "type": "forall k v b. (k -> v -> b -> b) -> b -> Map k v -> b"
+        }
+      }
+    },
+    {
+      "module": "Data.HashMap",
+      "path": "compiler/prelude/Data/HashMap.cinch",
+      "sha256": "bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565",
+      "exports": [
+        "HashMap",
+        "hash-map-empty",
+        "hash-map-insert",
+        "hash-map-lookup",
+        "hash-map-from-pairs",
+        "hash-map-delete",
+        "hash-map-union",
+        "hash-map-union-with",
+        "hash-map-size",
+        "hash-map-is-empty",
+        "hash-map-to-list",
+        "hash-map-keys",
+        "hash-map-values",
+        "hash-map-map",
+        "hash-map-filter",
+        "hash-map-fold"
+      ],
+      "value_signatures": {
+        "hash-map-empty": {
+          "line": 139,
+          "type": "forall k v. HashMap k v"
+        },
+        "hash-map-lookup": {
+          "line": 142,
+          "type": "forall k v. using (h :: Hash k, eq :: Eq k) => k -> HashMap k v -> Option v"
+        },
+        "hash-map-insert": {
+          "line": 148,
+          "type": "forall k v. using (h :: Hash k, eq :: Eq k) => k -> v -> HashMap k v -> HashMap k v"
+        },
+        "hash-map-from-pairs": {
+          "line": 155,
+          "type": "forall k v. using (h :: Hash k, eq :: Eq k) => List (k, v) -> HashMap k v"
+        },
+        "hash-map-delete": {
+          "line": 164,
+          "type": "forall k v. using (h :: Hash k, eq :: Eq k) => k -> HashMap k v -> HashMap k v"
+        },
+        "hash-map-to-list": {
+          "line": 219,
+          "type": "forall k v. HashMap k v -> List (k, v)"
+        },
+        "hash-map-keys": {
+          "line": 233,
+          "type": "forall k v. HashMap k v -> List k"
+        },
+        "hash-map-values": {
+          "line": 236,
+          "type": "forall k v. HashMap k v -> List v"
+        },
+        "hash-map-size": {
+          "line": 252,
+          "type": "forall k v. HashMap k v -> Nat"
+        },
+        "hash-map-is-empty": {
+          "line": 264,
+          "type": "forall k v. HashMap k v -> Bool"
+        },
+        "hash-map-union": {
+          "line": 279,
+          "type": "forall k v. using (h :: Hash k, eq :: Eq k) => HashMap k v -> HashMap k v -> HashMap k v"
+        },
+        "hash-map-union-with": {
+          "line": 285,
+          "type": "forall k v. using (h :: Hash k, eq :: Eq k) => (v -> v -> v) -> HashMap k v -> HashMap k v -> HashMap k v"
+        },
+        "hash-map-map": {
+          "line": 305,
+          "type": "forall k v w. (v -> w) -> HashMap k v -> HashMap k w"
+        },
+        "hash-map-filter": {
+          "line": 325,
+          "type": "forall k v. using (h :: Hash k, eq :: Eq k) => (k -> v -> Bool) -> HashMap k v -> HashMap k v"
+        },
+        "hash-map-fold": {
+          "line": 342,
+          "type": "forall k v b. (k -> v -> b -> b) -> b -> HashMap k v -> b"
+        }
+      }
+    },
+    {
+      "module": "Data.Mutable.HashTable",
+      "path": "compiler/prelude/Data/Mutable/HashTable.cinch",
+      "sha256": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+      "exports": [
+        "HashTable",
+        "hash-table-new",
+        "hash-table-with-capacity",
+        "hash-table-size",
+        "hash-table-is-empty",
+        "hash-table-capacity",
+        "hash-table-insert",
+        "hash-table-try-insert",
+        "hash-table-insert-with",
+        "hash-table-lookup",
+        "hash-table-lookup-or",
+        "hash-table-member",
+        "hash-table-delete",
+        "hash-table-modify",
+        "hash-table-upsert",
+        "hash-table-clear",
+        "hash-table-reserve",
+        "hash-table-from-list",
+        "hash-table-to-list",
+        "hash-table-keys",
+        "hash-table-values",
+        "hash-table-fold",
+        "hash-table-for-each"
+      ],
+      "value_signatures": {
+        "hash-table-new": {
+          "line": 316,
+          "type": "forall r k v. Unit ->{Mut r} HashTable r k v"
+        },
+        "hash-table-with-capacity": {
+          "line": 320,
+          "type": "forall r k v. Nat ->{Mut r} HashTable r k v"
+        },
+        "hash-table-size": {
+          "line": 330,
+          "type": "forall r k v. HashTable r k v ->{Mut r} Nat"
+        },
+        "hash-table-is-empty": {
+          "line": 334,
+          "type": "forall r k v. HashTable r k v ->{Mut r} Bool"
+        },
+        "hash-table-capacity": {
+          "line": 339,
+          "type": "forall r k v. HashTable r k v ->{Mut r} Nat"
+        },
+        "hash-table-reserve": {
+          "line": 344,
+          "type": "forall r k v. using (h :: Hash k) => HashTable r k v -> Nat ->{Mut r} Unit"
+        },
+        "hash-table-lookup": {
+          "line": 374,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k ->{Mut r} Option v"
+        },
+        "hash-table-lookup-or": {
+          "line": 388,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> v ->{Mut r} v"
+        },
+        "hash-table-member": {
+          "line": 401,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k ->{Mut r} Bool"
+        },
+        "hash-table-insert": {
+          "line": 457,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> v ->{Mut r} Unit"
+        },
+        "hash-table-try-insert": {
+          "line": 470,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> v ->{Mut r} Bool"
+        },
+        "hash-table-insert-with": {
+          "line": 483,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => (v -> v -> v) -> HashTable r k v -> k -> v ->{Mut r} Unit"
+        },
+        "hash-table-modify": {
+          "line": 504,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> (v -> v) ->{Mut r} Bool"
+        },
+        "hash-table-upsert": {
+          "line": 516,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> (Option v -> v) ->{Mut r} Unit"
+        },
+        "hash-table-delete": {
+          "line": 533,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k ->{Mut r} Option v"
+        },
+        "hash-table-clear": {
+          "line": 557,
+          "type": "forall r k v. HashTable r k v ->{Mut r} Unit"
+        },
+        "hash-table-from-list": {
+          "line": 571,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => List (k, v) ->{Mut r} HashTable r k v"
+        },
+        "hash-table-fold": {
+          "line": 588,
+          "type": "forall r k v b. (b -> k -> v -> b) -> b -> HashTable r k v ->{Mut r} b"
+        },
+        "hash-table-to-list": {
+          "line": 604,
+          "type": "forall r k v. HashTable r k v ->{Mut r} List (k, v)"
+        },
+        "hash-table-keys": {
+          "line": 607,
+          "type": "forall r k v. HashTable r k v ->{Mut r} List k"
+        },
+        "hash-table-values": {
+          "line": 610,
+          "type": "forall r k v. HashTable r k v ->{Mut r} List v"
+        },
+        "hash-table-for-each": {
+          "line": 615,
+          "type": "forall r k v. HashTable r k v -> (k -> v ->{Mut r} Unit) ->{Mut r} Unit"
+        }
+      }
+    },
+    {
+      "module": "Data.Mutable.BTree",
+      "path": "compiler/prelude/Data/Mutable/BTree.cinch",
+      "sha256": "9741c4de3eb73bcf097d0dc27f48d9ace038c8a9ca7e4a8062e6e6f41cc19c54",
+      "exports": [
+        "BTreeMap",
+        "btree-new",
+        "btree-size",
+        "btree-is-empty",
+        "btree-height",
+        "btree-insert",
+        "btree-lookup",
+        "btree-lookup-or",
+        "btree-member",
+        "btree-delete",
+        "btree-modify",
+        "btree-min",
+        "btree-max",
+        "btree-pop-min",
+        "btree-pop-max",
+        "btree-floor",
+        "btree-ceiling",
+        "btree-fold",
+        "btree-fold-range",
+        "btree-for-each",
+        "btree-to-list",
+        "btree-keys",
+        "btree-values",
+        "btree-from-list",
+        "btree-clear",
+        "btree-verify"
+      ],
+      "value_signatures": {
+        "btree-new": {
+          "line": 267,
+          "type": "forall r k v. Unit ->{Mut r} BTreeMap r k v"
+        },
+        "btree-size": {
+          "line": 286,
+          "type": "forall r k v. BTreeMap r k v ->{Mut r} Nat"
+        },
+        "btree-is-empty": {
+          "line": 291,
+          "type": "forall r k v. BTreeMap r k v ->{Mut r} Bool"
+        },
+        "btree-height": {
+          "line": 297,
+          "type": "forall r k v. BTreeMap r k v ->{Mut r} Nat"
+        },
+        "btree-lookup": {
+          "line": 306,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v -> k ->{Mut r} Option v"
+        },
+        "btree-lookup-or": {
+          "line": 319,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v -> k -> v ->{Mut r} v"
+        },
+        "btree-member": {
+          "line": 332,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v -> k ->{Mut r} Bool"
+        },
+        "btree-modify": {
+          "line": 344,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v -> k -> (v -> v) ->{Mut r} Bool"
+        },
+        "btree-insert": {
+          "line": 367,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v -> k -> v ->{Mut r} Unit"
+        },
+        "btree-delete": {
+          "line": 447,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v -> k ->{Mut r} Option v"
+        },
+        "btree-min": {
+          "line": 634,
+          "type": "forall r k v. BTreeMap r k v ->{Mut r} Option (k, v)"
+        },
+        "btree-max": {
+          "line": 641,
+          "type": "forall r k v. BTreeMap r k v ->{Mut r} Option (k, v)"
+        },
+        "btree-pop-min": {
+          "line": 656,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v ->{Mut r} Option (k, v)"
+        },
+        "btree-pop-max": {
+          "line": 659,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v ->{Mut r} Option (k, v)"
+        },
+        "btree-floor": {
+          "line": 671,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v -> k ->{Mut r} Option (k, v)"
+        },
+        "btree-ceiling": {
+          "line": 692,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v -> k ->{Mut r} Option (k, v)"
+        },
+        "btree-fold": {
+          "line": 717,
+          "type": "forall r k v b. (b -> k -> v -> b) -> b -> BTreeMap r k v ->{Mut r} b"
+        },
+        "btree-fold-range": {
+          "line": 746,
+          "type": "forall r k v b. using (o :: Ord k) => (b -> k -> v -> b) -> b -> k -> k -> BTreeMap r k v ->{Mut r} b"
+        },
+        "btree-to-list": {
+          "line": 779,
+          "type": "forall r k v. BTreeMap r k v ->{Mut r} List (k, v)"
+        },
+        "btree-keys": {
+          "line": 811,
+          "type": "forall r k v. BTreeMap r k v ->{Mut r} List k"
+        },
+        "btree-values": {
+          "line": 814,
+          "type": "forall r k v. BTreeMap r k v ->{Mut r} List v"
+        },
+        "btree-for-each": {
+          "line": 830,
+          "type": "forall r k v. BTreeMap r k v -> (k -> v ->{Mut r} Unit) ->{Mut r} Unit"
+        },
+        "btree-from-list": {
+          "line": 841,
+          "type": "forall r k v. using (o :: Ord k) => List (k, v) ->{Mut r} BTreeMap r k v"
+        },
+        "btree-clear": {
+          "line": 857,
+          "type": "forall r k v. BTreeMap r k v ->{Mut r} Unit"
+        },
+        "btree-verify": {
+          "line": 885,
+          "type": "forall r k v. using (o :: Ord k) => BTreeMap r k v ->{Mut r} Bool"
+        }
+      }
+    },
+    {
+      "module": "Data.Mutable.IndexMap",
+      "path": "compiler/prelude/Data/Mutable/IndexMap.cinch",
+      "sha256": "119e94ae13c00611a834c4947d4db4c9bfed98b86da803c8ce707c16fe0cf501",
+      "exports": [
+        "IndexMap",
+        "index-map-new",
+        "index-map-size",
+        "index-map-is-empty",
+        "index-map-insert",
+        "index-map-lookup",
+        "index-map-lookup-or",
+        "index-map-member",
+        "index-map-index-of",
+        "index-map-get-index",
+        "index-map-swap-remove",
+        "index-map-shift-remove",
+        "index-map-pop",
+        "index-map-clear",
+        "index-map-fold",
+        "index-map-to-list",
+        "index-map-keys",
+        "index-map-values",
+        "index-map-from-list"
+      ],
+      "value_signatures": {
+        "index-map-new": {
+          "line": 285,
+          "type": "forall r k v. Unit ->{Mut r} IndexMap r k v"
+        },
+        "index-map-size": {
+          "line": 296,
+          "type": "forall r k v. IndexMap r k v ->{Mut r} Nat"
+        },
+        "index-map-is-empty": {
+          "line": 299,
+          "type": "forall r k v. IndexMap r k v ->{Mut r} Bool"
+        },
+        "index-map-lookup": {
+          "line": 321,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k ->{Mut r} Option v"
+        },
+        "index-map-lookup-or": {
+          "line": 337,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k -> v ->{Mut r} v"
+        },
+        "index-map-member": {
+          "line": 345,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k ->{Mut r} Bool"
+        },
+        "index-map-index-of": {
+          "line": 349,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k ->{Mut r} Option Nat"
+        },
+        "index-map-get-index": {
+          "line": 355,
+          "type": "forall r k v. IndexMap r k v -> Nat ->{Mut r} Option (k, v)"
+        },
+        "index-map-insert": {
+          "line": 369,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k -> v ->{Mut r} Unit"
+        },
+        "index-map-swap-remove": {
+          "line": 453,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k ->{Mut r} Option v"
+        },
+        "index-map-shift-remove": {
+          "line": 495,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => IndexMap r k v -> k ->{Mut r} Option v"
+        },
+        "index-map-pop": {
+          "line": 542,
+          "type": "forall r k v. IndexMap r k v ->{Mut r} Option (k, v)"
+        },
+        "index-map-clear": {
+          "line": 562,
+          "type": "forall r k v. IndexMap r k v ->{Mut r} Unit"
+        },
+        "index-map-fold": {
+          "line": 589,
+          "type": "forall r k v b. (b -> k -> v -> b) -> b -> IndexMap r k v ->{Mut r} b"
+        },
+        "index-map-to-list": {
+          "line": 603,
+          "type": "forall r k v. IndexMap r k v ->{Mut r} List (k, v)"
+        },
+        "index-map-keys": {
+          "line": 620,
+          "type": "forall r k v. IndexMap r k v ->{Mut r} List k"
+        },
+        "index-map-values": {
+          "line": 623,
+          "type": "forall r k v. IndexMap r k v ->{Mut r} List v"
+        },
+        "index-map-from-list": {
+          "line": 638,
+          "type": "forall r k v. using (h :: Hash k, eq :: Eq k) => List (k, v) ->{Mut r} IndexMap r k v"
+        }
+      }
+    }
+  ],
+  "supporting_modules": [
+    {
+      "module": "Data.Producer",
+      "path": "compiler/prelude/Data/Producer.cinch",
+      "sha256": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f",
+      "exports": [
+        "Step",
+        "Done",
+        "Skip",
+        "Yield",
+        "Producer",
+        "TakeSt",
+        "prod-map",
+        "prod-take-step",
+        "prod-take",
+        "prod-fold-go",
+        "prod-fold",
+        "vec-stream",
+        "scalar-sum-wrap32"
+      ],
+      "value_signatures": {
+        "prod-map": {
+          "line": 26,
+          "type": "forall s a b. (a -> b) -> Producer s a -> Producer s b"
+        },
+        "prod-take-step": {
+          "line": 37,
+          "type": "forall s a. (s -> Step s a) -> TakeSt s -> Step (TakeSt s) a"
+        },
+        "prod-take": {
+          "line": 46,
+          "type": "forall s a. Nat -> Producer s a -> Producer (TakeSt s) a"
+        },
+        "prod-fold-go": {
+          "line": 50,
+          "type": "forall s a b. (s -> Step s a) -> (b -> a -> b) -> b -> s -> b"
+        },
+        "prod-fold": {
+          "line": 56,
+          "type": "forall s a b. b -> (b -> a -> b) -> Producer s a -> b"
+        },
+        "vec-stream": {
+          "line": 62,
+          "type": "forall n a region. Ref region (Vec n a) -> Producer (Ref region (Vec n a)) a"
+        },
+        "scalar-sum-wrap32": {
+          "line": 65,
+          "type": "forall n region. Ref region (Vec n U32) -> U32"
+        }
+      }
+    },
+    {
+      "module": "Data.Hash",
+      "path": "compiler/prelude/Data/Hash.cinch",
+      "sha256": "3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00",
+      "exports": [
+        "Hash",
+        "hash"
+      ],
+      "value_signatures": {
+        "hash": {
+          "line": 30,
+          "type": "a -> Nat"
+        }
+      }
+    },
+    {
+      "module": "Relation.Eq",
+      "path": "compiler/prelude/Relation/Eq.cinch",
+      "sha256": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c",
+      "exports": [
+        "Eq",
+        "(==)",
+        "(/=)"
+      ],
+      "value_signatures": {}
+    },
+    {
+      "module": "Relation.Ord",
+      "path": "compiler/prelude/Relation/Ord.cinch",
+      "sha256": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd",
+      "exports": [
+        "Ord",
+        "(<)",
+        "(<=)",
+        "(>)",
+        "(>=)",
+        "comparing",
+        "Down"
+      ],
+      "value_signatures": {
+        "comparing": {
+          "line": 35,
+          "type": "forall a b. using (ord :: Ord b) => (a -> b) -> a -> a -> Ordering"
+        }
+      }
+    },
+    {
+      "module": "Data.Compare",
+      "path": "compiler/prelude/Data/Compare.cinch",
+      "sha256": "2c8339cfe0420a3ad27bed174308286e4c7e377318adf18dd8dcd5ce172686cb",
+      "exports": [
+        "Compare",
+        "compare",
+        "less",
+        "Default",
+        "default-value",
+        "is-default",
+        "first-non-default",
+        "first-non-default-by",
+        "compare-f32",
+        "compare-f64",
+        "less-f32",
+        "less-f64"
+      ],
+      "value_signatures": {
+        "compare": {
+          "line": 24,
+          "type": "a -> a -> Ordering"
+        },
+        "less": {
+          "line": 27,
+          "type": "forall a. using (ordered :: Compare a) => a -> a -> Bool"
+        },
+        "default-value": {
+          "line": 38,
+          "type": "a"
+        },
+        "is-default": {
+          "line": 40,
+          "type": "a -> Bool"
+        },
+        "first-non-default": {
+          "line": 45,
+          "type": "forall a. using (defaults :: Default a) => List a -> a"
+        },
+        "first-non-default-by": {
+          "line": 50,
+          "type": "forall a. a -> (a -> Bool) -> List a -> a"
+        },
+        "compare-f32": {
+          "line": 56,
+          "type": "F32 -> F32 -> Ordering"
+        },
+        "less-f32": {
+          "line": 65,
+          "type": "F32 -> F32 -> Bool"
+        },
+        "compare-f64": {
+          "line": 71,
+          "type": "F64 -> F64 -> Ordering"
+        },
+        "less-f64": {
+          "line": 80,
+          "type": "F64 -> F64 -> Bool"
+        }
+      }
+    },
+    {
+      "module": "Data.Machine",
+      "path": "compiler/prelude/Data/Machine.cinch",
+      "sha256": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032",
+      "exports": [
+        "feq-f32",
+        "feq-f64",
+        "fgt-f32",
+        "fgt-f64",
+        "flt-f32",
+        "flt-f64",
+        "is-na-nf32",
+        "is-na-nf64",
+        "total-order-f32",
+        "total-order-f64"
+      ],
+      "value_signatures": {
+        "feq-f32": {
+          "line": 454,
+          "type": "F32 -> F32 -> Bool"
+        },
+        "flt-f32": {
+          "line": 456,
+          "type": "F32 -> F32 -> Bool"
+        },
+        "fgt-f32": {
+          "line": 458,
+          "type": "F32 -> F32 -> Bool"
+        },
+        "is-na-nf32": {
+          "line": 460,
+          "type": "F32 -> Bool"
+        },
+        "total-order-f32": {
+          "line": 465,
+          "type": "F32 -> F32 -> Ordering"
+        },
+        "feq-f64": {
+          "line": 477,
+          "type": "F64 -> F64 -> Bool"
+        },
+        "flt-f64": {
+          "line": 479,
+          "type": "F64 -> F64 -> Bool"
+        },
+        "fgt-f64": {
+          "line": 481,
+          "type": "F64 -> F64 -> Bool"
+        },
+        "is-na-nf64": {
+          "line": 483,
+          "type": "F64 -> Bool"
+        },
+        "total-order-f64": {
+          "line": 488,
+          "type": "F64 -> F64 -> Ordering"
+        }
+      }
+    }
+  ],
+  "existing_test_source_hashes": {
+    "compiler/tests/lib_map_set_ops.rs": "63573990134d8996cdde48360730cebabfd81fc178fe4affdeb2fd435f835aef",
+    "compiler/tests/lib_hashmap_real.rs": "c36dcb0f1d4b5d495ba68c814d36a8b593f1b1dfc0089224ec1e502584eb0577",
+    "compiler/tests/lib_hash_keys.rs": "c73daf0f6a4d539aa622b09796ee839db74d7b6506d861b13c8e50d544a9fd99",
+    "compiler/tests/lib_mutable.rs": "92d5e20b49a61bda4467ccb086b7cec82acfbf74428ba10d4e7a6a5c179ac3d0",
+    "compiler/tests/fixtures/mutable_containers.cinch": "b781c95900acd05cf1552d8af0b95fc2df3920f3e0d6d021eb7e88b0b38c413d"
+  },
+  "operations": [
+    {
+      "name": "All",
+      "status": "partial-static-audit",
+      "reference_behavior": "An invocation enumerates current key/value pairs; yield False stops calls immediately.",
+      "existing_building_blocks": [
+        "map-to-list/map-fold",
+        "hash-map-to-list/hash-map-fold",
+        "hash-table-to-list/hash-table-for-each",
+        "btree-to-list/btree-for-each",
+        "index-map-to-list/index-map-fold"
+      ],
+      "remaining": "Lists are eager; pure folds do not stop their storage walk; effectful for-each returns Unit. No pair producer or effectful stop protocol. Mutable for-each snapshots differ from live deletion semantics.",
+      "required_future_fixtures": [
+        "stop after zero/one/middle/all entries",
+        "repeat same iterator after source mutation",
+        "delete unvisited entry",
+        "insert during callback",
+        "retained key/value owners"
+      ],
+      "reference_declaration": "func All[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0) iter.Seq2[$1, $2]"
+    },
+    {
+      "name": "Clone",
+      "status": "partial-static-audit",
+      "reference_behavior": "A shallow independent map preserving nil; keys and values are assigned, not recursively cloned.",
+      "existing_building_blocks": [
+        "persistent Map/HashMap may safely share immutable structure",
+        "mutable to-list plus fresh from-list is a building block"
+      ],
+      "remaining": "No named clone. Returning a mutable handle aliases its cells, so cannot implement clone. Rebuilding changes layout/order/capacity and requires key capabilities; non-reflexive entries must remain present. Nil has no base-map representation.",
+      "required_future_fixtures": [
+        "source/clone insert-delete isolation",
+        "shared mutable payload remains shared",
+        "drop source before clone",
+        "nil versus allocated empty",
+        "NaN-key entry multiplicity"
+      ],
+      "reference_declaration": "func Clone[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0) $0"
+    },
+    {
+      "name": "Collect",
+      "status": "partial-static-audit",
+      "reference_behavior": "Consume a pair sequence into a fresh allocated map; the last equal-key occurrence wins.",
+      "existing_building_blocks": [
+        "mutable hash-table-from-list/btree-from-list/index-map-from-list are last-wins",
+        "persistent insert in a left fold is last-wins",
+        "Data.Producer is a pure pull-state building block"
+      ],
+      "remaining": "No sequence consumer. map-from-pairs and hash-map-from-pairs are first-wins and are not direct equivalents. Existing Producer steps cannot perform arbitrary Mut/IO effects.",
+      "required_future_fixtures": [
+        "empty input yields allocated empty",
+        "duplicate pairs keep last value",
+        "managed values survive input release",
+        "sequence callback timing"
+      ],
+      "reference_declaration": "func Collect[$0 comparable, $1 interface{}](iter.Seq2[$0, $1]) map[$0]$1"
+    },
+    {
+      "name": "Copy",
+      "status": "partial-static-audit",
+      "reference_behavior": "Overwrite/add every source binding in an existing destination; source values win equal keys.",
+      "existing_building_blocks": [
+        "map-union source destination returns the persistent result",
+        "hash-map-union source destination returns the persistent result",
+        "mutable source snapshot plus destination insert"
+      ],
+      "remaining": "No mutable bulk-copy helper or cross-home adapter. Persistent return-value adaptation must be explicit. Snapshot self-copy safety must be specified, not assumed for non-reflexive keys. Nil destination cannot accept a nonempty source.",
+      "required_future_fixtures": [
+        "disjoint/overlap/empty",
+        "same mutable source and destination",
+        "cross-home/capability agreement",
+        "managed key/value replacement",
+        "nil destination with empty/nonempty source"
+      ],
+      "reference_declaration": "func Copy[$0 interface{ ~map[$2]$3 }, $1 interface{ ~map[$2]$3 }, $2 comparable, $3 interface{}]($0, $1)"
+    },
+    {
+      "name": "DeleteFunc",
+      "status": "partial-static-audit",
+      "reference_behavior": "Call a key/value predicate and delete the current key when it returns True.",
+      "existing_building_blocks": [
+        "map-filter with negated pure predicate returns a new map",
+        "hash-map-filter with negated pure predicate returns a new map",
+        "mutable snapshot plus key deletion is a restricted building block"
+      ],
+      "remaining": "No mutable delete-where helper. Pure filter cannot run mutation callbacks. Snapshot predicates may observe entries already removed by earlier callbacks, unlike live iteration. Deleting a NaN key by lookup does not remove it under IEEE equality.",
+      "required_future_fixtures": [
+        "none/all/subset",
+        "predicate call count on empty",
+        "delete current/next/other key",
+        "predicate reinsertion or clear",
+        "NaN predicate True still fails key deletion"
+      ],
+      "reference_declaration": "func DeleteFunc[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0, func($1, $2) bool)"
+    },
+    {
+      "name": "Equal",
+      "status": "partial-static-audit",
+      "reference_behavior": "Compare sizes, then corresponding key lookups and value equality; nil and empty compare equal.",
+      "existing_building_blocks": [
+        "all homes expose size, lookup and entry traversal"
+      ],
+      "remaining": "No map equality helper/instance. Pointer identity cannot shortcut equality: NaN keys/values can make a map unequal to itself. Equality across homes needs matching key equivalence and hash/order policies.",
+      "required_future_fixtures": [
+        "empty/nil combinations",
+        "same size missing key",
+        "value mismatch",
+        "hash collisions",
+        "NaN key and value self-comparison",
+        "positive/negative zero"
+      ],
+      "reference_declaration": "func Equal[$0 interface{ ~map[$2]$3 }, $1 interface{ ~map[$2]$3 }, $2 comparable, $3 comparable]($0, $1) bool"
+    },
+    {
+      "name": "EqualFunc",
+      "status": "partial-static-audit",
+      "reference_behavior": "As Equal, with a supplied value predicate that may compare different value types; key equality is unchanged.",
+      "existing_building_blocks": [
+        "all homes expose size, lookup and entry traversal",
+        "explicit feq-f32/feq-f64 can compare floating values"
+      ],
+      "remaining": "No heterogeneously typed value-equality helper or effectful predicate variant. The supplied predicate does not replace key comparison. Strict existing folds cannot avoid all later storage reads, although predicates can be skipped after mismatch.",
+      "required_future_fixtures": [
+        "different value types",
+        "no predicate call after decisive mismatch",
+        "value NaN policy",
+        "missing NaN key prevents value callback",
+        "cross-home key policy mismatch"
+      ],
+      "reference_declaration": "func EqualFunc[$0 interface{ ~map[$2]$3 }, $1 interface{ ~map[$2]$4 }, $2 comparable, $3 interface{}, $4 interface{}]($0, $1, func($3, $4) bool) bool"
+    },
+    {
+      "name": "Insert",
+      "status": "partial-static-audit",
+      "reference_behavior": "Consume pairs into an existing destination; later equal-key occurrences overwrite earlier values.",
+      "existing_building_blocks": [
+        "all homes expose a single-binding insert",
+        "persistent left fold over Producer can return an updated map"
+      ],
+      "remaining": "No public sequence/bulk-insert into an existing mutable map. A constructor creates a different map. Need explicit producer effects, ownership and self-derived sequence mutation policy.",
+      "required_future_fixtures": [
+        "last duplicate wins",
+        "empty sequence",
+        "overwrite releases old value",
+        "sequence reads/mutates destination",
+        "early producer failure policy"
+      ],
+      "reference_declaration": "func Insert[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0, iter.Seq2[$1, $2])"
+    },
+    {
+      "name": "Keys",
+      "status": "partial-static-audit",
+      "reference_behavior": "Repeated invocations enumerate current keys, stop on yield False, and do not promise order.",
+      "existing_building_blocks": [
+        "map-keys",
+        "hash-map-keys",
+        "hash-table-keys",
+        "btree-keys",
+        "index-map-keys"
+      ],
+      "remaining": "All existing key views are eager lists. No map-specific lazy/reusable producer. Mutable capture-at-creation versus capture-at-invocation and live deletion behavior remain unresolved.",
+      "required_future_fixtures": [
+        "empty",
+        "stop without reading later keys",
+        "reuse after mutation",
+        "order-insensitive membership including NaN multiplicity"
+      ],
+      "reference_declaration": "func Keys[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0) iter.Seq[$1]"
+    },
+    {
+      "name": "Values",
+      "status": "partial-static-audit",
+      "reference_behavior": "Repeated invocations enumerate current values, preserve duplicates, and stop on yield False.",
+      "existing_building_blocks": [
+        "map-values",
+        "hash-map-values",
+        "hash-table-values",
+        "btree-values",
+        "index-map-values"
+      ],
+      "remaining": "All existing value views are eager lists. No early-stop mutable sequence. Do not deduplicate values or pair independently obtained key/value views from an unstable-order map.",
+      "required_future_fixtures": [
+        "duplicate values",
+        "owner retained after source clear",
+        "stop timing",
+        "reuse after mutation",
+        "NaN values and signed zeros"
+      ],
+      "reference_declaration": "func Values[$0 interface{ ~map[$1]$2 }, $1 comparable, $2 interface{}]($0) iter.Seq[$2]"
+    }
+  ],
+  "blocking_decisions": [
+    "Live mutable iteration versus explicitly separate snapshot iteration, including unvisited deletions and early termination.",
+    "Effectful pair-source and predicate contracts; the existing Producer step and folds are pure.",
+    "Stable captured key equality/hash/order across operations; no stored policy authority exists in current handles.",
+    "Explicit IEEE non-reflexive floating keys versus reflexive key wrappers; no default F32/F64 Eq, Ord or Hash instances.",
+    "Nil represented only by an explicit Option adapter when observable; allocated empty remains the default map value."
+  ],
+  "notes": "See stdlib-maps-audit.md. Existing tests were inspected, not rerun. No record is promoted to complete by this report."
+}

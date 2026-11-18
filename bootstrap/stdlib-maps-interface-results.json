@@ -1,0 +1,217 @@
+{
+  "kind": "source-absent-admission-observations",
+  "producer_receipt_sha256": "3fa492b84738b4dd03d93bfe0b9ad52cca632d2b2a951a1ca53defae0552a9aa",
+  "producer_compiler_sha256": "9dcdf0f2ed2aac1248d5ae3439ab7d4e556a2d1d8456a33297ae03b5e4efd2ee",
+  "producer_manifest_sha256": "16fe9394e4b41657b23299038f724733bb3c9fc8b2aaf8ab5fe6754339763df3",
+  "interfaces": {
+    "Data.Mutable.HashTable": "d321d404c6c69d95d2355a4863bb97db67222c88b50f194178d1b34ece6ee604",
+    "Data.Mutable.LinkedList": "6ab380028ef9afcd135f67d7ea319076cb61983f56569dc1c3a70c3006d8562d",
+    "Data.Mutable.Map": "e5f4378576998a577dbe6a45a401db58eae267e0b2859309c178ac0f442ec8cf",
+    "Data.Mutable.Map.Float": "d657bef6b6b6961c303cadd8a5325007668c7f3e5779c5b474f9d3cca3df9487",
+    "Data.Mutable.Map.Optional": "277346c474e51942673cccc5601922a5f1cf16cf77485b6625e0d50f4005b8a4",
+    "Data.Mutable.Var": "7c2c85e1acfbaafdf1bb91a569d4a5022aabe292eb99540254459dcb1558b6e4"
+  },
+  "interface_bytes_modified": false,
+  "library_sources_in_consumer_directory": false,
+  "runs": [
+    {
+      "case": "policy-identity",
+      "compiler_sha256": "4a44146bfe538cf605933f8e8175387ae40f152bb991add6640a5b5882b12d41",
+      "consumer_sha256": "424ba640ab0ee24ef6e9c4ca252a1a8f0876b3512d8a8883e92b8e9938ba9fbe",
+      "exit": 0,
+      "admitted": true,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "diagnostics": ""
+    },
+    {
+      "case": "map-size",
+      "compiler_sha256": "4a44146bfe538cf605933f8e8175387ae40f152bb991add6640a5b5882b12d41",
+      "consumer_sha256": "0b0c8b9dbd1d641b91fde1668836797c58fa20d56fe2a4b1d6c9922d87459ac8",
+      "exit": 4,
+      "admitted": false,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "diagnostics": "bootstrap.check:1:51: kind mismatch in type inference\nbootstrap.check:5:24: kind mismatch in type inference\n"
+    },
+    {
+      "case": "map-all",
+      "compiler_sha256": "4a44146bfe538cf605933f8e8175387ae40f152bb991add6640a5b5882b12d41",
+      "consumer_sha256": "1b076b47c669772e2a5f952361c5d5394ad5997c342ccc406c8eeec52924d7dd",
+      "exit": 4,
+      "admitted": false,
+      "stdout": "",
+      "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+      "diagnostics": "bootstrap.check:1:20: imported nominal scheme needs defining-module type identities: Data.Mutable.Map.MutableMap\nbootstrap.check:1:20: type constructor is applied to too many arguments\nbootstrap.check:5:27: kind mismatch in type inference\n"
+    }
+  ],
+  "all_admitted": false,
+  "package_complete": false,
+  "epoch": "provisional9dc source writer and experimental4a Native source-absent checker; broad compiler qualification pending",
+  "full_report": "build/maps-provisional-9dc/source-absent-results.json",
+  "full_report_sha256": "06a18b3eb3fc188cf6800f1218e8e4f879b60a04fdd6f7743b4bca24649a27f2",
+  "map_interface_sha256": "e5f4378576998a577dbe6a45a401db58eae267e0b2859309c178ac0f442ec8cf",
+  "actual_nominal_header": {
+    "ctors": [],
+    "fields": [],
+    "identity": "Data.Mutable.Map.MutableMap",
+    "kind": "data",
+    "name": "MutableMap",
+    "parameters": [
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "r"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "k"
+      },
+      {
+        "implicit": false,
+        "kind": "Type",
+        "name": "v"
+      }
+    ],
+    "params": [
+      "r",
+      "k",
+      "v"
+    ],
+    "refinement": null
+  },
+  "actual_exports": [
+    {
+      "arity": 2,
+      "name": "mutable-map-all",
+      "resolved": null,
+      "scheme": "forall k v ef r . (Data.Mutable.Map.MutableMap r k v -> ((k -> (v ->{ef} Bool)) ->{Mut r | ef} Bool))",
+      "symbol": "Data.Mutable.Map.mutable-map-all",
+      "total_body": null
+    },
+    {
+      "arity": 2,
+      "name": "mutable-map-copy",
+      "resolved": {
+        "measures": [],
+        "nominals": [
+          {
+            "constructors": [
+              "Data.Core.Err",
+              "Data.Core.Ok"
+            ],
+            "identity": "Data.Core.Result",
+            "kind": "data",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "e"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "a"
+              }
+            ],
+            "params": [
+              "e",
+              "a"
+            ],
+            "refinement": null
+          },
+          {
+            "constructors": [
+              "Data.Mutable.Map.MapCapacityExceeded",
+              "Data.Mutable.Map.MapIdentityViolation",
+              "Data.Mutable.Map.MapMissingDestination"
+            ],
+            "identity": "Data.Mutable.Map.MapError",
+            "kind": "data",
+            "parameters": [],
+            "params": [],
+            "refinement": null
+          },
+          {
+            "constructors": [
+              "Data.Mutable.Map.MapState"
+            ],
+            "identity": "Data.Mutable.Map.MutableMap",
+            "kind": "data",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "k"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "v"
+              }
+            ],
+            "params": [
+              "r",
+              "k",
+              "v"
+            ],
+            "refinement": null
+          }
+        ],
+        "scheme": "forall (r :: Region) (s :: Region) (k :: Type) (v :: Type). ((((Data.Mutable.Map.MutableMap r) k) v) -> ((((Data.Mutable.Map.MutableMap s) k) v) ->{Mut r, Mut s} ((Data.Core.Result Data.Mutable.Map.MapError) Unit)))"
+      },
+      "scheme": "forall (r :: Region) (s :: Region) (k :: Type) (v :: Type). ((Data.Mutable.Map.MutableMap r k v) -> ((Data.Mutable.Map.MutableMap s k v) ->{Mut r, Mut s} (Data.Core.Result Data.Mutable.Map.MapError Unit)))",
+      "symbol": "Data.Mutable.Map.mutable-map-copy",
+      "total_body": null
+    },
+    {
+      "arity": 1,
+      "name": "mutable-map-size",
+      "resolved": {
+        "measures": [],
+        "nominals": [
+          {
+            "constructors": [
+              "Data.Mutable.Map.MapState"
+            ],
+            "identity": "Data.Mutable.Map.MutableMap",
+            "kind": "data",
+            "parameters": [
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "r"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "k"
+              },
+              {
+                "implicit": false,
+                "kind": "Type",
+                "name": "v"
+              }
+            ],
+            "params": [
+              "r",
+              "k",
+              "v"
+            ],
+            "refinement": null
+          }
+        ],
+        "scheme": "forall (r :: Region) (k :: Type) (v :: Type). ((((Data.Mutable.Map.MutableMap r) k) v) ->{Mut r} Nat)"
+      },
+      "scheme": "forall (r :: Region) (k :: Type) (v :: Type). ((Data.Mutable.Map.MutableMap r k v) ->{Mut r} Nat)",
+      "symbol": "Data.Mutable.Map.mutable-map-size",
+      "total_body": null
+    }
+  ]
+}

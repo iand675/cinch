@@ -1,0 +1,15 @@
+-- | Sequence two distinct mutable regions without identifying their runtime identities.
+module Main where
+  import Data.Mutable.Var
+  import Data.Nat
+
+  -- | Read each region independently and combine only their immutable values.
+  read-both :: forall r s. Var r Nat -> Var s Nat ->{Mut r, Mut s} Nat
+  read-both first second =
+    let one = var-read first in
+    let two = var-read second in
+    one + two
+
+  -- | Keep this source a checker fixture without introducing an unrelated entry effect.
+  main :: Int
+  main = 0

@@ -1,0 +1,359 @@
+{
+  "kind": "static-only-map-nominal-region-review",
+  "compiler_invoked": false,
+  "source_checks_executed": false,
+  "runtime_executed": false,
+  "candidate_selected": false,
+  "production_sources_modified": false,
+  "historical_interfaces_modified": false,
+  "proposals": [
+    {
+      "original": "build/maps-entry-candidate/sources/Data.Mutable.Map.cinch",
+      "original_sha256": "c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078",
+      "proposal": "build/maps-nominal-region-static/candidate/Data.Mutable.Map.cinch",
+      "proposal_sha256": "7085aebe4c10dcd0cf27be6ffc0348a239398b07d54f60cb098722802b244c65",
+      "declarations": [
+        "MapEntry",
+        "MutableMap"
+      ],
+      "expected_parameter_role": "Region"
+    },
+    {
+      "original": "compiler/prelude/Data/Mutable/HashTable.cinch",
+      "original_sha256": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+      "proposal": "build/maps-nominal-region-static/common/Data.Mutable.HashTable.cinch",
+      "proposal_sha256": "c82a41f07ac8ff0c39af0b184394db0a96a53b8452e0c22fb67c290c5ccdbf4e",
+      "declarations": [
+        "HashTable"
+      ],
+      "expected_parameter_role": "Region"
+    },
+    {
+      "original": "compiler/prelude/Data/Mutable/Var.cinch",
+      "original_sha256": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
+      "proposal": "build/maps-nominal-region-static/common/Data.Mutable.Var.cinch",
+      "proposal_sha256": "0fc77c23d78f0fa5eaff95fbe578a88a34b5de0e7a09cb5fbebb97f912bc11ee",
+      "declarations": [
+        "Var"
+      ],
+      "expected_parameter_role": "Region"
+    },
+    {
+      "original": "compiler/prelude/Data/Mutable/Map.cinch",
+      "original_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+      "proposal": "build/maps-nominal-region-static/baseline/Data.Mutable.Map.cinch",
+      "proposal_sha256": "5c47ec83a1d029943adedec6af5c331f35fed0ec1c8030df736eabaa67d2505f",
+      "declarations": [
+        "MutableMap"
+      ],
+      "expected_parameter_role": "Region"
+    },
+    {
+      "original": "compiler/prelude/Data/Mutable/LinkedList.cinch",
+      "original_sha256": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
+      "proposal": "build/maps-nominal-region-static/baseline/Data.Mutable.LinkedList.cinch",
+      "proposal_sha256": "f6d615de34a1c2f19f4095443fd237a82320d8b74bc6382b229954dca718440f",
+      "declarations": [
+        "LinkedList",
+        "ListElement"
+      ],
+      "expected_parameter_role": "Region"
+    }
+  ],
+  "patches": {
+    "candidate": {
+      "path": "tooling/map-candidate-nominal-region-proposal.patch",
+      "sha256": "c64a3478e6c4bea75836a6edd55a4319a107431d74ef5f591f108f8e8c6b4a03"
+    },
+    "baseline": {
+      "path": "tooling/map-baseline-nominal-region-proposal.patch",
+      "sha256": "6d2b3911eb42d589c572b8acfbb773ad136fc67e65b151c7d8a94bdfebf4097f"
+    }
+  },
+  "actual_historical_headers": [
+    {
+      "path": "build/maps-855-entry-source/source/build/Data.Mutable.Map.cinchif",
+      "sha256": "cc86da511a7737788ac2485ecff3c7815cd3be277f9bd178e4c9301e2e9a715c",
+      "source_hash": "2041537433667851650",
+      "headers": [
+        {
+          "identity": "Data.Mutable.Map.MapError",
+          "name": "MapError",
+          "parameters": [],
+          "params": []
+        },
+        {
+          "identity": "Data.Mutable.Map.MapKeyPolicy",
+          "name": "MapKeyPolicy",
+          "parameters": [
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "k"
+            }
+          ],
+          "params": [
+            "k"
+          ]
+        },
+        {
+          "identity": "Data.Mutable.Map.MutableMap",
+          "name": "MutableMap",
+          "parameters": [
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "r"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "k"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "v"
+            }
+          ],
+          "params": [
+            "r",
+            "k",
+            "v"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "build/maps-855-entry-source/source/build/Data.Mutable.HashTable.cinchif",
+      "sha256": "d321d404c6c69d95d2355a4863bb97db67222c88b50f194178d1b34ece6ee604",
+      "source_hash": "5636729089184935867",
+      "headers": [
+        {
+          "identity": "Data.Mutable.HashTable.HashTable",
+          "name": "HashTable",
+          "parameters": [
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "r"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "k"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "v"
+            }
+          ],
+          "params": [
+            "r",
+            "k",
+            "v"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "build/maps-855-entry-source/source/build/Data.Mutable.Var.cinchif",
+      "sha256": "7c2c85e1acfbaafdf1bb91a569d4a5022aabe292eb99540254459dcb1558b6e4",
+      "source_hash": "13960014557869089952",
+      "headers": [
+        {
+          "identity": "Data.Mutable.Var.Var",
+          "name": "Var",
+          "parameters": [
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "r"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "a"
+            }
+          ],
+          "params": [
+            "r",
+            "a"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "build/maps-855-baseline-source/source/build/Data.Mutable.Map.cinchif",
+      "sha256": "e5f4378576998a577dbe6a45a401db58eae267e0b2859309c178ac0f442ec8cf",
+      "source_hash": "5620656385454682149",
+      "headers": [
+        {
+          "identity": "Data.Mutable.Map.MapError",
+          "name": "MapError",
+          "parameters": [],
+          "params": []
+        },
+        {
+          "identity": "Data.Mutable.Map.MapKeyPolicy",
+          "name": "MapKeyPolicy",
+          "parameters": [
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "k"
+            }
+          ],
+          "params": [
+            "k"
+          ]
+        },
+        {
+          "identity": "Data.Mutable.Map.MutableMap",
+          "name": "MutableMap",
+          "parameters": [
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "r"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "k"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "v"
+            }
+          ],
+          "params": [
+            "r",
+            "k",
+            "v"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "build/maps-855-baseline-source/source/build/Data.Mutable.HashTable.cinchif",
+      "sha256": "d321d404c6c69d95d2355a4863bb97db67222c88b50f194178d1b34ece6ee604",
+      "source_hash": "5636729089184935867",
+      "headers": [
+        {
+          "identity": "Data.Mutable.HashTable.HashTable",
+          "name": "HashTable",
+          "parameters": [
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "r"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "k"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "v"
+            }
+          ],
+          "params": [
+            "r",
+            "k",
+            "v"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "build/maps-855-baseline-source/source/build/Data.Mutable.Var.cinchif",
+      "sha256": "7c2c85e1acfbaafdf1bb91a569d4a5022aabe292eb99540254459dcb1558b6e4",
+      "source_hash": "13960014557869089952",
+      "headers": [
+        {
+          "identity": "Data.Mutable.Var.Var",
+          "name": "Var",
+          "parameters": [
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "r"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "a"
+            }
+          ],
+          "params": [
+            "r",
+            "a"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "build/maps-855-baseline-source/source/build/Data.Mutable.LinkedList.cinchif",
+      "sha256": "6ab380028ef9afcd135f67d7ea319076cb61983f56569dc1c3a70c3006d8562d",
+      "source_hash": "4573815002686942924",
+      "headers": [
+        {
+          "identity": "Data.Mutable.LinkedList.LinkedList",
+          "name": "LinkedList",
+          "parameters": [
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "r"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "a"
+            }
+          ],
+          "params": [
+            "r",
+            "a"
+          ]
+        },
+        {
+          "identity": "Data.Mutable.LinkedList.LinkedListError",
+          "name": "LinkedListError",
+          "parameters": [],
+          "params": []
+        },
+        {
+          "identity": "Data.Mutable.LinkedList.ListElement",
+          "name": "ListElement",
+          "parameters": [
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "r"
+            },
+            {
+              "implicit": false,
+              "kind": "Type",
+              "name": "a"
+            }
+          ],
+          "params": [
+            "r",
+            "a"
+          ]
+        }
+      ]
+    }
+  ],
+  "historical_refusals": {
+    "path": "bootstrap/stdlib-maps-interface-results.json",
+    "sha256": "55364622b6811fa589d3427f98bdb586a09f8a1316c10c152ecdc1a0fcffde42"
+  },
+  "qualification": "Requires a new explicit nominal Region feature epoch; frozen855 source success cannot qualify these proposals."
+}

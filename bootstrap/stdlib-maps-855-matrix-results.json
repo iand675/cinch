@@ -1,0 +1,83 @@
+{
+  "kind": "partial-bounded-map-matrix",
+  "package_complete": false,
+  "candidate_selected": false,
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "progress": {
+    "kind": "partial-bounded-map-qualification",
+    "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+    "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+    "candidate_selected": false,
+    "package_complete": false,
+    "units": {
+      "baseline:edge": {
+        "report": "build/maps-855-baseline-edge-a1-results.json",
+        "exit": 0,
+        "source_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+        "status": "passed",
+        "report_sha256": "626685f0aa0ad117c59c5e3366294aea418dc75977369086079fac3a8b9e5db5"
+      },
+      "entry:edge": {
+        "report": "build/maps-855-entry-edge-a1-results.json",
+        "exit": 0,
+        "source_sha256": "c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078",
+        "status": "passed",
+        "report_sha256": "3676b7ae37dfdaf6430c56d62433e52eedf24d891c5d9f68321b0d5965937d45"
+      },
+      "baseline:region": {
+        "report": "build/maps-855-baseline-region-a1-results.json",
+        "exit": 0,
+        "source_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+        "status": "passed",
+        "report_sha256": "78ced2af4fb344a87219462b8e631eb15591d1f7ae0368e20e909f1bd6a512ec"
+      },
+      "entry:region": {
+        "report": "build/maps-855-entry-region-a1-results.json",
+        "exit": 0,
+        "source_sha256": "c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078",
+        "status": "passed",
+        "report_sha256": "96b5e4823ae612fcf69b72090b359cdf81ebbf78234dd2f7c2446d22487bf742"
+      },
+      "baseline:negative": {
+        "report": "build/maps-855-baseline-negative-a2-results.json",
+        "exit": 0,
+        "source_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+        "status": "passed",
+        "report_sha256": "d61b47eaf53663eb52c41982d6b91ea1dd64ed85aee1a5b4a877ad699489dbd2"
+      },
+      "entry:negative": {
+        "report": "build/maps-855-entry-negative-a1-results.json",
+        "exit": 0,
+        "source_sha256": "c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078",
+        "status": "passed",
+        "report_sha256": "f3fa99b56b0a043ee614eb734ff8a90e101a4e84ef010ab40aa7f4de4ae488d8"
+      },
+      "baseline:float-32": {
+        "report": "build/maps-855-baseline-float-32-a1-results.json",
+        "exit": 0,
+        "source_sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+        "status": "passed",
+        "report_sha256": "cbf7ee1660375cff3a58e3488170da8c5883695015e92cab6db1921396c2c63e"
+      },
+      "entry:float-32": {
+        "report": "build/maps-855-entry-float-32-a1-results.json",
+        "exit": 0,
+        "source_sha256": "c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078",
+        "status": "passed",
+        "report_sha256": "0b00f98247c42095a28cf9ccf1c772492fef5a3c2eb893259e9d21a403e000d4"
+      }
+    },
+    "pause": {
+      "reason": "disk start below250MiB",
+      "next_unit": "baseline:float-64",
+      "free_bytes": 250155008
+    }
+  },
+  "source_pair_receipt": "bootstrap/stdlib-maps-855-source-results.json",
+  "control_pair_receipt": "bootstrap/stdlib-maps-855-control-results.json",
+  "source_control_runtime_processes": 4,
+  "matrix_runtime_processes": 8,
+  "total_runtime_zero_leak_processes": 12,
+  "next_unrun": "Both IEEE64, mixed IO and all800 steps per representation; remaining Native and candidate benchmark gates"
+}

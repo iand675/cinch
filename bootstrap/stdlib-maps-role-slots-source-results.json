@@ -1,0 +1,21 @@
+{
+  "kind": "isolated-C839-explicit-nominal-Region-source-qualification",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "provenance_sha256": "c303ec5ab34c80e19c19e659fa34ee35d1d5b73d0e2d9e81a1c9d990c7712251",
+  "cpu_affinity": [
+    1
+  ],
+  "review_sha256": "4bff02f7b1ac8f7e3badaa29c7e96981631c1c9a34a7d3525fa7836363be5262",
+  "runtime_executed": false,
+  "native_family_relabelled": false,
+  "candidate_selected": false,
+  "package_complete": false,
+  "production_sources_modified": false,
+  "historical_interfaces_modified": false,
+  "fresh_start_minimum_bytes": 367001600,
+  "maximum_source_output_bytes": 5242880,
+  "free_bytes_before": 178163712,
+  "status": "resource-paused-before-compiler",
+  "compiler_invoked": false
+}

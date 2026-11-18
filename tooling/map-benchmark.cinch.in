@@ -1,0 +1,117 @@
+-- | Compare observable integer-map pipelines through each public container API.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Machine
+  import Data.String
+  import Data.Mutable.Var
+  import Effect.Clock
+  import Effect.Process
+  @IMPORT@
+
+@ADAPTER@
+
+  -- | Decode only bounded nonnegative decimal configuration before timing.
+  decimal :: String -> Nat
+  decimal text = decimal-from (unpack text) 0
+
+  -- | Accumulate host-supplied decimal digits without performing map operations.
+  decimal-from :: List Char -> Nat -> Nat
+  decimal-from chars value = case chars of
+    Nil -> value
+    Cons first rest -> case digit-value first of None -> 0; Some digit -> decimal-from rest (value * 10 + digit)
+
+  -- | Give every key an observable deterministic starting value.
+  initial-value :: Nat -> Nat
+  initial-value key = key * 3 + 7
+
+  -- | Include key and value in a commutative complete-state observation.
+  contribution :: Nat -> Nat -> Nat
+  contribution key value = key * 131 + value
+
+  -- | Construct each binding through checked public mutation.
+  fill :: forall r. Store r -> Nat -> Nat ->{Mut r} Bool
+  fill map size index = if index == size then True else
+    store-set map index (initial-value index) && fill map size (index + 1)
+
+  -- | Replace all existing values with iteration-dependent results.
+  overwrite :: forall r. Store r -> Nat -> Nat -> Nat ->{Mut r} Bool
+  overwrite map size iteration index = if index == size then True else
+    store-set map index (index * 5 + iteration + 11) && overwrite map size iteration (index + 1)
+
+  -- | Read every key and one missing key without relying on traversal order.
+  lookup-sum :: forall r. Store r -> Nat -> Nat -> Nat ->{Mut r} Nat
+  lookup-sum map size index total = if index > size then total else
+    case store-lookup map index of
+      None -> lookup-sum map size (index + 1) total
+      Some value -> lookup-sum map size (index + 1) (total + contribution index value)
+
+  -- | Remove every even key through the public deletion operation.
+  delete-even :: forall r. Store r -> Nat -> Nat ->{Mut r} Bool
+  delete-even map size index = if index >= size then True else
+    store-delete map index && delete-even map size (index + 2)
+
+  -- | Observe all live values while counting exactly the callbacks performed.
+  count-binding :: forall r. Var r Nat -> Var r Nat -> Nat -> Nat ->{Mut r} Bool
+  count-binding total calls key value =
+    let previous = var-read total in
+    let counted = var-read calls in
+    let saved = var-write total (previous + contribution key value) in
+    let observed = var-write calls (counted + 1) in True
+
+  -- | Request immediate termination after one observable callback.
+  stop-binding :: forall r. Var r Nat -> Nat -> Nat ->{Mut r} Bool
+  stop-binding calls key value =
+    let count = var-read calls in let saved = var-write calls (count + 1) in False
+
+  -- | Include construction, overwrite, all lookups, deletion and final traversal.
+  pipeline :: forall r. Nat -> Nat ->{Mut r} Nat
+  pipeline size iteration =
+    let map = store-new () in
+    let built = fill map size 0 in
+    let changed = overwrite map size iteration 0 in
+    let queried = lookup-sum map size 0 0 in
+    let deleted = delete-even map size 0 in
+    let total = var-new (0 :: Nat) in
+    let calls = var-new (0 :: Nat) in
+    let exhausted = store-all map (count-binding total calls) in
+    if built && changed && deleted && exhausted then
+      queried + var-read total + var-read calls + store-size map
+    else 0
+
+  -- | Observe a prepared container with a complete or immediately stopped traversal.
+  scan :: forall r. Store r -> Nat -> Nat -> Nat ->{Mut r} Nat
+  scan map mode size iteration =
+    let key = if size == 0 then (0 :: Nat) else nat-rem iteration size in
+    let changed = if size == 0 then True else store-set map key (initial-value key + iteration) in
+    let total = var-new (0 :: Nat) in
+    let calls = var-new (0 :: Nat) in
+    let exhausted = if mode == 1 then store-all map (count-binding total calls) else store-all map (stop-binding calls) in
+    let observed = case store-lookup map key of None -> (0 :: Nat); Some value -> value in
+    if changed && exhausted == (mode == 1 || size == 0) then
+      var-read total + var-read calls + store-size map + observed
+    else 0
+
+  -- | Repeat complete observable operations without introducing an outer allocation snapshot.
+  repeat :: forall r. Store r -> Nat -> Nat -> Nat -> Nat -> Nat ->{Mut r} Nat
+  repeat prepared mode size iterations iteration checksum = if iteration == iterations then checksum else
+    let observed = if mode == 0 then pipeline size iteration else scan prepared mode size iteration in
+    repeat prepared mode size iterations (iteration + 1) (checksum + observed)
+
+  -- | Exclude prepared scan construction and final teardown from the measured interval.
+  measure :: forall r. using (io :: Io r) => Nat -> Nat -> Nat ->{IO r, Mut r} Int
+  measure mode size iterations =
+    let prepared = store-new () in
+    let built = if mode == 0 then True else fill prepared size 0 in
+    let start = clock-monotonic-ns () in
+    let checksum = repeat prepared mode size iterations 0 0 in
+    let end = clock-monotonic-ns () in
+    let retained = store-size prepared in
+    let printed = ioWrite (string-to-bytes (string-concat (nat-to-string (saturating-sub end start)) (string-concat " " (string-concat (nat-to-string (checksum + retained)) "\n")))) in
+    if built then 0 else 3
+
+  -- | Read bounded benchmark arguments before either preparation or timing.
+  main :: Unit ->{IO r, Mut r} Int
+  main unit = with (io = newIO ()) in case process-args () of
+    Ok (Cons mode (Cons size (Cons iterations Nil))) -> measure (decimal mode) (decimal size) (decimal iterations)
+    other -> 2

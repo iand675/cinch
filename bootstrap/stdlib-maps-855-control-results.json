@@ -1,0 +1,700 @@
+{
+  "kind": "partial-baseline-entry-boxed-Nat-runtime-qualification",
+  "package_complete": false,
+  "candidate_selected": false,
+  "compiler_sha256": "855df83617f2ea84e7f0e3cf90b9755685bc23226594d81cd43ccd6168071b4e",
+  "runtime_sha256": "c4b1097b4b8e26541400228bdbbdcba1376101014823aeb2f5af619fbede57ac",
+  "completed_zero_leak_processes": 4,
+  "controls_per_representation": 12,
+  "representations": {
+    "baseline": {
+      "report": "build/maps-855-baseline-control-v2-results.json",
+      "report_sha256": "437fced43f51a2277f2ffad5c28e97a94ed87770af7c30a8c370fbe83b893364",
+      "sources": {
+        "Data.Mutable.Map": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+        "Data.Mutable.Map.Optional": "7e9b280b6e9d7b0a545479f0ff6c705ecac5ce477608bda3b0c04e644c81620a",
+        "Data.Mutable.Map.Float": "ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a",
+        "Data.Mutable.HashTable": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+        "Data.Mutable.LinkedList": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
+        "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+      },
+      "linker": {
+        "path": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b"
+      },
+      "opt_level": "2",
+      "output_bytes_before_archival": 10936188,
+      "free_bytes_before": 347136000,
+      "free_bytes_after": 335745024,
+      "closed_archive": {
+        "index": "build/maps-855-closed-unit-archive/index.json",
+        "report": "/workspace/dasl-stdlib-maps-audit/build/maps-855-baseline-control-v2-results.json",
+        "result_snapshot": "build/maps-855-closed-unit-archive/c9ce0a16a1990ebc-control.result.json",
+        "result_snapshot_sha256": "e250a24179e747e3decd49fcd7a43b1cdaedc0071d89a68b4d1c59d7137bed10",
+        "archive": "build/maps-855-closed-unit-archive/c9ce0a16a1990ebc-control.tar.gz",
+        "archive_sha256": "c2a71254ec4a34a1cdf5737d6f673e4eb06901b571862e36da7e729b9e7b1e6c",
+        "archive_bytes": 2693764,
+        "members": {
+          "build/maps-855-baseline-control-v2/control/consumer": {
+            "sha256": "ea0c33bfdb82be1f9e3cae3fc3fc76c913b0bcf9f6e13e402e92389305ae9934",
+            "bytes": 6535168
+          },
+          "build/maps-855-baseline-control-v2/control/consumer.ll": {
+            "sha256": "ab429b5fa61520c171efd33ad9acb129b9a62de64505dc634ce4e285481902f8",
+            "bytes": 2116823
+          },
+          "build/maps-855-baseline-control-v2/control/build/Algebra.Arithmetic.cinchif": {
+            "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+            "bytes": 7034
+          },
+          "build/maps-855-baseline-control-v2/control/build/Algebra.Bits.cinchif": {
+            "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+            "bytes": 9863
+          },
+          "build/maps-855-baseline-control-v2/control/build/Algebra.Group.cinchif": {
+            "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+            "bytes": 2464
+          },
+          "build/maps-855-baseline-control-v2/control/build/Algebra.Monoid.cinchif": {
+            "sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+            "bytes": 27165
+          },
+          "build/maps-855-baseline-control-v2/control/build/Algebra.Semigroup.cinchif": {
+            "sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+            "bytes": 5861
+          },
+          "build/maps-855-baseline-control-v2/control/build/Algebra.Semiring.cinchif": {
+            "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+            "bytes": 2642
+          },
+          "build/maps-855-baseline-control-v2/control/build/Category.Alternative.cinchif": {
+            "sha256": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+            "bytes": 2109
+          },
+          "build/maps-855-baseline-control-v2/control/build/Category.Applicative.cinchif": {
+            "sha256": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+            "bytes": 8919
+          },
+          "build/maps-855-baseline-control-v2/control/build/Category.Foldable.cinchif": {
+            "sha256": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+            "bytes": 28589
+          },
+          "build/maps-855-baseline-control-v2/control/build/Category.Functor.cinchif": {
+            "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+            "bytes": 3955
+          },
+          "build/maps-855-baseline-control-v2/control/build/Category.Monad.cinchif": {
+            "sha256": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+            "bytes": 3926
+          },
+          "build/maps-855-baseline-control-v2/control/build/Category.Traversable.cinchif": {
+            "sha256": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+            "bytes": 10234
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Ascii.cinchif": {
+            "sha256": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93",
+            "bytes": 1575
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Bool.cinchif": {
+            "sha256": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501",
+            "bytes": 19612
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Bytes.cinchif": {
+            "sha256": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6",
+            "bytes": 13369
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Char.cinchif": {
+            "sha256": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375",
+            "bytes": 14397
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Compose.cinchif": {
+            "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+            "bytes": 2098
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Const.cinchif": {
+            "sha256": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+            "bytes": 12479
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Core.cinchif": {
+            "sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+            "bytes": 3904
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Enum.cinchif": {
+            "sha256": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31",
+            "bytes": 4694
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.FromList.cinchif": {
+            "sha256": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+            "bytes": 1800
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.FromMap.cinchif": {
+            "sha256": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60",
+            "bytes": 2022
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Hash.cinchif": {
+            "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+            "bytes": 1284
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.HashMap.cinchif": {
+            "sha256": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5",
+            "bytes": 19114
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Identity.cinchif": {
+            "sha256": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+            "bytes": 13328
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Int.cinchif": {
+            "sha256": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+            "bytes": 29636
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Json.cinchif": {
+            "sha256": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5",
+            "bytes": 5424
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.List.cinchif": {
+            "sha256": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab",
+            "bytes": 53382
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Machine.cinchif": {
+            "sha256": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e",
+            "bytes": 581879
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Map.cinchif": {
+            "sha256": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e",
+            "bytes": 15135
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Mutable.HashTable.cinchif": {
+            "sha256": "d321d404c6c69d95d2355a4863bb97db67222c88b50f194178d1b34ece6ee604",
+            "bytes": 28794
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Mutable.LinkedList.cinchif": {
+            "sha256": "6ab380028ef9afcd135f67d7ea319076cb61983f56569dc1c3a70c3006d8562d",
+            "bytes": 41856
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Mutable.Map.Float.cinchif": {
+            "sha256": "d657bef6b6b6961c303cadd8a5325007668c7f3e5779c5b474f9d3cca3df9487",
+            "bytes": 1867
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Mutable.Map.Optional.cinchif": {
+            "sha256": "277346c474e51942673cccc5601922a5f1cf16cf77485b6625e0d50f4005b8a4",
+            "bytes": 10062
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Mutable.Map.cinchif": {
+            "sha256": "e5f4378576998a577dbe6a45a401db58eae267e0b2859309c178ac0f442ec8cf",
+            "bytes": 20798
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Mutable.Var.cinchif": {
+            "sha256": "7c2c85e1acfbaafdf1bb91a569d4a5022aabe292eb99540254459dcb1558b6e4",
+            "bytes": 5202
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Nat.cinchif": {
+            "sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+            "bytes": 29417
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.NonEmpty.cinchif": {
+            "sha256": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+            "bytes": 13284
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.NonZero.cinchif": {
+            "sha256": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+            "bytes": 8528
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Option.cinchif": {
+            "sha256": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+            "bytes": 28860
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Ordering.cinchif": {
+            "sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+            "bytes": 7027
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Path.cinchif": {
+            "sha256": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b",
+            "bytes": 6270
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Producer.cinchif": {
+            "sha256": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+            "bytes": 8542
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Result.cinchif": {
+            "sha256": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+            "bytes": 17758
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Set.cinchif": {
+            "sha256": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+            "bytes": 15631
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Sorted.cinchif": {
+            "sha256": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+            "bytes": 2250
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.String.cinchif": {
+            "sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+            "bytes": 31951
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Sym.cinchif": {
+            "sha256": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690",
+            "bytes": 8613
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Target.cinchif": {
+            "sha256": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+            "bytes": 7264
+          },
+          "build/maps-855-baseline-control-v2/control/build/Data.Wide.cinchif": {
+            "sha256": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8",
+            "bytes": 177190
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Clock.cinchif": {
+            "sha256": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+            "bytes": 5643
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Concurrent.cinchif": {
+            "sha256": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+            "bytes": 2795
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Fs.cinchif": {
+            "sha256": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1",
+            "bytes": 19329
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Io.cinchif": {
+            "sha256": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514",
+            "bytes": 4334
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Process.cinchif": {
+            "sha256": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f",
+            "bytes": 28556
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Sequencing.cinchif": {
+            "sha256": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+            "bytes": 4868
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Stm.TBQueue.cinchif": {
+            "sha256": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6",
+            "bytes": 7822
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Stm.TMVar.cinchif": {
+            "sha256": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461",
+            "bytes": 8818
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Stm.TQueue.cinchif": {
+            "sha256": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8",
+            "bytes": 7322
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Stm.TSem.cinchif": {
+            "sha256": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4",
+            "bytes": 4558
+          },
+          "build/maps-855-baseline-control-v2/control/build/Effect.Stm.cinchif": {
+            "sha256": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab",
+            "bytes": 26973
+          },
+          "build/maps-855-baseline-control-v2/control/build/Function.Combinators.cinchif": {
+            "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+            "bytes": 4656
+          },
+          "build/maps-855-baseline-control-v2/control/build/Main.cinchif": {
+            "sha256": "9639f06a53733fc71a2af7c3b510f02badcff7a06a13e626f7cbe365bd263080",
+            "bytes": 14159
+          },
+          "build/maps-855-baseline-control-v2/control/build/Main.manifest.json": {
+            "sha256": "612575a8e90dc36c3db27392989973e52f9f1295b8a85838af665b1b26cc2219",
+            "bytes": 144218
+          },
+          "build/maps-855-baseline-control-v2/control/build/Main.stage.snap": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "bytes": 0
+          },
+          "build/maps-855-baseline-control-v2/control/build/Prelude.cinchif": {
+            "sha256": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9",
+            "bytes": 419421
+          },
+          "build/maps-855-baseline-control-v2/control/build/Prim.Sys.Darwin.cinchif": {
+            "sha256": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724",
+            "bytes": 27114
+          },
+          "build/maps-855-baseline-control-v2/control/build/Prim.Sys.Linux.cinchif": {
+            "sha256": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085",
+            "bytes": 21362
+          },
+          "build/maps-855-baseline-control-v2/control/build/Prim.Sys.Portable.cinchif": {
+            "sha256": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259",
+            "bytes": 13232
+          },
+          "build/maps-855-baseline-control-v2/control/build/Prim.Sys.cinchif": {
+            "sha256": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38",
+            "bytes": 19276
+          },
+          "build/maps-855-baseline-control-v2/control/build/Relation.Eq.cinchif": {
+            "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+            "bytes": 1774
+          },
+          "build/maps-855-baseline-control-v2/control/build/Relation.Ord.cinchif": {
+            "sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+            "bytes": 6745
+          },
+          "build/maps-855-baseline-control-v2/control/build/Text.Codec.cinchif": {
+            "sha256": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a",
+            "bytes": 6572
+          },
+          "build/maps-855-baseline-control-v2/control/build/Text.Show.cinchif": {
+            "sha256": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397",
+            "bytes": 6568
+          }
+        },
+        "originals_removed": true
+      }
+    },
+    "entry": {
+      "report": "build/maps-855-entry-control-results.json",
+      "report_sha256": "d4f31cabb69968a85e5433cf80cb2a9cd8ccebc0a10985ef82af6200b5480f66",
+      "sources": {
+        "Data.Mutable.Map": "c839d9b0868aaddfc9914fe515eeb613ba23bd934cc07dc4fa58e44463c00078",
+        "Data.Mutable.Map.Optional": "7e9b280b6e9d7b0a545479f0ff6c705ecac5ce477608bda3b0c04e644c81620a",
+        "Data.Mutable.Map.Float": "ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a",
+        "Data.Mutable.HashTable": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+        "Data.Mutable.LinkedList": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
+        "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+      },
+      "linker": {
+        "path": "/workspace/.tools/llvm/usr/lib/llvm-20/bin/clang",
+        "sha256": "7e4d6422313004d3652ce436fc7fcf3a0fa0e5a3f5da4ecc350af6b51448824b"
+      },
+      "opt_level": "2",
+      "output_bytes_before_archival": 10627288,
+      "free_bytes_before": 317554688,
+      "free_bytes_after": 304623616,
+      "closed_archive": {
+        "index": "build/maps-855-closed-unit-archive/index.json",
+        "report": "/workspace/dasl-stdlib-maps-audit/build/maps-855-entry-control-results.json",
+        "result_snapshot": "build/maps-855-closed-unit-archive/127c1fbbf2159b19-control.result.json",
+        "result_snapshot_sha256": "8446b3461572db8f7244a3fdb9e41d56832865b007fd4ce6382efd10b306585a",
+        "archive": "build/maps-855-closed-unit-archive/127c1fbbf2159b19-control.tar.gz",
+        "archive_sha256": "d3e86404d43e0fced710e203d462ca5a68a7ab8e1dadcbdbf4e7aba5511eeea9",
+        "archive_bytes": 2599146,
+        "members": {
+          "build/maps-855-entry-control/control/consumer": {
+            "sha256": "eb156706ddb7085cbcb6d2ccae124181b3a7d3011583d9c736ad5332b5f01694",
+            "bytes": 6515240
+          },
+          "build/maps-855-entry-control/control/consumer.ll": {
+            "sha256": "c65f9d32f3bbaababe0d1bd51a946ea15f6535d4b54c6c6265db1d4f77049924",
+            "bytes": 1867741
+          },
+          "build/maps-855-entry-control/control/build/Algebra.Arithmetic.cinchif": {
+            "sha256": "8db0930f4b8993f5a2771256800c8a80cd64a11530f78c075982a49da968abb8",
+            "bytes": 7034
+          },
+          "build/maps-855-entry-control/control/build/Algebra.Bits.cinchif": {
+            "sha256": "97a4db808b49abb55c7d3c04301ec0e0c7cbc339a878f8f820e72f7bd183bbc8",
+            "bytes": 9863
+          },
+          "build/maps-855-entry-control/control/build/Algebra.Group.cinchif": {
+            "sha256": "02f53e2e973a81151051f65c4a1d8daae5c25e4b8a85b9d8169e6607688d1274",
+            "bytes": 2464
+          },
+          "build/maps-855-entry-control/control/build/Algebra.Monoid.cinchif": {
+            "sha256": "fc640fe8a77d4dae6da1c885b613d1c43a713ff05436e838882050f5d352e44d",
+            "bytes": 27165
+          },
+          "build/maps-855-entry-control/control/build/Algebra.Semigroup.cinchif": {
+            "sha256": "0da744b823cf79afeae75cf1851ea904a2b3b8aa349e8bdc2874cf62df8bae70",
+            "bytes": 5861
+          },
+          "build/maps-855-entry-control/control/build/Algebra.Semiring.cinchif": {
+            "sha256": "c8ecd4a5cd9522ee1671194f6b96d29d7c5ed6ea4f92be22028210441ae83d3e",
+            "bytes": 2642
+          },
+          "build/maps-855-entry-control/control/build/Category.Alternative.cinchif": {
+            "sha256": "4ba4dfbf23ee4532064e35b89f4e17794511060cda1341c01de4d7660e40b8d8",
+            "bytes": 2109
+          },
+          "build/maps-855-entry-control/control/build/Category.Applicative.cinchif": {
+            "sha256": "d93f3e4eb11ac06eb26a8ff43bd914ef114552f9a2b99c1ede313af21d45797d",
+            "bytes": 8919
+          },
+          "build/maps-855-entry-control/control/build/Category.Foldable.cinchif": {
+            "sha256": "7b0fd49b345d174903c9ff575a7f5d67926f480d7cad8a2c9f085859504de636",
+            "bytes": 28589
+          },
+          "build/maps-855-entry-control/control/build/Category.Functor.cinchif": {
+            "sha256": "13882b79bb1bc298c93d8d0f349f7067e1a614cccd9d4a12b799ec1ef3b1fbd0",
+            "bytes": 3955
+          },
+          "build/maps-855-entry-control/control/build/Category.Monad.cinchif": {
+            "sha256": "5faf4e1bc0fd4a0a048ad8a4f444a241fe8791fd382943a793e9cb45d1fd46fa",
+            "bytes": 3926
+          },
+          "build/maps-855-entry-control/control/build/Category.Traversable.cinchif": {
+            "sha256": "109fd9b83ea0f64259584e31cbb35c2ec8c07ce03bd66f85c5a28693c51ff4d3",
+            "bytes": 10234
+          },
+          "build/maps-855-entry-control/control/build/Data.Ascii.cinchif": {
+            "sha256": "fddef7259a406cf49078828384c08c2366eeb8b4320b05649d1d3c8198ebff93",
+            "bytes": 1575
+          },
+          "build/maps-855-entry-control/control/build/Data.Bool.cinchif": {
+            "sha256": "c3e9d87f5e9b69237580e0057d859bcb0dfb52c3a0a830ba13c93797edd54501",
+            "bytes": 19612
+          },
+          "build/maps-855-entry-control/control/build/Data.Bytes.cinchif": {
+            "sha256": "f8f8f958bf90840c33d92bfab588f52930632eb3e466f7e54798767caa7d14f6",
+            "bytes": 13369
+          },
+          "build/maps-855-entry-control/control/build/Data.Char.cinchif": {
+            "sha256": "ab75b7859a95462d0acd1ac4eaf0f7d555b12161fdb9e40471c72b6fafd9d375",
+            "bytes": 14397
+          },
+          "build/maps-855-entry-control/control/build/Data.Compose.cinchif": {
+            "sha256": "c155057a0cce7d19744da7e51d6fb03c698cb60f86d897a43aeed7bcbc5e80c8",
+            "bytes": 2098
+          },
+          "build/maps-855-entry-control/control/build/Data.Const.cinchif": {
+            "sha256": "b4255ae4ab701ebf5ccd130717d1c45afe64eddf3b0b24fdc88ddf068ff9c247",
+            "bytes": 12479
+          },
+          "build/maps-855-entry-control/control/build/Data.Core.cinchif": {
+            "sha256": "db57c4784d326da9796619aca7a97d69a7017c92e2a084ee15c947b1f79356d7",
+            "bytes": 3904
+          },
+          "build/maps-855-entry-control/control/build/Data.Enum.cinchif": {
+            "sha256": "e28680622c71161ef644e3bc700cef295f25a4c8d0b27ef931390ee68a9a8a31",
+            "bytes": 4694
+          },
+          "build/maps-855-entry-control/control/build/Data.FromList.cinchif": {
+            "sha256": "162859ce280c3cbc080f85ff1d70a54b04d45bd017478e3057f5f3bd75768b18",
+            "bytes": 1800
+          },
+          "build/maps-855-entry-control/control/build/Data.FromMap.cinchif": {
+            "sha256": "95e853123999f6561fcdf42d0b57f92eb85e53bc76696a83c88f2af89a67ea60",
+            "bytes": 2022
+          },
+          "build/maps-855-entry-control/control/build/Data.Hash.cinchif": {
+            "sha256": "5aef919a9a359a04ccc766bbcee64ca6d46c332dfd161cf16062ddd75301668e",
+            "bytes": 1284
+          },
+          "build/maps-855-entry-control/control/build/Data.HashMap.cinchif": {
+            "sha256": "887d970426b404fc452340de2b03571f110884d7e7364aca72fbe2b2b88a16e5",
+            "bytes": 19114
+          },
+          "build/maps-855-entry-control/control/build/Data.Identity.cinchif": {
+            "sha256": "1fdd0d3f37de39736e970d7dc8c6f87024a4a9278bdb32fc6ad631ee2e3979bb",
+            "bytes": 13328
+          },
+          "build/maps-855-entry-control/control/build/Data.Int.cinchif": {
+            "sha256": "ac4c408be004e4d985667d9012c1280e43e1aedfd8d89c910d6023249cf343a6",
+            "bytes": 29636
+          },
+          "build/maps-855-entry-control/control/build/Data.Json.cinchif": {
+            "sha256": "65284ef8dde74d8ece3d67431e3c79e75985f1ea46c610f3406b8a1f83dd08c5",
+            "bytes": 5424
+          },
+          "build/maps-855-entry-control/control/build/Data.List.cinchif": {
+            "sha256": "c02bb24481ba4ef0d22dfe5f75aa37b4521c91d831e981773dfac38e7d8e57ab",
+            "bytes": 53382
+          },
+          "build/maps-855-entry-control/control/build/Data.Machine.cinchif": {
+            "sha256": "ef2e8ca40aa7500f5365523a9d7e87eb7a6261bbe98a6a5f39ee29a4072cb81e",
+            "bytes": 581879
+          },
+          "build/maps-855-entry-control/control/build/Data.Map.cinchif": {
+            "sha256": "bc220d9c3d8c2260b189986c354ff3131f6236801af85c7367ae05334613ce4e",
+            "bytes": 15135
+          },
+          "build/maps-855-entry-control/control/build/Data.Mutable.HashTable.cinchif": {
+            "sha256": "d321d404c6c69d95d2355a4863bb97db67222c88b50f194178d1b34ece6ee604",
+            "bytes": 28794
+          },
+          "build/maps-855-entry-control/control/build/Data.Mutable.Map.Float.cinchif": {
+            "sha256": "93a70a9786b8068e66bad012f875215be596a0bcfe495407c5998dc09857781a",
+            "bytes": 1867
+          },
+          "build/maps-855-entry-control/control/build/Data.Mutable.Map.Optional.cinchif": {
+            "sha256": "22573c04935991e52801fe5f6a9a0edb6e79c9a1825690ca0eb5d1d3ddc140a6",
+            "bytes": 10062
+          },
+          "build/maps-855-entry-control/control/build/Data.Mutable.Map.cinchif": {
+            "sha256": "cc86da511a7737788ac2485ecff3c7815cd3be277f9bd178e4c9301e2e9a715c",
+            "bytes": 20726
+          },
+          "build/maps-855-entry-control/control/build/Data.Mutable.Var.cinchif": {
+            "sha256": "7c2c85e1acfbaafdf1bb91a569d4a5022aabe292eb99540254459dcb1558b6e4",
+            "bytes": 5202
+          },
+          "build/maps-855-entry-control/control/build/Data.Nat.cinchif": {
+            "sha256": "d514729bcd61571a633a1999095b131ae8c84bf99639fb8a3439607d5c8f9f41",
+            "bytes": 29417
+          },
+          "build/maps-855-entry-control/control/build/Data.NonEmpty.cinchif": {
+            "sha256": "ff9a444b657133dd0313253fbe2fb9abf87bc4482934736311e0ff6e2e51be54",
+            "bytes": 13284
+          },
+          "build/maps-855-entry-control/control/build/Data.NonZero.cinchif": {
+            "sha256": "a8fe518b9ed900d2c5caa00819609c9cdcc9b935fdea03c9358d18b076c14548",
+            "bytes": 8528
+          },
+          "build/maps-855-entry-control/control/build/Data.Option.cinchif": {
+            "sha256": "bd7efbf19998baef3d311bd43397dec969488e8d217a436b3d7f9ffec1d48a13",
+            "bytes": 28860
+          },
+          "build/maps-855-entry-control/control/build/Data.Ordering.cinchif": {
+            "sha256": "ede196e344cc2cb82e4837edbb335f12bd50df18adba1562340919e71b85d4cb",
+            "bytes": 7027
+          },
+          "build/maps-855-entry-control/control/build/Data.Path.cinchif": {
+            "sha256": "b77a4f53882ddd063ea97e1c274bb7bb9d0711f0779552837e775a647e346f8b",
+            "bytes": 6270
+          },
+          "build/maps-855-entry-control/control/build/Data.Producer.cinchif": {
+            "sha256": "7ced6bf238eb0c4a38fcd296d6a43394ba73c49b4369da996ad32029c40c39fd",
+            "bytes": 8542
+          },
+          "build/maps-855-entry-control/control/build/Data.Result.cinchif": {
+            "sha256": "7680ea9a3adbb9714f2e8dd4bd493dc1cc22cc62832cdf7c58f899e21bc107da",
+            "bytes": 17758
+          },
+          "build/maps-855-entry-control/control/build/Data.Set.cinchif": {
+            "sha256": "c75a9da40db6b2a825e0fd32b54a42fe43631f05cdabd7184560db68549b9b44",
+            "bytes": 15631
+          },
+          "build/maps-855-entry-control/control/build/Data.Sorted.cinchif": {
+            "sha256": "fd04cdf87c10fd27df1c3ce29fcd5d1e4fe8bf8cec5b42bf1d9721e34391250e",
+            "bytes": 2250
+          },
+          "build/maps-855-entry-control/control/build/Data.String.cinchif": {
+            "sha256": "3a4e8106f50cb9b7d0db1ed34dae23a16d11cdd30254eb2ea17dac68ad506712",
+            "bytes": 31951
+          },
+          "build/maps-855-entry-control/control/build/Data.Sym.cinchif": {
+            "sha256": "9e164bd75a8921f0425519cdc8180b7d13099c75282e47ab207aae1ccabc2690",
+            "bytes": 8613
+          },
+          "build/maps-855-entry-control/control/build/Data.Target.cinchif": {
+            "sha256": "46b263ce059925f5f5997b2380173eb4ba7d9036d0370fe946db89e9a3492efe",
+            "bytes": 7264
+          },
+          "build/maps-855-entry-control/control/build/Data.Wide.cinchif": {
+            "sha256": "6902a46734b68000dcef5ee0d4b5d22a65f94dc54e2a08a0d40844f8484971e8",
+            "bytes": 177190
+          },
+          "build/maps-855-entry-control/control/build/Effect.Clock.cinchif": {
+            "sha256": "70e942fa5c8d1daa966397310d83b3b677b614eda11b036db885adbd993ffa14",
+            "bytes": 5643
+          },
+          "build/maps-855-entry-control/control/build/Effect.Concurrent.cinchif": {
+            "sha256": "4ff99543a28e5e2dcafe2b7532045bd734cdbbd1346e500f7dc99e1174c273ff",
+            "bytes": 2795
+          },
+          "build/maps-855-entry-control/control/build/Effect.Fs.cinchif": {
+            "sha256": "6efa53d6397bff6b58898c2c98696bd5bd1040efd8817b1b4e958ee39c2f1ad1",
+            "bytes": 19329
+          },
+          "build/maps-855-entry-control/control/build/Effect.Io.cinchif": {
+            "sha256": "e0cca130b1bc1034ef477d24d958705bd190c44ae454a3d1035096fcf2ae4514",
+            "bytes": 4334
+          },
+          "build/maps-855-entry-control/control/build/Effect.Process.cinchif": {
+            "sha256": "ec89e4a6997238d6a656cb68030107b6183fb8b4d042a8a265f234ea21c99b5f",
+            "bytes": 28556
+          },
+          "build/maps-855-entry-control/control/build/Effect.Sequencing.cinchif": {
+            "sha256": "791e97238b6b01c2eea29805ddd338babdf667a2297f1338d29ff58e7704d101",
+            "bytes": 4868
+          },
+          "build/maps-855-entry-control/control/build/Effect.Stm.TBQueue.cinchif": {
+            "sha256": "69cc21b453c0f3edacc3b6f240ea6ad9c9aa8a014edf5039ca96ca8c170bfed6",
+            "bytes": 7822
+          },
+          "build/maps-855-entry-control/control/build/Effect.Stm.TMVar.cinchif": {
+            "sha256": "81d9c0a3d70e6a5f7d50d5493daff02b3112bc60411d1c113459389aa1947461",
+            "bytes": 8818
+          },
+          "build/maps-855-entry-control/control/build/Effect.Stm.TQueue.cinchif": {
+            "sha256": "f55fe1be12fe3d32e44cc568b4fe10026d91da0fca0f9fcf70d4372ae28c27f8",
+            "bytes": 7322
+          },
+          "build/maps-855-entry-control/control/build/Effect.Stm.TSem.cinchif": {
+            "sha256": "a60ee1f10b2a50c7bb7fc1a1d3fbb34601fcf62b40979775f4aaeebf19d9d2d4",
+            "bytes": 4558
+          },
+          "build/maps-855-entry-control/control/build/Effect.Stm.cinchif": {
+            "sha256": "46adcbc9b2a32b11e2ceaf3666d73bafb2843feb7426594dc8b7fa86028162ab",
+            "bytes": 26973
+          },
+          "build/maps-855-entry-control/control/build/Function.Combinators.cinchif": {
+            "sha256": "63c4e009fd85dc33fec94744e5d21c027ba10a01f9563a2e5ca6c69a664ccd03",
+            "bytes": 4656
+          },
+          "build/maps-855-entry-control/control/build/Main.cinchif": {
+            "sha256": "6e9ea7ce150226bc5d0baac183500782289fbd7675042bd86cffd1c45c6facc2",
+            "bytes": 14159
+          },
+          "build/maps-855-entry-control/control/build/Main.manifest.json": {
+            "sha256": "3468e5f29412e347b6fe673de00b752546f16ab34a34bc23dad49f3dfb91e350",
+            "bytes": 145384
+          },
+          "build/maps-855-entry-control/control/build/Main.stage.snap": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "bytes": 0
+          },
+          "build/maps-855-entry-control/control/build/Prelude.cinchif": {
+            "sha256": "4ca6ae15b716a331e73eea4c21b4e4bb1a1774244d4bcdc86a6e1d70273d94d9",
+            "bytes": 419421
+          },
+          "build/maps-855-entry-control/control/build/Prim.Sys.Darwin.cinchif": {
+            "sha256": "d1161d7834d35b5023d61760cd348459694d0c9797babcc40a2b09179eb3d724",
+            "bytes": 27114
+          },
+          "build/maps-855-entry-control/control/build/Prim.Sys.Linux.cinchif": {
+            "sha256": "a5959f9dc30242f9c9454a6a4c3f3f669357b1782b4573b238c211193caf5085",
+            "bytes": 21362
+          },
+          "build/maps-855-entry-control/control/build/Prim.Sys.Portable.cinchif": {
+            "sha256": "bb4f7e1f2f3a0b2c19e34e4e78e64ecbbf8ac04782914c0a7ecf09c8f51ff259",
+            "bytes": 13232
+          },
+          "build/maps-855-entry-control/control/build/Prim.Sys.cinchif": {
+            "sha256": "63a13bd0a5d5a2fe6c9ce298f09531b6efb6e6699357974b86cf669acdb1cd38",
+            "bytes": 19276
+          },
+          "build/maps-855-entry-control/control/build/Relation.Eq.cinchif": {
+            "sha256": "64c6aee15c7970e310efab5144b293b59317de24f2cb3bac7f939ee22ca40d58",
+            "bytes": 1774
+          },
+          "build/maps-855-entry-control/control/build/Relation.Ord.cinchif": {
+            "sha256": "aee2cd2aae5bce0fd8f16f38579902a7688dda333947c3ca524df61d42a32d42",
+            "bytes": 6745
+          },
+          "build/maps-855-entry-control/control/build/Text.Codec.cinchif": {
+            "sha256": "f0239ce4633e462d2ea76c66c04a796b4b063ea687d1081ff579cf4aa7144a9a",
+            "bytes": 6572
+          },
+          "build/maps-855-entry-control/control/build/Text.Show.cinchif": {
+            "sha256": "112b9fda6e329c331ee9cde896d1c5c0e4beed0c98284479efe54d90f9157397",
+            "bytes": 6568
+          }
+        },
+        "originals_removed": true
+      }
+    }
+  },
+  "remaining": [
+    "800 independent steps per representation",
+    "14 IEEE observations per representation",
+    "3 independent SDK supplemental edge groups per representation",
+    "mixed IO callbacks and distinct-region composition",
+    "pure-read refusal",
+    "Native where currently supported",
+    "candidate benchmark preflight/paired measurements and allocation/assembly review"
+  ],
+  "resource_pauses": [
+    {
+      "scope": "first baseline control before any compile",
+      "report": "build/maps-855-baseline-control-results.json",
+      "free_bytes": 258699264
+    },
+    {
+      "scope": "first supplemental baseline edge before any compile",
+      "report": "build/maps-855-baseline-edge-results.json",
+      "free_bytes": 233373696
+    }
+  ]
+}

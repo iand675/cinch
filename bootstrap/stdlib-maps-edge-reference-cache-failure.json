@@ -1,0 +1,18 @@
+{
+  "kind": "independent-map-edge-reference-generation",
+  "command": [
+    "/tmp/cinch-go-current/go/bin/go",
+    "run",
+    "/workspace/dasl-stdlib-maps-audit/tooling/go_maps_edge_vectors.go"
+  ],
+  "cpu_affinity": [
+    1
+  ],
+  "generator_sha256": "ca5d896322fbbddbe261eb4e65c6ca48c772f3b84170aa9a47238ab65e70f408",
+  "exit": 1,
+  "seconds": 0.004687409003963694,
+  "timed_out": false,
+  "stderr": "failed to initialize build cache at /home/agent/.cache/go-build: mkdir /home/agent/.cache/go-build: read-only file system\n",
+  "library_runtime_qualified": false,
+  "source_runtime_qualified": false
+}

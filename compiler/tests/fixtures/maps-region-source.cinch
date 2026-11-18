@@ -1,0 +1,22 @@
+-- | Compose an effectful pair source and consumer across independent mutable regions.
+module Main where
+  import Data.Mutable.Var
+  import Data.Nat
+
+  -- | Supply one current value and propagate the source region through the yield row.
+  supply :: forall s ef. Var s Nat -> (Nat ->{Mut s | ef} Bool) ->{Mut s | ef} Unit
+  supply cell yield =
+    let value = var-read cell in
+    let continued = yield value in ()
+
+  -- | Consume a source by writing each yielded value into the destination region.
+  consume :: forall r ef. Var r Nat -> ((Nat ->{Mut r | ef} Bool) ->{Mut r | ef} Unit) ->{Mut r | ef} Unit
+  consume cell source = source (\value -> let saved = var-write cell value in True)
+
+  -- | Preserve both effects when adapting the partially applied source value.
+  copy-through-source :: forall r s. Var r Nat -> Var s Nat ->{Mut r, Mut s} Unit
+  copy-through-source destination source = consume destination (supply source)
+
+  -- | Keep this source a checker fixture without introducing an unrelated entry effect.
+  main :: Int
+  main = 0

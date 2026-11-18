@@ -1,0 +1,17 @@
+-- | A pure function must not observe a mutable map without its region effect.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Mutable.Map
+
+  -- | Establish the same explicit region carrier with its required mutable effect.
+  permitted-read :: forall (r :: Region). MutableMap r Nat Nat ->{Mut r} Nat
+  permitted-read map = mutable-map-size map
+
+  -- | Deliberately omit the required mutable region effect from this refusal fixture.
+  escaped-read :: forall (r :: Region). MutableMap r Nat Nat -> Nat
+  escaped-read map = mutable-map-size map
+
+  -- | Keep the module entry pure while requiring every declaration to be checked.
+  main :: Int
+  main = 0

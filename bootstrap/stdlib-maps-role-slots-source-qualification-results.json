@@ -1,0 +1,165 @@
+{
+  "kind": "isolated-C839-explicit-nominal-Region-source-qualification",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "provenance_sha256": "c303ec5ab34c80e19c19e659fa34ee35d1d5b73d0e2d9e81a1c9d990c7712251",
+  "cpu_affinity": [
+    1
+  ],
+  "review_sha256": "4bff02f7b1ac8f7e3badaa29c7e96981631c1c9a34a7d3525fa7836363be5262",
+  "runtime_executed": false,
+  "native_family_relabelled": false,
+  "candidate_selected": false,
+  "package_complete": false,
+  "production_sources_modified": false,
+  "historical_interfaces_modified": false,
+  "fresh_start_minimum_bytes": 209715200,
+  "minimum_reserve_bytes": 188743680,
+  "maximum_source_output_bytes": 5242880,
+  "scope_of_resource_exception": "Source-only; runtime and emission guards remain unchanged.",
+  "free_bytes_before": 358834176,
+  "compiler_invoked": true,
+  "command": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "/workspace/dasl-stdlib-maps-audit/tooling/validate_maps.py",
+    "--frontend",
+    "rust",
+    "--compiler",
+    "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/cinch",
+    "--runtime",
+    "/workspace/dasl-stdlib-io/build/stdlib-nominal-region-slots-frozen/libcinchruntime.a",
+    "--cpu",
+    "1",
+    "--modes",
+    "source",
+    "--minimum-free-mib",
+    "200",
+    "--minimum-reserve-mib",
+    "180",
+    "--maximum-unit-mib",
+    "5",
+    "--artifacts",
+    "build/maps-role-slots-source-a2",
+    "--output",
+    "build/maps-role-slots-source-a2-runner-results.json",
+    "--source-override",
+    "Data.Mutable.Map=/workspace/dasl-stdlib-maps-audit/build/maps-nominal-region-static/candidate/Data.Mutable.Map.cinch",
+    "--source-override",
+    "Data.Mutable.HashTable=/workspace/dasl-stdlib-maps-audit/build/maps-nominal-region-static/common/Data.Mutable.HashTable.cinch",
+    "--source-override",
+    "Data.Mutable.Var=/workspace/dasl-stdlib-maps-audit/build/maps-nominal-region-static/common/Data.Mutable.Var.cinch"
+  ],
+  "exit": 0,
+  "runner_report": "build/maps-role-slots-source-a2-runner-results.json",
+  "runner_report_sha256": "ba3865625e8761a274798eae5108b73904621b76b85a4a2b781c7f13cd431a49",
+  "private_MapEntry": {
+    "explicit_defining_declaration_source_checked": true,
+    "public_header_emitted": false,
+    "source_sha256": "7085aebe4c10dcd0cf27be6ffc0348a239398b07d54f60cb098722802b244c65",
+    "claim": "The checked source declaration is explicitly Region; no public private-type header is claimed."
+  },
+  "status": "source-and-public-defining-headers-passed",
+  "actual_headers": [
+    {
+      "path": "build/maps-role-slots-source-a2/source/build/Data.Mutable.Map.cinchif",
+      "sha256": "269405585bfcc8cb27bb9254d2905628aa634040da757a5bd0ed5276ffda74f1",
+      "actual_header": {
+        "ctors": [],
+        "fields": [],
+        "identity": "Data.Mutable.Map.MutableMap",
+        "kind": "data",
+        "name": "MutableMap",
+        "parameters": [
+          {
+            "implicit": false,
+            "kind": "Region",
+            "name": "r"
+          },
+          {
+            "implicit": false,
+            "kind": "Type",
+            "name": "k"
+          },
+          {
+            "implicit": false,
+            "kind": "Type",
+            "name": "v"
+          }
+        ],
+        "params": [
+          "r",
+          "k",
+          "v"
+        ],
+        "refinement": null
+      }
+    },
+    {
+      "path": "build/maps-role-slots-source-a2/source/build/Data.Mutable.HashTable.cinchif",
+      "sha256": "621a4a3b770bf9882505de5e97eed4b61b7797cd4a7d5cd7c01b2e405bd0d08e",
+      "actual_header": {
+        "ctors": [],
+        "fields": [],
+        "identity": "Data.Mutable.HashTable.HashTable",
+        "kind": "data",
+        "name": "HashTable",
+        "parameters": [
+          {
+            "implicit": false,
+            "kind": "Region",
+            "name": "r"
+          },
+          {
+            "implicit": false,
+            "kind": "Type",
+            "name": "k"
+          },
+          {
+            "implicit": false,
+            "kind": "Type",
+            "name": "v"
+          }
+        ],
+        "params": [
+          "r",
+          "k",
+          "v"
+        ],
+        "refinement": null
+      }
+    },
+    {
+      "path": "build/maps-role-slots-source-a2/source/build/Data.Mutable.Var.cinchif",
+      "sha256": "b5faf0c130a1f1afdb91491473c6778e5f9d8a22e5dd629eecf9bbce6bf9f49b",
+      "actual_header": {
+        "ctors": [],
+        "fields": [],
+        "identity": "Data.Mutable.Var.Var",
+        "kind": "data",
+        "name": "Var",
+        "parameters": [
+          {
+            "implicit": false,
+            "kind": "Region",
+            "name": "r"
+          },
+          {
+            "implicit": false,
+            "kind": "Type",
+            "name": "a"
+          }
+        ],
+        "params": [
+          "r",
+          "a"
+        ],
+        "refinement": null
+      }
+    }
+  ],
+  "output_bytes": 2532025,
+  "durable_attempt_report": {
+    "path": "build/maps-role-slots-source-a2-results.json",
+    "sha256": "578759845d67032978a7c058f59e1c83750d86aa4e4a31d5c95f83a2606f0a8f"
+  }
+}

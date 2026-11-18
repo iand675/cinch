@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "sdk": "go1.27.4",
+  "value_nan": {
+    "original_bits": 9221120237041090561,
+    "replacement_bits": 9221120237041090562,
+    "self_equal": false,
+    "clone_equal": false,
+    "clone_bit_equal": true,
+    "replacement_bit_same": false,
+    "original_size": 1,
+    "clone_size": 1
+  },
+  "delete_current_replacement": {
+    "callbacks": 3,
+    "original_values_match": true,
+    "final_size": 0
+  },
+  "equality_current_lookup": {
+    "equal": false,
+    "callbacks": 1,
+    "left_size": 2,
+    "right_size": 0
+  }
+}

@@ -1,0 +1,94 @@
+-- | Pin value-NaN comparison and live current-key behavior through effectful predicates.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Machine
+  import Data.Mutable.Map
+  import Data.Mutable.Var
+
+  -- | Require a checked update to complete successfully.
+  succeeded :: Result MapError Unit -> Bool
+  succeeded result = case result of Ok unit -> True; Err error -> False
+
+  -- | Construct a binary64 value without losing NaN payload bits.
+  prim from-bits :: U64 -> F64 where
+    llvm {
+      %value = bitcast i64 %0 to double
+      ret double %value
+    }
+
+  -- | Observe exact binary64 bits without numeric conversion.
+  prim to-bits :: F64 -> U64 where
+    llvm {
+      %bits = bitcast double %0 to i64
+      ret i64 %bits
+    }
+
+  -- | Select bit equality explicitly rather than imposing a global floating equality instance.
+  bit-equal :: F64 -> F64 -> Bool
+  bit-equal first second = eq-u64 (to-bits first) (to-bits second)
+
+  -- | Distinguish IEEE value equality from explicit bit equality and shallow clone identity.
+  value-nan-case :: forall r. Unit ->{Mut r} Bool
+  value-nan-case unit =
+    let map = mutable-map-new () in
+    let stored = succeeded (mutable-map-set map (1 :: Nat) (from-bits 9221120237041090561)) in
+    let self-matches = mutable-map-equal-by feq-f64 map map == False in
+    case mutable-map-clone map of
+      Err error -> False
+      Ok copy ->
+        let copied-bits = mutable-map-equal-by bit-equal map copy == True in
+        let copied-ieee = mutable-map-equal-by feq-f64 map copy == False in
+        let changed = succeeded (mutable-map-set copy 1 (from-bits 9221120237041090562)) in
+        let different-bits = mutable-map-equal-by bit-equal map copy == False in
+        stored && self-matches && copied-bits && copied-ieee && changed && different-bits && mutable-map-size map == 1 && mutable-map-size copy == 1
+
+  -- | Delete and replace the current key before requesting its ordinary current-key deletion.
+  replace-current :: forall r. MutableMap r Nat Nat -> Var r Nat -> Var r Bool -> Nat -> Nat ->{Mut r} Bool
+  replace-current map calls valid key value =
+    let removed = case mutable-map-delete map key of Ok (Some previous) -> previous == value; other -> False in
+    let replaced = succeeded (mutable-map-set map key (value + 1)) in
+    let previous-valid = var-read valid in
+    let checked = var-write valid (previous-valid && removed && replaced) in
+    let count = var-read calls in
+    let counted = var-write calls (count + 1) in True
+
+  -- | Deleting a captured identity alone would incorrectly leave every replacement alive.
+  delete-replacement-case :: forall r. Unit ->{Mut r} Bool
+  delete-replacement-case unit =
+    let map = mutable-map-new () in
+    let first = succeeded (mutable-map-set map (1 :: Nat) (10 :: Nat)) in
+    let second = succeeded (mutable-map-set map 2 20) in
+    let third = succeeded (mutable-map-set map 3 30) in
+    let calls = var-new (0 :: Nat) in
+    let valid = var-new True in
+    let deleted = succeeded (mutable-map-delete-if map (replace-current map calls valid)) in
+    first && second && third && deleted && var-read valid == True && var-read calls == 3 && mutable-map-size map == 0
+
+  -- | Clear the comparison map after the first value comparison and preserve callback count.
+  clear-comparison :: forall r. MutableMap r Nat Nat -> Var r Nat -> Nat -> Nat ->{Mut r} Bool
+  clear-comparison map calls first second =
+    let count = var-read calls in
+    let counted = var-write calls (count + 1) in
+    let cleared = mutable-map-clear map in first == second
+
+  -- | Every later comparison must use a current right-side lookup and stop before its predicate on a miss.
+  equality-mutation-case :: forall r. Unit ->{Mut r} Bool
+  equality-mutation-case unit =
+    let map = mutable-map-new () in
+    let first = succeeded (mutable-map-set map (1 :: Nat) (10 :: Nat)) in
+    let second = succeeded (mutable-map-set map 2 20) in
+    case mutable-map-clone map of
+      Err error -> False
+      Ok other ->
+        let calls = var-new (0 :: Nat) in
+        let matched = mutable-map-equal-by (clear-comparison other calls) map other == False in
+        first && second && matched && var-read calls == 1 && mutable-map-size map == 2 && mutable-map-size other == 0
+
+  -- | Report the first failed value or callback mutation contract independently.
+  main :: forall r. Unit ->{Mut r} Int
+  main unit =
+    if not (value-nan-case ()) then 1
+    else if not (delete-replacement-case ()) then 2
+    else if not (equality-mutation-case ()) then 3
+    else 0

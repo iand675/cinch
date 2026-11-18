@@ -1,0 +1,272 @@
+-- | Exercise pair utilities, captured policies, live entry identities and shallow owners.
+module Main where
+  import Data.Core
+  import Data.Nat
+  import Data.Machine
+  import Data.Mutable.Map
+  import Data.Mutable.Map.Optional
+  import Data.Mutable.Map.Float
+  import Data.Mutable.Var
+  import Data.Bytes (bytes-new, bytes-len)
+
+  -- | Require successful completion of a checked mutation.
+  succeeded :: Result MapError Unit -> Bool
+  succeeded result = case result of Ok unit -> True; Err error -> False
+
+  -- | Match a present natural without requiring container equality.
+  present :: Nat -> Option Nat -> Bool
+  present expected value = case value of Some actual -> actual == expected; None -> False
+
+  -- | Count one callback and request immediate termination.
+  stop-once :: forall r a. Var r Nat -> a ->{Mut r} Bool
+  stop-once calls value = let count = var-read calls in let saved = var-write calls (count + 1) in False
+
+  -- | Pin last-wins collection, insertion, shallow clone isolation and source-preferred copy.
+  binding-case :: forall r. Unit ->{Mut r} Bool
+  binding-case unit =
+    case mutable-map-collect (map-source-from-list ([(1,10),(2,20),(1,30)] :: List (Nat, Nat))) of
+      Err error -> False
+      Ok map ->
+        let original = mutable-map-size map == 2 && present 30 (mutable-map-lookup map 1) in
+        let inserted = succeeded (mutable-map-insert map (map-source-from-list [(2,40),(3,40)])) in
+        case mutable-map-clone map of
+          Err error -> False
+          Ok copy ->
+            let equal = mutable-map-equal map copy in
+            let changed = succeeded (mutable-map-set copy 1 99) in
+            let independent = present 30 (mutable-map-lookup map 1) && present 99 (mutable-map-lookup copy 1) in
+            let copied = succeeded (mutable-map-copy copy map) in
+            let self-copied = succeeded (mutable-map-copy map map) in
+            let restored = mutable-map-equal map copy && mutable-map-size map == 3 in
+            let deleted = succeeded (mutable-map-delete-if copy (\key value -> key == 2)) in
+            let gone = case mutable-map-lookup copy 2 of None -> True; Some value -> False in
+            original && inserted && equal && changed && independent && copied && self-copied && restored && deleted && gone && mutable-map-size copy == 2
+
+  -- | Count keys and duplicate values, then verify immediate callback termination.
+  views-case :: forall r. Unit ->{Mut r} Bool
+  views-case unit =
+    case mutable-map-collect (map-source-from-list ([(1,7),(2,7)] :: List (Nat, Nat))) of
+      Err error -> False
+      Ok map ->
+        let keys = var-new (0 :: Nat) in
+        let values = var-new (0 :: Nat) in
+        let calls = var-new (0 :: Nat) in
+        let all-keys = mutable-map-keys map (\key -> let old = var-read keys in let saved = var-write keys (old + key) in True) in
+        let all-values = mutable-map-values map (\value -> let old = var-read values in let saved = var-write values (old + value) in True) in
+        let stopped = mutable-map-keys map (stop-once calls) in
+        all-keys && all-values && not stopped && var-read keys == 3 && var-read values == 14 && var-read calls == 1
+
+  -- | Clear during the first callback and immediately reuse storage for a replacement entry.
+  clear-during-visit :: forall r. MutableMap r Nat Nat -> Var r Nat -> Nat -> Nat ->{Mut r} Bool
+  clear-during-visit map calls key value =
+    let count = var-read calls in
+    let counted = var-write calls (count + 1) in
+    let cleared = mutable-map-clear map in
+    succeeded (mutable-map-set map 99 100)
+
+  -- | Check live deletion, clear generation and invocation-time capture on a reused traversal.
+  mutation-case :: forall r. Unit ->{Mut r} Bool
+  mutation-case unit =
+    case mutable-map-collect (map-source-from-list ([(1,10),(2,20),(3,30)] :: List (Nat, Nat))) of
+      Err error -> False
+      Ok map ->
+        let calls = var-new (0 :: Nat) in
+        let traversal = mutable-map-all map in
+        let first = traversal (clear-during-visit map calls) in
+        let observed = var-new (0 :: Nat) in
+        let second = traversal (\key value -> let saved = var-write observed (key + value) in True) in
+        first && second && var-read calls == 1 && var-read observed == 199 && mutable-map-size map == 1
+
+  -- | Fill a bounded integer interval using only checked binding updates.
+  fill-interval :: forall r. MutableMap r Nat Nat -> Nat -> Nat -> Nat ->{Mut r} Bool
+  fill-interval map index end offset =
+    if index < end then succeeded (mutable-map-set map index (index + offset)) && fill-interval map (index + 1) end offset else True
+
+  -- | Force both stores to grow after the first callback and overwrite every original entry.
+  grow-during-visit :: forall r. MutableMap r Nat Nat -> Var r Nat -> Nat -> Nat ->{Mut r} Bool
+  grow-during-visit map calls key value =
+    let count = var-read calls in
+    let current = if count == 0 then value == key else value == key + 100 in
+    let grown = if count == 0 then fill-interval map 0 32 100 && fill-interval map 100 356 100 else True in
+    let counted = var-write calls (count + 1) in
+    current && grown && key < 32
+
+  -- | Check invocation identities through arena/index relocation and current-value replacement.
+  growth-case :: forall r. Unit ->{Mut r} Bool
+  growth-case unit =
+    let map = mutable-map-new () in
+    let prepared = fill-interval map 0 32 0 in
+    let calls = var-new (0 :: Nat) in
+    let exhausted = mutable-map-all map (grow-during-visit map calls) in
+    prepared && exhausted && var-read calls == 32 && mutable-map-size map == 288
+
+  -- | Delete an unvisited identity and reinsert its key into immediately reusable storage.
+  reinsert-during-visit :: forall r. MutableMap r Nat Nat -> Var r Nat -> Var r Nat -> Nat -> Nat ->{Mut r} Bool
+  reinsert-during-visit map calls victim key value =
+    let count = var-read calls in
+    let selected = if key == 1 then (2 :: Nat) else 1 in
+    let changed = if count == 0 then
+                    let saved = var-write victim selected in
+                    case mutable-map-delete map selected of
+                      Err error -> False
+                      Ok removed -> succeeded (mutable-map-set map selected 999)
+                  else key /= var-read victim && value /= 999 in
+    let counted = var-write calls (count + 1) in changed
+
+  -- | Require old memberships to stay stale after same-key replacement and physical slot reuse.
+  reinsert-case :: forall r. Unit ->{Mut r} Bool
+  reinsert-case unit = case mutable-map-collect (map-source-from-list ([(1,10),(2,20),(3,30),(4,40)] :: List (Nat, Nat))) of
+    Err error -> False
+    Ok map ->
+      let calls = var-new (0 :: Nat) in
+      let victim = var-new (0 :: Nat) in
+      let exhausted = mutable-map-all map (reinsert-during-visit map calls victim) in
+      exhausted && var-read calls == 3 && mutable-map-size map == 4 && present 999 (mutable-map-lookup map (var-read victim))
+
+  -- | Count a nested traversal without modifying its independently captured identities.
+  count-key :: forall r. Var r Nat -> Nat ->{Mut r} Bool
+  count-key calls key = let count = var-read calls in let saved = var-write calls (count + 1) in True
+
+  -- | Nested invocation captures a separate entry set and leaves the outer walk intact.
+  nested-case :: forall r. Unit ->{Mut r} Bool
+  nested-case unit = case mutable-map-collect (map-source-from-list ([(1,10),(2,20),(3,30)] :: List (Nat, Nat))) of
+    Err error -> False
+    Ok map ->
+      let outer = var-new (0 :: Nat) in
+      let inner = var-new (0 :: Nat) in
+      let exhausted = mutable-map-all map (\key value ->
+        let nested = mutable-map-keys map (count-key inner) in
+        let count = var-read outer in
+        let saved = var-write outer (count + 1) in nested) in
+      exhausted && var-read outer == 3 && var-read inner == 9
+
+  -- | Exercise an explicit colliding equivalence and observe the newest equivalent key representative.
+  policy-case :: forall r. Unit ->{Mut r} Bool
+  policy-case unit =
+    let policy = map-key-policy (\key -> (0 :: Nat)) (\first second -> nat-rem first 10 == nat-rem second 10) in
+    let map = mutable-map-new-with policy () in
+    let first = succeeded (mutable-map-set map 1 (1 :: Nat)) in
+    let second = succeeded (mutable-map-set map 11 2) in
+    let represented = var-new (0 :: Nat) in
+    let keys = mutable-map-keys map (\key -> let saved = var-write represented key in True) in
+    case mutable-map-clone map of
+      Err error -> False
+      Ok copy ->
+        let changed = succeeded (mutable-map-set copy 31 3) in
+        first && second && keys && changed && mutable-map-size map == 1 && var-read represented == 11 && present 2 (mutable-map-lookup map 21) && present 3 (mutable-map-lookup copy 41)
+
+  -- | Return a managed payload whose only surviving source owner is its map entry.
+  owned-source :: forall r. Unit ->{Mut r} Result MapError (MutableMap r Nat Bytes)
+  owned-source unit =
+    let map = mutable-map-new () in
+    case mutable-map-set map (1 :: Nat) (bytes-new 8192) of Err error -> Err error; Ok unit -> Ok map
+
+  -- | Preserve shallow payload owners after clearing and releasing the original container.
+  owner-case :: forall r. Unit ->{Mut r} Bool
+  owner-case unit = case owned-source () of
+    Err error -> False
+    Ok map -> case mutable-map-clone map of
+      Err error -> False
+      Ok copy ->
+        let cleared = mutable-map-clear map in
+        case mutable-map-lookup copy 1 of
+          None -> False
+          Some bytes -> bytes-len bytes == 8192 && mutable-map-is-empty map
+
+  -- | Distinguish independent container cells from deliberately shared mutable payloads.
+  shared-value-case :: forall r. Unit ->{Mut r} Bool
+  shared-value-case unit =
+    let shared = var-new (10 :: Nat) in
+    let map = mutable-map-new () in
+    case mutable-map-set map (1 :: Nat) shared of
+      Err error -> False
+      Ok unit -> case mutable-map-clone map of
+        Err error -> False
+        Ok copy -> case mutable-map-lookup copy 1 of
+          None -> False
+          Some cell ->
+            let changed = var-write cell 41 in
+            let fresh = var-new (99 :: Nat) in
+            let replaced = succeeded (mutable-map-set copy 1 fresh) in
+            case mutable-map-lookup map 1 of
+              None -> False
+              Some original -> replaced && var-read original == 41 && var-read fresh == 99
+
+  -- | Retain a producer callback deliberately to test that its session closes on return.
+  retain-yield :: forall r. Var r (Nat -> Nat ->{Mut r} Bool) -> (Nat -> Nat ->{Mut r} Bool) ->{Mut r} Unit
+  retain-yield retained yield =
+    let saved = var-write retained yield in
+    let accepted = yield 1 10 in ()
+
+  -- | Give the initial retained callback the actual map region through an ordinary typed argument.
+  inactive-yield :: forall r. MutableMap r Nat Nat -> Nat -> Nat ->{Mut r} Bool
+  inactive-yield map key value = let empty = mutable-map-is-empty map in False
+
+  -- | A source cannot mutate its former destination through a yield retained past completion.
+  closed-source-case :: forall r. Unit ->{Mut r} Bool
+  closed-source-case unit =
+    let map = mutable-map-new () in
+    let retained = var-new (inactive-yield map) in
+    let inserted = succeeded (mutable-map-insert map (retain-yield retained)) in
+    let yield = var-read retained in
+    let late = yield 2 20 in
+    let missing = case mutable-map-lookup map 2 of None -> True; Some value -> False in
+    inserted && not late && missing && mutable-map-size map == 1 && present 10 (mutable-map-lookup map 1)
+
+  -- | Construct binary64 test inputs with preserved NaN and zero bit patterns.
+  prim float-input :: U64 -> F64 where
+    llvm {
+      %value = bitcast i64 %0 to double
+      ret double %value
+    }
+
+  -- | Preserve NaN multiplicity through clone and self-copy while ordinary deletion cannot find it.
+  nan-case :: forall r. Unit ->{Mut r} Bool
+  nan-case unit =
+    let map = mutable-map-new-with map-f64-ieee-policy () in
+    let nan = float-input 9221120237041090561 in
+    let first = succeeded (mutable-map-set map nan (1 :: Nat)) in
+    let second = succeeded (mutable-map-set map nan 2) in
+    let missing = case mutable-map-lookup map nan of None -> True; Some value -> False in
+    let unequal = not (mutable-map-equal map map) in
+    let deleted = succeeded (mutable-map-delete-if map (\key value -> True)) in
+    case mutable-map-clone map of
+      Err error -> False
+      Ok copy ->
+        let cloned = mutable-map-size copy == 2 in
+        let copied = succeeded (mutable-map-copy map map) in
+        first && second && missing && unequal && deleted && cloned && copied && mutable-map-size map == 4 && mutable-map-size copy == 2
+
+  -- | Tie an absent optional carrier to an existing map's actual region and binding types.
+  absent-like :: forall r. MutableMap r Nat Nat -> Option (MutableMap r Nat Nat)
+  absent-like map = None
+
+  -- | Verify optional absence normalization and refusal only when a binding is actually supplied.
+  optional-case :: forall r. Unit ->{Mut r} Bool
+  optional-case unit =
+    let empty = mutable-map-new () in
+    let absent = absent-like empty in
+    let equal = optional-map-equal absent (Some empty) in
+    let inserted = succeeded (optional-map-insert absent (map-source-from-list Nil)) in
+    let refused = case optional-map-insert absent (map-source-from-list [(1,2)]) of Err MapMissingDestination -> True; other -> False in
+    let cloned = case optional-map-clone absent of Ok None -> True; other -> False in
+    case optional-map-collect (map-source-from-list (Nil :: List (Nat, Nat))) of
+      Ok (Some collected) -> equal && inserted && refused && cloned && mutable-map-is-empty collected
+      other -> False
+
+  -- | Return the first failed independent capability group for stable diagnostics.
+  main :: forall r. Unit ->{Mut r} Int
+  main unit =
+    if not (binding-case ()) then 1
+    else if not (views-case ()) then 2
+    else if not (mutation-case ()) then 3
+    else if not (nan-case ()) then 4
+    else if not (optional-case ()) then 5
+    else if not (growth-case ()) then 6
+    else if not (reinsert-case ()) then 7
+    else if not (nested-case ()) then 8
+    else if not (policy-case ()) then 9
+    else if not (owner-case ()) then 10
+    else if not (shared-value-case ()) then 11
+    else if not (closed-source-case ()) then 12
+    else 0

@@ -1,0 +1,19 @@
+{
+  "kind": "static-ieee64-fixture-preparation",
+  "runtime_executed": false,
+  "candidate_selected": false,
+  "observations": 7,
+  "vectors_sha256": "ea54c9b5518f4ac45d9dfcacd81cb1a6433cd3b4f17ee4070b9886e0d786a047",
+  "consumer": "build/maps-nominal-region-static/ieee64/Main.cinch",
+  "consumer_sha256": "ae7d15d9332bc9d721463a509a56400326c7390c76acfc1b817c961b480e9f1f",
+  "historical_consumer": "build/maps-region-safe/ieee/float-64/Main.cinch",
+  "historical_consumer_sha256": "ae7d15d9332bc9d721463a509a56400326c7390c76acfc1b817c961b480e9f1f",
+  "byte_identical_to_historical_fixture": true,
+  "input_bit_patterns": [
+    "0x7ff8000000000001",
+    "0x7ff0000000000001",
+    "0xfff8000000000017",
+    "0x8000000000000000"
+  ],
+  "remaining_gate": "Run both unchanged baseline and unselected C839 IEEE64 consumers on frozen855/c4 after the emission/runtime hold is released."
+}

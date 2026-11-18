@@ -1,0 +1,43 @@
+{
+  "frontend": "native",
+  "compiler_sha256": "88c4a6182243547d99d60ae4e19284eb8771dd792cbd9d32fb720c1019b0ddde",
+  "raw_compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "interfaces_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "provider_object_sha256": "46a7e57f467dd36135238903910feee82998526cbb3edaa94580a2a40ba47e64",
+  "sources": {
+    "Data.Mutable.Map": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+    "Data.Mutable.Map.Optional": "7e9b280b6e9d7b0a545479f0ff6c705ecac5ce477608bda3b0c04e644c81620a",
+    "Data.Mutable.Map.Float": "ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a",
+    "Data.Mutable.HashTable": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+    "Data.Mutable.LinkedList": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
+    "Data.Mutable.Var": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26"
+  },
+  "status": "passed",
+  "kind": "source-selected-native-map-qualification",
+  "scope": "Full current Map/Optional/Float closure; source check only",
+  "package_complete": false,
+  "source_absent_admission": false,
+  "runtime_executed": false,
+  "report": "build/maps-source-selected-2f/source-results.json",
+  "report_sha256": "70244fec212ed989f273cda05bdb636711ed55f6b74f94792bbd6cd31f03b5e6",
+  "runtime_control": {
+    "status": "emission-refused",
+    "report": "build/maps-source-selected-2f/control-results.json",
+    "report_sha256": "445b84ecd3bea36783113a917434a123f60cb99daa6086974a89315d986beeaa",
+    "diagnostic": "effect inclusion needs resolved rows",
+    "location": "Bundle.cinch:1633:5, binding-case collection/insertion producer composition",
+    "compiler_exit": 4,
+    "compile_seconds": 4.475776336999843,
+    "linked": false,
+    "runtime_executed": false
+  },
+  "standalone_row_probes": {
+    "report": "bootstrap/stdlib-maps-native-row-results.json",
+    "report_sha256": "e7187fe64395cd44a61f58bfcb2d00d5155db683c10ce1c30caf4f233c4d2a04",
+    "original_runtime_consumer_failure_preserved": true,
+    "both_refused": true,
+    "runtime_consumer_executed": false
+  }
+}
