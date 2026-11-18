@@ -1,0 +1,574 @@
+{
+  "adoption": false,
+  "base_commit": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+  "compiler_source_claims": {
+    "Bootstrap.Ast.cinch": {
+      "bytes": 63990,
+      "sha256": "3da668e217c0f04e9cf6d66e6e5214c9f7936d3fd481cc9176abf0da12db0455"
+    },
+    "Bootstrap.BodyContract.cinch": {
+      "bytes": 24750,
+      "sha256": "ffe0b2d87bb7b69589d662e7fc15f3bb96e7502ccd79f532f47e6d82aff36de4"
+    },
+    "Bootstrap.Builtin.cinch": {
+      "bytes": 36387,
+      "sha256": "b87934db48b617774424729c34abbd6d42832a13cf89f24a2595e66c4cb053e2"
+    },
+    "Bootstrap.Check.cinch": {
+      "bytes": 49257,
+      "sha256": "960dae10f40201ea2fc134e9d114ce34e66f788a0f8c48e618a5a769d6f9ed32"
+    },
+    "Bootstrap.Contracts.cinch": {
+      "bytes": 24097,
+      "sha256": "e73f1b0f8258c1db4e91341ba09024f47de042c4337cc6c1fd27520adddc1dac"
+    },
+    "Bootstrap.Core.cinch": {
+      "bytes": 286217,
+      "sha256": "3cbe366daa209fe04a1631f14fdf0a346514860e8bc7016cc59fb69f99587ab4"
+    },
+    "Bootstrap.CoreBody.cinch": {
+      "bytes": 65321,
+      "sha256": "7a32cf05fb400707820e829a37edfa16b787b1b530871b9631d7ac42402ec0da"
+    },
+    "Bootstrap.Dictionary.cinch": {
+      "bytes": 28950,
+      "sha256": "11caf0c05484a59c85765a2548932b9a2487aca57c3c8d1e081ccd9af08acdb6"
+    },
+    "Bootstrap.Driver.cinch": {
+      "bytes": 10198,
+      "sha256": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533"
+    },
+    "Bootstrap.Eval.cinch": {
+      "bytes": 35302,
+      "sha256": "888606e854aab7ec820f607d9004722c26075731f580b7f51c524988f1a68967"
+    },
+    "Bootstrap.Expand.cinch": {
+      "bytes": 26322,
+      "sha256": "3730803f333ee26a7941be0aca9911b56276735b08bd36995c0a1f88fbb4655a"
+    },
+    "Bootstrap.Export.cinch": {
+      "bytes": 76186,
+      "sha256": "599471009e75851f60ebfa6c544a03a812dd2923be105a2cd1d658fdc3dc29b3"
+    },
+    "Bootstrap.ExportNominal.cinch": {
+      "bytes": 25631,
+      "sha256": "d439bae5030019593fdb9b92373875090d5bac0a0e30df054db29fc17481c85a"
+    },
+    "Bootstrap.ExportType.cinch": {
+      "bytes": 37450,
+      "sha256": "2000f8c730cf0860425a8ba229da51cc8e80968950d862759de97f8b43ba0363"
+    },
+    "Bootstrap.Foreign.cinch": {
+      "bytes": 32318,
+      "sha256": "5fb6e5190352a2b4137c66a49641360d63f95bab3cb9e1763ee6546b21d025a1"
+    },
+    "Bootstrap.Global.cinch": {
+      "bytes": 34903,
+      "sha256": "ef518a4894a9a5b05ec810b462d8a7a862919f2a48cac8a1c27bef44048537e0"
+    },
+    "Bootstrap.Guarded.cinch": {
+      "bytes": 11703,
+      "sha256": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98"
+    },
+    "Bootstrap.Index.cinch": {
+      "bytes": 11760,
+      "sha256": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f"
+    },
+    "Bootstrap.Infer.cinch": {
+      "bytes": 674382,
+      "sha256": "13bc24cf92fa50c83a7fda3b6f3f2b854f1a9f6078dc6d54a73d361fed690cf4"
+    },
+    "Bootstrap.Inputs.cinch": {
+      "bytes": 4064,
+      "sha256": "62cbc9ff4fa8b920610450f7f857ecf9ccc6f056c198ab2fa1921e0c3765a194"
+    },
+    "Bootstrap.Instance.cinch": {
+      "bytes": 41994,
+      "sha256": "afe28d2c4c0f703a6cae92fd25de2e9257b344396407daf046132d1ebe865314"
+    },
+    "Bootstrap.Interface.cinch": {
+      "bytes": 30041,
+      "sha256": "faecf6444b48cd4bfead2b42e593c5b33d0bd88d497d0c1b6265ab8f29f4a032"
+    },
+    "Bootstrap.Ir.cinch": {
+      "bytes": 35738,
+      "sha256": "be9f22e3f530cf03261edd00a9f879484365e4face8cb63cbb0f8eb2e34fd984"
+    },
+    "Bootstrap.Kinds.cinch": {
+      "bytes": 17208,
+      "sha256": "4774925d2d3ce8d7cd266bb6297169f60d3f7ac2c6a866d74e947c886bfc8a9e"
+    },
+    "Bootstrap.Load.cinch": {
+      "bytes": 73250,
+      "sha256": "818bf63f15ca8673acf4b81356045a92d79f3a306435b9b29cfc41661172e209"
+    },
+    "Bootstrap.Manifest.cinch": {
+      "bytes": 13295,
+      "sha256": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac"
+    },
+    "Bootstrap.Nominal.cinch": {
+      "bytes": 30200,
+      "sha256": "da38bafe2f771a7f0e65ea92c39e820bf77d85a0c310ac4c7c8424dc86e2e9c5"
+    },
+    "Bootstrap.Object.cinch": {
+      "bytes": 28087,
+      "sha256": "9cbb3081573d64b418714d685a7273d0591c472cf6cac8d533c1d93c1659f89a"
+    },
+    "Bootstrap.Parse.cinch": {
+      "bytes": 152627,
+      "sha256": "697a609eff4228205cc72bc07575cc875857cb6a33826cb8bc85d9f8344edfe1"
+    },
+    "Bootstrap.Pipeline.cinch": {
+      "bytes": 49462,
+      "sha256": "5f7dc1216ee085f20933196d46c26b9ba4235eff31cb68f724a217fdc9e27a6c"
+    },
+    "Bootstrap.Proof.cinch": {
+      "bytes": 23773,
+      "sha256": "9ae86640664c59a780c8a27b07001e2bccf00faccde33e6d0200886feeadb1a3"
+    },
+    "Bootstrap.Report.cinch": {
+      "bytes": 6089,
+      "sha256": "e6cfc868d86d7585b5ed42e7fde6be613d02a6075101ab46d5a9f150f594e9c7"
+    },
+    "Bootstrap.Resolve.cinch": {
+      "bytes": 85282,
+      "sha256": "8178ecb7bfe8c806bf926166cccc86358577e8d901a30817c7f9e36bc7ba01c9"
+    },
+    "Bootstrap.RuntimeAbi.cinch": {
+      "bytes": 311,
+      "sha256": "2475d26247a8967b726c4a475fecc733a86083fced48c88779a6071b7381bd3e"
+    },
+    "Bootstrap.RuntimeIr.cinch": {
+      "bytes": 413753,
+      "sha256": "bf3a1d91f0f2352e0ed8ad7538e8a57ba31e245cc3c5f83390fccd905e7c1830"
+    },
+    "Bootstrap.Stage.cinch": {
+      "bytes": 37440,
+      "sha256": "3320cfd63a9983fc053e0c9b94ae393d0d2962b7b78ff428a162c012cdfb3f61"
+    },
+    "Bootstrap.StageEval.cinch": {
+      "bytes": 14646,
+      "sha256": "d53907533611569bccc45f3a42af819a625ffaa68740d5b313488a849ab938ef"
+    },
+    "Bootstrap.Temporal.cinch": {
+      "bytes": 11479,
+      "sha256": "4aabe2374b72497d69c46d6fe3386246b18f60ab335e57eadd5f7e9abb7f89ca"
+    },
+    "Bootstrap.TemporalCheck.cinch": {
+      "bytes": 46853,
+      "sha256": "9aa948e875bb2e9bed0112e6c02caa95f3f34d6cc41d7d8caa56e75eb5e6272c"
+    },
+    "Bootstrap.Test.cinch": {
+      "bytes": 8025,
+      "sha256": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4"
+    },
+    "Bootstrap.Total.cinch": {
+      "bytes": 21969,
+      "sha256": "30bef01bca5e7cc80847763478cdbb3aed290334b142c0baf61493c35d3eb317"
+    },
+    "Bootstrap.TotalSemantics.cinch": {
+      "bytes": 17744,
+      "sha256": "8e4a979aaad3a770065ef81a7a648757886edb137a226857a448cf9afcf3b0de"
+    },
+    "Bootstrap.Type.cinch": {
+      "bytes": 157373,
+      "sha256": "8b822b5a9107da67ffc6aae68aa0cea76466d294df9959d2a3487ec746200e79"
+    },
+    "Bootstrap.Typing.cinch": {
+      "bytes": 128832,
+      "sha256": "21731df552664ab330689e857afea2b17af4794fa78f739b022bdb65dd270393"
+    },
+    "Data.Array.cinch": {
+      "bytes": 1709,
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee"
+    },
+    "Main.cinch": {
+      "bytes": 11148,
+      "sha256": "af5113475ded965ccd87d34f50c24125e6d2f902ca907734b78dc59a873055cc"
+    },
+    "Text.Builder.cinch": {
+      "bytes": 9283,
+      "sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b"
+    },
+    "Text.Json.cinch": {
+      "bytes": 46627,
+      "sha256": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c"
+    },
+    "Text.Lex.cinch": {
+      "bytes": 69708,
+      "sha256": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032"
+    },
+    "Text.Parse.cinch": {
+      "bytes": 25320,
+      "sha256": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b"
+    },
+    "Text.Scan.cinch": {
+      "bytes": 18072,
+      "sha256": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+    }
+  },
+  "compiler_source_count": 51,
+  "compiler_source_sha256": "b8931c7868add095c105dba92802807bded553db1fa180bd9d1bb82ae42026a4",
+  "curated_bootstrap_files": [
+    "bootstrap/Bootstrap.Builtin.cinch",
+    "bootstrap/Bootstrap.Export.cinch",
+    "bootstrap/Bootstrap.Foreign.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.Load.cinch",
+    "bootstrap/Bootstrap.Object.cinch",
+    "bootstrap/Bootstrap.RuntimeIr.cinch"
+  ],
+  "curation_merge_base_commit": "d3ab8ad088ed656638ca55352b0649f96d9a7e93",
+  "embedded_module_count": 66,
+  "embedded_source_claims": {
+    "Algebra.Arithmetic": {
+      "path": "compiler/prelude/Algebra/Arithmetic.cinch",
+      "sha256": "2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0"
+    },
+    "Algebra.Bits": {
+      "path": "compiler/prelude/Algebra/Bits.cinch",
+      "sha256": "8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712"
+    },
+    "Algebra.Group": {
+      "path": "compiler/prelude/Algebra/Group.cinch",
+      "sha256": "e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c"
+    },
+    "Algebra.Monoid": {
+      "path": "compiler/prelude/Algebra/Monoid.cinch",
+      "sha256": "8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591"
+    },
+    "Algebra.Semigroup": {
+      "path": "compiler/prelude/Algebra/Semigroup.cinch",
+      "sha256": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e"
+    },
+    "Algebra.Semiring": {
+      "path": "compiler/prelude/Algebra/Semiring.cinch",
+      "sha256": "9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03"
+    },
+    "Category.Alternative": {
+      "path": "compiler/prelude/Category/Alternative.cinch",
+      "sha256": "4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc"
+    },
+    "Category.Applicative": {
+      "path": "compiler/prelude/Category/Applicative.cinch",
+      "sha256": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a"
+    },
+    "Category.Foldable": {
+      "path": "compiler/prelude/Category/Foldable.cinch",
+      "sha256": "f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab"
+    },
+    "Category.Functor": {
+      "path": "compiler/prelude/Category/Functor.cinch",
+      "sha256": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1"
+    },
+    "Category.Monad": {
+      "path": "compiler/prelude/Category/Monad.cinch",
+      "sha256": "6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f"
+    },
+    "Category.Traversable": {
+      "path": "compiler/prelude/Category/Traversable.cinch",
+      "sha256": "f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad"
+    },
+    "Data.Ascii": {
+      "path": "compiler/prelude/Data/Ascii.cinch",
+      "sha256": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2"
+    },
+    "Data.Bool": {
+      "path": "compiler/prelude/Data/Bool.cinch",
+      "sha256": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5"
+    },
+    "Data.Bytes": {
+      "path": "compiler/prelude/Data/Bytes.cinch",
+      "sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146"
+    },
+    "Data.Char": {
+      "path": "compiler/prelude/Data/Char.cinch",
+      "sha256": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb"
+    },
+    "Data.Compose": {
+      "path": "compiler/prelude/Data/Compose.cinch",
+      "sha256": "e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80"
+    },
+    "Data.Const": {
+      "path": "compiler/prelude/Data/Const.cinch",
+      "sha256": "6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c"
+    },
+    "Data.Core": {
+      "path": "compiler/prelude/Data/Core.cinch",
+      "sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106"
+    },
+    "Data.Enum": {
+      "path": "compiler/prelude/Data/Enum.cinch",
+      "sha256": "ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8"
+    },
+    "Data.FromList": {
+      "path": "compiler/prelude/Data/FromList.cinch",
+      "sha256": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8"
+    },
+    "Data.FromMap": {
+      "path": "compiler/prelude/Data/FromMap.cinch",
+      "sha256": "af8cdaf5ec98b0c87e4c9b2c85fabfa72cb0602ea5f14ba50da7ee9e99311fcf"
+    },
+    "Data.Hash": {
+      "path": "compiler/prelude/Data/Hash.cinch",
+      "sha256": "3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00"
+    },
+    "Data.HashMap": {
+      "path": "compiler/prelude/Data/HashMap.cinch",
+      "sha256": "bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565"
+    },
+    "Data.Identity": {
+      "path": "compiler/prelude/Data/Identity.cinch",
+      "sha256": "2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9"
+    },
+    "Data.Int": {
+      "path": "compiler/prelude/Data/Int.cinch",
+      "sha256": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea"
+    },
+    "Data.Json": {
+      "path": "compiler/prelude/Data/Json.cinch",
+      "sha256": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b"
+    },
+    "Data.List": {
+      "path": "compiler/prelude/Data/List.cinch",
+      "sha256": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d"
+    },
+    "Data.Machine": {
+      "path": "compiler/prelude/Data/Machine.cinch",
+      "sha256": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032"
+    },
+    "Data.Map": {
+      "path": "compiler/prelude/Data/Map.cinch",
+      "sha256": "0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32"
+    },
+    "Data.Nat": {
+      "path": "compiler/prelude/Data/Nat.cinch",
+      "sha256": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b"
+    },
+    "Data.NonEmpty": {
+      "path": "compiler/prelude/Data/NonEmpty.cinch",
+      "sha256": "62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900"
+    },
+    "Data.NonZero": {
+      "path": "compiler/prelude/Data/NonZero.cinch",
+      "sha256": "dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b"
+    },
+    "Data.Option": {
+      "path": "compiler/prelude/Data/Option.cinch",
+      "sha256": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01"
+    },
+    "Data.Ordering": {
+      "path": "compiler/prelude/Data/Ordering.cinch",
+      "sha256": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537"
+    },
+    "Data.Path": {
+      "path": "compiler/prelude/Data/Path.cinch",
+      "sha256": "1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772"
+    },
+    "Data.Producer": {
+      "path": "compiler/prelude/Data/Producer.cinch",
+      "sha256": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f"
+    },
+    "Data.Result": {
+      "path": "compiler/prelude/Data/Result.cinch",
+      "sha256": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d"
+    },
+    "Data.Set": {
+      "path": "compiler/prelude/Data/Set.cinch",
+      "sha256": "da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64"
+    },
+    "Data.Sorted": {
+      "path": "compiler/prelude/Data/Sorted.cinch",
+      "sha256": "860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611"
+    },
+    "Data.String": {
+      "path": "compiler/prelude/Data/String.cinch",
+      "sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6"
+    },
+    "Data.Sym": {
+      "path": "compiler/prelude/Data/Sym.cinch",
+      "sha256": "60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73"
+    },
+    "Data.Target": {
+      "path": "compiler/prelude/Data/Target.cinch",
+      "sha256": "a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e"
+    },
+    "Data.Wide": {
+      "path": "compiler/prelude/Data/Wide.cinch",
+      "sha256": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133"
+    },
+    "Effect.Clock": {
+      "path": "compiler/prelude/Effect/Clock.cinch",
+      "sha256": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62"
+    },
+    "Effect.Concurrent": {
+      "path": "compiler/prelude/Effect/Concurrent.cinch",
+      "sha256": "07b1741a8b937105d3fefff700f6cf6ba415e1f8781e2924c396532bccf5d62a"
+    },
+    "Effect.Concurrent.MVar": {
+      "path": "compiler/prelude/Effect/Concurrent/MVar.cinch",
+      "sha256": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e"
+    },
+    "Effect.Fs": {
+      "path": "compiler/prelude/Effect/Fs.cinch",
+      "sha256": "ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f"
+    },
+    "Effect.Io": {
+      "path": "compiler/prelude/Effect/Io.cinch",
+      "sha256": "82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804"
+    },
+    "Effect.Process": {
+      "path": "compiler/prelude/Effect/Process.cinch",
+      "sha256": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60"
+    },
+    "Effect.Sequencing": {
+      "path": "compiler/prelude/Effect/Sequencing.cinch",
+      "sha256": "1d94fcf10e01ff6bdacecc5db92317769f719cdabf7f30cf03ef5665e2f1f255"
+    },
+    "Effect.Stm": {
+      "path": "compiler/prelude/Effect/Stm.cinch",
+      "sha256": "2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810"
+    },
+    "Effect.Stm.TBQueue": {
+      "path": "compiler/prelude/Effect/Stm/TBQueue.cinch",
+      "sha256": "07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe"
+    },
+    "Effect.Stm.TMVar": {
+      "path": "compiler/prelude/Effect/Stm/TMVar.cinch",
+      "sha256": "6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4"
+    },
+    "Effect.Stm.TQueue": {
+      "path": "compiler/prelude/Effect/Stm/TQueue.cinch",
+      "sha256": "706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2"
+    },
+    "Effect.Stm.TSem": {
+      "path": "compiler/prelude/Effect/Stm/TSem.cinch",
+      "sha256": "a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d"
+    },
+    "Function.Combinators": {
+      "path": "compiler/prelude/Function/Combinators.cinch",
+      "sha256": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef"
+    },
+    "Prelude": {
+      "path": "compiler/prelude/Prelude.cinch",
+      "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7"
+    },
+    "Prim.Sys": {
+      "path": "compiler/prelude/Prim/Sys.cinch",
+      "sha256": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d"
+    },
+    "Prim.Sys.Darwin": {
+      "path": "compiler/prelude/Prim/Sys/Darwin.cinch",
+      "sha256": "79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e"
+    },
+    "Prim.Sys.Linux": {
+      "path": "compiler/prelude/Prim/Sys/Linux.cinch",
+      "sha256": "9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd"
+    },
+    "Prim.Sys.Portable": {
+      "path": "compiler/prelude/Prim/Sys/Portable.cinch",
+      "sha256": "2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c"
+    },
+    "Relation.Eq": {
+      "path": "compiler/prelude/Relation/Eq.cinch",
+      "sha256": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c"
+    },
+    "Relation.Ord": {
+      "path": "compiler/prelude/Relation/Ord.cinch",
+      "sha256": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd"
+    },
+    "Text.Codec": {
+      "path": "compiler/prelude/Text/Codec.cinch",
+      "sha256": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29"
+    },
+    "Text.Show": {
+      "path": "compiler/prelude/Text/Show.cinch",
+      "sha256": "0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7"
+    }
+  },
+  "full_gate_pending": true,
+  "native_mvar_status": "not implemented; Rust/runtime66 does not imply Native66 admission",
+  "native_wide_array_status": "separate existing refusal/lowering limits; Rust Slots or Array patches are not Native lowering",
+  "pins": {
+    "blocker": "The published Rust Role+Slots envelope is now independently hashed. Full Native MVar, generic wide arrays, provider-object admission and fresh current-source family gates remain open.",
+    "changed": true,
+    "previous_pins": {
+      "library-provider": {
+        "description": "ABI 10 coherent native borrow hardening and reuse optimization snapshot, including current main MVar runtime and library sources.",
+        "revision": "3768281841e029cde89156e8d925a0652619e4c3",
+        "runtime_abi": 10,
+        "schema": 1,
+        "source_sha256": "03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3"
+      },
+      "stage0": {
+        "description": "ABI 10 coherent native borrow hardening and reuse optimization snapshot, including current main MVar runtime and library sources.",
+        "patch": "bootstrap/seed/stage0.patch",
+        "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "revision": "3768281841e029cde89156e8d925a0652619e4c3",
+        "runtime_abi": 10,
+        "schema": 1,
+        "source_sha256": "03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3"
+      }
+    },
+    "provider": {
+      "description": "ABI 10 qualified Rust explicit Region and boxed-wide Slots snapshot, retaining boxed-Nat and heap-callback repairs; Native MVar and generic wide-array admission remain open.",
+      "revision": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+      "runtime_abi": 10,
+      "schema": 1,
+      "source_sha256": "cc28b29e5f948966ad8a79df46fe1c1b386eaa451e2c1fedcb3b14f041598b1e"
+    },
+    "stage0": {
+      "description": "ABI 10 qualified Rust explicit Region and boxed-wide Slots snapshot, retaining boxed-Nat and heap-callback repairs; Native MVar and generic wide-array admission remain open.",
+      "patch": "bootstrap/seed/stage0.patch",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "revision": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+      "runtime_abi": 10,
+      "schema": 1,
+      "source_sha256": "cc28b29e5f948966ad8a79df46fe1c1b386eaa451e2c1fedcb3b14f041598b1e"
+    },
+    "status": "proposed for review; no seed/provider build or adoption"
+  },
+  "planned_producer": {
+    "frozen_compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+    "provenance_commit": "4d946629391e38d09e97d7d71f4751ce4f653265",
+    "seed_source_sha256": "cc28b29e5f948966ad8a79df46fe1c1b386eaa451e2c1fedcb3b14f041598b1e",
+    "source_revision": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
+    "status": "published qualified Rust snapshot and source envelope verified; no new provider object built"
+  },
+  "planned_runtime": {
+    "runtime_abi": 10,
+    "sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+    "status": "matching published runtime rehashed; no consumer runtime or provider object built here"
+  },
+  "retained_source_body_checkpoint": "dcc3e2f91c856a4327cbcfe35517cf49e0d4d552",
+  "roots": {
+    "dictionaries": 51,
+    "historically_observed_additions": [
+      {
+        "classes": "OO",
+        "symbol": "Data.HashMap.hash-map-to-list"
+      },
+      {
+        "classes": "OOO",
+        "symbol": "Data.Producer.prod-fold"
+      },
+      {
+        "classes": "OOR",
+        "symbol": "Data.Producer.prod-fold"
+      },
+      {
+        "classes": "OO",
+        "symbol": "Data.Producer.prod-take"
+      }
+    ],
+    "methods": 34,
+    "path": "bootstrap/library-object-roots.json",
+    "requested_units": 230,
+    "sha256": "26f10692a0100f3037d687165ef25d6d08a88e683d3435f6a5651c6ca9d7db41",
+    "status": "request only; fresh typed actual-unit admission required; no object metadata fabricated"
+  },
+  "schema": 1,
+  "source_collection": "Exact tooling/bootstrap.py collect_compiler_sources protocol4, including generated ABI10 module and all-source qualified Main imports",
+  "status": "static source-only candidate; no typecheck, Native host, provider or family gate",
+  "upstream_base": "33e25dba"
+}

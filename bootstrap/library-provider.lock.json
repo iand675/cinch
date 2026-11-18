@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 coherent native borrow hardening and reuse optimization snapshot, including current main MVar runtime and library sources.",
-  "revision": "3768281841e029cde89156e8d925a0652619e4c3",
+  "description": "ABI 10 qualified Rust explicit Region and boxed-wide Slots snapshot, retaining boxed-Nat and heap-callback repairs; Native MVar and generic wide-array admission remain open.",
+  "revision": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "03826793907e4fe766af4deeff4c0cce9552fa3321af3d7bc886b50e85c743d3"
+  "source_sha256": "cc28b29e5f948966ad8a79df46fe1c1b386eaa451e2c1fedcb3b14f041598b1e"
 }

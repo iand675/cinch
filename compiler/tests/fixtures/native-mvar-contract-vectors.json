@@ -1,0 +1,264 @@
+{
+  "cases": [
+    {
+      "accept": true,
+      "name": "mvarNew-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarNew\" operation :: forall a. a ->{MVar} MVarCell a\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarNewEmpty-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarNewEmpty\" operation :: forall a. Unit ->{MVar} MVarCell a\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarTake-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarTake\" operation :: forall a. MVarCell a ->{MVar, Diverge} a\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarPut-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarPut\" operation :: forall a. MVarCell a -> a ->{MVar, Diverge} Unit\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarRead-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarRead\" operation :: forall a. MVarCell a ->{MVar, Diverge} a\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarSwap-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarSwap\" operation :: forall a. MVarCell a -> a ->{MVar, Diverge} a\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarTryTake-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarTryTake\" operation :: forall a. MVarCell a ->{MVar} Option a\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarTryPut-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarTryPut\" operation :: forall a. MVarCell a -> a ->{MVar} Bool\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarTryRead-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarTryRead\" operation :: forall a. MVarCell a ->{MVar} Option a\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarIsEmpty-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarIsEmpty\" operation :: forall a. MVarCell a ->{MVar} Bool\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarTakeOrCancel-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarTakeOrCancel\" operation :: forall a. MVarCell a ->{MVar, Diverge} Option a\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarPutOrCancel-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarPutOrCancel\" operation :: forall a. MVarCell a -> a ->{MVar, Diverge} Bool\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarReadOrCancel-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarReadOrCancel\" operation :: forall a. MVarCell a ->{MVar, Diverge} Option a\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "mvarSwapOrCancel-canonical",
+      "phase": "check",
+      "source": "-- | Check one exact polymorphic single-place-variable declaration.\nmodule Main where\n  import Data.Option\n  -- | Retain the complete canonical argument, result and effect contract.\n  foreign import ccall \"cinch.runtime.mvarSwapOrCancel\" operation :: forall a. MVarCell a -> a ->{MVar, Diverge} Option a\n  -- | This declaration probe performs no runtime operations.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "pure-new",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarNew\" changed :: forall a. a -> MVarCell a\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "extra-argument",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarNew\" changed :: forall a. Unit -> a ->{MVar} MVarCell a\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "wrong-carrier",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarNew\" changed :: forall a. a ->{MVar} Array a\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "erased-option",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarTryTake\" changed :: forall a. MVarCell a ->{MVar} a\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "wrong-payload",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarRead\" changed :: forall a b. MVarCell a ->{MVar, Diverge} b\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "missing-diverge",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarRead\" changed :: forall a. MVarCell a ->{MVar} a\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "extra-diverge",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarTryRead\" changed :: forall a. MVarCell a ->{MVar, Diverge} Option a\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "monomorphic-new",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarNew\" changed :: I64 ->{MVar} MVarCell I64\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "kind",
+      "name": "region-carrier",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarNew\" changed :: forall (r :: Region). r ->{MVar} MVarCell r\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "changed-put-result",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarPut\" changed :: forall a. MVarCell a -> a ->{MVar, Diverge} Bool\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "invented-cancel-region",
+      "phase": "check",
+      "source": "-- | Refuse an altered runtime contract before lowering.\nmodule Main where\n  import Data.Option\n  -- | This deliberately false foreign contract must be rejected.\n  foreign import ccall \"cinch.runtime.mvarTakeOrCancel\" changed :: forall (r :: Region) a. MVarCell a ->{MVar, Diverge, Cancel r} Option a\n  -- | Never execute an unverified runtime declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "kernel MVarCell carrier",
+      "name": "data-cannot-own-kernel-cell",
+      "phase": "check",
+      "source": "-- | Refuse source declarations that claim a sealed kernel identity.\nmodule Main where\n  data MVarCell a where\n    Forged :: a -> MVarCell a\n  -- | Never execute a forged nominal declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "builtin type",
+      "name": "opaque-cannot-own-kernel-cell",
+      "phase": "check",
+      "source": "-- | Refuse source declarations that claim a sealed kernel identity.\nmodule Main where\n  opaque MVarCell a :: Type\n  -- | Never execute a forged nominal declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "kernel MVarCell carrier",
+      "name": "record-cannot-own-kernel-cell",
+      "phase": "check",
+      "source": "-- | Refuse source declarations that claim a sealed kernel identity.\nmodule Main where\n  record MVarCell a where\n    value :: a\n  -- | Never execute a forged nominal declaration.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar I128/U128 payload requires a checked boxed-wide bridge",
+      "name": "wide-I128-named-refusal",
+      "phase": "emit",
+      "source": "-- | Keep an unsupported wide payload class refused without constructing an i128 value.\nmodule Main where\n  -- | The exact empty-cell contract still specializes on its payload class.\n  foreign import ccall \"cinch.runtime.mvarNewEmpty\" empty :: forall a. Unit ->{MVar} MVarCell a\n  -- | A container annotation must not silently choose a raw-word payload format.\n  main :: Unit ->{MVar} Int\n  main unit = let cell = (empty () :: MVarCell I128) in 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar I128/U128 payload requires a checked boxed-wide bridge",
+      "name": "wide-U128-named-refusal",
+      "phase": "emit",
+      "source": "-- | Keep an unsupported wide payload class refused without constructing an i128 value.\nmodule Main where\n  -- | The exact empty-cell contract still specializes on its payload class.\n  foreign import ccall \"cinch.runtime.mvarNewEmpty\" empty :: forall a. Unit ->{MVar} MVarCell a\n  -- | A container annotation must not silently choose a raw-word payload format.\n  main :: Unit ->{MVar} Int\n  main unit = let cell = (empty () :: MVarCell U128) in 0\n"
+    },
+    {
+      "accept": true,
+      "expected_diagnostic": "",
+      "name": "task-capture-Nat",
+      "phase": "check",
+      "required_source_modules": [
+        "compiler/prelude/Effect/Concurrent/MVar.cinch"
+      ],
+      "source": "-- | Check task transfer independently of local handle copyability.\nmodule Main where\n  import Effect.Concurrent.MVar\n  -- | Read the captured cell only after the task boundary.\n  size :: MVar Nat ->{MVar, Diverge} Nat\n  size cell = mvar-read cell\n  -- | Both tasks retain access to the same runtime slot.\n  work :: forall r. using (io :: Io r) => MVar Nat ->{Async r, Cancel r, Diverge, MVar} Result LoadError (Nat, Nat)\n  work cell = withScope $ \\scope -> do\n    first <- spawn scope (\\() -> Ok (size cell))\n    second <- spawn scope (\\() -> Ok (size cell))\n    joinAllOrCancel scope first second\n  -- | This source-only probe does not start workers.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "shareable evidence",
+      "name": "task-capture-Bytes",
+      "phase": "check",
+      "required_source_modules": [
+        "compiler/prelude/Effect/Concurrent/MVar.cinch"
+      ],
+      "source": "-- | Check task transfer independently of local handle copyability.\nmodule Main where\n  import Effect.Concurrent.MVar\n  -- | Read the captured cell only after the task boundary.\n  size :: MVar Bytes ->{MVar, Diverge} Nat\n  size cell = bytes-len (mvar-read cell)\n  -- | Both tasks retain access to the same runtime slot.\n  work :: forall r. using (io :: Io r) => MVar Bytes ->{Async r, Cancel r, Diverge, MVar} Result LoadError (Nat, Nat)\n  work cell = withScope $ \\scope -> do\n    first <- spawn scope (\\() -> Ok (size cell))\n    second <- spawn scope (\\() -> Ok (size cell))\n    joinAllOrCancel scope first second\n  -- | This source-only probe does not start workers.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects",
+      "name": "owned-effect-does-not-authorize-kernel-call",
+      "phase": "check",
+      "source": "-- | A source effect with the same spelling remains a different effect.\nmodule Main where\n  effect MVar where\n    forged :: Unit ->{MVar} Unit\n  -- | The user effect cannot stand in for the runtime operation label.\n  foreign import ccall \"cinch.runtime.mvarNew\" wrong :: forall a. a ->{MVar} MVarCell a\n  -- | Never execute a false effect contract.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "ordinary-owned-effect-mvar-remains-source-owned",
+      "phase": "check",
+      "source": "-- | An ordinary source effect is separate from the kernel MVar effect.\nmodule Main where\n  effect MVar where\n    own-operation :: Unit ->{MVar} Unit\n  -- | Preserve existing source-owned effect typing.\n  operation :: Unit ->{MVar} Unit\n  operation value = own-operation value\n  -- | This declaration probe does not perform either effect.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": true,
+      "name": "alpha-equivalent-reordered-effects",
+      "phase": "check",
+      "source": "-- | Canonical contracts compare binder identities and effect sets semantically.\nmodule Main where\n  -- | An alpha-renamed binder and reversed closed row are the same contract.\n  foreign import ccall \"cinch.runtime.mvarRead\" observe :: forall value. MVarCell value ->{Diverge, MVar} value\n  -- | This source-only probe performs no operation.\n  main :: Int\n  main = 0\n"
+    },
+    {
+      "accept": false,
+      "expected_diagnostic": "not a cinch intrinsic",
+      "name": "unknown-runtime-spelling",
+      "phase": "check",
+      "source": "-- | A display-name resemblance does not create an intrinsic.\nmodule Main where\n  -- | This symbol is absent from the compiler-owned exact opcode table.\n  foreign import ccall \"cinch.runtime.mvarNewer\" false :: forall a. a ->{MVar} MVarCell a\n  -- | Never execute an unknown runtime symbol.\n  main :: Int\n  main = 0\n"
+    }
+  ],
+  "runtime_epoch": "The exact newly admitted d91/MVar-kind18 runtime is required; old c4/80bd ABI10 is not an interchangeable capability.",
+  "runtime_fixture": {
+    "path": "compiler/tests/fixtures/native-mvar-word-runtime.cinch",
+    "profiles": "O0/O2, compiled checked-RC, ordinary32M and poison256M heap,8M stack",
+    "required_source_modules": [
+      "compiler/prelude/Effect/Concurrent/MVar.cinch"
+    ],
+    "scope": "14 ready-state operations, raw0/all-one, boxedNat, ownedBytes/failure consumption and surviving aliases; blocking queues/cancellation races remain separate",
+    "sha256": "2ddf1cc58a12a09c0c003647b9105fa31b233ccb73ca96008e0f23baf4e5943a",
+    "source_epoch": "75b4bab70d18ed3dd66bf6b8c5153943764dabf3"
+  },
+  "schema": 1,
+  "source_absent_obligations": [
+    "Use a Native-produced closed MVar interface and reexport, then remove producer source before actual checks.",
+    "Current Rust snapshot intentionally still exports resolved:null for the MVar row; do not invent a contract or alter its allowlist in this patch.",
+    "Refuse independent modified foreign opcode/effects/carrier/ABI/defining identity and runtime/object hash cases."
+  ],
+  "status": "prepared source-only test vectors; no new Native checker, runtime or object gate executed"
+}

@@ -1,0 +1,73 @@
+-- | Observe every single-place-variable operation with independent values and retained owners.
+module Main where
+  import Effect.Concurrent.MVar
+  import Data.Machine
+  import Data.Bytes
+
+  -- | Read an optional machine word without confusing zero with absence.
+  some-word :: Option I64 -> I64 -> Bool
+  some-word value expected = case value of
+    None -> False
+    Some actual -> eq-i64 actual expected
+
+  -- | Recognize absence independently of a payload representation.
+  missing :: forall a. Option a -> Bool
+  missing value = case value of
+    None -> True
+    Some actual -> False
+
+  -- | Exercise all fourteen operations only in states where blocking operations can finish.
+  words :: Unit ->{MVar, Diverge} Bool
+  words unit =
+    let cell = mvar-new (0 :: I64) in
+    let first = mvar-read cell in
+    let old = mvar-swap cell (-1) in
+    let taken = mvar-take cell in
+    let empty = mvar-is-empty cell in
+    let absent = mvar-try-read cell in
+    let put = mvar-put cell 42 in
+    let rejected = mvar-try-put cell 99 in
+    let observed = mvar-try-read cell in
+    let removed = mvar-try-take cell in
+    let another = (mvar-new-empty () :: MVar I64) in
+    let sent = mvar-put-or-cancel another 0 in
+    let read = mvar-read-or-cancel another in
+    let swapped = mvar-swap-or-cancel another (-1) in
+    let received = mvar-take-or-cancel another in
+    let finished = mvar-try-take another in
+    eq-i64 first 0 && eq-i64 old 0 && eq-i64 taken (-1)
+      && empty && missing absent && not rejected && some-word observed 42
+      && some-word removed 42 && sent && some-word read 0
+      && some-word swapped 0 && some-word received (-1) && missing finished
+
+  -- | A read alias outlives the cell and all overwritten values, including a failed put input.
+  retained-bytes :: Unit ->{MVar, Diverge} Bytes
+  retained-bytes unit =
+    let cell = (mvar-new (bytes-new 3) :: MVar Bytes) in
+    let alias = mvar-read cell in
+    let rejected = mvar-try-put cell (bytes-new 7) in
+    let old = mvar-swap cell (bytes-new 5) in
+    let current = mvar-take cell in
+    if not rejected && bytes-len old == 3 && bytes-len current == 5 then alias else bytes-new 0
+
+  -- | Tagged and boxed mathematical values retain complete payloads through reads and swaps.
+  counted-naturals :: Unit ->{MVar, Diverge} Bool
+  counted-naturals unit =
+    let cell = mvar-new (18446744073709551616 :: Nat) in
+    let alias = mvar-read cell in
+    let old = mvar-swap cell 36893488147419103232 in
+    let final = mvar-take cell in
+    alias == 18446744073709551616 && old == 18446744073709551616 && final == 36893488147419103232
+
+  -- | Unit is a full zero-valued payload rather than the empty-state sentinel.
+  full-unit :: Unit ->{MVar, Diverge} Bool
+  full-unit unit =
+    let cell = mvar-new () in
+    let empty = mvar-is-empty cell in
+    case mvar-try-read cell of
+      None -> False
+      Some actual -> let removed = mvar-take cell in not empty
+
+  -- | Name the first failed word or ownership observation through a stable exit code.
+  main :: Unit ->{MVar, Diverge} Int
+  main unit = if words () then (if bytes-len (retained-bytes ()) == 3 then (if counted-naturals () then (if full-unit () then 0 else 4) else 3) else 2) else 1

@@ -23,7 +23,7 @@ module Bootstrap.Infer where
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
-  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-arguments, scalar-operation-result)
+  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, mvar-plan, mvar-type-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-arguments, scalar-operation-result)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
@@ -56,6 +56,8 @@ module Bootstrap.Infer where
     TotalObservation :: String -> BodyBinding -> ByteObservation
     IdentityObservation :: String -> Scheme -> ByteObservation
     ArrayObservation :: String -> Json -> ByteObservation
+    -- | Retain one checked MVar foreign row independently from pure array observations.
+    MVarObservation :: String -> Json -> ByteObservation
   -- | Compiler-owned finite-payload evidence, independent of subtyping or imported metadata.
   data PayloadCertificate where
     -- | Only primitive installation grants this certificate for the sealed finite array carrier.
@@ -408,7 +410,7 @@ module Bootstrap.Infer where
     else primitive-type name
   -- | Install canonical primitive headers and their compiler-owned evidence together.
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext ([("(->)", arrow-constructor-kind)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
+  primitive-kinds = MkTypeContext ([("(->)", arrow-constructor-kind)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> mvar-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
   primitive-payloads = if array-type-name "Array" then [FiniteArrayPayload "Array" (KFun KType KType)] else Nil
@@ -434,6 +436,10 @@ module Bootstrap.Infer where
   foreign-pointer-kinds = [("RawPtr", KFun KType KType), ("Borrowed", KFun KType KType), ("MaybeNull", KFun KType KType)]
   array-kinds :: List (String, Kind)
   array-kinds = if array-type-name "Array" then [("Array", KFun KType KType), ("Tensor", KFun KType KType), ("Columnar", KFun KType KType)] else Nil
+  -- | Install only the compiler-owned MVar carrier kind, without finite-array positivity authority.
+  mvar-kinds :: List (String, Kind)
+  mvar-kinds = if mvar-type-name "MVarCell" then [("MVarCell", KFun KType KType)] else Nil
+
   map-primitive :: List String -> List (String, Kind)
   map-primitive names = case names of Nil -> Nil; Cons name rest -> Cons (name, KType) (map-primitive rest)
   lookup-kind :: String -> List (String, Kind) -> Option Kind
@@ -678,7 +684,7 @@ module Bootstrap.Infer where
       None -> if same name "(->)" then (UCon name arrow-constructor-kind, st)
         else if same name "Io" || same name "b.Io" then (UCon "b.Io" (KFun KRegion KType), st)
         else if same name "Dec" || same name "b.Dec" then (case context-kind name kinds of Some kind -> (UCon name kind, st); None -> (UCon "b.Dec" (KFun KProp KType), st))
-        else if has name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then
+        else if mvar-type-name name || has name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then
           (case context-kind name primitive-kinds of Some kind -> (UCon name kind, st); None -> bad s "unknown kernel ownership type" st)
         else if external && same name "String" then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
         else if primitive name then (literal-type kinds name, st)
@@ -1207,7 +1213,11 @@ module Bootstrap.Infer where
     other -> bad (type-expr-span labels) "malformed effect label spine" st
   convert-effect :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-effect kinds locals label st = case label of
-    TName s name -> if same name "IO" then (UCon "#kernel.ForeignIO" KEffect, st) else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (UCon name KEffect, st)
+    TName s name -> if same name "#kernel.MVar" && mvar-type-name "MVarCell" then (UCon "#kernel.MVar" KEffect, st)
+      else if same name "MVar" && mvar-type-name "MVarCell" then (case context-kind name kinds of
+        Some KEffect -> convert-declared-effect kinds locals label st
+        other -> (UCon "#kernel.MVar" KEffect, st))
+      else if same name "IO" then (UCon "#kernel.ForeignIO" KEffect, st) else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (UCon name KEffect, st)
       else convert-declared-effect kinds locals label st
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
       if has name ["IO", "Async", "Cancel", "Eval", "Foreign", "Mut"] then (case lookup-local region locals of
@@ -1666,6 +1676,68 @@ module Bootstrap.Infer where
   context-add-array-observation :: String -> Json -> TypeContext -> TypeContext
   context-add-array-observation identity row context = case context of
     MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active (Cons (ArrayObservation identity row) observers) effects source-classes payloads
+  -- | Locate MVar authority by the checked defining binding, never by a display name.
+  context-mvar-observation :: String -> TypeContext -> Option Json
+  context-mvar-observation name context = case context of
+    MkTypeContext kinds aliases active observers effects source-classes payloads -> mvar-observation name observers
+
+  -- | Read only the MVar-specific observation constructor.
+  mvar-observation :: String -> List ByteObservation -> Option Json
+  mvar-observation name observers = case observers of
+    Nil -> None
+    Cons (MVarObservation binding row) rest -> if same name binding then Some row else mvar-observation name rest
+    Cons other rest -> mvar-observation name rest
+
+  -- | Preserve a validated MVar row without granting nominal or finite-payload authority.
+  context-add-mvar-observation :: String -> Json -> TypeContext -> TypeContext
+  context-add-mvar-observation identity row context = case context of
+    MkTypeContext kinds aliases active observers effects source-classes payloads -> MkTypeContext kinds aliases active (Cons (MVarObservation identity row) observers) effects source-classes payloads
+
+  -- | Admit only intrinsic ccall envelopes; the complete effectful scheme is checked separately.
+  imported-mvar-observers :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  imported-mvar-observers sp owner rows context st = case rows of
+    JArr row rest -> case field "external" row of
+      JStr symbol -> (case mvar-plan symbol of
+        Some plan -> (case (field "symbol" row, field "kind" row, field "abi" row, field "effects" row, field "type" row) of
+          (JStr local, JStr category, JStr abi, JStr effects, JStr syntax) ->
+            if string-length local == 0 || not (same category "intrinsic" && same abi "ccall" && same effects "") then
+              imported-mvar-observers sp owner rest context (add-error sp "invalid imported MVar intrinsic authority" st)
+            else let identity = interface-global (string-concat-all [owner, ".", local]) in
+              (case context-mvar-observation identity context of
+                Some prior -> imported-mvar-observers sp owner rest context (add-error sp "duplicate imported MVar intrinsic authority" st)
+                None -> imported-mvar-observers sp owner rest (context-add-mvar-observation identity row context) st)
+          other -> imported-mvar-observers sp owner rest context (add-error sp "incomplete imported MVar intrinsic authority" st))
+        None -> imported-mvar-observers sp owner rest context st)
+      other -> imported-mvar-observers sp owner rest context st
+    JArrEnd -> (context, st)
+    other -> (context, add-error sp "invalid imported MVar foreign contract table" st)
+
+  -- | Require the exact closed polymorphic carrier, effects and result wrapper.
+  check-mvar-kernel-scheme :: Span -> Scheme -> Scheme -> Store -> Store
+  check-mvar-kernel-scheme sp actual wanted st =
+    if not (array-quantifiers-match (scheme-params actual) (scheme-params wanted))
+      || list-length (scheme-requirements actual) /= 0 || not (scheme-equivalent actual wanted) then
+      add-error sp "MVar intrinsic requires its exact checked polymorphic kernel scheme and effects" st
+    else st
+
+  -- | Match both the resolved value contract and its defining foreign row against one canonical plan.
+  register-imported-mvar :: Span -> String -> Scheme -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-imported-mvar sp name actual classes context env st = case context-mvar-observation name context of
+    Some row -> (case (field "external" row, field "type" row) of
+      (JStr symbol, JStr declared) -> (case mvar-plan symbol of
+        Some (operation, canonical) -> (case (parse-scheme symbol (string-to-bytes canonical), parse-scheme name (string-to-bytes declared)) of
+          (Parsed expected Nil, Parsed cached Nil) -> (case make-scheme False classes context Nil (kernel-canonical-type expected) st of
+            (wanted, ready) -> case make-scheme False classes context Nil (kernel-canonical-type cached) ready of
+              (foreign-scheme, checked) ->
+                let matched = check-mvar-kernel-scheme sp actual wanted (check-mvar-kernel-scheme sp foreign-scheme wanted checked) in
+                if list-length (store-errors matched) > list-length (store-errors checked) then (env, matched) else case lookup-binding name env of
+                  Some prior -> (env, add-error sp "duplicate imported MVar binding" matched)
+                  None -> (Cons (MkIntrinsicBinding name actual symbol) env, matched))
+          other -> (env, add-error sp "invalid imported MVar scheme cache" st))
+        None -> (env, add-error sp "imported MVar operation is unavailable in this ABI" st))
+      other -> (env, add-error sp "incomplete imported MVar binding" st))
+    None -> (env, add-error sp "imported MVar value lacks its defining foreign authority" st)
+
   imported-array-observers :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
   imported-array-observers sp owner rows context st = case rows of
     JArr row rest -> case field "external" row of
@@ -1726,8 +1798,9 @@ module Bootstrap.Infer where
     Nil -> (kinds, st)
     Cons (DInterface sp owner hash metadata) rest -> case imported-byte-observers sp owner (field "foreign" (field "exports" metadata)) kinds st of
       (more, checked) -> case imported-array-observers sp owner (field "foreign" (field "exports" metadata)) more checked of
-        (complete, ready) -> case foreign-opaque-kinds sp owner (field "types" (field "exports" metadata)) complete ready of
-          (with-opaque, checked-opaque) -> collect-kinds rest (context-add-alias (DInterface sp owner hash metadata) with-opaque) checked-opaque
+        (complete, ready) -> case imported-mvar-observers sp owner (field "foreign" (field "exports" metadata)) complete ready of
+          (with-mvar, checked-mvar) -> case foreign-opaque-kinds sp owner (field "types" (field "exports" metadata)) with-mvar checked-mvar of
+            (with-opaque, checked-opaque) -> collect-kinds rest (context-add-alias (DInterface sp owner hash metadata) with-opaque) checked-opaque
     Cons d rest -> case d of
       -- An abstract carrier supplies a checked kind, never a constructor
       -- family. In particular it cannot justify an empty-case proof.
@@ -2177,7 +2250,8 @@ module Bootstrap.Infer where
       case imported-scheme sp classes kinds ty metadata st of
         (sc, ss) ->
           let checked = check-imported-contract sp name category sc metadata ss in
-          if same category "value" && array-import-binding name kinds then register-imported-array sp name sc classes kinds env checked
+          if same category "value" && (case context-mvar-observation name kinds of Some row -> True; None -> False) then register-imported-mvar sp name sc classes kinds env checked
+          else if same category "value" && array-import-binding name kinds then register-imported-array sp name sc classes kinds env checked
           else if same category "value" && byte-length-binding name kinds then
             (if not (imported-observation-scheme name metadata kinds) then (env, add-error sp "imported byte observation foreign/value schemes disagree" checked) else case (scheme-params sc, scheme-requirements sc, scheme-body sc) of
               (Nil, Nil, UFun domain result) -> if same-type domain (primitive-type "Bytes") && same-type (predicate-base-carrier result) (primitive-type "Nat") then
@@ -2646,9 +2720,11 @@ module Bootstrap.Infer where
   register-intrinsic :: Span -> String -> String -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-intrinsic sp direction abi symbol name syntax classes kinds env st =
     if not (same direction "import" && same abi "ccall") then (env, add-error sp "runtime intrinsic requires foreign import ccall" st)
-    else case array-plan symbol of
-      Some (operation, format, expected) -> register-array-intrinsic sp name symbol syntax expected classes kinds env st
-      None -> register-monomorphic-intrinsic sp symbol name syntax classes kinds env st
+    else case mvar-plan symbol of
+      Some (operation, expected) -> register-mvar-intrinsic sp name symbol syntax expected classes kinds env st
+      None -> case array-plan symbol of
+        Some (operation, format, expected) -> register-array-intrinsic sp name symbol syntax expected classes kinds env st
+        None -> register-monomorphic-intrinsic sp symbol name syntax classes kinds env st
   -- | Require a scalar declaration's complete nominal scheme before assigning a canonical operation.
   register-monomorphic-intrinsic :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-monomorphic-intrinsic sp symbol name syntax classes kinds env st = case scalar-intrinsic symbol of
@@ -2878,9 +2954,23 @@ module Bootstrap.Infer where
     TName sp name -> if same name "List" || same name "Option" || same name "Result" then TName sp (interface-global (string-concat "Data.Core." name)) else syntax
     TForall sp qs body -> TForall sp qs (kernel-canonical-type body)
     TFun sp domain result -> TFun sp (kernel-canonical-type domain) (kernel-canonical-type result)
+    TFunEff sp domain row result -> TFunEff sp (kernel-canonical-type domain) (kernel-mvar-row row) (kernel-canonical-type result)
     TApp sp head args -> TApp sp (kernel-canonical-type head) (kernel-canonical-arguments args)
     TTuple sp fields -> TTuple sp (kernel-canonical-arguments fields)
     other -> syntax
+  -- | Canonical runtime contracts name the kernel effect even in a scope with a source effect named MVar.
+  kernel-mvar-row :: TypeExpr -> TypeExpr
+  kernel-mvar-row row = case row of
+    TRow sp labels tail -> TRow sp (kernel-mvar-labels labels) tail
+    other -> row
+
+  -- | Preserve every other label while assigning the compiler-owned MVar identity.
+  kernel-mvar-labels :: TypeExpr -> TypeExpr
+  kernel-mvar-labels labels = case labels of
+    TArg sp (TName at name) rest -> TArg sp (if same name "MVar" then TName at "#kernel.MVar" else TName at name) (kernel-mvar-labels rest)
+    TArg sp label rest -> TArg sp label (kernel-mvar-labels rest)
+    other -> labels
+
   kernel-canonical-arguments :: TypeExpr -> TypeExpr
   kernel-canonical-arguments args = case args of TArg sp ty rest -> TArg sp (kernel-canonical-type ty) (kernel-canonical-arguments rest); other -> args
   array-quantifiers-match :: List Quant -> List Quant -> Bool
@@ -2901,6 +2991,18 @@ module Bootstrap.Infer where
                 (env, add-error sp "array intrinsic does not match its checked polymorphic kernel scheme" matched)
               else (Cons (MkIntrinsicBinding name actual symbol) env, matched))
       other -> (env, add-error sp "invalid array kernel intrinsic contract" checked)
+  -- | Register a source MVar import only after checking its complete canonical scheme.
+  register-mvar-intrinsic :: Span -> String -> String -> TypeExpr -> String -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-mvar-intrinsic sp name symbol syntax canonical classes kinds env st = case make-scheme False classes kinds Nil syntax st of
+    (actual, checked) -> case parse-scheme symbol (string-to-bytes canonical) of
+      Parsed expected Nil -> (case make-scheme False classes kinds Nil (kernel-canonical-type expected) checked of
+        (wanted, ready) -> let matched = check-mvar-kernel-scheme sp actual wanted ready in
+          if list-length (store-errors matched) > list-length (store-errors ready) then (env, matched)
+          else case lookup-binding name env of
+            Some prior -> (env, add-error sp "duplicate MVar intrinsic binding" matched)
+            None -> (Cons (MkIntrinsicBinding name actual symbol) env, matched))
+      other -> (env, add-error sp "invalid MVar kernel intrinsic contract" checked)
+
   kernel-metadata :: String -> List Decl -> Option Json
   kernel-metadata name ds = case ds of
     Nil -> None
