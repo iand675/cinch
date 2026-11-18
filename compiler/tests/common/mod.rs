@@ -110,104 +110,68 @@ fn prune_stale_projects() {
     });
 }
 
+fn host_module() -> String {
+    let host = TargetProfile::native();
+    let mut source = String::from("module Bootstrap.Host where\n");
+    for (name, value) in [
+        ("host-triple", host.triple), ("host-os", host.os),
+        ("host-arch", host.arch), ("host-libc", host.libc),
+    ] {
+        source.push_str(&format!("  {name} :: String\n  {name} = {value:?}\n"));
+    }
+    source
+}
+
 pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
+    use std::collections::HashSet;
     let dir = project_directory(tag);
-    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.RuntimeIr.cinch" | "Bootstrap.Pipeline.cinch" | "Bootstrap.Object.cinch")) {
-        std::fs::write(dir.join("Bootstrap.Object.cinch"), include_str!("../../../bootstrap/Bootstrap.Object.cinch"))
-            .expect("checked runtime object dependency");
-    }
-    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Usage.cinch" | "Bootstrap.Typing.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Export.cinch" | "Bootstrap.ExportNominal.cinch" | "Bootstrap.Pipeline.cinch")) {
-        std::fs::write(dir.join("Bootstrap.Usage.cinch"), include_str!("../../../bootstrap/Bootstrap.Usage.cinch"))
-            .expect("checked usage-only private field dependency");
-    }
-    std::fs::write(dir.join("Bootstrap.RuntimeAbi.cinch"), include_str!("../../../bootstrap/Bootstrap.RuntimeAbi.cinch"))
-        .expect("exact runtime ABI dependency");
-    if files.iter().any(|(name, _)| *name == "Bootstrap.Pipeline.cinch") {
-        let host = cinch::core::TargetProfile::native();
-        let mut source = String::from("module Bootstrap.Host where\n");
-        for (name, value) in [
-            ("host-triple", host.triple), ("host-os", host.os),
-            ("host-arch", host.arch), ("host-libc", host.libc),
-        ] {
-            source.push_str(&format!("  {name} :: String\n  {name} = {value:?}\n"));
-        }
-        std::fs::write(dir.join("Bootstrap.Host.cinch"), source)
-            .expect("build host profile for the staged pipeline");
-        std::fs::write(dir.join("Bootstrap.Target.cinch"), include_str!("../../../bootstrap/Bootstrap.Target.cinch"))
-            .expect("checked target selection dependency");
-        std::fs::write(dir.join("Bootstrap.RuntimeIr.cinch"), include_str!("../../../bootstrap/Bootstrap.RuntimeIr.cinch"))
-            .expect("typed pipeline emitter dependency");
-        for (name, source) in [
-            ("Bootstrap.Export.cinch", include_str!("../../../bootstrap/Bootstrap.Export.cinch")),
-            ("Bootstrap.ExportType.cinch", include_str!("../../../bootstrap/Bootstrap.ExportType.cinch")),
-            ("Bootstrap.ExportNominal.cinch", include_str!("../../../bootstrap/Bootstrap.ExportNominal.cinch")),
-            ("Bootstrap.Stage.cinch", include_str!("../../../bootstrap/Bootstrap.Stage.cinch")),
-            ("Bootstrap.StageEval.cinch", include_str!("../../../bootstrap/Bootstrap.StageEval.cinch")),
-        ] {
-            std::fs::write(dir.join(name), source).expect("checked pipeline interface dependency");
-        }
-    }
-    std::fs::write(dir.join("Bootstrap.Index.cinch"), include_str!("../../../bootstrap/Bootstrap.Index.cinch"))
-        .expect("shared index syntax dependency");
-    std::fs::write(dir.join("Bootstrap.CoreBody.cinch"), include_str!("../../../bootstrap/Bootstrap.CoreBody.cinch"))
-        .expect("dense body codec dependency");
-    std::fs::write(dir.join("Bootstrap.Total.cinch"), include_str!("../../../bootstrap/Bootstrap.Total.cinch"))
-        .expect("checked total-body dependency");
-    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Global.cinch" | "Bootstrap.Typing.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Dictionary.cinch" | "Bootstrap.Instance.cinch")) {
-        for (name, source) in [
-            ("Bootstrap.Load.cinch", include_str!("../../../bootstrap/Bootstrap.Load.cinch")),
-            ("Bootstrap.Interface.cinch", include_str!("../../../bootstrap/Bootstrap.Interface.cinch")),
-            ("Bootstrap.Parse.cinch", include_str!("../../../bootstrap/Bootstrap.Parse.cinch")),
-        ] { std::fs::write(dir.join(name), source).expect("checked method body dependency"); }
-        std::fs::write(dir.join("Bootstrap.ExportType.cinch"), include_str!("../../../bootstrap/Bootstrap.ExportType.cinch")).expect("checked Core identity export dependency");
-        std::fs::write(dir.join("Bootstrap.TotalSemantics.cinch"), include_str!("../../../bootstrap/Bootstrap.TotalSemantics.cinch")).expect("checked body arithmetic dependency");
-        std::fs::write(dir.join("Bootstrap.BodyContract.cinch"), include_str!("../../../bootstrap/Bootstrap.BodyContract.cinch"))
-            .expect("checked body/declaration association dependency");
-        std::fs::write(dir.join("Bootstrap.Guarded.cinch"), include_str!("../../../bootstrap/Bootstrap.Guarded.cinch"))
-            .expect("checked guarded-body dependency");
-    }
-    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Dictionary.cinch" | "Bootstrap.TotalSemantics.cinch")) {
-        std::fs::write(dir.join("Bootstrap.Proof.cinch"), include_str!("../../../bootstrap/Bootstrap.Proof.cinch"))
-            .expect("shared proof checker dependency");
-    }
-    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Type.cinch" | "Bootstrap.Core.cinch" | "Bootstrap.Dictionary.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Load.cinch" | "Bootstrap.Contracts.cinch" | "Bootstrap.Nominal.cinch")) {
-        for (name, source) in [
-            ("Bootstrap.Nominal.cinch", include_str!("../../../bootstrap/Bootstrap.Nominal.cinch")),
-            ("Bootstrap.Foreign.cinch", include_str!("../../../bootstrap/Bootstrap.Foreign.cinch")),
-            ("Bootstrap.Builtin.cinch", include_str!("../../../bootstrap/Bootstrap.Builtin.cinch")),
-            ("Bootstrap.Ast.cinch", include_str!("../../../bootstrap/Bootstrap.Ast.cinch")),
-            ("Bootstrap.Report.cinch", include_str!("../../../bootstrap/Bootstrap.Report.cinch")),
-        ] {
-            std::fs::write(dir.join(name), source).expect("nominal contract dependency");
-        }
-    }
-    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch")) {
-        std::fs::write(dir.join("Bootstrap.Parse.cinch"), include_str!("../../../bootstrap/Bootstrap.Parse.cinch")).expect("checked source signature parser dependency");
-        std::fs::write(dir.join("Bootstrap.Contracts.cinch"), include_str!("../../../bootstrap/Bootstrap.Contracts.cinch")).expect("checked source reference dependency");
-        std::fs::write(dir.join("Bootstrap.Load.cinch"), include_str!("../../../bootstrap/Bootstrap.Load.cinch")).expect("checked source interface dependency");
-        std::fs::write(dir.join("Bootstrap.Interface.cinch"), include_str!("../../../bootstrap/Bootstrap.Interface.cinch")).expect("checked source contract identity dependency");
-        std::fs::write(dir.join("Bootstrap.Kinds.cinch"), include_str!("../../../bootstrap/Bootstrap.Kinds.cinch")).expect("independent kind checking dependency");
-        std::fs::write(dir.join("Bootstrap.Typing.cinch"), include_str!("../../../bootstrap/Bootstrap.Typing.cinch")).expect("independent Core typing dependency");
-        std::fs::write(dir.join("Bootstrap.Global.cinch"), include_str!("../../../bootstrap/Bootstrap.Global.cinch")).expect("global reference checking dependency");
-        std::fs::write(dir.join("Bootstrap.Instance.cinch"), include_str!("../../../bootstrap/Bootstrap.Instance.cinch")).expect("typed source instance dependency");
-        std::fs::write(dir.join("Bootstrap.Builtin.cinch"), include_str!("../../../bootstrap/Bootstrap.Builtin.cinch")).expect("kernel contract dependency");
-        std::fs::write(dir.join("Bootstrap.Temporal.cinch"), include_str!("../../../bootstrap/Bootstrap.Temporal.cinch")).expect("temporal contract vocabulary dependency");
-        std::fs::write(dir.join("Bootstrap.TemporalCheck.cinch"), include_str!("../../../bootstrap/Bootstrap.TemporalCheck.cinch")).expect("temporal contract decision dependency");
-    }
-    if files.iter().any(|(name, _)| *name == "Bootstrap.Check.cinch") {
-        for (name, src) in [
-            ("Bootstrap.Type.cinch", include_str!("../../../bootstrap/Bootstrap.Type.cinch")),
-            ("Bootstrap.Core.cinch", include_str!("../../../bootstrap/Bootstrap.Core.cinch")),
-            ("Bootstrap.Dictionary.cinch", include_str!("../../../bootstrap/Bootstrap.Dictionary.cinch")),
-            ("Bootstrap.Infer.cinch", include_str!("../../../bootstrap/Bootstrap.Infer.cinch")),
-            ("Bootstrap.Parse.cinch", include_str!("../../../bootstrap/Bootstrap.Parse.cinch")),
-            ("Bootstrap.CoreBody.cinch", include_str!("../../../bootstrap/Bootstrap.CoreBody.cinch")),
-        ] {
-            std::fs::write(dir.join(name), src).expect("checker dependency");
-        }
-    }
     for (name, src) in TOOLKIT.iter().chain(files.iter()) {
         std::fs::write(dir.join(name), src).unwrap_or_else(|e| panic!("write {name}: {e}"));
+    }
+
+    // Compiler fixtures select the source modules they exercise. Supply the
+    // transitive imports of those modules from this checkout, preserving
+    // every explicitly supplied source (including custom fixture versions).
+    let mut provided = HashSet::new();
+    let mut pending = Vec::new();
+    for (name, source) in files {
+        if !name.starts_with("Bootstrap.") && !source.contains("Bootstrap.") {
+            continue;
+        }
+        if let Ok(header) = cinch::driver::scan_file(source, name) {
+            for (module, imports) in header.modules {
+                pending.extend(imports.into_iter().map(|(dependency, _)| dependency).filter(|name| {
+                    module.starts_with("Bootstrap.") || matches!(name.as_str(),
+                        "Bootstrap.RuntimeAbi" | "Bootstrap.Index" | "Bootstrap.CoreBody" | "Bootstrap.Total")
+                }));
+                provided.insert(module);
+            }
+        }
+    }
+    let bootstrap_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../bootstrap");
+    while let Some(module) = pending.pop() {
+        if !module.starts_with("Bootstrap.") || !provided.insert(module.clone()) {
+            continue;
+        }
+        let name = format!("{module}.cinch");
+        if dir.join(&name).exists() {
+            continue;
+        }
+        let source = if module == "Bootstrap.Host" {
+            host_module()
+        } else {
+            match std::fs::read_to_string(bootstrap_dir.join(&name)) {
+                Ok(source) => source,
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(err) => panic!("read compiler fixture dependency {name}: {err}"),
+            }
+        };
+        let header = cinch::driver::scan_file(&source, &name)
+            .unwrap_or_else(|err| panic!("scan compiler fixture dependency {name}: {err}"));
+        for (_, imports) in header.modules {
+            pending.extend(imports.into_iter().map(|(dependency, _)| dependency));
+        }
+        std::fs::write(dir.join(&name), source).unwrap_or_else(|err| panic!("write {name}: {err}"));
     }
     dir
 }
