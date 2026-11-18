@@ -260,6 +260,11 @@ fn sources(root: &Path, dir: &Path, found: &mut Vec<PathBuf>) -> Result<(), Stri
 // Inventory headers only to choose source inputs. Program parsing, checking,
 // diagnostics and code generation remain the selected compiler's work.
 fn reachable_sources(files: &[PathBuf], entry: &Path, profile: &TargetProfile) -> Vec<PathBuf> {
+    // The caller has verified the entry is present. With no sibling sources,
+    // a header scan cannot add any input to the selected compiler's bundle.
+    if files.len() == 1 {
+        return files.to_vec();
+    }
     let headers = files.iter().map(|path| {
         std::fs::read_to_string(path).ok().and_then(|text| cinch::driver::scan_file_for(&text, &path.display().to_string(), profile).ok())
     }).collect::<Vec<_>>();
