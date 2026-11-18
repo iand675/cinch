@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -145,10 +146,14 @@ class FrozenVerification(unittest.TestCase):
             hashes = {path: checklist.digest(path) for path in (compiler, manifest, objects, runtime)}
             called = []
             record_api = False
+            workers = threading.Barrier(2)
 
             def cargo(command, cwd, env, stdout, stderr):
                 target = command[command.index("--test") + 1]
                 called.append(target)
+                self.assertEqual(Path(env["TMPDIR"]).name, target)
+                if record_api:
+                    workers.wait(timeout=5)
                 self.assertIn("--include-ignored", command)
                 self.assertEqual(env["CINCH_TEST_API_EMIT_INTERFACES"], "1" if target == "api" else "0")
                 self.assertEqual(env["CINCH_TEST_INTERFACES"], str(manifest))
@@ -169,8 +174,11 @@ class FrozenVerification(unittest.TestCase):
                     patch.object(verify_stage3.subprocess, "run", side_effect=cargo):
                 self.assertEqual(verify_stage3.verify(root / "missing", root / "cargo"), 1)
                 record_api = True
-                self.assertEqual(verify_stage3.verify(root / "complete", root / "cargo"), 0)
-            self.assertEqual(called, ["portable", "api", "portable", "api"])
+                self.assertEqual(verify_stage3.verify(root / "complete", root / "cargo", jobs=2), 0)
+            self.assertEqual(called[:2], ["portable", "api"])
+            self.assertCountEqual(called[2:], ["portable", "api"])
+            rows = json.loads((root / "complete/results.json").read_text())["rows"]
+            self.assertEqual([row["name"] for row in rows], ["portable", "api"])
 
     def test_stage3_preflights_the_source_of_reviewed_rust_assertions(self):
         with tempfile.TemporaryDirectory() as temp:

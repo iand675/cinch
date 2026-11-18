@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import fcntl
 import json
 import os
@@ -181,7 +182,10 @@ def run_target(target, api, evidence, cargo_target, env, interface_sha, native_a
     log = evidence / (target + ".log")
     command = ["cargo", "test", "--locked", "--target-dir", str(cargo_target), "--test", target,
                "--", "--include-ignored", "--nocapture", "--test-threads=1"]
-    env = dict(env, CINCH_TEST_INVOCATIONS=str(invocations), CINCH_TEST_API_EMIT_INTERFACES=str(int(api)))
+    fixtures = evidence / "fixtures" / target
+    fixtures.mkdir()
+    env = dict(env, TMPDIR=str(fixtures), CINCH_TEST_INVOCATIONS=str(invocations),
+               CINCH_TEST_API_EMIT_INTERFACES=str(int(api)))
     with log.open("wb") as output:
         code = subprocess.run(command, cwd=compiler, env=env, stdout=output, stderr=subprocess.STDOUT).returncode
     receipts = {path.name: bootstrap.file_hash(path) for path in sorted(invocations.glob("*.json"))}
@@ -192,7 +196,9 @@ def run_target(target, api, evidence, cargo_target, env, interface_sha, native_a
     return row
 
 
-def verify(evidence, cargo_target):
+def verify(evidence, cargo_target, jobs=1):
+    if jobs < 1:
+        raise ValueError("Stage3 verification needs at least one worker")
     scope_path = bootstrap.ROOT / "bootstrap/current-frontend-acceptance-scope.json"
     scope = bootstrap.read_json(scope_path)
     api = scope["interface_api_targets"]
@@ -223,12 +229,16 @@ def verify(evidence, cargo_target):
         "scope_sha256": bootstrap.file_hash(scope_path), "total_targets": len(targets), "rows": [], "status": "running"}
     report_path = evidence / "results.json"
     bootstrap.write_json(report_path, report)
-    for target in targets:
-        row = run_target(target, target in api, evidence, cargo_target, env, hashes[manifest],
-                         native_assertions)
-        report["rows"].append(row)
-        bootstrap.write_json(report_path, report)
-        print(f"{target}: {row['coverage']} ({row['detail']})", flush=True)
+    completed = {}
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        futures = [pool.submit(run_target, target, target in api, evidence, cargo_target, env,
+                               hashes[manifest], native_assertions) for target in targets]
+        for future in as_completed(futures):
+            row = future.result()
+            completed[row["name"]] = row
+            report["rows"] = [completed[name] for name in targets if name in completed]
+            bootstrap.write_json(report_path, report)
+            print(f"{row['name']}: {row['coverage']} ({row['detail']})", flush=True)
     if (bootstrap.file_hash(scope_path) != report["scope_sha256"]
             or any(bootstrap.file_hash(path) != digest for path, digest in hashes.items())):
         raise bootstrap.BootstrapError("Stage3 frontend test artifacts changed during the suite")
@@ -240,13 +250,15 @@ def verify(evidence, cargo_target):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("-j", "--jobs", type=int, default=min(4, os.cpu_count() or 1),
+                        help="maximum concurrent test targets (default: up to four)")
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--cargo-target", type=Path, required=True)
     parser.add_argument("--library-artifact", type=Path,
                         help="explicit current-source base receipt used to build the selected Stage3")
     args = parser.parse_args()
     bootstrap.LIBRARY_ARTIFACT = args.library_artifact.resolve() if args.library_artifact is not None else None
-    return verify(args.evidence.resolve(), args.cargo_target.resolve())
+    return verify(args.evidence.resolve(), args.cargo_target.resolve(), args.jobs)
 
 
 if __name__ == "__main__":

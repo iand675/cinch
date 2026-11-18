@@ -17,13 +17,13 @@
   ],
   "native_api_assertions": {
     "arrays": {
-      "source_sha256": "ab015bfe0b53e2097a23b11b96dd51947bf9f9e54854b3ea83ca12203162a72c",
+      "source_sha256": "f9d60f05b66076fa280275ca6937d83e1ee09f82bd013564679726d7d4217deb",
       "cases": {
         "packed_word_storage_resolves_width_from_the_target": "Calls the Rust PrimOp width resolver with a synthetic 32-bit target. This case compiles no Cinch source."
       }
     },
     "bootstrap_interface": {
-      "source_sha256": "add409e6ec81f9aea1e1a40953179a50b3729ec214cdeed6537641541a030915",
+      "source_sha256": "125d7cffcad6686c6679de8b88d257973f4e1a4c3f022b359ea7e3556ac6685b",
       "cases": {
         "sha256_is_sha256": "Checks the Rust test helper against two standard SHA-256 vectors. The interface reader case separately requires the selected frontend."
       }
