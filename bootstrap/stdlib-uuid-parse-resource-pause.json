@@ -1,0 +1,17 @@
+{
+  "kind": "bounded-UUID-resource-observation",
+  "status": "resource-paused-before-compiler",
+  "compiler_invoked": false,
+  "runtime_executed": false,
+  "candidate_selected": false,
+  "package_complete": false,
+  "scope": "Explicit320MiB one-producer exception; no compiler contract or runtime guard reinterpretation.",
+  "required_free_bytes": 335544320,
+  "observed_free_bytes": 328597504,
+  "mode": "parse",
+  "start": 0,
+  "count": 128,
+  "artifacts_created": false,
+  "first_genuine_uuid_failure": false,
+  "producer_token_returned_to_root": true
+}

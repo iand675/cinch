@@ -1,0 +1,45 @@
+{
+  "kind": "exact-two-successful-context-consumer-recovery",
+  "receipt": "/workspace/dasl-stdlib-ring-positivity/bootstrap/sealed-array-positivity-context-validation-results.json",
+  "receipt_sha256": "59e5b7944da19d0b8b847ff2aed8bef75065673af5e3d8ee4eaf885ff2230c06",
+  "free_before": 364118016,
+  "entries": [
+    {
+      "original": "/workspace/dasl-stdlib-ring-positivity/build/array-payload-context-after/consumer",
+      "original_sha256": "b72533d2add169db28340050fdf9434c44cea4ee05b616eeeeab1aedc856767e",
+      "original_bytes": 7484072,
+      "mode": 448,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794850712731965925,
+      "archive": "build/uuid-headroom-recovery-v2/a4ff636e71972c49.tar.gz",
+      "archive_sha256": "187c06028d39d36106cd502544cccb7a574946257e7af50ed8f5799952b898ae",
+      "archive_bytes": 2393440,
+      "member": "dasl-stdlib-ring-positivity/build/array-payload-context-after/consumer",
+      "original_removed": true
+    },
+    {
+      "original": "/workspace/dasl-stdlib-ring-positivity/build/array-payload-context-after/consumer.ll",
+      "original_sha256": "20ecb912b9abb7665cda9b03ba4b8d4db07f0614721f2b079c4d0e3c8ad63180",
+      "original_bytes": 14237840,
+      "mode": 384,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime_ns": 1794850686419390147,
+      "archive": "build/uuid-headroom-recovery-v2/79f14e454da4a605.tar.gz",
+      "archive_sha256": "4862cad9d23142412fe961b10776b8163226cb7b09316ba2eb9f34395a11a460",
+      "archive_bytes": 2649637,
+      "member": "dasl-stdlib-ring-positivity/build/array-payload-context-after/consumer.ll",
+      "original_removed": true
+    }
+  ],
+  "root_ledger_touched": false,
+  "status": "completed",
+  "original_bytes": 21721912,
+  "compressed_bytes": 5043077,
+  "protected_rechecks": 466,
+  "free_after": 380723200,
+  "net_original_minus_archive_bytes": 16678835,
+  "index": "build/uuid-headroom-recovery-v2/index.json",
+  "index_sha256": "775f70507de9ec76aa8a98b4cb72e3368d34e81a52f7cd5333dd6f3d977bdc28"
+}

@@ -1,0 +1,29 @@
+{
+  "status": "isolated-all13-capabilities-mapped-Rust-portable-public-pipeline-qualified-pending-adaptation-and-distribution-review",
+  "source_basis": "c244166183e6be61f0bace69e5b9c5a87a2fceda",
+  "modules": [
+    "Data.Uuid",
+    "Effect.Uuid"
+  ],
+  "source_check": "build/uuid-source-a2-results.json",
+  "source_tuple": "330/d91",
+  "package_complete": false,
+  "representation": "two immutable network-order U64 words",
+  "acceleration": "existing Text.Hex inline LLVM SIMD; bounded packed word reads and unsigned two-word LLVM comparison",
+  "state": "explicit pure V7 state plus private MVar serialized IO generator; entropy and clock remain actual provider operations",
+  "reference_generator": "Actual existing-SDK vectors generated; exact executed source and original/prospective formatted identities recorded separately.",
+  "adaptations": [
+    "MustParse capability uses total validation witness plus total extraction",
+    "UnmarshalText returns a replacement immutable receiver and preserves the original on refusal"
+  ],
+  "pending": [
+    "review total/immutable/explicit-state adaptations and isolated availability",
+    "full historical Native pure matrix and separate current Native IO/MVar family",
+    "concurrent shared-generator stress if required",
+    "separate packed parser candidate qualification and measured selection",
+    "candidate production selection"
+  ],
+  "operation_mapping": "bootstrap/stdlib-uuid-operation-mapping.json",
+  "parent_maintained_gate": "Root published ae09257f, lib_uuid release8/8PASS, including actual full-adapter custom-profile PPC; distinct parent compiler identity",
+  "benchmark_results": "bootstrap/stdlib-uuid-benchmark-timing-results.json"
+}

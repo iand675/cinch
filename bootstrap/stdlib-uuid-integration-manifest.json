@@ -27,7 +27,7 @@
     },
     {
       "path": "compiler/tests/lib_uuid.rs",
-      "sha256": "bb3ca63ba3e7c2b01244d93a48c8a3157f6f52b03663de0310ecd804f10922a3"
+      "sha256": "c896ed70bc51ba6318d30fbf51de5bca5519d52eb0e368b6672ecffa365e70a4"
     },
     {
       "path": "compiler/tests/fixtures/uuid-vectors.json",
@@ -80,14 +80,25 @@
     "bootstrap/stdlib-uuid-runtime-matrix-results.json",
     "bootstrap/stdlib-uuid-portable-results.json",
     "bootstrap/stdlib-uuid-clock-fixture-diagnosis.json",
-    "bootstrap/stdlib-uuid-doc-results.json"
+    "bootstrap/stdlib-uuid-doc-results.json",
+    "bootstrap/stdlib-uuid-benchmark-source-results.json",
+    "bootstrap/stdlib-uuid-benchmark-functional-results.json",
+    "bootstrap/stdlib-uuid-benchmark-assembly-review.json",
+    "bootstrap/stdlib-uuid-generation-functional-results.json",
+    "bootstrap/stdlib-uuid-benchmark-direct-functional-results.json",
+    "bootstrap/stdlib-uuid-allocation-results.json",
+    "bootstrap/stdlib-uuid-benchmark-timing-results.json",
+    "bootstrap/stdlib-uuid-matched-count-preflight-results.json"
   ],
   "benchmark_review_paths": [
     "tooling/data/uuid-benchmark.cinch",
     "tooling/bench_uuid_reference.go",
     "tooling/bench_uuid.py",
     "tooling/data/uuid-generation-benchmark.cinch",
-    "tooling/bench_uuid_generation_reference.go"
+    "tooling/bench_uuid_generation_reference.go",
+    "tooling/bench_uuid_generation.py",
+    "tooling/profile_uuid_benchmarks.py",
+    "tooling/measure_uuid_pipelines.py"
   ],
   "reference_provenance_paths": [
     "tooling/go_uuid_vectors_test.go",
@@ -98,7 +109,8 @@
     "bootstrap/stdlib-uuid-native-pair-review.json",
     "bootstrap/stdlib-uuid-native-source-results.json",
     "bootstrap/stdlib-uuid-native-runtime-results.json",
-    "tooling/validate_uuid_native.py"
+    "tooling/validate_uuid_native.py",
+    "tooling/qualify_uuid_native_units.py"
   ],
   "candidate_source_files": [
     "experiments/uuid-candidate-v1/sources/Data.Uuid.cinch",
@@ -109,5 +121,6 @@
   "failure_retention": "QualificationDirectory keeps runtime, generated-vector and portable projects during unwinding; generated source, compiler errors, runtime output and external object diagnostics remain plain.",
   "candidate_review_files": [
     "experiments/uuid-candidate-v1/README.md"
-  ]
+  ],
+  "test_source_selection": "Default embedded baseline remains byte-identical; explicit CINCH_TEST_UUID_DATA_SOURCE requires successful canonical-path read, stages the actual source and records its SHA256/path in each guarded test project. No silent fallback."
 }

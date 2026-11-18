@@ -1,0 +1,38 @@
+{
+  "kind": "partial-historical-Native-pure-UUID-qualification",
+  "status": "partial-passed",
+  "ledger_sha256": "d16ed5f690c81a6e5e2851c485b19c5ec05dd982164100e3c5adb412fef8e81c",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "pair_review_sha256": "62d04d371e1b90463324d361a7503ad5fbf47a6c4c73fac524993707b20578fd",
+  "source_sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+  "units": {
+    "parse-0000": {
+      "status": "passed",
+      "report": "build/uuid-native-parse-0-a1-results.json",
+      "report_sha256": "976e4ef779c296407a7241042f9953d39dc7b219f409b3230626a20e52a893a8",
+      "observations": 128
+    },
+    "parse-0128": {
+      "status": "passed",
+      "report": "build/uuid-native-parse-0128-a1-results.json",
+      "exit": 0,
+      "report_sha256": "3dc9e10d2840a7dfca7d1479dadf62cc3593c9f1f038953d3630598290d146fb",
+      "observations": 128
+    }
+  },
+  "parse_observations_passed": 256,
+  "parse_observations_total": 660,
+  "remaining_pure_modes": [
+    "parse remainder",
+    "append",
+    "compare",
+    "generated",
+    "v7",
+    "control"
+  ],
+  "io_or_mvar_requested": false,
+  "new66_family_relabelled": false,
+  "candidate_selected": false,
+  "package_complete": false
+}

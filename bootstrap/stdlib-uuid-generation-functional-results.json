@@ -1,0 +1,65 @@
+{
+  "kind": "UUID-real-generation-functional-preflight",
+  "status": "passed",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "reference_executable_sha256": "b2c294fb07f3f0b67cd29ed177c075cbcd13abdcfd63b1c9df1e71f8623007ea",
+  "source_sha256": "34306e2518d691cba3991c1838758c77a63396480740a20f26eeb71963000871",
+  "llvm_sha256": "ae56a16b8b0c6747f5be759c1462197e7dcf70e28856c9827d6a55ab3bb19e09",
+  "assembly_sha256": "53e0a3e4589778467b6af77cd4fc9ced06567a46cef887f6824d252700c1f601",
+  "identity_sha256": "b63f6dc458fdbff1457a6ddbe3a3df113f607867f76bb6ca5e006762936be651",
+  "preflight_sha256": "b3e54fd710cb843457e9413af90d33f11408c60f32b323bcf3d561fa29c65caf",
+  "conditions": 9,
+  "processes": 27,
+  "compares_random_payloads": false,
+  "output_bytes": 9241298,
+  "provider_call_paths": {
+    "Main.loop-default": {
+      "actual_entropy_path": [
+        "Main.loop-default",
+        "Main.loop-default#cc",
+        "cinch.runtime.randomBytes",
+        "cinch_random_bytes"
+      ],
+      "actual_wall_clock_path": null,
+      "elapsed_clock_inside_worker": false
+    },
+    "Main.loop-v4": {
+      "actual_entropy_path": [
+        "Main.loop-v4",
+        "Main.loop-v4#cc",
+        "cinch.runtime.randomBytes",
+        "cinch_random_bytes"
+      ],
+      "actual_wall_clock_path": null,
+      "elapsed_clock_inside_worker": false
+    },
+    "Main.loop-v7": {
+      "actual_entropy_path": [
+        "Main.loop-v7",
+        "Main.loop-v7#cc",
+        "cinch.runtime.randomBytes",
+        "cinch_random_bytes"
+      ],
+      "actual_wall_clock_path": [
+        "Main.loop-v7",
+        "Main.loop-v7#cc",
+        "Effect.Clock.raw-wall-ns",
+        "cinch_clock_wall_ns"
+      ],
+      "elapsed_clock_inside_worker": false
+    }
+  },
+  "tooling_recovery": {
+    "original_identity_sha256": "6b78333bd5189cdf8b7deae4bf629a39c2b15682311499b1b52f0f073945c374",
+    "failure": "Audit accepted only unquoted clock symbols; actual emitted calls use valid quoted LLVM identifiers.",
+    "compiler_rerun": false,
+    "relink": false,
+    "source_changed": false,
+    "audit_correction": "Accept optional LLVM identifier quotes, while requiring actual calls to exact provider symbols."
+  },
+  "scope": "Actual default/V4/V7 generation; valid version/variant count equals requested count for every independent process. Real secure entropy and V7 wall clock remain called from loop workers. Normal32MiB/poison256MiB and8MiB stack, zero leaks. Elapsed clock calls are outside worker graph.",
+  "timing_claim": false,
+  "candidate_selected": false,
+  "package_complete": false
+}

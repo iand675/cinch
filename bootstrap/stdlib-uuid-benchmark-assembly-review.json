@@ -1,0 +1,161 @@
+{
+  "kind": "UUID-public-pipeline-static-assembly-review",
+  "scope": "Static instruction/call-site counts are not dynamic operation counts or speed evidence. Qualified330/d91 source drivers; no optimization selection.",
+  "variants": {
+    "simd": {
+      "assembly_sha256": "b6c30b1b731ffc53bdbf59954390438eaea25d07247e8d004a790f62fece5378",
+      "vector_instruction_sites": {
+        "punpcklbw": 10,
+        "pcmpgtb": 5,
+        "paddb": 21
+      },
+      "public_loop_bodies": {
+        "Main.parse-loop": {
+          "assembly_lines": 1374,
+          "call_sites": {
+            "cinch_dup_mt@PLT": 5,
+            "cinch_free@PLT": 4,
+            "cinch_drop_slow@PLT": 16,
+            "cinch_drop_mt@PLT": 16,
+            "cinch_bytes_len@PLT": 9,
+            "cinch_nat_to_len@PLT": 3,
+            "cinch_bytes_new@PLT": 3,
+            "cinch_bytes_copy@PLT": 2,
+            "\"Data.Uuid.uuid-parse-bytes\"@PLT": 1,
+            "\"Data.Bytes.Word.bytes-write-le64\"@PLT": 4,
+            "cinch_bytes_get@PLT": 4,
+            "cinch_nat_add@PLT": 3,
+            "cinch_nat_cmp@PLT": 1,
+            "cinch_nat_to_i64@PLT": 1,
+            "\"Data.Uuid.uuid-parse\"@PLT": 2,
+            "Main.fingerprint@PLT": 1
+          },
+          "next_review": "Match per-iteration allocation/owner diagnostics and measured public-pipeline cost before proposing changes."
+        },
+        "Main.format-loop": {
+          "assembly_lines": 963,
+          "call_sites": {
+            "cinch_dup_mt@PLT": 2,
+            "cinch_nat_to_len@PLT": 2,
+            "cinch_bytes_new@PLT": 2,
+            "\"Data.Bytes.Word.bytes-write-le64\"@PLT": 2,
+            "cinch_drop_slow@PLT": 11,
+            "cinch_drop_mt@PLT": 11,
+            "\"Text.Hex.hex-encode-bytes\"@PLT": 1,
+            "cinch_bytes_len@PLT": 8,
+            "\"Data.Uuid.write-canonical\"@PLT": 2,
+            "cinch_bytes_get@PLT": 4,
+            "cinch_nat_add@PLT": 3,
+            "cinch_nat_cmp@PLT": 1,
+            "cinch_nat_to_i64@PLT": 1,
+            "\"Data.Uuid.uuid-marshal-text\"@PLT": 2,
+            "Main.fingerprint@PLT": 1
+          },
+          "next_review": "Match per-iteration allocation/owner diagnostics and measured public-pipeline cost before proposing changes."
+        },
+        "Main.append-loop": {
+          "assembly_lines": 314,
+          "call_sites": {
+            "\"Data.Uuid.uuid-append-text\"@PLT": 2,
+            "cinch_free@PLT": 1,
+            "cinch_drop_slow@PLT": 3,
+            "cinch_dup_mt@PLT": 2,
+            "cinch_drop_mt@PLT": 3,
+            "Main.fingerprint@PLT": 1
+          },
+          "next_review": "Match per-iteration allocation/owner diagnostics and measured public-pipeline cost before proposing changes."
+        },
+        "Main.compare-loop": {
+          "assembly_lines": 840,
+          "call_sites": {
+            "cinch_dup_mt@PLT": 6,
+            "cinch_free@PLT": 3,
+            "cinch_drop_slow@PLT": 6,
+            "cinch_drop_mt@PLT": 6
+          },
+          "next_review": "Match per-iteration allocation/owner diagnostics and measured public-pipeline cost before proposing changes."
+        }
+      }
+    },
+    "scalar": {
+      "assembly_sha256": "3b67190d4d870f0d3cb65443495beec8160a9a3cc0a2e98505b19d1983b3180e",
+      "vector_instruction_sites": {
+        "punpcklbw": 0,
+        "pcmpgtb": 0,
+        "paddb": 0
+      },
+      "public_loop_bodies": {
+        "Main.parse-loop": {
+          "assembly_lines": 1374,
+          "call_sites": {
+            "cinch_dup_mt@PLT": 5,
+            "cinch_free@PLT": 4,
+            "cinch_drop_slow@PLT": 16,
+            "cinch_drop_mt@PLT": 16,
+            "cinch_bytes_len@PLT": 9,
+            "cinch_nat_to_len@PLT": 3,
+            "cinch_bytes_new@PLT": 3,
+            "cinch_bytes_copy@PLT": 2,
+            "\"Data.Uuid.uuid-parse-bytes\"@PLT": 1,
+            "\"Data.Bytes.Word.bytes-write-le64\"@PLT": 4,
+            "cinch_bytes_get@PLT": 4,
+            "cinch_nat_add@PLT": 3,
+            "cinch_nat_cmp@PLT": 1,
+            "cinch_nat_to_i64@PLT": 1,
+            "\"Data.Uuid.uuid-parse\"@PLT": 2,
+            "Main.fingerprint@PLT": 1
+          },
+          "next_review": "Match per-iteration allocation/owner diagnostics and measured public-pipeline cost before proposing changes."
+        },
+        "Main.format-loop": {
+          "assembly_lines": 963,
+          "call_sites": {
+            "cinch_dup_mt@PLT": 2,
+            "cinch_nat_to_len@PLT": 2,
+            "cinch_bytes_new@PLT": 2,
+            "\"Data.Bytes.Word.bytes-write-le64\"@PLT": 2,
+            "cinch_drop_slow@PLT": 11,
+            "cinch_drop_mt@PLT": 11,
+            "\"Text.Hex.hex-encode-bytes\"@PLT": 1,
+            "cinch_bytes_len@PLT": 8,
+            "\"Data.Uuid.write-canonical\"@PLT": 2,
+            "cinch_bytes_get@PLT": 4,
+            "cinch_nat_add@PLT": 3,
+            "cinch_nat_cmp@PLT": 1,
+            "cinch_nat_to_i64@PLT": 1,
+            "\"Data.Uuid.uuid-marshal-text\"@PLT": 2,
+            "Main.fingerprint@PLT": 1
+          },
+          "next_review": "Match per-iteration allocation/owner diagnostics and measured public-pipeline cost before proposing changes."
+        },
+        "Main.append-loop": {
+          "assembly_lines": 314,
+          "call_sites": {
+            "\"Data.Uuid.uuid-append-text\"@PLT": 2,
+            "cinch_free@PLT": 1,
+            "cinch_drop_slow@PLT": 3,
+            "cinch_dup_mt@PLT": 2,
+            "cinch_drop_mt@PLT": 3,
+            "Main.fingerprint@PLT": 1
+          },
+          "next_review": "Match per-iteration allocation/owner diagnostics and measured public-pipeline cost before proposing changes."
+        },
+        "Main.compare-loop": {
+          "assembly_lines": 840,
+          "call_sites": {
+            "cinch_dup_mt@PLT": 6,
+            "cinch_free@PLT": 3,
+            "cinch_drop_slow@PLT": 6,
+            "cinch_drop_mt@PLT": 6
+          },
+          "next_review": "Match per-iteration allocation/owner diagnostics and measured public-pipeline cost before proposing changes."
+        }
+      }
+    }
+  },
+  "findings": [
+    "SIMD vector instruction sites remain reachable in the separately built SIMD source and are absent from the scalar assembly.",
+    "Both source controls have identical public-loop call-site counts; scalar control changes only the private hex block dispatch.",
+    "Loop assembly includes explicit buffer ownership and Nat byte-observation operations. Static branch-expanded call sites do not establish dynamic cost."
+  ]
+}

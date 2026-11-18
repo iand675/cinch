@@ -1,0 +1,13 @@
+{
+  "kind": "UUID-clock-boundary-fixture-diagnosis",
+  "first_failure": "build/uuid-control-0000-a1-results.json",
+  "first_consumer_sha256": "9a9b4750278ab6e69ed5596cd6834df10eed237ffaa9fdf6ee289960430e95e9",
+  "first_failure_preserved_plain": true,
+  "library_sources_modified": false,
+  "cause": "Last-valid and first-invalid nanosecond inputs had three extra decimal zeros; supposed last-valid input was already1000 times beyond representable milliseconds.",
+  "milliseconds_limit": "281474976710656",
+  "nanoseconds_per_millisecond": 1000000,
+  "first_invalid_nanoseconds": "281474976710656000000",
+  "last_valid_nanoseconds": "281474976710655999999",
+  "correction": "Fixture inputs corrected to the exact RFC48-bit millisecond boundary; rollback assertion strengthened to exact tick0 canonical value. Independent SDK corpus unchanged."
+}

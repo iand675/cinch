@@ -1,0 +1,36 @@
+{
+  "kind": "UUID-public-pipeline-functional-preflight",
+  "status": "passed",
+  "timing_claim": false,
+  "candidate_selected": false,
+  "package_complete": false,
+  "artifacts": "build/uuid-public-bench-a1",
+  "identity_sha256": "142c0fbfa99b8768d8ca02a106b90b00050784167b306f5011477be731558955",
+  "preflight_sha256": "86b044af901357b2f91ab9f3a7e5402d17170b7adea92bf534eee619c692e784",
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "go_sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+  "go_version": {
+    "command": [
+      "/tmp/cinch-go-current/go/bin/go",
+      "version"
+    ],
+    "exit": 0,
+    "stdout": "go version go1.27.4 linux/amd64\n",
+    "stderr": "",
+    "seconds": 0.006179595016874373
+  },
+  "reference_executable_sha256": "b2c294fb07f3f0b67cd29ed177c075cbcd13abdcfd63b1c9df1e71f8623007ea",
+  "reference_source_sha256": "22b5e0c50381228083de97a98c38c81501fbd709f7470ebd02108eecf4d1d69d",
+  "output_bytes": 21945086,
+  "new_shared_cache_bytes": 45206,
+  "conditions": 180,
+  "processes": 900,
+  "scope": "Parse including fresh value-byte snapshots; canonical byte rendering; immutable-prefix append; prepared-value comparison. Identical actual-input fingerprints across separate SIMD/scalar copies and independent pinned SDK reference. Normal32MiB and poisoned256MiB with8MiB stack, zero leaks for every candidate process.",
+  "remaining": [
+    "generation build/preflight using same reference executable",
+    "matched timing under exclusive grant",
+    "allocation/assembly review",
+    "full historical Native pure coverage"
+  ]
+}

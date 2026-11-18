@@ -1,0 +1,880 @@
+{
+  "kind": "UUID-paired-public-pipeline-timing-results",
+  "status": "passed",
+  "raw_report_sha256": "81a0a8bcb40f3cdd143e9a20397eccbb5f1632b84f01e16572fc46018de3603e",
+  "raw_report_path": "build/uuid-paired-timing-a1.json",
+  "signature": {
+    "original_identity_sha256": "142c0fbfa99b8768d8ca02a106b90b00050784167b306f5011477be731558955",
+    "direct_identity_sha256": "b9665fc0f9cebd537004be79da5b53041682b894b824865f5b629e9f7ea550b7",
+    "generation_identity_sha256": "b63f6dc458fdbff1457a6ddbe3a3df113f607867f76bb6ca5e006762936be651",
+    "iterations": 4096,
+    "generation_iterations": 256
+  },
+  "compiler_sha256": "330adb4d77f8bcbfc26f246269280f391c3a10b6d3a40771b5f6243f6a8969b2",
+  "runtime_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
+  "elapsed_protocol_seconds": 1.2764494560251478,
+  "workloads": 13,
+  "observations": 336,
+  "warmup_per_condition_variant": 1,
+  "retained_samples_per_variant": 5,
+  "argv0": "uuid-bench",
+  "cpu_affinity": [
+    0
+  ],
+  "background": "Root exclusive CPU0 grant; Root/Codegen/JSON/Compare/Fields output and heavy jobs paused; existing sealed binaries only",
+  "memory": "32MiB/8MiB,RCdebug=0 for timing; additionally poison256MiB for preflights",
+  "compares_random_payloads": false,
+  "rows": [
+    {
+      "workload": "parse",
+      "iterations": 4096,
+      "samples_ns": {
+        "original-simd": [
+          2010985,
+          2102572,
+          1906028,
+          1784115,
+          2483274
+        ],
+        "original-scalar": [
+          4543512,
+          7035353,
+          4932135,
+          4368710,
+          4266267
+        ],
+        "direct-simd": [
+          1776223,
+          1949823,
+          1836022,
+          2169903,
+          2116443
+        ],
+        "direct-scalar": [
+          4909922,
+          5184704,
+          5092456,
+          5637542,
+          4645265
+        ],
+        "reference": [
+          256995,
+          225478,
+          288382,
+          231828,
+          204988
+        ]
+      },
+      "median_ns_per_operation": {
+        "original-simd": 490.963134765625,
+        "original-scalar": 1109.255859375,
+        "direct-simd": 476.031005859375,
+        "direct-scalar": 1243.275390625,
+        "reference": 56.5986328125
+      },
+      "sample_min_max_ns": {
+        "original-simd": [
+          1784115,
+          2483274
+        ],
+        "original-scalar": [
+          4266267,
+          7035353
+        ],
+        "direct-simd": [
+          1776223,
+          2169903
+        ],
+        "direct-scalar": [
+          4645265,
+          5637542
+        ],
+        "reference": [
+          204988,
+          288382
+        ]
+      },
+      "size": 0,
+      "pattern": 0
+    },
+    {
+      "workload": "parse",
+      "iterations": 4096,
+      "samples_ns": {
+        "original-simd": [
+          1195082,
+          1206459,
+          1297375,
+          1310565,
+          1133660
+        ],
+        "original-scalar": [
+          3726127,
+          3956252,
+          3760278,
+          3917013,
+          5255279
+        ],
+        "direct-simd": [
+          1343174,
+          1312187,
+          1316474,
+          1205928,
+          1106680
+        ],
+        "direct-scalar": [
+          4167028,
+          4031525,
+          4370553,
+          3788711,
+          3775451
+        ],
+        "reference": [
+          179539,
+          179129,
+          246018,
+          207541,
+          333610
+        ]
+      },
+      "median_ns_per_operation": {
+        "original-simd": 294.545654296875,
+        "original-scalar": 956.302001953125,
+        "direct-simd": 320.358154296875,
+        "direct-scalar": 984.259033203125,
+        "reference": 50.669189453125
+      },
+      "sample_min_max_ns": {
+        "original-simd": [
+          1133660,
+          1310565
+        ],
+        "original-scalar": [
+          3726127,
+          5255279
+        ],
+        "direct-simd": [
+          1106680,
+          1343174
+        ],
+        "direct-scalar": [
+          3775451,
+          4370553
+        ],
+        "reference": [
+          179129,
+          333610
+        ]
+      },
+      "size": 0,
+      "pattern": 1
+    },
+    {
+      "workload": "parse",
+      "iterations": 4096,
+      "samples_ns": {
+        "original-simd": [
+          2246909,
+          1979859,
+          1886529,
+          1832017,
+          1932918
+        ],
+        "original-scalar": [
+          4363242,
+          4624113,
+          4334870,
+          4821670,
+          4353688
+        ],
+        "direct-simd": [
+          2173149,
+          1943935,
+          2079117,
+          1938617,
+          1984796
+        ],
+        "direct-scalar": [
+          5297142,
+          5436582,
+          5166947,
+          5003082,
+          4531204
+        ],
+        "reference": [
+          231848,
+          308363,
+          242784,
+          237306,
+          240320
+        ]
+      },
+      "median_ns_per_operation": {
+        "original-simd": 471.90380859375,
+        "original-scalar": 1065.24462890625,
+        "direct-simd": 484.5693359375,
+        "direct-scalar": 1261.461669921875,
+        "reference": 58.671875
+      },
+      "sample_min_max_ns": {
+        "original-simd": [
+          1832017,
+          2246909
+        ],
+        "original-scalar": [
+          4334870,
+          4821670
+        ],
+        "direct-simd": [
+          1938617,
+          2173149
+        ],
+        "direct-scalar": [
+          4531204,
+          5436582
+        ],
+        "reference": [
+          231848,
+          308363
+        ]
+      },
+      "size": 0,
+      "pattern": 2
+    },
+    {
+      "workload": "parse",
+      "iterations": 4096,
+      "samples_ns": {
+        "original-simd": [
+          1982373,
+          1964456,
+          1917425,
+          1900810,
+          1935052
+        ],
+        "original-scalar": [
+          4691354,
+          4728980,
+          4371134,
+          4330093,
+          4831835
+        ],
+        "direct-simd": [
+          1940940,
+          1952928,
+          1910665,
+          1940600,
+          1986118
+        ],
+        "direct-scalar": [
+          4891705,
+          4831314,
+          4705705,
+          4833808,
+          4850133
+        ],
+        "reference": [
+          425267,
+          253399,
+          215383,
+          250005,
+          177476
+        ]
+      },
+      "median_ns_per_operation": {
+        "original-simd": 472.4248046875,
+        "original-scalar": 1145.35009765625,
+        "direct-simd": 473.8623046875,
+        "direct-scalar": 1180.12890625,
+        "reference": 61.036376953125
+      },
+      "sample_min_max_ns": {
+        "original-simd": [
+          1900810,
+          1982373
+        ],
+        "original-scalar": [
+          4330093,
+          4831835
+        ],
+        "direct-simd": [
+          1910665,
+          1986118
+        ],
+        "direct-scalar": [
+          4705705,
+          4891705
+        ],
+        "reference": [
+          177476,
+          425267
+        ]
+      },
+      "size": 0,
+      "pattern": 3
+    },
+    {
+      "workload": "parse",
+      "iterations": 4096,
+      "samples_ns": {
+        "original-simd": [
+          2466429,
+          2395362,
+          2464215,
+          2380960,
+          2491505
+        ],
+        "original-scalar": [
+          4312907,
+          4112146,
+          4006938,
+          4221319,
+          4197543
+        ],
+        "direct-simd": [
+          2362031,
+          2465587,
+          2435071,
+          2350264,
+          2578766
+        ],
+        "direct-scalar": [
+          4299576,
+          4257414,
+          4440028,
+          4133537,
+          4307589
+        ],
+        "reference": [
+          142073,
+          158337,
+          108473,
+          108763,
+          140250
+        ]
+      },
+      "median_ns_per_operation": {
+        "original-simd": 601.614990234375,
+        "original-scalar": 1024.790771484375,
+        "direct-simd": 594.499755859375,
+        "direct-scalar": 1049.701171875,
+        "reference": 34.24072265625
+      },
+      "sample_min_max_ns": {
+        "original-simd": [
+          2380960,
+          2491505
+        ],
+        "original-scalar": [
+          4006938,
+          4312907
+        ],
+        "direct-simd": [
+          2350264,
+          2578766
+        ],
+        "direct-scalar": [
+          4133537,
+          4440028
+        ],
+        "reference": [
+          108473,
+          158337
+        ]
+      },
+      "size": 0,
+      "pattern": 4
+    },
+    {
+      "workload": "format",
+      "iterations": 4096,
+      "samples_ns": {
+        "original-simd": [
+          948262,
+          887731,
+          1294762,
+          891877,
+          907241
+        ],
+        "original-scalar": [
+          1048653,
+          2217435,
+          1291747,
+          1052348,
+          3083072
+        ],
+        "direct-simd": [
+          911336,
+          962293,
+          886850,
+          989173,
+          1014671
+        ],
+        "direct-scalar": [
+          1210555,
+          2602482,
+          1036955,
+          1079809,
+          1257115
+        ],
+        "reference": [
+          307140,
+          278248,
+          259218,
+          212549,
+          248613
+        ]
+      },
+      "median_ns_per_operation": {
+        "original-simd": 221.494384765625,
+        "original-scalar": 315.367919921875,
+        "direct-simd": 234.934814453125,
+        "direct-scalar": 295.545654296875,
+        "reference": 63.28564453125
+      },
+      "sample_min_max_ns": {
+        "original-simd": [
+          887731,
+          1294762
+        ],
+        "original-scalar": [
+          1048653,
+          3083072
+        ],
+        "direct-simd": [
+          886850,
+          1014671
+        ],
+        "direct-scalar": [
+          1036955,
+          2602482
+        ],
+        "reference": [
+          212549,
+          307140
+        ]
+      },
+      "size": 0,
+      "pattern": 0
+    },
+    {
+      "workload": "append",
+      "iterations": 4096,
+      "samples_ns": {
+        "original-simd": [
+          1094622,
+          1033380,
+          965608,
+          972739,
+          957766
+        ],
+        "original-scalar": [
+          1175742,
+          1266729,
+          1230805,
+          1315552,
+          1448412
+        ],
+        "direct-simd": [
+          960840,
+          948022,
+          1095522,
+          1234091,
+          1269433
+        ],
+        "direct-scalar": [
+          1128853,
+          1195933,
+          1106639,
+          1197996,
+          1244005
+        ],
+        "reference": [
+          247962,
+          483795,
+          238117,
+          251097,
+          220912
+        ]
+      },
+      "median_ns_per_operation": {
+        "original-simd": 237.485107421875,
+        "original-scalar": 309.260009765625,
+        "direct-simd": 267.46142578125,
+        "direct-scalar": 291.975830078125,
+        "reference": 60.53759765625
+      },
+      "sample_min_max_ns": {
+        "original-simd": [
+          957766,
+          1094622
+        ],
+        "original-scalar": [
+          1175742,
+          1448412
+        ],
+        "direct-simd": [
+          948022,
+          1269433
+        ],
+        "direct-scalar": [
+          1106639,
+          1244005
+        ],
+        "reference": [
+          220912,
+          483795
+        ]
+      },
+      "size": 0,
+      "pattern": 0
+    },
+    {
+      "workload": "append",
+      "iterations": 4096,
+      "samples_ns": {
+        "original-simd": [
+          1053770,
+          943285,
+          1101682,
+          1295853,
+          1061452
+        ],
+        "original-scalar": [
+          1219708,
+          1110996,
+          1207441,
+          1108863,
+          1180260
+        ],
+        "direct-simd": [
+          1065718,
+          1085708,
+          976604,
+          950685,
+          948892
+        ],
+        "direct-scalar": [
+          1323895,
+          1155453,
+          1311627,
+          1115562,
+          1253319
+        ],
+        "reference": [
+          497856,
+          449163,
+          380010,
+          366089,
+          354671
+        ]
+      },
+      "median_ns_per_operation": {
+        "original-simd": 259.1435546875,
+        "original-scalar": 288.1494140625,
+        "direct-simd": 238.4287109375,
+        "direct-scalar": 305.986083984375,
+        "reference": 92.77587890625
+      },
+      "sample_min_max_ns": {
+        "original-simd": [
+          943285,
+          1295853
+        ],
+        "original-scalar": [
+          1108863,
+          1219708
+        ],
+        "direct-simd": [
+          948892,
+          1085708
+        ],
+        "direct-scalar": [
+          1115562,
+          1323895
+        ],
+        "reference": [
+          354671,
+          497856
+        ]
+      },
+      "size": 64,
+      "pattern": 0
+    },
+    {
+      "workload": "append",
+      "iterations": 4096,
+      "samples_ns": {
+        "original-simd": [
+          1386779,
+          1439649,
+          1480089,
+          1367420,
+          1372027
+        ],
+        "original-scalar": [
+          2763513,
+          1777194,
+          1619037,
+          1560680,
+          1574181
+        ],
+        "direct-simd": [
+          1490665,
+          1476103,
+          1569122,
+          1410515,
+          1489934
+        ],
+        "direct-scalar": [
+          1853930,
+          1719158,
+          1515492,
+          1530255,
+          1509042
+        ],
+        "reference": [
+          2680950,
+          2604135,
+          2683403,
+          2897134,
+          3045817
+        ]
+      },
+      "median_ns_per_operation": {
+        "original-simd": 338.569091796875,
+        "original-scalar": 395.272705078125,
+        "direct-simd": 363.75341796875,
+        "direct-scalar": 373.597412109375,
+        "reference": 655.127685546875
+      },
+      "sample_min_max_ns": {
+        "original-simd": [
+          1367420,
+          1480089
+        ],
+        "original-scalar": [
+          1560680,
+          2763513
+        ],
+        "direct-simd": [
+          1410515,
+          1569122
+        ],
+        "direct-scalar": [
+          1509042,
+          1853930
+        ],
+        "reference": [
+          2604135,
+          3045817
+        ]
+      },
+      "size": 4096,
+      "pattern": 0
+    },
+    {
+      "workload": "compare",
+      "iterations": 4096,
+      "samples_ns": {
+        "original-simd": [
+          57045,
+          51007,
+          22454,
+          22554,
+          22454
+        ],
+        "original-scalar": [
+          22674,
+          22604,
+          22383,
+          22303,
+          22414
+        ],
+        "direct-simd": [
+          43294,
+          43064,
+          43295,
+          43235,
+          43335
+        ],
+        "direct-scalar": [
+          44437,
+          45728,
+          44217,
+          44657,
+          44486
+        ],
+        "reference": [
+          76575,
+          79279,
+          74472,
+          76344,
+          74692
+        ]
+      },
+      "median_ns_per_operation": {
+        "original-simd": 5.50634765625,
+        "original-scalar": 5.47216796875,
+        "direct-simd": 10.56982421875,
+        "direct-scalar": 10.86083984375,
+        "reference": 18.638671875
+      },
+      "sample_min_max_ns": {
+        "original-simd": [
+          22454,
+          57045
+        ],
+        "original-scalar": [
+          22303,
+          22674
+        ],
+        "direct-simd": [
+          43064,
+          43335
+        ],
+        "direct-scalar": [
+          44217,
+          45728
+        ],
+        "reference": [
+          74472,
+          79279
+        ]
+      },
+      "size": 0,
+      "pattern": 0
+    },
+    {
+      "workload": "generate-default",
+      "iterations": 256,
+      "samples_ns": {
+        "candidate": [
+          457906,
+          279319,
+          313971,
+          303284,
+          302764
+        ],
+        "reference": [
+          95052,
+          72088,
+          65238,
+          76074,
+          61703
+        ]
+      },
+      "median_ns_per_operation": {
+        "candidate": 1184.703125,
+        "reference": 281.59375
+      },
+      "sample_min_max_ns": {
+        "candidate": [
+          279319,
+          457906
+        ],
+        "reference": [
+          61703,
+          95052
+        ]
+      }
+    },
+    {
+      "workload": "generate-v4",
+      "iterations": 256,
+      "samples_ns": {
+        "candidate": [
+          273630,
+          301212,
+          380551,
+          275033,
+          291076
+        ],
+        "reference": [
+          72238,
+          81462,
+          69554,
+          67131,
+          37045
+        ]
+      },
+      "median_ns_per_operation": {
+        "candidate": 1137.015625,
+        "reference": 271.6953125
+      },
+      "sample_min_max_ns": {
+        "candidate": [
+          273630,
+          380551
+        ],
+        "reference": [
+          37045,
+          81462
+        ]
+      }
+    },
+    {
+      "workload": "generate-v7",
+      "iterations": 256,
+      "samples_ns": {
+        "candidate": [
+          321422,
+          438177,
+          476835,
+          322984,
+          376534
+        ],
+        "reference": [
+          76956,
+          77316,
+          75012,
+          77806,
+          74542
+        ]
+      },
+      "median_ns_per_operation": {
+        "candidate": 1470.8359375,
+        "reference": 300.609375
+      },
+      "sample_min_max_ns": {
+        "candidate": [
+          321422,
+          476835
+        ],
+        "reference": [
+          74542,
+          77806
+        ]
+      }
+    }
+  ],
+  "quota_telemetry": {
+    "pre_start_snapshot_available": false,
+    "completion_cpu_max": "400000 100000",
+    "completion_cpu_stat": {
+      "usage_usec": 157583812030,
+      "user_usec": 148004514874,
+      "system_usec": 9579297155,
+      "nice_usec": 481860771,
+      "nr_periods": 1168575,
+      "nr_throttled": 42005,
+      "throttled_usec": 1757103457,
+      "nr_bursts": 0,
+      "burst_usec": 0
+    },
+    "exact_window_throttle_delta_available": false,
+    "limitation": "No pre-start CPU cgroup snapshot was captured by this runner. Completion counters are raw cumulative values; no zero-throttle claim is made."
+  },
+  "review": [
+    "All pure fingerprints and real-generation invariant counts passed in every timed observation.",
+    "SIMD parsing is consistently faster than the separate scalar control in these samples.",
+    "Direct-argument changes are mixed across parse/format/append and make prepared comparison about2xslower; no general direct-harness win or production change is selected.",
+    "Canonical parsing remains about8xslower than the reference; it currently allocates intermediate compact and decoded buffers before producing the immutable value and fresh observation snapshot.",
+    "Secure generation is about4to5xslower; inspect actual entropy-provider calls/state/numeric conversion rather than substitute deterministic randomness.",
+    "Original packed prepared comparison is faster than the reference in these samples.",
+    "Large4096-byte immutable-prefix append is faster than the reference in these samples; short-prefix results go the other way.",
+    "Raw samples remain available; this is one bounded window, and the missing pre-start throttle snapshot limits exact quota attribution."
+  ],
+  "candidate_selected": false,
+  "package_complete": false
+}

@@ -1,0 +1,34 @@
+{
+  "kind": "strict-historical-Native-pure-UUID-source-only",
+  "pair_review_sha256": "62d04d371e1b90463324d361a7503ad5fbf47a6c4c73fac524993707b20578fd",
+  "compiler_sha256": "2f07707e0022b55e92bd8c2412962d06d2e4455022261c3e36dfa27e57fb231f",
+  "runtime_sha256": "80bd5b546742f8374221ac445ec20b7cfd0df0958d5c39313cde077204d6e141",
+  "interface_sha256": "1d22f22c4e4e0831e1176b70b4dd77cfa13c5d6db83869a596f64b34cd252256",
+  "objects_sha256": "22ab850df180636adac27eafb7a789dfd89009000c572b194c05d0a192bc5624",
+  "command": [
+    "python3",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/frontend.py",
+    "--check",
+    "--interfaces",
+    "/workspace/dasl-stdlib-string-combined/build/combined-stage3-frozen/base-interfaces.json",
+    "/workspace/dasl-stdlib-uuid/build/uuid-native-source-a1/Bundle.cinch",
+    "/workspace/dasl-stdlib-uuid/build/uuid-native-source-a1/check.ll"
+  ],
+  "sources": {
+    "Data.Bytes.Word.cinch": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
+    "Text.Hex.cinch": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
+    "Data.Uuid.cinch": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+    "Main.cinch": "e75cd3b17c70a085a130db600865e32d311c3ff94296ae118b61f857dd2faf4a"
+  },
+  "bundle_sha256": "f8947063b432372d5bcc56596f57384a9c5dc3c4331091616819c3096fab6324",
+  "exit": 0,
+  "seconds": 5.856930601992644,
+  "stdout": "",
+  "stderr": "cinch-leak: live=0 immortal=0 leaked=0\n",
+  "diagnostics": "",
+  "runtime_executed": false,
+  "object_linked": false,
+  "native_family_relabelled": false,
+  "candidate_selected": false,
+  "package_complete": false
+}
