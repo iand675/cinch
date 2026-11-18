@@ -60,5 +60,6 @@
   "leaked_owners": 0,
   "before_evidence": "bootstrap/repros/word-constant-evaluation/before-results.json",
   "native_status": "No Native producer/provider repair is claimed by this Rust checkpoint.",
-  "performance_status": "Correctness repair; no performance claim."
+  "performance_status": "Correctness repair; no performance claim.",
+  "validation_location": "Integrated production delta in /workspace/dasl-stdlib-io at35c44328, published with bfb4cb57; this lane has byte-identical repaired Rust implementation and scalar fixtures."
 }
