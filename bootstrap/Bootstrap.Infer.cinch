@@ -29,7 +29,7 @@ module Bootstrap.Infer where
   import Bootstrap.Typing
   import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, mvar-plan, mvar-type-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-code, scalar-operation-arguments, scalar-operation-result)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
-  import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
+  import Bootstrap.Dictionary (InstanceInventory, MkInstanceInventory, inventory-candidates, resolve-inventory-definition, resolve-inventory-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Nominal (interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-stage-code)
   import Bootstrap.Report (Diagnostic, diagnostic-message, diagnostic-span)
@@ -145,8 +145,8 @@ module Bootstrap.Infer where
   -- prefix followed by this record, because every later binding sits in front
   -- of the marker and none behind it.
   data EnvCache where
-    MkEnvCache :: List (String, Scheme) -> List GuardedBinding -> List CoreGiven -> EnvCache
-  cached-instances :: EnvCache -> List (String, Scheme)
+    MkEnvCache :: InstanceInventory -> List GuardedBinding -> List CoreGiven -> EnvCache
+  cached-instances :: EnvCache -> InstanceInventory
   cached-instances cache = case cache of MkEnvCache instances guarded givens -> instances
   cached-guarded :: EnvCache -> List GuardedBinding
   cached-guarded cache = case cache of MkEnvCache instances guarded givens -> guarded
@@ -2779,7 +2779,7 @@ module Bootstrap.Infer where
         let binding = MkCheckedBinding symbol (class-method-scheme member) "value" in
         case check-definition-with-annotations classes kinds families (Cons binding env) sp symbol original Nil st of
           (None, failed) -> (None, failed)
-          (Some generic, checked) -> case resolve-dictionary-definition-with classes (env-instances env) generic checked of
+          (Some generic, checked) -> case resolve-inventory-definition classes (env-inventory env) generic checked of
             (resolved, done) ->
               let bodies = env-body-context env in
               let guards = env-guarded-bindings env in
@@ -3604,7 +3604,7 @@ module Bootstrap.Infer where
     Cons b rest -> hash-map-insert (checked-name b) position (binding-positions rest (position + 1))
   -- The projections of a whole environment, folded once at the seal.
   env-cache :: List CheckedBinding -> EnvCache
-  env-cache env = MkEnvCache (env-instances env) (env-guarded-bindings env) (env-givens env)
+  env-cache env = MkEnvCache (env-inventory env) (env-guarded-bindings env) (env-givens env)
   env-body-bindings :: List CheckedBinding -> List BodyBinding
   env-body-bindings env = case env of Nil -> Nil; Cons (MkBodyBinding binding) rest -> Cons binding (env-body-bindings rest); Cons other rest -> env-body-bindings rest
   proof-erased :: List CheckedBinding -> Store -> ProofScope -> ProofScope
@@ -4013,11 +4013,22 @@ module Bootstrap.Infer where
     UFun a b -> arguments > 0 && polytype-after st (arguments - 1) b
     UFunEff a row b -> arguments > 0 && polytype-after st (arguments - 1) b
     other -> False
+  infer-callee :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
+  infer-callee classes kinds families env locals expr st = case expr of
+    EVar sp name -> (case lookup-expression-value sp kinds name env st of
+      (term, opened) -> case discharge-call classes sp env term opened of
+        (callee, checked) -> poly-elim-all sp callee checked)
+    other -> infer classes kinds families env locals expr st
+
   infer-raw :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
   infer-raw classes kinds families env locals expr st = case expr of
     ERecord sp name fields -> infer-record-construction classes kinds families env locals sp name fields None st
     EProject sp value label -> infer-record-projection classes kinds families env locals sp value label st
-    EVar s name -> case lookup-expression-value s kinds name env st of (term, checked) -> discharge-call classes s env term checked
+    EVar s name -> case lookup-expression-value s kinds name env st of
+      (term, checked) -> let ty = core-type term in
+        if computational-arrow (arrow-shape ty) && conditional-precondition ty then
+          term-error s (diagnostic-member-name name <> " must be applied directly: its refinement obligations discharge at its call arguments") checked
+        else discharge-call classes s env term checked
     ECon sp name (EArg at input (EArgsEnd end)) | has name ["#condition.NonZero", "#condition.NotNull"] ->
       let former = if same name "#condition.NonZero" then "NonZero" else "NotNull" in
       (case decision-unary classes kinds families env locals sp former input st of
@@ -4039,7 +4050,7 @@ module Bootstrap.Infer where
         None -> case projection-syntax-head env f of
           Some operation -> infer-projection classes kinds families env locals s operation x st
           None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if par-syntax-head env expr then infer-par-application classes kinds families env locals s expr None st else if par-method-head? env expr then par-method-dispatch classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
-            (case infer classes kinds families env locals f st of
+            (case infer-callee classes kinds families env locals f st of
               (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes (handling-context False kinds) families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
@@ -4212,7 +4223,7 @@ module Bootstrap.Infer where
             Some operation -> (case (later-parts (normalize st expected), args) of
               (Some carrier, [input]) -> if same operation "b.delay" then check-later-delay classes kinds families env locals sp input carrier st else infer classes kinds families env locals expr st
               other -> infer classes kinds families env locals expr st)
-            None -> case infer classes kinds families env locals head st of
+            None -> case infer-callee classes kinds families env locals head st of
               (fun, opened) -> apply-spine classes kinds families env locals fun args
                 (hint-application-result sp (core-type fun) args expected opened)
     other -> infer classes kinds families env locals expr st
@@ -4509,7 +4520,7 @@ module Bootstrap.Infer where
     EBindingsEnd s -> check classes kinds families env locals body expected st
     EBinding s name rhs rest -> let level = store-level st in
       case infer-strict-rhs classes kinds families env locals rhs (enter-level st) of
-        (value, checked) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value checked of
+        (value, checked) -> case resolve-inventory-term False classes (env-inventory env) (env-givens env) value checked of
           (resolved, ready) -> check-refined-binding classes kinds families env locals sp s name rest body expected level (strict-syntactic-value rhs) resolved ready
     other -> term-error sp "malformed let binding spine" st
 
@@ -4942,7 +4953,7 @@ module Bootstrap.Infer where
         case fresh-id checked of
           (id, fresh) -> let symbol = string-concat "#capability_" (nat-to-string id) in
             case infer-with classes kinds families (Cons (MkGivenBinding name ty symbol) (proof-env-after-term env value fresh)) locals rest body expected fresh of
-              (result, done) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) (CWith s (core-type result) (CGiven s symbol ty) value result) done of
+              (result, done) -> case resolve-inventory-term False classes (env-inventory env) (env-givens env) (CWith s (core-type result) (CGiven s symbol ty) value result) done of
                 (resolved, verified) -> (resolved, case with-region ty of Some region -> check-capability-escape s region (core-type result) verified; None -> verified)
     other -> term-error (expr-span bindings) "malformed capability binding spine" st
   with-region :: UType -> Option UType
@@ -4962,7 +4973,7 @@ module Bootstrap.Infer where
     EBinding s name rhs rest ->
       let level = store-level st in
       case infer-strict-rhs classes kinds families env locals rhs (enter-level st) of
-        (value, sr) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value sr of
+        (value, sr) -> case resolve-inventory-term False classes (env-inventory env) (env-givens env) value sr of
           (resolved, sd) -> infer-let-binding classes kinds families env locals sp s name rest body level wanted (strict-syntactic-value rhs) resolved sd
     other -> term-error (expr-span bs) "malformed let binding spine" st
   -- | Keep an evaluated strict allocation monomorphic and retain its original mutation/effect identity.
@@ -5049,7 +5060,7 @@ module Bootstrap.Infer where
   infer-group-strict classes kinds families env locals signatures bindings st = case bindings of
     ELocalStrict sp pattern syntax rest -> let level = store-level st in
       (case infer-group-rhs classes kinds families env locals signatures pattern syntax (enter-level st) of
-        (term, checked) -> (case resolve-dictionary-term-with classes (env-instances env) (env-givens env) term checked of
+        (term, checked) -> (case resolve-inventory-term False classes (env-inventory env) (env-givens env) term checked of
           (value, prepared) -> let checked-discard = check-discard sp (case pattern of PWild at -> True; other -> False) (core-type value) prepared in
             (case bind-group-values classes kinds families env locals sp pattern level (strict-syntactic-value syntax) value checked-discard of
             (bound, first, ready) -> (case infer-group-strict classes kinds families bound locals signatures rest ready of
@@ -6637,7 +6648,7 @@ module Bootstrap.Infer where
       else case check-definition classes kinds families env s name (indexed-clauses name clauses) st of
         (definition, ss) -> case definition of
           None -> (hash-map-insert name 0 seen, None, ss)
-          Some core -> case resolve-dictionary-definition-with classes (env-instances env) core ss of
+          Some core -> case resolve-inventory-definition classes (env-inventory env) core ss of
             (resolved, checked) -> let completed = default-task-failure-clauses (core-clauses resolved) checked in
               (hash-map-insert name 0 seen, Some (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) completed resolved), completed)
     DSig s name ty -> (seen, None, if indexed name clauses then st else add-error s (string-concat "signature has no definition: " name) st)
@@ -6971,7 +6982,7 @@ module Bootstrap.Infer where
             (Some body, None) -> (Nil, add-error zero "inherited default has no checked annotation-binder specialization" with-default)
             (Some body, Some aliases) -> (case check-definition-with-annotations classes kinds families bound zero private-name body aliases with-default of
               (None, failed) -> (Nil, failed)
-              (Some definition, checked) -> case resolve-dictionary-definition-with classes (env-instances env) definition checked of
+              (Some definition, checked) -> case resolve-inventory-definition classes (env-inventory env) definition checked of
                 (resolved, final) -> case source-instance-fields instance-span classes kinds families env defaults description symbol factory declarations rest final of
                   (more, done) -> (Cons (MkCoreDictionaryField zero (class-method-slot member) (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) done resolved)) more, done))
   checked-source-instances :: List Json -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
@@ -7100,7 +7111,7 @@ module Bootstrap.Infer where
     rewrite-free-bound left (right <> required) && rewrite-restricted-binders st locals left right
   resolve-rewrite-term :: List (String, Kind) -> List CheckedBinding -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-rewrite-term classes env givens term st =
-    resolve-dictionary-term-with classes (env-instances env) givens term st
+    resolve-inventory-term False classes (env-inventory env) givens term st
 
   check-citation-arguments :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List CorePattern -> List Expr -> Store -> (List (Nat, CoreTerm), Store)
   check-citation-arguments classes kinds families env locals formals args st = case (formals, args) of
@@ -7296,8 +7307,8 @@ module Bootstrap.Infer where
         None -> case bind-requirements sp [MkRequirement "#self" subject] env opened of
           (bound, givens, ready) -> case law-operands classes kinds families bound locals inputs syntax ready of
             (patterns, Some (first, second), checked) -> if list-length (store-errors checked) /= list-length (store-errors st) then ("", restore-level level checked) else
-              (case resolve-dictionary-term-with classes (env-instances env) givens first checked of
-                (left, checked-left) -> case resolve-dictionary-term-with classes (env-instances env) givens second checked-left of
+              (case resolve-inventory-term False classes (env-inventory env) givens first checked of
+                (left, checked-left) -> case resolve-inventory-term False classes (env-inventory env) givens second checked-left of
                   (right, resolved-right) -> let checked-right = finish-numbers resolved-right in
                     let done = restore-level level checked-right in
                     if list-length (store-errors done) /= list-length (store-errors st) then ("", done) else
@@ -8721,7 +8732,7 @@ module Bootstrap.Infer where
       None -> term-error (expr-span body) "function precondition has no checked argument scope" st
     other -> check-alt-body classes kinds families env locals body expected st
   discharge-call :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
-  discharge-call classes sp env input before = case resolve-ready-term classes (env-instances env) (env-givens env) input before of
+  discharge-call classes sp env input before = case resolve-inventory-term True classes (env-inventory env) (env-givens env) input before of
     (term, st) -> discharge-checked-call sp env term st
   discharge-checked-call :: Span -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
   discharge-checked-call sp env term st = let ty = normalize st (core-type term) in
@@ -8840,11 +8851,17 @@ module Bootstrap.Infer where
     JArrEnd -> (kinds, st)
     other -> (kinds, add-error sp "invalid instance contract array" st)
   env-instances :: List CheckedBinding -> List (String, Scheme)
-  env-instances env = case env of
-    Nil -> Nil
-    Cons (MkCheckedBinding name sc role) rest -> if same role "implicit-instance" then Cons (name, sc) (env-instances rest) else env-instances rest
+  env-instances env = inventory-candidates (env-inventory env)
+  env-inventory :: List CheckedBinding -> InstanceInventory
+  env-inventory env = case env of
+    Nil -> MkInstanceInventory Nil Nil
+    Cons (MkCheckedBinding name sc role) rest -> if same role "implicit-instance" then
+      (case env-inventory rest of MkInstanceInventory factories guarded -> MkInstanceInventory (Cons (name, sc) factories) guarded)
+      else env-inventory rest
+    Cons (MkConditionalBinding method owner slot dictionary head sc body) rest -> (case env-inventory rest of
+      MkInstanceInventory factories guarded -> MkInstanceInventory factories (Cons (dictionary, head) guarded))
     Cons (MkBodyContext context names cache) rest -> cached-instances cache
-    Cons other rest -> env-instances rest
+    Cons other rest -> env-inventory rest
   register-instance-rows :: List (String, Kind) -> TypeContext -> Span -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-instance-rows classes kinds sp rows env st = case rows of
     JArr row rest -> case (field "implicit" row, resolved-text row, field "id" row) of
@@ -8959,7 +8976,7 @@ module Bootstrap.Infer where
   conditional-prefix :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> Store -> (Option CoreTerm, Store)
   conditional-prefix classes sp env term st = case term of
     CMethod source ty name owner slot actuals evidence ->
-      let (ordinary, trial) = resolve-ready-term classes (env-instances env) (env-givens env) term st in
+      let (ordinary, trial) = resolve-inventory-term True classes (env-inventory env) (env-givens env) term st in
       if list-length (store-errors trial) == list-length (store-errors st) then (Some ordinary, trial)
       else (case evidence of
         Cons (CENeeded at wanted candidates) rest -> if list-length (free-metas st wanted) == 0 then conditional-function sp owner slot (normalize st wanted) (normalize st ty) env st else (None, st)
