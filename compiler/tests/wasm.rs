@@ -147,19 +147,11 @@ module Wide where
     )
     .expect_err("the literal must not fit a 32-bit Usize");
     assert!(err.to_string().contains("out of range for Usize"), "{err}");
-    // The emitted IR is the observation, so this program comes from the
-    // Rust frontend.
-    let program = cinch::driver::check_sources_profile(
+    let ir = common::source_frontend::emit_ir_profile(
         &wide("4294967295"),
-        "<test>",
         &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
     )
-    .expect("the maximal 32-bit Usize literal checks");
-    let ir = cinch::codegen::emit_for(
-        &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
-        &program,
-    )
-    .expect("wasm32 IR emission");
+    .expect("the selected frontend emits the maximal 32-bit Usize literal");
     assert!(
         ir.contains("target triple = \"wasm32-unknown-unknown\""),
         "the wasm32 target hook sets the triple"

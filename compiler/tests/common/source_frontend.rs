@@ -62,6 +62,20 @@ pub fn emit_ir(source: &str) -> Result<String, String> {
     }
 }
 
+pub fn emit_ir_profile(source: &str, profile: &TargetProfile) -> Result<String, String> {
+    match external_frontend::configured()? {
+        Some(frontend) => source_project("Main.cinch", source, |dir, entry| {
+            let ir = dir.join("program.ll");
+            let request = external_frontend::profile_request(Mode::EmitIr, StageMode::Refresh, profile)?;
+            external_frontend::drive_profile(&frontend, Mode::EmitIr, dir, entry, Some(ir.clone()), &request)?;
+            std::fs::read_to_string(&ir).map_err(|error| format!("{}: {error}", ir.display()))
+        }),
+        None => driver::check_sources_profile(source, "<test>", profile)
+            .and_then(|program| cinch::codegen::emit_for(profile, &program))
+            .map_err(|error| error.to_string()),
+    }
+}
+
 pub fn run_source(source: &str) -> Result<i32, String> {
     match external_frontend::configured()? {
         Some(frontend) => source_project("Main.cinch", source, |dir, entry| {
