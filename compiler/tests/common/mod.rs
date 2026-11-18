@@ -123,6 +123,18 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     std::fs::write(dir.join("Bootstrap.RuntimeAbi.cinch"), include_str!("../../../bootstrap/Bootstrap.RuntimeAbi.cinch"))
         .expect("exact runtime ABI dependency");
     if files.iter().any(|(name, _)| *name == "Bootstrap.Pipeline.cinch") {
+        let host = cinch::core::TargetProfile::native();
+        let mut source = String::from("module Bootstrap.Host where\n");
+        for (name, value) in [
+            ("host-triple", host.triple), ("host-os", host.os),
+            ("host-arch", host.arch), ("host-libc", host.libc),
+        ] {
+            source.push_str(&format!("  {name} :: String\n  {name} = {value:?}\n"));
+        }
+        std::fs::write(dir.join("Bootstrap.Host.cinch"), source)
+            .expect("build host profile for the staged pipeline");
+        std::fs::write(dir.join("Bootstrap.Target.cinch"), include_str!("../../../bootstrap/Bootstrap.Target.cinch"))
+            .expect("checked target selection dependency");
         std::fs::write(dir.join("Bootstrap.RuntimeIr.cinch"), include_str!("../../../bootstrap/Bootstrap.RuntimeIr.cinch"))
             .expect("typed pipeline emitter dependency");
         for (name, source) in [
