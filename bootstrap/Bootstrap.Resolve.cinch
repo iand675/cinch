@@ -19,7 +19,7 @@ module Bootstrap.Resolve where
   import Algebra.Semigroup
 
   export MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available
-  export resolve-program, resolve-program-with, resolve-overlay-with, unshadowed-interfaces
+  export resolve-program, resolve-program-with, resolve-signature-overlays, resolve-overlay-with, unshadowed-interfaces
 
   -- Visible spelling, defining module, internal global spelling.
   data Binding where
@@ -387,10 +387,39 @@ module Bootstrap.Resolve where
           (entries, errors) -> case build-exports rest visible views entries of
             (surface, more) -> (surface, errors <> more)
 
-  module-visibility :: Module -> List Scoped -> List Binding -> (List Binding, List Binding, List View, List Diagnostic)
-  module-visibility m done base =
+  -- A base source home may share a signature with its object consumers only
+  -- after the driver has rechecked its full interface against the provider.
+  -- Source methods, values and instances keep their own implementations.
+  shared-signatures :: String -> List Decl -> List LoadedInterface -> List Binding
+  shared-signatures home declarations checked = case checked of
+    Nil -> Nil
+    Cons first rest -> if same home (loaded-module first) then signature-bindings home declarations first
+      else shared-signatures home declarations rest
+  signature-bindings :: String -> List Decl -> LoadedInterface -> List Binding
+  signature-bindings home declarations checked = case declarations of
+    Nil -> Nil
+    Cons (DClass sp name params members) rest -> let identity = home <> "." <> name in
+      let more = signature-bindings home rest checked in
+      if exports-identity "signature" identity (loaded-exports checked) then
+        Cons (MkBinding name home (interface-global identity)) (signature-method-bindings home identity (decls-of members) checked more) else more
+    Cons other rest -> signature-bindings home rest checked
+
+  signature-method-bindings :: String -> String -> List Decl -> LoadedInterface -> List Binding -> List Binding
+  signature-method-bindings home owner ds checked bindings = case ds of
+    Nil -> bindings
+    Cons (DSig sp name syntax) rest -> let identity = owner <> "." <> name in
+      let more = signature-method-bindings home owner rest checked bindings in
+      if exports-identity "method" identity (loaded-exports checked) then Cons (MkBinding name home (interface-global identity)) more else more
+    Cons other rest -> signature-method-bindings home owner rest checked bindings
+  defining-symbol :: String -> String -> Visible -> String
+  defining-symbol home name visible = case visible-lookup name visible of
+    Some (MkBinding label source symbol) | same source home && string-starts-with "i." symbol -> symbol
+    other -> global-name home name
+
+  module-visibility :: Module -> List Scoped -> List Binding -> List LoadedInterface -> (List Binding, List Binding, List View, List Diagnostic)
+  module-visibility m done base checked =
     let home = module-name m in
-    let declared = own-bindings home (module-decls m) Nil in
+    let declared = own-bindings home (module-decls m) (shared-signatures home (module-decls m) checked) in
     let (views, errors) = import-views (module-decls m) done in
     let (bare, clashes) = bare-imports views Nil in
     let qualified = qualified-imports views in
@@ -398,10 +427,10 @@ module Bootstrap.Resolve where
     let visible = declared <> qualify home declared <> bare <> qualified <> prelude-bindings <> kernel-bindings builtin-bindings in
     (declared, visible, views, errors <> clashes <> qualified-duplicates (module-span m) qualified Nil)
 
-  build-scope :: Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> (Scoped, List (String, LexicalScope), List Diagnostic)
-  build-scope m done base earlier =
+  build-scope :: Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (Scoped, List (String, LexicalScope), List Diagnostic)
+  build-scope m done base earlier checked =
     let home = module-name m in
-    let (declared, visible, views, visibility-errors) = module-visibility m done base in
+    let (declared, visible, views, visibility-errors) = module-visibility m done base checked in
     let (surface, export-errors) = case export-items (module-decls m) of
           Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
           Cons first rest -> build-exports (Cons first rest) visible views Nil in
@@ -445,7 +474,7 @@ module Bootstrap.Resolve where
   macro-scope-order :: List Module -> List Scoped -> List (String, List Binding) -> List (String, List Binding)
   macro-scope-order remaining done scopes = case pick-ready remaining done Nil of
     None -> scopes
-    Some (m, pending) -> let (declared, visible, views, diagnostics) = module-visibility m done Nil in
+    Some (m, pending) -> let (declared, visible, views, diagnostics) = module-visibility m done Nil Nil in
       let (surface, errors) = if has-export-declaration (module-decls m) then build-exports (export-items (module-decls m)) visible views Nil else (declared, Nil) in
       let home = module-name m in
       macro-scope-order pending (Cons (MkScoped home surface Nil) done) (Cons (home, visible) scopes)
@@ -464,13 +493,13 @@ module Bootstrap.Resolve where
     Nil -> None
     Cons (home, bindings) rest -> if same home owner then lookup-binding spelling bindings else module-macro rest owner spelling
 
-  resolve-ordered :: List Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> (List Scoped, List Diagnostic)
-  resolve-ordered remaining done base homes = case remaining of
+  resolve-ordered :: List Module -> List Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (List Scoped, List Diagnostic)
+  resolve-ordered remaining done base homes checked = case remaining of
     Nil -> (reverse done, Nil)
     Cons first rest -> case pick-ready remaining done Nil of
       None -> (reverse done, import-cycle first remaining)
-      Some (m, pending) -> case build-scope m done base homes of
-        (ready, more-homes, errors) -> case resolve-ordered pending (Cons ready done) base more-homes of
+      Some (m, pending) -> case build-scope m done base homes checked of
+        (ready, more-homes, errors) -> case resolve-ordered pending (Cons ready done) base more-homes checked of
           (ordered, more) -> (ordered, errors <> more)
 
   -- Every remaining module has an unresolved edge into the remaining
@@ -1066,7 +1095,7 @@ module Bootstrap.Resolve where
     DClass s name params members ->
       if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-known classes and cannot be declared") else
         case rename-class-members home name visible (parameter-names params) (decls-of members) of
-          (renamed, errors) -> ([DClass s (global-name home name) (rename-params visible Nil params) (decl-spine s renamed)], errors)
+          (renamed, errors) -> ([DClass s (defining-symbol home name visible) (rename-params visible Nil params) (decl-spine s renamed)], errors)
     DRefine s name params binder predicate -> if same name "MVarCell" then (Nil, fail s "the kernel MVarCell carrier cannot be redefined as a refinement") else
       let names = parameter-names params in
       let renamed-binder = case binder of MkTypeParam at local kind only -> MkTypeParam at local (case kind of None -> None; Some carrier -> Some (rename-type visible names carrier)) only in
@@ -1254,7 +1283,7 @@ module Bootstrap.Resolve where
   rename-class-members-with home owner visible locals all ds = case ds of
     Nil -> (Nil, Nil)
     Cons (DSig s name ty) rest -> case rename-class-members-with home owner visible locals all rest of
-      (more, errors) -> (Cons (DMethod s name (global-name home name) (rename-type visible locals ty)) more, errors)
+      (more, errors) -> (Cons (DMethod s name (defining-symbol home name visible) (rename-type visible locals ty)) more, errors)
     Cons (DLaw s name syntax) rest -> case rename-law visible locals syntax of
       (checked, failures) -> case rename-class-members-with home owner visible locals all rest of
         (more, errors) -> (Cons (DLaw s name checked) more, failures <> errors)
@@ -1306,10 +1335,13 @@ module Bootstrap.Resolve where
     Cons b rest -> Cons (binding-symbol b) (binding-references rest)
 
   resolve-program-with :: Program -> List LoadedInterface -> (Program, List Diagnostic)
-  resolve-program-with p interfaces = case validate-interface-set interfaces of
+  resolve-program-with p interfaces = resolve-signature-overlays p interfaces Nil
+
+  resolve-signature-overlays :: Program -> List LoadedInterface -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-signature-overlays p interfaces checked = case validate-interface-set interfaces of
     Err message -> (p, fail (program-span p) message)
     Ok ordered -> let available = unshadowed-interfaces (program-modules p) ordered in
-      resolve-context p (interface-scopes available) (interface-headers available) Nil
+      resolve-context p (interface-scopes available) (interface-headers available) Nil checked
 
   -- A source module beside the entry shadows the base-package copy of the
   -- same name: the explicit source is the program's version of that module,
@@ -1333,7 +1365,7 @@ module Bootstrap.Resolve where
     Err message -> (p, fail (program-span p) message)
     Ok ordered -> let available = unshadowed-interfaces (program-modules p) ordered in
       let base = overlay-base-bindings facade (loaded-exports facade) available Nil in
-      resolve-context p (interface-scopes available) (interface-headers available) base
+      resolve-context p (interface-scopes available) (interface-headers available) base Nil
 
   overlay-base-bindings :: LoadedInterface -> List (String, String, String) -> List LoadedInterface -> List Binding -> List Binding
   overlay-base-bindings facade exports dependencies found = case exports of
@@ -1362,10 +1394,10 @@ module Bootstrap.Resolve where
     Nil -> False
     Cons (name, category, symbol) rest -> (same kind category && same identity symbol) || exports-identity kind identity rest
 
-  resolve-context :: Program -> List Scoped -> List Module -> List Binding -> (Program, List Diagnostic)
-  resolve-context p interfaces headers base = case p of
+  resolve-context :: Program -> List Scoped -> List Module -> List Binding -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-context p interfaces headers base checked = case p of
     MkProgram sp modules -> case validate-modules modules interfaces modules Nil of
-      Nil -> case resolve-ordered modules (reverse interfaces) base Nil of
+      Nil -> case resolve-ordered modules (reverse interfaces) base Nil checked of
         (done, Nil) ->
           let declarations = builtin-declarations <> scoped-decls done in
           let source-surfaces = source-scopes modules done in
@@ -1489,7 +1521,7 @@ module Bootstrap.Resolve where
   module-record-scope :: String -> List Module -> List Scoped -> List String -> List Binding -> List String
   module-record-scope name modules scopes records base = case modules of
     Nil -> Nil
-    Cons m rest -> if same name (module-name m) then (case module-visibility m scopes base of
+    Cons m rest -> if same name (module-name m) then (case module-visibility m scopes base Nil of
       (declared, visible, views, errors) -> visible-record-symbols visible records)
       else module-record-scope name rest scopes records base
 

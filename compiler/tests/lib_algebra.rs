@@ -934,3 +934,28 @@ fn modules_load_as_a_multi_file_project() {
     assert_eq!(code, 0);
     common::cleanup(&dir);
 }
+
+#[test]
+fn source_signature_uses_the_object_instance_and_the_current_source_body() {
+    let source = SEMIGROUP.replace("Cons ((<>) x y) (combine-pairs more)", "Cons y (combine-pairs more)");
+    assert_ne!(source, SEMIGROUP);
+    let main = r#"module Main where
+  import Algebra.Semigroup
+
+  main :: Int
+  main = case combine-pairs (Cons (Cons (7 :: Nat) Nil) (Cons (Cons 9 Nil) Nil)) of
+    Cons (Cons n Nil) Nil -> if n == 9 then 0 else 1
+    _ -> 2
+"#;
+    expect_project_exit("algebra-source-body", &[("Semigroup.cinch", &source), ("Main.cinch", main)], 0);
+}
+
+#[test]
+fn changed_source_signature_cannot_use_the_old_list_dictionary() {
+    let signature = "module Algebra.Semigroup where\n  signature Semigroup a where\n    pick :: a -> Bool\n";
+    let main = "module Main where\n  import Algebra.Semigroup\n  main :: Int\n  main = if pick (Cons (3 :: Nat) Nil) then 0 else 1\n";
+    let dir = common::project("algebra-incompatible-signature", &[("Semigroup.cinch", signature), ("Main.cinch", main)]);
+    let result = common::drive(Mode::Build, &dir, "Main.cinch", Some(dir.join("client")));
+    assert!(result.is_err(), "accepted an incompatible dictionary: {result:?}");
+    common::cleanup(&dir);
+}

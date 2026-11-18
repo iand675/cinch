@@ -13,7 +13,7 @@ module Bootstrap.Infer where
   import Bootstrap.Proof (Proposition, PNegate, PCompare, Equal, disproved)
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Show (int-to-string)
-  import Text.Scan (string-words)
+  import Text.Scan (string-words, string-starts-with)
   import Data.Bytes (bytes-len)
   import Bootstrap.Core
   import Bootstrap.Layout (check-layouts)
@@ -2591,7 +2591,9 @@ module Bootstrap.Infer where
   source-class-kinds ds kinds seen = case ds of
     Nil -> seen
     Cons (DClass sp name ps members) rest -> case context-kind name kinds of
-      Some kind -> source-class-kinds rest kinds (Cons (name, kind) seen)
+      Some kind -> (case lookup-kind name seen of
+        Some existing | string-starts-with "i." name && kind-equal existing kind -> source-class-kinds rest kinds seen
+        other -> source-class-kinds rest kinds (Cons (name, kind) seen))
       None -> source-class-kinds rest kinds seen
     Cons other rest -> source-class-kinds rest kinds seen
   class-parameter-prefix :: Nat -> List Quant -> List Quant

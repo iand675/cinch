@@ -16,7 +16,7 @@
 
 module Bootstrap.Pipeline where
 
-  import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name)
+  import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name, module-decls, Decl, DClass)
   import Bootstrap.Check (CheckedProgram, check-and-retain, checked-surface, checked-elaboration)
   import Bootstrap.CoreBody (dense-claims-verified)
   import Bootstrap.Infer (elaboration-core)
@@ -30,7 +30,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set)
   import Bootstrap.Inputs (read-interfaces, embedded-library-home, read-interface-references, load-interface-references)
   import Bootstrap.Contracts (interface-headers)
-  import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-overlay-with, unshadowed-interfaces)
+  import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-signature-overlays, resolve-overlay-with, unshadowed-interfaces)
   import Bootstrap.Stage (expand-stages-with, explain-expansion-errors)
   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
   import Bootstrap.Export (export-interfaces, interface-hash, build-profile-manifest)
@@ -40,6 +40,7 @@ module Bootstrap.Pipeline where
   import Algebra.Semigroup
   import Effect.Process (process-run, command)
   import Data.Json
+  import Data.Bytes (bytes-compare)
   import Data.List (map)
   import Text.Json (canonical-bytes)
   import Data.Nat (nat-to-int)
@@ -395,10 +396,40 @@ module Bootstrap.Pipeline where
         Some prior -> Some name
         None -> object-source-conflict rest interfaces)
 
+  declares-signature :: List Decl -> Bool
+  declares-signature ds = case ds of
+    Nil -> False
+    Cons (DClass sp name parameters members) rest -> True
+    Cons other rest -> declares-signature rest
+  has-signature-overlay :: List Module -> Bool
+  has-signature-overlay modules = case modules of
+    Nil -> False
+    Cons m rest -> (embedded-library-home (module-name m) && declares-signature (module-decls m)) || has-signature-overlay rest
+  -- Compare all checked ABI, dependency, law and default-body rows. Only
+  -- producer and source provenance differ between an embedded compilation
+  -- and rechecking the same public contract from a client's source bundle.
+  overlay-contract-bytes :: Json -> Bytes
+  overlay-contract-bytes doc = canonical-bytes (object-set "compiler" JNull (object-set "source_hash" JNull doc))
+  matched-object-overlays :: List (String, Json) -> List LoadedInterface -> Option (List LoadedInterface)
+  matched-object-overlays rows interfaces = case rows of
+    Nil -> Some Nil
+    Cons (name, fresh) rest -> case overlay-interface name interfaces of
+      Some previous | bytes-compare (overlay-contract-bytes fresh) (overlay-contract-bytes (loaded-contract previous)) == 0 ->
+        (case matched-object-overlays rest interfaces of Some more -> Some (Cons previous more); None -> None)
+      other -> None
+  check-object-source :: TargetProfile -> Bytes -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
+  check-object-source profile source program interfaces =
+    if not (has-signature-overlay (program-modules program)) then checked-source profile program interfaces else
+      case recheck-source-overlays profile source program interfaces interfaces Nil of
+        Ok (remaining, effective, rows) -> (case matched-object-overlays rows interfaces of
+          Some (Cons first rest) -> check-source-phase profile (\input -> resolve-signature-overlays input interfaces (Cons first rest)) (\unit -> interface-headers interfaces) program
+          other -> checked-source profile program interfaces)
+        Err message -> checked-source profile program interfaces
+
   check-object-client :: TargetProfile -> Bytes -> Program -> List LoadedInterface -> Result String CheckedProgram
   check-object-client profile source program interfaces = case object-source-conflict (program-modules program) interfaces of
     Some name -> Err ("bootstrap.object: module " <> name <> " is already supplied by the library object; rebuild the library to change it")
-    None -> case checked-source profile program interfaces of
+    None -> case check-object-source profile source program interfaces of
       Err errors -> Err (render-source-diagnostics source errors)
       Ok checked -> Ok checked
 
